@@ -1,0 +1,14 @@
+{
+  "name": "re_xiuxian",
+  "version": "1.0.0",
+  "description": "重生之凡人修仙传 - 网络文字游戏",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm start",
+    "client": "cd client && npm run dev",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "重生之凡人修仙传 API",
+    "description": "修仙文字游戏后端接口文档",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "本地开发环境"
+    }
+  ],
+  "paths": {
+    "/api/status": {
+      "get": {
+        "summary": "检查服务器状态",
+        "description": "获取服务器和数据库的连接状态",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "message": "服务器正常运行，数据库连接成功",
+                  "timestamp": "2024-05-20T12:00:00.000Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "summary": "用户注册",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "hanli"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "123456"
+                  },
+                  "nickname": {
+                    "type": "string",
+                    "example": "韩天尊"
+                  }
+                },
+                "required": ["username", "password", "nickname"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "注册成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "注册成功，踏入仙途",
+                  "playerId": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "用户登录",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "hanli"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "123456"
+                  }
+                },
+                "required": ["username", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "登录成功",
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                  "player": {
+                    "id": 1,
+                    "nickname": "韩天尊",
+                    "realm": "凡人"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
