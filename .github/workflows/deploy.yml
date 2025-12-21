@@ -8,7 +8,6 @@ on:
 jobs:
   build-and-package:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -41,7 +40,6 @@ jobs:
         
         # 复制后端代码 (排除 node_modules)
         cp -r server/* release/server/
-        # 清理可能存在的 node_modules (以防万一)
         rm -rf release/server/node_modules
         
         # 复制启动脚本
@@ -59,57 +57,81 @@ jobs:
         name: xiuxian-release
         path: release/
 
-  # 4. 自动部署 (需要配置 GitHub Secrets)
-  # 如果你配置了服务器的 SSH 信息，取消下面的注释即可启用自动部署
+  # 4. 自动部署
   deploy:
     needs: build-and-package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
         with:
           name: xiuxian-release
           path: release
 
-      # 方案 B: 使用 tar 打包传输单个文件，然后在服务器端解压
-      # 这样可以避免 drone-scp 尝试在 Windows 上自动执行 tar 导致的路径问题
-      - name: Compress Release
+      # 打包为单个压缩包，减少传输文件数
+      - name: Compress Release Package
         run: |
           cd release
           tar -czf deploy_package.tar.gz *
 
-      - name: Copy package via SCP
-        uses: appleboy/scp-action@master
+      # 步骤1：先创建Windows临时目录（避免scp传输时目录不存在）
+      - name: Create Temp Directory on Windows
+        uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
-          source: "release/deploy_package.tar.gz"
-          target: "C:/Projects/re_xiuxian_temp"
-          strip_components: 1 # 去掉 release/ 这一层目录
-          
-      - name: Deploy on Server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          password: ${{ secrets.PASSWORD }}
+          port: 22
           script: |
-            # 切换到 PowerShell 模式
-            powershell -Command "Write-Host 'Starting deployment...'"
-            
-            # 1. 确保目标目录存在
-            if not exist C:\Projects\re_xiuxian mkdir C:\Projects\re_xiuxian
-            
-            # 2. 解压文件 (使用 Windows 自带的 tar，Windows 10/Server 2019+ 自带)
-            echo Extracting files...
-            tar -xzf C:\Projects\re_xiuxian_temp\deploy_package.tar.gz -C C:\Projects\re_xiuxian
-            
-            # 3. 清理临时文件
-            del C:\Projects\re_xiuxian_temp\deploy_package.tar.gz
-            rmdir C:\Projects\re_xiuxian_temp
-            
-            # 4. 安装依赖并启动
-            cd C:\Projects\re_xiuxian\server
-            call npm install --production
-            call npm install -g pm2
-            pm2 startOrReload ecosystem.config.js
+            powershell -Command "New-Item -Path 'C:\\Projects\\re_xiuxian_temp' -ItemType Directory -Force"
+
+      # 步骤2：SCP传输压缩包（关键：路径用双反斜杠，版本用最新）
+      - name: Copy Package to Windows via SCP
+        uses: appleboy/scp-action@v0.1.7  # 替换为稳定版，放弃master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: 22
+          source: "release/deploy_package.tar.gz"
+          target: "C:\\Projects\\re_xiuxian_temp"  # 双反斜杠适配Windows
+          debug: true  # 开启调试，方便排查问题（部署稳定后可关闭）
+
+      # 步骤3：在Windows服务器解压并部署（统一用PowerShell语法）
+      - name: Deploy on Windows Server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: 22
+          script: |
+            powershell -Command "
+              # 1. 确保目标目录存在
+              if (-not (Test-Path 'C:\\Projects\\re_xiuxian')) {
+                New-Item -Path 'C:\\Projects\\re_xiuxian' -ItemType Directory -Force | Out-Null
+                Write-Host 'Created target directory: C:\\Projects\\re_xiuxian'
+              }
+              
+              # 2. 解压压缩包（Windows自带tar，兼容Win10/Server2019+）
+              Write-Host 'Extracting deployment package...'
+              tar -xzf 'C:\\Projects\\re_xiuxian_temp\\deploy_package.tar.gz' -C 'C:\\Projects\\re_xiuxian'
+              
+              # 3. 清理临时文件/目录
+              Write-Host 'Cleaning up temp files...'
+              Remove-Item 'C:\\Projects\\re_xiuxian_temp\\deploy_package.tar.gz' -Force
+              Remove-Item 'C:\\Projects\\re_xiuxian_temp' -Recurse -Force
+              
+              # 4. 安装后端依赖（生产环境）
+              Write-Host 'Installing server dependencies...'
+              Set-Location 'C:\\Projects\\re_xiuxian\\server'
+              npm install --production
+              
+              # 5. 安装PM2并重启服务
+              Write-Host 'Starting/Restarting PM2 service...'
+              npm install -g pm2
+              pm2 startOrReload ecosystem.config.js
+              pm2 save  # 保存PM2进程列表，重启服务器后自动恢复
+              
+              Write-Host 'Deployment completed successfully!'
+            "
