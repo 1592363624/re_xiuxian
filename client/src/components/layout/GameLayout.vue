@@ -96,6 +96,9 @@
     <!-- GM 管理后台 -->
     <AdminPanel v-if="isAdminPanelOpen" @close="isAdminPanelOpen = false" />
     
+    <!-- 地图面板 -->
+    <MapPanel v-if="isMapOpen" @close="isMapOpen = false" />
+    
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="isLogoutConfirmOpen = false"></div>
@@ -155,6 +158,7 @@ import BreakthroughPortal from '../widgets/BreakthroughPortal.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
+import MapPanel from '../panels/MapPanel.vue';
 
 const props = defineProps<{
   player: any
@@ -170,6 +174,7 @@ const playerStore = usePlayerStore();
 const uiStore = useUIStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
+const isMapOpen = ref(false);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
 const onlineCount = ref(0);
@@ -212,6 +217,9 @@ const handleMenuClick = (btnName: string) => {
   if (btnName === '设置') {
     isSettingsOpen.value = true;
     isMobileMenuOpen.value = false;
+  } else if (btnName === '地图') {
+    isMapOpen.value = true;
+    isMobileMenuOpen.value = false;
   } else if (btnName === 'GM') {
     isAdminPanelOpen.value = true;
     isMobileMenuOpen.value = false;
@@ -239,6 +247,7 @@ onUnmounted(() => {
 });
 
 const menuButtons = [
+  { name: '地图', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' },
   { name: '功法', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>' },
   { name: '储物', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>' }, // 暂时用个图标代替
   { name: '角色', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },

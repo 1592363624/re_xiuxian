@@ -21,6 +21,7 @@ require('./models/system_config');
 const http = require('http');
 const socketIo = require('socket.io');
 const LifespanService = require('./services/LifespanService');
+const MapService = require('./services/MapService');
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +40,7 @@ const UPDATE_INTERVAL_SEC = 10 * 60;
 
 setInterval(() => {
     LifespanService.updateLifespan(UPDATE_INTERVAL_SEC);
+    MapService.processEnvironmentConsumption(UPDATE_INTERVAL_SEC);
 }, UPDATE_INTERVAL_MS);
 
 // 立即执行一次检查 (可选，用于启动时同步)
@@ -59,6 +61,7 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/system', require('./routes/system'));
 app.use('/api/seclusion', require('./routes/seclusion'));
 app.use('/api/breakthrough', require('./routes/breakthrough'));
+app.use('/api/map', require('./routes/map'));
 
 // 生产环境静态资源托管 (必须放在 API 路由之后)
 // 如果 client/dist 目录存在，则提供静态文件服务

@@ -178,6 +178,17 @@ onUnmounted(() => {
             {{ player.realm || '凡人' }}
           </div>
        </div>
+
+       <!-- 位置显示 (新增) -->
+       <div class="flex items-center justify-between w-full border-t border-stone-800/50 pt-3 mt-2">
+          <div class="flex items-center gap-2 text-stone-500 text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500/70"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+            <span class="font-serif tracking-widest text-stone-400">所在位置</span>
+          </div>
+          <div class="text-emerald-400 text-sm font-bold tracking-wider">
+            {{ player.current_map?.name || '未知区域' }}
+          </div>
+       </div>
     </div>
 
     <!-- 状态条 -->
@@ -255,7 +266,7 @@ onUnmounted(() => {
     </div>
 
     <!-- 属性网格 -->
-    <div class="grid grid-cols-2 gap-3 mb-8">
+    <div class="grid grid-cols-3 gap-3 mb-8">
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">攻击</span>
         <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.atk || 0 }}</span>

@@ -132,6 +132,16 @@ const Player = sequelize.define('Player', {
         type: DataTypes.DATE,
         allowNull: true,
         comment: '最后闭关结束时间'
+    },
+    current_map_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '当前所在地图ID'
+    },
+    last_map_move_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后移动地图时间'
     }
 }, {
     tableName: 'players',
