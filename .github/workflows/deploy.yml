@@ -67,6 +67,7 @@ jobs:
     - name: Prepare Deployment Artifacts
       run: |
         # 创建部署脚本 deploy.ps1 (在 Windows 端执行)
+        # 重要：脚本中只使用 ASCII 字符，避免 PowerShell 5.1 读取 UTF-8 (无 BOM) 文件时出现中文乱码导致语法错误
         cat <<EOF > deploy.ps1
         \$ErrorActionPreference = 'Stop'
         Start-Transcript -Path "C:\\Projects\\re_xiuxian_temp\\deploy_log.txt" -Force
@@ -76,30 +77,30 @@ jobs:
         \$targetDir = "C:\\Projects\\re_xiuxian"
         \$zipPath = "\$tempDir\\deploy_package.zip"
 
-        # 1. 检查文件是否存在
+        # 1. Check file existence
         if (-not (Test-Path \$zipPath)) {
             Throw "Error: Deployment package not found at \$zipPath"
         }
 
-        # 2. 清理并创建目标目录
+        # 2. Clean and create target directory
         if (Test-Path \$targetDir) {
             Write-Host "Cleaning target directory..."
-            # 保留 node_modules 以加速安装 (可选，这里选择全量覆盖以确保干净)
+            # Optional: Keep node_modules to speed up install
             # Remove-Item "\$targetDir\\*" -Recurse -Force -Exclude "node_modules"
         } else {
             New-Item -Path \$targetDir -ItemType Directory -Force | Out-Null
         }
 
-        # 3. 解压 ZIP (使用 PowerShell 原生命令，比 tar 更稳定)
+        # 3. Extract ZIP
         Write-Host "Extracting package to \$targetDir..."
         Expand-Archive -Path \$zipPath -DestinationPath \$targetDir -Force
 
-        # 4. 后端依赖安装
+        # 4. Install Server Dependencies
         Write-Host "Installing server dependencies..."
         Set-Location "\$targetDir\\server"
         npm install --production --no-audit
 
-        # 5. PM2 服务管理
+        # 5. Configure PM2
         Write-Host "Configuring PM2..."
         if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
             Write-Host "Installing PM2 globally..."
