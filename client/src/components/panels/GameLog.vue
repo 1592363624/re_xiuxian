@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useUIStore } from '../../stores/ui'
 
 const props = defineProps({
   player: {
@@ -8,29 +9,21 @@ const props = defineProps({
   }
 })
 
-const logs = ref([])
+const uiStore = useUIStore()
 const filterMode = ref('all') // all, self, system
 const logContainer = ref(null)
 
 // 模拟日志生成 (用于展示功能)
 let mockInterval = null
 
-const addLog = (log) => {
-  logs.value.push({
-    id: Date.now() + Math.random(),
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    ...log
-  })
-  // 保持日志数量限制
-  if (logs.value.length > 200) logs.value.shift()
-  
-  // 自动滚动到底部
+// 监听日志变化，自动滚动
+watch(() => uiStore.logs.length, () => {
   nextTick(() => {
     if (logContainer.value) {
       logContainer.value.scrollTop = logContainer.value.scrollHeight
     }
   })
-}
+})
 
 const getLogStyle = (type) => {
   switch (type) {
@@ -44,7 +37,7 @@ const getLogStyle = (type) => {
 
 // 过滤逻辑
 const filteredLogs = computed(() => {
-  return logs.value.filter(log => {
+  return uiStore.logs.filter(log => {
     // 强制显示重要事件 (如突破、系统公告)
     if (log.isImportant) return true
     
@@ -64,12 +57,14 @@ const filteredLogs = computed(() => {
 })
 
 onMounted(() => {
-  // 1. 欢迎信息
-  addLog({
-    content: '欢迎来到凡人修仙传的世界！道友请开始你的修仙之旅。',
-    type: 'system',
-    isImportant: true
-  })
+  // 1. 欢迎信息 (如果日志为空才显示，避免重复)
+  if (uiStore.logs.length === 0) {
+    uiStore.addLog({
+      content: '欢迎来到凡人修仙传的世界！道友请开始你的修仙之旅。',
+      type: 'system',
+      isImportant: true
+    })
+  }
 })
 
 onUnmounted(() => {

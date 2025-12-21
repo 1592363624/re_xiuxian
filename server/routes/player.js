@@ -4,7 +4,24 @@
 const express = require('express');
 const router = express.Router();
 const Player = require('../models/player');
+const Realm = require('../models/realm');
 const auth = require('../middleware/auth'); // 假设有认证中间件
+
+const calcExpCapByRank = (rank) => {
+    const r = Math.max(1, Number(rank) || 1);
+    return BigInt(Math.floor(1000 * Math.pow(r, 3)));
+};
+
+const getRealmExpCap = (realm) => {
+    if (realm && realm.exp_cap !== undefined && realm.exp_cap !== null) {
+        try {
+            return BigInt(realm.exp_cap);
+        } catch (e) {
+            return calcExpCapByRank(realm.rank);
+        }
+    }
+    return calcExpCapByRank(realm?.rank);
+};
 
 // 获取当前玩家信息
 router.get('/me', auth, async (req, res) => {
@@ -15,16 +32,19 @@ router.get('/me', auth, async (req, res) => {
             return res.status(404).json({ message: '玩家不存在' });
         }
 
-        // 计算衍生属性 (这里简化处理，实际可能有更复杂的公式)
-        // 假设 HP = 体质 * 10 (这里没有体质字段，先用固定公式模拟)
-        // 简单模拟：HP 上限 = 境界基础值 + 属性加成
-        // 暂时写死或根据 exp 估算
-        const hpMax = 100 + Math.floor(player.exp / 10);
-        const mpMax = 100 + Math.floor(player.exp / 10); // 灵力上限也随修为增加
-        const expNext = 100 * Math.pow(2, Math.floor(player.exp / 1000)); // 简单模拟升级经验
-
         const playerData = player.toJSON();
-        
+        const attributes = typeof playerData.attributes === 'string' ? JSON.parse(playerData.attributes) : playerData.attributes;
+        const spiritRoots = typeof playerData.spirit_roots === 'string' ? JSON.parse(playerData.spirit_roots) : playerData.spirit_roots;
+
+        const realm = await Realm.findByPk(player.realm);
+        const expCap = getRealmExpCap(realm);
+        const nextRealm = realm ? await Realm.findOne({ where: { rank: realm.rank + 1 } }) : null;
+        const currentExp = BigInt(player.exp || 0);
+        const canBreakthrough = !!nextRealm && currentExp >= expCap;
+
+        const hpMax = attributes?.hp_max ?? realm?.base_hp ?? 100;
+        const mpMax = attributes?.mp_max ?? realm?.base_mp ?? 0;
+
         // 合并计算属性
         const responseData = {
             ...playerData,
@@ -32,9 +52,13 @@ router.get('/me', auth, async (req, res) => {
             hp_max: hpMax,
             mp_current: playerData.mp_current, // 使用数据库中的真实灵力
             mp_max: mpMax,
-            exp_next: expNext,
-            // 确保 attributes 被正确解析 (Sequelize getter 应该已经处理了，但以防万一)
-            attributes: typeof playerData.attributes === 'string' ? JSON.parse(playerData.attributes) : playerData.attributes
+            exp_next: expCap.toString(),
+            exp_cap: expCap.toString(),
+            exp_progress: expCap > 0n ? Number(currentExp * 10000n / expCap) / 10000 : 0,
+            can_breakthrough: canBreakthrough,
+            next_realm: nextRealm?.name || null,
+            attributes,
+            spirit_roots: spiritRoots
         };
 
         res.json(responseData);

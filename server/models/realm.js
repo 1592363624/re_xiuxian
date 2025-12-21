@@ -14,8 +14,13 @@ const Realm = sequelize.define('Realm', {
     rank: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        unique: true,
+        unique: 'uk_realm_rank',
         comment: '境界排序(等级)'
+    },
+    exp_cap: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: '当前境界修为上限(达到后可突破)'
     },
     base_hp: {
         type: DataTypes.BIGINT,

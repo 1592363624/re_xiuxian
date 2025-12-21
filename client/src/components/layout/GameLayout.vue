@@ -54,7 +54,7 @@
           </button>
           
           <h1 class="text-xl font-serif font-bold text-amber-500 tracking-wider flex items-center gap-2">
-            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">v0.0.1_BETA</span>
+            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">v0.0.2_BETA</span>
           </h1>
         </div>
         
@@ -87,7 +87,8 @@
     
     <!-- 闭关遮罩层 -->
     <SeclusionOverlay v-if="playerStore.player?.is_secluded" />
-    <SeclusionSetupModal v-if="isSeclusionSetupOpen" :isOpen="true" @close="isSeclusionSetupOpen = false" />
+
+    <BreakthroughPortal v-if="playerStore.player" />
     
     <!-- 设置弹窗 -->
     <SettingsModal v-if="isSettingsOpen" @close="isSettingsOpen = false" />
@@ -145,14 +146,15 @@
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import axios from 'axios';
 import { usePlayerStore } from '../../stores/player';
+import { useUIStore } from '../../stores/ui';
 import PlayerStatus from '../panels/PlayerStatus.vue';
 import GameLog from '../panels/GameLog.vue';
 import ActionBar from '../panels/ActionBar.vue';
 import GlobalChat from '../widgets/GlobalChat.vue';
+import BreakthroughPortal from '../widgets/BreakthroughPortal.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
-import SeclusionSetupModal from '../modals/SeclusionSetupModal.vue';
 
 const props = defineProps<{
   player: any
@@ -165,11 +167,11 @@ const props = defineProps<{
 const emit = defineEmits(['action']);
 
 const playerStore = usePlayerStore();
+const uiStore = useUIStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
-const isSeclusionSetupOpen = ref(false);
 const onlineCount = ref(0);
 const totalPlayers = ref(0);
 let statsInterval: any = null;
@@ -186,11 +188,21 @@ const fetchStats = async () => {
   }
 };
 
-const handleAction = (actionId: string) => {
+const handleAction = async (actionId: string) => {
   console.log('ActionBar emitted action:', actionId);
   if (actionId === 'meditate') {
-    console.log('Opening seclusion setup modal');
-    isSeclusionSetupOpen.value = true;
+    try {
+      await playerStore.startSeclusion();
+      uiStore.showToast('进入闭关状态', 'success');
+      uiStore.addLog({
+        content: '开始闭关修炼，摒除杂念，感悟天地灵气。',
+        type: 'info',
+        actorId: 'self'
+      });
+    } catch (error: any) {
+      const msg = error.response?.data?.error || '无法开始闭关';
+      uiStore.showToast(msg, 'error');
+    }
     return;
   }
   emit('action', actionId);

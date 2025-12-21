@@ -1,6 +1,11 @@
 const sequelize = require('../config/database');
 const Realm = require('../models/realm');
 
+const calcExpCapByRank = (rank) => {
+    const r = Math.max(1, Number(rank) || 1);
+    return Math.floor(1000 * Math.pow(r, 3));
+};
+
 const realmData = [
     { name: "凡人", rank: 1, base_hp: 100, base_atk: 10, base_def: 5, base_speed: 10, base_mp: 0, base_sense: 10, base_lifespan: 60, mp_regen_rate: 0, toxicity_decay: 0 },
     { name: "炼气期1层", rank: 2, base_hp: 200, base_atk: 20, base_def: 10, base_speed: 15, base_mp: 100, base_sense: 20, base_lifespan: 80, mp_regen_rate: 20, toxicity_decay: 1 },
@@ -49,7 +54,10 @@ const realmData = [
     { name: "太乙初期", rank: 45, base_hp: 60000000, base_atk: 6000000, base_def: 3000000, base_speed: 900, base_mp: 60000000, base_sense: 6000000, base_lifespan: 10000000, mp_regen_rate: 1600, toxicity_decay: 90 },
     { name: "大罗初期", rank: 46, base_hp: 200000000, base_atk: 20000000, base_def: 10000000, base_speed: 1000, base_mp: 200000000, base_sense: 20000000, base_lifespan: 50000000, mp_regen_rate: 1700, toxicity_decay: 100 },
     { name: "道祖", rank: 47, base_hp: 600000000, base_atk: 60000000, base_def: 30000000, base_speed: 1200, base_mp: 600000000, base_sense: 60000000, base_lifespan: 100000000, mp_regen_rate: 1800, toxicity_decay: 120 }
-];
+].map((r) => ({
+    ...r,
+    exp_cap: calcExpCapByRank(r.rank)
+}));
 
 async function initRealms() {
     try {

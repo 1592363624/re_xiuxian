@@ -1,6 +1,7 @@
 <script setup>
 import { ref, nextTick, watch, onMounted, onUnmounted, reactive } from 'vue'
 import axios from 'axios'
+import { io } from 'socket.io-client'
 import { usePlayerStore } from '../../stores/player'
 
 const isOpen = ref(false)
@@ -8,7 +9,7 @@ const newMessage = ref('')
 const messages = ref([])
 const messagesContainer = ref(null)
 const playerStore = usePlayerStore()
-let pollInterval = null
+let socket = null
 
 // 拖拽相关状态
 const isDragging = ref(false)
@@ -86,8 +87,7 @@ const sendMessage = async () => {
   
   try {
     await axios.post('/api/chat/send', { content })
-    // Fetch immediately after send
-    await fetchMessages()
+    // 不再需要 fetchMessages，因为 Socket.IO 会广播新消息
     scrollToBottom()
   } catch (error) {
     console.error('Failed to send message', error)
@@ -114,12 +114,33 @@ watch(messages, (newVal, oldVal) => {
 
 onMounted(() => {
   fetchMessages()
-  // Poll every 3 seconds
-  pollInterval = setInterval(fetchMessages, 3000)
+  
+  // 初始化 Socket.IO 连接
+  // 在开发环境下，后端在 3000 端口，前端在 5173 端口，需要指定后端地址
+  // 在生产环境下，由于是同域部署，可以直接不传地址或传空字符串
+  const socketUrl = import.meta.env.DEV ? 'http://localhost:3000' : ''
+  socket = io(socketUrl)
+  
+  // 监听新消息事件
+  socket.on('new_message', (msg) => {
+    messages.value.push({
+      id: msg.id,
+      sender: msg.sender,
+      content: msg.content,
+      type: msg.type === 'system' ? 'system' : (msg.sender === playerStore.player?.nickname ? 'self' : 'player')
+    })
+    
+    // 如果聊天窗口打开，滚动到底部
+    if (isOpen.value) {
+      scrollToBottom()
+    }
+  })
 })
 
 onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval)
+  if (socket) {
+    socket.disconnect()
+  }
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
 })
@@ -133,21 +154,21 @@ onUnmounted(() => {
     <!-- Chat Window -->
     <div 
       v-if="isOpen"
-      class="mb-4 w-80 h-96 bg-gray-900/95 border border-amber-600/30 rounded-lg shadow-2xl flex flex-col backdrop-blur-sm overflow-hidden transition-all duration-300 origin-bottom-right animate-fade-in-up select-none"
+      class="mb-4 w-80 h-96 bg-[#14100d] border border-amber-500/40 rounded-2xl shadow-[0_0_25px_rgba(180,119,37,0.35)] flex flex-col backdrop-blur-sm overflow-hidden transition-all duration-300 origin-bottom-right animate-fade-in-up select-none"
     >
       <!-- Header -->
-      <div class="h-12 bg-gray-800/80 border-b border-gray-700 flex items-center justify-between px-4 shrink-0 cursor-move" @mousedown="onMouseDown">
-        <div class="flex items-center gap-2 text-amber-500 font-bold pointer-events-none">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H18a2.5 2.5 0 0 1 0 5H16.5"></path><path d="M4 22h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2z"></path></svg>
-          千里传音
+      <div class="h-12 bg-[#14100d] border-b border-amber-500/20 flex items-center justify-between px-4 shrink-0 cursor-move" @mousedown="onMouseDown">
+        <div class="flex items-center gap-2 text-amber-300 font-semibold tracking-widest pointer-events-none">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400"><path d="M13 10V3a1 1 0 0 0-2 0v7"></path><path d="M18 10a6 6 0 0 0-12 0v4"></path><path d="M4 19h16"></path><path d="M9 22h6"></path></svg>
+          <span>千里传音</span>
         </div>
-        <div class="text-xs text-gray-500 flex items-center gap-1 pointer-events-none">
+        <div class="text-xs text-amber-900/70 flex items-center gap-1 pointer-events-none">
           在线参与中
         </div>
       </div>
 
       <!-- Messages -->
-      <div ref="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+      <div ref="messagesContainer" class="flex-1 overflow-y-auto px-4 py-3 space-y-4 custom-scrollbar bg-[#0f0b08]">
         <div 
           v-for="msg in messages" 
           :key="msg.id" 
@@ -161,36 +182,36 @@ onUnmounted(() => {
           <div 
             class="text-sm tracking-wide max-w-[90%] px-3 py-1.5 rounded break-words"
             :class="{
-              'text-amber-500/80 italic font-serif text-center': msg.type === 'system',
-              'bg-gray-800 text-gray-300': msg.type === 'player',
-              'bg-emerald-900/50 text-emerald-100 border border-emerald-500/20': msg.type === 'self'
+              'text-amber-300 font-serif text-center': msg.type === 'system',
+              'bg-[#1c130d] text-amber-50 border border-amber-500/20': msg.type === 'player',
+              'bg-[#1b2516] text-emerald-50 border border-emerald-500/25': msg.type === 'self'
             }"
           >
             {{ msg.content }}
           </div>
           
           <!-- Divider for system msgs -->
-          <div v-if="msg.type === 'system'" class="w-16 h-px bg-gradient-to-r from-transparent via-amber-900/50 to-transparent mx-auto mt-2"></div>
+          <div v-if="msg.type === 'system'" class="w-16 h-px bg-gradient-to-r from-transparent via-amber-700/60 to-transparent mx-auto mt-2"></div>
         </div>
         
-        <div v-if="messages.length === 0" class="text-center text-gray-600 text-xs py-4">
-          暂无消息
+        <div v-if="messages.length === 0" class="text-center text-amber-300 text-sm py-6 font-serif">
+          欢迎来到修仙世界！
         </div>
       </div>
 
       <!-- Input -->
-      <div class="p-3 bg-gray-800/30 border-t border-gray-700 shrink-0">
-        <div class="relative">
+      <div class="p-3 bg-[#14100d] border-t border-amber-500/20 shrink-0">
+        <div class="relative rounded-2xl border border-amber-500/30 bg-[#130f0b] px-3 py-1.5 flex items-center">
           <input 
             v-model="newMessage"
             @keyup.enter="sendMessage"
             type="text" 
             placeholder="切磋武艺，交流感悟..." 
-            class="w-full bg-transparent border border-gray-600 rounded-full py-2 pl-4 pr-10 text-sm text-gray-200 focus:outline-none focus:border-amber-500/50 transition-colors placeholder-gray-600"
+            class="flex-1 bg-transparent outline-none border-none text-sm text-amber-50 placeholder-amber-900/60"
           >
           <button 
             @click="sendMessage"
-            class="absolute right-1.5 top-1/2 -translate-y-1/2 text-amber-600 hover:text-amber-500 p-1 transition-colors"
+            class="ml-2 w-8 h-8 rounded-full flex items-center justify-center bg-amber-500 text-[#130f0b] shadow-[0_0_14px_rgba(251,191,36,0.65)] hover:bg-amber-400 active:scale-95 transition-transform transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
@@ -202,8 +223,8 @@ onUnmounted(() => {
     <button 
       @mousedown="onMouseDown"
       @click="toggleChat"
-      class="w-12 h-12 rounded-full bg-gray-800 border border-gray-600 text-gray-400 hover:text-amber-500 hover:border-amber-500/50 flex items-center justify-center shadow-lg transition-all relative group active:scale-95 cursor-move"
-      :class="{'ring-2 ring-amber-500/50': isDragging}"
+      class="w-12 h-12 rounded-full bg-[#14100d] border border-amber-500/70 text-amber-300 hover:text-amber-100 hover:border-amber-400 flex items-center justify-center shadow-[0_0_18px_rgba(251,191,36,0.45)] transition-all relative group active:scale-95 cursor-move"
+      :class="{'ring-2 ring-amber-500/70': isDragging}"
     >
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
       

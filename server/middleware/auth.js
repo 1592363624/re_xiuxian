@@ -35,6 +35,14 @@ module.exports = async (req, res, next) => {
 
         req.user = decoded;
         req.player = player; // 挂载 player 对象供后续使用
+
+        // 更新最后在线时间 (每分钟最多更新一次，避免频繁写入)
+        const now = new Date();
+        if (!player.last_online || (now - new Date(player.last_online)) > 60000) {
+            player.last_online = now;
+            await player.save({ silent: true }); // 使用 silent: true 避免触发表的 updatedAt 更新
+        }
+
         next();
     } catch (error) {
         res.status(401).json({ message: '令牌无效或已过期' });

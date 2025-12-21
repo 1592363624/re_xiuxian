@@ -19,6 +19,15 @@
         ></div>
         <span class="text-stone-300 font-bold tracking-widest text-sm group-hover:text-amber-500 transition-colors">{{ action.name }}</span>
         
+        <!-- 冷却倒计时 -->
+        <div
+          v-if="action.id === 'meditate' && remainingCooldown > 0"
+          class="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-10 pointer-events-auto cursor-not-allowed"
+          @click.stop
+        >
+          <span class="text-amber-500 font-mono font-bold">{{ formatCooldown(remainingCooldown) }}</span>
+        </div>
+
         <!-- 悬停光效 -->
         <div class="absolute inset-0 rounded-lg bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
       </button>
@@ -27,13 +36,65 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import axios from 'axios'
 
 const props = defineProps({
   player: {
     type: Object,
     default: () => ({})
   }
+})
+
+const currentTime = ref(Date.now())
+const seclusionCooldown = ref(3600) // 默认 60 分钟
+let timer = null
+
+// 获取系统配置
+const fetchConfig = async () => {
+  try {
+    const res = await axios.get('/api/system/config')
+    if (res.data && res.data.seclusion_cooldown) {
+      seclusionCooldown.value = res.data.seclusion_cooldown
+    }
+  } catch (err) {
+    console.error('获取系统配置失败:', err)
+  }
+}
+
+// 计算剩余冷却时间 (秒)
+const remainingCooldown = computed(() => {
+  if (!props.player || !props.player.last_seclusion_time) return 0
+  
+  const lastEnd = new Date(props.player.last_seclusion_time).getTime()
+  const now = currentTime.value
+  const diffSeconds = Math.floor((now - lastEnd) / 1000)
+  
+  const remaining = seclusionCooldown.value - diffSeconds
+  return remaining > 0 ? remaining : 0
+})
+
+// 格式化冷却时间 (MM:SS)
+const formatCooldown = (seconds) => {
+  if (seconds >= 3600) {
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    return `${h}h${m}m`
+  }
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+onMounted(() => {
+  fetchConfig()
+  timer = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
 })
 
 // 判断是否可以突破

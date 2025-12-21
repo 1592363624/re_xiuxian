@@ -28,7 +28,9 @@ async function initDB() {
     console.log('检查并初始化系统配置...');
     const defaultConfig = [
       { key: 'auto_save_interval', value: '10000', description: '自动存档间隔(毫秒)' },
-      { key: 'initial_lifespan', value: '100', description: '初始寿元' }
+      { key: 'initial_lifespan', value: '100', description: '初始寿元' },
+      { key: 'seclusion_exp_rate', value: '0.1', description: '闭关经验倍率 (每秒获得点数)' },
+      { key: 'seclusion_cooldown', value: '3600', description: '闭关冷却时间 (秒)' }
     ];
 
     for (const config of defaultConfig) {

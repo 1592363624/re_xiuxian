@@ -32,10 +32,22 @@ router.post('/send', authenticateToken, async (req, res) => {
         }
 
         const message = await Chat.create({
-            sender: req.user.nickname || req.user.username,
+            sender: req.player.nickname || req.player.username,
             content: content.trim(),
             type: 'player'
         });
+
+        // 通过 Socket.IO 广播新消息
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('new_message', {
+                id: message.id,
+                sender: message.sender,
+                content: message.content,
+                type: message.type,
+                createdAt: message.createdAt
+            });
+        }
 
         res.status(201).json(message);
     } catch (error) {

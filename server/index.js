@@ -58,6 +58,7 @@ app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/system', require('./routes/system'));
 app.use('/api/seclusion', require('./routes/seclusion'));
+app.use('/api/breakthrough', require('./routes/breakthrough'));
 
 // 生产环境静态资源托管 (必须放在 API 路由之后)
 // 如果 client/dist 目录存在，则提供静态文件服务
@@ -100,7 +101,7 @@ const startServer = async () => {
         console.error('无法连接到数据库 (但不影响服务器启动):', error.message);
     }
 
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
         console.log(`服务器运行在 http://localhost:${PORT}`);
     });
 };

@@ -13,7 +13,7 @@ const Player = sequelize.define('Player', {
     username: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true,
+        unique: 'uk_player_username',
         comment: '登录账号'
     },
     password: {
@@ -24,6 +24,7 @@ const Player = sequelize.define('Player', {
     nickname: {
         type: DataTypes.STRING,
         allowNull: false,
+        unique: 'uk_player_nickname',
         comment: '游戏昵称'
     },
     realm: {
@@ -85,6 +86,18 @@ const Player = sequelize.define('Player', {
         },
         comment: '基础属性JSON'
     },
+    spirit_roots: {
+        type: DataTypes.TEXT,
+        defaultValue: JSON.stringify({}),
+        get() {
+            const rawValue = this.getDataValue('spirit_roots');
+            return rawValue ? JSON.parse(rawValue) : {};
+        },
+        set(value) {
+            this.setDataValue('spirit_roots', JSON.stringify(value));
+        },
+        comment: '灵根资质JSON'
+    },
     token_version: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
@@ -109,6 +122,16 @@ const Player = sequelize.define('Player', {
         type: DataTypes.INTEGER,
         defaultValue: 0,
         comment: '计划闭关时长(秒)'
+    },
+    last_online: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后在线时间'
+    },
+    last_seclusion_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后闭关结束时间'
     }
 }, {
     tableName: 'players',
