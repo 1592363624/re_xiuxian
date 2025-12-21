@@ -274,6 +274,7 @@
                   "mp_max": 100,
                   "lifespan_current": 18.5,
                   "lifespan_max": 100,
+                  "last_online": "2024-05-20T12:00:00.000Z",
                   "attributes": {
                     "atk": 10,
                     "def": 5,

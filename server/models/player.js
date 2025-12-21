@@ -109,6 +109,16 @@ const Player = sequelize.define('Player', {
         type: DataTypes.INTEGER,
         defaultValue: 0,
         comment: '计划闭关时长(秒)'
+    },
+    last_online: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后在线时间'
+    },
+    last_seclusion_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后闭关结束时间'
     }
 }, {
     tableName: 'players',

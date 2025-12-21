@@ -8,15 +8,25 @@ const SystemConfig = require('../models/system_config');
 const Player = require('../models/player');
 const authenticateToken = require('../middleware/auth');
 
+const { Op } = require('sequelize');
+
 // 获取服务器统计信息
 router.get('/stats', async (req, res) => {
     try {
         const totalPlayers = await Player.count();
-        const io = req.app.get('io');
-        const onlinePlayers = io ? io.engine.clientsCount : 0;
+        
+        // 统计在线人数：最后在线时间在5分钟内的玩家
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const onlinePlayers = await Player.count({
+            where: {
+                last_online: {
+                    [Op.gte]: fiveMinutesAgo
+                }
+            }
+        });
 
         res.json({
-            online: onlinePlayers,
+            online: Math.max(1, onlinePlayers), // 至少显示1人（当前请求者）
             total: totalPlayers
         });
     } catch (error) {

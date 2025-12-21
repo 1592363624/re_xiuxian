@@ -87,7 +87,6 @@
     
     <!-- 闭关遮罩层 -->
     <SeclusionOverlay v-if="playerStore.player?.is_secluded" />
-    <SeclusionSetupModal v-if="isSeclusionSetupOpen" :isOpen="true" @close="isSeclusionSetupOpen = false" />
     
     <!-- 设置弹窗 -->
     <SettingsModal v-if="isSettingsOpen" @close="isSettingsOpen = false" />
@@ -145,6 +144,7 @@
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import axios from 'axios';
 import { usePlayerStore } from '../../stores/player';
+import { useUIStore } from '../../stores/ui';
 import PlayerStatus from '../panels/PlayerStatus.vue';
 import GameLog from '../panels/GameLog.vue';
 import ActionBar from '../panels/ActionBar.vue';
@@ -152,7 +152,6 @@ import GlobalChat from '../widgets/GlobalChat.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
-import SeclusionSetupModal from '../modals/SeclusionSetupModal.vue';
 
 const props = defineProps<{
   player: any
@@ -165,11 +164,11 @@ const props = defineProps<{
 const emit = defineEmits(['action']);
 
 const playerStore = usePlayerStore();
+const uiStore = useUIStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
-const isSeclusionSetupOpen = ref(false);
 const onlineCount = ref(0);
 const totalPlayers = ref(0);
 let statsInterval: any = null;
@@ -186,11 +185,16 @@ const fetchStats = async () => {
   }
 };
 
-const handleAction = (actionId: string) => {
+const handleAction = async (actionId: string) => {
   console.log('ActionBar emitted action:', actionId);
   if (actionId === 'meditate') {
-    console.log('Opening seclusion setup modal');
-    isSeclusionSetupOpen.value = true;
+    try {
+      await playerStore.startSeclusion();
+      uiStore.showToast('进入闭关状态', 'success');
+    } catch (error: any) {
+      const msg = error.response?.data?.error || '无法开始闭关';
+      uiStore.showToast(msg, 'error');
+    }
     return;
   }
   emit('action', actionId);

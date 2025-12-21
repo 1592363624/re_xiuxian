@@ -100,7 +100,7 @@ const startServer = async () => {
         console.error('无法连接到数据库 (但不影响服务器启动):', error.message);
     }
 
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
         console.log(`服务器运行在 http://localhost:${PORT}`);
     });
 };

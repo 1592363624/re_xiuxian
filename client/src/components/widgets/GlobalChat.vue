@@ -1,6 +1,7 @@
 <script setup>
 import { ref, nextTick, watch, onMounted, onUnmounted, reactive } from 'vue'
 import axios from 'axios'
+import { io } from 'socket.io-client'
 import { usePlayerStore } from '../../stores/player'
 
 const isOpen = ref(false)
@@ -8,7 +9,7 @@ const newMessage = ref('')
 const messages = ref([])
 const messagesContainer = ref(null)
 const playerStore = usePlayerStore()
-let pollInterval = null
+let socket = null
 
 // 拖拽相关状态
 const isDragging = ref(false)
@@ -86,8 +87,7 @@ const sendMessage = async () => {
   
   try {
     await axios.post('/api/chat/send', { content })
-    // Fetch immediately after send
-    await fetchMessages()
+    // 不再需要 fetchMessages，因为 Socket.IO 会广播新消息
     scrollToBottom()
   } catch (error) {
     console.error('Failed to send message', error)
@@ -114,12 +114,33 @@ watch(messages, (newVal, oldVal) => {
 
 onMounted(() => {
   fetchMessages()
-  // Poll every 3 seconds
-  pollInterval = setInterval(fetchMessages, 3000)
+  
+  // 初始化 Socket.IO 连接
+  // 在开发环境下，后端在 3000 端口，前端在 5173 端口，需要指定后端地址
+  // 在生产环境下，由于是同域部署，可以直接不传地址或传空字符串
+  const socketUrl = import.meta.env.DEV ? 'http://localhost:3000' : ''
+  socket = io(socketUrl)
+  
+  // 监听新消息事件
+  socket.on('new_message', (msg) => {
+    messages.value.push({
+      id: msg.id,
+      sender: msg.sender,
+      content: msg.content,
+      type: msg.type === 'system' ? 'system' : (msg.sender === playerStore.player?.nickname ? 'self' : 'player')
+    })
+    
+    // 如果聊天窗口打开，滚动到底部
+    if (isOpen.value) {
+      scrollToBottom()
+    }
+  })
 })
 
 onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval)
+  if (socket) {
+    socket.disconnect()
+  }
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
 })
