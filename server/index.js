@@ -48,12 +48,16 @@ setInterval(() => {
 app.use(cors());
 app.use(express.json());
 
+// 将 io 实例挂载到 app 上，供路由使用
+app.set('io', io);
+
 // 路由
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/player', require('./routes/player'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/system', require('./routes/system'));
+app.use('/api/seclusion', require('./routes/seclusion'));
 
 // 生产环境静态资源托管 (必须放在 API 路由之后)
 // 如果 client/dist 目录存在，则提供静态文件服务

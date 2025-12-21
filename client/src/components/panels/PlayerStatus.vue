@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import axios from 'axios'
 
 const props = defineProps({
   player: {
@@ -46,6 +47,76 @@ watch(() => props.player.exp, (newVal, oldVal) => {
       isExpChanged.value = false
     }, 500)
   }
+})
+
+// 在线人数统计逻辑
+const onlineCount = ref(0)
+const totalCount = ref(0)
+const displayedCount = ref(0)
+const statsLoading = ref(false)
+const statsError = ref(false)
+const isCountChanged = ref(false)
+let statsInterval = null
+
+// 数字滚动动画
+const animateCount = (target) => {
+  const start = displayedCount.value
+  const diff = target - start
+  if (diff === 0) return
+
+  isCountChanged.value = true
+  setTimeout(() => isCountChanged.value = false, 300)
+
+  // 简单的数字递增动画
+  const duration = 1000
+  const startTime = performance.now()
+  
+  const step = (currentTime) => {
+    const elapsed = currentTime - startTime
+    const progress = Math.min(elapsed / duration, 1)
+    // easeOutQuart
+    const ease = 1 - Math.pow(1 - progress, 4)
+    
+    displayedCount.value = Math.round(start + diff * ease)
+    
+    if (progress < 1) {
+      requestAnimationFrame(step)
+    }
+  }
+  
+  requestAnimationFrame(step)
+}
+
+const fetchStats = async (isInitial = false) => {
+  if (isInitial) statsLoading.value = true
+  
+  try {
+    const res = await axios.get('/api/system/stats')
+    if (res.data) {
+      statsError.value = false
+      totalCount.value = res.data.total
+      
+      if (res.data.online !== onlineCount.value) {
+        onlineCount.value = res.data.online
+        animateCount(onlineCount.value)
+      }
+    }
+  } catch (error) {
+    console.error('Fetch stats failed:', error)
+    statsError.value = true
+    // 保持旧数据不清除
+  } finally {
+    if (isInitial) statsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchStats(true)
+  statsInterval = setInterval(() => fetchStats(false), 30000)
+})
+
+onUnmounted(() => {
+  if (statsInterval) clearInterval(statsInterval)
 })
 </script>
 
@@ -222,6 +293,53 @@ watch(() => props.player.exp, (newVal, oldVal) => {
     
     <div class="mt-auto pt-4 text-xs text-stone-600 italic text-center">
       "道法自然，乐在其中。"
+    </div>
+
+    <!-- 在线人数统计 -->
+    <div class="mt-4 pt-4 border-t border-stone-800/50">
+      <div class="bg-[#1c1917] rounded-lg p-3 border border-stone-800 relative overflow-hidden group">
+        <!-- 背景装饰 -->
+        <div class="absolute -right-4 -top-4 w-16 h-16 bg-emerald-500/5 rounded-full blur-xl group-hover:bg-emerald-500/10 transition-colors duration-500"></div>
+        
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-stone-500 font-bold tracking-wider">当前在线人数</span>
+          <div class="flex items-center gap-1.5">
+             <div class="w-1.5 h-1.5 rounded-full animate-pulse" :class="statsError ? 'bg-rose-500' : (statsLoading && !onlineCount ? 'bg-stone-500' : 'bg-emerald-500')"></div>
+             <span class="text-[10px] uppercase font-mono" :class="statsError ? 'text-rose-500' : 'text-stone-600'">
+               {{ statsError ? 'OFFLINE' : 'LIVE' }}
+             </span>
+          </div>
+        </div>
+
+        <div class="flex items-end justify-between">
+           <!-- 加载状态 -->
+           <div v-if="statsLoading && !onlineCount && !statsError" class="h-8 flex items-center gap-1 text-stone-600">
+             <span class="animate-bounce">.</span>
+             <span class="animate-bounce delay-100">.</span>
+             <span class="animate-bounce delay-200">.</span>
+           </div>
+           
+           <!-- 错误状态 -->
+           <div v-else-if="statsError" class="text-xs text-rose-500/80">
+             连接断开，正在重连...
+           </div>
+
+           <!-- 正常数值 -->
+           <div v-else class="flex items-baseline gap-1">
+             <span 
+               class="text-2xl font-mono font-bold text-stone-200 transition-all duration-300"
+               :class="{ 'scale-110 text-emerald-400': isCountChanged }"
+             >
+               {{ displayedCount }}
+             </span>
+             <span class="text-xs text-stone-600">位道友</span>
+           </div>
+           
+           <div class="text-[10px] text-stone-600">
+             总注册: {{ totalCount }}
+           </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

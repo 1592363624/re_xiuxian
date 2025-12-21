@@ -32,6 +32,35 @@
         }
       }
     },
+    "/api/system/stats": {
+      "get": {
+        "summary": "获取服务器统计信息",
+        "description": "获取当前在线人数和总玩家数",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "online": {
+                      "type": "integer",
+                      "description": "在线人数"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "总玩家数"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/time-travel": {
       "post": {
         "summary": "时间加速 (GM)",
@@ -64,6 +93,64 @@
                   "type": "object",
                   "properties": {
                     "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/seclusion/start": {
+      "post": {
+        "summary": "开始闭关",
+        "description": "进入闭关状态，无法进行其他操作",
+        "tags": ["Player"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "duration": {
+                    "type": "integer",
+                    "description": "闭关时长(秒)"
+                  }
+                },
+                "required": ["duration"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "开始闭关成功"
+          }
+        }
+      }
+    },
+    "/api/seclusion/end": {
+      "post": {
+        "summary": "结束闭关",
+        "description": "结束闭关状态并结算奖励",
+        "tags": ["Player"],
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "结算成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "exp_gain": { "type": "integer" }
+                      }
+                    }
                   }
                 }
               }
