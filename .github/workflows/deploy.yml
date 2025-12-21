@@ -1,0 +1,93 @@
+name: Deploy to Windows Server
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-package:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: |
+          client/package-lock.json
+          server/package-lock.json
+
+    # 1. 构建前端
+    - name: Build Client
+      run: |
+        cd client
+        npm ci
+        npm run build
+        echo "Frontend build complete."
+
+    # 2. 准备发布包目录结构
+    - name: Prepare Release Directory
+      run: |
+        mkdir -p release/client
+        mkdir -p release/server
+        
+        # 复制前端构建产物
+        cp -r client/dist release/client/
+        
+        # 复制后端代码 (排除 node_modules)
+        cp -r server/* release/server/
+        # 清理可能存在的 node_modules (以防万一)
+        rm -rf release/server/node_modules
+        
+        # 复制启动脚本
+        cp start-prod.bat release/
+        
+        # 创建 PM2 配置 (如果不存在)
+        if [ ! -f server/ecosystem.config.js ]; then
+          echo "module.exports = { apps: [{ name: 'xiuxian-server', script: './index.js', env: { PORT: 3000, NODE_ENV: 'production' } }] }" > release/server/ecosystem.config.js
+        fi
+
+    # 3. 上传构建产物 (可用于手动部署)
+    - name: Upload Deployment Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: xiuxian-release
+        path: release/
+
+  # 4. 自动部署 (需要配置 GitHub Secrets)
+  # 如果你配置了服务器的 SSH 信息，取消下面的注释即可启用自动部署
+  deploy:
+    needs: build-and-package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: xiuxian-release
+          path: .
+  
+      - name: Copy files via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }} # 或 key: ${{ secrets.SSH_KEY }}
+          source: "."
+          target: "C:/Projects/re_xiuxian"
+  
+      - name: Install Dependencies & Restart
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            cd C:/Projects/re_xiuxian/server
+            npm install --production
+            # 推荐使用 PM2 管理进程
+            npm install -g pm2
+            pm2 startOrReload ecosystem.config.js
