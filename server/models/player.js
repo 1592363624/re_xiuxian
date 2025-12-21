@@ -67,6 +67,16 @@ const Player = sequelize.define('Player', {
             this.setDataValue('attributes', JSON.stringify(value));
         },
         comment: '基础属性JSON'
+    },
+    token_version: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: 'Token版本号，用于单点登录控制'
+    },
+    role: {
+        type: DataTypes.STRING,
+        defaultValue: 'user', // user, admin
+        comment: '用户角色'
     }
 }, {
     tableName: 'players',

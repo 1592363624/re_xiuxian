@@ -35,7 +35,7 @@
              </div>
           </div>
 
-          <button v-for="btn in menuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" class="w-full flex items-center gap-3 px-4 py-3 text-sm text-stone-300 hover:bg-[#292524] hover:text-amber-500 rounded transition-colors border border-transparent hover:border-stone-700">
+          <button v-for="btn in displayMenuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" class="w-full flex items-center gap-3 px-4 py-3 text-sm text-stone-300 hover:bg-[#292524] hover:text-amber-500 rounded transition-colors border border-transparent hover:border-stone-700">
             <span v-html="btn.icon"></span>
             {{ btn.name }}
           </button>
@@ -54,13 +54,13 @@
           </button>
           
           <h1 class="text-xl font-serif font-bold text-amber-500 tracking-wider flex items-center gap-2">
-            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">v0.0.1</span>
+            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">v0.0.1_BETA</span>
           </h1>
         </div>
         
         <!-- 桌面端顶部按钮组 -->
         <div class="hidden md:flex items-center gap-2">
-          <button v-for="btn in menuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" class="flex items-center gap-2 px-3 py-2 bg-[#292524] hover:bg-[#44403c] border border-stone-700 hover:border-stone-500 text-stone-300 hover:text-amber-100 rounded transition-all text-sm min-w-[80px] justify-center group">
+          <button v-for="btn in displayMenuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" class="flex items-center gap-2 px-3 py-2 bg-[#292524] hover:bg-[#44403c] border border-stone-700 hover:border-stone-500 text-stone-300 hover:text-amber-100 rounded transition-all text-sm min-w-[80px] justify-center group">
             <span class="group-hover:scale-110 transition-transform" v-html="btn.icon"></span>
             {{ btn.name }}
           </button>
@@ -128,20 +128,21 @@
         'text-emerald-400 animate-pulse': playerStore.saveStatus === 'success',
         'text-rose-400': playerStore.saveStatus === 'error'
       }">
-        {{ playerStore.saveStatus === 'saving' ? '自动存档中...' : (playerStore.saveStatus === 'success' ? '存档完成' : '存档失败') }}
+        {{ playerStore.saveStatus === 'saving' ? '自动存档中...' : (playerStore.saveStatus === 'error' ? '存档失败' : '存档完成') }}
       </span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { usePlayerStore } from '../../stores/player';
 import PlayerStatus from '../panels/PlayerStatus.vue';
 import GameLog from '../panels/GameLog.vue';
 import ActionBar from '../panels/ActionBar.vue';
 import GlobalChat from '../widgets/GlobalChat.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
+import AdminPanel from '../admin/AdminPanel.vue';
 
 const props = defineProps<{
   player: any
@@ -153,6 +154,7 @@ const emit = defineEmits(['action']);
 const playerStore = usePlayerStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
+const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
 
 const handleAction = (actionId: string) => {
@@ -162,6 +164,9 @@ const handleAction = (actionId: string) => {
 const handleMenuClick = (btnName: string) => {
   if (btnName === '设置') {
     isSettingsOpen.value = true;
+    isMobileMenuOpen.value = false;
+  } else if (btnName === 'GM') {
+    isAdminPanelOpen.value = true;
     isMobileMenuOpen.value = false;
   }
 };
@@ -192,6 +197,17 @@ const menuButtons = [
   { name: '抽奖', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>' },
   { name: '设置', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
 ];
+
+const displayMenuButtons = computed(() => {
+  const btns = [...menuButtons];
+  if (props.player && props.player.role === 'admin') {
+    btns.push({ 
+      name: 'GM', 
+      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>' 
+    });
+  }
+  return btns;
+});
 </script>
 
 <style scoped>

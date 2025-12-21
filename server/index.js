@@ -16,6 +16,7 @@ BigInt.prototype.toJSON = function() {
 // 引入模型以确保同步
 require('./models/player');
 require('./models/chat');
+require('./models/system_config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +29,8 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/player', require('./routes/player'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/system', require('./routes/system'));
 
 // 生产环境静态资源托管 (必须放在 API 路由之后)
 // 如果 client/dist 目录存在，则提供静态文件服务

@@ -26,6 +26,9 @@ const handleSubmit = async () => {
         username: form.value.username,
         password: form.value.password
       })
+      // 清除之前的登出原因
+      playerStore.logoutReason = null;
+      
       // 使用 Pinia 存储状态
       playerStore.setToken(res.data.token)
       playerStore.setPlayer(res.data.player)
@@ -56,6 +59,11 @@ const handleSubmit = async () => {
       <h1 class="text-3xl font-bold text-center text-xiuxian-gold mb-2">重生之凡人修仙传</h1>
       <p class="text-center text-gray-500 mb-8 text-sm">踏入仙途，逆天改命</p>
       
+      <!-- 登出/互踢提示 -->
+      <div v-if="playerStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm text-center animate-pulse">
+        {{ playerStore.logoutReason }}
+      </div>
+
       <form @submit.prevent="handleSubmit" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-400 mb-1">账号</label>

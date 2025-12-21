@@ -63,7 +63,7 @@
           <div class="bg-[#1c1917] rounded border border-stone-800 p-4 space-y-3">
              <div class="flex justify-between items-center">
                 <span class="text-stone-400">游戏版本</span>
-                <span class="text-amber-500 font-mono">v0.0.1</span>
+                <span class="text-amber-500 font-mono">v0.0.1_BETA</span>
              </div>
              <div class="flex justify-between items-center text-xs text-stone-600">
                 <span>最后更新</span>

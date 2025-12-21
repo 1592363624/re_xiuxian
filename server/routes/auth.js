@@ -55,10 +55,15 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: '账号或密码错误' });
         }
 
+        // 更新 Token 版本号 (实现互踢)
+        player.token_version = (player.token_version || 0) + 1;
+        await player.save();
+
         // 生成 JWT
         const payload = {
             id: player.id,
-            username: player.username
+            username: player.username,
+            v: player.token_version // 存入版本号
         };
         
         const token = jwt.sign(
@@ -73,7 +78,8 @@ router.post('/login', async (req, res) => {
             player: {
                 id: player.id,
                 nickname: player.nickname,
-                realm: player.realm
+                realm: player.realm,
+                role: player.role
             }
         });
     } catch (error) {
