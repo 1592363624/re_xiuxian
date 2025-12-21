@@ -45,10 +45,23 @@ jobs:
         # 复制启动脚本
         cp start-prod.bat release/
         
-        # 创建 PM2 配置 (如果不存在)
-        if [ ! -f server/ecosystem.config.js ]; then
-          echo "module.exports = { apps: [{ name: 'xiuxian-server', script: './index.js', env: { PORT: 3000, NODE_ENV: 'production' } }] }" > release/server/ecosystem.config.js
-        fi
+        # 创建 PM2 配置 (写入生产环境数据库配置)
+        # 敏感信息通过 GitHub Secrets 注入，避免明文硬编码
+        echo "module.exports = {
+          apps: [{
+            name: 'xiuxian-server',
+            script: './index.js',
+            env: {
+              PORT: 3000,
+              NODE_ENV: 'production',
+              DB_HOST: '${{ secrets.DB_HOST }}',
+              DB_USER: '${{ secrets.DB_USER }}',
+              DB_PASS: '${{ secrets.DB_PASS }}',
+              DB_NAME: '${{ secrets.DB_USER }}',
+              DB_DIALECT: 'mysql'
+            }
+          }]
+        }" > release/server/ecosystem.config.js
 
     # 3. 上传构建产物 (可用于手动部署)
     - name: Upload Deployment Artifact
@@ -68,13 +81,13 @@ jobs:
           name: xiuxian-release
           path: release
 
-      # 打包为单个压缩包，减少传输文件数
+      # 打包为单个压缩包 (打包到上级目录，避免包含自身和路径问题)
       - name: Compress Release Package
         run: |
           cd release
-          tar -czf deploy_package.tar.gz *
+          tar -czf ../deploy_package.tar.gz .
 
-      # 步骤1：先创建Windows临时目录（避免scp传输时目录不存在）
+      # 步骤1：先创建Windows临时目录
       - name: Create Temp Directory on Windows
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -85,19 +98,19 @@ jobs:
           script: |
             powershell -Command "New-Item -Path 'C:\\Projects\\re_xiuxian_temp' -ItemType Directory -Force"
 
-      # 步骤2：SCP传输压缩包（关键：路径用双反斜杠，版本用最新）
+      # 步骤2：SCP传输压缩包
       - name: Copy Package to Windows via SCP
-        uses: appleboy/scp-action@v0.1.7  # 替换为稳定版，放弃master
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           port: 22
-          source: "release/deploy_package.tar.gz"
-          target: "C:\\Projects\\re_xiuxian_temp"  # 双反斜杠适配Windows
-          debug: true  # 开启调试，方便排查问题（部署稳定后可关闭）
+          source: "deploy_package.tar.gz"
+          target: "C:\\Projects\\re_xiuxian_temp"
+          debug: true
 
-      # 步骤3：在Windows服务器解压并部署（统一用PowerShell语法）
+      # 步骤3：在Windows服务器解压并部署
       - name: Deploy on Windows Server
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -107,31 +120,37 @@ jobs:
           port: 22
           script: |
             powershell -Command "
+              \$ErrorActionPreference = 'Stop'  # 遇到错误立即停止
+              
               # 1. 确保目标目录存在
               if (-not (Test-Path 'C:\\Projects\\re_xiuxian')) {
                 New-Item -Path 'C:\\Projects\\re_xiuxian' -ItemType Directory -Force | Out-Null
                 Write-Host 'Created target directory: C:\\Projects\\re_xiuxian'
               }
               
-              # 2. 解压压缩包（Windows自带tar，兼容Win10/Server2019+）
+              # 2. 解压压缩包 (注意：压缩包现在位于 temp 根目录)
               Write-Host 'Extracting deployment package...'
               tar -xzf 'C:\\Projects\\re_xiuxian_temp\\deploy_package.tar.gz' -C 'C:\\Projects\\re_xiuxian'
               
               # 3. 清理临时文件/目录
               Write-Host 'Cleaning up temp files...'
-              Remove-Item 'C:\\Projects\\re_xiuxian_temp\\deploy_package.tar.gz' -Force
               Remove-Item 'C:\\Projects\\re_xiuxian_temp' -Recurse -Force
               
-              # 4. 安装后端依赖（生产环境）
+              # 4. 安装后端依赖
               Write-Host 'Installing server dependencies...'
               Set-Location 'C:\\Projects\\re_xiuxian\\server'
               npm install --production
               
-              # 5. 安装PM2并重启服务
+              # 5. 安装PM2 (如果未安装) 并重启服务
+              if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
+                Write-Host 'Installing PM2 globally...'
+                npm install -g pm2
+              }
+              
               Write-Host 'Starting/Restarting PM2 service...'
-              npm install -g pm2
               pm2 startOrReload ecosystem.config.js
-              pm2 save  # 保存PM2进程列表，重启服务器后自动恢复
+              pm2 save
               
               Write-Host 'Deployment completed successfully!'
+            "
             "
