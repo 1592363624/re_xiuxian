@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import axios from 'axios'
 
 const props = defineProps({
   player: {
@@ -35,6 +36,10 @@ const defaultAvatar = 'https://i.postimg.cc/q73059Z3/hanli.jpg'
 const isExpChanged = ref(false)
 
 // 监听经验变化
+watch(() => props.player, (newVal) => {
+  console.log('PlayerStatus player update:', newVal)
+}, { deep: true, immediate: true })
+
 watch(() => props.player.exp, (newVal, oldVal) => {
   if (newVal !== oldVal) {
     isExpChanged.value = true
@@ -42,6 +47,76 @@ watch(() => props.player.exp, (newVal, oldVal) => {
       isExpChanged.value = false
     }, 500)
   }
+})
+
+// 在线人数统计逻辑
+const onlineCount = ref(0)
+const totalCount = ref(0)
+const displayedCount = ref(0)
+const statsLoading = ref(false)
+const statsError = ref(false)
+const isCountChanged = ref(false)
+let statsInterval = null
+
+// 数字滚动动画
+const animateCount = (target) => {
+  const start = displayedCount.value
+  const diff = target - start
+  if (diff === 0) return
+
+  isCountChanged.value = true
+  setTimeout(() => isCountChanged.value = false, 300)
+
+  // 简单的数字递增动画
+  const duration = 1000
+  const startTime = performance.now()
+  
+  const step = (currentTime) => {
+    const elapsed = currentTime - startTime
+    const progress = Math.min(elapsed / duration, 1)
+    // easeOutQuart
+    const ease = 1 - Math.pow(1 - progress, 4)
+    
+    displayedCount.value = Math.round(start + diff * ease)
+    
+    if (progress < 1) {
+      requestAnimationFrame(step)
+    }
+  }
+  
+  requestAnimationFrame(step)
+}
+
+const fetchStats = async (isInitial = false) => {
+  if (isInitial) statsLoading.value = true
+  
+  try {
+    const res = await axios.get('/api/system/stats')
+    if (res.data) {
+      statsError.value = false
+      totalCount.value = res.data.total
+      
+      if (res.data.online !== onlineCount.value) {
+        onlineCount.value = res.data.online
+        animateCount(onlineCount.value)
+      }
+    }
+  } catch (error) {
+    console.error('Fetch stats failed:', error)
+    statsError.value = true
+    // 保持旧数据不清除
+  } finally {
+    if (isInitial) statsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchStats(true)
+  statsInterval = setInterval(() => fetchStats(false), 30000)
+})
+
+onUnmounted(() => {
+  if (statsInterval) clearInterval(statsInterval)
 })
 </script>
 
@@ -94,6 +169,17 @@ watch(() => props.player.exp, (newVal, oldVal) => {
         </div>
         <div class="h-2 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
           <div class="h-full bg-rose-700 progress-flow transition-all duration-300" :style="{ width: player.hp_max ? Math.min((player.hp_current / player.hp_max) * 100, 100) + '%' : '0%' }"></div>
+        </div>
+      </div>
+
+      <!-- 灵力 (MP) -->
+      <div>
+        <div class="flex justify-between text-xs text-stone-400 mb-1">
+          <span>灵力 (MP)</span>
+          <span class="font-mono">{{ player.mp_current || 0 }} / {{ player.mp_max || 0 }}</span>
+        </div>
+        <div class="h-2 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
+          <div class="h-full bg-sky-600 progress-flow transition-all duration-300" :style="{ width: player.mp_max ? Math.min((player.mp_current / player.mp_max) * 100, 100) + '%' : '0%' }"></div>
         </div>
       </div>
 
@@ -151,27 +237,27 @@ watch(() => props.player.exp, (newVal, oldVal) => {
     <div class="grid grid-cols-2 gap-3 mb-8">
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">攻击</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.atk || 72 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.atk || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">防御</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.def || 62 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.def || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">速度</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.speed || 122 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.speed || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
-        <span class="text-xs text-stone-500 mb-1.5">法抗</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.res || 95 }}</span>
+        <span class="text-xs text-stone-500 mb-1.5">神识</span>
+        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.sense || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
-        <span class="text-xs text-stone-500 mb-1.5">悟性</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.sense || 39 }}</span>
+        <span class="text-xs text-stone-500 mb-1.5">丹毒</span>
+        <span class="text-rose-500 font-bold font-mono text-lg">{{ player.toxicity || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">灵石</span>
-        <span class="text-amber-500 font-bold font-mono text-lg">{{ player.spirit_stones || 3809 }}</span>
+        <span class="text-amber-500 font-bold font-mono text-lg">{{ player.spirit_stones || 0 }}</span>
       </div>
     </div>
     
@@ -207,6 +293,53 @@ watch(() => props.player.exp, (newVal, oldVal) => {
     
     <div class="mt-auto pt-4 text-xs text-stone-600 italic text-center">
       "道法自然，乐在其中。"
+    </div>
+
+    <!-- 在线人数统计 -->
+    <div class="mt-4 pt-4 border-t border-stone-800/50">
+      <div class="bg-[#1c1917] rounded-lg p-3 border border-stone-800 relative overflow-hidden group">
+        <!-- 背景装饰 -->
+        <div class="absolute -right-4 -top-4 w-16 h-16 bg-emerald-500/5 rounded-full blur-xl group-hover:bg-emerald-500/10 transition-colors duration-500"></div>
+        
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-stone-500 font-bold tracking-wider">当前在线人数</span>
+          <div class="flex items-center gap-1.5">
+             <div class="w-1.5 h-1.5 rounded-full animate-pulse" :class="statsError ? 'bg-rose-500' : (statsLoading && !onlineCount ? 'bg-stone-500' : 'bg-emerald-500')"></div>
+             <span class="text-[10px] uppercase font-mono" :class="statsError ? 'text-rose-500' : 'text-stone-600'">
+               {{ statsError ? 'OFFLINE' : 'LIVE' }}
+             </span>
+          </div>
+        </div>
+
+        <div class="flex items-end justify-between">
+           <!-- 加载状态 -->
+           <div v-if="statsLoading && !onlineCount && !statsError" class="h-8 flex items-center gap-1 text-stone-600">
+             <span class="animate-bounce">.</span>
+             <span class="animate-bounce delay-100">.</span>
+             <span class="animate-bounce delay-200">.</span>
+           </div>
+           
+           <!-- 错误状态 -->
+           <div v-else-if="statsError" class="text-xs text-rose-500/80">
+             连接断开，正在重连...
+           </div>
+
+           <!-- 正常数值 -->
+           <div v-else class="flex items-baseline gap-1">
+             <span 
+               class="text-2xl font-mono font-bold text-stone-200 transition-all duration-300"
+               :class="{ 'scale-110 text-emerald-400': isCountChanged }"
+             >
+               {{ displayedCount }}
+             </span>
+             <span class="text-xs text-stone-600">位道友</span>
+           </div>
+           
+           <div class="text-[10px] text-stone-600">
+             总注册: {{ totalCount }}
+           </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

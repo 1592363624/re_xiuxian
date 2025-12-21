@@ -20,6 +20,7 @@ router.get('/me', auth, async (req, res) => {
         // 简单模拟：HP 上限 = 境界基础值 + 属性加成
         // 暂时写死或根据 exp 估算
         const hpMax = 100 + Math.floor(player.exp / 10);
+        const mpMax = 100 + Math.floor(player.exp / 10); // 灵力上限也随修为增加
         const expNext = 100 * Math.pow(2, Math.floor(player.exp / 1000)); // 简单模拟升级经验
 
         const playerData = player.toJSON();
@@ -27,8 +28,10 @@ router.get('/me', auth, async (req, res) => {
         // 合并计算属性
         const responseData = {
             ...playerData,
-            hp_current: hpMax, // 暂时默认满血
+            hp_current: playerData.hp_current, // 使用数据库中的真实气血
             hp_max: hpMax,
+            mp_current: playerData.mp_current, // 使用数据库中的真实灵力
+            mp_max: mpMax,
             exp_next: expNext,
             // 确保 attributes 被正确解析 (Sequelize getter 应该已经处理了，但以防万一)
             attributes: typeof playerData.attributes === 'string' ? JSON.parse(playerData.attributes) : playerData.attributes
@@ -55,7 +58,8 @@ router.put('/me', auth, async (req, res) => {
         // 允许更新的字段白名单
         const allowedUpdates = [
             'nickname', 'realm', 'exp', 'spirit_stones', 
-            'lifespan_current', 'lifespan_max', 'attributes'
+            'lifespan_current', 'lifespan_max', 'attributes',
+            'hp_current', 'mp_current', 'toxicity'
         ];
         
         allowedUpdates.forEach(key => {

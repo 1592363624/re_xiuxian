@@ -1,8 +1,8 @@
 <template>
   <div class="flex flex-col md:flex-row h-screen bg-[#0c0a09] text-stone-200 overflow-hidden relative font-sans">
-    <!-- 左侧状态栏 (桌面端显示，移动端隐藏) -->
+    <!-- 侧边栏 (Desktop) -->
     <aside class="hidden md:flex w-72 flex-col border-r border-stone-800 bg-[#141210]">
-      <PlayerStatus :player="player" />
+      <PlayerStatus v-if="playerStore.player" :player="playerStore.player" />
     </aside>
 
     <!-- 移动端侧边栏 (遮罩 + 内容) -->
@@ -79,14 +79,21 @@
       </div>
 
       <!-- 底部操作栏 -->
-      <ActionBar @action="handleAction" />
-    </main>
+    <ActionBar :player="playerStore.player" @action="handleAction" />
+  </main>
 
     <!-- 全局聊天组件 -->
     <GlobalChat />
     
+    <!-- 闭关遮罩层 -->
+    <SeclusionOverlay v-if="playerStore.player?.is_secluded" />
+    <SeclusionSetupModal v-if="isSeclusionSetupOpen" :isOpen="true" @close="isSeclusionSetupOpen = false" />
+    
     <!-- 设置弹窗 -->
     <SettingsModal v-if="isSettingsOpen" @close="isSettingsOpen = false" />
+    
+    <!-- GM 管理后台 -->
+    <AdminPanel v-if="isAdminPanelOpen" @close="isAdminPanelOpen = false" />
     
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
@@ -136,6 +143,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+import axios from 'axios';
 import { usePlayerStore } from '../../stores/player';
 import PlayerStatus from '../panels/PlayerStatus.vue';
 import GameLog from '../panels/GameLog.vue';
@@ -143,10 +151,15 @@ import ActionBar from '../panels/ActionBar.vue';
 import GlobalChat from '../widgets/GlobalChat.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
+import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
+import SeclusionSetupModal from '../modals/SeclusionSetupModal.vue';
 
 const props = defineProps<{
   player: any
-  logs: any[]
+  logs?: any[]
+  serverStatus?: string
+  dbStatus?: string
+  ping?: number
 }>();
 
 const emit = defineEmits(['action']);
@@ -156,8 +169,30 @@ const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
+const isSeclusionSetupOpen = ref(false);
+const onlineCount = ref(0);
+const totalPlayers = ref(0);
+let statsInterval: any = null;
+
+const fetchStats = async () => {
+  try {
+    const res = await axios.get('/api/system/stats');
+    if (res.data) {
+      onlineCount.value = res.data.online;
+      totalPlayers.value = res.data.total;
+    }
+  } catch (error) {
+    console.error('Fetch stats failed:', error);
+  }
+};
 
 const handleAction = (actionId: string) => {
+  console.log('ActionBar emitted action:', actionId);
+  if (actionId === 'meditate') {
+    console.log('Opening seclusion setup modal');
+    isSeclusionSetupOpen.value = true;
+    return;
+  }
   emit('action', actionId);
 };
 
@@ -182,10 +217,13 @@ const confirmLogout = () => {
 
 onMounted(() => {
   playerStore.startAutoSave();
+  fetchStats();
+  statsInterval = setInterval(fetchStats, 30000);
 });
 
 onUnmounted(() => {
   playerStore.stopAutoSave();
+  if (statsInterval) clearInterval(statsInterval);
 });
 
 const menuButtons = [

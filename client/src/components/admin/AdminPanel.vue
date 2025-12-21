@@ -101,17 +101,31 @@
               <p class="mt-1 text-xs text-gray-500">默认: 10000 (10秒)</p>
             </div>
             
-             <!-- 初始寿元 -->
-             <div class="bg-gray-800 p-4 rounded border border-gray-700">
-              <label class="block text-sm font-medium text-gray-400 mb-2">玩家初始最大寿元</label>
-              <div class="flex space-x-2">
-                <input 
-                  v-model="configs.initial_lifespan" 
-                  type="number" 
-                  class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+            <!-- 时间控制 (GM) -->
+            <div class="bg-gray-800 p-4 rounded border border-gray-700 md:col-span-2 mt-4">
+              <label class="block text-sm font-medium text-amber-500 mb-2 font-bold">⏳ 时光飞逝 (时间加速)</label>
+              <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 flex-1">
+                  <span class="text-gray-400 text-sm">加速年份:</span>
+                  <input 
+                    v-model="timeTravelYears" 
+                    type="number" 
+                    min="0.1"
+                    step="0.1"
+                    class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+                    placeholder="输入年份，如 1 或 0.5"
+                  >
+                </div>
+                <button 
+                  @click="confirmTimeTravel" 
+                  :disabled="isTimeTraveling"
+                  class="px-6 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                <button @click="saveConfig('initial_lifespan', configs.initial_lifespan, '初始寿元')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+                  <svg v-if="isTimeTraveling" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  {{ isTimeTraveling ? '加速中...' : '执行加速' }}
+                </button>
               </div>
+              <p class="mt-2 text-xs text-gray-500">警告：此操作会增加全服所有玩家的寿命，可能导致寿元耗尽的玩家死亡！(24小时=1年)</p>
             </div>
           </div>
         </div>
@@ -150,14 +164,52 @@
       </div>
     </div>
 
+    <!-- Confirm Modal -->
+    <Modal :isOpen="showTimeTravelConfirm" title="确认时间加速" @close="showTimeTravelConfirm = false">
+      <div class="space-y-4">
+        <p class="text-gray-300">
+          确定要让时间加速 <span class="text-red-400 font-bold text-lg">{{ timeTravelYears }}</span> 年吗？
+        </p>
+        <div class="bg-red-900/30 border border-red-800 rounded p-3">
+          <p class="text-red-400 text-sm">
+            ⚠️ 警告：这会导致所有在线/离线玩家消耗寿元。寿元耗尽者将会死亡并掉落境界！
+          </p>
+        </div>
+      </div>
+      <template #footer>
+        <button @click="showTimeTravelConfirm = false" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
+        <button @click="triggerTimeTravel" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded">确认执行</button>
+      </template>
+    </Modal>
+
+    <!-- Death Modal -->
+    <Modal :isOpen="showDeathModal" title="⚠️ 噩耗" :showClose="true" @close="showDeathModal = false">
+      <div class="space-y-6 text-center py-4">
+        <div class="text-6xl">🪦</div>
+        <h3 class="text-2xl font-bold text-red-500">寿元已尽</h3>
+        <p class="text-gray-300 text-lg">{{ deathMessage }}</p>
+        <p class="text-gray-400">你的境界已跌落，请重新来过。</p>
+      </div>
+      <template #footer>
+        <button @click="showDeathModal = false" class="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">
+          黯然接受
+        </button>
+      </template>
+    </Modal>
+
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
 import axios from 'axios'
+import { usePlayerStore } from '../../stores/player'
+import { useUIStore } from '../../stores/ui'
+import Modal from '../common/Modal.vue'
 
 const emit = defineEmits(['close'])
+const playerStore = usePlayerStore()
+const uiStore = useUIStore()
 
 const tabs = [
   { id: 'players', name: '玩家数据' },
@@ -176,11 +228,25 @@ const pagination = reactive({
 
 // 系统配置
 const configs = reactive({
-  auto_save_interval: 10000,
-  initial_lifespan: 100
+  auto_save_interval: 10000
 })
 
 const editingPlayer = ref(null)
+
+// 时间加速
+const timeTravelYears = ref(1)
+const isTimeTraveling = ref(false)
+const showTimeTravelConfirm = ref(false)
+const showDeathModal = ref(false)
+const deathMessage = ref('')
+
+const confirmTimeTravel = () => {
+  if (!timeTravelYears.value || timeTravelYears.value <= 0) {
+    uiStore.showToast('请输入有效的年数', 'warning')
+    return
+  }
+  showTimeTravelConfirm.value = true
+}
 
 // 获取玩家列表
 const fetchPlayers = async (page = 1) => {
@@ -204,7 +270,6 @@ const fetchConfig = async () => {
     const res = await axios.get('/api/admin/config')
     res.data.forEach(item => {
       if (item.key === 'auto_save_interval') configs.auto_save_interval = parseInt(item.value)
-      if (item.key === 'initial_lifespan') configs.initial_lifespan = parseInt(item.value)
     })
   } catch (error) {
     console.error('Fetch config error:', error)
@@ -240,6 +305,54 @@ const submitPlayerEdit = async () => {
     fetchPlayers(pagination.currentPage)
   } catch (error) {
     alert('更新失败: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+const triggerTimeTravel = async () => {
+  showTimeTravelConfirm.value = false
+  isTimeTraveling.value = true
+  try {
+    const res = await axios.post('/api/admin/time-travel', {
+      years: parseFloat(timeTravelYears.value)
+    })
+    
+    console.log('Time travel response:', res.data)
+
+    // 刷新玩家数据
+    try {
+        await playerStore.fetchPlayer()
+    } catch (e) {
+        console.warn('Refresh player failed:', e)
+    }
+    
+    // 刷新管理员面板的玩家列表（如果当前在看列表）
+    if (currentTab.value === 'players') {
+      fetchPlayers(pagination.currentPage)
+    }
+
+    // 检查死亡通知
+    if (res.data && res.data.userDied) {
+       deathMessage.value = res.data.deathLog || '寿元耗尽，身死道消。'
+       showDeathModal.value = true
+    } else {
+       const msg = res.data?.message || '操作成功'
+       if (uiStore) {
+           uiStore.showToast(msg, 'success')
+       } else {
+           alert(msg)
+       }
+    }
+
+  } catch (error) {
+    console.error('Time travel error object:', error)
+    const errorMsg = error.response?.data?.message || '时间加速失败'
+    if (uiStore) {
+        uiStore.showToast(errorMsg, 'error')
+    } else {
+        alert(errorMsg)
+    }
+  } finally {
+    isTimeTraveling.value = false
   }
 }
 

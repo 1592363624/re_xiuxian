@@ -5,7 +5,25 @@
 const express = require('express');
 const router = express.Router();
 const SystemConfig = require('../models/system_config');
+const Player = require('../models/player');
 const authenticateToken = require('../middleware/auth');
+
+// 获取服务器统计信息
+router.get('/stats', async (req, res) => {
+    try {
+        const totalPlayers = await Player.count();
+        const io = req.app.get('io');
+        const onlinePlayers = io ? io.engine.clientsCount : 0;
+
+        res.json({
+            online: onlinePlayers,
+            total: totalPlayers
+        });
+    } catch (error) {
+        console.error('获取统计信息失败:', error);
+        res.status(500).json({ error: '获取统计信息失败' });
+    }
+});
 
 // 获取公开系统配置 (需要登录)
 router.get('/config', authenticateToken, async (req, res) => {

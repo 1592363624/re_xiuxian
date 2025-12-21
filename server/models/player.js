@@ -57,7 +57,7 @@ const Player = sequelize.define('Player', {
         comment: '丹毒值'
     },
     lifespan_current: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.FLOAT,
         defaultValue: 16,
         comment: '当前年龄'
     },
@@ -94,6 +94,21 @@ const Player = sequelize.define('Player', {
         type: DataTypes.STRING,
         defaultValue: 'user', // user, admin
         comment: '用户角色'
+    },
+    is_secluded: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否闭关中'
+    },
+    seclusion_start_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '闭关开始时间'
+    },
+    seclusion_duration: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '计划闭关时长(秒)'
     }
 }, {
     tableName: 'players',

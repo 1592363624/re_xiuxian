@@ -14,6 +14,8 @@ const errorMsg = ref('')
 
 const playerStore = usePlayerStore()
 
+const emit = defineEmits(['login-success'])
+
 const handleSubmit = async () => {
   const startTime = Date.now()
   loading.value = true
@@ -31,7 +33,12 @@ const handleSubmit = async () => {
       
       // 使用 Pinia 存储状态
       playerStore.setToken(res.data.token)
-      playerStore.setPlayer(res.data.player)
+      
+      // 获取完整玩家数据
+      await playerStore.fetchPlayer()
+      
+      // 触发登录成功事件，传递 true 表示成功，不需要传 player 对象，避免传旧数据
+      emit('login-success', true)
     } else {
       // 注册
       await axios.post('/api/auth/register', form.value)

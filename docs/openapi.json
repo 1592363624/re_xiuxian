@@ -32,6 +32,133 @@
         }
       }
     },
+    "/api/system/stats": {
+      "get": {
+        "summary": "获取服务器统计信息",
+        "description": "获取当前在线人数和总玩家数",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "online": {
+                      "type": "integer",
+                      "description": "在线人数"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "总玩家数"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/time-travel": {
+      "post": {
+        "summary": "时间加速 (GM)",
+        "description": "让游戏时间流逝指定年份，增加所有玩家寿命并触发死亡判定。",
+        "tags": ["Admin"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "years": {
+                    "type": "number",
+                    "description": "加速的年份 (例如 1.5)"
+                  }
+                },
+                "required": ["years"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/seclusion/start": {
+      "post": {
+        "summary": "开始闭关",
+        "description": "进入闭关状态，无法进行其他操作",
+        "tags": ["Player"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "duration": {
+                    "type": "integer",
+                    "description": "闭关时长(秒)"
+                  }
+                },
+                "required": ["duration"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "开始闭关成功"
+          }
+        }
+      }
+    },
+    "/api/seclusion/end": {
+      "post": {
+        "summary": "结束闭关",
+        "description": "结束闭关状态并结算奖励",
+        "tags": ["Player"],
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "结算成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "exp_gain": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/register": {
       "post": {
         "summary": "用户注册",
@@ -115,6 +242,53 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/player/me": {
+      "get": {
+        "summary": "获取当前玩家详细信息",
+        "description": "获取当前登录玩家的完整数据，包括气血、修为、属性等",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 1,
+                  "username": "hanli",
+                  "nickname": "韩天尊",
+                  "realm": "炼气期",
+                  "exp": 100,
+                  "exp_next": 200,
+                  "spirit_stones": 50,
+                  "hp_current": 100,
+                  "hp_max": 100,
+                  "mp_current": 100,
+                  "mp_max": 100,
+                  "lifespan_current": 18.5,
+                  "lifespan_max": 100,
+                  "attributes": {
+                    "atk": 10,
+                    "def": 5,
+                    "speed": 10,
+                    "sense": 10
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "404": {
+            "description": "玩家不存在"
           }
         }
       }

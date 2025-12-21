@@ -50,6 +50,61 @@ export const usePlayerStore = defineStore('player', {
       }
     },
 
+    async fetchSeclusionStatus() {
+      if (!this.token) return
+      try {
+        const res = await axios.get('/api/seclusion/status')
+        if (res.data) {
+             // If we have player data, update it
+             if (this.player) {
+                 this.player.is_secluded = res.data.is_secluded
+                 this.player.seclusion_start_time = res.data.seclusion_start_time
+                 this.player.seclusion_duration = res.data.seclusion_duration
+             }
+             return res.data // Return full data including rate
+        }
+      } catch (error) {
+        console.error('获取闭关状态失败:', error)
+      }
+      return null
+    },
+
+    async startSeclusion(duration) {
+      if (!this.token) return
+      try {
+        const res = await axios.post('/api/seclusion/start', { duration })
+        if (this.player) {
+          this.player.is_secluded = true
+          this.player.seclusion_start_time = res.data.data.seclusion_start_time
+          this.player.seclusion_duration = res.data.data.seclusion_duration
+        }
+        return res.data
+      } catch (error) {
+        console.error('开始闭关失败:', error)
+        throw error
+      }
+    },
+
+    async endSeclusion() {
+      if (!this.token) return
+      try {
+        const res = await axios.post('/api/seclusion/end')
+        if (this.player) {
+            this.player.is_secluded = false
+            this.player.seclusion_start_time = null
+            this.player.seclusion_duration = 0
+            // Update other stats if returned
+            if (res.data.data.player) {
+                this.player.exp = res.data.data.player.exp
+            }
+        }
+        return res.data
+      } catch (error) {
+        console.error('结束闭关失败:', error)
+        throw error
+      }
+    },
+
     async savePlayer(retryCount = 0) {
       if (!this.player || !this.token) return
       
