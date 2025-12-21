@@ -105,6 +105,17 @@ export const usePlayerStore = defineStore('player', {
       }
     },
 
+    async tryBreakthrough() {
+      if (!this.token) return null
+      const res = await axios.post('/api/breakthrough/try')
+      try {
+        await this.fetchPlayer()
+      } catch (e) {
+        console.warn('刷新玩家数据失败:', e)
+      }
+      return res.data
+    },
+
     async savePlayer(retryCount = 0) {
       if (!this.player || !this.token) return
       

@@ -264,9 +264,13 @@
                   "id": 1,
                   "username": "hanli",
                   "nickname": "韩天尊",
-                  "realm": "炼气期",
-                  "exp": 100,
-                  "exp_next": 200,
+                  "realm": "炼气期13层",
+                  "exp": "2744000",
+                  "exp_next": "2744000",
+                  "exp_cap": "2744000",
+                  "exp_progress": 1,
+                  "can_breakthrough": true,
+                  "next_realm": "筑基初期",
                   "spirit_stones": 50,
                   "hp_current": 100,
                   "hp_max": 100,
@@ -276,6 +280,8 @@
                   "lifespan_max": 100,
                   "last_online": "2024-05-20T12:00:00.000Z",
                   "attributes": {
+                    "hp_max": 100,
+                    "mp_max": 0,
                     "atk": 10,
                     "def": 5,
                     "speed": 10,
@@ -290,6 +296,50 @@
           },
           "404": {
             "description": "玩家不存在"
+          }
+        }
+      }
+    },
+    "/api/breakthrough/try": {
+      "post": {
+        "summary": "尝试突破",
+        "description": "当修为达到当前境界上限时，尝试突破到下一境界（可能成功或失败）",
+        "tags": ["Player"],
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "请求成功（包含成功或失败结果）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "突破成功！境界提升至「筑基初期」。",
+                  "data": {
+                    "old_realm": "炼气期13层",
+                    "new_realm": "筑基初期",
+                    "exp": "0",
+                    "exp_cap": "3375000",
+                    "unlocked": {
+                      "mp_regen_rate": 100,
+                      "toxicity_decay": 5
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "修为未达上限或无法突破",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "修为未达上限，无法突破（1000 / 2744000）"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
           }
         }
       }

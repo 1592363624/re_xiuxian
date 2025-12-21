@@ -87,6 +87,8 @@
     
     <!-- 闭关遮罩层 -->
     <SeclusionOverlay v-if="playerStore.player?.is_secluded" />
+
+    <BreakthroughPortal v-if="playerStore.player" />
     
     <!-- 设置弹窗 -->
     <SettingsModal v-if="isSettingsOpen" @close="isSettingsOpen = false" />
@@ -149,6 +151,7 @@ import PlayerStatus from '../panels/PlayerStatus.vue';
 import GameLog from '../panels/GameLog.vue';
 import ActionBar from '../panels/ActionBar.vue';
 import GlobalChat from '../widgets/GlobalChat.vue';
+import BreakthroughPortal from '../widgets/BreakthroughPortal.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
