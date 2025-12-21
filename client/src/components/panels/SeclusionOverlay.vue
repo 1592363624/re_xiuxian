@@ -64,8 +64,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { usePlayerStore } from '../../stores/player'
+import { useUIStore } from '../../stores/ui'
 
 const store = usePlayerStore()
+const uiStore = useUIStore()
 const loading = ref(false)
 const now = ref(Date.now())
 const timer = ref(null)
@@ -98,10 +100,19 @@ const handleEnd = async () => {
   if (loading.value) return
   loading.value = true
   try {
-    await store.endSeclusion()
+    const res = await store.endSeclusion()
+    // 添加日志
+    const gain = res.data?.exp_gain || (res.data?.data?.exp_gain) || expGained.value || 0
+    uiStore.addLog({
+      content: `结束闭关，本次修炼共获得修为 ${gain} 点。`,
+      type: 'success',
+      actorId: 'self'
+    })
     // 闭关结束，组件会被销毁（因为父组件v-if会变为false）
   } catch (err) {
     console.error(err)
+    uiStore.showToast('结束闭关失败，请重试', 'error')
+  } finally {
     loading.value = false
   }
 }

@@ -146,7 +146,8 @@ router.post('/end', authenticateToken, async (req, res) => {
                 cooldown_minutes: Math.floor(cooldown / 60),
                 player: {
                     exp: player.exp,
-                    is_secluded: false
+                    is_secluded: false,
+                    last_seclusion_time: player.last_seclusion_time
                 }
             }
         });

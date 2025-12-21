@@ -194,6 +194,11 @@ const handleAction = async (actionId: string) => {
     try {
       await playerStore.startSeclusion();
       uiStore.showToast('进入闭关状态', 'success');
+      uiStore.addLog({
+        content: '开始闭关修炼，摒除杂念，感悟天地灵气。',
+        type: 'info',
+        actorId: 'self'
+      });
     } catch (error: any) {
       const msg = error.response?.data?.error || '无法开始闭关';
       uiStore.showToast(msg, 'error');

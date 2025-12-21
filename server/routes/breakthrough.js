@@ -81,7 +81,11 @@ router.post('/try', auth, async (req, res) => {
 
         const oldRealm = player.realm;
         player.realm = nextRealm.name;
-        player.exp = '0';
+        // 突破成功，保留全部修为（累计修为模式）
+        // const remainingExp = currentExp - expCap;
+        // player.exp = remainingExp > 0n ? remainingExp.toString() : '0';
+        // 保持当前修为不变，仅提升境界和上限
+        player.exp = currentExp.toString();
         player.lifespan_max = nextRealm.base_lifespan ?? player.lifespan_max;
 
         const nextAttrs = {

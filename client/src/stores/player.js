@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
+import { useUIStore } from './ui'
 
 export const usePlayerStore = defineStore('player', {
   state: () => ({
@@ -96,6 +97,9 @@ export const usePlayerStore = defineStore('player', {
             // Update other stats if returned
             if (res.data.data.player) {
                 this.player.exp = res.data.data.player.exp
+                if (res.data.data.player.last_seclusion_time) {
+                    this.player.last_seclusion_time = res.data.data.player.last_seclusion_time
+                }
             }
         }
         return res.data

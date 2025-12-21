@@ -255,7 +255,7 @@ onUnmounted(() => {
   <div>
     <button
       v-if="playerStore.player && canBreakthrough"
-      class="fixed right-6 bottom-24 z-50 px-5 py-3 rounded-xl border text-sm font-bold tracking-widest select-none
+      class="fixed right-6 top-32 z-50 px-5 py-3 rounded-xl border text-sm font-bold tracking-widest select-none
              text-amber-200 border-amber-400/80 bg-gradient-to-br from-amber-700/20 via-yellow-600/10 to-orange-500/10
              shadow-[0_0_20px_rgba(251,191,36,0.35),inset_0_0_12px_rgba(251,191,36,0.15)]
              hover:shadow-[0_0_28px_rgba(251,191,36,0.55),inset_0_0_14px_rgba(251,191,36,0.25)]
