@@ -68,32 +68,48 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: xiuxian-release
-          path: .
-  
-      - name: Copy files via SCP
+          path: release
+
+      # 方案 B: 使用 tar 打包传输单个文件，然后在服务器端解压
+      # 这样可以避免 drone-scp 尝试在 Windows 上自动执行 tar 导致的路径问题
+      - name: Compress Release
+        run: |
+          cd release
+          tar -czf deploy_package.tar.gz *
+
+      - name: Copy package via SCP
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
-          source: "."
-          target: "C:/Projects/re_xiuxian"
-          # 关键修改：禁用 tar 打包，直接逐个传输文件
-          # Windows 服务器上的 OpenSSH 有时处理 tar 解压有问题，特别是路径分隔符差异
-          # 或者 tar 命令在 Windows 环境不可用/不兼容
-          tar_tmp_path: "C:/Windows/Temp/" # 尝试指定一个确定的临时目录
-          use_insecure_cipher: true # 兼容旧版加密算法（可选，视服务器配置）
-          # rm: true # 传输前清空目标目录（慎用，如果目录不存在会报错）
-  
-      - name: Install Dependencies & Restart
+          source: "release/deploy_package.tar.gz"
+          target: "C:/Projects/re_xiuxian_temp"
+          strip_components: 1 # 去掉 release/ 这一层目录
+          
+      - name: Deploy on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           script: |
-            cd C:/Projects/re_xiuxian/server
-            npm install --production
-            # 推荐使用 PM2 管理进程
-            npm install -g pm2
+            # 切换到 PowerShell 模式
+            powershell -Command "Write-Host 'Starting deployment...'"
+            
+            # 1. 确保目标目录存在
+            if not exist C:\Projects\re_xiuxian mkdir C:\Projects\re_xiuxian
+            
+            # 2. 解压文件 (使用 Windows 自带的 tar，Windows 10/Server 2019+ 自带)
+            echo Extracting files...
+            tar -xzf C:\Projects\re_xiuxian_temp\deploy_package.tar.gz -C C:\Projects\re_xiuxian
+            
+            # 3. 清理临时文件
+            del C:\Projects\re_xiuxian_temp\deploy_package.tar.gz
+            rmdir C:\Projects\re_xiuxian_temp
+            
+            # 4. 安装依赖并启动
+            cd C:\Projects\re_xiuxian\server
+            call npm install --production
+            call npm install -g pm2
             pm2 startOrReload ecosystem.config.js
