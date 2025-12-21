@@ -7,6 +7,8 @@ const Player = require('../models/player');
 const SystemConfig = require('../models/system_config');
 const auth = require('../middleware/auth');
 
+const LifespanService = require('../services/LifespanService');
+
 // 管理员权限中间件
 const adminCheck = (req, res, next) => {
     if (req.player && req.player.role === 'admin') {
@@ -15,6 +17,47 @@ const adminCheck = (req, res, next) => {
         res.status(403).json({ message: '权限不足：需要管理员权限' });
     }
 };
+
+// 时间加速 (GM命令)
+router.post('/time-travel', auth, adminCheck, async (req, res) => {
+    try {
+        const { years } = req.body;
+        if (!years || isNaN(years) || years <= 0) {
+            return res.status(400).json({ message: '无效的时间参数 (years)' });
+        }
+
+        const seconds = years * LifespanService.SECONDS_PER_YEAR;
+        console.log(`[Admin] Triggering time travel: +${years} years (+${seconds}s)`);
+        
+        const result = await LifespanService.updateLifespan(seconds);
+
+        let message = `时光飞逝，转眼已过 ${years} 载。`;
+        let userDied = false;
+        let deathLog = null;
+
+        if (result && result.deadCount > 0) {
+            message += ` 岁月无情，共有 ${result.deadCount} 位道友寿元耗尽。`;
+            
+            // Check if current user died
+            const myDeath = result.deadPlayers.find(p => p.id === req.player.id);
+            if (myDeath) {
+                userDied = true;
+                deathLog = `你寿元已尽，身死道消！`;
+                // If we had the drop info we could add it, but currently handleDeath modifies the player object in place.
+                // The returned player object in deadPlayers has the NEW realm.
+                // We can just tell the frontend to refresh.
+            }
+        }
+
+        res.json({ 
+            message, 
+            userDied,
+            deathLog
+        });
+    } catch (error) {
+        res.status(500).json({ message: '时间加速失败', error: error.message });
+    }
+});
 
 // 获取所有玩家列表 (分页)
 router.get('/players', auth, adminCheck, async (req, res) => {

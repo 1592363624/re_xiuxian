@@ -28,9 +28,9 @@ router.get('/me', auth, async (req, res) => {
         // 合并计算属性
         const responseData = {
             ...playerData,
-            hp_current: hpMax, // 暂时默认满血
+            hp_current: playerData.hp_current, // 使用数据库中的真实气血
             hp_max: hpMax,
-            mp_current: playerData.mp_current || mpMax, // 如果没有灵力记录，默认满灵力
+            mp_current: playerData.mp_current, // 使用数据库中的真实灵力
             mp_max: mpMax,
             exp_next: expNext,
             // 确保 attributes 被正确解析 (Sequelize getter 应该已经处理了，但以防万一)
@@ -58,7 +58,8 @@ router.put('/me', auth, async (req, res) => {
         // 允许更新的字段白名单
         const allowedUpdates = [
             'nickname', 'realm', 'exp', 'spirit_stones', 
-            'lifespan_current', 'lifespan_max', 'attributes'
+            'lifespan_current', 'lifespan_max', 'attributes',
+            'hp_current', 'mp_current', 'toxicity'
         ];
         
         allowedUpdates.forEach(key => {

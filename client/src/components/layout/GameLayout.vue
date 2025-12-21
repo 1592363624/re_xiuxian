@@ -88,6 +88,9 @@
     <!-- 设置弹窗 -->
     <SettingsModal v-if="isSettingsOpen" @close="isSettingsOpen = false" />
     
+    <!-- GM 管理后台 -->
+    <AdminPanel v-if="isAdminPanelOpen" @close="isAdminPanelOpen = false" />
+    
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="isLogoutConfirmOpen = false"></div>

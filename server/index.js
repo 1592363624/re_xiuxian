@@ -18,8 +18,31 @@ require('./models/player');
 require('./models/chat');
 require('./models/system_config');
 
+const http = require('http');
+const socketIo = require('socket.io');
+const LifespanService = require('./services/LifespanService');
+
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+    cors: {
+        origin: "*", // 允许跨域
+        methods: ["GET", "POST"]
+    }
+});
+
 const PORT = process.env.PORT || 3000;
+
+// 定时任务：每10分钟 (600秒) 更新一次寿命
+const UPDATE_INTERVAL_MS = 10 * 60 * 1000;
+const UPDATE_INTERVAL_SEC = 10 * 60;
+
+setInterval(() => {
+    LifespanService.updateLifespan(UPDATE_INTERVAL_SEC);
+}, UPDATE_INTERVAL_MS);
+
+// 立即执行一次检查 (可选，用于启动时同步)
+// LifespanService.updateLifespan(0); 
 
 // 中间件
 app.use(cors());

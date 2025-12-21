@@ -57,7 +57,7 @@ const Player = sequelize.define('Player', {
         comment: '丹毒值'
     },
     lifespan_current: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.FLOAT,
         defaultValue: 16,
         comment: '当前年龄'
     },

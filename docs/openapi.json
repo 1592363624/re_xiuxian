@@ -32,6 +32,46 @@
         }
       }
     },
+    "/api/admin/time-travel": {
+      "post": {
+        "summary": "时间加速 (GM)",
+        "description": "让游戏时间流逝指定年份，增加所有玩家寿命并触发死亡判定。",
+        "tags": ["Admin"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "years": {
+                    "type": "number",
+                    "description": "加速的年份 (例如 1.5)"
+                  }
+                },
+                "required": ["years"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/register": {
       "post": {
         "summary": "用户注册",
@@ -145,7 +185,7 @@
                   "hp_max": 100,
                   "mp_current": 100,
                   "mp_max": 100,
-                  "lifespan_current": 18,
+                  "lifespan_current": 18.5,
                   "lifespan_max": 100,
                   "attributes": {
                     "atk": 10,

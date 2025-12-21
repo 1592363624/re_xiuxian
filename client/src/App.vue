@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import axios from 'axios'
 import GameLayout from './components/layout/GameLayout.vue'
 import Login from './views/Login.vue'
+import ToastContainer from './components/common/ToastContainer.vue'
 import { usePlayerStore } from './stores/player'
 
 const serverStatus = ref('正在连接...')
@@ -91,4 +92,5 @@ onUnmounted(() => {
       :player="currentPlayer"
     />
   </template>
+  <ToastContainer />
 </template>
