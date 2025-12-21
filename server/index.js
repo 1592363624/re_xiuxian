@@ -53,6 +53,17 @@ const startServer = async () => {
     try {
         await sequelize.authenticate();
         console.log('数据库连接成功。');
+        
+        // 强制选择数据库，防止 No database selected 错误
+        if (process.env.DB_NAME) {
+            try {
+                await sequelize.query(`USE \`${process.env.DB_NAME}\``);
+                console.log(`已选择数据库: ${process.env.DB_NAME}`);
+            } catch (err) {
+                console.warn('手动选择数据库失败 (可能是权限问题或无需选择):', err.message);
+            }
+        }
+
         // 同步模型（仅开发环境使用，生产环境建议使用 migration）
         await sequelize.sync({ alter: true });
     } catch (error) {
