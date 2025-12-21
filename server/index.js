@@ -4,8 +4,14 @@
  */
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const sequelize = require('./config/database');
 require('dotenv').config();
+
+// 解决 BigInt 序列化问题
+BigInt.prototype.toJSON = function() {
+  return this.toString();
+};
 
 // 引入模型以确保同步
 require('./models/player');
@@ -23,26 +29,22 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/player', require('./routes/player'));
 app.use('/api/chat', require('./routes/chat'));
 
-// 路由测试
-app.get('/', (req, res) => {
-    res.send('重生之凡人修仙传 API Server Running...');
-});
+// 生产环境静态资源托管 (必须放在 API 路由之后)
+// 如果 client/dist 目录存在，则提供静态文件服务
+const clientDistPath = path.join(__dirname, '../client/dist');
+app.use(express.static(clientDistPath));
 
-app.get('/api/status', async (req, res) => {
-    try {
-        await sequelize.authenticate();
-        res.json({ 
-            status: 'ok', 
-            message: '服务器正常运行，数据库连接成功', 
-            timestamp: new Date() 
-        });
-    } catch (error) {
-        res.status(500).json({ 
-            status: 'error', 
-            message: '数据库连接失败', 
-            error: error.message 
-        });
+// 所有非 API 请求返回 index.html (支持前端路由)
+app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'API Not Found' });
     }
+    res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
+        if (err) {
+            // 如果没有构建前端，或者是开发环境，返回简单的提示
+            res.status(500).send('Server is running. For frontend, please run "npm run client" or build the project.');
+        }
+    });
 });
 
 // 启动服务器

@@ -27,12 +27,18 @@ export const usePlayerStore = defineStore('player', {
         const res = await axios.get('/api/player/me')
         this.setPlayer(res.data)
       } catch (error) {
-        if (error.response && error.response.status === 401) {
-          console.warn('登录凭证已过期，请重新登录')
-          this.logout()
-        } else {
-          console.error('获取玩家信息失败:', error)
+        if (error.response) {
+          if (error.response.status === 401) {
+            console.warn('登录凭证已过期，请重新登录')
+            this.logout()
+            return
+          } else if (error.response.status === 404) {
+            console.warn('玩家数据不存在，请重新登录')
+            this.logout()
+            return
+          }
         }
+        console.error('获取玩家信息失败:', error)
       }
     },
 
@@ -51,6 +57,14 @@ export const usePlayerStore = defineStore('player', {
           }
         }, 3000)
       } catch (error) {
+        if (error.response) {
+          if (error.response.status === 401 || error.response.status === 404) {
+            console.warn('保存失败：认证无效或玩家不存在')
+            this.saveStatus = 'error'
+            this.logout()
+            return
+          }
+        }
         console.error('自动保存失败:', error)
         this.saveStatus = 'error'
         // 出错后保留错误状态一段时间
@@ -64,10 +78,10 @@ export const usePlayerStore = defineStore('player', {
 
     startAutoSave() {
       if (this.autoSaveInterval) clearInterval(this.autoSaveInterval)
-      // 30秒自动保存一次
+      // 10秒自动保存一次
       this.autoSaveInterval = setInterval(() => {
         this.savePlayer()
-      }, 30000)
+      }, 10000)
     },
 
     stopAutoSave() {

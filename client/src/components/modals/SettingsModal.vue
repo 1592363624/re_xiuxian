@@ -67,7 +67,7 @@
              </div>
              <div class="flex justify-between items-center text-xs text-stone-600">
                 <span>最后更新</span>
-                <span>2023-12-20</span>
+                <span>2025年12月21日09:34:10</span>
              </div>
              
              <a href="https://github.com/1592363624/re_xiuxian" class="flex items-center justify-between p-3 bg-stone-800/50 rounded border border-stone-700/50 hover:bg-stone-800 hover:border-stone-600 text-stone-300 transition-all group">
