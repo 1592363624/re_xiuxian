@@ -13,7 +13,7 @@ const Player = sequelize.define('Player', {
     username: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true,
+        unique: 'uk_player_username',
         comment: '登录账号'
     },
     password: {
@@ -24,6 +24,7 @@ const Player = sequelize.define('Player', {
     nickname: {
         type: DataTypes.STRING,
         allowNull: false,
+        unique: 'uk_player_nickname',
         comment: '游戏昵称'
     },
     realm: {
