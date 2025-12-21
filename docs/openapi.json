@@ -143,6 +143,8 @@
                   "spirit_stones": 50,
                   "hp_current": 100,
                   "hp_max": 100,
+                  "mp_current": 100,
+                  "mp_max": 100,
                   "lifespan_current": 18,
                   "lifespan_max": 100,
                   "attributes": {

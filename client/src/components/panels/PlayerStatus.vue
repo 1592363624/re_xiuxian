@@ -101,6 +101,17 @@ watch(() => props.player.exp, (newVal, oldVal) => {
         </div>
       </div>
 
+      <!-- 灵力 (MP) -->
+      <div>
+        <div class="flex justify-between text-xs text-stone-400 mb-1">
+          <span>灵力 (MP)</span>
+          <span class="font-mono">{{ player.mp_current || 0 }} / {{ player.mp_max || 0 }}</span>
+        </div>
+        <div class="h-2 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
+          <div class="h-full bg-sky-600 progress-flow transition-all duration-300" :style="{ width: player.mp_max ? Math.min((player.mp_current / player.mp_max) * 100, 100) + '%' : '0%' }"></div>
+        </div>
+      </div>
+
       <!-- 修为 (Exp) -->
       <div>
         <div class="flex justify-between text-[10px] text-stone-400 mb-0.5">
@@ -155,27 +166,27 @@ watch(() => props.player.exp, (newVal, oldVal) => {
     <div class="grid grid-cols-2 gap-3 mb-8">
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">攻击</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.atk || 72 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.atk || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">防御</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.def || 62 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.def || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">速度</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.speed || 122 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.speed || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
-        <span class="text-xs text-stone-500 mb-1.5">法抗</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.res || 95 }}</span>
+        <span class="text-xs text-stone-500 mb-1.5">神识</span>
+        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.sense || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
-        <span class="text-xs text-stone-500 mb-1.5">悟性</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.sense || 39 }}</span>
+        <span class="text-xs text-stone-500 mb-1.5">丹毒</span>
+        <span class="text-rose-500 font-bold font-mono text-lg">{{ player.toxicity || 0 }}</span>
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">灵石</span>
-        <span class="text-amber-500 font-bold font-mono text-lg">{{ player.spirit_stones || 3809 }}</span>
+        <span class="text-amber-500 font-bold font-mono text-lg">{{ player.spirit_stones || 0 }}</span>
       </div>
     </div>
     
