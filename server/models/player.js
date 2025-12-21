@@ -86,6 +86,18 @@ const Player = sequelize.define('Player', {
         },
         comment: '基础属性JSON'
     },
+    spirit_roots: {
+        type: DataTypes.TEXT,
+        defaultValue: JSON.stringify({}),
+        get() {
+            const rawValue = this.getDataValue('spirit_roots');
+            return rawValue ? JSON.parse(rawValue) : {};
+        },
+        set(value) {
+            this.setDataValue('spirit_roots', JSON.stringify(value));
+        },
+        comment: '灵根资质JSON'
+    },
     token_version: {
         type: DataTypes.INTEGER,
         defaultValue: 0,

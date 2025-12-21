@@ -54,7 +54,7 @@
           </button>
           
           <h1 class="text-xl font-serif font-bold text-amber-500 tracking-wider flex items-center gap-2">
-            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">v0.0.1_BETA</span>
+            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">v0.0.2_BETA</span>
           </h1>
         </div>
         

@@ -279,6 +279,10 @@
                   "lifespan_current": 18.5,
                   "lifespan_max": 100,
                   "last_online": "2024-05-20T12:00:00.000Z",
+                  "spirit_roots": {
+                    "type": "wood",
+                    "value": 100
+                  },
                   "attributes": {
                     "hp_max": 100,
                     "mp_max": 0,

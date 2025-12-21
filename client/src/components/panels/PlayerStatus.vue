@@ -110,6 +110,27 @@ const fetchStats = async (isInitial = false) => {
   }
 }
 
+const rootTypeMap = {
+  metal: { name: '金', class: 'text-yellow-600' },
+  wood: { name: '木', class: 'text-emerald-600' },
+  water: { name: '水', class: 'text-blue-500' },
+  fire: { name: '火', class: 'text-rose-600' },
+  earth: { name: '土', class: 'text-stone-500' },
+  thunder: { name: '雷', class: 'text-purple-600' },
+  ice: { name: '冰', class: 'text-cyan-400' },
+  wind: { name: '风', class: 'text-teal-400' }
+}
+
+const currentRoot = computed(() => {
+  if (!props.player.spirit_roots || !props.player.spirit_roots.type) return null
+  const type = props.player.spirit_roots.type
+  return rootTypeMap[type] || { name: type, class: 'text-stone-400' }
+})
+
+const rootValue = computed(() => {
+  return props.player.spirit_roots?.value || 0
+})
+
 onMounted(() => {
   fetchStats(true)
   statsInterval = setInterval(() => fetchStats(false), 30000)
@@ -261,33 +282,22 @@ onUnmounted(() => {
       </div>
     </div>
     
-    <!-- 五行灵根 -->
+    <!-- 灵根资质 -->
     <div>
       <h3 class="text-sm text-stone-400 font-bold mb-3 flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
         灵根资质
       </h3>
-      <div class="flex justify-between bg-[#1c1917] p-3 rounded-lg border border-stone-800">
-        <div class="flex flex-col items-center gap-1.5">
-          <span class="text-xs text-yellow-600 font-bold">金</span>
-          <span class="text-xs text-stone-400 font-mono">1</span>
+      <div v-if="currentRoot" class="flex justify-between items-center bg-[#1c1917] p-4 rounded-lg border border-stone-800">
+        <div class="flex items-center gap-3">
+            <span class="text-base font-bold" :class="currentRoot.class">{{ currentRoot.name }}灵根</span>
         </div>
-        <div class="flex flex-col items-center gap-1.5">
-          <span class="text-xs text-emerald-600 font-bold">木</span>
-          <span class="text-xs text-stone-400 font-mono">8</span>
+        <div class="flex items-center gap-2">
+           <span class="text-xs text-stone-500">属性克制生效中</span>
         </div>
-        <div class="flex flex-col items-center gap-1.5">
-          <span class="text-xs text-blue-500 font-bold">水</span>
-          <span class="text-xs text-stone-400 font-mono">10</span>
-        </div>
-        <div class="flex flex-col items-center gap-1.5">
-          <span class="text-xs text-rose-600 font-bold">火</span>
-          <span class="text-xs text-stone-400 font-mono">9</span>
-        </div>
-        <div class="flex flex-col items-center gap-1.5">
-          <span class="text-xs text-stone-500 font-bold">土</span>
-          <span class="text-xs text-stone-400 font-mono">7</span>
-        </div>
+      </div>
+      <div v-else class="bg-[#1c1917] p-4 rounded-lg border border-stone-800 text-center text-stone-500 text-sm">
+        暂无灵根数据
       </div>
     </div>
     

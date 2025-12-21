@@ -34,6 +34,7 @@ router.get('/me', auth, async (req, res) => {
 
         const playerData = player.toJSON();
         const attributes = typeof playerData.attributes === 'string' ? JSON.parse(playerData.attributes) : playerData.attributes;
+        const spiritRoots = typeof playerData.spirit_roots === 'string' ? JSON.parse(playerData.spirit_roots) : playerData.spirit_roots;
 
         const realm = await Realm.findByPk(player.realm);
         const expCap = getRealmExpCap(realm);
@@ -56,7 +57,8 @@ router.get('/me', auth, async (req, res) => {
             exp_progress: expCap > 0n ? Number(currentExp * 10000n / expCap) / 10000 : 0,
             can_breakthrough: canBreakthrough,
             next_realm: nextRealm?.name || null,
-            attributes
+            attributes,
+            spirit_roots: spiritRoots
         };
 
         res.json(responseData);

@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Player = require('../models/player');
 const { Op } = require('sequelize');
+const { ATTRIBUTES } = require('../utils/gameConstants');
 
 // 检查唯一性 API
 router.get('/check-unique', async (req, res) => {
@@ -62,11 +63,17 @@ router.post('/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
+        // 生成随机单灵根 (仅保留属性，无资质数值)
+        const allRoots = Object.values(ATTRIBUTES);
+        const randomRoot = allRoots[Math.floor(Math.random() * allRoots.length)];
+        const spiritRoots = { type: randomRoot };
+
         // 创建新玩家
         const newPlayer = await Player.create({
             username,
             password: hashedPassword,
-            nickname
+            nickname,
+            spirit_roots: spiritRoots
         });
 
         res.status(201).json({ 
