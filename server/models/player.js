@@ -41,6 +41,21 @@ const Player = sequelize.define('Player', {
         defaultValue: 0,
         comment: '灵石数量'
     },
+    hp_current: {
+        type: DataTypes.BIGINT,
+        defaultValue: 100,
+        comment: '当前气血'
+    },
+    mp_current: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+        comment: '当前灵力'
+    },
+    toxicity: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '丹毒值'
+    },
     lifespan_current: {
         type: DataTypes.INTEGER,
         defaultValue: 16,
@@ -48,12 +63,14 @@ const Player = sequelize.define('Player', {
     },
     lifespan_max: {
         type: DataTypes.INTEGER,
-        defaultValue: 100,
+        defaultValue: 60,
         comment: '最大寿元'
     },
     attributes: {
         type: DataTypes.TEXT,
         defaultValue: JSON.stringify({
+            hp_max: 100,
+            mp_max: 0,
             atk: 10,
             def: 5,
             speed: 10,

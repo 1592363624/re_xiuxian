@@ -45,14 +45,20 @@ router.post('/login', async (req, res) => {
 
         // 查找用户
         const player = await Player.findOne({ where: { username } });
+        
         if (!player) {
-            return res.status(400).json({ message: '账号或密码错误' });
+            // 安全性：即使账号不存在，也进行一次耗时的密码比对，防止时序攻击 (Timing Attack)
+            // 使用一个固定的无效哈希进行比对，消耗与正常登录相似的时间
+            const dummyHash = '$2a$10$abcdefghijklmnopqrstuvwxyz123456'; // 示例无效哈希
+            await bcrypt.compare(password, dummyHash).catch(() => {}); 
+            
+            return res.status(404).json({ message: '该账号不存在，请检查或注册新账号' });
         }
 
         // 验证密码
         const isMatch = await bcrypt.compare(password, player.password);
         if (!isMatch) {
-            return res.status(400).json({ message: '账号或密码错误' });
+            return res.status(401).json({ message: '密码错误，请重新输入' });
         }
 
         // 更新 Token 版本号 (实现互踢)
