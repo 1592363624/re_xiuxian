@@ -31,11 +31,12 @@ const isInitialized = ref(false)
     }
   }
 
-  // 监听登录成功事件 (虽然 Pinia 已经处理了，但为了 Login 组件的 emit 兼容性)
-  const handleLoginSuccess = async (player) => {
-    playerStore.setPlayer(player)
-    // 登录后获取完整数据
+  // 监听登录成功事件
+  const handleLoginSuccess = async () => {
+    console.log('Login success event received')
+    // 登录后获取完整数据 (双重保险，如果 Login 页面已经获取过，这里会再次获取最新状态)
     await playerStore.fetchPlayer()
+    console.log('Player after fetch:', playerStore.player)
   }
 
   let pingInterval
@@ -72,14 +73,22 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="!currentPlayer">
-    <Login @login-success="handleLoginSuccess" />
+  <!-- 全局初始化加载状态 -->
+  <div v-if="!isInitialized" class="min-h-screen flex flex-col items-center justify-center bg-xiuxian-dark text-xiuxian-gold">
+    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-xiuxian-gold mb-4"></div>
+    <div class="text-lg font-serif tracking-widest">正在通往修仙世界...</div>
   </div>
-  <GameLayout 
-    v-else
-    :serverStatus="serverStatus" 
-    :dbStatus="dbStatus"
-    :ping="ping"
-    :player="currentPlayer"
-  />
+
+  <template v-else>
+    <div v-if="!currentPlayer">
+      <Login @login-success="handleLoginSuccess" />
+    </div>
+    <GameLayout 
+      v-else
+      :serverStatus="serverStatus" 
+      :dbStatus="dbStatus"
+      :ping="ping"
+      :player="currentPlayer"
+    />
+  </template>
 </template>

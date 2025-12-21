@@ -35,6 +35,10 @@ const defaultAvatar = 'https://i.postimg.cc/q73059Z3/hanli.jpg'
 const isExpChanged = ref(false)
 
 // 监听经验变化
+watch(() => props.player, (newVal) => {
+  console.log('PlayerStatus player update:', newVal)
+}, { deep: true, immediate: true })
+
 watch(() => props.player.exp, (newVal, oldVal) => {
   if (newVal !== oldVal) {
     isExpChanged.value = true

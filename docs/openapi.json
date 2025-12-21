@@ -118,6 +118,51 @@
           }
         }
       }
+    },
+    "/api/player/me": {
+      "get": {
+        "summary": "获取当前玩家详细信息",
+        "description": "获取当前登录玩家的完整数据，包括气血、修为、属性等",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 1,
+                  "username": "hanli",
+                  "nickname": "韩天尊",
+                  "realm": "炼气期",
+                  "exp": 100,
+                  "exp_next": 200,
+                  "spirit_stones": 50,
+                  "hp_current": 100,
+                  "hp_max": 100,
+                  "lifespan_current": 18,
+                  "lifespan_max": 100,
+                  "attributes": {
+                    "atk": 10,
+                    "def": 5,
+                    "speed": 10,
+                    "sense": 10
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
+        }
+      }
     }
   },
   "components": {

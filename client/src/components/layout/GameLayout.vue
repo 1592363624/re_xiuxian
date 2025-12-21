@@ -146,7 +146,10 @@ import AdminPanel from '../admin/AdminPanel.vue';
 
 const props = defineProps<{
   player: any
-  logs: any[]
+  logs?: any[]
+  serverStatus?: string
+  dbStatus?: string
+  ping?: number
 }>();
 
 const emit = defineEmits(['action']);
