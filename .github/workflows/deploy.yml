@@ -75,9 +75,15 @@ jobs:
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
-          password: ${{ secrets.PASSWORD }} # 或 key: ${{ secrets.SSH_KEY }}
+          password: ${{ secrets.PASSWORD }}
           source: "."
           target: "C:/Projects/re_xiuxian"
+          # 关键修改：禁用 tar 打包，直接逐个传输文件
+          # Windows 服务器上的 OpenSSH 有时处理 tar 解压有问题，特别是路径分隔符差异
+          # 或者 tar 命令在 Windows 环境不可用/不兼容
+          tar_tmp_path: "C:/Windows/Temp/" # 尝试指定一个确定的临时目录
+          use_insecure_cipher: true # 兼容旧版加密算法（可选，视服务器配置）
+          # rm: true # 传输前清空目标目录（慎用，如果目录不存在会报错）
   
       - name: Install Dependencies & Restart
         uses: appleboy/ssh-action@master
