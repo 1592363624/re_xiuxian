@@ -63,14 +63,71 @@ jobs:
           }]
         }" > release/server/ecosystem.config.js
 
-    # 3. 上传构建产物 (可用于手动部署)
+    # 3. 生成部署脚本与构建产物
+    - name: Prepare Deployment Artifacts
+      run: |
+        # 创建部署脚本 deploy.ps1 (在 Windows 端执行)
+        cat <<EOF > deploy.ps1
+        \$ErrorActionPreference = 'Stop'
+        Start-Transcript -Path "C:\\Projects\\re_xiuxian_temp\\deploy_log.txt" -Force
+
+        Write-Host "Starting deployment process..."
+        \$tempDir = "C:\\Projects\\re_xiuxian_temp"
+        \$targetDir = "C:\\Projects\\re_xiuxian"
+        \$zipPath = "\$tempDir\\deploy_package.zip"
+
+        # 1. 检查文件是否存在
+        if (-not (Test-Path \$zipPath)) {
+            Throw "Error: Deployment package not found at \$zipPath"
+        }
+
+        # 2. 清理并创建目标目录
+        if (Test-Path \$targetDir) {
+            Write-Host "Cleaning target directory..."
+            # 保留 node_modules 以加速安装 (可选，这里选择全量覆盖以确保干净)
+            # Remove-Item "\$targetDir\\*" -Recurse -Force -Exclude "node_modules"
+        } else {
+            New-Item -Path \$targetDir -ItemType Directory -Force | Out-Null
+        }
+
+        # 3. 解压 ZIP (使用 PowerShell 原生命令，比 tar 更稳定)
+        Write-Host "Extracting package to \$targetDir..."
+        Expand-Archive -Path \$zipPath -DestinationPath \$targetDir -Force
+
+        # 4. 后端依赖安装
+        Write-Host "Installing server dependencies..."
+        Set-Location "\$targetDir\\server"
+        npm install --production --no-audit
+
+        # 5. PM2 服务管理
+        Write-Host "Configuring PM2..."
+        if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
+            Write-Host "Installing PM2 globally..."
+            npm install -g pm2
+        }
+
+        Write-Host "Reloading application..."
+        pm2 startOrReload ecosystem.config.js
+        pm2 save
+
+        Write-Host "Deployment completed successfully!"
+        Stop-Transcript
+        EOF
+
+        # 验证脚本内容
+        echo "Generated deploy.ps1 content:"
+        cat deploy.ps1
+
+    # 4. 上传构建产物
     - name: Upload Deployment Artifact
       uses: actions/upload-artifact@v4
       with:
         name: xiuxian-release
-        path: release/
+        path: |
+          release/
+          deploy.ps1
 
-  # 4. 自动部署
+  # 5. 自动部署
   deploy:
     needs: build-and-package
     runs-on: ubuntu-latest
@@ -79,16 +136,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: xiuxian-release
-          path: release
+          path: .
 
-      # 打包为单个压缩包 (打包到上级目录，避免包含自身和路径问题)
+      # 打包为 ZIP (兼容性更好)
       - name: Compress Release Package
         run: |
           cd release
-          tar -czf ../deploy_package.tar.gz .
+          zip -r ../deploy_package.zip .
 
-      # 步骤1：先创建Windows临时目录
-      - name: Create Temp Directory on Windows
+      # 步骤1：创建临时目录
+      - name: Create Temp Directory
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HOST }}
@@ -98,20 +155,19 @@ jobs:
           script: |
             powershell -Command "New-Item -Path 'C:\\Projects\\re_xiuxian_temp' -ItemType Directory -Force"
 
-      # 步骤2：SCP传输压缩包
-      - name: Copy Package to Windows via SCP
+      # 步骤2：上传 ZIP 包和 部署脚本
+      - name: Upload Files via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           port: 22
-          source: "deploy_package.tar.gz"
+          source: "deploy_package.zip,deploy.ps1"
           target: "C:\\Projects\\re_xiuxian_temp"
-          debug: true
 
-      # 步骤3：在Windows服务器解压并部署
-      - name: Deploy on Windows Server
+      # 步骤3：执行部署脚本
+      - name: Execute Deployment Script
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HOST }}
@@ -119,38 +175,11 @@ jobs:
           password: ${{ secrets.PASSWORD }}
           port: 22
           script: |
-            powershell -Command "
-              \$ErrorActionPreference = 'Stop'  # 遇到错误立即停止
-              
-              # 1. 确保目标目录存在
-              if (-not (Test-Path 'C:\\Projects\\re_xiuxian')) {
-                New-Item -Path 'C:\\Projects\\re_xiuxian' -ItemType Directory -Force | Out-Null
-                Write-Host 'Created target directory: C:\\Projects\\re_xiuxian'
-              }
-              
-              # 2. 解压压缩包 (注意：压缩包现在位于 temp 根目录)
-              Write-Host 'Extracting deployment package...'
-              tar -xzf 'C:\\Projects\\re_xiuxian_temp\\deploy_package.tar.gz' -C 'C:\\Projects\\re_xiuxian'
-              
-              # 3. 清理临时文件/目录
-              Write-Host 'Cleaning up temp files...'
-              Remove-Item 'C:\\Projects\\re_xiuxian_temp' -Recurse -Force
-              
-              # 4. 安装后端依赖
-              Write-Host 'Installing server dependencies...'
-              Set-Location 'C:\\Projects\\re_xiuxian\\server'
-              npm install --production
-              
-              # 5. 安装PM2 (如果未安装) 并重启服务
-              if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
-                Write-Host 'Installing PM2 globally...'
-                npm install -g pm2
-              }
-              
-              Write-Host 'Starting/Restarting PM2 service...'
-              pm2 startOrReload ecosystem.config.js
-              pm2 save
-              
-              Write-Host 'Deployment completed successfully!'
-            "
+            powershell -ExecutionPolicy Bypass -File "C:\\Projects\\re_xiuxian_temp\\deploy.ps1"
+            
+            # 检查脚本执行结果
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Deployment script failed. Check C:\\Projects\\re_xiuxian_temp\\deploy_log.txt for details."
+              exit 1
+            }
             "
