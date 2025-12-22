@@ -20,10 +20,14 @@
         <span class="text-stone-300 font-bold tracking-widest text-sm group-hover:text-amber-500 transition-colors">{{ action.name }}</span>
         
         <!-- 冷却倒计时 -->
-        <div v-if="action.id === 'meditate' && remainingCooldown > 0" class="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-10">
+        <div
+          v-if="action.id === 'meditate' && remainingCooldown > 0"
+          class="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-10 pointer-events-auto cursor-not-allowed"
+          @click.stop
+        >
           <span class="text-amber-500 font-mono font-bold">{{ formatCooldown(remainingCooldown) }}</span>
         </div>
-        
+
         <!-- 悬停光效 -->
         <div class="absolute inset-0 rounded-lg bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
       </button>
