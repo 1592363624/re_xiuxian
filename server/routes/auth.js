@@ -39,6 +39,20 @@ router.post('/register', async (req, res) => {
     try {
         const { username, password, nickname } = req.body;
         
+        // 格式验证
+        const USERNAME_REGEX = /^[a-zA-Z0-9]{6,12}$/;
+        const PASSWORD_REGEX = /^[a-zA-Z0-9]{6,12}$/;
+        
+        if (!username || !USERNAME_REGEX.test(username)) {
+            return res.status(400).json({ message: '账号必须为6-12位英文或数字' });
+        }
+        if (!password || !PASSWORD_REGEX.test(password)) {
+            return res.status(400).json({ message: '密码必须为6-12位英文或数字' });
+        }
+        if (!nickname || nickname.length < 2 || nickname.length > 10) {
+            return res.status(400).json({ message: '道号必须为2-10个字符' });
+        }
+        
         // 1. 业务层预检查 (提升用户体验)
         // 使用 Op.or 一次性查询，减少数据库交互
         const existingPlayer = await Player.findOne({

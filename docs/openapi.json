@@ -344,29 +344,31 @@
                 "properties": {
                   "username": {
                     "type": "string",
-                    "minLength": 4,
-                    "maxLength": 20,
-                    "description": "登录账号，4-20位字母或数字"
+                    "pattern": "^[a-zA-Z0-9]{6,12}$",
+                    "minLength": 6,
+                    "maxLength": 12,
+                    "description": "登录账号，6-12位英文或数字"
                   },
                   "password": {
                     "type": "string",
+                    "pattern": "^[a-zA-Z0-9]{6,12}$",
                     "minLength": 6,
-                    "maxLength": 20,
-                    "description": "登录密码，6-20位"
+                    "maxLength": 12,
+                    "description": "登录密码，6-12位英文或数字"
                   },
                   "nickname": {
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 10,
-                    "description": "道号/昵称，2-10位字符"
+                    "description": "道号/昵称，2-10个字符"
                   }
                 }
               },
               "examples": {
                 "normal": {
                   "value": {
-                    "username": "hanli",
-                    "password": "password123",
+                    "username": "hanli2024",
+                    "password": "pass1234",
                     "nickname": "韩天尊"
                   }
                 }
@@ -396,14 +398,6 @@
                         "playerId": {
                           "type": "integer",
                           "example": 1
-                        },
-                        "username": {
-                          "type": "string",
-                          "example": "hanli"
-                        },
-                        "nickname": {
-                          "type": "string",
-                          "example": "韩天尊"
                         }
                       }
                     }
@@ -413,7 +407,7 @@
             }
           },
           "400": {
-            "description": "参数错误或账号已存在",
+            "description": "参数错误、格式验证失败或账号已存在",
             "content": {
               "application/json": {
                 "examples": {
@@ -429,10 +423,22 @@
                       "message": "该道号已被使用，请选择其他道号"
                     }
                   },
-                  "invalid_params": {
+                  "invalid_username": {
                     "value": {
                       "code": 400,
-                      "message": "参数错误：用户名必须为4-20位字母或数字"
+                      "message": "账号必须为6-12位英文或数字"
+                    }
+                  },
+                  "invalid_password": {
+                    "value": {
+                      "code": 400,
+                      "message": "密码必须为6-12位英文或数字"
+                    }
+                  },
+                  "invalid_nickname": {
+                    "value": {
+                      "code": 400,
+                      "message": "道号必须为2-10个字符"
                     }
                   }
                 }
