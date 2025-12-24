@@ -1,0 +1,135 @@
+{
+    "routes": [
+        {
+            "id": "home",
+            "name": "首页",
+            "path": "/",
+            "component": "HomePanel",
+            "permission": "public",
+            "layout": "default"
+        },
+        {
+            "id": "login",
+            "name": "登录",
+            "path": "/login",
+            "component": "Login",
+            "permission": "public",
+            "layout": "auth"
+        },
+        {
+            "id": "register",
+            "name": "注册",
+            "path": "/register",
+            "component": "Register",
+            "permission": "public",
+            "layout": "auth"
+        },
+        {
+            "id": "game",
+            "name": "游戏主界面",
+            "path": "/game",
+            "component": "GameLayout",
+            "permission": "user",
+            "layout": "game",
+            "children": [
+                {
+                    "id": "game_main",
+                    "name": "主游戏界面",
+                    "path": "main",
+                    "component": "MainPanel"
+                },
+                {
+                    "id": "game_practice",
+                    "name": "修炼界面",
+                    "path": "practice",
+                    "component": "PracticePanel"
+                },
+                {
+                    "id": "game_inventory",
+                    "name": "背包界面",
+                    "path": "inventory",
+                    "component": "InventoryPanel"
+                },
+                {
+                    "id": "game_skills",
+                    "name": "功法界面",
+                    "path": "skills",
+                    "component": "SkillsPanel"
+                },
+                {
+                    "id": "game_social",
+                    "name": "社交界面",
+                    "path": "social",
+                    "component": "SocialPanel"
+                },
+                {
+                    "id": "game_map",
+                    "name": "地图探索",
+                    "path": "map",
+                    "component": "MapPanel"
+                },
+                {
+                    "id": "game_breakthrough",
+                    "name": "境界突破",
+                    "path": "breakthrough",
+                    "component": "BreakthroughPanel"
+                },
+                {
+                    "id": "game_shop",
+                    "name": "商店",
+                    "path": "shop",
+                    "component": "ShopPanel"
+                },
+                {
+                    "id": "game_seclusion",
+                    "name": "闭关修炼",
+                    "path": "seclusion",
+                    "component": "SeclusionPanel"
+                },
+                {
+                    "id": "game_admin",
+                    "name": "管理员面板",
+                    "path": "admin",
+                    "component": "AdminPanel",
+                    "permission": "admin"
+                }
+            ]
+        },
+        {
+            "id": "settings",
+            "name": "设置",
+            "path": "/settings",
+            "component": "SettingsModal",
+            "permission": "user",
+            "layout": "modal"
+        },
+        {
+            "id": "notFound",
+            "name": "404",
+            "path": "/404",
+            "component": "NotFound",
+            "permission": "public",
+            "layout": "empty"
+        }
+    ],
+    "navigation": {
+        "topBar": [
+            { "route": "home", "icon": "home", "label": "首页" },
+            { "route": "game_practice", "icon": "practice", "label": "修炼" },
+            { "route": "game_inventory", "icon": "inventory", "label": "背包" },
+            { "route": "game_skills", "icon": "skills", "label": "功法" },
+            { "route": "game_social", "icon": "social", "label": "社交" }
+        ],
+        "bottomBar": [
+            { "route": "game_map", "icon": "map", "label": "地图" },
+            { "route": "game_breakthrough", "icon": "breakthrough", "label": "突破" },
+            { "route": "game_shop", "icon": "shop", "label": "商店" },
+            { "route": "game_seclusion", "icon": "seclusion", "label": "闭关" }
+        ]
+    },
+    "transitions": {
+        "default": { "duration": 300, "easing": "ease-in-out" },
+        "fast": { "duration": 150, "easing": "ease-out" },
+        "slow": { "duration": 500, "easing": "ease-in-out" }
+    }
+}

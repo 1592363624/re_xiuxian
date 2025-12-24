@@ -1,0 +1,39 @@
+{
+    "spirit_roots": [
+        { "id": "metal", "name": "金", "displayName": "金", "type": "metal", "description": "金属性灵根，攻击加成" },
+        { "id": "wood", "name": "木", "displayName": "木", "type": "wood", "description": "木属性灵根，气血加成" },
+        { "id": "water", "name": "水", "displayName": "水", "type": "water", "description": "水属性灵根，速度加成" },
+        { "id": "fire", "name": "火", "displayName": "火", "type": "fire", "description": "火属性灵根，攻击加成" },
+        { "id": "earth", "name": "土", "displayName": "土", "type": "earth", "description": "土属性灵根，防御加成" }
+    ],
+    "spiritRootProbabilities": {
+        "金": 0.2,
+        "木": 0.2,
+        "水": 0.2,
+        "火": 0.2,
+        "土": 0.2
+    },
+    "initialAttributes": {
+        "hp_max": 100,
+        "mp_max": 0,
+        "atk": 10,
+        "def": 5,
+        "speed": 10,
+        "sense": 10,
+        "luck": 10,
+        "wisdom": 10
+    },
+    "initialAge": 16,
+    "initialLifespan": 60,
+    "initialSpiritStones": 10,
+    "agingRate": 1,
+    "spiritRootBonuses": {
+        "金": { "atk": 4, "def": 2 },
+        "木": { "hp_max": 30, "mp_max": 8 },
+        "水": { "speed": 3, "mp_max": 10 },
+        "火": { "atk": 5, "speed": 2 },
+        "土": { "def": 4, "hp_max": 25 }
+    },
+    "expGrowthRate": 3,
+    "attributeGrowthRate": 1.5
+}

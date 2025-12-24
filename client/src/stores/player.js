@@ -28,7 +28,7 @@ export const usePlayerStore = defineStore('player', {
       if (!this.token) return
       try {
         const res = await axios.get('/api/player/me')
-        this.setPlayer(res.data)
+        this.setPlayer(res.data.data)
       } catch (error) {
         if (error.response) {
           // 处理互踢逻辑

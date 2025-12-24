@@ -1,0 +1,193 @@
+{
+    "items": [
+        {
+            "id": "low_healing_pill",
+            "name": "回春丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "common",
+            "description": "恢复少量气血",
+            "effect": { "hp_restore": 10 },
+            "price": 10
+        },
+        {
+            "id": "mid_healing_pill",
+            "name": "小还丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "uncommon",
+            "description": "恢复中等气血",
+            "effect": { "hp_restore": 50 },
+            "price": 50
+        },
+        {
+            "id": "high_healing_pill",
+            "name": "大还丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "rare",
+            "description": "恢复大量气血",
+            "effect": { "hp_restore": 100 },
+            "price": 200
+        },
+        {
+            "id": "low_mana_pill",
+            "name": "凝气丹",
+            "type": "consumable",
+            "subtype": "mana",
+            "quality": "common",
+            "description": "恢复少量灵力",
+            "effect": { "mp_restore": 15 },
+            "price": 15
+        },
+        {
+            "id": "mid_mana_pill",
+            "name": "聚灵丹",
+            "type": "consumable",
+            "subtype": "mana",
+            "quality": "uncommon",
+            "description": "恢复中等灵力",
+            "effect": { "mp_restore": 50 },
+            "price": 80
+        },
+        {
+            "id": "foundation_pill",
+            "name": "筑基丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "rare",
+            "description": "辅助突破筑基期",
+            "effect": { "breakthrough_bonus": 15 },
+            "price": 1000
+        },
+        {
+            "id": "gold_pill",
+            "name": "结金丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "epic",
+            "description": "辅助突破金丹期",
+            "effect": { "breakthrough_bonus": 20 },
+            "price": 5000
+        },
+        {
+            "id": "nascent_pill",
+            "name": "化婴丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "legendary",
+            "description": "辅助突破元婴期",
+            "effect": { "breakthrough_bonus": 25 },
+            "price": 20000
+        },
+        {
+            "id": "low_longevity_pill",
+            "name": "低阶延寿丹",
+            "type": "consumable",
+            "subtype": "longevity",
+            "quality": "uncommon",
+            "description": "增加10年寿元",
+            "effect": { "longevity_add": 10 },
+            "price": 500
+        },
+        {
+            "id": "mid_longevity_pill",
+            "name": "中阶延寿丹",
+            "type": "consumable",
+            "subtype": "longevity",
+            "quality": "rare",
+            "description": "增加30年寿元",
+            "effect": { "longevity_add": 30 },
+            "price": 2000
+        },
+        {
+            "id": "high_longevity_pill",
+            "name": "高阶延寿丹",
+            "type": "consumable",
+            "subtype": "longevity",
+            "quality": "epic",
+            "description": "增加100年寿元",
+            "effect": { "longevity_add": 100 },
+            "price": 10000
+        },
+        {
+            "id": "low_toxicity_clear",
+            "name": "清心丹",
+            "type": "consumable",
+            "subtype": "debuff",
+            "quality": "common",
+            "description": "清除5点丹毒",
+            "effect": { "toxicity_reduce": 5 },
+            "price": 20
+        },
+        {
+            "id": "low_spirit_stone",
+            "name": "低阶灵石",
+            "type": "currency",
+            "description": "修仙界通用货币",
+            "price": 1
+        },
+        {
+            "id": "mid_spirit_stone",
+            "name": "中阶灵石",
+            "type": "currency",
+            "description": "等价于100低阶灵石",
+            "price": 100
+        },
+        {
+            "id": "high_spirit_stone",
+            "name": "高阶灵石",
+            "type": "currency",
+            "description": "等价于10000低阶灵石",
+            "price": 10000
+        },
+        {
+            "id": "blood_grass",
+            "name": "血灵草",
+            "type": "material",
+            "subtype": "herb",
+            "description": "炼制筑基丹的主材料",
+            "price": 50
+        },
+        {
+            "id": "condensing_flower",
+            "name": "凝气花",
+            "type": "material",
+            "subtype": "herb",
+            "description": "炼制筑基丹的辅材",
+            "price": 30
+        },
+        {
+            "id": "golden_ore",
+            "name": "金精石",
+            "type": "material",
+            "subtype": "ore",
+            "description": "炼制结金丹的材料",
+            "price": 100
+        },
+        {
+            "id": "spirit_root",
+            "name": "血灵根",
+            "type": "material",
+            "subtype": "herb",
+            "description": "炼制圆满固元丹的材料",
+            "price": 200
+        },
+        {
+            "id": "infant_fruit",
+            "name": "婴灵果",
+            "type": "material",
+            "subtype": "herb",
+            "description": "炼制化婴丹的主材料",
+            "price": 500
+        },
+        {
+            "id": "jade_core",
+            "name": "寒髓玉",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "炼制化婴丹的辅材",
+            "price": 300
+        }
+    ]
+}

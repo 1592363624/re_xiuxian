@@ -2,154 +2,324 @@
   "openapi": "3.0.0",
   "info": {
     "title": "重生之凡人修仙传 API",
-    "description": "修仙文字游戏后端接口文档",
-    "version": "1.0.0"
+    "description": "修仙文字游戏后端接口文档，基于《凡人修仙传》世界观。包含玩家注册登录、角色管理、境界突破、地图探索、闭关修炼、GM管理等完整功能。",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Shell",
+      "email": "1592363624@qq.com"
+    }
   },
   "servers": [
     {
       "url": "http://localhost:3000",
       "description": "本地开发环境"
+    },
+    {
+      "url": "https://xx.52shell.ltd",
+      "description": "生产环境"
     }
   ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "用户认证相关接口"
+    },
+    {
+      "name": "Player",
+      "description": "玩家角色管理"
+    },
+    {
+      "name": "Breakthrough",
+      "description": "境界突破系统"
+    },
+    {
+      "name": "Seclusion",
+      "description": "闭关修炼系统"
+    },
+    {
+      "name": "Map",
+      "description": "地图探索系统"
+    },
+    {
+      "name": "Chat",
+      "description": "世界聊天系统"
+    },
+    {
+      "name": "Config",
+      "description": "游戏配置数据"
+    },
+    {
+      "name": "System",
+      "description": "系统管理"
+    },
+    {
+      "name": "Admin",
+      "description": "管理员功能 (GM)"
+    },
+    {
+      "name": "GM",
+      "description": "GM工具面板"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT Token 认证"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "错误码"
+          },
+          "message": {
+            "type": "string",
+            "description": "错误信息"
+          }
+        }
+      },
+      "Player": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "玩家唯一ID"
+          },
+          "username": {
+            "type": "string",
+            "description": "登录账号"
+          },
+          "nickname": {
+            "type": "string",
+            "description": "道号/昵称"
+          },
+          "realm": {
+            "type": "string",
+            "description": "当前境界"
+          },
+          "exp": {
+            "type": "string",
+            "description": "当前修为值"
+          },
+          "exp_cap": {
+            "type": "string",
+            "description": "修为上限"
+          },
+          "spirit_root": {
+            "type": "object",
+            "description": "灵根属性",
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "灵根类型：金/木/水/火/土/雷/冰等"
+              },
+              "level": {
+                "type": "integer",
+                "description": "灵根等级 1-10"
+              }
+            }
+          },
+          "spirit_stones": {
+            "type": "string",
+            "description": "灵石数量"
+          },
+          "age": {
+            "type": "integer",
+            "description": "当前年龄"
+          },
+          "lifespan": {
+            "type": "object",
+            "description": "寿命信息",
+            "properties": {
+              "current": {
+                "type": "integer",
+                "description": "当前寿命"
+              },
+              "max": {
+                "type": "integer",
+                "description": "最大寿命"
+              },
+              "percent": {
+                "type": "number",
+                "description": "寿命百分比"
+              }
+            }
+          },
+          "attributes": {
+            "type": "object",
+            "description": "角色属性",
+            "properties": {
+              "hp_max": {
+                "type": "integer",
+                "description": "最大气血"
+              },
+              "mp_max": {
+                "type": "integer",
+                "description": "最大灵力"
+              },
+              "atk": {
+                "type": "integer",
+                "description": "攻击力"
+              },
+              "def": {
+                "type": "integer",
+                "description": "防御力"
+              },
+              "spd": {
+                "type": "integer",
+                "description": "速度"
+              }
+            }
+          },
+          "is_secluded": {
+            "type": "boolean",
+            "description": "是否正在闭关"
+          },
+          "seclusion_end_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "闭关结束时间"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最后更新时间"
+          }
+        }
+      },
+      "Realm": {
+        "type": "object",
+        "description": "境界配置",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "境界ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "境界名称"
+          },
+          "rank": {
+            "type": "integer",
+            "description": "境界等级"
+          },
+          "description": {
+            "type": "string",
+            "description": "境界描述"
+          },
+          "exp_cap": {
+            "type": "string",
+            "description": "所需修为"
+          },
+          "base_hp": {
+            "type": "integer",
+            "description": "基础气血"
+          },
+          "base_mp": {
+            "type": "integer",
+            "description": "基础灵力"
+          },
+          "lifespan_max": {
+            "type": "integer",
+            "description": "最大寿命"
+          }
+        }
+      }
+    }
+  },
   "paths": {
     "/api/status": {
       "get": {
         "summary": "检查服务器状态",
-        "description": "获取服务器和数据库的连接状态",
-        "responses": {
-          "200": {
-            "description": "成功",
-            "content": {
-              "application/json": {
-                "example": {
-                  "status": "ok",
-                  "message": "服务器正常运行，数据库连接成功",
-                  "timestamp": "2024-05-20T12:00:00.000Z"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/system/stats": {
-      "get": {
-        "summary": "获取服务器统计信息",
-        "description": "获取当前在线人数和总玩家数",
+        "description": "获取服务器和数据库的连接状态，用于健康检查和负载均衡检测",
         "tags": ["System"],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "服务器正常运行",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "online": {
+                    "code": {
                       "type": "integer",
-                      "description": "在线人数"
+                      "example": 200
                     },
-                    "total": {
-                      "type": "integer",
-                      "description": "总玩家数"
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "服务器正常运行，数据库连接成功"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time",
+                      "example": "2024-05-20T12:00:00.000Z"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "server": {
+                          "type": "string",
+                          "example": "running"
+                        },
+                        "database": {
+                          "type": "string",
+                          "example": "connected"
+                        },
+                        "uptime": {
+                          "type": "integer",
+                          "description": "服务器运行时间(秒)",
+                          "example": 3600
+                        },
+                        "players_online": {
+                          "type": "integer",
+                          "description": "在线玩家数",
+                          "example": 42
+                        }
+                      }
                     }
                   }
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/admin/time-travel": {
-      "post": {
-        "summary": "时间加速 (GM)",
-        "description": "让游戏时间流逝指定年份，增加所有玩家寿命并触发死亡判定。",
-        "tags": ["Admin"],
-        "security": [{"bearerAuth": []}],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "years": {
-                    "type": "number",
-                    "description": "加速的年份 (例如 1.5)"
-                  }
-                },
-                "required": ["years"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "操作成功",
+          },
+          "503": {
+            "description": "数据库连接失败",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": { "type": "string" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/seclusion/start": {
-      "post": {
-        "summary": "开始闭关",
-        "description": "进入闭关状态，无法进行其他操作",
-        "tags": ["Player"],
-        "security": [{"bearerAuth": []}],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "duration": {
-                    "type": "integer",
-                    "description": "闭关时长(秒)"
-                  }
-                },
-                "required": ["duration"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "开始闭关成功"
-          }
-        }
-      }
-    },
-    "/api/seclusion/end": {
-      "post": {
-        "summary": "结束闭关",
-        "description": "结束闭关状态并结算奖励",
-        "tags": ["Player"],
-        "security": [{"bearerAuth": []}],
-        "responses": {
-          "200": {
-            "description": "结算成功",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "exp_gain": { "type": "integer" }
-                      }
+                    "code": {
+                      "type": "integer",
+                      "example": 503
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "数据库连接失败"
                     }
                   }
                 }
@@ -162,27 +332,44 @@
     "/api/auth/register": {
       "post": {
         "summary": "用户注册",
+        "description": "创建新的玩家账号，需要提供用户名、密码和道号",
+        "tags": ["Auth"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["username", "password", "nickname"],
                 "properties": {
                   "username": {
                     "type": "string",
-                    "example": "hanli"
+                    "minLength": 4,
+                    "maxLength": 20,
+                    "description": "登录账号，4-20位字母或数字"
                   },
                   "password": {
                     "type": "string",
-                    "example": "123456"
+                    "minLength": 6,
+                    "maxLength": 20,
+                    "description": "登录密码，6-20位"
                   },
                   "nickname": {
                     "type": "string",
-                    "example": "韩天尊"
+                    "minLength": 2,
+                    "maxLength": 10,
+                    "description": "道号/昵称，2-10位字符"
                   }
-                },
-                "required": ["username", "password", "nickname"]
+                }
+              },
+              "examples": {
+                "normal": {
+                  "value": {
+                    "username": "hanli",
+                    "password": "password123",
+                    "nickname": "韩天尊"
+                  }
+                }
               }
             }
           }
@@ -192,9 +379,62 @@
             "description": "注册成功",
             "content": {
               "application/json": {
-                "example": {
-                  "message": "注册成功，踏入仙途",
-                  "playerId": 1
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "注册成功，踏入仙途"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "playerId": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "username": {
+                          "type": "string",
+                          "example": "hanli"
+                        },
+                        "nickname": {
+                          "type": "string",
+                          "example": "韩天尊"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误或账号已存在",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "username_exists": {
+                    "value": {
+                      "code": 400,
+                      "message": "该账号已被注册，请更换其他账号"
+                    }
+                  },
+                  "nickname_exists": {
+                    "value": {
+                      "code": 400,
+                      "message": "该道号已被使用，请选择其他道号"
+                    }
+                  },
+                  "invalid_params": {
+                    "value": {
+                      "code": 400,
+                      "message": "参数错误：用户名必须为4-20位字母或数字"
+                    }
+                  }
                 }
               }
             }
@@ -205,23 +445,33 @@
     "/api/auth/login": {
       "post": {
         "summary": "用户登录",
+        "description": "使用账号密码登录，获取JWT Token用于后续接口认证",
+        "tags": ["Auth"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["username", "password"],
                 "properties": {
                   "username": {
                     "type": "string",
-                    "example": "hanli"
+                    "description": "登录账号"
                   },
                   "password": {
                     "type": "string",
-                    "example": "123456"
+                    "description": "登录密码"
                   }
-                },
-                "required": ["username", "password"]
+                }
+              },
+              "examples": {
+                "normal": {
+                  "value": {
+                    "username": "hanli",
+                    "password": "password123"
+                  }
+                }
               }
             }
           }
@@ -231,13 +481,172 @@
             "description": "登录成功",
             "content": {
               "application/json": {
-                "example": {
-                  "message": "登录成功",
-                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                  "player": {
-                    "id": 1,
-                    "nickname": "韩天尊",
-                    "realm": "凡人"
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "登录成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "type": "string",
+                          "description": "JWT访问令牌"
+                        },
+                        "expiresIn": {
+                          "type": "integer",
+                          "description": "令牌有效期(秒)",
+                          "example": 86400
+                        },
+                        "player": {
+                          "$ref": "#/components/schemas/Player"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "success": {
+                    "value": {
+                      "code": 200,
+                      "message": "登录成功",
+                      "data": {
+                        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "expiresIn": 86400,
+                        "player": {
+                          "id": 1,
+                          "username": "hanli",
+                          "nickname": "韩天尊",
+                          "realm": "炼气1层"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "账号或密码错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 401
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "账号或密码错误"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "summary": "用户登出",
+        "description": "退出登录，使当前token失效",
+        "tags": ["Auth"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "登出成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "登出成功"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/check-unique": {
+      "get": {
+        "summary": "检查账号唯一性",
+        "description": "在注册前检查用户名或道号是否已被注册",
+        "tags": ["Auth"],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["username", "nickname"]
+            },
+            "description": "检查类型：username-用户名，nickname-道号"
+          },
+          {
+            "name": "value",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "待检查的值"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "available": {
+                      "type": "boolean",
+                      "description": "是否可用"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "提示信息"
+                    }
+                  }
+                },
+                "examples": {
+                  "available": {
+                    "value": {
+                      "code": 200,
+                      "available": true,
+                      "message": "该账号可用"
+                    }
+                  },
+                  "not_available": {
+                    "value": {
+                      "code": 200,
+                      "available": false,
+                      "message": "该账号已被注册，请更换其他账号"
+                    }
                   }
                 }
               }
@@ -248,84 +657,223 @@
     },
     "/api/player/me": {
       "get": {
-        "summary": "获取当前玩家详细信息",
-        "description": "获取当前登录玩家的完整数据，包括气血、修为、属性等",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "summary": "获取当前玩家信息",
+        "description": "获取玩家基本信息、境界、属性、修为等综合数据",
+        "tags": ["Player"],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
             "description": "成功",
             "content": {
               "application/json": {
-                "example": {
-                  "id": 1,
-                  "username": "hanli",
-                  "nickname": "韩天尊",
-                  "realm": "炼气期13层",
-                  "exp": "2744000",
-                  "exp_next": "2744000",
-                  "exp_cap": "2744000",
-                  "exp_progress": 1,
-                  "can_breakthrough": true,
-                  "next_realm": "筑基初期",
-                  "spirit_stones": 50,
-                  "hp_current": 100,
-                  "hp_max": 100,
-                  "mp_current": 100,
-                  "mp_max": 100,
-                  "lifespan_current": 18.5,
-                  "lifespan_max": 100,
-                  "last_online": "2024-05-20T12:00:00.000Z",
-                  "spirit_roots": {
-                    "type": "wood",
-                    "value": 100
-                  },
-                  "attributes": {
-                    "hp_max": 100,
-                    "mp_max": 0,
-                    "atk": 10,
-                    "def": 5,
-                    "speed": 10,
-                    "sense": 10
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Player"
+                    }
+                  }
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "code": 200,
+                      "data": {
+                        "id": 1,
+                        "username": "hanli",
+                        "nickname": "韩天尊",
+                        "realm": "炼气13层",
+                        "realmInfo": {
+                          "name": "炼气13层",
+                          "rank": 14,
+                          "description": "炼气期巅峰，即将突破筑基"
+                        },
+                        "exp": "2744000",
+                        "exp_cap": "2744000",
+                        "exp_progress": 100,
+                        "can_breakthrough": true,
+                        "spirit_root": {
+                          "type": "雷",
+                          "level": 9
+                        },
+                        "spirit_stones": "1500",
+                        "age": 52,
+                        "lifespan": {
+                          "current": 120,
+                          "max": 150,
+                          "percent": 80
+                        },
+                        "attributes": {
+                          "hp_max": 1200,
+                          "mp_max": 800,
+                          "atk": 150,
+                          "def": 80,
+                          "spd": 60
+                        },
+                        "hp_current": 1200,
+                        "hp_max": 1200,
+                        "mp_current": 800,
+                        "mp_max": 800,
+                        "is_secluded": false,
+                        "seclusion_end_time": null,
+                        "created_at": "2024-05-01T08:00:00.000Z",
+                        "updated_at": "2024-05-20T15:30:00.000Z"
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "401": {
-            "description": "未授权"
-          },
-          "404": {
-            "description": "玩家不存在"
+            "description": "未登录或Token无效",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未登录或Token已过期"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "更新玩家信息",
+        "description": "更新玩家基本信息（需要白名单验证）",
+        "tags": ["Player"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nickname": {
+                    "type": "string",
+                    "description": "新道号"
+                  },
+                  "hp_current": {
+                    "type": "number",
+                    "description": "当前气血"
+                  },
+                  "mp_current": {
+                    "type": "number",
+                    "description": "当前灵力"
+                  },
+                  "is_secluded": {
+                    "type": "boolean",
+                    "description": "是否闭关中"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "更新成功"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Player"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/breakthrough/try": {
-      "post": {
-        "summary": "尝试突破",
-        "description": "当修为达到当前境界上限时，尝试突破到下一境界（可能成功或失败）",
+    "/api/player/attributes": {
+      "get": {
+        "summary": "获取玩家属性详情",
+        "description": "获取玩家的详细属性面板，包括各项战斗属性和加成来源",
         "tags": ["Player"],
-        "security": [{"bearerAuth": []}],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "请求成功（包含成功或失败结果）",
+            "description": "成功",
             "content": {
               "application/json": {
-                "example": {
-                  "success": true,
-                  "message": "突破成功！境界提升至「筑基初期」。",
-                  "data": {
-                    "old_realm": "炼气期13层",
-                    "new_realm": "筑基初期",
-                    "exp": "0",
-                    "exp_cap": "3375000",
-                    "unlocked": {
-                      "mp_regen_rate": 100,
-                      "toxicity_decay": 5
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "base": {
+                          "type": "object",
+                          "description": "基础属性"
+                        },
+                        "bonus": {
+                          "type": "object",
+                          "description": "境界/装备加成"
+                        },
+                        "final": {
+                          "type": "object",
+                          "description": "最终属性"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/player/breakthrough": {
+      "post": {
+        "summary": "执行境界突破",
+        "description": "当玩家修为达到当前境界上限时，可以执行突破进入下一境界",
+        "tags": ["Player"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "突破成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "突破成功！当前境界：筑基期"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "newRealm": {
+                          "$ref": "#/components/schemas/Realm"
+                        }
+                      }
                     }
                   }
                 }
@@ -333,28 +881,1685 @@
             }
           },
           "400": {
-            "description": "修为未达上限或无法突破",
+            "description": "突破失败（修为不足或已达最高境界）",
             "content": {
               "application/json": {
-                "example": {
-                  "message": "修为未达上限，无法突破（1000 / 2744000）"
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "修为不足，需要 100 点修为才能突破"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/breakthrough/attempt": {
+      "post": {
+        "summary": "尝试突破境界",
+        "description": "当修为达到当前境界上限时，可以尝试突破到下一境界",
+        "tags": ["Breakthrough"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "突破成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "突破成功，恭喜踏入筑基期！"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "old_realm": {
+                          "type": "string",
+                          "description": "原境界"
+                        },
+                        "new_realm": {
+                          "type": "string",
+                          "description": "新境界"
+                        },
+                        "realm_info": {
+                          "$ref": "#/components/schemas/Realm"
+                        },
+                        "attribute_updates": {
+                          "type": "object",
+                          "description": "属性变化"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
           },
-          "401": {
-            "description": "未授权"
+          "400": {
+            "description": "无法突破",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "not_ready": {
+                    "value": {
+                      "code": 400,
+                      "message": "修为不足，无法突破"
+                    }
+                  },
+                  "max_realm": {
+                    "value": {
+                      "code": 400,
+                      "message": "已达到最高境界"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
-    }
-  },
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
+    },
+    "/api/breakthrough/info": {
+      "get": {
+        "summary": "获取突破信息",
+        "description": "获取当前境界突破到下一境界所需条件和成功率",
+        "tags": ["Breakthrough"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "current_realm": {
+                          "$ref": "#/components/schemas/Realm"
+                        },
+                        "next_realm": {
+                          "$ref": "#/components/schemas/Realm"
+                        },
+                        "requirements": {
+                          "type": "object",
+                          "description": "突破条件"
+                        },
+                        "success_rate": {
+                          "type": "number",
+                          "description": "突破成功率 0-1"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/seclusion/start": {
+      "post": {
+        "summary": "开始闭关",
+        "description": "消耗灵石开始闭关修炼，闭关期间自动获取修为",
+        "tags": ["Seclusion"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["hours"],
+                "properties": {
+                  "hours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 24,
+                    "description": "闭关时长(小时)"
+                  }
+                }
+              },
+              "examples": {
+                "normal": {
+                  "value": {
+                    "hours": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "闭关成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "闭关成功，开始修炼"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "hours": {
+                          "type": "integer",
+                          "description": "闭关时长"
+                        },
+                        "end_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "预计结束时间"
+                        },
+                        "cost": {
+                          "type": "integer",
+                          "description": "消耗灵石"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "无法开始闭关",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "already_secluded": {
+                    "value": {
+                      "code": 400,
+                      "message": "正在闭关中，无法重复闭关"
+                    }
+                  },
+                  "no_mp": {
+                    "value": {
+                      "code": 400,
+                      "message": "灵力不足，需要 100 点灵力"
+                    }
+                  },
+                  "no_spirit_stones": {
+                    "value": {
+                      "code": 400,
+                      "message": "灵石不足，需要 10 灵石"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/seclusion/status": {
+      "get": {
+        "summary": "获取闭关状态",
+        "description": "获取当前闭关状态和进度",
+        "tags": ["Seclusion"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "is_secluding": {
+                          "type": "boolean",
+                          "description": "是否正在闭关"
+                        },
+                        "end_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "闭关结束时间"
+                        },
+                        "remaining_seconds": {
+                          "type": "integer",
+                          "description": "剩余秒数"
+                        },
+                        "progress": {
+                          "type": "number",
+                          "description": "闭关进度 0-100"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/seclusion/end": {
+      "post": {
+        "summary": "提前结束闭关",
+        "description": "提前结束闭关修炼",
+        "tags": ["Seclusion"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "结束成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "出关了，收获颇丰！"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "exp_gained": {
+                          "type": "string",
+                          "description": "获得修为"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/info": {
+      "get": {
+        "summary": "获取当前地图信息",
+        "description": "获取玩家当前所在地图及相邻地图信息",
+        "tags": ["Map"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "current_map": {
+                          "type": "object",
+                          "description": "当前地图信息"
+                        },
+                        "connected_maps": {
+                          "type": "array",
+                          "description": "可连接的相邻地图列表"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "code": 200,
+                      "data": {
+                        "current_map": {
+                          "id": 1,
+                          "name": "新手村",
+                          "type": "NOVICE",
+                          "safety_level": "SAFE",
+                          "description": "凡人聚居的村庄，是踏上仙途的起点",
+                          "connections": [2, 3],
+                          "min_realm_rank": 0
+                        },
+                        "connected_maps": [
+                          {
+                            "id": 2,
+                            "name": "七玄山",
+                            "type": "SEC",
+                            "safety_level": "SAFE",
+                            "description": "七玄门所在的山门",
+                            "min_realm_rank": 1
+                          },
+                          {
+                            "id": 3,
+                            "name": "镜州城",
+                            "type": "CITY",
+                            "safety_level": "SAFE",
+                            "description": "镜州最繁华的城池",
+                            "min_realm_rank": 0
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/move": {
+      "post": {
+        "summary": "移动到目标地图",
+        "description": "消耗灵力移动到相邻地图，需要满足境界要求",
+        "tags": ["Map"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["targetMapId"],
+                "properties": {
+                  "targetMapId": {
+                    "type": "integer",
+                    "description": "目标地图ID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "移动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "移动成功，消耗 10 点灵力"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "new_map": {
+                          "type": "object",
+                          "description": "新地图信息"
+                        },
+                        "mp_current": {
+                          "type": "string",
+                          "description": "剩余灵力"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误或无法移动",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "no_target": {
+                    "value": {
+                      "code": 400,
+                      "message": "目标地图ID不能为空"
+                    }
+                  },
+                  "not_connected": {
+                    "value": {
+                      "code": 400,
+                      "message": "目标地图未与当前地图连接"
+                    }
+                  },
+                  "no_mp": {
+                    "value": {
+                      "code": 400,
+                      "message": "灵力不足，需要 10 点灵力"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "境界不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "境界不足，需达到 炼气3层 才能进入此地图"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/history": {
+      "get": {
+        "summary": "获取聊天历史",
+        "description": "获取最近50条世界聊天记录",
+        "tags": ["Chat"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "获取消息数量，默认50条"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "sender": {
+                            "type": "string",
+                            "description": "发送者道号"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "消息内容"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "消息类型"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "code": 200,
+                      "data": [
+                        {
+                          "id": 1,
+                          "sender": "韩天尊",
+                          "content": "各位道友有理了",
+                          "type": "player",
+                          "createdAt": "2024-05-20T10:00:00.000Z"
+                        },
+                        {
+                          "id": 2,
+                          "sender": "墨大夫",
+                          "content": "道友好",
+                          "type": "player",
+                          "createdAt": "2024-05-20T10:01:00.000Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/send": {
+      "post": {
+        "summary": "发送聊天消息",
+        "description": "发送一条世界频道聊天消息",
+        "tags": ["Chat"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["content"],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "消息内容，最大200字符"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "消息发送成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "sender": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "消息内容为空",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "消息内容不能为空"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/data/realms": {
+      "get": {
+        "summary": "获取境界配置",
+        "description": "获取所有境界的配置信息，包括突破条件、属性加成等",
+        "tags": ["Config"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "realms": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Realm"
+                          },
+                          "description": "境界配置列表"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "description": "境界数量"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/data/role-init": {
+      "get": {
+        "summary": "获取角色初始化配置",
+        "description": "获取新角色创建时的默认配置，包括属性、灵根等",
+        "tags": ["Config"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "角色初始化配置"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/data/items": {
+      "get": {
+        "summary": "获取物品配置",
+        "description": "获取所有物品的配置信息，可按类型筛选",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "物品类型筛选（可选）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "description": "物品列表"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "description": "物品数量"
+                        },
+                        "type_filter": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "当前筛选类型"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/data/maps": {
+      "get": {
+        "summary": "获取地图配置",
+        "description": "获取所有地图区域的配置信息",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "minRealm",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "最低境界要求筛选（可选）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "maps": {
+                          "type": "array",
+                          "description": "地图列表"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "description": "地图数量"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/config": {
+      "get": {
+        "summary": "获取系统配置",
+        "description": "获取公开的系统配置项（需要登录）",
+        "tags": ["System"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "系统配置键值对"
+                    }
+                  }
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "code": 200,
+                      "data": {
+                        "auto_save_interval": 60,
+                        "seclusion_exp_rate": 0.1,
+                        "seclusion_cooldown": 3600
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/players": {
+      "get": {
+        "summary": "获取玩家列表 (GM)",
+        "description": "分页获取所有玩家列表，支持搜索和筛选（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "每页数量，最大100"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "搜索关键词（用户名或道号）"
+          },
+          {
+            "name": "realm",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "按境界筛选"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["active", "dead", "banned"]
+            },
+            "description": "按状态筛选"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "description": "总数量"
+                        },
+                        "totalPages": {
+                          "type": "integer",
+                          "description": "总页数"
+                        },
+                        "currentPage": {
+                          "type": "integer",
+                          "description": "当前页"
+                        },
+                        "players": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Player"
+                          },
+                          "description": "玩家列表"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/players/{id}": {
+      "get": {
+        "summary": "获取玩家详情 (GM)",
+        "description": "获取指定玩家的详细信息（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Player"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "玩家不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "玩家不存在"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "修改玩家信息 (GM)",
+        "description": "管理员修改指定玩家的信息，包括境界、修为、属性等（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "要更新的玩家字段（不允许更新 id 和 password）"
+              },
+              "examples": {
+                "modify_realm": {
+                  "value": {
+                    "realm": "筑基中期",
+                    "exp": "500000",
+                    "lifespan_current": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "玩家信息更新成功"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Player"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "玩家不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "玩家不存在"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除玩家 (GM)",
+        "description": "删除指定玩家账号（需要管理员权限，建议仅用于测试环境）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "玩家删除成功"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/players/{id}/ban": {
+      "post": {
+        "summary": "封禁玩家 (GM)",
+        "description": "封禁指定玩家账号（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["reason"],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "封禁原因"
+                  },
+                  "days": {
+                    "type": "integer",
+                    "description": "封禁天数，-1表示永久封禁"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "封禁成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "玩家已封禁"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/players/{id}/unban": {
+      "post": {
+        "summary": "解封玩家 (GM)",
+        "description": "解封指定玩家账号（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "解封成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "玩家已解封"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/time-travel": {
+      "post": {
+        "summary": "时间加速 (GM)",
+        "description": "加速游戏内时间流逝，用于测试或活动（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["years"],
+                "properties": {
+                  "years": {
+                    "type": "number",
+                    "description": "加速年数，正数向前，负数向后"
+                  }
+                }
+              },
+              "examples": {
+                "normal": {
+                  "value": {
+                    "years": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "时间加速成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "时光飞逝，转眼已过 1 载"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "dead_count": {
+                          "type": "integer",
+                          "description": "死亡的玩家数量"
+                        },
+                        "user_died": {
+                          "type": "boolean",
+                          "description": "当前用户是否死亡"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/give-item": {
+      "post": {
+        "summary": "发放物品 (GM)",
+        "description": "向指定玩家发放物品（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["playerId", "itemId", "quantity"],
+                "properties": {
+                  "playerId": {
+                    "type": "integer",
+                    "description": "目标玩家ID"
+                  },
+                  "itemId": {
+                    "type": "string",
+                    "description": "物品ID"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "description": "数量"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "发放成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "物品发放成功"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/give-spirit-stones": {
+      "post": {
+        "summary": "发放灵石 (GM)",
+        "description": "向指定玩家发放灵石（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["playerId", "amount"],
+                "properties": {
+                  "playerId": {
+                    "type": "integer",
+                    "description": "目标玩家ID"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "description": "发放数量"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "发放成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "灵石发放成功"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/add-exp": {
+      "post": {
+        "summary": "增加修为 (GM)",
+        "description": "向指定玩家增加修为（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["playerId", "amount"],
+                "properties": {
+                  "playerId": {
+                    "type": "integer",
+                    "description": "目标玩家ID"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "description": "增加修为值"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "增加成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "修为增加成功"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/reset-player": {
+      "post": {
+        "summary": "重置玩家 (GM)",
+        "description": "将指定玩家重置为初始状态（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["playerId"],
+                "properties": {
+                  "playerId": {
+                    "type": "integer",
+                    "description": "目标玩家ID"
+                  },
+                  "keep_items": {
+                    "type": "boolean",
+                    "description": "是否保留物品栏",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "重置成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "玩家已重置为初始状态"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/config": {
+      "get": {
+        "summary": "获取系统配置 (GM)",
+        "description": "获取所有系统配置项（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "保存系统配置 (GM)",
+        "description": "创建或更新系统配置项（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["key", "value"],
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "配置键"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "配置值"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "配置描述"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "配置保存成功",
+                  "data": {
+                    "key": "seclusion_exp_rate",
+                    "value": "0.1",
+                    "description": "闭关经验获取倍率"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "summary": "获取服务器统计 (GM)",
+        "description": "获取服务器运行统计信息（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total_players": {
+                          "type": "integer",
+                          "description": "总玩家数"
+                        },
+                        "active_players": {
+                          "type": "integer",
+                          "description": "活跃玩家数"
+                        },
+                        "online_players": {
+                          "type": "integer",
+                          "description": "当前在线数"
+                        },
+                        "total_realms": {
+                          "type": "integer",
+                          "description": "境界分布"
+                        },
+                        "server_uptime": {
+                          "type": "integer",
+                          "description": "服务器运行时间(秒)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/logs": {
+      "get": {
+        "summary": "获取操作日志 (GM)",
+        "description": "获取管理员操作日志（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "每页数量"
+          },
+          {
+            "name": "adminId",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "按管理员ID筛选"
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "按操作类型筛选"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "logs": {
+                          "type": "array"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
