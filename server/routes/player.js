@@ -42,6 +42,7 @@ router.get('/me', authMiddleware, async (req, res) => {
                     description: realmConfig.description
                 } : null,
                 exp: player.exp?.toString() || '0',
+                exp_next: expResult.toString(),
                 exp_cap: expResult.toString(),
                 exp_progress: player.exp && expResult > 0n 
                     ? Math.floor(Number(BigInt(player.exp) * 10000n / expResult) / 10000 * 100) / 100 

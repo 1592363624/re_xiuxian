@@ -232,10 +232,10 @@ onUnmounted(() => {
       <div>
         <div class="flex justify-between text-[10px] text-stone-400 mb-0.5">
           <span>寿命 (年)</span>
-          <span>{{ player.lifespan_current || 0 }} / {{ player.lifespan_max || 0 }}</span>
+          <span>{{ player.lifespan?.current || 0 }} / {{ player.lifespan?.max || 0 }}</span>
         </div>
         <div class="h-1.5 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
-          <div class="h-full bg-cyan-600 progress-flow transition-all duration-300" :style="{ width: player.lifespan_max ? Math.min((player.lifespan_current / player.lifespan_max) * 100, 100) + '%' : '0%' }"></div>
+          <div class="h-full bg-cyan-600 progress-flow transition-all duration-300" :style="{ width: player.lifespan?.max ? Math.min((player.lifespan.current / player.lifespan.max) * 100, 100) + '%' : '0%' }"></div>
         </div>
       </div>
     </div>

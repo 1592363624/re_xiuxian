@@ -128,6 +128,8 @@ const startServer = async () => {
     app.use('/api/breakthrough', require('./routes/breakthrough'));
     app.use('/api/map', require('./routes/map'));
     app.use('/api/config', require('./routes/config'));
+    app.use('/api/attribute', require('./routes/attribute'));
+    app.use('/api/time', require('./routes/time'));
 
     // 生产环境静态资源托管
     const clientDistPath = path.join(__dirname, '../client/dist');

@@ -21,6 +21,12 @@ const ExperienceService = require('./ExperienceService');
 // 属性服务 (需要初始化)
 const AttributeService = require('./AttributeService');
 
+// 属性最大值服务 (需要初始化)
+const AttributeMaxService = require('./AttributeMaxService');
+
+// 双时间系统服务 (需要初始化)
+const DualTimeService = require('./DualTimeService');
+
 // 地图服务 (需要初始化)
 const MapService = require('./MapService');
 
@@ -33,6 +39,8 @@ function initializeCoreServices(configLoader) {
     ItemService.initialize(configLoader);
     ExperienceService.initialize(configLoader);
     AttributeService.initialize(configLoader);
+    AttributeMaxService.initialize(configLoader);
+    DualTimeService.initialize(configLoader);
     MapService.initialize(configLoader);
     
     console.log('核心服务模块初始化完成');
@@ -45,6 +53,8 @@ module.exports = {
     ItemService,
     ExperienceService,
     AttributeService,
+    AttributeMaxService,
+    DualTimeService,
     MapService,
     initializeCoreServices
 };

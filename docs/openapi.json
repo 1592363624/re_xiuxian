@@ -59,6 +59,14 @@
     {
       "name": "GM",
       "description": "GM工具面板"
+    },
+    {
+      "name": "Attribute",
+      "description": "属性系统管理"
+    },
+    {
+      "name": "Time",
+      "description": "双时间系统管理"
     }
   ],
   "security": [
@@ -111,6 +119,10 @@
           "exp": {
             "type": "string",
             "description": "当前修为值"
+          },
+          "exp_next": {
+            "type": "string",
+            "description": "下一境界所需修为"
           },
           "exp_cap": {
             "type": "string",
