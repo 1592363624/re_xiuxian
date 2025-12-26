@@ -104,7 +104,8 @@ const fetchStats = async (isInitial = false) => {
   } catch (error) {
     console.error('Fetch stats failed:', error)
     statsError.value = true
-    // 保持旧数据不清除
+    // 服务器断开时，重置在线数为0
+    onlineCount.value = 0
   } finally {
     if (isInitial) statsLoading.value = false
   }

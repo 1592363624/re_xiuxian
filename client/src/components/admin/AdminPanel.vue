@@ -482,6 +482,43 @@ const showTimeTravelConfirm = ref(false)
 const showDeathModal = ref(false)
 const deathMessage = ref('')
 
+// 封禁功能相关
+const banningPlayer = ref(null)
+const banReason = ref('')
+const banDays = ref(-1)
+
+const showBanModal = (player) => {
+  banningPlayer.value = player
+  banReason.value = ''
+  banDays.value = -1
+}
+
+const confirmBan = async () => {
+  if (!banningPlayer.value) return
+  try {
+    await axios.post(`/api/admin/players/${banningPlayer.value.id}/ban`, {
+      reason: banReason.value,
+      days: banDays.value
+    })
+    alert('封禁成功')
+    banningPlayer.value = null
+    fetchPlayers(pagination.currentPage)
+  } catch (error) {
+    alert('封禁失败: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+const unbanPlayer = async (player) => {
+  if (!confirm(`确定要解封玩家 ${player.nickname} 吗？`)) return
+  try {
+    await axios.post(`/api/admin/players/${player.id}/unban`)
+    alert('解封成功')
+    fetchPlayers(pagination.currentPage)
+  } catch (error) {
+    alert('解封失败: ' + (error.response?.data?.message || error.message))
+  }
+}
+
 const confirmTimeTravel = () => {
   if (!timeTravelYears.value || timeTravelYears.value <= 0) {
     uiStore.showToast('请输入有效的年数', 'warning')

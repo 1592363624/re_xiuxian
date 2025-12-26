@@ -11,6 +11,14 @@ const messagesContainer = ref(null)
 const playerStore = usePlayerStore()
 let socket = null
 
+// 新消息提醒相关
+const unreadCount = ref(0)
+const topNotification = ref({
+  visible: false,
+  content: ''
+})
+let notificationTimer = null
+
 // 拖拽相关状态
 const isDragging = ref(false)
 const chatPosition = reactive(JSON.parse(localStorage.getItem('chatPosition')) || { bottom: 120, right: 20 })
@@ -62,7 +70,8 @@ const fetchMessages = async () => {
       id: msg.id,
       sender: msg.sender,
       content: msg.content,
-      type: msg.type === 'system' ? 'system' : (msg.sender === playerStore.player?.nickname ? 'self' : 'player')
+      type: msg.type === 'system' ? 'system' : (msg.sender === playerStore.player?.nickname ? 'self' : 'player'),
+      createdAt: new Date(msg.createdAt)
     }))
   } catch (error) {
     console.error('Failed to fetch chat history', error)
@@ -76,6 +85,8 @@ const toggleChat = () => {
     scrollToBottom()
     // Start polling when open
     fetchMessages()
+    // 打开聊天窗口时重置未读消息计数
+    unreadCount.value = 0
   }
 }
 
@@ -119,20 +130,48 @@ onMounted(() => {
   // 在开发环境下，后端在 3000 端口，前端在 5173 端口，需要指定后端地址
   // 在生产环境下，由于是同域部署，可以直接不传地址或传空字符串
   const socketUrl = import.meta.env.DEV ? 'http://localhost:3000' : ''
-  socket = io(socketUrl)
+  socket = io(socketUrl, {
+    auth: {
+      playerId: playerStore.player?.id
+    }
+  })
   
   // 监听新消息事件
   socket.on('new_message', (msg) => {
-    messages.value.push({
+    const message = {
       id: msg.id,
       sender: msg.sender,
       content: msg.content,
-      type: msg.type === 'system' ? 'system' : (msg.sender === playerStore.player?.nickname ? 'self' : 'player')
-    })
+      type: msg.type === 'system' ? 'system' : (msg.sender === playerStore.player?.nickname ? 'self' : 'player'),
+      createdAt: new Date(msg.createdAt)
+    }
+    messages.value.push(message)
     
     // 如果聊天窗口打开，滚动到底部
     if (isOpen.value) {
       scrollToBottom()
+    } else {
+      // 聊天窗口关闭时，增加未读消息计数
+      unreadCount.value++
+    }
+    
+    // 显示顶部通知（如果不是自己发送的消息）
+    if (message.type !== 'self') {
+      // 清除之前的定时器
+      if (notificationTimer) {
+        clearTimeout(notificationTimer)
+      }
+      
+      // 设置新通知内容
+      topNotification.value = {
+        visible: true,
+        content: `${message.sender}: ${message.content}`
+      }
+      
+      // 5秒后自动隐藏通知
+      notificationTimer = setTimeout(() => {
+        topNotification.value.visible = false
+      }, 5000)
     }
   })
 })
@@ -147,6 +186,15 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <!-- 顶部通知组件 -->
+  <div 
+    v-if="topNotification.visible" 
+    class="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-black/80 text-amber-400 border border-amber-500/30 px-4 py-2 rounded-lg shadow-lg transition-all duration-300 animate-fade-in-down"
+    style="max-width: 60%; text-align: center;"
+  >
+    {{ topNotification.content }}
+  </div>
+
   <div 
     class="fixed z-50 flex flex-col items-end"
     :style="{ bottom: chatPosition.bottom + 'px', right: chatPosition.right + 'px' }"
@@ -169,16 +217,39 @@ onUnmounted(() => {
 
       <!-- Messages -->
       <div ref="messagesContainer" class="flex-1 overflow-y-auto px-4 py-3 space-y-4 custom-scrollbar bg-[#0f0b08]">
+        <!-- 顶部分割线 -->
+        <div class="w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent mx-auto"></div>
+        
+        <!-- 欢迎词，放在消息列表顶部 -->
+        <div class="flex items-center justify-center">
+          <div class="bg-[#1c130d] text-amber-500 border border-amber-500/20 px-4 py-2 rounded-full text-sm font-serif">
+            ✨ 欢迎来到修仙世界！ ✨
+          </div>
+        </div>
+        
+        <!-- 底部分割线 -->
+        <div class="w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent mx-auto"></div>
+        
+        <!-- 消息列表 -->
         <div 
           v-for="msg in messages" 
           :key="msg.id" 
           class="flex flex-col"
           :class="msg.type === 'self' ? 'items-end' : (msg.type === 'system' ? 'items-center' : 'items-start')"
         >
-          <span v-if="msg.type !== 'system' && msg.type !== 'self'" class="text-[10px] text-gray-500 mb-0.5 px-1">
-            {{ msg.sender }}
-          </span>
+          <!-- 发送者信息，包含名字和时间 -->
+          <div v-if="msg.type !== 'system'" class="flex items-center gap-2 text-[10px] text-gray-500 mb-0.5 px-1">
+            <span v-if="msg.type !== 'self'">
+              {{ msg.sender }}
+            </span>
+            <span 
+              :class="msg.type === 'self' ? 'order-first' : ''"
+            >
+              {{ new Date(msg.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
+            </span>
+          </div>
           
+          <!-- 消息内容 -->
           <div 
             class="text-sm tracking-wide max-w-[90%] px-3 py-1.5 rounded break-words"
             :class="{
@@ -190,12 +261,13 @@ onUnmounted(() => {
             {{ msg.content }}
           </div>
           
+          <!-- 系统消息显示时间 -->
+          <span v-if="msg.type === 'system'" class="text-[10px] text-gray-500 mt-0.5 px-1">
+            {{ new Date(msg.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
+          </span>
+          
           <!-- Divider for system msgs -->
           <div v-if="msg.type === 'system'" class="w-16 h-px bg-gradient-to-r from-transparent via-amber-700/60 to-transparent mx-auto mt-2"></div>
-        </div>
-        
-        <div v-if="messages.length === 0" class="text-center text-amber-300 text-sm py-6 font-serif">
-          欢迎来到修仙世界！
         </div>
       </div>
 
@@ -228,8 +300,8 @@ onUnmounted(() => {
     >
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
       
-      <!-- Notification Dot (Optional logic could be added) -->
-      <!-- <span v-if="!isOpen" class="absolute top-0 right-0 w-3 h-3 bg-red-600 rounded-full border-2 border-gray-900"></span> -->
+      <!-- Notification Dot -->
+      <span v-if="!isOpen && unreadCount > 0" class="absolute top-0 right-0 w-3 h-3 bg-red-600 rounded-full border-2 border-gray-900"></span>
       
       <!-- Tooltip -->
       <div v-if="!isDragging" class="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 bg-black/80 text-xs text-amber-500 rounded border border-amber-900/30 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
@@ -266,5 +338,19 @@ onUnmounted(() => {
 }
 .animate-fade-in-up {
   animation: fade-in-up 0.2s ease-out forwards;
+}
+
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-fade-in-down {
+  animation: fade-in-down 0.2s ease-out forwards;
 }
 </style>

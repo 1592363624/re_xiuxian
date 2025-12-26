@@ -125,12 +125,10 @@ router.get('/players', auth, adminCheck, async (req, res) => {
 
         res.json({
             code: 200,
-            data: {
-                total: count,
-                totalPages: Math.ceil(count / limit),
-                currentPage: page,
-                players: rows
-            }
+            players: rows,
+            currentPage: page,
+            totalPages: Math.ceil(count / limit),
+            total: count
         });
     } catch (error) {
         res.status(500).json({ message: '获取玩家列表失败', error: error.message });

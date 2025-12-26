@@ -36,6 +36,7 @@ router.get('/me', authMiddleware, async (req, res) => {
                 username: player.username,
                 nickname: player.nickname,
                 realm: player.realm,
+                role: player.role,
                 realmInfo: realmConfig ? {
                     name: realmConfig.name,
                     rank: realmConfig.rank,
@@ -48,7 +49,10 @@ router.get('/me', authMiddleware, async (req, res) => {
                     ? Math.floor(Number(BigInt(player.exp) * 10000n / expResult) / 10000 * 100) / 100 
                     : 0,
                 can_breakthrough: canBreakthrough.canBreak,
-                spirit_root: player.spirit_root,
+                spirit_roots: player.spirit_roots ? {
+                    type: player.spirit_roots.type || 'wood',
+                    value: player.spirit_roots.value || 0
+                } : null,
                 spirit_stones: player.spirit_stones?.toString() || '0',
                 age: player.age,
                 lifespan: lifespanStatus,

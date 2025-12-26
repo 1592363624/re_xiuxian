@@ -82,12 +82,19 @@ router.post('/register', async (req, res) => {
         const randomRoot = allRoots[Math.floor(Math.random() * allRoots.length)];
         const spiritRoots = { type: randomRoot };
 
+        // 获取IP地址
+        const ip = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || (req.headers['x-forwarded-for'] || '').split(',')[0];
+        // 获取设备信息
+        const userAgent = req.headers['user-agent'] || '';
+
         // 创建新玩家
         const newPlayer = await Player.create({
             username,
             password: hashedPassword,
             nickname,
-            spirit_roots: spiritRoots
+            spirit_roots: spiritRoots,
+            ip_address: ip,
+            device_info: userAgent
         });
 
         res.status(201).json({ 
@@ -143,8 +150,12 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ message: '密码错误，请重新输入' });
         }
 
-        // 更新 Token 版本号 (实现互踢)
+        // 获取IP地址
+        const ip = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || (req.headers['x-forwarded-for'] || '').split(',')[0];
+        
+        // 更新 Token 版本号 (实现互踢)和IP地址
         player.token_version = (player.token_version || 0) + 1;
+        player.ip_address = ip;
         await player.save();
 
         // 生成 JWT

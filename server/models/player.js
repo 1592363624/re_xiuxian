@@ -188,6 +188,16 @@ const Player = sequelize.define('Player', {
             this.setDataValue('time_system_data', JSON.stringify(value));
         },
         comment: '双时间系统数据JSON'
+    },
+    ip_address: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: '注册/登录IP地址'
+    },
+    device_info: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: '注册设备信息'
     }
 }, {
     tableName: 'players',

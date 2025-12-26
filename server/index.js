@@ -33,6 +33,9 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3000;
 
+// 在线用户跟踪（使用Socket.IO连接状态）
+const onlineUsers = new Map();
+
 // 定时任务：每10分钟 (600秒) 更新一次寿命
 const UPDATE_INTERVAL_MS = 10 * 60 * 1000;
 const UPDATE_INTERVAL_SEC = 10 * 60;
@@ -130,6 +133,31 @@ const startServer = async () => {
     app.use('/api/config', require('./routes/config'));
     app.use('/api/attribute', require('./routes/attribute'));
     app.use('/api/time', require('./routes/time'));
+
+    // Socket.IO在线用户跟踪
+    io.on('connection', (socket) => {
+        const playerId = socket.handshake.query.playerId || socket.handshake.auth.playerId;
+        if (playerId) {
+            onlineUsers.set(playerId, {
+                socketId: socket.id,
+                connectedAt: new Date()
+            });
+            console.log(`玩家 ${playerId} 已连接，SocketID: ${socket.id}`);
+        }
+
+        socket.on('disconnect', () => {
+            if (playerId) {
+                const userInfo = onlineUsers.get(playerId);
+                if (userInfo && userInfo.socketId === socket.id) {
+                    onlineUsers.delete(playerId);
+                    console.log(`玩家 ${playerId} 已断开连接`);
+                }
+            }
+        });
+    });
+
+    // 将onlineUsers挂载到app
+    app.set('onlineUsers', onlineUsers);
 
     // 生产环境静态资源托管
     const clientDistPath = path.join(__dirname, '../client/dist');
