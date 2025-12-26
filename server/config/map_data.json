@@ -1,0 +1,134 @@
+{
+    "maps": [
+        {
+            "id": 1,
+            "name": "越国",
+            "type": "country",
+            "description": "位于天南地区的凡人国度，韩立出身之地",
+            "environment": "plains",
+            "requiredRealm": "凡人",
+            "npcs": [
+                { "id": "elder_zhang", "name": "张铁", "role": "npc", "location": "七玄门" }
+            ],
+            "resources": [
+                { "id": "firewood", "name": "干柴", "type": "gathering", "difficulty": 1, "yield": [1, 3] },
+                { "id": "wild_herb", "name": "普通灵草", "type": "gathering", "difficulty": 2, "yield": [1, 2] }
+            ],
+            "dangerLevel": 1,
+            "travelTime": 5
+        },
+        {
+            "id": 2,
+            "name": "七玄门",
+            "type": "sect",
+            "description": "越国的一个小门派，有一定修仙传承",
+            "environment": "mountain",
+            "requiredRealm": "凡人",
+            "npcs": [
+                { "id": "master_zhou", "name": "周师叔", "role": "sect_elder", "location": "大殿" },
+                { "id": "elder_liu", "name": "刘靖", "role": "sect_disciple", "location": "演武场" }
+            ],
+            "resources": [],
+            "dangerLevel": 2,
+            "travelTime": 3
+        },
+        {
+            "id": 3,
+            "name": "彩霞山",
+            "type": "mountain",
+            "description": "七玄门后山，多有灵草灵兽",
+            "environment": "mountain",
+            "requiredRealm": "炼气3层",
+            "npcs": [],
+            "resources": [
+                { "id": "firewood", "name": "干柴", "type": "gathering", "difficulty": 1, "yield": [2, 5] },
+                { "id": "wild_herb", "name": "普通灵草", "type": "gathering", "difficulty": 3, "yield": [1, 3] },
+                { "id": "blood_grass", "name": "血灵草", "type": "gathering", "difficulty": 5, "yield": [1, 1] }
+            ],
+            "monsters": [
+                { "id": "rabbit", "name": "野兔", "realm": "凡人", "exp": 10, "drop": ["meat"] },
+                { "id": "snake", "name": "毒蛇", "realm": "炼气1层", "exp": 25, "drop": ["snake_gall"] }
+            ],
+            "dangerLevel": 3,
+            "travelTime": 10
+        },
+        {
+            "id": 4,
+            "name": "乱星海",
+            "type": "ocean",
+            "description": "无边海域，盛产各种海中材料",
+            "environment": "ocean",
+            "requiredRealm": "筑基期",
+            "npcs": [
+                { "id": "merchant", "name": "海商", "role": "trader", "location": "港口" }
+            ],
+            "resources": [
+                { "id": "seaweed", "name": "海藻", "type": "gathering", "difficulty": 4, "yield": [2, 4] },
+                { "id": "pearl", "name": "珍珠", "type": "gathering", "difficulty": 8, "yield": [1, 1] },
+                { "id": "coral", "name": "珊瑚", "type": "gathering", "difficulty": 10, "yield": [1, 1] }
+            ],
+            "monsters": [
+                { "id": "fish", "name": "海鱼", "realm": "炼气3层", "exp": 30, "drop": ["fish_meat"] },
+                { "id": "crab", "name": "螃蟹精", "realm": "炼气6层", "exp": 60, "drop": ["crab_shell"] },
+                { "id": "shark", "name": "鲨鱼精", "realm": "筑基初期", "exp": 200, "drop": ["shark_fin"] }
+            ],
+            "dangerLevel": 6,
+            "travelTime": 30
+        },
+        {
+            "id": 5,
+            "name": "大衍神",
+            "type": "talent",
+            "description": "大衍神君的传承之地",
+            "environment": "cave",
+            "requiredRealm": "金丹期",
+            "npcs": [],
+            "resources": [],
+            "monsters": [
+                { "id": "d傀儡", "name": "大衍傀儡", "realm": "金丹期", "exp": 500, "drop": ["mechanical_part"] }
+            ],
+            "dangerLevel": 8,
+            "travelTime": 60,
+            "special": "dachievement"
+        },
+        {
+            "id": 6,
+            "name": "人界",
+            "type": "world",
+            "description": "下界界面",
+            "environment": "mixed",
+            "requiredRealm": "元婴期",
+            "npcs": [],
+            "resources": [],
+            "monsters": [],
+            "dangerLevel": 10,
+            "travelTime": 120
+        },
+        {
+            "id": 7,
+            "name": "灵界",
+            "type": "world",
+            "description": "上位界面",
+            "environment": "mixed",
+            "requiredRealm": "化神期",
+            "npcs": [],
+            "resources": [],
+            "monsters": [],
+            "dangerLevel": 15,
+            "travelTime": 240
+        },
+        {
+            "id": 8,
+            "name": "仙界",
+            "type": "world",
+            "description": "最高位面",
+            "environment": "celestial",
+            "requiredRealm": "炼虚期",
+            "npcs": [],
+            "resources": [],
+            "monsters": [],
+            "dangerLevel": 20,
+            "travelTime": 480
+        }
+    ]
+}

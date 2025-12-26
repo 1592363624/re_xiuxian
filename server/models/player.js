@@ -70,12 +70,26 @@ const Player = sequelize.define('Player', {
     attributes: {
         type: DataTypes.TEXT,
         defaultValue: JSON.stringify({
-            hp_max: 100,
-            mp_max: 0,
-            atk: 10,
-            def: 5,
-            speed: 10,
-            sense: 10
+            // 基础属性（当前值）
+            atk: 10,           // 攻击
+            def: 5,            // 防御
+            hp_current: 100,   // 当前气血
+            mp_current: 0,     // 当前灵力
+            speed: 10,         // 速度
+            sense: 10,         // 神识
+            exp: 0,            // 修为
+            lifespan_current: 16, // 当前年龄
+            toxicity: 0,       // 丹毒
+            spirit_stones: 0,  // 灵石
+            
+            // 属性最大值
+            hp_max: 100,       // 气血最大值
+            mp_max: 0,         // 灵力最大值
+            lifespan_max: 60,  // 寿命最大值
+            
+            // 属性加成（临时效果）
+            temp_boosts: {},
+            last_recovery_time: null
         }),
         get() {
             const rawValue = this.getDataValue('attributes');
@@ -84,7 +98,7 @@ const Player = sequelize.define('Player', {
         set(value) {
             this.setDataValue('attributes', JSON.stringify(value));
         },
-        comment: '基础属性JSON'
+        comment: '基础属性JSON（包含当前值和最大值）'
     },
     spirit_roots: {
         type: DataTypes.TEXT,
@@ -132,6 +146,58 @@ const Player = sequelize.define('Player', {
         type: DataTypes.DATE,
         allowNull: true,
         comment: '最后闭关结束时间'
+    },
+    current_map_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '当前所在地图ID'
+    },
+    last_map_move_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后移动地图时间'
+    },
+    heavenly_age: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+        comment: '天道时间年龄（世界基准时间年龄）'
+    },
+    mortal_age: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+        comment: '红尘时间年龄（个人行为时间年龄）'
+    },
+    last_heavenly_update: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后天道时间更新'
+    },
+    time_system_data: {
+        type: DataTypes.TEXT,
+        defaultValue: JSON.stringify({
+            mortal_time_records: [],
+            pending_activities: [],
+            world_event_participation: {},
+            next_breakthrough_window: null
+        }),
+        get() {
+            const rawValue = this.getDataValue('time_system_data');
+            return rawValue ? JSON.parse(rawValue) : {};
+        },
+        set(value) {
+            this.setDataValue('time_system_data', JSON.stringify(value));
+        },
+        comment: '双时间系统数据JSON'
+    },
+    ip_address: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: '注册/登录IP地址'
+    },
+    device_info: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: '注册设备信息'
     }
 }, {
     tableName: 'players',

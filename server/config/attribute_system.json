@@ -1,0 +1,32 @@
+{
+  "attribute_recovery": {
+    "natural_recovery": {
+      "hp_recovery_per_minute": 1,
+      "mp_recovery_per_minute": 1,
+      "hp_recovery_multiplier": 1,
+      "mp_recovery_multiplier": 1
+    },
+    "meditation_recovery": {
+      "hp_recovery_per_minute": 2,
+      "mp_recovery_per_minute": 5,
+      "hp_recovery_multiplier": 1.5,
+      "mp_recovery_multiplier": 2
+    }
+  },
+  "attribute_bonuses": {
+    "spirit_root_bonus": {
+      "gold": 0.2,
+      "wood": 0.2,
+      "water": 0.2,
+      "fire": 0.2,
+      "earth": 0.2,
+      "thunder": 0.3,
+      "ice": 0.3
+    },
+    "talent_bonus": {
+      "wisdom": 0.1,
+      "luck": 0.1,
+      "charm": 0.1
+    }
+  }
+}

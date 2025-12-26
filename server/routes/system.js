@@ -15,19 +15,28 @@ router.get('/stats', async (req, res) => {
     try {
         const totalPlayers = await Player.count();
         
-        // 统计在线人数：最后在线时间在5分钟内的玩家
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const onlinePlayers = await Player.count({
-            where: {
-                last_online: {
-                    [Op.gte]: fiveMinutesAgo
+        // 优先使用Socket.IO在线用户数，如果没有则回退到基于last_online的统计
+        const onlineUsersMap = req.app.get('onlineUsers');
+        let onlinePlayers = 0;
+        
+        if (onlineUsersMap && onlineUsersMap.size > 0) {
+            onlinePlayers = onlineUsersMap.size;
+        } else {
+            // 回退方案：最后在线时间在5分钟内的玩家
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            onlinePlayers = await Player.count({
+                where: {
+                    last_online: {
+                        [Op.gte]: fiveMinutesAgo
+                    }
                 }
-            }
-        });
+            });
+        }
 
         res.json({
-            online: Math.max(1, onlinePlayers), // 至少显示1人（当前请求者）
-            total: totalPlayers
+            online: Math.max(1, onlinePlayers),
+            total: totalPlayers,
+            serverTime: new Date().toISOString()
         });
     } catch (error) {
         console.error('获取统计信息失败:', error);

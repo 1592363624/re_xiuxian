@@ -1,7 +1,7 @@
 {
   "name": "re_xiuxian",
   "version": "1.0.0",
-  "description": "重生之凡人修仙传 - 网络文字游戏",
+  "description": "重生之凡人修仙传",
   "scripts": {
     "start": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm start",

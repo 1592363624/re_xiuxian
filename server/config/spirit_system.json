@@ -1,0 +1,168 @@
+{
+  "spirit_power": {
+    "base_value": 100,
+    "recovery": {
+      "meditation": {
+        "rate_per_second": 1,
+        "multiplier": 1.0
+      },
+      "natural": {
+        "rate_per_minute": 5,
+        "multiplier": 1.0
+      }
+    },
+    "consumption": {
+      "base_spell_cost": 20,
+      "base_treasure_cost": 30,
+      "multiplier_per_level": 1.1
+    },
+    "growth_curve": {
+      "linear": {
+        "base": 100,
+        "per_level": 100,
+        "apply_to": ["炼气期", "筑基期"]
+      },
+      "exponential": {
+        "base": 2000,
+        "multiplier": 1.5,
+        "apply_to": ["金丹期", "元婴期"]
+      },
+      "logarithmic": {
+        "base": 10000,
+        "multiplier": 1.2,
+        "apply_to": ["化神期", "炼虚期", "合体期", "大乘期", "渡劫期"]
+      }
+    }
+  },
+  "realm_settings": {
+    "凡人": {
+      "spirit_power_max": 0
+    },
+    "炼气期一层": {
+      "spirit_power_max": 100
+    },
+    "炼气期二层": {
+      "spirit_power_max": 200
+    },
+    "炼气期三层": {
+      "spirit_power_max": 300
+    },
+    "炼气期四层": {
+      "spirit_power_max": 400
+    },
+    "炼气期五层": {
+      "spirit_power_max": 500
+    },
+    "炼气期六层": {
+      "spirit_power_max": 600
+    },
+    "炼气期七层": {
+      "spirit_power_max": 700
+    },
+    "炼气期八层": {
+      "spirit_power_max": 800
+    },
+    "炼气期九层": {
+      "spirit_power_max": 900
+    },
+    "炼气期十层": {
+      "spirit_power_max": 1000
+    },
+    "炼气期十一层": {
+      "spirit_power_max": 1100
+    },
+    "炼气期十二层": {
+      "spirit_power_max": 1200
+    },
+    "炼气期十三层": {
+      "spirit_power_max": 1300
+    },
+    "筑基初期": {
+      "spirit_power_max": 2000
+    },
+    "筑基中期": {
+      "spirit_power_max": 2500
+    },
+    "筑基后期": {
+      "spirit_power_max": 3000
+    },
+    "筑基大圆满": {
+      "spirit_power_max": 3500
+    },
+    "金丹初期": {
+      "spirit_power_max": 3000
+    },
+    "金丹中期": {
+      "spirit_power_max": 6000
+    },
+    "金丹后期": {
+      "spirit_power_max": 10000
+    },
+    "金丹大圆满": {
+      "spirit_power_max": 15000
+    },
+    "元婴初期": {
+      "spirit_power_max": 25000
+    },
+    "元婴中期": {
+      "spirit_power_max": 35000
+    },
+    "元婴后期": {
+      "spirit_power_max": 50000
+    },
+    "元婴大圆满": {
+      "spirit_power_max": 70000
+    },
+    "化神初期": {
+      "spirit_power_max": 100000
+    },
+    "化神中期": {
+      "spirit_power_max": 130000
+    },
+    "化神后期": {
+      "spirit_power_max": 170000
+    },
+    "化神大圆满": {
+      "spirit_power_max": 220000
+    },
+    "炼虚初期": {
+      "spirit_power_max": 300000
+    },
+    "炼虚中期": {
+      "spirit_power_max": 400000
+    },
+    "炼虚后期": {
+      "spirit_power_max": 550000
+    },
+    "炼虚大圆满": {
+      "spirit_power_max": 750000
+    },
+    "合体初期": {
+      "spirit_power_max": 1000000
+    },
+    "合体中期": {
+      "spirit_power_max": 1300000
+    },
+    "合体后期": {
+      "spirit_power_max": 1700000
+    },
+    "合体大圆满": {
+      "spirit_power_max": 2200000
+    },
+    "大乘初期": {
+      "spirit_power_max": 3000000
+    },
+    "大乘中期": {
+      "spirit_power_max": 4000000
+    },
+    "大乘后期": {
+      "spirit_power_max": 5500000
+    },
+    "大乘大圆满": {
+      "spirit_power_max": 7500000
+    },
+    "渡劫期": {
+      "spirit_power_max": 10000000
+    }
+  }
+}

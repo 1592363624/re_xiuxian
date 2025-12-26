@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import axios from 'axios'
 import { usePlayerStore } from '../stores/player'
+import { useUIStore } from '../stores/ui'
 
 const isLogin = ref(true) // true: 登录模式, false: 注册模式
 const form = ref({
@@ -17,8 +18,26 @@ const nicknameError = ref('')
 const checking = ref({ username: false, nickname: false })
 
 const playerStore = usePlayerStore()
+const uiStore = useUIStore()
 
 const emit = defineEmits(['login-success'])
+
+const USERNAME_REGEX = /^[a-zA-Z0-9]{6,12}$/
+const PASSWORD_REGEX = /^[a-zA-Z0-9]{6,12}$/
+
+const validateFormat = () => {
+  if (!isLogin.value) {
+    if (!USERNAME_REGEX.test(form.value.username)) {
+      errorMsg.value = '账号必须为6-12位英文或数字'
+      return false
+    }
+    if (!PASSWORD_REGEX.test(form.value.password)) {
+      errorMsg.value = '密码必须为6-12位英文或数字'
+      return false
+    }
+  }
+  return true
+}
 
 // 防抖计时器
 const timers = {}
@@ -70,6 +89,10 @@ watch(isLogin, () => {
 })
 
 const handleSubmit = async () => {
+  if (!validateFormat()) {
+    return
+  }
+  
   // 注册模式下，如果有验证错误，阻止提交
   if (!isLogin.value && (usernameError.value || nicknameError.value)) {
     return
@@ -107,9 +130,8 @@ const handleSubmit = async () => {
       // 注册
       await axios.post('/api/auth/register', form.value)
       isLogin.value = true
-      errorMsg.value = '注册成功，请登录'
-      // 注册成功后清空密码
-      form.value.password = ''
+      uiStore.addToast('注册成功，请登录', 'success')
+      form.value = { username: '', password: '', nickname: '' }
     }
   } catch (error) {
     errorMsg.value = error.response?.data?.message || '请求失败，请检查网络'
