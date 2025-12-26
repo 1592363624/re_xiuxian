@@ -6,6 +6,7 @@ class AttributeMaxService {
     constructor() {
         this.configLoader = null;
         this.attributeConfig = null;
+        this.spiritConfig = null;
     }
 
     /**
@@ -14,8 +15,15 @@ class AttributeMaxService {
      */
     initialize(configLoader) {
         this.configLoader = configLoader;
-        // 移除对attribute_system配置的依赖，使用硬编码值
-        this.attributeConfig = {};
+        // 加载灵力系统配置
+        this.spiritConfig = configLoader.loadConfig('spirit_system');
+        try {
+            this.attributeConfig = configLoader.loadConfig('attribute_system');
+        } catch (error) {
+            // 配置文件不存在时使用默认配置
+            this.attributeConfig = {};
+            console.warn('配置文件不存在: attribute_system.json，将使用默认配置');
+        }
     }
 
     /**
@@ -53,10 +61,61 @@ class AttributeMaxService {
      * 计算灵力最大值
      */
     calculateMPMax(attributes, realmData) {
-        if (realmData.realm === '凡人') {
+        const realm = realmData.realm || '凡人';
+        
+        // 使用灵力系统配置
+        if (this.spiritConfig && this.spiritConfig.realm_settings && this.spiritConfig.realm_settings[realm]) {
+            return this.spiritConfig.realm_settings[realm].spirit_power_max || 0;
+        }
+        
+        // 备用计算逻辑：按小境界自动计算
+        if (realm === '凡人') {
             return 0; // 凡人阶段无灵力
         }
         
+        // 解析境界层级（炼气/筑基用层数，其他用初期/中期/后期/大圆满）
+        const realmMatch = realm.match(/(炼气期|筑基期)(\d+)层/);
+        if (realmMatch) {
+            const realmType = realmMatch[1];
+            const layer = parseInt(realmMatch[2]);
+            const growthCurve = this.spiritConfig?.spirit_power?.growth_curve || {};
+            
+            // 根据境界类型选择增长曲线
+            if (growthCurve.linear?.apply_to?.includes(realmType)) {
+                const linearConfig = growthCurve.linear;
+                return linearConfig.base + (layer * linearConfig.per_level);
+            } else {
+                // 默认线性增长
+                const baseValue = this.spiritConfig?.spirit_power?.base_value || 100;
+                const increase = this.spiritConfig?.spirit_power?.realm_increase || 100;
+                return baseValue + (layer * increase);
+            }
+        } else {
+            // 其他境界用初期/中期/后期/大圆满格式
+            const realmType = realm.replace(/(初期|中期|后期|大圆满)/, '');
+            const growthCurve = this.spiritConfig?.spirit_power?.growth_curve || {};
+            
+            // 根据境界类型选择增长曲线
+            if (growthCurve.exponential?.apply_to?.includes(realmType)) {
+                const exponentialConfig = growthCurve.exponential;
+                // 初期：1倍，中期：1.5倍，后期：2.25倍，大圆满：3.375倍
+                const stageMultipliers = { '初期': 1, '中期': 1.5, '后期': 2.25, '大圆满': 3.375 };
+                const stage = realm.match(/(初期|中期|后期|大圆满)/)[1];
+                return Math.floor(exponentialConfig.base * stageMultipliers[stage]);
+            } else if (growthCurve.logarithmic?.apply_to?.includes(realmType)) {
+                const logarithmicConfig = growthCurve.logarithmic;
+                // 初期：1倍，中期：1.2倍，后期：1.44倍，大圆满：1.728倍
+                const stageMultipliers = { '初期': 1, '中期': 1.2, '后期': 1.44, '大圆满': 1.728 };
+                const stage = realm.match(/(初期|中期|后期|大圆满)/)[1];
+                return Math.floor(logarithmicConfig.base * stageMultipliers[stage]);
+            } else {
+                // 默认线性增长
+                const baseValue = this.spiritConfig?.spirit_power?.base_value || 100;
+                return baseValue * 10;
+            }
+        }
+        
+        // 兜底计算
         const baseMP = realmData.base_mp || 0;
         const realmMultiplier = realmData.mp_multiplier || 1;
         
@@ -94,8 +153,15 @@ class AttributeMaxService {
      * @returns {Object} 恢复后的属性值
      */
     processAttributeRecovery(player, maxValues, recoveryType, duration) {
-        const recoveryConfig = this.attributeConfig?.attribute_recovery || {};
-        const recoveryRates = recoveryConfig[`${recoveryType}_recovery`] || recoveryConfig.natural_recovery;
+        // 优先使用灵力系统配置
+        let recoveryRates = {};
+        if (this.spiritConfig && this.spiritConfig.spirit_power && this.spiritConfig.spirit_power.recovery) {
+            recoveryRates = this.spiritConfig.spirit_power.recovery[recoveryType] || this.spiritConfig.spirit_power.recovery.natural;
+        } else {
+            // 备用配置
+            const recoveryConfig = this.attributeConfig?.attribute_recovery || {};
+            recoveryRates = recoveryConfig[`${recoveryType}_recovery`] || recoveryConfig.natural_recovery;
+        }
         
         const currentHp = player.hp_current || 0;
         const currentMp = player.mp_current || 0;
@@ -121,6 +187,24 @@ class AttributeMaxService {
                 mp: mpRecovery
             }
         };
+    }
+
+    /**
+     * 计算灵力消耗
+     * @param {number} level - 技能/法宝等级
+     * @param {string} type - 消耗类型（spell/treasure）
+     * @returns {number} 灵力消耗量
+     */
+    calculateSpiritConsumption(level, type) {
+        if (!this.spiritConfig || !this.spiritConfig.spirit_power || !this.spiritConfig.spirit_power.consumption) {
+            return type === 'spell' ? 20 : 30;
+        }
+        
+        const consumptionConfig = this.spiritConfig.spirit_power.consumption;
+        const baseCost = type === 'spell' ? consumptionConfig.base_spell_cost : consumptionConfig.base_treasure_cost;
+        const multiplier = Math.pow(consumptionConfig.multiplier_per_level, level - 1);
+        
+        return Math.floor(baseCost * multiplier);
     }
 
     /**

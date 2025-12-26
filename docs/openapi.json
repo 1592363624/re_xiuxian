@@ -178,7 +178,7 @@
               },
               "mp_max": {
                 "type": "integer",
-                "description": "最大灵力"
+                "description": "最大灵力，根据境界增长曲线动态计算（炼气、筑基线性增长，金丹及以上使用初期/中期/后期/大圆满阶段命名，采用指数增长模型）"
               },
               "atk": {
                 "type": "integer",
