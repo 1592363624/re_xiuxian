@@ -195,7 +195,8 @@ const fetchStats = async () => {
 
 const handleAction = async (actionId: string) => {
   console.log('ActionBar emitted action:', actionId);
-  if (actionId === 'meditate') {
+  
+  if (actionId === 'cultivate') {
     try {
       await playerStore.startSeclusion();
       uiStore.showToast('进入闭关状态', 'success');
@@ -210,6 +211,7 @@ const handleAction = async (actionId: string) => {
     }
     return;
   }
+  
   emit('action', actionId);
 };
 

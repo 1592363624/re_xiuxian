@@ -1141,7 +1141,7 @@
     "/api/seclusion/status": {
       "get": {
         "summary": "获取闭关状态",
-        "description": "获取当前闭关状态和进度",
+        "description": "获取当前闭关状态和进度，包括修炼配置参数",
         "tags": ["Seclusion"],
         "security": [{ "bearerAuth": [] }],
         "responses": {
@@ -1152,31 +1152,34 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "integer",
-                      "example": 200
+                    "is_secluded": {
+                      "type": "boolean",
+                      "description": "是否正在闭关"
                     },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "is_secluding": {
-                          "type": "boolean",
-                          "description": "是否正在闭关"
-                        },
-                        "end_time": {
-                          "type": "string",
-                          "format": "date-time",
-                          "description": "闭关结束时间"
-                        },
-                        "remaining_seconds": {
-                          "type": "integer",
-                          "description": "剩余秒数"
-                        },
-                        "progress": {
-                          "type": "number",
-                          "description": "闭关进度 0-100"
-                        }
-                      }
+                    "seclusion_start_time": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "闭关开始时间"
+                    },
+                    "seclusion_duration": {
+                      "type": "integer",
+                      "description": "闭关持续时间（秒）"
+                    },
+                    "exp_rate": {
+                      "type": "number",
+                      "description": "闭关基础收益（修为/秒）"
+                    },
+                    "cultivate_interval": {
+                      "type": "integer",
+                      "description": "修炼时间间隔（秒），默认60"
+                    },
+                    "deep_seclusion_exp_rate": {
+                      "type": "number",
+                      "description": "深度闭关收益倍率，默认2.0"
+                    },
+                    "deep_seclusion_interval": {
+                      "type": "integer",
+                      "description": "深度闭关时间间隔（秒），默认300"
                     }
                   }
                 }

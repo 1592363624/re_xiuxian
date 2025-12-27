@@ -5,12 +5,13 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   server: {
-    host: '0.0.0.0', // 允许局域网访问
+    host: '0.0.0.0',
+    port: 5173,
+    // strictPort: false, // 端口冲突时自动尝试其他端口
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
-        changeOrigin: true,
-        // rewrite: (path) => path.replace(/^\/api/, '') // 根据后端路由决定是否重写
+        changeOrigin: true
       }
     }
   }

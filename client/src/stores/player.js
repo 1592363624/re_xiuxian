@@ -56,13 +56,15 @@ export const usePlayerStore = defineStore('player', {
       try {
         const res = await axios.get('/api/seclusion/status')
         if (res.data) {
-             // If we have player data, update it
              if (this.player) {
                  this.player.is_secluded = res.data.is_secluded
                  this.player.seclusion_start_time = res.data.seclusion_start_time
                  this.player.seclusion_duration = res.data.seclusion_duration
              }
-             return res.data // Return full data including rate
+             this.systemConfig.cultivate_interval = res.data.cultivate_interval
+             this.systemConfig.deep_seclusion_exp_rate = res.data.deep_seclusion_exp_rate
+             this.systemConfig.deep_seclusion_interval = res.data.deep_seclusion_interval
+             return res.data
         }
       } catch (error) {
         console.error('获取闭关状态失败:', error)

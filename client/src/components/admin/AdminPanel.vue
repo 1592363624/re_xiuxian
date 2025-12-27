@@ -15,8 +15,8 @@
           v-for="tab in tabs" 
           :key="tab.id"
           @click="currentTab = tab.id"
-          class="px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap"
-          :class="currentTab === tab.id ? 'text-xiuxian-gold' : 'text-gray-400 hover:text-gray-200'"
+          class="px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
+          :class="currentTab === tab.id ? 'text-xiuxian-gold' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'"
         >
           {{ tab.name }}
           <div v-if="currentTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-xiuxian-gold"></div>
@@ -156,6 +156,54 @@
                 <button @click="saveConfig('seclusion_exp_rate', configs.seclusion_exp_rate, '闭关经验倍率(修为/秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
               </div>
               <p class="mt-1 text-xs text-gray-500">默认: 0.1 (每10秒1点修为)</p>
+            </div>
+
+            <!-- 修炼时间间隔 -->
+            <div class="bg-gray-800 p-4 rounded border border-gray-700">
+              <label class="block text-sm font-medium text-gray-400 mb-2">修炼时间间隔 (秒)</label>
+              <div class="flex space-x-2">
+                <input 
+                  v-model="configs.cultivate_interval" 
+                  type="number" 
+                  min="1"
+                  class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+                >
+                <button @click="saveConfig('cultivate_interval', configs.cultivate_interval, '修炼时间间隔(秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+              </div>
+              <p class="mt-1 text-xs text-gray-500">默认: 60 (1分钟)</p>
+            </div>
+            
+            <!-- 深度闭关配置 -->
+            <div class="bg-gray-800 p-4 rounded border border-gray-700 md:col-span-2 lg:col-span-3">
+              <h4 class="text-md font-bold text-purple-400 mb-4">深度闭关配置</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-400 mb-2">深度闭关收益倍率</label>
+                  <div class="flex space-x-2">
+                    <input 
+                      v-model="configs.deep_seclusion_exp_rate" 
+                      type="number" 
+                      step="0.1"
+                      class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+                    >
+                    <button @click="saveConfig('deep_seclusion_exp_rate', configs.deep_seclusion_exp_rate, '深度闭关收益倍率')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500">默认: 2.0 (2倍收益)</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-400 mb-2">深度闭关时间间隔 (秒)</label>
+                  <div class="flex space-x-2">
+                    <input 
+                      v-model="configs.deep_seclusion_interval" 
+                      type="number" 
+                      min="1"
+                      class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+                    >
+                    <button @click="saveConfig('deep_seclusion_interval', configs.deep_seclusion_interval, '深度闭关时间间隔(秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500">默认: 300 (5分钟)</p>
+                </div>
+              </div>
             </div>
             
             <!-- 时间控制 (GM) -->
@@ -470,7 +518,10 @@ const pagination = reactive({
 const configs = reactive({
   auto_save_interval: 10000,
   seclusion_cooldown: 3600,
-  seclusion_exp_rate: 0.1
+  seclusion_exp_rate: 0.1,
+  cultivate_interval: 60,
+  deep_seclusion_exp_rate: 2.0,
+  deep_seclusion_interval: 300
 })
 
 const editingPlayer = ref(null)
@@ -519,6 +570,52 @@ const unbanPlayer = async (player) => {
   }
 }
 
+// 发放功能相关
+const givingPlayer = ref(null)
+const giveType = ref('item')
+const giveItemId = ref('')
+const giveQuantity = ref(1)
+const giveAmount = ref(0)
+
+const showGiveModal = (player) => {
+  givingPlayer.value = player
+  giveType.value = 'item'
+  giveItemId.value = ''
+  giveQuantity.value = 1
+  giveAmount.value = 0
+}
+
+const confirmGive = async () => {
+  if (!givingPlayer.value) return
+  try {
+    if (giveType.value === 'item') {
+      if (!giveItemId.value) {
+        alert('请输入物品ID')
+        return
+      }
+      await axios.post(`/api/admin/players/${givingPlayer.value.id}/give-item`, {
+        itemId: giveItemId.value,
+        quantity: giveQuantity.value
+      })
+      alert('物品发放成功')
+    } else if (giveType.value === 'spirit_stones') {
+      await axios.post(`/api/admin/players/${givingPlayer.value.id}/give-spirit-stones`, {
+        amount: giveAmount.value
+      })
+      alert('灵石发放成功')
+    } else if (giveType.value === 'exp') {
+      await axios.post(`/api/admin/players/${givingPlayer.value.id}/give-exp`, {
+        amount: giveAmount.value
+      })
+      alert('修为发放成功')
+    }
+    givingPlayer.value = null
+    fetchPlayers(pagination.currentPage)
+  } catch (error) {
+    alert('发放失败: ' + (error.response?.data?.message || error.message))
+  }
+}
+
 const confirmTimeTravel = () => {
   if (!timeTravelYears.value || timeTravelYears.value <= 0) {
     uiStore.showToast('请输入有效的年数', 'warning')
@@ -547,14 +644,29 @@ const fetchPlayers = async (page = 1) => {
 const fetchConfig = async () => {
   try {
     const res = await axios.get('/api/admin/config')
-    res.data.forEach(item => {
-      if (item.key === 'auto_save_interval') configs.auto_save_interval = parseInt(item.value)
-      if (item.key === 'seclusion_cooldown') configs.seclusion_cooldown = parseInt(item.value)
-      if (item.key === 'seclusion_exp_rate') configs.seclusion_exp_rate = parseFloat(item.value)
-    })
+    const configData = res.data?.data || res.data || []
+    if (Array.isArray(configData)) {
+      configData.forEach(item => {
+        if (item.key === 'auto_save_interval') configs.auto_save_interval = parseInt(item.value)
+        if (item.key === 'seclusion_cooldown') configs.seclusion_cooldown = parseInt(item.value)
+        if (item.key === 'seclusion_exp_rate') configs.seclusion_exp_rate = parseFloat(item.value)
+        if (item.key === 'cultivate_interval') configs.cultivate_interval = parseInt(item.value)
+        if (item.key === 'deep_seclusion_exp_rate') configs.deep_seclusion_exp_rate = parseFloat(item.value)
+        if (item.key === 'deep_seclusion_interval') configs.deep_seclusion_interval = parseInt(item.value)
+      })
+    }
   } catch (error) {
     console.error('Fetch config error:', error)
   }
+}
+
+// 获取寿元样式类
+const getLifespanClass = (player) => {
+  if (!player || !player.lifespan_max) return 'text-gray-500'
+  const ratio = player.lifespan_current / player.lifespan_max
+  if (ratio <= 0.2) return 'text-red-400 font-bold'
+  if (ratio <= 0.5) return 'text-orange-400'
+  return 'text-green-400'
 }
 
 // 保存配置
@@ -641,6 +753,33 @@ onMounted(() => {
   fetchPlayers()
   fetchConfig()
 })
+
+// 格式化日期
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// 格式化日期时间
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
 </script>
 
 <style scoped>

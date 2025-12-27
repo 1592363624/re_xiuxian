@@ -34,6 +34,48 @@ async function getSeclusionCooldown() {
     }
 }
 
+// 获取修炼时间间隔 (默认 60 秒)
+async function getCultivateInterval() {
+    try {
+        const config = await SystemConfig.findOne({ where: { key: 'cultivate_interval' } });
+        if (config) {
+            return parseInt(config.value);
+        }
+        return 60; // 1 分钟
+    } catch (err) {
+        console.error('获取修炼时间间隔失败:', err);
+        return 60;
+    }
+}
+
+// 获取深度闭关收益倍率 (默认 2.0)
+async function getDeepSeclusionExpRate() {
+    try {
+        const config = await SystemConfig.findOne({ where: { key: 'deep_seclusion_exp_rate' } });
+        if (config) {
+            return parseFloat(config.value);
+        }
+        return 2.0;
+    } catch (err) {
+        console.error('获取深度闭关收益倍率失败:', err);
+        return 2.0;
+    }
+}
+
+// 获取深度闭关时间间隔 (默认 300 秒)
+async function getDeepSeclusionInterval() {
+    try {
+        const config = await SystemConfig.findOne({ where: { key: 'deep_seclusion_interval' } });
+        if (config) {
+            return parseInt(config.value);
+        }
+        return 300; // 5 分钟
+    } catch (err) {
+        console.error('获取深度闭关时间间隔失败:', err);
+        return 300;
+    }
+}
+
 /**
  * @route POST /api/seclusion/start
  * @desc 开始闭关
@@ -173,12 +215,18 @@ router.get('/status', authenticateToken, async (req, res) => {
         }
 
         const rate = await getSeclusionExpRate();
+        const cultivateInterval = await getCultivateInterval();
+        const deepSeclusionRate = await getDeepSeclusionExpRate();
+        const deepSeclusionInterval = await getDeepSeclusionInterval();
 
         res.json({
             is_secluded: player.is_secluded,
             seclusion_start_time: player.seclusion_start_time,
             seclusion_duration: player.seclusion_duration,
-            exp_rate: rate
+            exp_rate: rate,
+            cultivate_interval: cultivateInterval,
+            deep_seclusion_exp_rate: deepSeclusionRate,
+            deep_seclusion_interval: deepSeclusionInterval
         });
 
     } catch (err) {
