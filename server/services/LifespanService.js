@@ -4,6 +4,7 @@
  */
 const Player = require('../models/player');
 const Realm = require('../models/realm');
+const NotificationService = require('./NotificationService');
 const { Op } = require('sequelize');
 
 class LifespanService {
@@ -110,9 +111,19 @@ class LifespanService {
             logMessage += ` 随身宝物散落天地。`;
 
             // 4. 保存更改
-            await player.save({ transaction });
+            await player.save({ transaction: t });
 
             console.log(`[Death] ${player.nickname}: ${logMessage}`);
+
+            try {
+                const newRealmInfo = newRealm ? newRealm.name : '凡人';
+                await NotificationService.sendDeathNotification(
+                    { id: player.id, nickname: player.nickname },
+                    `寿元耗尽，境界从 ${currentRealmName} 跌落至 ${newRealmInfo}`
+                );
+            } catch (notificationError) {
+                console.error('发送死亡通知失败:', notificationError);
+            }
 
         } catch (error) {
             console.error(`[Death] Error processing death for player ${player.id}:`, error);

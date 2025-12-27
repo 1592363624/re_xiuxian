@@ -17,10 +17,12 @@ BigInt.prototype.toJSON = function() {
 require('./models/player');
 require('./models/chat');
 require('./models/system_config');
+require('./models/system_notification');
 
 const http = require('http');
 const socketIo = require('socket.io');
 const { infrastructure, core } = require('./modules');
+const WebSocketNotificationService = require('./services/WebSocketNotificationService');
 
 const app = express();
 const server = http.createServer(app);
@@ -133,6 +135,7 @@ const startServer = async () => {
     app.use('/api/config', require('./routes/config'));
     app.use('/api/attribute', require('./routes/attribute'));
     app.use('/api/time', require('./routes/time'));
+    app.use('/api/notifications', require('./routes/notifications'));
 
     // Socket.IO在线用户跟踪
     io.on('connection', (socket) => {
@@ -155,6 +158,10 @@ const startServer = async () => {
             }
         });
     });
+
+    // 初始化WebSocket通知服务
+    WebSocketNotificationService.initialize(io);
+    console.log('WebSocket通知服务已初始化');
 
     // 将onlineUsers挂载到app
     app.set('onlineUsers', onlineUsers);

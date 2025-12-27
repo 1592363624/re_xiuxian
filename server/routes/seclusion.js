@@ -2,78 +2,76 @@ const express = require('express');
 const router = express.Router();
 const Player = require('../models/player');
 const Realm = require('../models/realm');
-const SystemConfig = require('../models/system_config');
 const authenticateToken = require('../middleware/auth');
-const { Op } = require('sequelize');
+const configLoader = require('../modules/infrastructure/ConfigLoader');
+const fs = require('fs');
+const path = require('path');
+
+const CONFIG_FILE = path.join(__dirname, '../config/seclusion.json');
+
+function getConfigValue(key) {
+    try {
+        const config = configLoader.getConfig('seclusion');
+        if (config && config.settings && config.settings[key]) {
+            return config.settings[key].value;
+        }
+        return null;
+    } catch (err) {
+        console.error('获取配置失败:', err);
+        return null;
+    }
+}
+
+function saveConfigValue(key, value) {
+    try {
+        let config = { settings: {} };
+        if (fs.existsSync(CONFIG_FILE)) {
+            const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
+            config = JSON.parse(content);
+        }
+        if (!config.settings[key]) {
+            config.settings[key] = { value: value, displayName: key };
+        } else {
+            config.settings[key].value = value;
+        }
+        config.lastUpdated = new Date().toISOString();
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+        configLoader.hotUpdateConfig('seclusion');
+        return true;
+    } catch (err) {
+        console.error('保存配置失败:', err);
+        return false;
+    }
+}
 
 // 获取闭关经验倍率 (默认 0.1 / 秒，即 1点/10秒)
-async function getSeclusionExpRate() {
-    try {
-        const config = await SystemConfig.findOne({ where: { key: 'seclusion_exp_rate' } });
-        if (config) {
-            return parseFloat(config.value);
-        }
-        return 0.1;
-    } catch (err) {
-        console.error('获取闭关倍率失败:', err);
-        return 0.1;
-    }
+function getSeclusionExpRate() {
+    const value = getConfigValue('seclusion_exp_rate');
+    return value !== null ? value : 0.1;
 }
 
 // 获取闭关冷却时间 (默认 3600 秒)
-async function getSeclusionCooldown() {
-    try {
-        const config = await SystemConfig.findOne({ where: { key: 'seclusion_cooldown' } });
-        if (config) {
-            return parseInt(config.value);
-        }
-        return 3600; // 60 分钟
-    } catch (err) {
-        console.error('获取闭关冷却时间失败:', err);
-        return 3600;
-    }
+function getSeclusionCooldown() {
+    const value = getConfigValue('seclusion_cooldown');
+    return value !== null ? value : 3600;
 }
 
 // 获取修炼时间间隔 (默认 60 秒)
-async function getCultivateInterval() {
-    try {
-        const config = await SystemConfig.findOne({ where: { key: 'cultivate_interval' } });
-        if (config) {
-            return parseInt(config.value);
-        }
-        return 60; // 1 分钟
-    } catch (err) {
-        console.error('获取修炼时间间隔失败:', err);
-        return 60;
-    }
+function getCultivateInterval() {
+    const value = getConfigValue('cultivate_interval');
+    return value !== null ? value : 60;
 }
 
 // 获取深度闭关收益倍率 (默认 2.0)
-async function getDeepSeclusionExpRate() {
-    try {
-        const config = await SystemConfig.findOne({ where: { key: 'deep_seclusion_exp_rate' } });
-        if (config) {
-            return parseFloat(config.value);
-        }
-        return 2.0;
-    } catch (err) {
-        console.error('获取深度闭关收益倍率失败:', err);
-        return 2.0;
-    }
+function getDeepSeclusionExpRate() {
+    const value = getConfigValue('deep_seclusion_exp_rate');
+    return value !== null ? value : 2.0;
 }
 
 // 获取深度闭关时间间隔 (默认 300 秒)
-async function getDeepSeclusionInterval() {
-    try {
-        const config = await SystemConfig.findOne({ where: { key: 'deep_seclusion_interval' } });
-        if (config) {
-            return parseInt(config.value);
-        }
-        return 300; // 5 分钟
-    } catch (err) {
-        console.error('获取深度闭关时间间隔失败:', err);
-        return 300;
-    }
+function getDeepSeclusionInterval() {
+    const value = getConfigValue('deep_seclusion_interval');
+    return value !== null ? value : 300;
 }
 
 /**

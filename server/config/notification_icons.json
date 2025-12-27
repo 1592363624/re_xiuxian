@@ -1,0 +1,61 @@
+{
+  "description": "系统通知图标配置",
+  "version": "1.0.0",
+  "icons": {
+    "breakthrough": {
+      "emoji": "�突破了",
+      "color": "#fbbf24",
+      "description": "境界突破"
+    },
+    "death": {
+      "emoji": "💀",
+      "color": "#6b7280",
+      "description": "兵解轮回"
+    },
+    "achievement": {
+      "emoji": "🏆",
+      "color": "#f59e0b",
+      "description": "成就达成"
+    },
+    "event": {
+      "emoji": "🎭",
+      "color": "#8b5cf6",
+      "description": "游戏事件"
+    },
+    "announcement": {
+      "emoji": "📢",
+      "color": "#ef4444",
+      "description": "全服公告"
+    },
+    "warning": {
+      "emoji": "⚠️",
+      "color": "#f97316",
+      "description": "系统警告"
+    },
+    "milestone": {
+      "emoji": "🎯",
+      "color": "#22c55e",
+      "description": "里程碑"
+    },
+    "default": {
+      "emoji": "🔔",
+      "color": "#3b82f6",
+      "description": "默认通知"
+    }
+  },
+  "priority_colors": {
+    "low": "#6b7280",
+    "normal": "#3b82f6",
+    "high": "#f59e0b",
+    "critical": "#ef4444"
+  },
+  "notification_style": {
+    "animations": {
+      "breakthrough": "pulse-gold",
+      "death": "fade-gray",
+      "achievement": "bounce",
+      "announcement": "shake",
+      "warning": "pulse-red"
+    }
+  }
+}

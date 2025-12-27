@@ -2,8 +2,8 @@
   "openapi": "3.0.0",
   "info": {
     "title": "重生之凡人修仙传 API",
-    "description": "修仙文字游戏后端接口文档，基于《凡人修仙传》世界观。包含玩家注册登录、角色管理、境界突破、地图探索、闭关修炼、GM管理等完整功能。",
-    "version": "2.0.0",
+    "description": "修仙文字游戏后端接口文档，基于《凡人修仙传》世界观。包含玩家注册登录、角色管理、境界突破、地图探索、闭关修炼、GM管理、系统通知、WebSocket实时推送、玩家数据实时同步等完整功能。",
+    "version": "2.2.0",
     "contact": {
       "name": "Shell",
       "email": "1592363624@qq.com"
@@ -67,6 +67,10 @@
     {
       "name": "Time",
       "description": "双时间系统管理"
+    },
+    {
+      "name": "Notification",
+      "description": "系统通知管理"
     }
   ],
   "security": [
@@ -250,6 +254,47 @@
           "lifespan_max": {
             "type": "integer",
             "description": "最大寿命"
+          }
+        }
+      },
+      "SystemNotification": {
+        "type": "object",
+        "description": "系统通知",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "通知ID"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["breakthrough", "death", "achievement", "event", "announcement", "warning", "milestone"],
+            "description": "通知类型：突破、死亡、成就、事件、公告、警告、里程碑"
+          },
+          "title": {
+            "type": "string",
+            "description": "通知标题"
+          },
+          "content": {
+            "type": "string",
+            "description": "通知内容"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["low", "normal", "high", "critical"],
+            "description": "优先级"
+          },
+          "actorNickname": {
+            "type": "string",
+            "description": "触发事件玩家昵称"
+          },
+          "isRead": {
+            "type": "boolean",
+            "description": "是否已读"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
           }
         }
       }
@@ -1568,6 +1613,96 @@
         }
       }
     },
+    "/api/chat/unread-count": {
+      "get": {
+        "summary": "获取聊天未读消息数量",
+        "description": "获取自上次阅读时间以来新增的未读聊天消息数量",
+        "tags": ["Chat"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "lastReadTime",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "上次阅读时间，ISO 8601格式"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "未读消息数量"
+                    }
+                  }
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "code": 200,
+                      "count": 5
+                    }
+                  },
+                  "no_unread": {
+                    "value": {
+                      "code": 200,
+                      "count": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/mark-read": {
+      "post": {
+        "summary": "标记聊天消息已读",
+        "description": "将所有聊天消息标记为已读状态，更新最后阅读时间",
+        "tags": ["Chat"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "lastReadTime": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "更新的阅读时间"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/config/data/realms": {
       "get": {
         "summary": "获取境界配置",
@@ -1773,6 +1908,387 @@
                         "seclusion_exp_rate": 0.1,
                         "seclusion_cooldown": 3600
                       }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "summary": "获取通知列表",
+        "description": "获取当前玩家的通知列表，支持分页和筛选",
+        "tags": ["Notification"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "每页数量，最大100"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["breakthrough", "death", "achievement", "event", "announcement", "warning", "milestone"]
+            },
+            "description": "通知类型筛选"
+          },
+          {
+            "name": "unreadOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "仅返回未读通知"
+          },
+          {
+            "name": "includeGlobal",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "description": "是否包含全服通知"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "总数量"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "当前页"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "description": "每页数量"
+                    },
+                    "totalPages": {
+                      "type": "integer",
+                      "description": "总页数"
+                    },
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SystemNotification"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/unread-count": {
+      "get": {
+        "summary": "获取未读通知数量",
+        "description": "获取当前玩家未读通知的数量",
+        "tags": ["Notification"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "未读通知数量"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/global": {
+      "get": {
+        "summary": "获取全服重要通知",
+        "description": "获取全服广播的重要通知，用于新玩家登录时显示",
+        "tags": ["Notification"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "获取数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SystemNotification"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/{id}/read": {
+      "post": {
+        "summary": "标记通知为已读",
+        "description": "将指定通知标记为已读状态",
+        "tags": ["Notification"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "通知ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/read-all": {
+      "post": {
+        "summary": "标记所有通知为已读",
+        "description": "将当前玩家的所有通知标记为已读状态",
+        "tags": ["Notification"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/announcement": {
+      "post": {
+        "summary": "发送全服公告",
+        "description": "向全服玩家发送公告通知（需要管理员权限）",
+        "tags": ["Notification", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "content"],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "公告标题"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "公告内容"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["low", "normal", "high", "critical"],
+                    "default": "high",
+                    "description": "优先级"
+                  }
+                }
+              },
+              "examples": {
+                "normal": {
+                  "value": {
+                    "title": "服务器维护通知",
+                    "content": "服务器将于今晚22:00-24:00进行维护，届时将无法登录。",
+                    "priority": "high"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "公告已发送"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/event": {
+      "post": {
+        "summary": "发送事件通知",
+        "description": "发送玩家事件通知，如突破、死亡等（需要管理员权限）",
+        "tags": ["Notification", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["eventName", "content"],
+                "properties": {
+                  "eventName": {
+                    "type": "string",
+                    "description": "事件名称"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "事件内容"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["low", "normal", "high", "critical"],
+                    "default": "high",
+                    "description": "优先级"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "事件通知已发送"
                     }
                   }
                 }
@@ -2370,7 +2886,7 @@
     "/api/admin/config": {
       "get": {
         "summary": "获取系统配置 (GM)",
-        "description": "获取所有系统配置项（需要管理员权限）",
+        "description": "获取所有系统配置项（需要管理员权限）\n\n**配置存储说明**：\n- 闭关修炼相关配置存储在 `server/config/seclusion.json` 文件中\n- 其他配置存储在数据库的 `system_configs` 表中\n- API会合并两种来源的配置，并标明数据来源",
         "tags": ["Admin", "GM"],
         "security": [{ "bearerAuth": [] }],
         "responses": {
@@ -2391,13 +2907,21 @@
                         "type": "object",
                         "properties": {
                           "key": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "配置键"
                           },
                           "value": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "配置值"
                           },
                           "description": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "配置描述"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": ["json", "database"],
+                            "description": "配置数据来源：json=seclusion.json文件，database=数据库"
                           }
                         }
                       }
@@ -2411,7 +2935,7 @@
       },
       "post": {
         "summary": "保存系统配置 (GM)",
-        "description": "创建或更新系统配置项（需要管理员权限）",
+        "description": "创建或更新系统配置项（需要管理员权限）\n\n**存储规则**：\n- 闭关修炼相关配置（seclusion_cooldown, seclusion_exp_rate, cultivate_interval, deep_seclusion_exp_rate, deep_seclusion_interval）会保存到 `server/config/seclusion.json` 文件\n- 其他配置保存到数据库的 `system_configs` 表中\n- 保存后配置会立即生效（支持热更新）",
         "tags": ["Admin", "GM"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -2446,11 +2970,11 @@
               "application/json": {
                 "example": {
                   "code": 200,
-                  "message": "配置保存成功",
+                  "message": "配置保存成功（已写入JSON文件）",
                   "data": {
                     "key": "seclusion_exp_rate",
-                    "value": "0.1",
-                    "description": "闭关经验获取倍率"
+                    "value": "0.2",
+                    "source": "json"
                   }
                 }
               }
@@ -2579,6 +3103,218 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/admin/notifications/{id}": {
+      "delete": {
+        "summary": "删除通知 (GM)",
+        "description": "删除指定通知（需要管理员权限）",
+        "tags": ["Admin", "GM"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "通知ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "通知删除成功"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "通知不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "通知不存在"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Notification": {
+        "type": "object",
+        "description": "系统通知",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "通知唯一ID"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["breakthrough", "death", "achievement", "event", "announcement", "warning", "milestone"],
+            "description": "通知类型"
+          },
+          "title": {
+            "type": "string",
+            "description": "通知标题"
+          },
+          "content": {
+            "type": "string",
+            "description": "通知内容"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["low", "normal", "high", "critical"],
+            "description": "优先级"
+          },
+          "targetPlayerId": {
+            "type": "integer",
+            "description": "目标玩家ID，null表示全服通知"
+          },
+          "actorNickname": {
+            "type": "string",
+            "description": "触发事件玩家昵称"
+          },
+          "isRead": {
+            "type": "boolean",
+            "description": "是否已读"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          }
+        }
+      },
+      "WebSocketNotification": {
+        "type": "object",
+        "description": "WebSocket实时通知",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "通知ID（临时生成）"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["breakthrough", "death", "achievement", "event", "announcement", "warning", "milestone"],
+            "description": "通知类型"
+          },
+          "title": {
+            "type": "string",
+            "description": "通知标题"
+          },
+          "content": {
+            "type": "string",
+            "description": "通知内容"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["low", "normal", "high", "critical"],
+            "description": "优先级"
+          },
+          "icon": {
+            "type": "object",
+            "description": "通知图标配置",
+            "properties": {
+              "emoji": {
+                "type": "string",
+                "description": "图标Emoji"
+              },
+              "color": {
+                "type": "string",
+                "description": "图标颜色"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "推送时间"
+          }
+        }
+      },
+      "WebSocketPlayerUpdate": {
+        "type": "object",
+        "description": "WebSocket玩家数据实时更新事件",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["player_update"],
+            "description": "事件类型"
+          },
+          "updateType": {
+            "type": "string",
+            "enum": ["gm_modify", "gm_give_spirit_stones", "gm_add_exp", "gm_breakthrough", "gm_reset", "gm_ban", "gm_unban", "gm_delete"],
+            "description": "更新类型：gm_modify-管理员修改、gm_give_spirit_stones-发放灵石、gm_add_exp-增加修为、gm_breakthrough-强制突破、gm_reset-重置玩家、gm_ban-封禁玩家、gm_unban-解封玩家、gm_delete-删除玩家"
+          },
+          "changes": {
+            "type": "object",
+            "description": "变更内容",
+            "properties": {
+              "modifiedFields": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "被修改的字段列表"
+              },
+              "amount": {
+                "type": "integer",
+                "description": "变更数量"
+              },
+              "newRealm": {
+                "type": "string",
+                "description": "新境界"
+              },
+              "keepItems": {
+                "type": "boolean",
+                "description": "是否保留物品"
+              },
+              "reason": {
+                "type": "string",
+                "description": "封禁原因"
+              },
+              "bannedUntil": {
+                "type": "string",
+                "format": "date-time",
+                "description": "解封时间"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "推送时间"
           }
         }
       }

@@ -7,11 +7,17 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    // strictPort: false, // 端口冲突时自动尝试其他端口
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
-        changeOrigin: true
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if (err.code === 'ECONNREFUSED') {
+              console.warn('[前端] 后端服务暂未就绪，请求将自动重试...')
+            }
+          })
+        }
       }
     }
   }
