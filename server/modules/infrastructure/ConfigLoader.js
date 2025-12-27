@@ -36,7 +36,16 @@ class ConfigLoader extends EventEmitter {
      * 批量加载所有配置文件
      */
     async loadAllConfigs() {
-        const configFiles = ['realm_breakthrough', 'role_init', 'item_data', 'map_data', 'ui_layout', 'ui_routes'];
+        const configFiles = [
+            'realm_breakthrough', 
+            'role_init', 
+            'item_data', 
+            'map_data', 
+            'ui_layout', 
+            'ui_routes',
+            'seclusion',      // 闭关修炼配置
+            'system'          // 系统全局配置
+        ];
         const results = {};
 
         for (const configName of configFiles) {

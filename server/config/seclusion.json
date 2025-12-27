@@ -1,0 +1,36 @@
+{
+  "description": "闭关修炼系统配置",
+  "version": "1.0.1",
+  "lastUpdated": "2025-12-27T03:29:15.576Z",
+  "settings": {
+    "seclusion_cooldown": {
+      "value": "60",
+      "displayName": "闭关冷却时间"
+    },
+    "seclusion_exp_rate": {
+      "value": 1,
+      "displayName": "闭关基础收益"
+    },
+    "cultivate_interval": {
+      "value": "60",
+      "unit": "秒",
+      "description": "修炼时间间隔（默认1分钟）",
+      "defaultValue": 60,
+      "displayName": "修炼时间间隔"
+    },
+    "deep_seclusion_exp_rate": {
+      "value": 2,
+      "unit": "倍率",
+      "description": "深度闭关收益倍率",
+      "defaultValue": 2,
+      "displayName": "深度闭关收益倍率"
+    },
+    "deep_seclusion_interval": {
+      "value": "72000",
+      "unit": "秒",
+      "description": "深度闭关时间间隔（默认5分钟）",
+      "defaultValue": 300,
+      "displayName": "深度闭关时间间隔"
+    }
+  }
+}

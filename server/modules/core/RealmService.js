@@ -43,7 +43,7 @@ class RealmService {
      */
     getNextRealm(currentRealm) {
         if (!currentRealm) return null;
-        const currentRank = currentRealm.rank || 1;
+        const currentRank = currentRealm.rank !== undefined ? currentRealm.rank : 1;
         return this.getRealmByRank(currentRank + 1);
     }
 
@@ -120,6 +120,25 @@ class RealmService {
             requirement: realm.cultivation_limit,
             bonus: config.breakthrough_bonus || {}
         };
+    }
+
+    /**
+     * 计算突破成功率
+     * @param {Object} player - 玩家对象
+     * @param {Object} nextRealm - 下一境界配置
+     * @returns {number} 成功率 (0-100)
+     */
+    calculateBreakthroughProbability(player, nextRealm) {
+        const currentRealm = this.getRealmByName(player.realm);
+        if (!currentRealm || !nextRealm) {
+            throw new Error('境界配置不存在，无法计算突破概率');
+        }
+
+        if (currentRealm.breakthrough_probability === undefined) {
+            throw new Error(`境界【${currentRealm.name}】未配置突破成功率，请检查配置文件`);
+        }
+
+        return currentRealm.breakthrough_probability;
     }
 }
 

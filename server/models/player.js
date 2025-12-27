@@ -198,6 +198,21 @@ const Player = sequelize.define('Player', {
         type: DataTypes.STRING,
         allowNull: true,
         comment: '注册设备信息'
+    },
+    realm_max_lifespan: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '当前境界对应的最大寿元（只读，来源于境界配置）'
+    },
+    database_version: {
+        type: DataTypes.INTEGER,
+        defaultValue: 1,
+        comment: '玩家数据版本号，用于兼容性检查'
+    },
+    realm_rank: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '当前境界排名（用于快速排序和计算）'
     }
 }, {
     tableName: 'players',

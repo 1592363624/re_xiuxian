@@ -1,32 +1,53 @@
 <template>
   <div class="shrink-0 flex flex-col p-4 bg-[#0c0a09] border-t border-stone-800 select-none z-20">
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div 
+        class="relative"
+        @mouseenter="showCultivateMenu = true"
+        @mouseleave="showCultivateMenu = false"
+      >
+        <button 
+          @click="handleAction('cultivate')"
+          class="group relative flex flex-col items-center justify-center p-2 rounded-lg bg-[#1c1917] border border-stone-800 transition-all duration-300
+                 hover:border-stone-600 hover:shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:-translate-y-0.5 active:scale-95 active:shadow-inner w-full"
+          :class="{
+            'bg-gradient-to-r from-stone-900 to-[#1c1917]': true,
+            'animate-shake ring-1 ring-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.4)]': isBreakthroughReady
+          }"
+        >
+          <div 
+             class="mb-1 transition-transform duration-300 group-hover:scale-110" 
+             :class="{'animate-pulse drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]': isBreakthroughReady}"
+             v-html="cultivateIcon"
+          ></div>
+          <span class="text-stone-300 font-bold tracking-widest text-sm group-hover:text-amber-500 transition-colors">修炼</span>
+          
+          <!-- 冷却倒计时 -->
+          <div
+            v-if="remainingCooldown > 0"
+            class="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-10 pointer-events-auto cursor-not-allowed"
+            @click.stop
+          >
+            <span class="text-amber-500 font-mono font-bold">{{ formatCooldown(remainingCooldown) }}</span>
+          </div>
+
+          <!-- 悬停光效 -->
+          <div class="absolute inset-0 rounded-lg bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+        </button>
+      </div>
+
       <button 
         v-for="action in refinedActions" 
         :key="action.id"
         @click="handleAction(action.id)"
         class="group relative flex flex-col items-center justify-center p-2 rounded-lg bg-[#1c1917] border border-stone-800 transition-all duration-300
                hover:border-stone-600 hover:shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:-translate-y-0.5 active:scale-95 active:shadow-inner"
-        :class="{
-          'bg-gradient-to-r from-stone-900 to-[#1c1917]': action.id === 'meditate',
-          'animate-shake ring-1 ring-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.4)]': action.id === 'meditate' && isBreakthroughReady
-        }"
       >
         <div 
            class="mb-1 transition-transform duration-300 group-hover:scale-110" 
-           :class="{'animate-pulse drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]': action.id === 'meditate' && isBreakthroughReady}"
            v-html="action.icon"
         ></div>
         <span class="text-stone-300 font-bold tracking-widest text-sm group-hover:text-amber-500 transition-colors">{{ action.name }}</span>
-        
-        <!-- 冷却倒计时 -->
-        <div
-          v-if="action.id === 'meditate' && remainingCooldown > 0"
-          class="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-10 pointer-events-auto cursor-not-allowed"
-          @click.stop
-        >
-          <span class="text-amber-500 font-mono font-bold">{{ formatCooldown(remainingCooldown) }}</span>
-        </div>
 
         <!-- 悬停光效 -->
         <div class="absolute inset-0 rounded-lg bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -53,9 +74,12 @@ let timer = null
 // 获取系统配置
 const fetchConfig = async () => {
   try {
-    const res = await axios.get('/api/system/config')
-    if (res.data && res.data.seclusion_cooldown) {
-      seclusionCooldown.value = res.data.seclusion_cooldown
+    const res = await axios.get('/api/seclusion/status')
+    if (res.data) {
+      if (res.data.exp_rate) {
+        // 从闭关状态API获取配置
+        seclusionCooldown.value = 3600 // 保持默认冷却
+      }
     }
   } catch (err) {
     console.error('获取系统配置失败:', err)
@@ -102,21 +126,11 @@ const isBreakthroughReady = computed(() => {
   return props.player && props.player.exp >= props.player.exp_next && props.player.exp_next > 0
 })
 
+// 修炼按钮图标
+const cultivateIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`
+
+// 其他操作按钮列表（移除打坐）
 const refinedActions = [
-  { 
-    id: 'meditate', 
-    name: '打坐', 
-    // Cyan for calm/spirit
-    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
-    desc: '恢复灵力 提升修为' 
-  },
-  { 
-    id: 'explore', 
-    name: '历练', 
-    // Emerald for nature/travel
-    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
-    desc: '探索周边 寻找机缘' 
-  },
   { 
     id: 'inventory', 
     name: '背包', 
@@ -146,5 +160,8 @@ const handleAction = (id) => {
   emit('action', id)
 }
 </script>
+
+<style scoped>
+</style>
 
 

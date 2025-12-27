@@ -2,36 +2,76 @@ const express = require('express');
 const router = express.Router();
 const Player = require('../models/player');
 const Realm = require('../models/realm');
-const SystemConfig = require('../models/system_config');
 const authenticateToken = require('../middleware/auth');
-const { Op } = require('sequelize');
+const configLoader = require('../modules/infrastructure/ConfigLoader');
+const fs = require('fs');
+const path = require('path');
 
-// 获取闭关经验倍率 (默认 0.1 / 秒，即 1点/10秒)
-async function getSeclusionExpRate() {
+const CONFIG_FILE = path.join(__dirname, '../config/seclusion.json');
+
+function getConfigValue(key) {
     try {
-        const config = await SystemConfig.findOne({ where: { key: 'seclusion_exp_rate' } });
-        if (config) {
-            return parseFloat(config.value);
+        const config = configLoader.getConfig('seclusion');
+        if (config && config.settings && config.settings[key]) {
+            return config.settings[key].value;
         }
-        return 0.1;
+        return null;
     } catch (err) {
-        console.error('获取闭关倍率失败:', err);
-        return 0.1;
+        console.error('获取配置失败:', err);
+        return null;
     }
 }
 
-// 获取闭关冷却时间 (默认 3600 秒)
-async function getSeclusionCooldown() {
+function saveConfigValue(key, value) {
     try {
-        const config = await SystemConfig.findOne({ where: { key: 'seclusion_cooldown' } });
-        if (config) {
-            return parseInt(config.value);
+        let config = { settings: {} };
+        if (fs.existsSync(CONFIG_FILE)) {
+            const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
+            config = JSON.parse(content);
         }
-        return 3600; // 60 分钟
+        if (!config.settings[key]) {
+            config.settings[key] = { value: value, displayName: key };
+        } else {
+            config.settings[key].value = value;
+        }
+        config.lastUpdated = new Date().toISOString();
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+        configLoader.hotUpdateConfig('seclusion');
+        return true;
     } catch (err) {
-        console.error('获取闭关冷却时间失败:', err);
-        return 3600;
+        console.error('保存配置失败:', err);
+        return false;
     }
+}
+
+// 获取闭关经验倍率 (默认 0.1 / 秒，即 1点/10秒)
+function getSeclusionExpRate() {
+    const value = getConfigValue('seclusion_exp_rate');
+    return value !== null ? value : 0.1;
+}
+
+// 获取闭关冷却时间 (默认 3600 秒)
+function getSeclusionCooldown() {
+    const value = getConfigValue('seclusion_cooldown');
+    return value !== null ? value : 3600;
+}
+
+// 获取修炼时间间隔 (默认 60 秒)
+function getCultivateInterval() {
+    const value = getConfigValue('cultivate_interval');
+    return value !== null ? value : 60;
+}
+
+// 获取深度闭关收益倍率 (默认 2.0)
+function getDeepSeclusionExpRate() {
+    const value = getConfigValue('deep_seclusion_exp_rate');
+    return value !== null ? value : 2.0;
+}
+
+// 获取深度闭关时间间隔 (默认 300 秒)
+function getDeepSeclusionInterval() {
+    const value = getConfigValue('deep_seclusion_interval');
+    return value !== null ? value : 300;
 }
 
 /**
@@ -173,12 +213,18 @@ router.get('/status', authenticateToken, async (req, res) => {
         }
 
         const rate = await getSeclusionExpRate();
+        const cultivateInterval = await getCultivateInterval();
+        const deepSeclusionRate = await getDeepSeclusionExpRate();
+        const deepSeclusionInterval = await getDeepSeclusionInterval();
 
         res.json({
             is_secluded: player.is_secluded,
             seclusion_start_time: player.seclusion_start_time,
             seclusion_duration: player.seclusion_duration,
-            exp_rate: rate
+            exp_rate: rate,
+            cultivate_interval: cultivateInterval,
+            deep_seclusion_exp_rate: deepSeclusionRate,
+            deep_seclusion_interval: deepSeclusionInterval
         });
 
     } catch (err) {

@@ -13,11 +13,37 @@ let socket = null
 
 // 新消息提醒相关
 const unreadCount = ref(0)
+const lastReadTime = ref(localStorage.getItem('chatLastReadTime') || null)
 const topNotification = ref({
   visible: false,
   content: ''
 })
 let notificationTimer = null
+
+// 获取未读消息数量
+const fetchUnreadCount = async () => {
+  try {
+    const res = await axios.get('/api/chat/unread-count', {
+      params: { lastReadTime: lastReadTime.value }
+    })
+    unreadCount.value = res.data.count
+  } catch (error) {
+    console.error('获取未读消息数量失败', error)
+  }
+}
+
+// 标记消息已读
+const markMessagesRead = async () => {
+  lastReadTime.value = new Date().toISOString()
+  localStorage.setItem('chatLastReadTime', lastReadTime.value)
+  unreadCount.value = 0
+  
+  try {
+    await axios.post('/api/chat/mark-read')
+  } catch (error) {
+    console.error('标记已读失败', error)
+  }
+}
 
 // 拖拽相关状态
 const isDragging = ref(false)
@@ -85,8 +111,8 @@ const toggleChat = () => {
     scrollToBottom()
     // Start polling when open
     fetchMessages()
-    // 打开聊天窗口时重置未读消息计数
-    unreadCount.value = 0
+    // 打开聊天窗口时标记消息已读
+    markMessagesRead()
   }
 }
 
@@ -125,6 +151,7 @@ watch(messages, (newVal, oldVal) => {
 
 onMounted(() => {
   fetchMessages()
+  fetchUnreadCount()
   
   // 初始化 Socket.IO 连接
   // 在开发环境下，后端在 3000 端口，前端在 5173 端口，需要指定后端地址
@@ -150,9 +177,15 @@ onMounted(() => {
     // 如果聊天窗口打开，滚动到底部
     if (isOpen.value) {
       scrollToBottom()
+      // 如果是自己发送的消息，不需要增加未读计数
+      if (message.type !== 'self') {
+        markMessagesRead()
+      }
     } else {
-      // 聊天窗口关闭时，增加未读消息计数
-      unreadCount.value++
+      // 聊天窗口关闭时，增加未读消息计数（仅对他人消息）
+      if (message.type !== 'self') {
+        unreadCount.value++
+      }
     }
     
     // 显示顶部通知（如果不是自己发送的消息）

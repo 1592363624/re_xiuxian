@@ -142,6 +142,9 @@
         {{ playerStore.saveStatus === 'saving' ? '自动存档中...' : (playerStore.saveStatus === 'error' ? '存档失败' : '存档完成') }}
       </span>
     </div>
+
+    <!-- 系统通知弹窗 -->
+    <SystemAlert />
   </div>
 </template>
 
@@ -150,6 +153,7 @@ import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import axios from 'axios';
 import { usePlayerStore } from '../../stores/player';
 import { useUIStore } from '../../stores/ui';
+import { useNotificationStore } from '../../stores/notification';
 import PlayerStatus from '../panels/PlayerStatus.vue';
 import GameLog from '../panels/GameLog.vue';
 import ActionBar from '../panels/ActionBar.vue';
@@ -159,6 +163,7 @@ import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
 import MapPanel from '../panels/MapPanel.vue';
+import SystemAlert from '../widgets/SystemAlert.vue';
 
 const props = defineProps<{
   player: any
@@ -195,7 +200,8 @@ const fetchStats = async () => {
 
 const handleAction = async (actionId: string) => {
   console.log('ActionBar emitted action:', actionId);
-  if (actionId === 'meditate') {
+  
+  if (actionId === 'cultivate') {
     try {
       await playerStore.startSeclusion();
       uiStore.showToast('进入闭关状态', 'success');
@@ -210,6 +216,7 @@ const handleAction = async (actionId: string) => {
     }
     return;
   }
+  
   emit('action', actionId);
 };
 

@@ -7,15 +7,17 @@ const router = express.Router();
 const sequelize = require('../config/database');
 const Player = require('../models/player');
 const { core } = require('../modules');
+const NotificationService = require('../services/NotificationService');
+const authenticateToken = require('../middleware/auth');
 
 /**
  * 尝试境界突破
  * POST /api/breakthrough/try
  */
-router.post('/try', async (req, res) => {
+router.post('/try', authenticateToken, async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const playerId = req.user?.id || req.headers['x-player-id'];
+        const playerId = req.user?.id;
         
         if (!playerId) {
             await t.rollback();
@@ -37,7 +39,7 @@ router.post('/try', async (req, res) => {
             });
         }
 
-        const currentRealm = core.RealmService.getRealmConfig(player.realm);
+        const currentRealm = core.RealmService.getRealmByName(player.realm);
         if (!currentRealm) {
             await t.rollback();
             return res.status(400).json({ 
@@ -125,6 +127,16 @@ router.post('/try', async (req, res) => {
 
         const attributeGain = core.ExperienceService.getBreakthroughAttributeGain(oldRealm, nextRealm.name);
 
+        try {
+            await NotificationService.sendBreakthroughNotification(
+                { id: player.id, nickname: player.nickname },
+                oldRealm,
+                nextRealm.name
+            );
+        } catch (notificationError) {
+            console.error('发送突破通知失败:', notificationError);
+        }
+
         return res.json({
             code: 200,
             success: true,
@@ -155,9 +167,9 @@ router.post('/try', async (req, res) => {
  * 获取突破信息
  * GET /api/breakthrough/info
  */
-router.get('/info', async (req, res) => {
+router.get('/info', authenticateToken, async (req, res) => {
     try {
-        const playerId = req.user?.id || req.headers['x-player-id'];
+        const playerId = req.user?.id;
         
         if (!playerId) {
             return res.status(401).json({ 
@@ -175,7 +187,7 @@ router.get('/info', async (req, res) => {
             });
         }
 
-        const currentRealm = core.RealmService.getRealmConfig(player.realm);
+        const currentRealm = core.RealmService.getRealmByName(player.realm);
         const nextRealm = currentRealm ? core.RealmService.getNextRealm(currentRealm) : null;
         const expCap = core.ExperienceService.getExpCap(player);
         const canBreakthrough = core.ExperienceService.canBreakthrough(player);

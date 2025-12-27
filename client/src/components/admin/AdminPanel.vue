@@ -15,8 +15,8 @@
           v-for="tab in tabs" 
           :key="tab.id"
           @click="currentTab = tab.id"
-          class="px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap"
-          :class="currentTab === tab.id ? 'text-xiuxian-gold' : 'text-gray-400 hover:text-gray-200'"
+          class="px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
+          :class="currentTab === tab.id ? 'text-xiuxian-gold' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'"
         >
           {{ tab.name }}
           <div v-if="currentTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-xiuxian-gold"></div>
@@ -157,6 +157,54 @@
               </div>
               <p class="mt-1 text-xs text-gray-500">默认: 0.1 (每10秒1点修为)</p>
             </div>
+
+            <!-- 修炼时间间隔 -->
+            <div class="bg-gray-800 p-4 rounded border border-gray-700">
+              <label class="block text-sm font-medium text-gray-400 mb-2">修炼时间间隔 (秒)</label>
+              <div class="flex space-x-2">
+                <input 
+                  v-model="configs.cultivate_interval" 
+                  type="number" 
+                  min="1"
+                  class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+                >
+                <button @click="saveConfig('cultivate_interval', configs.cultivate_interval, '修炼时间间隔(秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+              </div>
+              <p class="mt-1 text-xs text-gray-500">默认: 60 (1分钟)</p>
+            </div>
+            
+            <!-- 深度闭关配置 -->
+            <div class="bg-gray-800 p-4 rounded border border-gray-700 md:col-span-2 lg:col-span-3">
+              <h4 class="text-md font-bold text-purple-400 mb-4">深度闭关配置</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-400 mb-2">深度闭关收益倍率</label>
+                  <div class="flex space-x-2">
+                    <input 
+                      v-model="configs.deep_seclusion_exp_rate" 
+                      type="number" 
+                      step="0.1"
+                      class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+                    >
+                    <button @click="saveConfig('deep_seclusion_exp_rate', configs.deep_seclusion_exp_rate, '深度闭关收益倍率')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500">默认: 2.0 (2倍收益)</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-400 mb-2">深度闭关时间间隔 (秒)</label>
+                  <div class="flex space-x-2">
+                    <input 
+                      v-model="configs.deep_seclusion_interval" 
+                      type="number" 
+                      min="1"
+                      class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+                    >
+                    <button @click="saveConfig('deep_seclusion_interval', configs.deep_seclusion_interval, '深度闭关时间间隔(秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500">默认: 300 (5分钟)</p>
+                </div>
+              </div>
+            </div>
             
             <!-- 时间控制 (GM) -->
             <div class="bg-gray-800 p-4 rounded border border-gray-700 md:col-span-2 lg:col-span-3 mt-4">
@@ -292,6 +340,94 @@
               @click="fetchLogs(logPagination.currentPage + 1)"
               class="px-3 py-1 bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600"
             >下一页</button>
+          </div>
+        </div>
+
+        <!-- 通知管理 -->
+        <div v-if="currentTab === 'notifications'" class="space-y-6">
+          <div class="flex justify-between items-center">
+            <h3 class="text-lg font-bold text-white">通知管理</h3>
+            <button @click="fetchNotifications(1)" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新列表</button>
+          </div>
+
+          <!-- 发送公告 -->
+          <div class="bg-gray-800 p-4 rounded border border-gray-700">
+            <h4 class="text-md font-bold text-xiuxian-gold mb-4">发送全服公告</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">公告标题</label>
+                <input v-model="announcement.title" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white" placeholder="输入公告标题">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">优先级</label>
+                <select v-model="announcement.priority" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+                  <option value="low">低</option>
+                  <option value="normal">普通</option>
+                  <option value="high">高</option>
+                  <option value="critical">紧急</option>
+                </select>
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm text-gray-400 mb-1">公告内容</label>
+                <textarea v-model="announcement.content" rows="3" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white" placeholder="输入公告内容"></textarea>
+              </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <button @click="sendAnnouncement" :disabled="!announcement.title || !announcement.content" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-white text-sm disabled:opacity-50">
+                发送公告
+              </button>
+            </div>
+          </div>
+
+          <!-- 通知列表 -->
+          <div class="bg-gray-800 p-4 rounded border border-gray-700">
+            <h4 class="text-md font-bold text-white mb-4">通知列表</h4>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm text-gray-300">
+                <thead class="bg-gray-800 text-gray-400 uppercase">
+                  <tr>
+                    <th class="px-4 py-3 whitespace-nowrap">ID</th>
+                    <th class="px-4 py-3 whitespace-nowrap">类型</th>
+                    <th class="px-4 py-3 whitespace-nowrap">标题</th>
+                    <th class="px-4 py-3 whitespace-nowrap">内容</th>
+                    <th class="px-4 py-3 whitespace-nowrap">优先级</th>
+                    <th class="px-4 py-3 whitespace-nowrap">创建时间</th>
+                    <th class="px-4 py-3 whitespace-nowrap">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                  <tr v-for="n in adminNotifications" :key="n.id" class="hover:bg-gray-800/50">
+                    <td class="px-4 py-3 whitespace-nowrap">{{ n.id }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                      <span class="px-2 py-0.5 rounded text-xs" :class="getNotificationTypeClass(n.type)">{{ getNotificationTypeName(n.type) }}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">{{ n.title }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-gray-400 max-w-xs truncate">{{ n.content }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                      <span class="px-2 py-0.5 rounded text-xs" :class="getPriorityClass(n.priority)">{{ n.priority }}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{ formatDateTime(n.createdAt) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                      <button @click="deleteNotification(n.id)" class="text-red-400 hover:text-red-300 text-xs px-1">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-if="!adminNotifications.length" class="text-center py-8 text-gray-500">暂无通知</div>
+            <div class="flex justify-center items-center gap-4 mt-4">
+              <button 
+                :disabled="notificationPagination.currentPage === 1"
+                @click="fetchNotifications(notificationPagination.currentPage - 1)"
+                class="px-3 py-1 bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600"
+              >上一页</button>
+              <span class="text-gray-400">第 {{ notificationPagination.currentPage }} / {{ notificationPagination.totalPages }} 页</span>
+              <button 
+                :disabled="notificationPagination.currentPage === notificationPagination.totalPages"
+                @click="fetchNotifications(notificationPagination.currentPage + 1)"
+                class="px-3 py-1 bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600"
+              >下一页</button>
+            </div>
           </div>
         </div>
       </div>
@@ -454,7 +590,9 @@ const uiStore = useUIStore()
 const tabs = [
   { id: 'players', name: '玩家数据' },
   { id: 'config', name: '系统配置' },
-  // { id: 'events', name: '事件管理' }
+  { id: 'notifications', name: '通知管理' },
+  { id: 'stats', name: '服务器统计' },
+  { id: 'logs', name: '操作日志' }
 ]
 const currentTab = ref('players')
 
@@ -470,7 +608,10 @@ const pagination = reactive({
 const configs = reactive({
   auto_save_interval: 10000,
   seclusion_cooldown: 3600,
-  seclusion_exp_rate: 0.1
+  seclusion_exp_rate: 0.1,
+  cultivate_interval: 60,
+  deep_seclusion_exp_rate: 2.0,
+  deep_seclusion_interval: 300
 })
 
 const editingPlayer = ref(null)
@@ -486,6 +627,97 @@ const deathMessage = ref('')
 const banningPlayer = ref(null)
 const banReason = ref('')
 const banDays = ref(-1)
+
+// 通知管理
+const announcement = reactive({
+  title: '',
+  content: '',
+  priority: 'high'
+})
+const adminNotifications = ref([])
+const notificationPagination = reactive({
+  currentPage: 1,
+  totalPages: 1,
+  total: 0
+})
+
+const fetchNotifications = async (page = 1) => {
+  try {
+    const res = await axios.get('/api/notifications', {
+      params: { page, limit: 10, includeGlobal: 'true' }
+    })
+    adminNotifications.value = res.data.notifications || res.data.data?.notifications || []
+    notificationPagination.currentPage = res.data.page || res.data.data?.page || 1
+    notificationPagination.totalPages = res.data.totalPages || res.data.data?.totalPages || 1
+    notificationPagination.total = res.data.total || res.data.data?.total || 0
+  } catch (error) {
+    console.error('获取通知列表失败:', error)
+    uiStore.showToast('获取通知列表失败', 'error')
+  }
+}
+
+const sendAnnouncement = async () => {
+  try {
+    await axios.post('/api/notifications/announcement', {
+      title: announcement.title,
+      content: announcement.content,
+      priority: announcement.priority
+    })
+    uiStore.showToast('公告已发送', 'success')
+    announcement.title = ''
+    announcement.content = ''
+    fetchNotifications(1)
+  } catch (error) {
+    uiStore.showToast('发送失败: ' + (error.response?.data?.message || error.message), 'error')
+  }
+}
+
+const deleteNotification = async (id) => {
+  if (!confirm('确定要删除此通知吗？')) return
+  try {
+    await axios.delete(`/api/admin/notifications/${id}`)
+    uiStore.showToast('删除成功', 'success')
+    fetchNotifications(notificationPagination.currentPage)
+  } catch (error) {
+    uiStore.showToast('删除失败: ' + (error.response?.data?.message || error.message), 'error')
+  }
+}
+
+const getNotificationTypeName = (type) => {
+  const typeMap = {
+    breakthrough: '突破',
+    death: '死亡',
+    achievement: '成就',
+    event: '事件',
+    announcement: '公告',
+    warning: '警告',
+    milestone: '里程碑'
+  }
+  return typeMap[type] || type
+}
+
+const getNotificationTypeClass = (type) => {
+  const classMap = {
+    breakthrough: 'bg-yellow-900 text-yellow-200',
+    death: 'bg-gray-700 text-gray-300',
+    achievement: 'bg-orange-900 text-orange-200',
+    event: 'bg-purple-900 text-purple-200',
+    announcement: 'bg-red-900 text-red-200',
+    warning: 'bg-orange-900 text-orange-200',
+    milestone: 'bg-green-900 text-green-200'
+  }
+  return classMap[type] || 'bg-gray-700 text-gray-300'
+}
+
+const getPriorityClass = (priority) => {
+  const classMap = {
+    low: 'bg-gray-700 text-gray-400',
+    normal: 'bg-blue-900 text-blue-200',
+    high: 'bg-orange-900 text-orange-200',
+    critical: 'bg-red-900 text-red-200'
+  }
+  return classMap[priority] || 'bg-gray-700 text-gray-400'
+}
 
 const showBanModal = (player) => {
   banningPlayer.value = player
@@ -519,6 +751,52 @@ const unbanPlayer = async (player) => {
   }
 }
 
+// 发放功能相关
+const givingPlayer = ref(null)
+const giveType = ref('item')
+const giveItemId = ref('')
+const giveQuantity = ref(1)
+const giveAmount = ref(0)
+
+const showGiveModal = (player) => {
+  givingPlayer.value = player
+  giveType.value = 'item'
+  giveItemId.value = ''
+  giveQuantity.value = 1
+  giveAmount.value = 0
+}
+
+const confirmGive = async () => {
+  if (!givingPlayer.value) return
+  try {
+    if (giveType.value === 'item') {
+      if (!giveItemId.value) {
+        alert('请输入物品ID')
+        return
+      }
+      await axios.post(`/api/admin/players/${givingPlayer.value.id}/give-item`, {
+        itemId: giveItemId.value,
+        quantity: giveQuantity.value
+      })
+      alert('物品发放成功')
+    } else if (giveType.value === 'spirit_stones') {
+      await axios.post(`/api/admin/players/${givingPlayer.value.id}/give-spirit-stones`, {
+        amount: giveAmount.value
+      })
+      alert('灵石发放成功')
+    } else if (giveType.value === 'exp') {
+      await axios.post(`/api/admin/players/${givingPlayer.value.id}/give-exp`, {
+        amount: giveAmount.value
+      })
+      alert('修为发放成功')
+    }
+    givingPlayer.value = null
+    fetchPlayers(pagination.currentPage)
+  } catch (error) {
+    alert('发放失败: ' + (error.response?.data?.message || error.message))
+  }
+}
+
 const confirmTimeTravel = () => {
   if (!timeTravelYears.value || timeTravelYears.value <= 0) {
     uiStore.showToast('请输入有效的年数', 'warning')
@@ -547,14 +825,29 @@ const fetchPlayers = async (page = 1) => {
 const fetchConfig = async () => {
   try {
     const res = await axios.get('/api/admin/config')
-    res.data.forEach(item => {
-      if (item.key === 'auto_save_interval') configs.auto_save_interval = parseInt(item.value)
-      if (item.key === 'seclusion_cooldown') configs.seclusion_cooldown = parseInt(item.value)
-      if (item.key === 'seclusion_exp_rate') configs.seclusion_exp_rate = parseFloat(item.value)
-    })
+    const configData = res.data?.data || res.data || []
+    if (Array.isArray(configData)) {
+      configData.forEach(item => {
+        if (item.key === 'auto_save_interval') configs.auto_save_interval = parseInt(item.value)
+        if (item.key === 'seclusion_cooldown') configs.seclusion_cooldown = parseInt(item.value)
+        if (item.key === 'seclusion_exp_rate') configs.seclusion_exp_rate = parseFloat(item.value)
+        if (item.key === 'cultivate_interval') configs.cultivate_interval = parseInt(item.value)
+        if (item.key === 'deep_seclusion_exp_rate') configs.deep_seclusion_exp_rate = parseFloat(item.value)
+        if (item.key === 'deep_seclusion_interval') configs.deep_seclusion_interval = parseInt(item.value)
+      })
+    }
   } catch (error) {
     console.error('Fetch config error:', error)
   }
+}
+
+// 获取寿元样式类
+const getLifespanClass = (player) => {
+  if (!player || !player.lifespan_max) return 'text-gray-500'
+  const ratio = player.lifespan_current / player.lifespan_max
+  if (ratio <= 0.2) return 'text-red-400 font-bold'
+  if (ratio <= 0.5) return 'text-orange-400'
+  return 'text-green-400'
 }
 
 // 保存配置
@@ -641,6 +934,33 @@ onMounted(() => {
   fetchPlayers()
   fetchConfig()
 })
+
+// 格式化日期
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// 格式化日期时间
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
 </script>
 
 <style scoped>
