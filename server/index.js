@@ -18,6 +18,14 @@ require('./models/player');
 require('./models/chat');
 require('./models/system_config');
 require('./models/system_notification');
+require('./models/playerMapPosition');
+require('./models/playerGathering');
+require('./models/playerCombat');
+require('./models/activeBattle');
+require('./models/item');
+require('./models/realm');
+require('./models/admin_log');
+require('./models/map');
 
 const http = require('http');
 const socketIo = require('socket.io');
@@ -132,6 +140,8 @@ const startServer = async () => {
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));
     app.use('/api/map', require('./routes/map'));
+    app.use('/api/gather', require('./routes/gather'));
+    app.use('/api/combat', require('./routes/combat'));
     app.use('/api/config', require('./routes/config'));
     app.use('/api/attribute', require('./routes/attribute'));
     app.use('/api/time', require('./routes/time'));

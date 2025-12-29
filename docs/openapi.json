@@ -71,6 +71,14 @@
     {
       "name": "Notification",
       "description": "系统通知管理"
+    },
+    {
+      "name": "Gathering",
+      "description": "资源采集系统"
+    },
+    {
+      "name": "Combat",
+      "description": "战斗系统"
     }
   ],
   "security": [
@@ -3290,6 +3298,350 @@
                 "example": {
                   "code": 403,
                   "message": "权限不足"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gather/resources": {
+      "get": {
+        "summary": "获取当前地图可采集资源列表",
+        "description": "获取玩家当前所在地图的可采集资源列表，包括每个资源的采集冷却状态和玩家熟练度",
+        "tags": ["Gathering"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "map_id": {
+                      "type": "integer",
+                      "description": "当前地图ID"
+                    },
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "resource_id": { "type": "string", "description": "资源ID" },
+                          "name": { "type": "string", "description": "资源名称" },
+                          "item_id": { "type": "string", "description": "采集获得的物品ID" },
+                          "difficulty": { "type": "integer", "description": "采集难度 1-10" },
+                          "description": { "type": "string", "description": "资源描述" },
+                          "mp_cost": { "type": "integer", "description": "采集消耗灵力" },
+                          "cooldown_seconds": { "type": "integer", "description": "采集冷却时间(秒)" },
+                          "can_gather": { "type": "boolean", "description": "是否可以采集" },
+                          "next_available_time": { "type": "string", "format": "date-time", "nullable": true },
+                          "player_proficiency": {
+                            "type": "object",
+                            "properties": {
+                              "level": { "type": "integer", "description": "熟练度等级" },
+                              "exp": { "type": "integer", "description": "当前熟练度经验" },
+                              "total_count": { "type": "integer", "description": "总采集次数" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gather/collect": {
+      "post": {
+        "summary": "执行采集",
+        "description": "消耗灵力采集指定资源，获得物品和采集熟练度",
+        "tags": ["Gathering"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["resource_id"],
+                "properties": {
+                  "resource_id": { "type": "string", "description": "要采集的资源ID" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "采集成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "success": { "type": "boolean" },
+                    "resource_id": { "type": "string" },
+                    "resource_name": { "type": "string" },
+                    "item_id": { "type": "string" },
+                    "quantity": { "type": "integer" },
+                    "is_crit": { "type": "boolean", "description": "是否暴击" },
+                    "mp_cost": { "type": "integer" },
+                    "mp_remaining": { "type": "string" },
+                    "exp_gained": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "采集失败",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "no_resource": { "value": { "code": 400, "message": "资源ID不能为空" } },
+                  "no_mp": { "value": { "code": 400, "message": "灵力不足" } },
+                  "cooldown": { "value": { "code": 400, "message": "采集冷却中" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gather/stats": {
+      "get": {
+        "summary": "获取玩家采集统计",
+        "tags": ["Gathering"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total_gather_count": { "type": "integer" },
+                        "resources_collected": { "type": "integer" },
+                        "highest_proficiency_level": { "type": "integer" },
+                        "details": { "type": "array" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/status": {
+      "get": {
+        "summary": "获取当前战斗状态",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "in_battle": { "type": "boolean" },
+                    "battle_id": { "type": "string", "nullable": true },
+                    "monster": { "type": "object", "nullable": true },
+                    "player": { "type": "object", "nullable": true },
+                    "round": { "type": "integer" },
+                    "turn": { "type": "string", "enum": ["player", "monster"] },
+                    "battle_log": { "type": "array" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/encounter": {
+      "post": {
+        "summary": "遭遇怪物",
+        "description": "在当前地图遭遇怪物进入战斗",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "monster_id": { "type": "string", "description": "指定怪物ID（可选）" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "遭遇成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "in_battle": { "type": "boolean" },
+                    "battle_id": { "type": "string" },
+                    "monster": { "type": "object" },
+                    "player": { "type": "object" },
+                    "round": { "type": "integer" },
+                    "turn": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/attack": {
+      "post": {
+        "summary": "玩家攻击",
+        "description": "在战斗中对怪物发起攻击",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["attack", "skill"], "default": "attack" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "攻击结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "in_battle": { "type": "boolean" },
+                    "action": { "type": "string" },
+                    "damage": { "type": "integer" },
+                    "monster_hp": { "type": "string" },
+                    "turn": { "type": "string" },
+                    "battle_ended": { "type": "boolean" },
+                    "result": { "type": "string", "enum": ["victory", "defeat", null] },
+                    "exp_gained": { "type": "integer" },
+                    "items_gained": { "type": "object" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/monster-turn": {
+      "post": {
+        "summary": "怪物行动",
+        "description": "执行怪物回合行动",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "怪物行动结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "action": { "type": "string" },
+                    "damage": { "type": "integer" },
+                    "player_hp": { "type": "string" },
+                    "turn": { "type": "string" },
+                    "round": { "type": "integer" },
+                    "battle_ended": { "type": "boolean" },
+                    "result": { "type": "string", "enum": ["victory", "defeat", null] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/flee": {
+      "post": {
+        "summary": "逃跑",
+        "description": "尝试从战斗中逃跑，成功率50%",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "逃跑结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/history": {
+      "get": {
+        "summary": "获取战斗历史",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "count": { "type": "integer" },
+                    "battles": { "type": "array" }
+                  }
                 }
               }
             }
