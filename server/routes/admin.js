@@ -4,7 +4,8 @@
  */
 const express = require('express');
 const router = express.Router();
-const { Op, sequelize } = require('../config/database');
+const { Op } = require('sequelize');
+const sequelize = require('../config/database');
 const Player = require('../models/player');
 const SystemConfig = require('../models/system_config');
 const AdminLog = require('../models/admin_log');

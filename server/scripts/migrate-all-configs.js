@@ -2,7 +2,7 @@
  * 数据库配置迁移脚本
  * 将 system_configs 表中的所有配置迁移到 JSON 文件
  */
-const { sequelize } = require('../config/database');
+const sequelize = require('../config/database');
 const SystemConfig = require('../models/system_config');
 const fs = require('fs');
 const path = require('path');

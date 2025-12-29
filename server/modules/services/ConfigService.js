@@ -2,13 +2,13 @@
  * 系统配置统一管理模块
  * 负责从 JSON 文件读取/写入系统配置
  */
-const configLoader = require('../modules/infrastructure/ConfigLoader');
+const configLoader = require('../infrastructure/ConfigLoader');
 const fs = require('fs');
 const path = require('path');
 
 const CONFIG_FILES = {
-    system: path.join(__dirname, '../config/system.json'),
-    seclusion: path.join(__dirname, '../config/seclusion.json')
+    system: path.join(__dirname, '../../config/system.json'),
+    seclusion: path.join(__dirname, '../../config/seclusion.json')
 };
 
 /**

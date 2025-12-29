@@ -2,7 +2,7 @@
  * 数据库配置表检查脚本
  * 检查 system_configs 表中的数据，确定哪些可以迁移/删除
  */
-const { sequelize } = require('../config/database');
+const sequelize = require('../config/database');
 const SystemConfig = require('../models/system_config');
 const fs = require('fs');
 const path = require('path');

@@ -41,16 +41,15 @@ export const usePlayerStore = defineStore('player', {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        reconnectionDelay: 1000,
+        auth: {
+          playerId: this.player?.id
+        }
       })
 
       this.socket.on('connect', () => {
         console.log('[PlayerStore] WebSocket 连接成功')
         this.isSocketConnected = true
-
-        if (this.player && this.player.id) {
-          this.socket.emit('playerId', this.player.id)
-        }
       })
 
       this.socket.on('disconnect', () => {

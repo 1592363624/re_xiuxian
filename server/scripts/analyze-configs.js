@@ -2,7 +2,7 @@
  * 检查 system_configs 表中所有配置
  * 确定哪些应该迁移到 JSON 文件
  */
-const { sequelize } = require('../config/database');
+const sequelize = require('../config/database');
 const SystemConfig = require('../models/system_config');
 
 async function analyzeConfigs() {

@@ -2,6 +2,7 @@
  * 通知服务
  * 处理系统通知的创建、查询和管理
  */
+const { Op } = require('sequelize');
 const SystemNotification = require('../models/system_notification');
 const eventBus = require('../modules/infrastructure/EventBus');
 
@@ -201,7 +202,7 @@ class NotificationService {
 
         // 如果包含全服通知
         if (includeGlobal) {
-            where[Symbol.or] = [
+            where[Op.or] = [
                 { targetPlayerId: playerId },
                 { targetPlayerId: null }
             ];
@@ -219,10 +220,10 @@ class NotificationService {
 
         // 排除已过期的通知
         const now = new Date();
-        where[Symbol.or] = [
-            where[Symbol.or],
+        where[Op.or] = [
+            ...where[Op.or] || [],
             { expiresAt: null },
-            { expiresAt: { [Symbol.gt]: now } }
+            { expiresAt: { [Op.gt]: now } }
         ];
 
         try {
@@ -257,9 +258,9 @@ class NotificationService {
             where: {
                 targetPlayerId: null,
                 isActive: true,
-                [Symbol.or]: [
+                [Op.or]: [
                     { expiresAt: null },
-                    { expiresAt: { [Symbol.gt]: now } }
+                    { expiresAt: { [Op.gt]: now } }
                 ]
             },
             order: [['priority', 'DESC'], ['createdAt', 'DESC']],
@@ -276,7 +277,7 @@ class NotificationService {
         const notification = await SystemNotification.findOne({
             where: {
                 id: notificationId,
-                [Symbol.or]: [
+                [Op.or]: [
                     { targetPlayerId: playerId },
                     { targetPlayerId: null }
                 ]
@@ -315,7 +316,7 @@ class NotificationService {
     async getUnreadCount(playerId) {
         const count = await SystemNotification.count({
             where: {
-                [Symbol.or]: [
+                [Op.or]: [
                     { targetPlayerId: playerId },
                     { targetPlayerId: null }
                 ],
@@ -337,7 +338,7 @@ class NotificationService {
             {
                 where: {
                     isActive: true,
-                    expiresAt: { [Symbol.lt]: now }
+                    expiresAt: { [Op.lt]: now }
                 }
             }
         );

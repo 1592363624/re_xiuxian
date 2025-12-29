@@ -61,13 +61,12 @@ router.post('/send', authenticateToken, async (req, res) => {
  */
 router.get('/unread-count', authenticateToken, async (req, res) => {
     try {
-        const playerId = req.player.playerId;
         const lastReadTime = req.query.lastReadTime ? new Date(req.query.lastReadTime) : null;
         
         let count = 0;
         
         if (lastReadTime) {
-            // 计算指定时间之后的未读消息数量
+            // 计算指定时间之后的未读消息数量（全局聊天，不按玩家过滤）
             count = await Chat.count({
                 where: {
                     createdAt: {
@@ -92,7 +91,6 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
  */
 router.post('/mark-read', authenticateToken, async (req, res) => {
     try {
-        const playerId = req.player.playerId;
         const lastReadTime = new Date();
         
         res.json({ success: true, lastReadTime: lastReadTime.toISOString() });
