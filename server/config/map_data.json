@@ -14,8 +14,10 @@
                 { "id": "firewood", "name": "干柴", "type": "gathering", "difficulty": 1, "yield": [1, 3] },
                 { "id": "wild_herb", "name": "普通灵草", "type": "gathering", "difficulty": 2, "yield": [1, 2] }
             ],
+            "monsters": [],
             "dangerLevel": 1,
-            "travelTime": 5
+            "travelTime": 5,
+            "connections": [2]
         },
         {
             "id": 2,
@@ -29,8 +31,10 @@
                 { "id": "elder_liu", "name": "刘靖", "role": "sect_disciple", "location": "演武场" }
             ],
             "resources": [],
+            "monsters": [],
             "dangerLevel": 2,
-            "travelTime": 3
+            "travelTime": 3,
+            "connections": [1, 3]
         },
         {
             "id": 3,
@@ -50,7 +54,8 @@
                 { "id": "snake", "name": "毒蛇", "realm": "炼气1层", "exp": 25, "drop": ["snake_gall"] }
             ],
             "dangerLevel": 3,
-            "travelTime": 10
+            "travelTime": 10,
+            "connections": [2, 4]
         },
         {
             "id": 4,
@@ -73,7 +78,8 @@
                 { "id": "shark", "name": "鲨鱼精", "realm": "筑基初期", "exp": 200, "drop": ["shark_fin"] }
             ],
             "dangerLevel": 6,
-            "travelTime": 30
+            "travelTime": 30,
+            "connections": [3, 5]
         },
         {
             "id": 5,
@@ -89,46 +95,53 @@
             ],
             "dangerLevel": 8,
             "travelTime": 60,
-            "special": "dachievement"
+            "special": "dachievement",
+            "connections": [4, 6]
         },
         {
             "id": 6,
             "name": "人界",
             "type": "world",
-            "description": "下界界面",
+            "description": "下界界面，包含所有下界地图",
             "environment": "mixed",
             "requiredRealm": "元婴期",
             "npcs": [],
             "resources": [],
             "monsters": [],
             "dangerLevel": 10,
-            "travelTime": 120
+            "travelTime": 120,
+            "connections": [5, 7],
+            "special": "realm_world"
         },
         {
             "id": 7,
             "name": "灵界",
             "type": "world",
-            "description": "上位界面",
+            "description": "上位界面，飞升后所在",
             "environment": "mixed",
             "requiredRealm": "化神期",
             "npcs": [],
             "resources": [],
             "monsters": [],
             "dangerLevel": 15,
-            "travelTime": 240
+            "travelTime": 240,
+            "connections": [6, 8],
+            "special": "realm_world"
         },
         {
             "id": 8,
             "name": "仙界",
             "type": "world",
-            "description": "最高位面",
+            "description": "最高位面，仙人所在",
             "environment": "celestial",
             "requiredRealm": "炼虚期",
             "npcs": [],
             "resources": [],
             "monsters": [],
             "dangerLevel": 20,
-            "travelTime": 480
+            "travelTime": 480,
+            "connections": [7],
+            "special": "realm_world"
         }
     ]
 }
