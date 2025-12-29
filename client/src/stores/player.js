@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
 import { useUIStore } from './ui'
+import { io } from 'socket.io-client'
 
 export const usePlayerStore = defineStore('player', {
   state: () => ({
@@ -9,7 +10,9 @@ export const usePlayerStore = defineStore('player', {
     saveStatus: 'idle', // 'idle' | 'saving' | 'success' | 'error'
     autoSaveInterval: null,
     logoutReason: null,
-    systemConfig: {}
+    systemConfig: {},
+    socket: null,
+    isSocketConnected: false
   }),
   
   actions: {
@@ -17,11 +20,76 @@ export const usePlayerStore = defineStore('player', {
       this.token = token
       localStorage.setItem('token', token)
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      this.initializeSocket()
     },
     
     setPlayer(player) {
       this.player = player
       localStorage.setItem('player', JSON.stringify(player))
+    },
+
+    /**
+     * 初始化 WebSocket 连接
+     * 用于接收实时数据更新通知
+     */
+    initializeSocket() {
+      if (this.socket) {
+        this.socket.disconnect()
+      }
+
+      this.socket = io('/', {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        auth: {
+          playerId: this.player?.id
+        }
+      })
+
+      this.socket.on('connect', () => {
+        console.log('[PlayerStore] WebSocket 连接成功')
+        this.isSocketConnected = true
+      })
+
+      this.socket.on('disconnect', () => {
+        console.log('[PlayerStore] WebSocket 连接断开')
+        this.isSocketConnected = false
+      })
+
+      this.socket.on('connect_error', (error) => {
+        console.warn('[PlayerStore] WebSocket 连接失败:', error.message)
+        this.isSocketConnected = false
+      })
+
+      this.socket.on('player:updated', async (data) => {
+        console.log('[PlayerStore] 收到玩家数据更新通知:', data)
+        
+        if (data.updateType === 'gm_delete') {
+          this.logout('您的账号已被管理员删除')
+          return
+        }
+
+        if (data.updateType === 'gm_ban') {
+          this.logout(`您已被管理员封禁，原因：${data.reason || '未说明'}`)
+          return
+        }
+
+        await this.fetchPlayer()
+        console.log('[PlayerStore] 玩家数据已自动刷新')
+      })
+    },
+
+    /**
+     * 断开 WebSocket 连接
+     */
+    disconnectSocket() {
+      if (this.socket) {
+        this.socket.disconnect()
+        this.socket = null
+        this.isSocketConnected = false
+        console.log('[PlayerStore] WebSocket 连接已断开')
+      }
     },
 
     async fetchPlayer() {
@@ -56,13 +124,15 @@ export const usePlayerStore = defineStore('player', {
       try {
         const res = await axios.get('/api/seclusion/status')
         if (res.data) {
-             // If we have player data, update it
              if (this.player) {
                  this.player.is_secluded = res.data.is_secluded
                  this.player.seclusion_start_time = res.data.seclusion_start_time
                  this.player.seclusion_duration = res.data.seclusion_duration
              }
-             return res.data // Return full data including rate
+             this.systemConfig.cultivate_interval = res.data.cultivate_interval
+             this.systemConfig.deep_seclusion_exp_rate = res.data.deep_seclusion_exp_rate
+             this.systemConfig.deep_seclusion_interval = res.data.deep_seclusion_interval
+             return res.data
         }
       } catch (error) {
         console.error('获取闭关状态失败:', error)
@@ -209,9 +279,10 @@ export const usePlayerStore = defineStore('player', {
     
     logout(reason = null) {
       this.stopAutoSave()
+      this.disconnectSocket()
       this.token = null
       this.player = null
-      this.logoutReason = reason // 记录登出原因供UI展示
+      this.logoutReason = reason
       localStorage.removeItem('token')
       localStorage.removeItem('player')
       delete axios.defaults.headers.common['Authorization']

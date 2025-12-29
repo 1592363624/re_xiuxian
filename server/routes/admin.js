@@ -4,14 +4,54 @@
  */
 const express = require('express');
 const router = express.Router();
-const { Op, sequelize } = require('../config/database');
+const { Op } = require('sequelize');
+const sequelize = require('../config/database');
 const Player = require('../models/player');
 const SystemConfig = require('../models/system_config');
 const AdminLog = require('../models/admin_log');
 const Item = require('../models/item');
 const auth = require('../middleware/auth');
+const configLoader = require('../modules/infrastructure/ConfigLoader');
+const fs = require('fs');
+const path = require('path');
 
 const LifespanService = require('../services/LifespanService');
+const webSocketNotificationService = require('../services/WebSocketNotificationService');
+
+const SECLUSION_CONFIG_FILE = path.join(__dirname, '../config/seclusion.json');
+
+const SECLUSION_CONFIG_KEYS = [
+    'seclusion_cooldown',
+    'seclusion_exp_rate',
+    'cultivate_interval',
+    'deep_seclusion_exp_rate',
+    'deep_seclusion_interval'
+];
+
+/**
+ * 保存闭关配置到JSON文件
+ */
+function saveSeclusionConfig(key, value) {
+    try {
+        let config = { settings: {} };
+        if (fs.existsSync(SECLUSION_CONFIG_FILE)) {
+            const content = fs.readFileSync(SECLUSION_CONFIG_FILE, 'utf-8');
+            config = JSON.parse(content);
+        }
+        if (!config.settings[key]) {
+            config.settings[key] = { value: value, displayName: key };
+        } else {
+            config.settings[key].value = value;
+        }
+        config.lastUpdated = new Date().toISOString();
+        fs.writeFileSync(SECLUSION_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+        configLoader.hotUpdateConfig('seclusion');
+        return true;
+    } catch (err) {
+        console.error('保存闭关配置失败:', err);
+        return false;
+    }
+}
 
 /**
  * 记录管理员操作日志
@@ -174,12 +214,17 @@ router.put('/players/:id', auth, adminCheck, async (req, res) => {
         delete updates.password;
         delete updates.username;
 
+        const oldData = player.toJSON();
         await player.update(updates);
         
         await logAdminAction(req.player.id, 'modify_player', { 
             target_id: player.id, 
             changes: Object.keys(updates) 
         }, req);
+
+        webSocketNotificationService.notifyPlayerUpdate(player.id, 'gm_modify', {
+            modifiedFields: Object.keys(updates)
+        });
 
         res.json({ 
             code: 200,
@@ -224,6 +269,11 @@ router.post('/players/:id/ban', auth, adminCheck, async (req, res) => {
             banned_until: bannedUntil
         }, req);
 
+        webSocketNotificationService.notifyPlayerUpdate(player.id, 'gm_ban', {
+            reason,
+            bannedUntil
+        });
+
         res.json({
             code: 200,
             message: days > 0 ? `玩家已封禁，解封时间：${bannedUntil.toLocaleString()}` : '玩家已永久封禁'
@@ -255,6 +305,8 @@ router.post('/players/:id/unban', auth, adminCheck, async (req, res) => {
         await player.save();
 
         await logAdminAction(req.player.id, 'unban_player', { target_id: player.id }, req);
+
+        webSocketNotificationService.notifyPlayerUpdate(player.id, 'gm_unban');
 
         res.json({
             code: 200,
@@ -333,6 +385,10 @@ router.post('/give-spirit-stones', auth, adminCheck, async (req, res) => {
             amount
         }, req);
 
+        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_give_spirit_stones', {
+            amount
+        });
+
         res.json({
             code: 200,
             message: '灵石发放成功',
@@ -369,6 +425,10 @@ router.post('/add-exp', auth, adminCheck, async (req, res) => {
             target_id: playerId,
             amount
         }, req);
+
+        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_add_exp', {
+            amount
+        });
 
         res.json({
             code: 200,
@@ -425,6 +485,10 @@ router.post('/reset-player', auth, adminCheck, async (req, res) => {
             keep_items: keepItems
         }, req);
 
+        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_reset', {
+            keepItems
+        });
+
         res.json({
             code: 200,
             message: '玩家已重置为初始状态'
@@ -455,6 +519,10 @@ router.post('/breakthrough', auth, adminCheck, async (req, res) => {
             target_realm: targetRealm
         }, req);
 
+        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_breakthrough', {
+            newRealm: targetRealm
+        });
+
         res.json({
             code: 200,
             message: `已将玩家境界修改为 ${targetRealm}`,
@@ -470,13 +538,49 @@ router.post('/breakthrough', auth, adminCheck, async (req, res) => {
 /**
  * 获取系统配置
  * GET /api/admin/config
+ * 合并JSON文件和数据库的配置
  */
 router.get('/config', auth, adminCheck, async (req, res) => {
     try {
-        const configs = await SystemConfig.findAll();
+        const dbConfigs = await SystemConfig.findAll();
+        const dbConfigMap = new Map(dbConfigs.map(c => [c.key, c]));
+
+        const result = [];
+        
+        // 添加数据库配置
+        for (const config of dbConfigs) {
+            result.push({
+                key: config.key,
+                value: config.value,
+                description: config.description,
+                source: 'database'
+            });
+        }
+
+        // 添加JSON配置（如果不在数据库中）
+        if (configLoader && configLoader.hasConfig('seclusion')) {
+            try {
+                const seclusionConfig = configLoader.getConfig('seclusion');
+                if (seclusionConfig && seclusionConfig.settings) {
+                    for (const [key, setting] of Object.entries(seclusionConfig.settings)) {
+                        if (!dbConfigMap.has(key)) {
+                            result.push({
+                                key: key,
+                                value: setting.value,
+                                description: setting.displayName || '',
+                                source: 'json'
+                            });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('获取闭关配置文件失败:', err);
+            }
+        }
+
         res.json({
             code: 200,
-            data: configs
+            data: result
         });
     } catch (error) {
         res.status(500).json({ message: '获取配置失败', error: error.message });
@@ -486,6 +590,7 @@ router.get('/config', auth, adminCheck, async (req, res) => {
 /**
  * 保存系统配置
  * POST /api/admin/config
+ * 闭关相关配置保存到JSON文件，其他配置保存到数据库
  */
 router.post('/config', auth, adminCheck, async (req, res) => {
     try {
@@ -495,6 +600,23 @@ router.post('/config', auth, adminCheck, async (req, res) => {
             return res.status(400).json({ message: '配置键和值不能为空' });
         }
 
+        // 判断是否是闭关相关配置
+        if (SECLUSION_CONFIG_KEYS.includes(key)) {
+            const success = saveSeclusionConfig(key, value);
+            if (success) {
+                await logAdminAction(req.player.id, 'update_config', { key, value, target: 'json' }, req);
+                res.json({
+                    code: 200,
+                    message: '配置保存成功（已写入JSON文件）',
+                    data: { key, value, source: 'json' }
+                });
+            } else {
+                res.status(500).json({ message: '保存配置失败' });
+            }
+            return;
+        }
+
+        // 其他配置保存到数据库（向后兼容）
         let config = await SystemConfig.findByPk(key);
         if (config) {
             config.value = value;
@@ -504,7 +626,7 @@ router.post('/config', auth, adminCheck, async (req, res) => {
             config = await SystemConfig.create({ key, value, description });
         }
 
-        await logAdminAction(req.player.id, 'update_config', { key, value }, req);
+        await logAdminAction(req.player.id, 'update_config', { key, value, target: 'database' }, req);
 
         res.json({
             code: 200,
@@ -612,8 +734,11 @@ router.delete('/players/:id', auth, adminCheck, async (req, res) => {
             return res.status(400).json({ message: '无法删除管理员账号' });
         }
 
-        await Item.destroy({ where: { player_id: player.id } });
+        await Item.destroy({ where: { player_id: playerId } });
         await AdminLog.destroy({ where: { admin_id: player.id } });
+
+        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_delete');
+
         await player.destroy();
 
         await logAdminAction(req.player.id, 'delete_player', { target_id: req.params.id }, req);
@@ -621,6 +746,37 @@ router.delete('/players/:id', auth, adminCheck, async (req, res) => {
         res.json({
             code: 200,
             message: '玩家删除成功'
+        });
+    } catch (error) {
+        res.status(500).json({ message: '删除失败', error: error.message });
+    }
+});
+
+/**
+ * 删除通知
+ * DELETE /api/admin/notifications/:id
+ */
+router.delete('/notifications/:id', auth, adminCheck, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const SystemNotification = require('../models/system_notification');
+        const notification = await SystemNotification.findByPk(id);
+        
+        if (!notification) {
+            return res.status(404).json({ message: '通知不存在' });
+        }
+
+        await notification.destroy();
+
+        await logAdminAction(req.player.id, 'delete_notification', {
+            notification_id: id,
+            notification_title: notification.title
+        }, req);
+
+        res.json({
+            code: 200,
+            message: '通知删除成功'
         });
     } catch (error) {
         res.status(500).json({ message: '删除失败', error: error.message });

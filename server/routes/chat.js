@@ -55,4 +55,48 @@ router.post('/send', authenticateToken, async (req, res) => {
     }
 });
 
+/**
+ * 获取聊天未读消息数量
+ * GET /api/chat/unread-count
+ */
+router.get('/unread-count', authenticateToken, async (req, res) => {
+    try {
+        const lastReadTime = req.query.lastReadTime ? new Date(req.query.lastReadTime) : null;
+        
+        let count = 0;
+        
+        if (lastReadTime) {
+            // 计算指定时间之后的未读消息数量（全局聊天，不按玩家过滤）
+            count = await Chat.count({
+                where: {
+                    createdAt: {
+                        [require('sequelize').Op.gt]: lastReadTime
+                    }
+                }
+            });
+        } else {
+            // 获取所有未读的聊天消息（通过前端传入的 lastReadTime 来判断）
+            count = 0;
+        }
+        
+        res.json({ count });
+    } catch (error) {
+        res.status(500).json({ message: '获取未读消息数量失败', error: error.message });
+    }
+});
+
+/**
+ * 更新最后阅读时间
+ * POST /api/chat/mark-read
+ */
+router.post('/mark-read', authenticateToken, async (req, res) => {
+    try {
+        const lastReadTime = new Date();
+        
+        res.json({ success: true, lastReadTime: lastReadTime.toISOString() });
+    } catch (error) {
+        res.status(500).json({ message: '标记已读失败', error: error.message });
+    }
+});
+
 module.exports = router;

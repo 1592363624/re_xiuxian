@@ -1,0 +1,22 @@
+{
+  "description": "游戏系统全局配置",
+  "version": "1.0.0",
+  "lastUpdated": "2025-12-27T02:56:58.134Z",
+  "settings": {
+    "auto_save_interval": {
+      "value": 10000,
+      "displayName": "自动存档间隔"
+    },
+    "initial_lifespan": {
+      "value": 100,
+      "displayName": "初始寿元"
+    },
+    "server_port": {
+      "value": 3000,
+      "unit": "端口",
+      "description": "服务器端口",
+      "defaultValue": 3000,
+      "displayName": "服务器端口"
+    }
+  }
+}

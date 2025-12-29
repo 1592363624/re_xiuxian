@@ -63,6 +63,7 @@ router.get('/me', authMiddleware, async (req, res) => {
                 mp_max: fullAttributes.mp_max,
                 is_secluded: player.is_secluded || false,
                 seclusion_end_time: player.seclusion_end_time,
+                last_seclusion_time: player.last_seclusion_time,
                 created_at: player.created_at,
                 updated_at: player.updated_at
             }
