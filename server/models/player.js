@@ -213,6 +213,31 @@ const Player = sequelize.define('Player', {
         type: DataTypes.INTEGER,
         allowNull: true,
         comment: '当前境界排名（用于快速排序和计算）'
+    },
+    is_moving: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否正在移动中'
+    },
+    moving_from_map_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '出发地图ID'
+    },
+    moving_to_map_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '目标地图ID'
+    },
+    move_start_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '移动开始时间'
+    },
+    move_end_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '移动预计结束时间'
     }
 }, {
     tableName: 'players',

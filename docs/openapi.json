@@ -1451,6 +1451,14 @@
                         "mp_current": {
                           "type": "string",
                           "description": "剩余灵力"
+                        },
+                        "travel_time": {
+                          "type": "integer",
+                          "description": "移动耗时(秒)"
+                        },
+                        "travel_distance": {
+                          "type": "number",
+                          "description": "移动距离（基于坐标计算）"
                         }
                       }
                     }
@@ -1493,6 +1501,315 @@
                 "example": {
                   "code": 403,
                   "message": "境界不足，需达到 筑基期 才能进入此地图"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/start-move": {
+      "post": {
+        "summary": "开始移动（时间移动系统）",
+        "description": "开始移动到目标地图，进入移动状态。移动过程中玩家无法执行其他操作，移动完成后自动到达目标地点。",
+        "tags": ["Map"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["targetMapId"],
+                "properties": {
+                  "targetMapId": {
+                    "type": "integer",
+                    "description": "目标地图ID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "开始移动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "开始前往七玄门"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "from_map_id": {
+                          "type": "integer",
+                          "description": "出发地图ID"
+                        },
+                        "from_map_name": {
+                          "type": "string",
+                          "description": "出发地图名称"
+                        },
+                        "to_map_id": {
+                          "type": "integer",
+                          "description": "目标地图ID"
+                        },
+                        "to_map_name": {
+                          "type": "string",
+                          "description": "目标地图名称"
+                        },
+                        "distance": {
+                          "type": "number",
+                          "description": "移动距离（里）"
+                        },
+                        "mp_consumed": {
+                          "type": "integer",
+                          "description": "消耗的灵力"
+                        },
+                        "total_seconds": {
+                          "type": "integer",
+                          "description": "总耗时（秒）"
+                        },
+                        "start_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "移动开始时间"
+                        },
+                        "end_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "预计到达时间"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "code": 200,
+                      "success": true,
+                      "message": "开始前往七玄门",
+                      "data": {
+                        "from_map_id": 1,
+                        "from_map_name": "越国",
+                        "to_map_id": 2,
+                        "to_map_name": "七玄门",
+                        "distance": 15.5,
+                        "mp_consumed": 25,
+                        "total_seconds": 93,
+                        "start_time": "2024-05-20T10:00:00.000Z",
+                        "end_time": "2024-05-20T10:01:33.000Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "无法开始移动",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "already_moving": {
+                    "value": {
+                      "code": 400,
+                      "message": "正在移动中，无法重复移动"
+                    }
+                  },
+                  "same_map": {
+                    "value": {
+                      "code": 400,
+                      "message": "目标地图与当前地图相同"
+                    }
+                  },
+                  "no_mp": {
+                    "value": {
+                      "code": 400,
+                      "message": "灵力不足，需要 25 点灵力"
+                    }
+                  },
+                  "realm_insufficient": {
+                    "value": {
+                      "code": 400,
+                      "message": "境界不足，需达到 筑基期 才能进入此地图"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/move-status": {
+      "get": {
+        "summary": "查询移动状态",
+        "description": "获取当前玩家的移动状态，包括剩余时间、进度等",
+        "tags": ["Map"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "is_moving": {
+                      "type": "boolean",
+                      "description": "是否正在移动"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "移动状态数据（未移动时为null）",
+                      "properties": {
+                        "from_map_id": {
+                          "type": "integer",
+                          "description": "出发地图ID"
+                        },
+                        "from_map_name": {
+                          "type": "string",
+                          "description": "出发地图名称"
+                        },
+                        "to_map_id": {
+                          "type": "integer",
+                          "description": "目标地图ID"
+                        },
+                        "to_map_name": {
+                          "type": "string",
+                          "description": "目标地图名称"
+                        },
+                        "total_seconds": {
+                          "type": "integer",
+                          "description": "总耗时（秒）"
+                        },
+                        "remaining_seconds": {
+                          "type": "integer",
+                          "description": "剩余时间（秒）"
+                        },
+                        "progress": {
+                          "type": "number",
+                          "description": "进度百分比 0-100"
+                        },
+                        "start_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "移动开始时间"
+                        },
+                        "end_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "预计到达时间"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "moving": {
+                    "value": {
+                      "code": 200,
+                      "is_moving": true,
+                      "data": {
+                        "from_map_id": 1,
+                        "from_map_name": "越国",
+                        "to_map_id": 2,
+                        "to_map_name": "七玄门",
+                        "total_seconds": 93,
+                        "remaining_seconds": 45,
+                        "progress": 51.6,
+                        "start_time": "2024-05-20T10:00:00.000Z",
+                        "end_time": "2024-05-20T10:01:33.000Z"
+                      }
+                    }
+                  },
+                  "not_moving": {
+                    "value": {
+                      "code": 200,
+                      "is_moving": false,
+                      "data": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/cancel-move": {
+      "post": {
+        "summary": "取消移动",
+        "description": "取消当前正在进行的移动，取消后返回出发地图，已消耗的灵力不退还",
+        "tags": ["Map"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "取消成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已取消移动，返回越国"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "from_map_id": {
+                          "type": "integer",
+                          "description": "返回的地图ID"
+                        },
+                        "from_map_name": {
+                          "type": "string",
+                          "description": "返回的地图名称"
+                        },
+                        "mp_consumed": {
+                          "type": "integer",
+                          "description": "已消耗的灵力"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "无法取消",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "当前未在移动中"
                 }
               }
             }
@@ -3641,6 +3958,298 @@
                     "code": { "type": "integer", "example": 200 },
                     "count": { "type": "integer" },
                     "battles": { "type": "array" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/monsters": {
+      "get": {
+        "summary": "获取当前地图可遭遇怪物列表",
+        "description": "获取当前所在地图可遭遇的怪物列表，包含怪物名称、境界和经验奖励",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "map_id": { "type": "integer" },
+                    "monsters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "realm": { "type": "string" },
+                          "exp": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/skill": {
+      "post": {
+        "summary": "使用技能",
+        "description": "在战斗中使用技能，消耗20点灵力，造成1.5倍伤害",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skill_index": { "type": "integer", "default": 0, "description": "技能索引" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "技能使用结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "in_battle": { "type": "boolean" },
+                    "action": { "type": "string", "example": "skill" },
+                    "damage": { "type": "integer" },
+                    "mp_used": { "type": "integer", "example": 20 },
+                    "monster_hp": { "type": "string" },
+                    "player_mp": { "type": "string" },
+                    "turn": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "灵力不足或技能使用失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "灵力不足，需要 20 点灵力"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/escape": {
+      "post": {
+        "summary": "逃跑",
+        "description": "尝试从战斗中逃跑，成功率50%",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "逃跑结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/combat/stats": {
+      "get": {
+        "summary": "获取战斗统计",
+        "description": "获取玩家的战斗统计数据，包括胜利、失败、逃跑次数和总获得修为",
+        "tags": ["Combat"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "victories": { "type": "integer", "description": "胜利次数" },
+                    "defeats": { "type": "integer", "description": "失败次数" },
+                    "escapes": { "type": "integer", "description": "逃跑次数" },
+                    "total_battles": { "type": "integer", "description": "总战斗次数" },
+                    "total_exp": { "type": "integer", "description": "总获得修为" },
+                    "win_rate": { "type": "integer", "description": "胜率(%)" },
+                    "recent_battles": { "type": "array", "description": "最近战斗记录" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gather/resources": {
+      "get": {
+        "summary": "获取当前地图可采集资源列表",
+        "description": "获取当前所在地图可采集的资源列表，包含资源名称、难度、消耗、冷却和熟练度信息",
+        "tags": ["Gathering"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "map_id": { "type": "integer" },
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "resource_id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "difficulty": { "type": "integer", "description": "采集难度" },
+                          "mp_cost": { "type": "integer", "description": "消耗灵力" },
+                          "cooldown_seconds": { "type": "integer", "description": "冷却时间(秒)" },
+                          "can_gather": { "type": "boolean", "description": "是否可采集" },
+                          "next_available_time": { "type": "string", "format": "date-time", "nullable": true },
+                          "player_proficiency": {
+                            "type": "object",
+                            "properties": {
+                              "level": { "type": "integer" },
+                              "exp": { "type": "integer" },
+                              "total_count": { "type": "integer" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gather/collect": {
+      "post": {
+        "summary": "执行采集",
+        "description": "采集指定资源，消耗灵力并增加熟练度，有概率触发暴击",
+        "tags": ["Gathering"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["resourceId"],
+                "properties": {
+                  "resource_id": { "type": "string", "description": "资源ID" },
+                  "resourceId": { "type": "string", "description": "资源ID（兼容字段）" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "采集成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "success": { "type": "boolean" },
+                    "resource_id": { "type": "string" },
+                    "resource_name": { "type": "string" },
+                    "item_id": { "type": "string" },
+                    "quantity": { "type": "integer" },
+                    "is_crit": { "type": "boolean", "description": "是否暴击" },
+                    "mp_cost": { "type": "integer" },
+                    "mp_remaining": { "type": "string" },
+                    "exp_gained": { "type": "integer" },
+                    "new_proficiency": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "采集失败",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "no_mp": {
+                    "value": {
+                      "code": 400,
+                      "message": "灵力不足，需要 10 点灵力"
+                    }
+                  },
+                  "cooldown": {
+                    "value": {
+                      "code": 400,
+                      "message": "采集冷却中，请等待 30 秒"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gather/stats": {
+      "get": {
+        "summary": "获取采集统计",
+        "description": "获取玩家的采集统计数据，包括总采集次数、已探索资源和最高熟练度",
+        "tags": ["Gathering"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "total_gather_count": { "type": "integer", "description": "总采集次数" },
+                    "resources_collected": { "type": "integer", "description": "已探索资源种类" },
+                    "highest_proficiency_level": { "type": "integer", "description": "最高熟练度等级" },
+                    "details": {
+                      "type": "array",
+                      "description": "各资源详细熟练度"
+                    }
                   }
                 }
               }

@@ -7,6 +7,8 @@
             "description": "位于天南地区的凡人国度，韩立出身之地",
             "environment": "plains",
             "requiredRealm": "凡人",
+            "x": 0,
+            "y": 0,
             "npcs": [
                 { "id": "elder_zhang", "name": "张铁", "role": "npc", "location": "七玄门" }
             ],
@@ -30,6 +32,8 @@
             "description": "越国的一个小门派，有一定修仙传承",
             "environment": "mountain",
             "requiredRealm": "凡人",
+            "x": 15,
+            "y": 10,
             "npcs": [
                 { "id": "master_zhou", "name": "周师叔", "role": "sect_elder", "location": "大殿" },
                 { "id": "elder_liu", "name": "刘靖", "role": "sect_disciple", "location": "演武场" }
@@ -53,6 +57,8 @@
             "description": "七玄门后山，多有灵草灵兽",
             "environment": "mountain",
             "requiredRealm": "炼气3层",
+            "x": 30,
+            "y": 20,
             "npcs": [],
             "resources": [
                 { "id": "firewood", "name": "干柴", "type": "gathering", "difficulty": 1, "yield": [2, 5] },
@@ -78,6 +84,8 @@
             "description": "无边海域，盛产各种海中材料",
             "environment": "ocean",
             "requiredRealm": "筑基期",
+            "x": 150,
+            "y": 80,
             "npcs": [
                 { "id": "merchant", "name": "海商", "role": "trader", "location": "港口" }
             ],
@@ -103,6 +111,8 @@
             "description": "大衍神君的传承之地",
             "environment": "cave",
             "requiredRealm": "金丹期",
+            "x": 300,
+            "y": 150,
             "npcs": [],
             "resources": [
                 { "id": "golden_ore", "name": "金精石", "type": "gathering", "difficulty": 12, "yield": [1, 2] }
@@ -124,6 +134,8 @@
             "description": "下界界面，包含所有下界地图",
             "environment": "mixed",
             "requiredRealm": "元婴期",
+            "x": 500,
+            "y": 300,
             "npcs": [],
             "resources": [
                 { "id": "spirit_root", "name": "血灵根", "type": "gathering", "difficulty": 15, "yield": [1, 2] },
@@ -146,6 +158,8 @@
             "description": "上位界面，飞升后所在",
             "environment": "mixed",
             "requiredRealm": "化神期",
+            "x": 1000,
+            "y": 600,
             "npcs": [],
             "resources": [
                 { "id": "infant_fruit", "name": "婴灵果", "type": "gathering", "difficulty": 20, "yield": [1, 1] },
@@ -168,6 +182,8 @@
             "description": "最高位面，仙人所在",
             "environment": "celestial",
             "requiredRealm": "炼虚期",
+            "x": 2000,
+            "y": 1200,
             "npcs": [],
             "resources": [
                 { "id": "infant_fruit", "name": "仙灵果", "type": "gathering", "difficulty": 25, "yield": [1, 2] },

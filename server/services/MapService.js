@@ -9,16 +9,49 @@ const { Op } = require('sequelize');
 
 class MapService {
     /**
-     * 处理地图移动后的环境消耗
-     * @param {number} travelTime 移动时间(分钟)
+     * 计算移动消耗
+     * @param {number} distance 距离
      * @param {number} dangerLevel 目标地图危险等级
-     * @returns {number} 消耗的灵力
+     * @param {number} travelTime 移动时间(分钟)
+     * @param {string} mapType 地图类型
+     * @param {number} playerSpeed 玩家速度
+     * @returns {Object} { cost: 灵力消耗, time: 预计时间(秒) }
      */
-    static calculateTravelCost(travelTime, dangerLevel) {
-        let cost = 10;
-        cost += travelTime / 2;
+    static calculateTravelCost(distance, dangerLevel, travelTime, mapType = 'country', playerSpeed = 10) {
+        const baseCost = 10;
+        const baseTime = 60;
+        
+        const typeMultiplier = {
+            'country': 1,
+            'sect': 1,
+            'mountain': 1.5,
+            'ocean': 2,
+            'talent': 3,
+            'world': 5
+        };
+        
+        const terrainFactor = {
+            'plains': 1,
+            'mountain': 1.5,
+            'ocean': 2,
+            'cave': 1.8,
+            'mixed': 1.2,
+            'celestial': 1
+        };
+        
+        let cost = baseCost;
+        cost += Math.floor(distance / 10);
         cost += dangerLevel * 2;
-        return Math.floor(cost);
+        cost += travelTime / 2;
+        cost *= typeMultiplier[mapType] || 1;
+        
+        const terrainMod = terrainFactor[mapType] || 1;
+        const time = Math.floor(baseTime + (distance * terrainMod * 10) / (playerSpeed / 10));
+        
+        return {
+            cost: Math.floor(cost),
+            time: time
+        };
     }
 
     /**

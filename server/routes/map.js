@@ -2,14 +2,18 @@
  * 地图系统路由
  * 
  * 静态配置从 map_data.json 读取，动态数据从数据库读取
+ * 支持即时移动和延时移动两种模式
  */
 const express = require('express');
 const router = express.Router();
+const sequelize = require('../config/database');
 const Player = require('../models/player');
 const PlayerMapPosition = require('../models/playerMapPosition');
+const PlayerMovement = require('../models/playerMovement');
 const MapConfigLoader = require('../services/MapConfigLoader');
 const Realm = require('../models/realm');
 const auth = require('../middleware/auth');
+const { Op } = require('sequelize');
 
 const mapConfig = MapConfigLoader;
 
@@ -23,22 +27,18 @@ async function getRealmRank(realmName) {
 
 /**
  * 获取当前地图信息
- * 
- * 合并静态配置和玩家动态数据返回
  */
 router.get('/info', auth, async (req, res) => {
     try {
         const player = await Player.findByPk(req.user.id);
         if (!player) return res.status(404).json({ error: 'Player not found' });
 
-        // 获取或创建玩家地图位置记录
         let playerMapPos = await PlayerMapPosition.findOne({
             where: { player_id: player.id }
         });
 
         let mapId = player.current_map_id;
 
-        // 如果玩家没有地图信息，初始化为默认地图
         if (!mapId) {
             const defaultMap = mapConfig.getDefaultMap();
             if (defaultMap) {
@@ -46,7 +46,6 @@ router.get('/info', auth, async (req, res) => {
                 player.current_map_id = mapId;
                 await player.save();
 
-                // 创建位置记录
                 playerMapPos = await PlayerMapPosition.create({
                     player_id: player.id,
                     map_id: mapId
@@ -54,10 +53,8 @@ router.get('/info', auth, async (req, res) => {
             }
         }
 
-        // 获取静态地图配置
         const mapConfigData = mapConfig.getMap(mapId);
         if (!mapConfigData) {
-            // 地图配置不存在，重置到默认地图
             const defaultMap = mapConfig.getDefaultMap();
             if (defaultMap) {
                 player.current_map_id = defaultMap.id;
@@ -65,19 +62,17 @@ router.get('/info', auth, async (req, res) => {
                 return res.json({ 
                     current_map: defaultMap, 
                     player_data: null,
-                    connected_maps: [] 
+                    connected_maps: [],
+                    is_moving: false
                 });
             }
             return res.status(404).json({ error: 'Map not found' });
         }
 
-        // 获取连接地图的静态配置
         const connectedMaps = mapConfig.getConnectedMaps(mapId);
 
-        // 构建返回数据
         const responseData = {
             ...mapConfigData,
-            // 动态数据（如果有）
             player_data: playerMapPos ? {
                 exploration_progress: playerMapPos.exploration_progress,
                 visited_nodes: playerMapPos.visited_nodes,
@@ -94,11 +89,12 @@ router.get('/info', auth, async (req, res) => {
                 name: m.name,
                 type: m.type,
                 environment: m.environment,
-                required_realm: m.required_realm,
+                requiredRealm: m.requiredRealm,
                 danger_level: m.danger_level,
                 description: m.description,
                 travel_time: m.travel_time
-            }))
+            })),
+            is_moving: player.is_moving || false
         });
     } catch (error) {
         console.error('Map Info Error:', error);
@@ -107,77 +103,12 @@ router.get('/info', auth, async (req, res) => {
 });
 
 /**
- * 移动到目标地图
- * 
- * 验证境界要求，消耗灵力，更新玩家位置
+ * 计算移动到目标地图的消耗
  */
-router.post('/move', auth, async (req, res) => {
-    try {
-        const { targetMapId } = req.body;
-        if (!targetMapId) return res.status(400).json({ error: 'Target map ID required' });
-
-        const player = await Player.findByPk(req.user.id);
-        const currentMapId = player.current_map_id;
-
-        // 获取静态配置
-        const currentMapConfig = mapConfig.getMap(currentMapId);
-        const targetMapConfig = mapConfig.getMap(targetMapId);
-
-        if (!currentMapConfig || !targetMapConfig) {
-            return res.status(404).json({ error: 'Map not found' });
-        }
-
-        // 检查连通性
-        if (!mapConfig.isConnected(currentMapId, targetMapId)) {
-            return res.status(400).json({ error: '目标地图未连接' });
-        }
-
-        // 检查境界要求
-        const canEnter = mapConfig.canEnter(targetMapConfig, player.realm);
-        if (!canEnter) {
-            return res.status(403).json({ 
-                error: `境界不足，需达到 ${targetMapConfig.required_realm} 才能进入` 
-            });
-        }
-
-        // 计算移动消耗
-        const travelCost = calculateTravelCost(targetMapConfig);
-        if (player.mp_current < travelCost) {
-            return res.status(400).json({ 
-                error: `灵力不足，需要 ${travelCost} 点灵力` 
-            });
-        }
-
-        // 扣除消耗并更新位置
-        player.mp_current = BigInt(player.mp_current) - BigInt(travelCost);
-        player.current_map_id = targetMapId;
-        player.last_map_move_time = new Date();
-        await player.save();
-
-        // 更新玩家地图位置记录
-        await PlayerMapPosition.upsert({
-            player_id: player.id,
-            map_id: targetMapId,
-            last_visit_time: new Date()
-        });
-
-        res.json({ 
-            message: `移动成功，消耗 ${travelCost} 点灵力`, 
-            new_map: targetMapConfig,
-            mp_current: player.mp_current.toString()
-        });
-
-    } catch (error) {
-        console.error('Map Move Error:', error);
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-/**
- * 计算移动消耗
- */
-function calculateTravelCost(targetMap) {
+function calculateTravelCost(targetMap, player, currentMap = null) {
     const baseCost = 10;
+    const baseTime = 60;
+    
     const typeMultiplier = {
         'country': 1,
         'sect': 1,
@@ -187,64 +118,301 @@ function calculateTravelCost(targetMap) {
         'world': 5
     };
     
+    const terrainFactor = {
+        'plains': 1,
+        'mountain': 1.5,
+        'ocean': 2,
+        'cave': 1.8,
+        'mixed': 1.2,
+        'celestial': 1
+    };
+    
     const dangerLevel = targetMap.danger_level || 1;
     const travelTime = targetMap.travel_time || 5;
     const type = targetMap.type || 'country';
+    const environment = targetMap.environment || 'plains';
+    
+    let distance = 0;
+    let time = baseTime;
+    
+    if (currentMap && currentMap.x !== undefined && targetMap.x !== undefined) {
+        distance = Math.sqrt(
+            Math.pow(targetMap.x - currentMap.x, 2) + 
+            Math.pow(targetMap.y - currentMap.y, 2)
+        );
+        const terrainMod = terrainFactor[environment] || 1;
+        const playerSpeed = player.attributes?.speed || 10;
+        time = Math.floor(baseTime + (distance * terrainMod * 10) / (playerSpeed / 10));
+    } else {
+        time = travelTime * 60;
+    }
     
     let cost = baseCost;
-    cost += dangerLevel * 2;  // 危险等级加成
-    cost += travelTime / 2;   // 移动时间加成
-    cost *= typeMultiplier[type] || 1;  // 类型加成
+    cost += Math.floor(distance / 10);
+    cost += dangerLevel * 2;
+    cost += travelTime / 2;
+    cost *= typeMultiplier[type] || 1;
     
-    return Math.floor(cost);
+    return {
+        cost: Math.floor(cost),
+        time: time,
+        distance: Math.floor(distance * 100) / 100
+    };
 }
 
 /**
- * 更新地图探索进度
+ * 开始移动到目标地图（延时模式）
+ * 
+ * 设置玩家为移动状态，扣除灵力，记录移动历史
  */
-router.post('/explore', auth, async (req, res) => {
+router.post('/start-move', auth, async (req, res) => {
     try {
-        const { nodeId, progress } = req.body;
+        const { targetMapId } = req.body;
+        if (!targetMapId) return res.status(400).json({ error: '目标地图ID不能为空' });
+
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: 'Player not found' });
+        if (!player) return res.status(404).json({ error: '玩家不存在' });
 
-        const playerMapPos = await PlayerMapPosition.findOne({
-            where: { player_id: player.id }
-        });
-
-        if (!playerMapPos) {
-            return res.status(400).json({ error: '未找到地图位置记录' });
+        if (player.is_moving) {
+            return res.status(400).json({ error: '您正在移动中，请等待到达目的地' });
         }
 
-        // 更新探索进度
-        if (progress !== undefined) {
-            playerMapPos.exploration_progress = Math.min(100, Math.max(0, progress));
+        const currentMapId = player.current_map_id;
+        if (currentMapId == targetMapId) {
+            return res.status(400).json({ error: '您已经在目标地图' });
         }
 
-        // 记录已访问节点
-        if (nodeId && !playerMapPos.visited_nodes.includes(nodeId)) {
-            playerMapPos.visited_nodes.push(nodeId);
+        const currentMapConfig = mapConfig.getMap(currentMapId);
+        const targetMapConfig = mapConfig.getMap(targetMapId);
+
+        if (!currentMapConfig || !targetMapConfig) {
+            return res.status(404).json({ error: '地图配置不存在' });
         }
 
-        playerMapPos.last_visit_time = new Date();
-        await playerMapPos.save();
+        const canEnter = mapConfig.canEnter(targetMapConfig, player.realm);
+        if (!canEnter) {
+            return res.status(403).json({ 
+                error: `境界不足，需达到 ${targetMapConfig.requiredRealm} 才能进入` 
+            });
+        }
 
-        res.json({
-            message: '探索进度已更新',
-            player_data: {
-                exploration_progress: playerMapPos.exploration_progress,
-                visited_nodes: playerMapPos.visited_nodes
-            }
-        });
+        const travelCostInfo = calculateTravelCost(targetMapConfig, player, currentMapConfig);
+        
+        if (player.mp_current < travelCostInfo.cost) {
+            return res.status(400).json({ 
+                error: `灵力不足，需要 ${travelCostInfo.cost} 点灵力` 
+            });
+        }
+
+        const now = new Date();
+        const endTime = new Date(now.getTime() + travelCostInfo.time * 1000);
+
+        const t = await sequelize.transaction();
+        try {
+            player.mp_current = BigInt(player.mp_current) - BigInt(travelCostInfo.cost);
+            player.is_moving = true;
+            player.moving_from_map_id = currentMapId;
+            player.moving_to_map_id = targetMapId;
+            player.move_start_time = now;
+            player.move_end_time = endTime;
+            await player.save({ transaction: t });
+
+            await PlayerMovement.create({
+                player_id: player.id,
+                from_map_id: currentMapId,
+                from_map_name: currentMapConfig.name,
+                to_map_id: targetMapId,
+                to_map_name: targetMapConfig.name,
+                distance: travelCostInfo.distance,
+                mp_consumed: travelCostInfo.cost,
+                duration_seconds: travelCostInfo.time,
+                status: 'moving',
+                started_at: now
+            }, { transaction: t });
+
+            await t.commit();
+
+            res.json({
+                code: 200,
+                message: `开始移动，预计需要 ${formatTime(travelCostInfo.time)}`,
+                data: {
+                    from_map_id: currentMapId,
+                    to_map_id: targetMapId,
+                    from_map_name: currentMapConfig.name,
+                    to_map_name: targetMapConfig.name,
+                    start_time: now.toISOString(),
+                    end_time: endTime.toISOString(),
+                    total_seconds: travelCostInfo.time,
+                    remaining_seconds: travelCostInfo.time
+                }
+            });
+        } catch (e) {
+            await t.rollback();
+            throw e;
+        }
+
     } catch (error) {
-        console.error('Map Explore Error:', error);
+        console.error('Start Move Error:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
 /**
+ * 查询移动状态
+ */
+router.get('/move-status', auth, async (req, res) => {
+    try {
+        const player = await Player.findByPk(req.user.id);
+        if (!player) return res.status(404).json({ error: '玩家不存在' });
+
+        if (!player.is_moving) {
+            return res.json({
+                code: 200,
+                is_moving: false
+            });
+        }
+
+        const now = new Date();
+        const endTime = new Date(player.move_end_time);
+        const remainingMs = endTime - now;
+        const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+
+        const fromMap = mapConfig.getMap(player.moving_from_map_id);
+        const toMap = mapConfig.getMap(player.moving_to_map_id);
+
+        res.json({
+            code: 200,
+            is_moving: true,
+            from_map_id: player.moving_from_map_id,
+            to_map_id: player.moving_to_map_id,
+            from_map_name: fromMap?.name || '未知',
+            to_map_name: toMap?.name || '未知',
+            start_time: player.move_start_time,
+            end_time: player.move_end_time,
+            remaining_seconds: remainingSeconds,
+            total_seconds: Math.ceil((endTime - new Date(player.move_start_time)) / 1000)
+        });
+    } catch (error) {
+        console.error('Move Status Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * 取消移动（可选功能）
+ */
+router.post('/cancel-move', auth, async (req, res) => {
+    try {
+        const player = await Player.findByPk(req.user.id);
+        if (!player) return res.status(404).json({ error: '玩家不存在' });
+
+        if (!player.is_moving) {
+            return res.status(400).json({ error: '您当前没有在移动中' });
+        }
+
+        player.is_moving = false;
+        player.moving_from_map_id = null;
+        player.moving_to_map_id = null;
+        player.move_start_time = null;
+        player.move_end_time = null;
+        await player.save();
+
+        const movement = await PlayerMovement.findOne({
+            where: { 
+                player_id: player.id, 
+                status: 'moving' 
+            },
+            order: [['createdAt', 'DESC']]
+        });
+
+        if (movement) {
+            movement.status = 'cancelled';
+            movement.completed_at = new Date();
+            await movement.save();
+        }
+
+        res.json({
+            code: 200,
+            message: '移动已取消，已退回起点'
+        });
+    } catch (error) {
+        console.error('Cancel Move Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * 完成移动（供内部调用或定时任务）
+ */
+router.post('/complete-move-internal', auth, async (req, res) => {
+    try {
+        const player = await Player.findByPk(req.user.id);
+        if (!player) return res.status(404).json({ error: '玩家不存在' });
+
+        if (!player.is_moving) {
+            return res.status(400).json({ error: '玩家不在移动中' });
+        }
+
+        const targetMapId = player.moving_to_map_id;
+        const targetMapConfig = mapConfig.getMap(targetMapId);
+
+        player.current_map_id = targetMapId;
+        player.last_map_move_time = new Date();
+        player.is_moving = false;
+        player.moving_from_map_id = null;
+        player.moving_to_map_id = null;
+        player.move_start_time = null;
+        player.move_end_time = null;
+        await player.save();
+
+        await PlayerMapPosition.upsert({
+            player_id: player.id,
+            map_id: targetMapId,
+            last_visit_time: new Date()
+        });
+
+        const movement = await PlayerMovement.findOne({
+            where: { 
+                player_id: player.id, 
+                status: 'moving' 
+            },
+            order: [['createdAt', 'DESC']]
+        });
+
+        if (movement) {
+            movement.status = 'completed';
+            movement.completed_at = new Date();
+            await movement.save();
+        }
+
+        res.json({
+            code: 200,
+            message: `已到达 ${targetMapConfig?.name || '目标地图'}`,
+            new_map: targetMapConfig,
+            mp_current: player.mp_current.toString()
+        });
+    } catch (error) {
+        console.error('Complete Move Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * 辅助函数：格式化时间
+ */
+function formatTime(seconds) {
+    if (seconds < 60) return `${seconds}秒`;
+    const mins = Math.floor(seconds / 60);
+    if (mins < 60) return `${mins}分钟`;
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    if (hours < 24) return `${hours}小时${remainingMins}分钟`;
+    const days = Math.floor(hours / 24);
+    return `${days}天${hours % 24}小时`;
+}
+
+/**
  * 获取地图静态配置列表
- * 无需认证，用于前端预加载
  */
 router.get('/config', async (req, res) => {
     try {
@@ -255,7 +423,9 @@ router.get('/config', async (req, res) => {
                 name: m.name,
                 type: m.type,
                 environment: m.environment,
-                required_realm: m.required_realm,
+                x: m.x,
+                y: m.y,
+                requiredRealm: m.requiredRealm,
                 danger_level: m.danger_level,
                 travel_time: m.travel_time,
                 description: m.description,
@@ -270,7 +440,6 @@ router.get('/config', async (req, res) => {
 
 /**
  * 验证地图配置
- * GM 或开发调试用
  */
 router.get('/validate', auth, async (req, res) => {
     try {

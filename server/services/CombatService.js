@@ -424,18 +424,29 @@ class CombatService {
             return { in_battle: false };
         }
 
+        const player = await Player.findByPk(playerId);
+        const playerStats = player.attributes || {};
+        const playerMaxHp = playerStats.hp_max || 100;
+        const playerMaxMp = playerStats.mp_max || 0;
+
         return {
             in_battle: true,
             battle_id: battle.battle_uuid,
             monster: {
                 id: battle.monster_id,
                 name: battle.monster_name,
+                realm: battle.monster_data?.realm || '炼气期',
                 hp: battle.monster_hp.toString(),
-                max_hp: battle.monster_max_hp.toString()
+                max_hp: battle.monster_max_hp.toString(),
+                atk: battle.monster_data?.atk?.toString() || '10',
+                def: battle.monster_data?.def?.toString() || '5',
+                exp_reward: battle.monster_data?.exp_reward || 10
             },
             player: {
                 hp: battle.player_hp.toString(),
-                mp: battle.player_mp.toString()
+                max_hp: playerMaxHp.toString(),
+                mp: battle.player_mp.toString(),
+                max_mp: playerMaxMp.toString()
             },
             round: battle.round,
             turn: battle.turn,
@@ -463,6 +474,103 @@ class CombatService {
             items: b.rewards_items,
             time: b.created_at
         }));
+    }
+
+    /**
+     * 使用技能
+     */
+    static async useSkill(playerId, skillIndex = 0) {
+        const battle = await ActiveBattle.findOne({
+            where: { player_id: playerId }
+        });
+
+        if (!battle) {
+            throw new Error('没有正在进行的战斗');
+        }
+
+        if (!battle.is_player_turn) {
+            throw new Error('还未轮到你的回合');
+        }
+
+        const player = await Player.findByPk(playerId);
+        if (player.mp_current < 20) {
+            throw new Error('灵力不足，需要 20 点灵力');
+        }
+
+        const playerStats = player.attributes || {};
+        const playerAtk = playerStats.atk || 10;
+        const playerDef = playerStats.def || 5;
+        const monsterDef = battle.monster_data?.def || 5;
+
+        let damage = Math.floor(playerAtk * 1.5 - monsterDef + Math.floor(Math.random() * 15) - 7);
+        damage = Math.max(1, damage);
+
+        battle.player_mp = BigInt(battle.player_mp) - BigInt(20);
+        battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
+        battle.damage_dealt = BigInt(battle.damage_dealt) + BigInt(damage);
+
+        const logEntry = {
+            round: battle.round,
+            attacker: 'player',
+            action: 'skill',
+            skill_index: skillIndex,
+            damage: damage,
+            target_hp: battle.monster_hp.toString(),
+            timestamp: new Date().toISOString()
+        };
+        battle.battle_log.push(logEntry);
+
+        const battleResult = await this.checkBattleEnd(battle, player);
+        if (battleResult) {
+            return battleResult;
+        }
+
+        battle.is_player_turn = false;
+        battle.turn = 'monster';
+        battle.last_action_time = new Date();
+        await battle.save();
+
+        return {
+            in_battle: true,
+            battle_id: battle.battle_uuid,
+            action: 'skill',
+            damage: damage,
+            mp_used: 20,
+            monster_hp: battle.monster_hp.toString(),
+            player_mp: battle.player_mp.toString(),
+            turn: 'monster',
+            message: `你对 ${battle.monster_name} 使用了技能，造成 ${damage} 点伤害！`
+        };
+    }
+
+    /**
+     * 获取战斗统计
+     */
+    static async getCombatStats(playerId) {
+        const battles = await PlayerCombat.findAll({
+            where: { player_id: playerId }
+        });
+
+        const victories = battles.filter(b => b.battle_result === 'win').length;
+        const defeats = battles.filter(b => b.battle_result === 'lose').length;
+        const escapes = battles.filter(b => b.battle_result === 'flee').length;
+        const totalExp = battles.reduce((sum, b) => sum + Number(b.rewards_exp), 0);
+
+        return {
+            victories,
+            defeats,
+            escapes,
+            total_battles: battles.length,
+            total_exp: totalExp,
+            win_rate: battles.length > 0 ? Math.round((victories / battles.length) * 100) : 0,
+            recent_battles: battles.slice(0, 5).map(b => ({
+                id: b.id,
+                monster_name: b.monster_name,
+                result: b.battle_result,
+                exp: b.rewards_exp.toString(),
+                time: b.created_at
+            }))
+        };
     }
 }
 

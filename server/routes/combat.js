@@ -189,4 +189,93 @@ router.post('/use-item', auth, async (req, res) => {
     }
 });
 
+/**
+ * 获取当前地图可遭遇怪物列表
+ */
+router.get('/monsters', auth, async (req, res) => {
+    try {
+        const player = await require('../models/player').findByPk(req.user.id);
+        if (!player) return res.status(404).json({ error: 'Player not found' });
+
+        const MapConfigLoader = require('../services/MapConfigLoader');
+        const mapConfig = MapConfigLoader.getMap(player.current_map_id);
+        
+        if (!mapConfig || !mapConfig.monsters) {
+            return res.json({
+                map_id: player.current_map_id,
+                monsters: []
+            });
+        }
+
+        const monsters = mapConfig.monsters.map(m => ({
+            id: m.id,
+            name: m.name,
+            realm: m.realm,
+            exp: m.exp
+        }));
+
+        res.json({
+            map_id: player.current_map_id,
+            monsters: monsters
+        });
+    } catch (error) {
+        console.error('Get Monsters Error:', error);
+        res.status(500).json({ error: error.message || 'Server error' });
+    }
+});
+
+/**
+ * 使用技能
+ */
+router.post('/skill', auth, async (req, res) => {
+    try {
+        const { skillIndex } = req.body;
+        const result = await CombatService.useSkill(req.user.id, skillIndex || 0);
+
+        res.json({
+            code: 200,
+            ...result
+        });
+    } catch (error) {
+        console.error('Use Skill Error:', error);
+        const status = error.message.includes('灵力不足') ? 400 : 
+                      error.message.includes('技能') ? 400 : 500;
+        res.status(status).json({ error: error.message || 'Server error' });
+    }
+});
+
+/**
+ * 逃跑（兼容旧接口）
+ */
+router.post('/escape', auth, async (req, res) => {
+    try {
+        const result = await CombatService.flee(req.user.id);
+
+        res.json({
+            code: 200,
+            ...result
+        });
+    } catch (error) {
+        console.error('Escape Error:', error);
+        res.status(500).json({ error: error.message || 'Server error' });
+    }
+});
+
+/**
+ * 获取战斗统计
+ */
+router.get('/stats', auth, async (req, res) => {
+    try {
+        const stats = await CombatService.getCombatStats(req.user.id);
+
+        res.json({
+            code: 200,
+            ...stats
+        });
+    } catch (error) {
+        console.error('Get Combat Stats Error:', error);
+        res.status(500).json({ error: error.message || 'Server error' });
+    }
+});
+
 module.exports = router;
