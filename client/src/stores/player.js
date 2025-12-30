@@ -12,7 +12,18 @@ export const usePlayerStore = defineStore('player', {
     logoutReason: null,
     systemConfig: {},
     socket: null,
-    isSocketConnected: false
+    isSocketConnected: false,
+    movingState: {
+      isMoving: false,
+      fromMapId: null,
+      toMapId: null,
+      fromMapName: '',
+      toMapName: '',
+      startTime: null,
+      endTime: null,
+      totalSeconds: 0,
+      remainingSeconds: 0
+    }
   }),
   
   actions: {
@@ -77,6 +88,12 @@ export const usePlayerStore = defineStore('player', {
 
         await this.fetchPlayer()
         console.log('[PlayerStore] 玩家数据已自动刷新')
+      })
+
+      this.socket.on('move:completed', async (data) => {
+        console.log('[PlayerStore] 移动完成通知:', data)
+        this.clearMovingState()
+        await this.fetchPlayer()
       })
     },
 
@@ -274,6 +291,38 @@ export const usePlayerStore = defineStore('player', {
       if (this.autoSaveInterval) {
         clearInterval(this.autoSaveInterval)
         this.autoSaveInterval = null
+      }
+    },
+
+    setMovingState(state) {
+      this.movingState = {
+        isMoving: true,
+        fromMapId: state.from_map_id,
+        toMapId: state.to_map_id,
+        fromMapName: state.from_map_name,
+        toMapName: state.to_map_name,
+        startTime: state.start_time,
+        endTime: state.end_time,
+        totalSeconds: state.total_seconds,
+        remainingSeconds: state.total_seconds
+      }
+    },
+
+    updateRemainingTime(remainingSeconds) {
+      this.movingState.remainingSeconds = remainingSeconds
+    },
+
+    clearMovingState() {
+      this.movingState = {
+        isMoving: false,
+        fromMapId: null,
+        toMapId: null,
+        fromMapName: '',
+        toMapName: '',
+        startTime: null,
+        endTime: null,
+        totalSeconds: 0,
+        remainingSeconds: 0
       }
     },
     

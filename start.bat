@@ -71,8 +71,8 @@ echo 后端服务器: http://localhost:3000
 echo 前端客户端: http://localhost:5173
 echo API文档: http://localhost:3000/api-docs
 echo.
-echo 测试账号: testuser1592363624
-echo 测试密码: 123456
+echo 测试账号: 1592363624
+echo 测试密码: 1592363624
 echo.
 echo 按任意键关闭此窗口...
 echo ===============================================

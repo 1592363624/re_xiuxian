@@ -1,0 +1,215 @@
+{
+    "resource_yields": [
+        {
+            "resource_id": "firewood",
+            "name": "干柴",
+            "item_id": "firewood",
+            "base_yield": [1, 3],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "10": [1, 2],
+                "30": [2, 3],
+                "50": [2, 4],
+                "70": [3, 5],
+                "90": [3, 6],
+                "100": [4, 7]
+            },
+            "base_mp_cost": 5,
+            "cooldown_seconds": 0,
+            "crit_chance": 0.05,
+            "crit_multiplier": 2
+        },
+        {
+            "resource_id": "wild_herb",
+            "name": "普通灵草",
+            "item_id": "wild_herb",
+            "base_yield": [1, 2],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "10": [1, 2],
+                "30": [2, 2],
+                "50": [2, 3],
+                "70": [2, 4],
+                "90": [3, 4],
+                "100": [3, 5]
+            },
+            "base_mp_cost": 8,
+            "cooldown_seconds": 300,
+            "crit_chance": 0.08,
+            "crit_multiplier": 2
+        },
+        {
+            "resource_id": "blood_grass",
+            "name": "血灵草",
+            "item_id": "blood_grass",
+            "base_yield": [1, 1],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "20": [1, 1],
+                "40": [1, 2],
+                "60": [1, 2],
+                "80": [2, 2],
+                "100": [2, 3]
+            },
+            "base_mp_cost": 15,
+            "cooldown_seconds": 600,
+            "crit_chance": 0.1,
+            "crit_multiplier": 2
+        },
+        {
+            "resource_id": "seaweed",
+            "name": "海藻",
+            "item_id": "seaweed",
+            "base_yield": [2, 4],
+            "yields_by_proficiency": {
+                "1": [2, 3],
+                "20": [2, 4],
+                "40": [3, 4],
+                "60": [3, 5],
+                "80": [4, 5],
+                "100": [4, 6]
+            },
+            "base_mp_cost": 10,
+            "cooldown_seconds": 0,
+            "crit_chance": 0.06,
+            "crit_multiplier": 2
+        },
+        {
+            "resource_id": "pearl",
+            "name": "珍珠",
+            "item_id": "pearl",
+            "base_yield": [1, 1],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "30": [1, 1],
+                "50": [1, 2],
+                "70": [2, 2],
+                "90": [2, 2],
+                "100": [2, 3]
+            },
+            "base_mp_cost": 20,
+            "cooldown_seconds": 1800,
+            "crit_chance": 0.05,
+            "crit_multiplier": 2
+        },
+        {
+            "resource_id": "coral",
+            "name": "珊瑚",
+            "item_id": "coral",
+            "base_yield": [1, 1],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "40": [1, 1],
+                "60": [1, 2],
+                "80": [1, 2],
+                "100": [2, 2]
+            },
+            "base_mp_cost": 25,
+            "cooldown_seconds": 3600,
+            "crit_chance": 0.03,
+            "crit_multiplier": 3
+        },
+        {
+            "resource_id": "condensing_flower",
+            "name": "凝气花",
+            "item_id": "condensing_flower",
+            "base_yield": [1, 2],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "20": [1, 2],
+                "40": [2, 2],
+                "60": [2, 3],
+                "80": [2, 3],
+                "100": [3, 4]
+            },
+            "base_mp_cost": 12,
+            "cooldown_seconds": 900,
+            "crit_chance": 0.08,
+            "crit_multiplier": 2
+        },
+        {
+            "resource_id": "golden_ore",
+            "name": "金精石",
+            "item_id": "golden_ore",
+            "base_yield": [1, 1],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "30": [1, 1],
+                "50": [1, 2],
+                "70": [2, 2],
+                "90": [2, 3],
+                "100": [3, 3]
+            },
+            "base_mp_cost": 18,
+            "cooldown_seconds": 1200,
+            "crit_chance": 0.07,
+            "crit_multiplier": 2
+        },
+        {
+            "resource_id": "spirit_root",
+            "name": "血灵根",
+            "item_id": "spirit_root",
+            "base_yield": [1, 1],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "40": [1, 1],
+                "60": [1, 2],
+                "80": [1, 2],
+                "100": [2, 2]
+            },
+            "base_mp_cost": 22,
+            "cooldown_seconds": 2400,
+            "crit_chance": 0.05,
+            "crit_multiplier": 2
+        },
+        {
+            "resource_id": "infant_fruit",
+            "name": "婴灵果",
+            "item_id": "infant_fruit",
+            "base_yield": [1, 1],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "50": [1, 1],
+                "70": [1, 2],
+                "90": [2, 2],
+                "100": [2, 3]
+            },
+            "base_mp_cost": 30,
+            "cooldown_seconds": 7200,
+            "crit_chance": 0.03,
+            "crit_multiplier": 3
+        },
+        {
+            "resource_id": "jade_core",
+            "name": "寒髓玉",
+            "item_id": "jade_core",
+            "base_yield": [1, 1],
+            "yields_by_proficiency": {
+                "1": [1, 1],
+                "50": [1, 1],
+                "70": [1, 2],
+                "90": [2, 2],
+                "100": [2, 2]
+            },
+            "base_mp_cost": 28,
+            "cooldown_seconds": 4800,
+            "crit_chance": 0.04,
+            "crit_multiplier": 3
+        }
+    ],
+    "proficiency_rules": {
+        "exp_per_gather": 10,
+        "exp_to_level": [
+            0, 100, 200, 300, 400, 500, 600, 700, 800, 900,
+            1100, 1300, 1500, 1700, 1900, 2100, 2300, 2500, 2700, 2900,
+            3200, 3500, 3800, 4100, 4400, 4700, 5000, 5500, 6000, 6500,
+            7000, 7500, 8000, 8500, 9000, 9500, 10000, 11000, 12000, 13000,
+            14000, 15000, 16000, 17000, 18000, 19000, 20000, 22000, 24000, 26000,
+            28000, 30000, 32000, 34000, 36000, 38000, 40000, 45000, 50000, 55000,
+            60000, 65000, 70000, 75000, 80000, 85000, 90000, 95000, 100000, 110000,
+            120000, 130000, 140000, 150000, 160000, 170000, 180000, 190000, 200000, 220000,
+            240000, 260000, 280000, 300000, 320000, 340000, 360000, 380000, 400000, 450000,
+            500000
+        ]
+    }
+}

@@ -7,15 +7,23 @@
             "description": "位于天南地区的凡人国度，韩立出身之地",
             "environment": "plains",
             "requiredRealm": "凡人",
+            "x": 0,
+            "y": 0,
             "npcs": [
                 { "id": "elder_zhang", "name": "张铁", "role": "npc", "location": "七玄门" }
             ],
             "resources": [
                 { "id": "firewood", "name": "干柴", "type": "gathering", "difficulty": 1, "yield": [1, 3] },
-                { "id": "wild_herb", "name": "普通灵草", "type": "gathering", "difficulty": 2, "yield": [1, 2] }
+                { "id": "wild_herb", "name": "普通灵草", "type": "gathering", "difficulty": 2, "yield": [1, 2] },
+                { "id": "condensing_flower", "name": "凝气花", "type": "gathering", "difficulty": 4, "yield": [1, 2] }
+            ],
+            "monsters": [
+                { "id": "rabbit", "name": "野兔", "realm": "凡人", "exp": 10 },
+                { "id": "wolf", "name": "野狼", "realm": "炼气1层", "exp": 40 }
             ],
             "dangerLevel": 1,
-            "travelTime": 5
+            "travelTime": 5,
+            "connections": [2]
         },
         {
             "id": 2,
@@ -24,13 +32,23 @@
             "description": "越国的一个小门派，有一定修仙传承",
             "environment": "mountain",
             "requiredRealm": "凡人",
+            "x": 15,
+            "y": 10,
             "npcs": [
                 { "id": "master_zhou", "name": "周师叔", "role": "sect_elder", "location": "大殿" },
                 { "id": "elder_liu", "name": "刘靖", "role": "sect_disciple", "location": "演武场" }
             ],
-            "resources": [],
+            "resources": [
+                { "id": "wild_herb", "name": "普通灵草", "type": "gathering", "difficulty": 2, "yield": [1, 3] },
+                { "id": "condensing_flower", "name": "凝气花", "type": "gathering", "difficulty": 3, "yield": [1, 2] }
+            ],
+            "monsters": [
+                { "id": "cultivator", "name": "散修", "realm": "炼气2层", "exp": 50 },
+                { "id": "snake", "name": "毒蛇", "realm": "炼气1层", "exp": 25 }
+            ],
             "dangerLevel": 2,
-            "travelTime": 3
+            "travelTime": 3,
+            "connections": [1, 3]
         },
         {
             "id": 3,
@@ -39,18 +57,25 @@
             "description": "七玄门后山，多有灵草灵兽",
             "environment": "mountain",
             "requiredRealm": "炼气3层",
+            "x": 30,
+            "y": 20,
             "npcs": [],
             "resources": [
                 { "id": "firewood", "name": "干柴", "type": "gathering", "difficulty": 1, "yield": [2, 5] },
                 { "id": "wild_herb", "name": "普通灵草", "type": "gathering", "difficulty": 3, "yield": [1, 3] },
-                { "id": "blood_grass", "name": "血灵草", "type": "gathering", "difficulty": 5, "yield": [1, 1] }
+                { "id": "blood_grass", "name": "血灵草", "type": "gathering", "difficulty": 5, "yield": [1, 1] },
+                { "id": "condensing_flower", "name": "凝气花", "type": "gathering", "difficulty": 4, "yield": [1, 2] }
             ],
             "monsters": [
-                { "id": "rabbit", "name": "野兔", "realm": "凡人", "exp": 10, "drop": ["meat"] },
-                { "id": "snake", "name": "毒蛇", "realm": "炼气1层", "exp": 25, "drop": ["snake_gall"] }
+                { "id": "rabbit", "name": "野兔", "realm": "凡人", "exp": 10 },
+                { "id": "snake", "name": "毒蛇", "realm": "炼气1层", "exp": 25 },
+                { "id": "wolf", "name": "野狼", "realm": "炼气2层", "exp": 40 },
+                { "id": "bear", "name": "黑熊", "realm": "炼气4层", "exp": 80 },
+                { "id": "cultivator", "name": "散修", "realm": "炼气3层", "exp": 50 }
             ],
             "dangerLevel": 3,
-            "travelTime": 10
+            "travelTime": 10,
+            "connections": [2, 4]
         },
         {
             "id": 4,
@@ -59,6 +84,8 @@
             "description": "无边海域，盛产各种海中材料",
             "environment": "ocean",
             "requiredRealm": "筑基期",
+            "x": 150,
+            "y": 80,
             "npcs": [
                 { "id": "merchant", "name": "海商", "role": "trader", "location": "港口" }
             ],
@@ -68,12 +95,14 @@
                 { "id": "coral", "name": "珊瑚", "type": "gathering", "difficulty": 10, "yield": [1, 1] }
             ],
             "monsters": [
-                { "id": "fish", "name": "海鱼", "realm": "炼气3层", "exp": 30, "drop": ["fish_meat"] },
-                { "id": "crab", "name": "螃蟹精", "realm": "炼气6层", "exp": 60, "drop": ["crab_shell"] },
-                { "id": "shark", "name": "鲨鱼精", "realm": "筑基初期", "exp": 200, "drop": ["shark_fin"] }
+                { "id": "fish", "name": "海鱼", "realm": "炼气3层", "exp": 30 },
+                { "id": "crab", "name": "螃蟹精", "realm": "炼气6层", "exp": 60 },
+                { "id": "shark", "name": "鲨鱼精", "realm": "筑基初期", "exp": 200 },
+                { "id": "bandit", "name": "山贼", "realm": "炼气5层", "exp": 70 }
             ],
             "dangerLevel": 6,
-            "travelTime": 30
+            "travelTime": 30,
+            "connections": [3, 5]
         },
         {
             "id": 5,
@@ -82,53 +111,93 @@
             "description": "大衍神君的传承之地",
             "environment": "cave",
             "requiredRealm": "金丹期",
+            "x": 300,
+            "y": 150,
             "npcs": [],
-            "resources": [],
+            "resources": [
+                { "id": "golden_ore", "name": "金精石", "type": "gathering", "difficulty": 12, "yield": [1, 2] }
+            ],
             "monsters": [
-                { "id": "d傀儡", "name": "大衍傀儡", "realm": "金丹期", "exp": 500, "drop": ["mechanical_part"] }
+                { "id": "d傀儡", "name": "大衍傀儡", "realm": "金丹期", "exp": 500 },
+                { "id": "demon", "name": "妖魔", "realm": "金丹后期", "exp": 300 },
+                { "id": "tiger", "name": "猛虎", "realm": "筑基后期", "exp": 150 }
             ],
             "dangerLevel": 8,
             "travelTime": 60,
-            "special": "dachievement"
+            "special": "dachievement",
+            "connections": [4, 6]
         },
         {
             "id": 6,
             "name": "人界",
             "type": "world",
-            "description": "下界界面",
+            "description": "下界界面，包含所有下界地图",
             "environment": "mixed",
             "requiredRealm": "元婴期",
+            "x": 500,
+            "y": 300,
             "npcs": [],
-            "resources": [],
-            "monsters": [],
+            "resources": [
+                { "id": "spirit_root", "name": "血灵根", "type": "gathering", "difficulty": 15, "yield": [1, 2] },
+                { "id": "golden_ore", "name": "金精石", "type": "gathering", "difficulty": 12, "yield": [1, 2] }
+            ],
+            "monsters": [
+                { "id": "demon", "name": "妖魔", "realm": "元婴初期", "exp": 400 },
+                { "id": "cultivator", "name": "散修", "realm": "元婴期", "exp": 300 },
+                { "id": "bandit", "name": "山贼头目", "realm": "元婴中期", "exp": 500 }
+            ],
             "dangerLevel": 10,
-            "travelTime": 120
+            "travelTime": 120,
+            "special": "realm_world",
+            "connections": [5, 7]
         },
         {
             "id": 7,
             "name": "灵界",
             "type": "world",
-            "description": "上位界面",
+            "description": "上位界面，飞升后所在",
             "environment": "mixed",
             "requiredRealm": "化神期",
+            "x": 1000,
+            "y": 600,
             "npcs": [],
-            "resources": [],
-            "monsters": [],
+            "resources": [
+                { "id": "infant_fruit", "name": "婴灵果", "type": "gathering", "difficulty": 20, "yield": [1, 1] },
+                { "id": "jade_core", "name": "寒髓玉", "type": "gathering", "difficulty": 18, "yield": [1, 1] }
+            ],
+            "monsters": [
+                { "id": "demon", "name": "大妖魔", "realm": "化神期", "exp": 800 },
+                { "id": "tiger", "name": "远古凶兽", "realm": "化神后期", "exp": 1000 },
+                { "id": "demon_king", "name": "妖魔统领", "realm": "化神圆满", "exp": 5000 }
+            ],
             "dangerLevel": 15,
-            "travelTime": 240
+            "travelTime": 240,
+            "special": "realm_world",
+            "connections": [6, 8]
         },
         {
             "id": 8,
             "name": "仙界",
             "type": "world",
-            "description": "最高位面",
+            "description": "最高位面，仙人所在",
             "environment": "celestial",
             "requiredRealm": "炼虚期",
+            "x": 2000,
+            "y": 1200,
             "npcs": [],
-            "resources": [],
-            "monsters": [],
+            "resources": [
+                { "id": "infant_fruit", "name": "仙灵果", "type": "gathering", "difficulty": 25, "yield": [1, 2] },
+                { "id": "jade_core", "name": "仙髓玉", "type": "gathering", "difficulty": 22, "yield": [1, 2] }
+            ],
+            "monsters": [
+                { "id": "demon_king", "name": "魔帝", "realm": "炼虚期", "exp": 2000 },
+                { "id": "demon", "name": "天魔", "realm": "炼虚后期", "exp": 1500 },
+                { "id": "demon_king", "name": "混沌魔祖", "realm": "大乘期", "exp": 10000 }
+            ],
             "dangerLevel": 20,
-            "travelTime": 480
+            "travelTime": 480,
+            "special": "realm_world",
+            "connections": [7]
         }
     ]
 }

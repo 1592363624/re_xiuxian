@@ -1,0 +1,142 @@
+{
+    "drops": [
+        {
+            "monster_id": "rabbit",
+            "monster_name": "野兔",
+            "drops": [
+                { "item_id": "meat", "quantity": [1, 2], "chance": 0.8 },
+                { "item_id": "low_spirit_stone", "quantity": [1, 3], "chance": 0.3 }
+            ],
+            "exp_reward": 10
+        },
+        {
+            "monster_id": "snake",
+            "monster_name": "毒蛇",
+            "drops": [
+                { "item_id": "snake_gall", "quantity": 1, "chance": 0.5 },
+                { "item_id": "meat", "quantity": [1, 3], "chance": 0.7 },
+                { "item_id": "low_spirit_stone", "quantity": [1, 5], "chance": 0.4 }
+            ],
+            "exp_reward": 25
+        },
+        {
+            "monster_id": "fish",
+            "monster_name": "海鱼",
+            "drops": [
+                { "item_id": "fish_meat", "quantity": [1, 3], "chance": 0.8 },
+                { "item_id": "low_spirit_stone", "quantity": [2, 5], "chance": 0.4 }
+            ],
+            "exp_reward": 30
+        },
+        {
+            "monster_id": "crab",
+            "monster_name": "螃蟹精",
+            "drops": [
+                { "item_id": "crab_shell", "quantity": 1, "chance": 0.6 },
+                { "item_id": "fish_meat", "quantity": [2, 4], "chance": 0.7 },
+                { "item_id": "mid_spirit_stone", "quantity": [1, 2], "chance": 0.3 }
+            ],
+            "exp_reward": 60
+        },
+        {
+            "monster_id": "shark",
+            "monster_name": "鲨鱼精",
+            "drops": [
+                { "item_id": "shark_fin", "quantity": 1, "chance": 0.4 },
+                { "item_id": "fish_meat", "quantity": [3, 5], "chance": 0.8 },
+                { "item_id": "mid_spirit_stone", "quantity": [2, 4], "chance": 0.5 },
+                { "item_id": "high_spirit_stone", "quantity": 1, "chance": 0.1 }
+            ],
+            "exp_reward": 200
+        },
+        {
+            "monster_id": "d傀儡",
+            "monster_name": "大衍傀儡",
+            "drops": [
+                { "item_id": "mechanical_part", "quantity": [1, 2], "chance": 0.7 },
+                { "item_id": "high_spirit_stone", "quantity": [2, 5], "chance": 0.6 },
+                { "item_id": "golden_ore", "quantity": [1, 3], "chance": 0.5 }
+            ],
+            "exp_reward": 500
+        },
+        {
+            "monster_id": "wolf",
+            "monster_name": "野狼",
+            "drops": [
+                { "item_id": "wolf_fur", "quantity": 1, "chance": 0.6 },
+                { "item_id": "meat", "quantity": [2, 4], "chance": 0.8 },
+                { "item_id": "low_spirit_stone", "quantity": [2, 5], "chance": 0.4 }
+            ],
+            "exp_reward": 40
+        },
+        {
+            "monster_id": "bear",
+            "monster_name": "黑熊",
+            "drops": [
+                { "item_id": "bear_paw", "quantity": 1, "chance": 0.4 },
+                { "item_id": "bear_fur", "quantity": 1, "chance": 0.7 },
+                { "item_id": "meat", "quantity": [3, 5], "chance": 0.8 },
+                { "item_id": "mid_spirit_stone", "quantity": [1, 3], "chance": 0.3 }
+            ],
+            "exp_reward": 80
+        },
+        {
+            "monster_id": "tiger",
+            "monster_name": "猛虎",
+            "drops": [
+                { "item_id": "tiger_bone", "quantity": 1, "chance": 0.3 },
+                { "item_id": "tiger_fur", "quantity": 1, "chance": 0.6 },
+                { "item_id": "mid_spirit_stone", "quantity": [2, 4], "chance": 0.5 },
+                { "item_id": "high_spirit_stone", "quantity": 1, "chance": 0.15 }
+            ],
+            "exp_reward": 150
+        },
+        {
+            "monster_id": "demon",
+            "monster_name": "妖魔",
+            "drops": [
+                { "item_id": "demon_core", "quantity": 1, "chance": 0.35 },
+                { "item_id": "demon_blood", "quantity": 1, "chance": 0.5 },
+                { "item_id": "high_spirit_stone", "quantity": [1, 3], "chance": 0.4 },
+                { "item_id": "golden_ore", "quantity": [1, 2], "chance": 0.3 }
+            ],
+            "exp_reward": 300
+        },
+        {
+            "monster_id": "cultivator",
+            "monster_name": "散修",
+            "drops": [
+                { "item_id": "low_healing_pill", "quantity": [1, 2], "chance": 0.4 },
+                { "item_id": "low_mana_pill", "quantity": [1, 2], "chance": 0.4 },
+                { "item_id": "mid_spirit_stone", "quantity": [3, 6], "chance": 0.5 },
+                { "item_id": "condensing_flower", "quantity": [1, 2], "chance": 0.2 }
+            ],
+            "exp_reward": 50
+        },
+        {
+            "monster_id": "bandit",
+            "monster_name": "山贼",
+            "drops": [
+                { "item_id": "mid_healing_pill", "quantity": 1, "chance": 0.3 },
+                { "item_id": "mid_spirit_stone", "quantity": [5, 10], "chance": 0.6 },
+                { "item_id": "blood_grass", "quantity": [1, 2], "chance": 0.25 }
+            ],
+            "exp_reward": 70
+        }
+    ],
+    "boss_drops": [
+        {
+            "monster_id": "demon_king",
+            "monster_name": "妖魔统领",
+            "drops": [
+                { "item_id": "demon_king_core", "quantity": 1, "chance": 1.0 },
+                { "item_id": "high_spirit_stone", "quantity": [10, 20], "chance": 1.0 },
+                { "item_id": "high_healing_pill", "quantity": [5, 10], "chance": 0.8 },
+                { "item_id": "golden_ore", "quantity": [5, 10], "chance": 0.7 },
+                { "item_id": "high_longevity_pill", "quantity": [1, 2], "chance": 0.3 }
+            ],
+            "exp_reward": 5000,
+            "respawn_time": 86400
+        }
+    ]
+}

@@ -51,6 +51,7 @@ async function waitForBackend() {
 
 /**
  * 启动子进程
+ * 注意：此函数仅用于内部调用，command 和 args 必须为硬编码常量，禁止使用用户可控输入
  */
 function spawnProcess(command, args, name) {
   return new Promise((resolve, reject) => {

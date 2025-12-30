@@ -18,6 +18,15 @@ require('./models/player');
 require('./models/chat');
 require('./models/system_config');
 require('./models/system_notification');
+require('./models/playerMapPosition');
+require('./models/playerGathering');
+require('./models/playerCombat');
+require('./models/playerMovement');
+require('./models/activeBattle');
+require('./models/item');
+require('./models/realm');
+require('./models/admin_log');
+require('./models/map');
 
 const http = require('http');
 const socketIo = require('socket.io');
@@ -41,6 +50,9 @@ const onlineUsers = new Map();
 // 定时任务：每10分钟 (600秒) 更新一次寿命
 const UPDATE_INTERVAL_MS = 10 * 60 * 1000;
 const UPDATE_INTERVAL_SEC = 10 * 60;
+
+// 定时任务：每5秒检查一次移动是否完成
+const MOVE_CHECK_INTERVAL_MS = 5000;
 
 // 中间件
 app.use(cors());
@@ -123,6 +135,53 @@ const startServer = async () => {
     }, UPDATE_INTERVAL_MS);
     console.log('寿命更新定时任务已启动');
 
+    // 移动完成检查定时任务
+    setInterval(async () => {
+        try {
+            const Player = require('./models/player');
+            const MapConfigLoader = require('./services/MapConfigLoader');
+            
+            const movingPlayers = await Player.findAll({
+                where: {
+                    is_moving: true
+                }
+            });
+            
+            const now = new Date();
+            
+            for (const player of movingPlayers) {
+                if (player.move_end_time && new Date(player.move_end_time) <= now) {
+                    console.log(`玩家 ${player.id} 移动完成，自动到达目的地`);
+                    
+                    const targetMapId = player.moving_to_map_id;
+                    const targetMap = MapConfigLoader.getMap(targetMapId);
+                    
+                    player.current_map_id = targetMapId;
+                    player.last_map_move_time = now;
+                    player.is_moving = false;
+                    player.moving_from_map_id = null;
+                    player.moving_to_map_id = null;
+                    player.move_start_time = null;
+                    player.move_end_time = null;
+                    await player.save();
+                    
+                    // 通过 WebSocket 通知前端
+                    const playerSocketId = onlineUsers.get(player.id.toString());
+                    if (playerSocketId?.socketId) {
+                        io.to(playerSocketId.socketId).emit('move:completed', {
+                            player_id: player.id,
+                            map_id: targetMapId,
+                            map_name: targetMap?.name || '未知'
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('移动检查失败:', error.message);
+        }
+    }, MOVE_CHECK_INTERVAL_MS);
+    console.log('移动完成检查定时任务已启动 (每5秒检查一次)');
+
     // 路由
     app.use('/api/auth', require('./routes/auth'));
     app.use('/api/player', require('./routes/player'));
@@ -132,6 +191,8 @@ const startServer = async () => {
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));
     app.use('/api/map', require('./routes/map'));
+    app.use('/api/gather', require('./routes/gather'));
+    app.use('/api/combat', require('./routes/combat'));
     app.use('/api/config', require('./routes/config'));
     app.use('/api/attribute', require('./routes/attribute'));
     app.use('/api/time', require('./routes/time'));
