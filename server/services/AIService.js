@@ -90,13 +90,6 @@ class AIService {
             }
         }
 
-        console.log('[AI Service] 当前配置:', JSON.stringify({
-            provider: aiConfig.provider,
-            model: aiConfig.model,
-            baseUrl: aiConfig.baseUrl,
-            hasApiKey: !!aiConfig.apiKey
-        }, null, 2));
-
         const service = new AIService(aiConfig);
         
         if (!aiConfig.apiKey) {

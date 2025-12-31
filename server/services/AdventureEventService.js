@@ -408,12 +408,29 @@ class AdventureEventService {
         try {
             const player = await Player.findByPk(playerId);
             if (!player) {
-                return { success: false, error: '玩家不存在' };
+                return { success: false, code: 'PLAYER_NOT_FOUND', message: '玩家不存在' };
             }
 
             const eventData = await this.getLastAdventureEvent(playerId);
             if (!eventData) {
-                return { success: false, error: '没有进行中的历练' };
+                return { success: false, code: 'NO_ADVENTURE', message: '没有进行中的历练' };
+            }
+
+            if (eventData.status !== 'in_progress') {
+                return { success: false, code: 'INVALID_STATUS', message: '当前历练状态不允许完成' };
+            }
+
+            const now = new Date();
+            const endTime = new Date(eventData.end_time);
+            if (now < endTime) {
+                const remainingSeconds = Math.ceil((endTime - now) / 1000);
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                return { 
+                    success: false, 
+                    code: 'ADVENTURE_NOT_COMPLETED', 
+                    message: `历练尚未结束，请等待 ${minutes}分${seconds}秒` 
+                };
             }
 
             const eventObj = typeof eventData.event_data === 'string' 
@@ -440,7 +457,7 @@ class AdventureEventService {
             };
         } catch (error) {
             console.error('[AdventureEventService] 完成历练失败:', error);
-            return { success: false, error: error.message };
+            return { success: false, code: 'COMPLETE_FAILED', message: '完成历练失败，请稍后重试' };
         }
     }
 

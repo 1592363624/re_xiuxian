@@ -25,14 +25,20 @@ const combatStats = ref(null)
 
 const fetchData = async () => {
   loading.value = true
-  try {
-    if (props.initialBattleId) {
-      const battleRes = await axios.get(`/api/combat/status?battle_id=${props.initialBattleId}`)
+  let battleRes = null
+  
+  if (props.initialBattleId) {
+    try {
+      battleRes = await axios.get(`/api/combat/status?battle_id=${props.initialBattleId}`)
       if (battleRes.data.in_battle) {
         currentBattle.value = battleRes.data
       }
+    } catch (e) {
+      console.error('获取战斗数据失败:', e)
     }
-    
+  }
+  
+  try {
     const [mapRes, monstersRes, statsRes] = await Promise.all([
       axios.get('/api/map/info'),
       axios.get('/api/combat/monsters'),
@@ -42,7 +48,7 @@ const fetchData = async () => {
     currentMap.value = mapRes.data.current_map
     monsters.value = monstersRes.data.monsters || []
     combatStats.value = statsRes.data
-    battleLog.value = battleRes?.data?.recent_battles || []
+    battleLog.value = battleRes?.data?.battle_log || []
   } catch (error) {
     console.error('Failed to fetch combat data:', error)
     if (error.response?.status === 404) {

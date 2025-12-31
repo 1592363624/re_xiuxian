@@ -230,8 +230,14 @@ const completeExplore = async () => {
     
     emit('close')
   } catch (error: any) {
-    const msg = error.response?.data?.error || '完成历练失败'
-    uiStore.showToast(msg, 'error')
+    const code = error.response?.data?.code
+    const msg = error.response?.data?.message || '完成历练失败'
+    
+    if (code === 'ADVENTURE_NOT_COMPLETED') {
+      uiStore.showToast(msg, 'warning')
+    } else {
+      uiStore.showToast(msg, 'error')
+    }
   }
 }
 
