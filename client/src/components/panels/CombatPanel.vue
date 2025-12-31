@@ -28,7 +28,9 @@ const fetchData = async () => {
   try {
     if (props.initialBattleId) {
       const battleRes = await axios.get(`/api/combat/status?battle_id=${props.initialBattleId}`)
-      currentBattle.value = battleRes.data.battle
+      if (battleRes.data.in_battle) {
+        currentBattle.value = battleRes.data
+      }
     }
     
     const [mapRes, monstersRes, statsRes] = await Promise.all([
@@ -87,7 +89,7 @@ const handleAttack = async () => {
     if (result.victory) {
       uiStore.showToast(`战斗胜利！获得 ${result.exp_gained} 修为`, 'success')
       uiStore.addLog({
-        content: `你击败了 ${currentBattle.value.monster_name}，获得 ${result.exp_gained} 修为。`,
+        content: `你击败了 ${currentBattle.value.monster.name}，获得 ${result.exp_gained} 修为。`,
         type: 'combat',
         actorId: 'self'
       })
@@ -97,11 +99,11 @@ const handleAttack = async () => {
       currentBattle.value = null
     } else {
       uiStore.addLog({
-        content: `你对 ${currentBattle.value.monster_name} 造成了 ${result.damage} 点伤害。`,
+        content: `你对 ${currentBattle.value.monster.name} 造成了 ${result.damage} 点伤害。`,
         type: 'combat',
         actorId: 'self'
       })
-      currentBattle.value = res.data.battle
+      currentBattle.value = res.data
     }
     
     if (result.rewards && result.rewards.length > 0) {
@@ -132,7 +134,7 @@ const handleUseSkill = async (skillIndex) => {
     if (result.victory) {
       uiStore.showToast(`战斗胜利！获得 ${result.exp_gained} 修为`, 'success')
       uiStore.addLog({
-        content: `你使用技能击败了 ${currentBattle.value.monster_name}，获得 ${result.exp_gained} 修为。`,
+        content: `你使用技能击败了 ${currentBattle.value.monster.name}，获得 ${result.exp_gained} 修为。`,
         type: 'combat',
         actorId: 'self'
       })
@@ -148,11 +150,11 @@ const handleUseSkill = async (skillIndex) => {
       currentBattle.value = null
     } else {
       uiStore.addLog({
-        content: `你对 ${currentBattle.value.monster_name} 使用了技能，造成 ${result.damage} 点伤害。`,
+        content: `你对 ${currentBattle.value.monster.name} 使用了技能，造成 ${result.damage} 点伤害。`,
         type: 'combat',
         actorId: 'self'
       })
-      currentBattle.value = res.data.battle
+      currentBattle.value = res.data
     }
     
     if (result.rewards && result.rewards.length > 0) {
@@ -181,10 +183,10 @@ const handleEscape = async () => {
     
     uiStore.showToast('成功逃跑', 'info')
     uiStore.addLog({
-      content: `你从 ${currentBattle.value.monster_name} 手中逃脱了。`,
-      type: 'combat',
-      actorId: 'self'
-    })
+        content: `你从 ${currentBattle.value.monster.name} 手中逃脱了。`,
+        type: 'combat',
+        actorId: 'self'
+      })
     currentBattle.value = null
     await refreshStats()
   } catch (error) {
@@ -225,17 +227,17 @@ const getMonsterDifficulty = (monster) => {
 
 const getMonsterHpPercent = (battle) => {
   if (!battle) return 0
-  return Math.max(0, Math.min(100, (battle.monster_hp / battle.monster_max_hp) * 100))
+  return Math.max(0, Math.min(100, (battle.monster.hp / battle.monster.max_hp) * 100))
 }
 
 const getPlayerHpPercent = (battle) => {
   if (!battle) return 0
-  return Math.max(0, Math.min(100, (battle.player_hp / battle.player_max_hp) * 100))
+  return Math.max(0, Math.min(100, (battle.player.hp / battle.player.max_hp) * 100))
 }
 
 const getPlayerMpPercent = (battle) => {
   if (!battle) return 0
-  return Math.max(0, Math.min(100, (battle.player_mp / battle.player_max_mp) * 100))
+  return Math.max(0, Math.min(100, (battle.player.mp / battle.player.max_mp) * 100))
 }
 
 const formatNumber = (num) => {
@@ -287,15 +289,15 @@ onMounted(() => {
             <div v-else class="space-y-6">
               <div class="bg-[#1c1917] rounded-lg p-4 border border-stone-800">
                 <div class="flex justify-between items-center mb-3">
-                  <h4 class="text-lg font-bold text-red-400">{{ currentBattle.monster_name }}</h4>
+                  <h4 class="text-lg font-bold text-red-400">{{ currentBattle.monster.name }}</h4>
                   <span class="text-xs px-2 py-0.5 rounded bg-red-900/30 border border-red-700/50 text-red-400">
-                    {{ currentBattle.monster_realm }}
+                    {{ currentBattle.monster.realm }}
                   </span>
                 </div>
                 
                 <div class="mb-2 flex justify-between text-xs text-stone-500">
                   <span>怪物气血</span>
-                  <span>{{ formatNumber(currentBattle.monster_hp) }} / {{ formatNumber(currentBattle.monster_max_hp) }}</span>
+                  <span>{{ formatNumber(currentBattle.monster.hp) }} / {{ formatNumber(currentBattle.monster.max_hp) }}</span>
                 </div>
                 <div class="h-3 bg-stone-900 rounded-full overflow-hidden mb-4">
                   <div 
@@ -307,15 +309,15 @@ onMounted(() => {
                 <div class="grid grid-cols-3 gap-4 text-center">
                   <div class="bg-stone-900/50 rounded p-2">
                     <div class="text-xs text-stone-500">攻击力</div>
-                    <div class="text-sm font-bold text-red-400">{{ currentBattle.monster_atk }}</div>
+                    <div class="text-sm font-bold text-red-400">{{ currentBattle.monster.atk }}</div>
                   </div>
                   <div class="bg-stone-900/50 rounded p-2">
                     <div class="text-xs text-stone-500">防御力</div>
-                    <div class="text-sm font-bold text-amber-400">{{ currentBattle.monster_def }}</div>
+                    <div class="text-sm font-bold text-amber-400">{{ currentBattle.monster.def }}</div>
                   </div>
                   <div class="bg-stone-900/50 rounded p-2">
                     <div class="text-xs text-stone-500">经验奖励</div>
-                    <div class="text-sm font-bold text-emerald-400">{{ formatNumber(currentBattle.exp_reward) }}</div>
+                    <div class="text-sm font-bold text-emerald-400">{{ formatNumber(currentBattle.monster.exp_reward) }}</div>
                   </div>
                 </div>
               </div>
@@ -327,7 +329,7 @@ onMounted(() => {
                 
                 <div class="mb-2 flex justify-between text-xs text-stone-500">
                   <span>气血</span>
-                  <span>{{ formatNumber(currentBattle.player_hp) }} / {{ formatNumber(currentBattle.player_max_hp) }}</span>
+                  <span>{{ formatNumber(currentBattle.player.hp) }} / {{ formatNumber(currentBattle.player.max_hp) }}</span>
                 </div>
                 <div class="h-2 bg-stone-900 rounded-full overflow-hidden mb-2">
                   <div 
@@ -338,7 +340,7 @@ onMounted(() => {
 
                 <div class="mb-2 flex justify-between text-xs text-stone-500">
                   <span>灵力</span>
-                  <span>{{ formatNumber(currentBattle.player_mp) }} / {{ formatNumber(currentBattle.player_max_mp) }}</span>
+                  <span>{{ formatNumber(currentBattle.player.mp) }} / {{ formatNumber(currentBattle.player.max_mp) }}</span>
                 </div>
                 <div class="h-2 bg-stone-900 rounded-full overflow-hidden">
                   <div 
@@ -359,7 +361,7 @@ onMounted(() => {
                 </button>
                 <button 
                   @click="handleUseSkill(0)"
-                  :disabled="combatLoading || currentBattle.player_mp < 20"
+                  :disabled="combatLoading || currentBattle.player.mp < 20"
                   class="flex-1 py-3 rounded bg-purple-900/30 border border-purple-700/50 text-purple-400 hover:bg-purple-800/50 hover:text-purple-300 transition-colors disabled:opacity-50"
                 >
                   <span>技能 (20灵力)</span>
