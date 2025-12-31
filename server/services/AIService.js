@@ -94,8 +94,7 @@ class AIService {
             provider: aiConfig.provider,
             model: aiConfig.model,
             baseUrl: aiConfig.baseUrl,
-            hasApiKey: !!aiConfig.apiKey,
-            apiKeyPrefix: aiConfig.apiKey ? aiConfig.apiKey.substring(0, 8) + '...' : 'none'
+            hasApiKey: !!aiConfig.apiKey
         }, null, 2));
 
         const service = new AIService(aiConfig);
