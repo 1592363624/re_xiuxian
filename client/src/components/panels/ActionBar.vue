@@ -129,8 +129,15 @@ const isBreakthroughReady = computed(() => {
 // 修炼按钮图标
 const cultivateIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`
 
-// 其他操作按钮列表（移除打坐）
+// 其他操作按钮列表
 const refinedActions = [
+  { 
+    id: 'explore', 
+    name: '历练', 
+    // Emerald for adventure/explore
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><path d="M12 2 2.5 9.5l1 10.5L12 22l8.5-2L22 10l-10-7.5z"/><path d="M12 12 12 22"/><path d="M12 12 22 12"/></svg>`,
+    desc: '历练探索 随机事件' 
+  },
   { 
     id: 'inventory', 
     name: '背包', 

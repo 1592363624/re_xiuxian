@@ -1,0 +1,114 @@
+{
+    "provider": "openai",
+    "apiKey": "",
+    "baseUrl": "https://api.openai.com/v1",
+    "model": "gpt-3.5-turbo",
+    "temperature": 0.7,
+    "maxTokens": 1000,
+    "timeout": 30000,
+    "enableCache": true,
+    "cacheDuration": 3600000,
+    "fallbackToTemplate": true,
+    "eventGeneration": {
+        "enabled": true,
+        "useAIForEvents": true,
+        "useAIForMonsters": true,
+        "useAIDialogue": true,
+        "eventTypes": {
+            "peaceful": {
+                "weight": 40,
+                "aiEnabled": true
+            },
+            "combat": {
+                "weight": 35,
+                "aiEnabled": true
+            },
+            "treasure": {
+                "weight": 10,
+                "aiEnabled": true
+            },
+            "encounter": {
+                "weight": 10,
+                "aiEnabled": true
+            },
+            "discovery": {
+                "weight": 5,
+                "aiEnabled": true
+            }
+        },
+        "eventDuration": {
+            "peaceful": {
+                "minSeconds": 30,
+                "maxSeconds": 120
+            },
+            "combat": {
+                "minSeconds": 60,
+                "maxSeconds": 300
+            },
+            "treasure": {
+                "minSeconds": 45,
+                "maxSeconds": 180
+            },
+            "encounter": {
+                "minSeconds": 40,
+                "maxSeconds": 150
+            },
+            "discovery": {
+                "minSeconds": 35,
+                "maxSeconds": 120
+            }
+        },
+        "combatEncounterChance": 0.6,
+        "monsterScalingFactor": 1.0
+    },
+    "providers": {
+        "openai": {
+            "name": "OpenAI GPT",
+            "models": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"],
+            "endpoint": "https://api.openai.com/v1/chat/completions",
+            "authHeader": "Bearer"
+        },
+        "anthropic": {
+            "name": "Claude",
+            "models": ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
+            "endpoint": "https://api.anthropic.com/v1/messages",
+            "authHeader": "x-api-key"
+        },
+        "qwen": {
+            "name": "通义千问",
+            "models": ["qwen-turbo", "qwen-plus", "qwen-max"],
+            "endpoint": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+            "authHeader": "Bearer"
+        },
+        "zhipu": {
+            "name": "智谱清言",
+            "models": ["glm-4", "glm-4v", "glm-3-turbo"],
+            "endpoint": "https://open.bigmodel.cn/api/paas/v3/chat/completions",
+            "authHeader": "Bearer"
+        },
+        "azure": {
+            "name": "Azure OpenAI",
+            "models": ["gpt-35-turbo", "gpt-4"],
+            "endpoint": "https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions",
+            "authHeader": "api-key"
+        },
+        "xiaomi": {
+            "name": "小米 MiMo",
+            "models": ["mimo-v2-flash", "mimo-v2-pro"],
+            "endpoint": "https://api.xiaomimimo.com/v1",
+            "authHeader": "api-key",
+            "compatibleWith": "openai",
+            "description": "小米 MiMo 开放平台，兼容 OpenAI API 格式，API Key 在 https://platform.xiaomimimo.com/ 获取"
+        }
+    },
+    "rateLimit": {
+        "maxRequestsPerMinute": 60,
+        "maxTokensPerMinute": 100000
+    },
+    "logging": {
+        "enabled": true,
+        "logRequests": true,
+        "logResponses": false,
+        "logErrors": true
+    }
+}

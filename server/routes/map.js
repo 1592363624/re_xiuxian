@@ -3,6 +3,7 @@
  * 
  * 静态配置从 map_data.json 读取，动态数据从数据库读取
  * 支持即时移动和延时移动两种模式
+ * 包含历练探索系统，支持 AI 大模型生成事件
  */
 const express = require('express');
 const router = express.Router();
@@ -11,11 +12,13 @@ const Player = require('../models/player');
 const PlayerMapPosition = require('../models/playerMapPosition');
 const PlayerMovement = require('../models/playerMovement');
 const MapConfigLoader = require('../services/MapConfigLoader');
+const AdventureEventService = require('../services/AdventureEventService');
 const Realm = require('../models/realm');
 const auth = require('../middleware/auth');
 const { Op } = require('sequelize');
 
 const mapConfig = MapConfigLoader;
+let adventureService = null;
 
 /**
  * 获取境界等级
@@ -451,4 +454,185 @@ router.get('/validate', auth, async (req, res) => {
     }
 });
 
-module.exports = router;
+/**
+ * 开始历练探索
+ * 
+ * 在当前地图开始历练，生成随机事件
+ */
+router.post('/explore/start', auth, async (req, res) => {
+    try {
+        const { duration } = req.body;
+        
+        if (!adventureService) {
+            return res.status(503).json({ 
+                error: '历练服务暂不可用',
+                message: '请稍后再试或联系管理员'
+            });
+        }
+
+        const result = await adventureService.startAdventure(req.user.id, { duration });
+        
+        if (result.success) {
+            res.json({
+                code: 200,
+                message: '历练已开始',
+                data: {
+                    adventure_id: result.adventure?.id,
+                    event: result.event
+                }
+            });
+        } else {
+            res.status(400).json({
+                code: 400,
+                error: result.error
+            });
+        }
+    } catch (error) {
+        console.error('Start Explore Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * 获取当前历练事件
+ * 
+ * 获取正在进行的历练事件详情
+ */
+router.get('/explore/event', auth, async (req, res) => {
+    try {
+        if (!adventureService) {
+            return res.status(503).json({ error: '历练服务暂不可用' });
+        }
+
+        const player = await Player.findByPk(req.user.id);
+        if (!player) return res.status(404).json({ error: '玩家不存在' });
+
+        const currentMap = mapConfig.getMap(player.current_map_id);
+        
+        res.json({
+            code: 200,
+            data: {
+                map: currentMap ? {
+                    id: currentMap.id,
+                    name: currentMap.name,
+                    environment: currentMap.environment
+                } : null,
+                time_of_day: adventureService.getTimeOfDay(),
+                weather: adventureService.getWeather()
+            }
+        });
+    } catch (error) {
+        console.error('Get Explore Event Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * 完成历练
+ * 
+ * 结束当前历练并领取奖励
+ */
+router.post('/explore/complete', auth, async (req, res) => {
+    try {
+        if (!adventureService) {
+            return res.status(503).json({ error: '历练服务暂不可用' });
+        }
+
+        const result = await adventureService.completeAdventure(req.user.id);
+        
+        if (result.success) {
+            res.json({
+                code: 200,
+                message: result.message,
+                data: {
+                    rewards: result.rewards
+                }
+            });
+        } else {
+            res.status(400).json({
+                code: 400,
+                error: result.error
+            });
+        }
+    } catch (error) {
+        console.error('Complete Explore Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * 生成战斗遭遇
+ * 
+ * 在历练过程中触发战斗事件
+ */
+router.post('/explore/combat', auth, async (req, res) => {
+    try {
+        if (!adventureService) {
+            return res.status(503).json({ error: '历练服务暂不可用' });
+        }
+
+        const result = await adventureService.generateCombatEncounter(req.user.id);
+        
+        if (result.success) {
+            res.json({
+                code: 200,
+                message: '遭遇怪物',
+                data: result
+            });
+        } else {
+            res.status(400).json({
+                code: 400,
+                error: result.error
+            });
+        }
+    } catch (error) {
+        console.error('Generate Combat Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * 获取 AI 服务状态
+ * 
+ * 查看 AI 大模型服务是否可用
+ */
+router.get('/explore/ai-status', auth, async (req, res) => {
+    try {
+        if (!adventureService) {
+            return res.json({
+                code: 200,
+                data: {
+                    available: false,
+                    reason: '历练服务未初始化'
+                }
+            });
+        }
+
+        const aiStatus = adventureService.getAIStatus();
+        
+        res.json({
+            code: 200,
+            data: aiStatus
+        });
+    } catch (error) {
+        console.error('Get AI Status Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * 初始化历练服务
+ * @param {Object} configLoader - 配置加载器
+ */
+async function initializeAdventureService(configLoader) {
+    try {
+        adventureService = await AdventureEventService.initialize(configLoader);
+        console.log('[Map Routes] 历练事件服务初始化成功');
+        return true;
+    } catch (error) {
+        console.warn('[Map Routes] 历练事件服务初始化失败:', error.message);
+        return false;
+    }
+}
+
+module.exports = { router, initializeAdventureService };

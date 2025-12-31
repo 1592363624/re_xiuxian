@@ -415,10 +415,17 @@ class CombatService {
     /**
      * 获取战斗状态
      */
-    static async getBattleStatus(playerId) {
-        const battle = await ActiveBattle.findOne({
-            where: { player_id: playerId }
-        });
+    static async getBattleStatus(playerId, battleId = null) {
+        let battle;
+        if (battleId) {
+            battle = await ActiveBattle.findOne({
+                where: { battle_uuid: battleId, player_id: playerId }
+            });
+        } else {
+            battle = await ActiveBattle.findOne({
+                where: { player_id: playerId }
+            });
+        }
 
         if (!battle) {
             return { in_battle: false };

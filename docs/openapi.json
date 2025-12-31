@@ -73,14 +73,14 @@
       "description": "系统通知管理"
     },
     {
-      "name": "Gathering",
-      "description": "资源采集系统"
-    },
-    {
-      "name": "Combat",
-      "description": "战斗系统"
-    }
-  ],
+        "name": "Explore",
+        "description": "历练探索系统 - AI大模型生成事件"
+      },
+      {
+        "name": "AI",
+        "description": "AI大模型服务"
+      }
+    ],
   "security": [
     {
       "bearerAuth": []
@@ -3769,8 +3769,19 @@
     "/api/combat/status": {
       "get": {
         "summary": "获取当前战斗状态",
+        "description": "获取当前战斗状态，可通过 battle_id 参数获取指定战斗（从历练进入战斗时使用）",
         "tags": ["Combat"],
         "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "battle_id",
+            "in": "query",
+            "description": "指定战斗ID（可选，用于从历练进入战斗时获取特定战斗）",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "成功",
@@ -4249,6 +4260,476 @@
                     "details": {
                       "type": "array",
                       "description": "各资源详细熟练度"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/map/explore/start": {
+        "post": {
+          "summary": "开始历练探索",
+          "description": "在当前地图开始历练探索，生成随机事件（支持AI大模型生成）\n\n**事件类型**：\n- 平静事件(peaceful): 修炼感悟、心境平和 - 获得修为\n- 战斗事件(combat): 妖兽袭击、拦路劫修 - 进入战斗\n- 宝藏事件(treasure): 发现灵草、前人遗府 - 获得物品\n- 偶遇事件(encounter): 神秘散修、高人指点 - 获得信息\n- 发现事件(discovery): 奇景、古迹 - 获得感悟",
+          "tags": ["Explore", "AI"],
+          "security": [{ "bearerAuth": [] }],
+          "requestBody": {
+            "required": false,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "duration": {
+                      "type": "integer",
+                      "description": "历练持续时间（秒），可选，不指定则随机60-120秒",
+                      "default": 90
+                    }
+                  }
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "duration": 120
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "历练开始成功",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "integer",
+                        "example": 200
+                      },
+                      "message": {
+                        "type": "string",
+                        "example": "历练已开始"
+                      },
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "adventure_id": {
+                            "type": "string",
+                            "description": "历练ID"
+                          },
+                          "event": {
+                            "type": "object",
+                            "description": "事件详情",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": ["peaceful", "combat", "treasure", "encounter", "discovery"],
+                                "description": "事件类型"
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "事件标题"
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "事件描述（AI生成或模板）"
+                              },
+                              "duration": {
+                                "type": "integer",
+                                "description": "历练持续时间（秒）"
+                              },
+                              "aiGenerated": {
+                                "type": "boolean",
+                                "description": "是否由AI生成"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "examples": {
+                    "normal": {
+                      "value": {
+                        "code": 200,
+                        "message": "历练已开始",
+                        "data": {
+                          "adventure_id": "adv_123456",
+                          "event": {
+                            "type": "peaceful",
+                            "title": "灵气充盈",
+                            "description": "此地的灵气颇为充盈，你寻得一处僻静之地，静坐吐纳，吸纳天地灵气",
+                            "duration": 90,
+                            "aiGenerated": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "无法开始历练",
+              "content": {
+                "application/json": {
+                  "example": {
+                    "code": 400,
+                    "error": "移动中无法开始历练"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "历练服务暂不可用",
+              "content": {
+                "application/json": {
+                  "example": {
+                    "code": 503,
+                    "error": "历练服务暂不可用",
+                    "message": "请稍后再试或联系管理员"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/map/explore/event": {
+        "get": {
+          "summary": "获取当前历练事件",
+          "description": "获取当前地图历练环境信息（时段、天气等）",
+          "tags": ["Explore"],
+          "security": [{ "bearerAuth": [] }],
+          "responses": {
+            "200": {
+              "description": "成功",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "integer",
+                        "example": 200
+                      },
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "map": {
+                            "type": "object",
+                            "description": "当前地图信息",
+                            "properties": {
+                              "id": { "type": "integer" },
+                              "name": { "type": "string" },
+                              "environment": { "type": "string" }
+                            }
+                          },
+                          "time_of_day": {
+                            "type": "string",
+                            "description": "时段（清晨/正午/午后/黄昏/深夜）"
+                          },
+                          "weather": {
+                            "type": "string",
+                            "description": "天气（晴朗/多云/阴天/小雨/雾霾）"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/map/explore/complete": {
+        "post": {
+          "summary": "完成历练",
+          "description": "结束当前历练并领取奖励",
+          "tags": ["Explore"],
+          "security": [{ "bearerAuth": [] }],
+          "responses": {
+            "200": {
+              "description": "历练完成",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "integer",
+                        "example": 200
+                      },
+                      "message": {
+                        "type": "string",
+                        "example": "历练完成"
+                      },
+                      "data": {
+                        "type": "object",
+                        "description": "获得的奖励",
+                        "properties": {
+                          "rewards": {
+                            "type": "object",
+                            "properties": {
+                              "exp": {
+                                "type": "integer",
+                                "description": "获得的修为"
+                              },
+                              "items": {
+                                "type": "array",
+                                "description": "获得的物品列表",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "item_key": { "type": "string" },
+                                    "quantity": { "type": "integer" }
+                                  }
+                                }
+                              },
+                              "spirit_stones": {
+                                "type": "integer",
+                                "description": "获得的灵石"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "examples": {
+                    "normal": {
+                      "value": {
+                        "code": 200,
+                        "message": "历练完成",
+                        "data": {
+                          "rewards": {
+                            "exp": 50,
+                            "items": [],
+                            "spirit_stones": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "没有进行中的历练",
+              "content": {
+                "application/json": {
+                  "example": {
+                    "code": 400,
+                    "error": "没有进行中的历练"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/map/explore/combat": {
+        "post": {
+          "summary": "生成战斗遭遇",
+          "description": "在历练过程中触发战斗事件，生成怪物并进入战斗（支持AI生成怪物描述）",
+          "tags": ["Explore", "AI"],
+          "security": [{ "bearerAuth": [] }],
+          "responses": {
+            "200": {
+              "description": "遭遇成功",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "integer",
+                        "example": 200
+                      },
+                      "message": {
+                        "type": "string",
+                        "example": "遭遇怪物"
+                      },
+                      "data": {
+                        "type": "object",
+                        "description": "战斗信息",
+                        "properties": {
+                          "battle_id": {
+                            "type": "string",
+                            "description": "战斗ID"
+                          },
+                          "monster": {
+                            "type": "object",
+                            "description": "怪物信息",
+                            "properties": {
+                              "id": { "type": "string" },
+                              "name": { "type": "string" },
+                              "realm": { "type": "string" },
+                              "hp": { "type": "string" },
+                              "max_hp": { "type": "string" },
+                              "atk": { "type": "string" },
+                              "def": { "type": "string" },
+                              "speed": { "type": "string" },
+                              "exp_reward": { "type": "integer" }
+                            }
+                          },
+                          "player": {
+                            "type": "object",
+                            "description": "玩家状态",
+                            "properties": {
+                              "hp": { "type": "string" },
+                              "mp": { "type": "string" }
+                            }
+                          },
+                          "round": {
+                            "type": "integer",
+                            "description": "当前回合"
+                          },
+                          "turn": {
+                            "type": "string",
+                            "enum": ["player", "monster"],
+                            "description": "当前行动方"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "战斗遭遇描述（AI生成）"
+                          },
+                          "aiGenerated": {
+                            "type": "boolean",
+                            "description": "是否由AI生成"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "examples": {
+                    "normal": {
+                      "value": {
+                        "code": 200,
+                        "message": "遭遇怪物",
+                        "data": {
+                          "battle_id": "battle_abc123",
+                          "monster": {
+                            "id": "black_tiger",
+                            "name": "黑风虎",
+                            "realm": "炼气4层",
+                            "hp": "250",
+                            "max_hp": "250",
+                            "atk": "40",
+                            "def": "20",
+                            "speed": "30",
+                            "exp_reward": 80
+                          },
+                          "player": {
+                            "hp": "500",
+                            "mp": "200"
+                          },
+                          "round": 1,
+                          "turn": "player",
+                          "description": "林中忽然窜出一只凶兽，眼中闪着血红的光芒，似乎已将你锁定为目标",
+                          "aiGenerated": false
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "无法生成战斗",
+              "content": {
+                "application/json": {
+                  "examples": {
+                    "no_monsters": {
+                      "value": {
+                        "code": 400,
+                        "error": "当前地图没有怪物"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/map/explore/ai-status": {
+        "get": {
+          "summary": "获取AI服务状态",
+          "description": "查看AI大模型服务是否可用，以及当前配置信息",
+          "tags": ["AI"],
+          "security": [{ "bearerAuth": [] }],
+          "responses": {
+            "200": {
+              "description": "成功",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "integer",
+                        "example": 200
+                      },
+                      "data": {
+                        "type": "object",
+                        "description": "AI服务状态",
+                        "properties": {
+                          "available": {
+                            "type": "boolean",
+                            "description": "AI服务是否可用"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "description": "AI提供商"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "使用的模型"
+                          },
+                          "hasApiKey": {
+                            "type": "boolean",
+                            "description": "是否已配置API Key"
+                          },
+                          "cacheEnabled": {
+                            "type": "boolean",
+                            "description": "是否启用缓存"
+                          },
+                          "cacheSize": {
+                            "type": "integer",
+                            "description": "当前缓存数量"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "examples": {
+                    "available": {
+                      "value": {
+                        "code": 200,
+                        "data": {
+                          "available": true,
+                          "provider": "openai",
+                          "model": "gpt-3.5-turbo",
+                          "hasApiKey": true,
+                          "cacheEnabled": true,
+                          "cacheSize": 15
+                        }
+                      }
+                    },
+                    "unavailable": {
+                      "value": {
+                        "code": 200,
+                        "data": {
+                          "available": false,
+                          "reason": "AI 服务未初始化"
+                        }
+                      }
                     }
                   }
                 }

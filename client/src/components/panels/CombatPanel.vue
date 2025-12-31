@@ -4,6 +4,13 @@ import axios from 'axios'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 
+const props = defineProps({
+  initialBattleId: {
+    type: String,
+    default: null
+  }
+})
+
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
@@ -19,18 +26,21 @@ const combatStats = ref(null)
 const fetchData = async () => {
   loading.value = true
   try {
-    const [mapRes, monstersRes, battleRes, statsRes] = await Promise.all([
+    if (props.initialBattleId) {
+      const battleRes = await axios.get(`/api/combat/status?battle_id=${props.initialBattleId}`)
+      currentBattle.value = battleRes.data.battle
+    }
+    
+    const [mapRes, monstersRes, statsRes] = await Promise.all([
       axios.get('/api/map/info'),
       axios.get('/api/combat/monsters'),
-      axios.get('/api/combat/status'),
       axios.get('/api/combat/stats')
     ])
     
     currentMap.value = mapRes.data.current_map
     monsters.value = monstersRes.data.monsters || []
-    currentBattle.value = battleRes.data.battle
     combatStats.value = statsRes.data
-    battleLog.value = battleRes.data.recent_battles || []
+    battleLog.value = battleRes?.data?.recent_battles || []
   } catch (error) {
     console.error('Failed to fetch combat data:', error)
     if (error.response?.status === 404) {

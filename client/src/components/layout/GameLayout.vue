@@ -99,6 +99,12 @@
     <!-- 地图面板 -->
     <MapPanel v-if="isMapOpen" @close="isMapOpen = false" />
     
+    <!-- 历练面板 -->
+    <ExplorePanel v-if="isExploreOpen" @close="isExploreOpen = false" @combat="handleExploreCombat" />
+    
+    <!-- 战斗面板 -->
+    <CombatPanel v-if="isCombatOpen" :initialBattleId="currentBattleId" @close="isCombatOpen = false" />
+    
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="isLogoutConfirmOpen = false"></div>
@@ -164,6 +170,8 @@ import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
 import MapPanel from '../panels/MapPanel.vue';
 import SystemAlert from '../widgets/SystemAlert.vue';
+import ExplorePanel from '../panels/ExplorePanel.vue';
+import CombatPanel from '../panels/CombatPanel.vue';
 
 const props = defineProps<{
   player: any
@@ -180,6 +188,9 @@ const uiStore = useUIStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
 const isMapOpen = ref(false);
+const isExploreOpen = ref(false)
+const isCombatOpen = ref(false)
+const currentBattleId = ref<string | null>(null);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
 const onlineCount = ref(0);
@@ -217,8 +228,20 @@ const handleAction = async (actionId: string) => {
     return;
   }
   
+  if (actionId === 'explore') {
+    isExploreOpen.value = true;
+    return;
+  }
+  
   emit('action', actionId);
 };
+
+const handleExploreCombat = (battleId?: string) => {
+  if (battleId) {
+    currentBattleId.value = battleId
+  }
+  isCombatOpen.value = true
+}
 
 const handleMenuClick = (btnName: string) => {
   if (btnName === '设置') {
