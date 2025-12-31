@@ -65,11 +65,11 @@ function parseMigrationFilename(filename) {
  */
 async function getExecutedMigrations() {
     try {
-        const [results] = await sequelize.query(
+        const results = await sequelize.query(
             `SELECT migration_name FROM ${MIGRATIONS_TABLE}`,
             { type: QueryTypes.SELECT }
         );
-        return new Set(results.map(r => r.migration_name));
+        return new Set((results || []).map(r => r.migration_name));
     } catch (error) {
         console.error('[Migration] 获取已执行迁移失败:', error.message);
         return new Set();
@@ -97,7 +97,7 @@ async function executeMigration(filename) {
         
         const checksum = calculateChecksum(path.join(MIGRATION_DIR, filename));
         await sequelize.query(
-            `INSERT INTO ${MIGRATIONS_TABLE} (migration_name, checksum, description) VALUES (?, ?, ?)`,
+            `INSERT IGNORE INTO ${MIGRATIONS_TABLE} (migration_name, checksum, description) VALUES (?, ?, ?)`,
             {
                 replacements: [filename, checksum, migration.description || ''],
                 type: QueryTypes.INSERT

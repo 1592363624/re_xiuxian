@@ -4,13 +4,15 @@
       <div 
         v-for="toast in toasts" 
         :key="toast.id"
-        class="pointer-events-auto min-w-[300px] max-w-md p-4 rounded shadow-lg text-white transform transition-all duration-300"
+        class="pointer-events-auto min-w-[300px] max-w-md p-4 rounded shadow-lg text-white"
         :class="{
           'bg-green-600': toast.type === 'success',
           'bg-red-600': toast.type === 'error',
           'bg-blue-600': toast.type === 'info',
           'bg-yellow-600': toast.type === 'warning'
         }"
+        @mouseenter="pauseAutoRemove(toast.id)"
+        @mouseleave="resumeAutoRemove(toast.id)"
       >
         <div class="flex justify-between items-start">
           <p class="text-sm font-medium">{{ toast.message }}</p>
@@ -30,8 +32,30 @@ import { useUIStore } from '../../stores/ui'
 const uiStore = useUIStore()
 const toasts = computed(() => uiStore.toasts)
 
+let timers = new Map()
+
 const removeToast = (id) => {
+  if (timers.has(id)) {
+    clearTimeout(timers.get(id))
+    timers.delete(id)
+  }
   uiStore.removeToast(id)
+}
+
+const pauseAutoRemove = (id) => {
+  if (timers.has(id)) {
+    clearTimeout(timers.get(id))
+  }
+}
+
+const resumeAutoRemove = (id) => {
+  const toast = uiStore.toasts.find(t => t.id === id)
+  if (toast && toast.duration > 0) {
+    const timer = setTimeout(() => {
+      removeToast(id)
+    }, toast.duration)
+    timers.set(id, timer)
+  }
 }
 </script>
 

@@ -91,7 +91,8 @@ router.post('/flee', auth, async (req, res) => {
  */
 router.get('/status', auth, async (req, res) => {
     try {
-        const status = await CombatService.getBattleStatus(req.user.id);
+        const { battle_id } = req.query;
+        const status = await CombatService.getBattleStatus(req.user.id, battle_id);
 
         res.json({
             code: 200,

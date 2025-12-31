@@ -22,6 +22,7 @@ require('./models/playerMapPosition');
 require('./models/playerGathering');
 require('./models/playerCombat');
 require('./models/playerMovement');
+require('./models/playerAdventure');
 require('./models/activeBattle');
 require('./models/item');
 require('./models/realm');
@@ -106,6 +107,15 @@ const startServer = async () => {
         await initializeCoreServices(configLoader);
     }
 
+    // 初始化历练探索服务（AI大模型事件生成）
+    try {
+        const { initializeAdventureService } = require('./routes/map');
+        await initializeAdventureService(configLoader);
+        console.log('历练探索服务初始化完成');
+    } catch (error) {
+        console.warn('历练探索服务初始化失败:', error.message);
+    }
+
     // 尝试连接数据库，但不阻塞服务器启动
     try {
         await sequelize.authenticate();
@@ -120,6 +130,30 @@ const startServer = async () => {
             }
         }
 
+        // 执行数据库迁移（必须在 sequelize.sync() 之前）
+        console.log('检查数据库迁移...');
+        const { migrate } = require('./scripts/migration_manager');
+        const migrationResult = await migrate();
+        
+        if (migrationResult.success && migrationResult.migrated > 0) {
+            console.log(`✅ 数据库迁移完成: ${migrationResult.migrated} 个新迁移已执行`);
+        }
+        
+        // 迁移失败时阻止服务器启动
+        if (!migrationResult.success) {
+            console.error('');
+            console.error('═══════════════════════════════════════════');
+            console.error('❌ 数据库迁移失败！服务器无法启动');
+            console.error('═══════════════════════════════════════════');
+            console.error(`错误: ${migrationResult.error || migrationResult.error}`);
+            console.error('');
+            console.error('请修复问题后重启服务器');
+            console.error('═══════════════════════════════════════════');
+            console.error('');
+            process.exit(1);
+        }
+        
+        // 同步数据库模型
         await sequelize.sync({ alter: true });
     } catch (error) {
         console.error('无法连接到数据库 (但不影响服务器启动):', error.message);
@@ -190,7 +224,7 @@ const startServer = async () => {
     app.use('/api/system', require('./routes/system'));
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));
-    app.use('/api/map', require('./routes/map'));
+    app.use('/api/map', require('./routes/map').router);
     app.use('/api/gather', require('./routes/gather'));
     app.use('/api/combat', require('./routes/combat'));
     app.use('/api/config', require('./routes/config'));
