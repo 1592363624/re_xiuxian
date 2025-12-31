@@ -75,11 +75,8 @@ let timer = null
 const fetchConfig = async () => {
   try {
     const res = await axios.get('/api/seclusion/status')
-    if (res.data) {
-      if (res.data.exp_rate) {
-        // 从闭关状态API获取配置
-        seclusionCooldown.value = 3600 // 保持默认冷却
-      }
+    if (res.data && res.data.cultivate_interval) {
+      seclusionCooldown.value = res.data.cultivate_interval
     }
   } catch (err) {
     console.error('获取系统配置失败:', err)

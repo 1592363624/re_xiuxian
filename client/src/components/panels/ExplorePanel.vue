@@ -113,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import { useUIStore } from '../../stores/ui'
 
@@ -128,6 +128,7 @@ const aiStatus = ref<any>(null)
 const isExploring = ref(false)
 const currentEvent = ref<any>(null)
 const isLoading = ref(false)
+let autoCompleteTimer: number | null = null
 
 const fetchExploreInfo = async () => {
   try {
@@ -178,6 +179,15 @@ const startExplore = async () => {
         type: 'info',
         actorId: 'self'
       })
+
+      const duration = res.data.data.event.duration || 30
+      const isCombat = res.data.data.event.type === 'combat'
+      
+      if (!isCombat && duration > 0) {
+        autoCompleteTimer = window.setTimeout(async () => {
+          await completeExplore()
+        }, duration * 1000)
+      }
     }
   } catch (error: any) {
     const msg = error.response?.data?.error || '历练失败'
@@ -197,6 +207,9 @@ const completeExplore = async () => {
       if (rewards.items?.length) {
         rewardText += `，${rewards.items.map((i: any) => i.item_key).join('、')}`
       }
+      if (rewards.spirit_stones) {
+        rewardText += `，${rewards.spirit_stones} 灵石`
+      }
       
       uiStore.addLog({
         content: `历练完成：${rewardText}`,
@@ -209,6 +222,13 @@ const completeExplore = async () => {
     
     isExploring.value = false
     currentEvent.value = null
+    
+    if (autoCompleteTimer) {
+      clearTimeout(autoCompleteTimer)
+      autoCompleteTimer = null
+    }
+    
+    emit('close')
   } catch (error: any) {
     const msg = error.response?.data?.error || '完成历练失败'
     uiStore.showToast(msg, 'error')
@@ -240,5 +260,12 @@ const enterCombat = async () => {
 onMounted(() => {
   fetchExploreInfo()
   fetchEnvironment()
+})
+
+onUnmounted(() => {
+  if (autoCompleteTimer) {
+    clearTimeout(autoCompleteTimer)
+    autoCompleteTimer = null
+  }
 })
 </script>
