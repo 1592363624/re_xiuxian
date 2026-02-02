@@ -26,6 +26,7 @@ router.get('/full', authMiddleware, async (req, res) => {
         const realmConfig = core.RealmService.getRealmByName(player.realm);
         const fullAttributesResult = core.AttributeService.calculateFullAttributes(player);
         const maxValues = core.AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
+        const expCap = core.ExperienceService.getExpCap(player);
         
         // 验证当前属性值是否合法
         const validation = core.AttributeMaxService.validateAttributeValues(player, maxValues);
@@ -43,7 +44,6 @@ router.get('/full', authMiddleware, async (req, res) => {
                     sense: fullAttributesResult.final.sense || 10,
                     luck: fullAttributesResult.final.luck || 10,
                     wisdom: fullAttributesResult.final.wisdom || 10,
-                    physique: fullAttributesResult.final.physique || 10,
                     cultivate_speed: fullAttributesResult.final.cultivate_speed || 10
                 },
                 // 属性最大值 (使用计算后的最终最大值)
@@ -51,6 +51,11 @@ router.get('/full', authMiddleware, async (req, res) => {
                     hp_max: fullAttributesResult.final.hp_max,
                     mp_max: fullAttributesResult.final.mp_max,
                     lifespan_max: maxValues.lifespan_max
+                },
+                // 经验值信息
+                exp: {
+                    current: player.exp || 0,
+                    cap: expCap.toString()
                 },
                 // 属性构成分析
                 breakdown: fullAttributesResult.breakdown,

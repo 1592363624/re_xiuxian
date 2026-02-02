@@ -7,7 +7,6 @@
     "condition": "完成1000次打坐",
     "bonuses": {
       "sense": 40,
-      "physique": 30,
       "cultivate_speed_pct": 20
     }
   },

@@ -81,16 +81,10 @@ class AttributeService {
             sense: realm?.base_sense || 10,
             luck: attributes.luck || 10,
             wisdom: attributes.wisdom || 10,
-            cultivate_speed: 10, // 基础修炼速度
-            physique: 10 // 基础体魄
+            cultivate_speed: 10 // 基础修炼速度
         };
 
         // 计算衍生基础属性
-        // 体魄 = (气血 * 0.01 + 防御 * 0.1) + 10 (简化算法)
-        // 实际上之前的算法是: (hpBonus * 0.5) + (defBonus * 0.3) + 10
-        // 我们这里先用基础值算一个基础体魄
-        base.physique = Math.floor((base.hp_max * 0.01) + (base.def * 0.1) + 10);
-
         // 2. 灵根加成
         const spiritRoot = player.spirit_root || '无';
         const spiritRootBonuses = roleConfig.spiritRootBonuses?.[spiritRoot] || {};
@@ -102,7 +96,7 @@ class AttributeService {
             atk: attributes.atk_bonus || 0,
             def: attributes.def_bonus || 0,
             speed: attributes.speed_bonus || 0,
-            sense: attributes.sense_bonus || 0,
+            sense: attributes.sense_bonus || 0
         };
 
         // 4. 天赋加成
@@ -232,12 +226,8 @@ class AttributeService {
         for (const [attr, value] of Object.entries(points)) {
             if (value > 0) {
                 // 映射前端属性名到后端存储名 (如果需要)
-                // 前端: atk, def, hp, sense, physique, speed
+                // 前端: atk, def, hp, sense, speed
                 // 后端存储: atk_bonus, def_bonus, hp_bonus, sense_bonus, speed_bonus
-                // 注意: physique (体魄) 是衍生属性，通常不能直接加点，或者加点影响衍生来源
-                // 但在文字修仙中，体魄往往也是可以直接加点的基础属性
-                // 如果我们要支持体魄加点，需要在 attributes 中存储 physique_bonus
-                // 并确保 calculateFullAttributes 使用它
                 
                 let bonusAttr = `${attr}_bonus`;
                 if (attr === 'hp') bonusAttr = 'hp_bonus'; // hp -> hp_bonus (mapped to hp_max usually)
@@ -277,7 +267,6 @@ class AttributeService {
             luck: '幸运，影响暴击率和掉落奖励',
             wisdom: '智慧，影响修炼效率和技能领悟',
             cultivate_speed: '修炼速度，影响修为积累速度',
-            physique: '体质，影响生命回复和抗性',
             talent: '天赋，影响突破概率和境界上限'
         };
 
@@ -304,7 +293,6 @@ class AttributeService {
             luck: '🍀',
             wisdom: '📚',
             cultivate_speed: '📈',
-            physique: '💪',
             talent: '⭐'
         };
         return icons[attributeName] || '📊';
