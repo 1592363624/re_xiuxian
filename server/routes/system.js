@@ -9,6 +9,48 @@ const Player = require('../models/player');
 const authenticateToken = require('../middleware/auth');
 
 const { Op } = require('sequelize');
+const axios = require('axios');
+
+// 缓存
+let changelogCache = null;
+let lastCacheTime = 0;
+const CACHE_DURATION = 10 * 60 * 1000; // 10分钟
+
+// 获取 GitHub 更新日志
+router.get('/changelog', async (req, res) => {
+    try {
+        const now = Date.now();
+        if (changelogCache && (now - lastCacheTime < CACHE_DURATION)) {
+            return res.json(changelogCache);
+        }
+
+        const response = await axios.get('https://api.github.com/repos/1592363624/re_xiuxian/commits', {
+            params: { per_page: 30 },
+            headers: { 'User-Agent': 're_xiuxian-game' }
+        });
+
+        // 格式化数据
+        const commits = response.data.map(commit => ({
+            sha: commit.sha,
+            message: commit.commit.message,
+            date: commit.commit.author.date,
+            author: commit.commit.author.name,
+            url: commit.html_url
+        }));
+
+        changelogCache = commits;
+        lastCacheTime = now;
+
+        res.json(commits);
+    } catch (error) {
+        console.error('获取GitHub提交记录失败:', error.message);
+        // 如果有缓存，即使过期也返回
+        if (changelogCache) {
+            return res.json(changelogCache);
+        }
+        res.status(500).json({ error: '获取更新日志失败' });
+    }
+});
 
 // 获取服务器统计信息
 router.get('/stats', async (req, res) => {

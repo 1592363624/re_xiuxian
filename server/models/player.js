@@ -112,6 +112,50 @@ const Player = sequelize.define('Player', {
         },
         comment: '灵根资质JSON'
     },
+    talent_id: {
+        type: DataTypes.STRING,
+        defaultValue: 'common_talent',
+        comment: '天赋ID'
+    },
+    titles: {
+        type: DataTypes.TEXT,
+        defaultValue: JSON.stringify(['newbie']),
+        get() {
+            const rawValue = this.getDataValue('titles');
+            return rawValue ? JSON.parse(rawValue) : [];
+        },
+        set(value) {
+            this.setDataValue('titles', JSON.stringify(value));
+        },
+        comment: '已获得称号ID列表'
+    },
+    equipped_title_id: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: '当前装备称号ID'
+    },
+    stats: {
+        type: DataTypes.TEXT,
+        defaultValue: JSON.stringify({
+            meditation_count: 0,
+            breakthrough_count: 0,
+            kill_count: 0,
+            death_count: 0,
+            exploration_count: 0,
+            alchemy_count: 0,
+            refining_count: 0,
+            items_collected: 0,
+            achievements_completed: 0
+        }),
+        get() {
+            const rawValue = this.getDataValue('stats');
+            return rawValue ? JSON.parse(rawValue) : {};
+        },
+        set(value) {
+            this.setDataValue('stats', JSON.stringify(value));
+        },
+        comment: '玩家统计数据'
+    },
     token_version: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
@@ -238,6 +282,16 @@ const Player = sequelize.define('Player', {
         type: DataTypes.DATE,
         allowNull: true,
         comment: '移动预计结束时间'
+    },
+    total_online_time: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+        comment: '累计在线时长(毫秒)'
+    },
+    attribute_points: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '可分配属性点'
     }
 }, {
     tableName: 'players',
