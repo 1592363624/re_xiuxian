@@ -65,7 +65,8 @@ router.get('/me', authMiddleware, async (req, res) => {
                 seclusion_end_time: player.seclusion_end_time,
                 last_seclusion_time: player.last_seclusion_time,
                 created_at: player.created_at,
-                updated_at: player.updated_at
+                updated_at: player.updated_at,
+                total_online_time: player.total_online_time || 0
             }
         };
 

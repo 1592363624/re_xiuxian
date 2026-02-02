@@ -1,0 +1,35 @@
+[
+  {
+    "id": "hermit",
+    "name": "隐士",
+    "quality": "rare",
+    "description": "长期闭关修炼的隐士。",
+    "condition": "完成1000次打坐",
+    "bonuses": {
+      "sense": 40,
+      "physique": 30,
+      "cultivate_speed_pct": 20
+    }
+  },
+  {
+    "id": "newbie",
+    "name": "初入仙途",
+    "quality": "common",
+    "description": "刚刚踏入修仙界的萌新。",
+    "condition": "注册账号",
+    "bonuses": {
+      "hp_max": 50
+    }
+  },
+  {
+    "id": "battle_master",
+    "name": "武道宗师",
+    "quality": "epic",
+    "description": "在战斗中千锤百炼。",
+    "condition": "击杀1000个敌人",
+    "bonuses": {
+      "atk": 50,
+      "def": 30
+    }
+  }
+]

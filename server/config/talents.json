@@ -1,0 +1,45 @@
+[
+  {
+    "id": "cultivation_genius",
+    "name": "修炼天才",
+    "quality": "legendary",
+    "description": "修炼天赋绝佳，修炼速度大幅提升。",
+    "bonuses": {
+      "cultivate_speed_pct": 25
+    }
+  },
+  {
+    "id": "tough_body",
+    "name": "天生神力",
+    "quality": "epic",
+    "description": "天生体魄强健，气血上限提升。",
+    "bonuses": {
+      "hp_max_pct": 20
+    }
+  },
+  {
+    "id": "swift_wind",
+    "name": "御风者",
+    "quality": "rare",
+    "description": "身轻如燕，速度提升。",
+    "bonuses": {
+      "speed_pct": 15
+    }
+  },
+  {
+    "id": "sharp_senses",
+    "name": "敏锐直觉",
+    "quality": "rare",
+    "description": "感知敏锐，神识提升。",
+    "bonuses": {
+      "sense_pct": 15
+    }
+  },
+  {
+    "id": "common_talent",
+    "name": "凡人资质",
+    "quality": "common",
+    "description": "普普通通的资质。",
+    "bonuses": {}
+  }
+]

@@ -132,6 +132,19 @@ const rootValue = computed(() => {
   return props.player.spirit_roots?.value || 0
 })
 
+const formatDuration = (ms) => {
+  if (!ms) return '0秒'
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) return `${days}天${hours % 24}小时`
+  if (hours > 0) return `${hours}小时${minutes % 60}分`
+  if (minutes > 0) return `${minutes}分${seconds % 60}秒`
+  return `${seconds}秒`
+}
+
 onMounted(() => {
   fetchStats(true)
   statsInterval = setInterval(() => fetchStats(false), 30000)
@@ -357,8 +370,13 @@ onUnmounted(() => {
              <span class="text-xs text-stone-600">位道友</span>
            </div>
            
-           <div class="text-[10px] text-stone-600">
-             总注册: {{ totalCount }}
+           <div class="flex flex-col items-end">
+             <div class="text-[10px] text-stone-600">
+               总注册: {{ totalCount }}
+             </div>
+             <div class="text-[10px] text-stone-600 mt-0.5">
+               在线时长: {{ formatDuration(player.total_online_time) }}
+             </div>
            </div>
         </div>
       </div>

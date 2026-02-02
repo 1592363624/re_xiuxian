@@ -7,12 +7,15 @@ import ToastContainer from './components/common/ToastContainer.vue'
 import MovingOverlay from './components/overlays/MovingOverlay.vue'
 import { usePlayerStore } from './stores/player'
 import { useUIStore } from './stores/ui'
+import ChangelogModal from './components/modals/ChangelogModal.vue'
+import { currentVersion } from './data/changelog'
 
 const serverStatus = ref('正在连接...')
 const dbStatus = ref('检查中...')
 const ping = ref(0)
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
+const showChangelog = ref(false)
 
 // 使用计算属性响应 Pinia 中的 player 变化
 const currentPlayer = computed(() => playerStore.player)
@@ -51,6 +54,12 @@ const handleMoveComplete = async () => {
   await playerStore.fetchPlayer()
 }
 
+// 关闭更新日志
+const handleChangelogClose = () => {
+  showChangelog.value = false
+  localStorage.setItem('app_version', currentVersion)
+}
+
 let pingInterval
 
 onMounted(async () => {
@@ -58,6 +67,12 @@ onMounted(async () => {
   // 每5秒检查一次状态和延迟
   pingInterval = setInterval(checkStatus, 5000)
   
+  // 检查版本更新
+  const lastVersion = localStorage.getItem('app_version')
+  if (lastVersion !== currentVersion) {
+    showChangelog.value = true
+  }
+
   // 恢复 Token 并验证
   if (playerStore.token) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${playerStore.token}`
@@ -108,4 +123,5 @@ onUnmounted(() => {
     :show="movingState.isMoving" 
     @complete="handleMoveComplete"
   />
+  <ChangelogModal :isOpen="showChangelog" @close="handleChangelogClose" />
 </template>

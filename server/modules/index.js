@@ -16,6 +16,8 @@ const core = {
     ItemService: coreIndex.ItemService,
     ExperienceService: coreIndex.ExperienceService,
     AttributeService: coreIndex.AttributeService,
+    AttributeMaxService: coreIndex.AttributeMaxService,
+    DualTimeService: coreIndex.DualTimeService,
     MapService: coreIndex.MapService,
     initializeCoreServices: coreIndex.initializeCoreServices
 };

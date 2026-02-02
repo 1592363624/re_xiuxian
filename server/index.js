@@ -236,23 +236,79 @@ const startServer = async () => {
     io.on('connection', (socket) => {
         const playerId = socket.handshake.query.playerId || socket.handshake.auth.playerId;
         if (playerId) {
-            onlineUsers.set(playerId, {
-                socketId: socket.id,
-                connectedAt: new Date()
-            });
+            if (!onlineUsers.has(playerId)) {
+                onlineUsers.set(playerId, {
+                    socketId: socket.id,
+                    connectedAt: new Date(),
+                    lastSavedAt: new Date()
+                });
+            } else {
+                // 更新 socketId，保留连接时间
+                const info = onlineUsers.get(playerId);
+                info.socketId = socket.id;
+                onlineUsers.set(playerId, info);
+            }
             console.log(`玩家 ${playerId} 已连接，SocketID: ${socket.id}`);
         }
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
             if (playerId) {
                 const userInfo = onlineUsers.get(playerId);
                 if (userInfo && userInfo.socketId === socket.id) {
+                    // 计算并保存时长
+                    const now = new Date();
+                    const lastSaved = userInfo.lastSavedAt || userInfo.connectedAt;
+                    const duration = now - lastSaved;
+
+                    if (duration > 0) {
+                        try {
+                            const Player = require('./models/player');
+                            const player = await Player.findByPk(playerId);
+                            if (player) {
+                                player.total_online_time = BigInt(player.total_online_time || 0) + BigInt(duration);
+                                await player.save();
+                                console.log(`玩家 ${playerId} 下线，增加在线时长 ${duration}ms`);
+                            }
+                        } catch (err) {
+                            console.error(`保存玩家 ${playerId} 在线时长失败:`, err);
+                        }
+                    }
+
                     onlineUsers.delete(playerId);
                     console.log(`玩家 ${playerId} 已断开连接`);
                 }
             }
         });
     });
+    
+    // 定时保存在线时长 (每分钟)
+    setInterval(async () => {
+        if (onlineUsers.size === 0) return;
+        
+        const Player = require('./models/player');
+        const now = new Date();
+        
+        for (const [playerId, info] of onlineUsers.entries()) {
+            const lastSaved = info.lastSavedAt || info.connectedAt;
+            const duration = now - lastSaved;
+            
+            if (duration > 5000) { // 至少5秒才保存
+                try {
+                    const player = await Player.findByPk(playerId);
+                    if (player) {
+                        player.total_online_time = BigInt(player.total_online_time || 0) + BigInt(duration);
+                        await player.save();
+                        
+                        // 更新保存时间
+                        info.lastSavedAt = now;
+                        onlineUsers.set(playerId, info);
+                    }
+                } catch (err) {
+                    console.error(`定时保存玩家 ${playerId} 在线时长失败:`, err);
+                }
+            }
+        }
+    }, 60 * 1000);
 
     // 初始化WebSocket通知服务
     WebSocketNotificationService.initialize(io);

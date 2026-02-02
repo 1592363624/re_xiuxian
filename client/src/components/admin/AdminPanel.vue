@@ -50,20 +50,45 @@
             <table class="w-full text-left text-sm text-gray-300">
               <thead class="bg-gray-800 text-gray-400 uppercase">
                 <tr>
-                  <th class="px-4 py-3 whitespace-nowrap">ID</th>
-                  <th class="px-4 py-3 whitespace-nowrap">账号</th>
-                  <th class="px-4 py-3 whitespace-nowrap">昵称</th>
-                  <th class="px-4 py-3 whitespace-nowrap">境界</th>
-                  <th class="px-4 py-3 whitespace-nowrap">寿元</th>
+                  <th @click="handleSort('id')" class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-white select-none group">
+                    ID <span v-if="currentSortBy === 'id'" class="text-xiuxian-gold">{{ currentSortOrder === 'ASC' ? '↑' : '↓' }}</span>
+                    <span v-else class="text-gray-600 opacity-0 group-hover:opacity-100">↕</span>
+                  </th>
+                  <th @click="handleSort('username')" class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-white select-none group">
+                    账号 <span v-if="currentSortBy === 'username'" class="text-xiuxian-gold">{{ currentSortOrder === 'ASC' ? '↑' : '↓' }}</span>
+                    <span v-else class="text-gray-600 opacity-0 group-hover:opacity-100">↕</span>
+                  </th>
+                  <th @click="handleSort('nickname')" class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-white select-none group">
+                    昵称 <span v-if="currentSortBy === 'nickname'" class="text-xiuxian-gold">{{ currentSortOrder === 'ASC' ? '↑' : '↓' }}</span>
+                    <span v-else class="text-gray-600 opacity-0 group-hover:opacity-100">↕</span>
+                  </th>
+                  <th @click="handleSort('realm')" class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-white select-none group">
+                    境界 <span v-if="currentSortBy === 'realm'" class="text-xiuxian-gold">{{ currentSortOrder === 'ASC' ? '↑' : '↓' }}</span>
+                    <span v-else class="text-gray-600 opacity-0 group-hover:opacity-100">↕</span>
+                  </th>
+                  <th @click="handleSort('lifespan_current')" class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-white select-none group">
+                    寿元 <span v-if="currentSortBy === 'lifespan_current'" class="text-xiuxian-gold">{{ currentSortOrder === 'ASC' ? '↑' : '↓' }}</span>
+                    <span v-else class="text-gray-600 opacity-0 group-hover:opacity-100">↕</span>
+                  </th>
                   <th class="px-4 py-3 whitespace-nowrap">状态</th>
-                  <th class="px-4 py-3 whitespace-nowrap">注册时间</th>
-                  <th class="px-4 py-3 whitespace-nowrap">最后在线</th>
+                  <th @click="handleSort('createdAt')" class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-white select-none group">
+                    注册时间 <span v-if="currentSortBy === 'createdAt'" class="text-xiuxian-gold">{{ currentSortOrder === 'ASC' ? '↑' : '↓' }}</span>
+                    <span v-else class="text-gray-600 opacity-0 group-hover:opacity-100">↕</span>
+                  </th>
+                  <th @click="handleSort('last_online')" class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-white select-none group">
+                    最后在线 <span v-if="currentSortBy === 'last_online'" class="text-xiuxian-gold">{{ currentSortOrder === 'ASC' ? '↑' : '↓' }}</span>
+                    <span v-else class="text-gray-600 opacity-0 group-hover:opacity-100">↕</span>
+                  </th>
+                  <th @click="handleSort('total_online_time')" class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-white select-none group">
+                    在线时长 <span v-if="currentSortBy === 'total_online_time'" class="text-xiuxian-gold">{{ currentSortOrder === 'ASC' ? '↑' : '↓' }}</span>
+                    <span v-else class="text-gray-600 opacity-0 group-hover:opacity-100">↕</span>
+                  </th>
                   <th class="px-4 py-3 whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-700">
                 <tr v-for="p in players" :key="p.id" class="hover:bg-gray-800/50">
-                  <td class="px-4 py-3 whitespace-nowrap">{{ p.id }}</td>
+                  <td class="px-4 py-3 whitespace-nowrap" :class="{'text-green-400': isOnline(p)}">{{ p.id }}</td>
                   <td class="px-4 py-3 whitespace-nowrap">{{ p.username }}</td>
                   <td class="px-4 py-3 whitespace-nowrap">{{ p.nickname }}</td>
                   <td class="px-4 py-3 whitespace-nowrap">{{ p.realm }}</td>
@@ -77,7 +102,8 @@
                     <span v-else class="text-green-400">正常</span>
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{ formatDate(p.createdAt) }}</td>
-                  <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{ formatDate(p.last_online) }}</td>
+                  <td class="px-4 py-3 whitespace-nowrap" :class="isOnline(p) ? 'text-green-400' : 'text-gray-500'">{{ formatDate(p.last_online) }}</td>
+                  <td class="px-4 py-3 whitespace-nowrap" :class="isOnline(p) ? 'text-green-400' : 'text-gray-500'">{{ formatDuration(p.total_online_time) }}</td>
                   <td class="px-4 py-3 whitespace-nowrap">
                     <div class="flex gap-1 flex-wrap">
                       <button @click="editPlayer(p)" class="text-blue-400 hover:text-blue-300 text-xs px-1">编辑</button>
@@ -805,12 +831,31 @@ const confirmTimeTravel = () => {
   showTimeTravelConfirm.value = true
 }
 
+const playerSearch = ref('')
+const playerFilter = ref('')
+const currentSortBy = ref('last_online')
+const currentSortOrder = ref('DESC')
+
+const handleSort = (field) => {
+  if (currentSortBy.value === field) {
+    currentSortOrder.value = currentSortOrder.value === 'ASC' ? 'DESC' : 'ASC'
+  } else {
+    currentSortBy.value = field
+    currentSortOrder.value = 'DESC'
+  }
+  fetchPlayers(1)
+}
+
 // 获取玩家列表
 const fetchPlayers = async (page = 1) => {
   try {
-    const res = await axios.get('/api/admin/players', {
-      params: { page, limit: 10 }
-    })
+    const params = { page, limit: 10 }
+    if (playerSearch.value) params.search = playerSearch.value
+    if (playerFilter.value) params.status = playerFilter.value
+    params.sortBy = currentSortBy.value
+    params.sortOrder = currentSortOrder.value
+
+    const res = await axios.get('/api/admin/players', { params })
     players.value = res.data.players
     pagination.currentPage = res.data.currentPage
     pagination.totalPages = res.data.totalPages
@@ -841,6 +886,46 @@ const fetchConfig = async () => {
   }
 }
 
+// 服务器统计
+const stats = ref({
+  total_players: 0,
+  online_players: 0,
+  banned_count: 0,
+  server_uptime: 0,
+  realm_distribution: []
+})
+
+const fetchStats = async () => {
+  try {
+    const res = await axios.get('/api/admin/stats')
+    stats.value = res.data.data || {}
+  } catch (error) {
+    console.error('Fetch stats error:', error)
+  }
+}
+
+const formatUptime = (seconds) => {
+  if (!seconds) return '0秒'
+  const d = Math.floor(seconds / (3600 * 24))
+  const h = Math.floor((seconds % (3600 * 24)) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = Math.floor(seconds % 60)
+  
+  const parts = []
+  if (d > 0) parts.push(`${d}天`)
+  if (h > 0) parts.push(`${h}小时`)
+  if (m > 0) parts.push(`${m}分`)
+  if (s > 0 || parts.length === 0) parts.push(`${s}秒`)
+  
+  return parts.join('')
+}
+
+const getRealmBarWidth = (count) => {
+  if (!stats.value.realm_distribution || !stats.value.realm_distribution.length) return 0
+  const max = Math.max(...stats.value.realm_distribution.map(r => r.count))
+  return max ? (count / max) * 100 : 0
+}
+
 // 获取寿元样式类
 const getLifespanClass = (player) => {
   if (!player || !player.lifespan_max) return 'text-gray-500'
@@ -848,6 +933,59 @@ const getLifespanClass = (player) => {
   if (ratio <= 0.2) return 'text-red-400 font-bold'
   if (ratio <= 0.5) return 'text-orange-400'
   return 'text-green-400'
+}
+
+// 操作日志
+const logs = ref([])
+const logFilter = ref('')
+const logPagination = reactive({
+  currentPage: 1,
+  totalPages: 1,
+  total: 0
+})
+
+const fetchLogs = async (page = 1) => {
+  try {
+    const params = { page, limit: 10 }
+    if (logFilter.value) params.action = logFilter.value
+    
+    const res = await axios.get('/api/admin/logs', { params })
+    const data = res.data.data || {}
+    logs.value = data.logs || []
+    logPagination.currentPage = data.currentPage || 1
+    logPagination.totalPages = data.totalPages || 1
+    logPagination.total = data.total || 0
+  } catch (error) {
+    console.error('Fetch logs error:', error)
+  }
+}
+
+const getActionName = (action) => {
+  const map = {
+    time_travel: '时间加速',
+    ban_player: '封禁玩家',
+    unban_player: '解封玩家',
+    modify_player: '修改玩家',
+    give_item: '发放物品',
+    give_spirit_stones: '发放灵石',
+    add_exp: '增加修为',
+    reset_player: '重置玩家',
+    force_breakthrough: '强制突破',
+    delete_player: '删除玩家',
+    update_config: '修改配置',
+    delete_notification: '删除通知'
+  }
+  return map[action] || action
+}
+
+const getActionClass = (action) => {
+  if (action === 'time_travel') return 'action-type-time-travel'
+  if (action === 'ban_player' || action === 'delete_player' || action === 'delete_notification') return 'action-type-ban'
+  if (action === 'unban_player') return 'action-type-unban'
+  if (action === 'modify_player' || action === 'force_breakthrough' || action === 'reset_player') return 'action-type-modify'
+  if (action && (action.startsWith('give_') || action === 'add_exp')) return 'action-type-give'
+  if (action === 'update_config') return 'action-type-config'
+  return 'bg-gray-700 text-gray-300'
 }
 
 // 保存配置
@@ -960,6 +1098,28 @@ const formatDateTime = (dateStr) => {
     minute: '2-digit',
     second: '2-digit'
   })
+}
+
+// 格式化时长
+const formatDuration = (ms) => {
+  if (!ms) return '0秒'
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) return `${days}天${hours % 24}小时`
+  if (hours > 0) return `${hours}小时${minutes % 60}分`
+  if (minutes > 0) return `${minutes}分${seconds % 60}秒`
+  return `${seconds}秒`
+}
+
+// 判断玩家是否在线 (5分钟内活跃)
+const isOnline = (player) => {
+  if (!player || !player.last_online) return false
+  const lastOnline = new Date(player.last_online).getTime()
+  const now = Date.now()
+  return (now - lastOnline) < 5 * 60 * 1000
 }
 </script>
 

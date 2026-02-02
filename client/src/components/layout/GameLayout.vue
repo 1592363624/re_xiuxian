@@ -54,7 +54,7 @@
           </button>
           
           <h1 class="text-xl font-serif font-bold text-amber-500 tracking-wider flex items-center gap-2">
-            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">v0.0.2_BETA</span>
+            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">v0.0.3_BETA</span>
           </h1>
         </div>
         
@@ -104,6 +104,9 @@
     
     <!-- 战斗面板 -->
     <CombatPanel v-if="isCombatOpen" :initialBattleId="currentBattleId" @close="isCombatOpen = false" />
+    
+    <!-- 角色弹窗 -->
+    <CharacterModal v-if="isCharacterOpen" @close="isCharacterOpen = false" />
     
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
@@ -172,6 +175,7 @@ import MapPanel from '../panels/MapPanel.vue';
 import SystemAlert from '../widgets/SystemAlert.vue';
 import ExplorePanel from '../panels/ExplorePanel.vue';
 import CombatPanel from '../panels/CombatPanel.vue';
+import CharacterModal from '../modals/CharacterModal.vue';
 
 const props = defineProps<{
   player: any
@@ -187,6 +191,7 @@ const playerStore = usePlayerStore();
 const uiStore = useUIStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
+const isCharacterOpen = ref(false);
 const isMapOpen = ref(false);
 const isExploreOpen = ref(false)
 const isCombatOpen = ref(false)
@@ -252,6 +257,9 @@ const handleMenuClick = (btnName: string) => {
     isMobileMenuOpen.value = false;
   } else if (btnName === 'GM') {
     isAdminPanelOpen.value = true;
+    isMobileMenuOpen.value = false;
+  } else if (btnName === '角色') {
+    isCharacterOpen.value = true;
     isMobileMenuOpen.value = false;
   }
 };

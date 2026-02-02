@@ -6,7 +6,11 @@
         <div class="absolute inset-0 bg-black bg-opacity-75" @click="handleBackdropClick"></div>
         
         <!-- Modal Content -->
-        <div class="relative bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-w-lg w-full transform transition-all flex flex-col max-h-[90vh]">
+        <div 
+          class="relative bg-gray-900 border border-gray-700 rounded-lg shadow-xl w-full transform transition-all flex flex-col max-h-[90vh]"
+          :class="[width ? '' : 'max-w-lg']"
+          :style="width ? { width: width, maxWidth: '95vw' } : {}"
+        >
           
           <!-- Header -->
           <div v-if="title" class="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
@@ -48,6 +52,10 @@ defineProps({
   closeOnBackdrop: {
     type: Boolean,
     default: true
+  },
+  width: {
+    type: String,
+    default: ''
   }
 })
 

@@ -44,7 +44,9 @@ class ConfigLoader extends EventEmitter {
             'ui_layout', 
             'ui_routes',
             'seclusion',      // 闭关修炼配置
-            'system'          // 系统全局配置
+            'system',         // 系统全局配置
+            'talents',        // 天赋配置
+            'titles'          // 称号配置
         ];
         const results = {};
 

@@ -133,6 +133,12 @@ router.get('/players', auth, adminCheck, async (req, res) => {
         const search = req.query.search || '';
         const realm = req.query.realm || '';
         const status = req.query.status || '';
+        const sortBy = req.query.sortBy || 'last_online';
+        const sortOrder = (req.query.sortOrder || 'DESC').toUpperCase();
+
+        const allowedSortFields = ['id', 'username', 'nickname', 'realm', 'lifespan_current', 'createdAt', 'last_online', 'total_online_time'];
+        const validSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'last_online';
+        const validSortOrder = ['ASC', 'DESC'].includes(sortOrder) ? sortOrder : 'DESC';
 
         const whereClause = {};
         
@@ -160,7 +166,7 @@ router.get('/players', auth, adminCheck, async (req, res) => {
             where: whereClause,
             limit,
             offset,
-            order: [['createdAt', 'DESC']]
+            order: [[validSortBy, validSortOrder]]
         });
 
         res.json({
