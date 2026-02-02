@@ -143,6 +143,13 @@ class PlayerService {
         const player = await Player.findByPk(playerId);
         if (!player) return null;
 
+        // 检查是否死亡
+        if (currentHp <= 0) {
+            await this.handlePlayerDeath(playerId);
+            // 死亡处理后，返回更新后的玩家数据（HP已重置）
+            return await Player.findByPk(playerId);
+        }
+
         player.hp_current = currentHp;
         if (maxHp !== undefined) {
             const attrs = typeof player.attributes === 'string' 
