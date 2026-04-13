@@ -3,10 +3,14 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { useConfigStore } from '../../stores/config'
+import { useRealtimeStore } from '../../stores/realtime'
 
 const emit = defineEmits(['close', 'mapChanged'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const configStore = useConfigStore()
+const realtimeStore = useRealtimeStore()
 
 const loading = ref(true)
 const allMaps = ref([])
@@ -27,14 +31,17 @@ const mapTypeMap = {
   world: { name: '界域', class: 'text-rose-400', bg: 'bg-rose-900/20', border: 'border-rose-700/50' }
 }
 
-const realmOrder = [
-  '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
-  '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
-  '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
-  '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
-  '元婴期', '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
-  '化神期', '炼虚期', '合体期', '大乘期', '渡劫期', '真仙'
-]
+const getRealmRank = (realmName) => {
+  const realmOrder = configStore.realmOrder.length > 0 ? configStore.realmOrder : [
+    '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
+    '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
+    '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
+    '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
+    '元婴期', '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
+    '化神期', '炼虚期', '合体期', '大乘期', '渡劫期', '真仙'
+  ]
+  return realmOrder.indexOf(realmName)
+}
 
 const fetchData = async () => {
   loading.value = true
@@ -54,10 +61,6 @@ const fetchData = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const getRealmRank = (realmName) => {
-  return realmOrder.indexOf(realmName)
 }
 
 const canEnter = (map) => {
@@ -88,7 +91,7 @@ const calculateMoveCost = (targetMap) => {
   const travelTime = targetMap.travel_time || 5
   const type = targetMap.type || 'country'
 
-  const typeMultiplier = {
+  const typeMultiplier = configStore.system?.map?.type_multiplier || {
     'country': 1,
     'sect': 1,
     'mountain': 1.5,
@@ -103,7 +106,7 @@ const calculateMoveCost = (targetMap) => {
   cost += travelTime / 2
   cost *= typeMultiplier[type] || 1
 
-  const terrainFactor = {
+  const terrainFactor = configStore.system?.map?.terrain_factor || {
     'plains': 1,
     'mountain': 1.5,
     'ocean': 2,
@@ -175,22 +178,11 @@ const handleMove = async (targetMap) => {
     const currentMap = allMaps.value.find(m => m.id === currentMapId.value)
     const res = await axios.post('/api/map/start-move', { targetMapId: targetMap.id })
     
-    if (res.data.success) {
-      const movingState = {
-        isMoving: true,
-        fromMapId: currentMapId.value,
-        toMapId: targetMap.id,
-        fromMapName: currentMap?.name || '未知地点',
-        toMapName: targetMap.name,
-        startTime: res.data.start_time,
-        endTime: res.data.end_time,
-        totalSeconds: res.data.total_seconds,
-        remainingSeconds: res.data.total_seconds
-      }
-      playerStore.setMovingState(movingState)
+    if (res.data?.code === 200 && res.data?.data) {
+      realtimeStore.setMovingState(res.data.data)
       
       uiStore.addLog({
-        content: `你从 ${currentMap?.name || '未知地点'} 出发，前往 ${targetMap.name}，预计 ${formatTime(res.data.total_seconds)} 后到达。`,
+        content: `你从 ${currentMap?.name || '未知地点'} 出发，前往 ${targetMap.name}，预计 ${formatTime(res.data.data.total_seconds)} 后到达。`,
         type: 'movement',
         actorId: 'self'
       })

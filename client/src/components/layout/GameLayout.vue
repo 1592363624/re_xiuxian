@@ -161,6 +161,9 @@
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import axios from 'axios';
 import { usePlayerStore } from '../../stores/player';
+import { useAuthStore } from '../../stores/auth';
+import { useRealtimeStore } from '../../stores/realtime';
+import { useSeclusionStore } from '../../stores/seclusion';
 import { useUIStore } from '../../stores/ui';
 import { useNotificationStore } from '../../stores/notification';
 import PlayerStatus from '../panels/PlayerStatus.vue';
@@ -188,6 +191,9 @@ const props = defineProps<{
 const emit = defineEmits(['action']);
 
 const playerStore = usePlayerStore();
+const authStore = useAuthStore();
+const realtimeStore = useRealtimeStore();
+const seclusionStore = useSeclusionStore();
 const uiStore = useUIStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
@@ -219,7 +225,7 @@ const handleAction = async (actionId: string) => {
   
   if (actionId === 'cultivate') {
     try {
-      await playerStore.startSeclusion();
+      await seclusionStore.start();
       uiStore.showToast('进入闭关状态', 'success');
       uiStore.addLog({
         content: '开始闭关修炼，摒除杂念，感悟天地灵气。',
@@ -269,7 +275,9 @@ const handleLogoutClick = () => {
 };
 
 const confirmLogout = () => {
-  playerStore.logout();
+  authStore.logout();
+  realtimeStore.disconnect();
+  playerStore.clear();
   isLogoutConfirmOpen.value = false;
 };
 

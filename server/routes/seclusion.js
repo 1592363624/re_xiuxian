@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const sequelize = require('../config/database');
 const Player = require('../models/player');
-const Realm = require('../models/realm');
+const { core } = require('../modules');
 const authenticateToken = require('../middleware/auth');
 const configLoader = require('../modules/infrastructure/ConfigLoader');
 const fs = require('fs');
@@ -134,15 +135,18 @@ router.post('/start', authenticateToken, async (req, res) => {
  * @access Private
  */
 router.post('/end', authenticateToken, async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         const playerId = req.user.id;
-        const player = await Player.findByPk(playerId);
+        const player = await Player.findByPk(playerId, { transaction: t });
 
         if (!player) {
+            await t.rollback();
             return res.status(404).json({ error: '玩家不存在' });
         }
 
         if (!player.is_secluded) {
+            await t.rollback();
             return res.status(400).json({ error: '玩家未在闭关中' });
         }
 
@@ -153,28 +157,21 @@ router.post('/end', authenticateToken, async (req, res) => {
         // Calculate rewards
         const baseExpRate = await getSeclusionExpRate(); 
         
-        // 获取境界加成
         let realmMultiplier = 1.0;
-        try {
-            const realm = await Realm.findByPk(player.realm);
-            if (realm) {
-                // 境界加成逻辑：每提升一个境界 Rank，收益增加 10%
-                // 凡人(Rank 1) 为 1.0 倍，炼气1层(Rank 2) 为 1.1 倍，以此类推
-                realmMultiplier = 1.0 + (realm.rank - 1) * 0.1;
-            }
-        } catch (err) {
-            console.error('获取境界加成失败:', err);
+        const realm = core.RealmService.getRealmByName(player.realm);
+        if (realm?.rank) {
+            realmMultiplier = 1.0 + (realm.rank - 1) * 0.1;
         }
 
         const expGain = Math.floor(actualDurationSeconds * baseExpRate * realmMultiplier);
 
-        // Update player stats
-        player.exp = (BigInt(player.exp) + BigInt(expGain)).toString();
+        player.exp = BigInt(player.exp || 0) + BigInt(expGain);
         player.is_secluded = false;
         player.seclusion_start_time = null;
         player.seclusion_duration = 0;
         player.last_seclusion_time = now; // 记录结束时间
-        await player.save();
+        await player.save({ transaction: t });
+        await t.commit();
 
         const cooldown = await getSeclusionCooldown();
 
@@ -193,6 +190,7 @@ router.post('/end', authenticateToken, async (req, res) => {
         });
 
     } catch (err) {
+        try { await t.rollback(); } catch (e) {}
         console.error(err);
         res.status(500).json({ error: '服务器错误' });
     }

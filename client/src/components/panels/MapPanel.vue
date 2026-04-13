@@ -3,11 +3,13 @@ import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { useRealtimeStore } from '../../stores/realtime'
 import FullMapList from './FullMapList.vue'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const realtimeStore = useRealtimeStore()
 
 const loading = ref(true)
 const moving = ref(false)
@@ -142,7 +144,7 @@ const handleMove = async (targetMap) => {
     const res = await axios.post('/api/map/start-move', { targetMapId: targetMap.id })
     const moveData = res.data.data
     
-    playerStore.setMovingState({
+    realtimeStore.setMovingState({
       from_map_id: moveData.from_map_id,
       to_map_id: moveData.to_map_id,
       from_map_name: moveData.from_map_name,

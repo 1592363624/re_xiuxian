@@ -18,5 +18,36 @@
       "defaultValue": 3000,
       "displayName": "服务器端口"
     }
+  },
+  "combat": {
+    "monster_stat_multiplier_base": 0.8,
+    "monster_stat_multiplier_per_level": 0.1,
+    "skill_mp_cost": 20,
+    "skill_damage_multiplier": 1.5,
+    "escape_chance": 0.5,
+    "death_exp_penalty_percent": 5,
+    "revive_hp_percent": 30,
+    "player_damage_variance": { "min": -5, "max": 4 },
+    "monster_damage_variance": { "min": -3, "max": 2 }
+  },
+  "map": {
+    "type_multiplier": {
+      "sect": 0,
+      "village": 0,
+      "city": 0.5,
+      "country": 1,
+      "mountain": 1.5,
+      "forest": 2,
+      "ocean": 3,
+      "world": 5
+    },
+    "terrain_factor": {
+      "safe": 0,
+      "plains": 1,
+      "forest": 1.5,
+      "mountain": 2,
+      "ocean": 2.5,
+      "ruins": 3
+    }
   }
 }

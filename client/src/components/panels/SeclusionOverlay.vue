@@ -65,16 +65,18 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
+import { useSeclusionStore } from '../../stores/seclusion'
 
-const store = usePlayerStore()
+const playerStore = usePlayerStore()
 const uiStore = useUIStore()
+const seclusionStore = useSeclusionStore()
 const loading = ref(false)
 const now = ref(Date.now())
 const timer = ref(null)
 const expRate = ref(0.1) // Default
 
 const startTime = computed(() => {
-  return store.player?.seclusion_start_time ? new Date(store.player.seclusion_start_time).getTime() : Date.now()
+  return playerStore.player?.seclusion_start_time ? new Date(playerStore.player.seclusion_start_time).getTime() : Date.now()
 })
 
 const duration = computed(() => {
@@ -100,7 +102,7 @@ const handleEnd = async () => {
   if (loading.value) return
   loading.value = true
   try {
-    const res = await store.endSeclusion()
+    const res = await seclusionStore.end()
     // 添加日志
     const gain = res.data?.exp_gain || (res.data?.data?.exp_gain) || expGained.value || 0
     uiStore.addLog({
@@ -118,7 +120,7 @@ const handleEnd = async () => {
 }
 
 onMounted(async () => {
-  const status = await store.fetchSeclusionStatus()
+  const status = await seclusionStore.fetchStatus()
   if (status && status.exp_rate) {
     expRate.value = status.exp_rate
   }

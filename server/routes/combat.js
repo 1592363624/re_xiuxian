@@ -129,64 +129,14 @@ router.get('/history', auth, async (req, res) => {
 router.post('/use-item', auth, async (req, res) => {
     try {
         const { itemId, quantity } = req.body;
-        
-        if (!itemId) {
-            return res.status(400).json({ error: '物品ID不能为空' });
-        }
-
-        const player = await require('../models/player').findByPk(req.user.id);
-        const item = await require('../models/item').findOne({
-            where: { player_id: req.user.id, item_key: itemId }
-        });
-
-        if (!item || item.quantity < (quantity || 1)) {
-            return res.status(400).json({ error: '物品数量不足' });
-        }
-
-        const itemConfig = await require('../services/ItemConfigLoader').getItem(itemId);
-        if (!itemConfig || itemConfig.type !== 'consumable') {
-            return res.status(400).json({ error: '该物品不可使用' });
-        }
-
-        const effect = itemConfig.effect || {};
-        let message = '使用物品成功';
-
-        if (effect.hp_restore) {
-            const restoreAmount = Math.min(
-                effect.hp_restore * (quantity || 1),
-                Number(player.hp_max) - Number(player.hp_current)
-            );
-            player.hp_current = BigInt(Number(player.hp_current) + restoreAmount);
-            message += `，恢复 ${restoreAmount} 气血`;
-        }
-
-        if (effect.mp_restore) {
-            const restoreAmount = Math.min(
-                effect.mp_restore * (quantity || 1),
-                Number(player.attributes?.mp_max || 0) - Number(player.mp_current)
-            );
-            player.mp_current = BigInt(Number(player.mp_current) + restoreAmount);
-            message += `，恢复 ${restoreAmount} 灵力`;
-        }
-
-        item.quantity -= (quantity || 1);
-        if (item.quantity <= 0) {
-            await item.destroy();
-        } else {
-            await item.save();
-        }
-
-        await player.save();
-
+        const result = await CombatService.useItem(req.user.id, itemId, quantity);
         res.json({
             code: 200,
-            message: message,
-            player_hp: player.hp_current.toString(),
-            player_mp: player.mp_current.toString()
+            ...result
         });
     } catch (error) {
         console.error('Use Item Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(error.status || 500).json({ error: error.message || 'Server error' });
     }
 });
 
@@ -195,33 +145,11 @@ router.post('/use-item', auth, async (req, res) => {
  */
 router.get('/monsters', auth, async (req, res) => {
     try {
-        const player = await require('../models/player').findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: 'Player not found' });
-
-        const MapConfigLoader = require('../services/MapConfigLoader');
-        const mapConfig = MapConfigLoader.getMap(player.current_map_id);
-        
-        if (!mapConfig || !mapConfig.monsters) {
-            return res.json({
-                map_id: player.current_map_id,
-                monsters: []
-            });
-        }
-
-        const monsters = mapConfig.monsters.map(m => ({
-            id: m.id,
-            name: m.name,
-            realm: m.realm,
-            exp: m.exp
-        }));
-
-        res.json({
-            map_id: player.current_map_id,
-            monsters: monsters
-        });
+        const result = await CombatService.getMonsters(req.user.id);
+        res.json(result);
     } catch (error) {
         console.error('Get Monsters Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(error.status || 500).json({ error: error.message || 'Server error' });
     }
 });
 

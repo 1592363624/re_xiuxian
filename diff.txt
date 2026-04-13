@@ -1,0 +1,3817 @@
+diff --git a/client/src/App.vue b/client/src/App.vue
+index ac2da59..dfeda50 100644
+--- a/client/src/App.vue
++++ b/client/src/App.vue
+@@ -6,20 +6,26 @@ import Login from './views/Login.vue'
+ import ToastContainer from './components/common/ToastContainer.vue'
+ import MovingOverlay from './components/overlays/MovingOverlay.vue'
+ import { usePlayerStore } from './stores/player'
++import { useAuthStore } from './stores/auth'
+ import { useUIStore } from './stores/ui'
++import { useConfigStore } from './stores/config'
++import { useRealtimeStore } from './stores/realtime'
+ import ChangelogModal from './components/modals/ChangelogModal.vue'
+ import { currentVersion } from './data/changelog'
+ 
+ const serverStatus = ref('正在连接...')
+ const dbStatus = ref('检查中...')
+ const ping = ref(0)
++const authStore = useAuthStore()
+ const playerStore = usePlayerStore()
+ const uiStore = useUIStore()
++const configStore = useConfigStore()
++const realtimeStore = useRealtimeStore()
+ const showChangelog = ref(false)
+ 
+ // 使用计算属性响应 Pinia 中的 player 变化
+ const currentPlayer = computed(() => playerStore.player)
+-const movingState = computed(() => playerStore.movingState)
++const movingState = computed(() => realtimeStore.movingState)
+ 
+ const isInitialized = ref(false)
+ 
+@@ -42,14 +48,16 @@ const checkStatus = async () => {
+ // 监听登录成功事件
+ const handleLoginSuccess = async () => {
+   console.log('Login success event received')
++  await configStore.fetchConfigs()
+   // 登录后获取完整数据 (双重保险，如果 Login 页面已经获取过，这里会再次获取最新状态)
+   await playerStore.fetchPlayer()
++  realtimeStore.connect(playerStore.player?.id)
+   console.log('Player after fetch:', playerStore.player)
+ }
+ 
+ // 移动完成处理
+ const handleMoveComplete = async () => {
+-  playerStore.clearMovingState()
++  realtimeStore.clearMovingState()
+   uiStore.showToast('已到达目的地', 'success')
+   await playerStore.fetchPlayer()
+ }
+@@ -74,21 +82,27 @@ onMounted(async () => {
+   }
+ 
+   // 恢复 Token 并验证
+-  if (playerStore.token) {
+-    axios.defaults.headers.common['Authorization'] = `Bearer ${playerStore.token}`
++  if (authStore.token) {
++    axios.defaults.headers.common['Authorization'] = `Bearer ${authStore.token}`
+     try {
++      await configStore.fetchConfigs()
+       await playerStore.fetchPlayer()
+       if (!playerStore.player) {
+          // 如果 fetchPlayer 后依然没有 player (比如后端返回空但没报错，虽然不太可能)，视为失败
+          throw new Error('No player data')
+       }
++      realtimeStore.connect(playerStore.player?.id)
+     } catch (e) {
+       // 验证失败，清除状态
+-      playerStore.logout()
++      authStore.logout()
++      playerStore.clear()
++      realtimeStore.disconnect()
+     }
+   } else {
+     // 没有 token，确保清除可能残留的 player 数据
+-    playerStore.logout()
++    authStore.logout()
++    playerStore.clear()
++    realtimeStore.disconnect()
+   }
+   
+   isInitialized.value = true
+diff --git a/client/src/components/layout/GameLayout.vue b/client/src/components/layout/GameLayout.vue
+index 1038b60..5cb3782 100644
+--- a/client/src/components/layout/GameLayout.vue
++++ b/client/src/components/layout/GameLayout.vue
+@@ -161,6 +161,9 @@
+ import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+ import axios from 'axios';
+ import { usePlayerStore } from '../../stores/player';
++import { useAuthStore } from '../../stores/auth';
++import { useRealtimeStore } from '../../stores/realtime';
++import { useSeclusionStore } from '../../stores/seclusion';
+ import { useUIStore } from '../../stores/ui';
+ import { useNotificationStore } from '../../stores/notification';
+ import PlayerStatus from '../panels/PlayerStatus.vue';
+@@ -188,6 +191,9 @@ const props = defineProps<{
+ const emit = defineEmits(['action']);
+ 
+ const playerStore = usePlayerStore();
++const authStore = useAuthStore();
++const realtimeStore = useRealtimeStore();
++const seclusionStore = useSeclusionStore();
+ const uiStore = useUIStore();
+ const isMobileMenuOpen = ref(false);
+ const isSettingsOpen = ref(false);
+@@ -219,7 +225,7 @@ const handleAction = async (actionId: string) => {
+   
+   if (actionId === 'cultivate') {
+     try {
+-      await playerStore.startSeclusion();
++      await seclusionStore.start();
+       uiStore.showToast('进入闭关状态', 'success');
+       uiStore.addLog({
+         content: '开始闭关修炼，摒除杂念，感悟天地灵气。',
+@@ -269,7 +275,9 @@ const handleLogoutClick = () => {
+ };
+ 
+ const confirmLogout = () => {
+-  playerStore.logout();
++  authStore.logout();
++  realtimeStore.disconnect();
++  playerStore.clear();
+   isLogoutConfirmOpen.value = false;
+ };
+ 
+diff --git a/client/src/components/modals/SettingsModal.vue b/client/src/components/modals/SettingsModal.vue
+index 7120196..3ea7c1a 100644
+--- a/client/src/components/modals/SettingsModal.vue
++++ b/client/src/components/modals/SettingsModal.vue
+@@ -94,13 +94,19 @@
+ 
+ <script setup>
+ import { usePlayerStore } from '../../stores/player'
++import { useAuthStore } from '../../stores/auth'
++import { useRealtimeStore } from '../../stores/realtime'
+ 
+ const emit = defineEmits(['close'])
+ const playerStore = usePlayerStore()
++const authStore = useAuthStore()
++const realtimeStore = useRealtimeStore()
+ 
+ const handleLogout = () => {
+   if (confirm('确定要注销当前账号吗？')) {
+-    playerStore.logout()
++    authStore.logout()
++    realtimeStore.disconnect()
++    playerStore.clear()
+     window.location.reload()
+   }
+ }
+diff --git a/client/src/components/overlays/MovingOverlay.vue b/client/src/components/overlays/MovingOverlay.vue
+index 8c25d2f..b8a4060 100644
+--- a/client/src/components/overlays/MovingOverlay.vue
++++ b/client/src/components/overlays/MovingOverlay.vue
+@@ -1,10 +1,10 @@
+ <script setup>
+ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+ import axios from 'axios'
+-import { usePlayerStore } from '../../stores/player'
++import { useRealtimeStore } from '../../stores/realtime'
+ import { useUIStore } from '../../stores/ui'
+ 
+-const playerStore = usePlayerStore()
++const realtimeStore = useRealtimeStore()
+ const uiStore = useUIStore()
+ 
+ const props = defineProps({
+@@ -21,7 +21,7 @@ const progress = ref(0)
+ const intervalId = ref(null)
+ const cancelling = ref(false)
+ 
+-const movingState = computed(() => playerStore.movingState)
++const movingState = computed(() => realtimeStore.movingState)
+ 
+ const fromMapName = computed(() => movingState.value.fromMapName || '起点')
+ const toMapName = computed(() => movingState.value.toMapName || '终点')
+@@ -52,7 +52,7 @@ const startCountdown = () => {
+   intervalId.value = setInterval(() => {
+     if (countdown.value > 0) {
+       countdown.value--
+-      playerStore.updateRemainingTime(countdown.value)
++      realtimeStore.updateRemainingTime(countdown.value)
+       
+       const total = movingState.value.totalSeconds || 1
+       progress.value = Math.round((1 - countdown.value / total) * 100)
+@@ -73,7 +73,7 @@ const cancelMove = async () => {
+   cancelling.value = true
+   try {
+     await axios.post('/api/map/cancel-move')
+-    playerStore.clearMovingState()
++    realtimeStore.clearMovingState()
+     uiStore.addLog({
+       content: `你取消了移动，返回了 ${fromMapName.value}。`,
+       type: 'movement',
+diff --git a/client/src/components/panels/CombatPanel.vue b/client/src/components/panels/CombatPanel.vue
+index ce0f87a..11a3205 100644
+--- a/client/src/components/panels/CombatPanel.vue
++++ b/client/src/components/panels/CombatPanel.vue
+@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
+ import axios from 'axios'
+ import { useUIStore } from '../../stores/ui'
+ import { usePlayerStore } from '../../stores/player'
++import { useConfigStore } from '../../stores/config'
+ 
+ const props = defineProps({
+   initialBattleId: {
+@@ -14,6 +15,7 @@ const props = defineProps({
+ const emit = defineEmits(['close'])
+ const uiStore = useUIStore()
+ const playerStore = usePlayerStore()
++const configStore = useConfigStore()
+ 
+ const loading = ref(true)
+ const combatLoading = ref(false)
+@@ -213,7 +215,7 @@ const refreshStats = async () => {
+ }
+ 
+ const getMonsterDifficulty = (monster) => {
+-  const realmOrder = [
++  const realmOrder = configStore.realmOrder.length > 0 ? configStore.realmOrder : [
+     '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
+     '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
+     '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
+diff --git a/client/src/components/panels/FullMapList.vue b/client/src/components/panels/FullMapList.vue
+index a238a8c..d74d5af 100644
+--- a/client/src/components/panels/FullMapList.vue
++++ b/client/src/components/panels/FullMapList.vue
+@@ -3,10 +3,14 @@ import { ref, computed, onMounted } from 'vue'
+ import axios from 'axios'
+ import { useUIStore } from '../../stores/ui'
+ import { usePlayerStore } from '../../stores/player'
++import { useConfigStore } from '../../stores/config'
++import { useRealtimeStore } from '../../stores/realtime'
+ 
+ const emit = defineEmits(['close', 'mapChanged'])
+ const uiStore = useUIStore()
+ const playerStore = usePlayerStore()
++const configStore = useConfigStore()
++const realtimeStore = useRealtimeStore()
+ 
+ const loading = ref(true)
+ const allMaps = ref([])
+@@ -27,14 +31,17 @@ const mapTypeMap = {
+   world: { name: '界域', class: 'text-rose-400', bg: 'bg-rose-900/20', border: 'border-rose-700/50' }
+ }
+ 
+-const realmOrder = [
+-  '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
+-  '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
+-  '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
+-  '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
+-  '元婴期', '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
+-  '化神期', '炼虚期', '合体期', '大乘期', '渡劫期', '真仙'
+-]
++const getRealmRank = (realmName) => {
++  const realmOrder = configStore.realmOrder.length > 0 ? configStore.realmOrder : [
++    '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
++    '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
++    '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
++    '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
++    '元婴期', '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
++    '化神期', '炼虚期', '合体期', '大乘期', '渡劫期', '真仙'
++  ]
++  return realmOrder.indexOf(realmName)
++}
+ 
+ const fetchData = async () => {
+   loading.value = true
+@@ -56,10 +63,6 @@ const fetchData = async () => {
+   }
+ }
+ 
+-const getRealmRank = (realmName) => {
+-  return realmOrder.indexOf(realmName)
+-}
+-
+ const canEnter = (map) => {
+   const playerRank = getRealmRank(playerRealm.value)
+   const requiredRank = getRealmRank(map.required_realm || '凡人')
+@@ -88,7 +91,7 @@ const calculateMoveCost = (targetMap) => {
+   const travelTime = targetMap.travel_time || 5
+   const type = targetMap.type || 'country'
+ 
+-  const typeMultiplier = {
++  const typeMultiplier = configStore.system?.map?.type_multiplier || {
+     'country': 1,
+     'sect': 1,
+     'mountain': 1.5,
+@@ -103,7 +106,7 @@ const calculateMoveCost = (targetMap) => {
+   cost += travelTime / 2
+   cost *= typeMultiplier[type] || 1
+ 
+-  const terrainFactor = {
++  const terrainFactor = configStore.system?.map?.terrain_factor || {
+     'plains': 1,
+     'mountain': 1.5,
+     'ocean': 2,
+@@ -175,22 +178,11 @@ const handleMove = async (targetMap) => {
+     const currentMap = allMaps.value.find(m => m.id === currentMapId.value)
+     const res = await axios.post('/api/map/start-move', { targetMapId: targetMap.id })
+     
+-    if (res.data.success) {
+-      const movingState = {
+-        isMoving: true,
+-        fromMapId: currentMapId.value,
+-        toMapId: targetMap.id,
+-        fromMapName: currentMap?.name || '未知地点',
+-        toMapName: targetMap.name,
+-        startTime: res.data.start_time,
+-        endTime: res.data.end_time,
+-        totalSeconds: res.data.total_seconds,
+-        remainingSeconds: res.data.total_seconds
+-      }
+-      playerStore.setMovingState(movingState)
++    if (res.data?.code === 200 && res.data?.data) {
++      realtimeStore.setMovingState(res.data.data)
+       
+       uiStore.addLog({
+-        content: `你从 ${currentMap?.name || '未知地点'} 出发，前往 ${targetMap.name}，预计 ${formatTime(res.data.total_seconds)} 后到达。`,
++        content: `你从 ${currentMap?.name || '未知地点'} 出发，前往 ${targetMap.name}，预计 ${formatTime(res.data.data.total_seconds)} 后到达。`,
+         type: 'movement',
+         actorId: 'self'
+       })
+diff --git a/client/src/components/panels/MapPanel.vue b/client/src/components/panels/MapPanel.vue
+index c8a9c83..fe2a13e 100644
+--- a/client/src/components/panels/MapPanel.vue
++++ b/client/src/components/panels/MapPanel.vue
+@@ -3,11 +3,13 @@ import { ref, onMounted, computed } from 'vue'
+ import axios from 'axios'
+ import { useUIStore } from '../../stores/ui'
+ import { usePlayerStore } from '../../stores/player'
++import { useRealtimeStore } from '../../stores/realtime'
+ import FullMapList from './FullMapList.vue'
+ 
+ const emit = defineEmits(['close'])
+ const uiStore = useUIStore()
+ const playerStore = usePlayerStore()
++const realtimeStore = useRealtimeStore()
+ 
+ const loading = ref(true)
+ const moving = ref(false)
+@@ -142,7 +144,7 @@ const handleMove = async (targetMap) => {
+     const res = await axios.post('/api/map/start-move', { targetMapId: targetMap.id })
+     const moveData = res.data.data
+     
+-    playerStore.setMovingState({
++    realtimeStore.setMovingState({
+       from_map_id: moveData.from_map_id,
+       to_map_id: moveData.to_map_id,
+       from_map_name: moveData.from_map_name,
+diff --git a/client/src/components/panels/SeclusionOverlay.vue b/client/src/components/panels/SeclusionOverlay.vue
+index 40734ec..b54a934 100644
+--- a/client/src/components/panels/SeclusionOverlay.vue
++++ b/client/src/components/panels/SeclusionOverlay.vue
+@@ -65,16 +65,18 @@
+ import { ref, onMounted, onUnmounted, computed } from 'vue'
+ import { usePlayerStore } from '../../stores/player'
+ import { useUIStore } from '../../stores/ui'
++import { useSeclusionStore } from '../../stores/seclusion'
+ 
+-const store = usePlayerStore()
++const playerStore = usePlayerStore()
+ const uiStore = useUIStore()
++const seclusionStore = useSeclusionStore()
+ const loading = ref(false)
+ const now = ref(Date.now())
+ const timer = ref(null)
+ const expRate = ref(0.1) // Default
+ 
+ const startTime = computed(() => {
+-  return store.player?.seclusion_start_time ? new Date(store.player.seclusion_start_time).getTime() : Date.now()
++  return playerStore.player?.seclusion_start_time ? new Date(playerStore.player.seclusion_start_time).getTime() : Date.now()
+ })
+ 
+ const duration = computed(() => {
+@@ -100,7 +102,7 @@ const handleEnd = async () => {
+   if (loading.value) return
+   loading.value = true
+   try {
+-    const res = await store.endSeclusion()
++    const res = await seclusionStore.end()
+     // 添加日志
+     const gain = res.data?.exp_gain || (res.data?.data?.exp_gain) || expGained.value || 0
+     uiStore.addLog({
+@@ -118,7 +120,7 @@ const handleEnd = async () => {
+ }
+ 
+ onMounted(async () => {
+-  const status = await store.fetchSeclusionStatus()
++  const status = await seclusionStore.fetchStatus()
+   if (status && status.exp_rate) {
+     expRate.value = status.exp_rate
+   }
+diff --git a/client/src/components/widgets/BreakthroughPortal.vue b/client/src/components/widgets/BreakthroughPortal.vue
+index b993386..eb97157 100644
+--- a/client/src/components/widgets/BreakthroughPortal.vue
++++ b/client/src/components/widgets/BreakthroughPortal.vue
+@@ -1,9 +1,11 @@
+ <script setup>
+ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+ import { usePlayerStore } from '../../stores/player'
++import { useBreakthroughStore } from '../../stores/breakthrough'
+ import { useUIStore } from '../../stores/ui'
+ 
+ const playerStore = usePlayerStore()
++const breakthroughStore = useBreakthroughStore()
+ const uiStore = useUIStore()
+ 
+ const isTrying = ref(false)
+@@ -216,7 +218,7 @@ const handleBreakthroughClick = async () => {
+ 
+   isTrying.value = true
+   try {
+-    const res = await playerStore.tryBreakthrough()
++    const res = await breakthroughStore.tryBreakthrough()
+     if (!res) return
+ 
+     if (res.success) {
+@@ -390,4 +392,3 @@ onUnmounted(() => {
+   }
+ }
+ </style>
+-
+diff --git a/client/src/stores/auth.js b/client/src/stores/auth.js
+new file mode 100644
+index 0000000..52602cf
+--- /dev/null
++++ b/client/src/stores/auth.js
+@@ -0,0 +1,30 @@
++import { defineStore } from 'pinia'
++import axios from 'axios'
++
++export const useAuthStore = defineStore('auth', {
++  state: () => ({
++    token: localStorage.getItem('token') || null,
++    logoutReason: null
++  }),
++
++  actions: {
++    setToken(token) {
++      this.token = token
++      localStorage.setItem('token', token)
++      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
++    },
++
++    clearToken() {
++      this.token = null
++      localStorage.removeItem('token')
++      delete axios.defaults.headers.common['Authorization']
++    },
++
++    logout(reason = null) {
++      this.logoutReason = reason
++      this.clearToken()
++      localStorage.removeItem('player')
++    }
++  }
++})
++
+diff --git a/client/src/stores/breakthrough.js b/client/src/stores/breakthrough.js
+new file mode 100644
+index 0000000..dca6717
+--- /dev/null
++++ b/client/src/stores/breakthrough.js
+@@ -0,0 +1,23 @@
++import { defineStore } from 'pinia'
++import axios from 'axios'
++import { useAuthStore } from './auth'
++import { usePlayerStore } from './player'
++
++export const useBreakthroughStore = defineStore('breakthrough', {
++  actions: {
++    async tryBreakthrough() {
++      const authStore = useAuthStore()
++      const playerStore = usePlayerStore()
++      if (!authStore.token) return null
++
++      const res = await axios.post('/api/breakthrough/try')
++      try {
++        await playerStore.fetchPlayer()
++      } catch (e) {
++        console.warn('刷新玩家数据失败:', e)
++      }
++      return res.data
++    }
++  }
++})
++
+diff --git a/client/src/stores/config.js b/client/src/stores/config.js
+new file mode 100644
+index 0000000..b4cda87
+--- /dev/null
++++ b/client/src/stores/config.js
+@@ -0,0 +1,39 @@
++import { defineStore } from 'pinia'
++import axios from 'axios'
++
++export const useConfigStore = defineStore('config', {
++  state: () => ({
++    realms: [],
++    system: null,
++    isLoaded: false
++  }),
++  
++  getters: {
++    realmOrder: (state) => {
++      return [...state.realms].sort((a, b) => a.rank - b.rank).map(r => r.name);
++    }
++  },
++
++  actions: {
++    async fetchConfigs() {
++      if (this.isLoaded) return;
++      
++      try {
++        const [realmsRes, systemRes] = await Promise.all([
++          axios.get('/api/config/data/realms'),
++          axios.get('/api/config/data/system')
++        ]);
++        
++        this.realms = realmsRes.data.data.realms || [];
++        this.system = systemRes.data.data || {};
++        this.isLoaded = true;
++      } catch (error) {
++        console.error('获取配置失败:', error);
++      }
++    },
++    
++    getRealmByName(name) {
++      return this.realms.find(r => r.name === name);
++    }
++  }
++})
+diff --git a/client/src/stores/player.js b/client/src/stores/player.js
+index d4c38a3..0b874d7 100644
+--- a/client/src/stores/player.js
++++ b/client/src/stores/player.js
+@@ -1,116 +1,28 @@
+ import { defineStore } from 'pinia'
+ import axios from 'axios'
+-import { useUIStore } from './ui'
+-import { io } from 'socket.io-client'
++import { useAuthStore } from './auth'
+ 
+ export const usePlayerStore = defineStore('player', {
+   state: () => ({
+-    token: localStorage.getItem('token') || null,
+     player: JSON.parse(localStorage.getItem('player')) || null,
+     saveStatus: 'idle', // 'idle' | 'saving' | 'success' | 'error'
+-    autoSaveInterval: null,
+-    logoutReason: null,
+-    systemConfig: {},
+-    socket: null,
+-    isSocketConnected: false,
+-    movingState: {
+-      isMoving: false,
+-      fromMapId: null,
+-      toMapId: null,
+-      fromMapName: '',
+-      toMapName: '',
+-      startTime: null,
+-      endTime: null,
+-      totalSeconds: 0,
+-      remainingSeconds: 0
+-    }
++    autoSaveInterval: null
+   }),
+   
+   actions: {
+-    setToken(token) {
+-      this.token = token
+-      localStorage.setItem('token', token)
+-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+-      this.initializeSocket()
+-    },
+-    
+     setPlayer(player) {
+       this.player = player
+       localStorage.setItem('player', JSON.stringify(player))
+     },
+ 
+-    /**
+-     * 初始化 WebSocket 连接
+-     * 用于接收实时数据更新通知
+-     */
+-    initializeSocket() {
+-      if (this.socket) {
+-        this.socket.disconnect()
+-      }
+-
+-      this.socket = io('/', {
+-        transports: ['websocket', 'polling'],
+-        reconnection: true,
+-        reconnectionAttempts: 5,
+-        reconnectionDelay: 1000,
+-        auth: {
+-          playerId: this.player?.id
+-        }
+-      })
+-
+-      this.socket.on('connect', () => {
+-        console.log('[PlayerStore] WebSocket 连接成功')
+-        this.isSocketConnected = true
+-      })
+-
+-      this.socket.on('disconnect', () => {
+-        console.log('[PlayerStore] WebSocket 连接断开')
+-        this.isSocketConnected = false
+-      })
+-
+-      this.socket.on('connect_error', (error) => {
+-        console.warn('[PlayerStore] WebSocket 连接失败:', error.message)
+-        this.isSocketConnected = false
+-      })
+-
+-      this.socket.on('player:updated', async (data) => {
+-        console.log('[PlayerStore] 收到玩家数据更新通知:', data)
+-        
+-        if (data.updateType === 'gm_delete') {
+-          this.logout('您的账号已被管理员删除')
+-          return
+-        }
+-
+-        if (data.updateType === 'gm_ban') {
+-          this.logout(`您已被管理员封禁，原因：${data.reason || '未说明'}`)
+-          return
+-        }
+-
+-        await this.fetchPlayer()
+-        console.log('[PlayerStore] 玩家数据已自动刷新')
+-      })
+-
+-      this.socket.on('move:completed', async (data) => {
+-        console.log('[PlayerStore] 移动完成通知:', data)
+-        this.clearMovingState()
+-        await this.fetchPlayer()
+-      })
+-    },
+-
+-    /**
+-     * 断开 WebSocket 连接
+-     */
+-    disconnectSocket() {
+-      if (this.socket) {
+-        this.socket.disconnect()
+-        this.socket = null
+-        this.isSocketConnected = false
+-        console.log('[PlayerStore] WebSocket 连接已断开')
+-      }
++    clear() {
++      this.player = null
++      localStorage.removeItem('player')
+     },
+ 
+     async fetchPlayer() {
+-      if (!this.token) return
++      const authStore = useAuthStore()
++      if (!authStore.token) return
+       try {
+         const res = await axios.get('/api/player/me')
+         this.setPlayer(res.data.data)
+@@ -118,17 +30,20 @@ export const usePlayerStore = defineStore('player', {
+         if (error.response) {
+           // 处理互踢逻辑
+           if (error.response.data && error.response.data.code === 'SESSION_EXPIRED') {
+-             this.logout('您的账号已在其他设备登录，当前会话已失效');
++             authStore.logout('您的账号已在其他设备登录，当前会话已失效')
++             this.clear()
+              return;
+           }
+ 
+           if (error.response.status === 401) {
+             console.warn('登录凭证已过期，请重新登录')
+-            this.logout('登录已过期，请重新登录')
++            authStore.logout('登录已过期，请重新登录')
++            this.clear()
+             return
+           } else if (error.response.status === 404) {
+             console.warn('玩家数据不存在，请重新登录')
+-            this.logout('玩家数据不存在')
++            authStore.logout('玩家数据不存在')
++            this.clear()
+             return
+           }
+         }
+@@ -136,79 +51,9 @@ export const usePlayerStore = defineStore('player', {
+       }
+     },
+ 
+-    async fetchSeclusionStatus() {
+-      if (!this.token) return
+-      try {
+-        const res = await axios.get('/api/seclusion/status')
+-        if (res.data) {
+-             if (this.player) {
+-                 this.player.is_secluded = res.data.is_secluded
+-                 this.player.seclusion_start_time = res.data.seclusion_start_time
+-                 this.player.seclusion_duration = res.data.seclusion_duration
+-             }
+-             this.systemConfig.cultivate_interval = res.data.cultivate_interval
+-             this.systemConfig.deep_seclusion_exp_rate = res.data.deep_seclusion_exp_rate
+-             this.systemConfig.deep_seclusion_interval = res.data.deep_seclusion_interval
+-             return res.data
+-        }
+-      } catch (error) {
+-        console.error('获取闭关状态失败:', error)
+-      }
+-      return null
+-    },
+-
+-    async startSeclusion(duration) {
+-      if (!this.token) return
+-      try {
+-        const res = await axios.post('/api/seclusion/start', { duration })
+-        if (this.player) {
+-          this.player.is_secluded = true
+-          this.player.seclusion_start_time = res.data.data.seclusion_start_time
+-          this.player.seclusion_duration = res.data.data.seclusion_duration
+-        }
+-        return res.data
+-      } catch (error) {
+-        console.error('开始闭关失败:', error)
+-        throw error
+-      }
+-    },
+-
+-    async endSeclusion() {
+-      if (!this.token) return
+-      try {
+-        const res = await axios.post('/api/seclusion/end')
+-        if (this.player) {
+-            this.player.is_secluded = false
+-            this.player.seclusion_start_time = null
+-            this.player.seclusion_duration = 0
+-            // Update other stats if returned
+-            if (res.data.data.player) {
+-                this.player.exp = res.data.data.player.exp
+-                if (res.data.data.player.last_seclusion_time) {
+-                    this.player.last_seclusion_time = res.data.data.player.last_seclusion_time
+-                }
+-            }
+-        }
+-        return res.data
+-      } catch (error) {
+-        console.error('结束闭关失败:', error)
+-        throw error
+-      }
+-    },
+-
+-    async tryBreakthrough() {
+-      if (!this.token) return null
+-      const res = await axios.post('/api/breakthrough/try')
+-      try {
+-        await this.fetchPlayer()
+-      } catch (e) {
+-        console.warn('刷新玩家数据失败:', e)
+-      }
+-      return res.data
+-    },
+-
+     async savePlayer(retryCount = 0) {
+-      if (!this.player || !this.token) return
++      const authStore = useAuthStore()
++      if (!this.player || !authStore.token) return
+       
+       // 仅在首次尝试时设置状态，避免重试时UI闪烁
+       if (retryCount === 0) {
+@@ -216,7 +61,7 @@ export const usePlayerStore = defineStore('player', {
+       }
+ 
+       try {
+-        await axios.put('/api/player/me', this.player)
++        await axios.put('/api/player/me', { nickname: this.player.nickname })
+         
+         this.saveStatus = 'success'
+         // 3秒后自动恢复为空闲状态
+@@ -229,14 +74,16 @@ export const usePlayerStore = defineStore('player', {
+         if (error.response) {
+           // 处理互踢逻辑
+           if (error.response.data && error.response.data.code === 'SESSION_EXPIRED') {
+-             this.logout('您的账号已在其他设备登录，当前会话已失效');
++             authStore.logout('您的账号已在其他设备登录，当前会话已失效')
++             this.clear()
+              return;
+           }
+ 
+           if (error.response.status === 401 || error.response.status === 404) {
+             console.warn('保存失败：认证无效或玩家不存在')
+             this.saveStatus = 'error'
+-            this.logout('认证失败')
++            authStore.logout('认证失败')
++            this.clear()
+             return
+           }
+         }
+@@ -261,26 +108,17 @@ export const usePlayerStore = defineStore('player', {
+       }
+     },
+ 
+-    async fetchSystemConfig() {
+-      if (!this.token) return;
+-      try {
+-        const res = await axios.get('/api/system/config');
+-        this.systemConfig = res.data;
+-      } catch (error) {
+-        console.warn('获取系统配置失败，使用默认值:', error);
+-      }
+-    },
+-
+     async startAutoSave() {
+       if (this.autoSaveInterval) clearInterval(this.autoSaveInterval)
+-      
+-      // 获取配置，优先使用配置的间隔
+-      if (Object.keys(this.systemConfig).length === 0) {
+-        await this.fetchSystemConfig();
++
++      let interval = 10000
++      try {
++        const res = await axios.get('/api/config/data/system')
++        const value = res.data?.data?.settings?.auto_save_interval?.value
++        if (typeof value === 'number') interval = value
++      } catch (error) {
++        console.warn('获取自动存档间隔失败，使用默认值:', error)
+       }
+-      
+-      const interval = this.systemConfig.auto_save_interval || 10000;
+-      console.log(`启动自动存档，间隔: ${interval}ms`);
+ 
+       this.autoSaveInterval = setInterval(() => {
+         this.savePlayer()
+@@ -293,48 +131,5 @@ export const usePlayerStore = defineStore('player', {
+         this.autoSaveInterval = null
+       }
+     },
+-
+-    setMovingState(state) {
+-      this.movingState = {
+-        isMoving: true,
+-        fromMapId: state.from_map_id,
+-        toMapId: state.to_map_id,
+-        fromMapName: state.from_map_name,
+-        toMapName: state.to_map_name,
+-        startTime: state.start_time,
+-        endTime: state.end_time,
+-        totalSeconds: state.total_seconds,
+-        remainingSeconds: state.total_seconds
+-      }
+-    },
+-
+-    updateRemainingTime(remainingSeconds) {
+-      this.movingState.remainingSeconds = remainingSeconds
+-    },
+-
+-    clearMovingState() {
+-      this.movingState = {
+-        isMoving: false,
+-        fromMapId: null,
+-        toMapId: null,
+-        fromMapName: '',
+-        toMapName: '',
+-        startTime: null,
+-        endTime: null,
+-        totalSeconds: 0,
+-        remainingSeconds: 0
+-      }
+-    },
+-    
+-    logout(reason = null) {
+-      this.stopAutoSave()
+-      this.disconnectSocket()
+-      this.token = null
+-      this.player = null
+-      this.logoutReason = reason
+-      localStorage.removeItem('token')
+-      localStorage.removeItem('player')
+-      delete axios.defaults.headers.common['Authorization']
+-    }
+   }
+ })
+diff --git a/client/src/stores/realtime.js b/client/src/stores/realtime.js
+new file mode 100644
+index 0000000..74a93b8
+--- /dev/null
++++ b/client/src/stores/realtime.js
+@@ -0,0 +1,124 @@
++import { defineStore } from 'pinia'
++import { io } from 'socket.io-client'
++import { useAuthStore } from './auth'
++import { usePlayerStore } from './player'
++
++export const useRealtimeStore = defineStore('realtime', {
++  state: () => ({
++    socket: null,
++    isSocketConnected: false,
++    movingState: {
++      isMoving: false,
++      fromMapId: null,
++      toMapId: null,
++      fromMapName: '',
++      toMapName: '',
++      startTime: null,
++      endTime: null,
++      totalSeconds: 0,
++      remainingSeconds: 0
++    }
++  }),
++
++  actions: {
++    connect(playerId) {
++      const authStore = useAuthStore()
++      if (!authStore.token) return
++      if (!playerId) return
++
++      if (this.socket) {
++        this.socket.disconnect()
++      }
++
++      this.socket = io('/', {
++        transports: ['websocket', 'polling'],
++        reconnection: true,
++        reconnectionAttempts: 5,
++        reconnectionDelay: 1000,
++        auth: {
++          playerId: playerId
++        }
++      })
++
++      this.socket.on('connect', () => {
++        this.isSocketConnected = true
++      })
++
++      this.socket.on('disconnect', () => {
++        this.isSocketConnected = false
++      })
++
++      this.socket.on('connect_error', () => {
++        this.isSocketConnected = false
++      })
++
++      this.socket.on('player:updated', async (data) => {
++        const playerStore = usePlayerStore()
++        const authStore = useAuthStore()
++
++        if (data.updateType === 'gm_delete') {
++          authStore.logout('您的账号已被管理员删除')
++          playerStore.clear()
++          this.disconnect()
++          return
++        }
++
++        if (data.updateType === 'gm_ban') {
++          authStore.logout(`您已被管理员封禁，原因：${data.reason || '未说明'}`)
++          playerStore.clear()
++          this.disconnect()
++          return
++        }
++
++        await playerStore.fetchPlayer()
++      })
++
++      this.socket.on('move:completed', async () => {
++        const playerStore = usePlayerStore()
++        this.clearMovingState()
++        await playerStore.fetchPlayer()
++      })
++    },
++
++    disconnect() {
++      if (this.socket) {
++        this.socket.disconnect()
++        this.socket = null
++      }
++      this.isSocketConnected = false
++    },
++
++    setMovingState(state) {
++      this.movingState = {
++        isMoving: true,
++        fromMapId: state.from_map_id,
++        toMapId: state.to_map_id,
++        fromMapName: state.from_map_name,
++        toMapName: state.to_map_name,
++        startTime: state.start_time,
++        endTime: state.end_time,
++        totalSeconds: state.total_seconds,
++        remainingSeconds: state.total_seconds
++      }
++    },
++
++    updateRemainingTime(remainingSeconds) {
++      this.movingState.remainingSeconds = remainingSeconds
++    },
++
++    clearMovingState() {
++      this.movingState = {
++        isMoving: false,
++        fromMapId: null,
++        toMapId: null,
++        fromMapName: '',
++        toMapName: '',
++        startTime: null,
++        endTime: null,
++        totalSeconds: 0,
++        remainingSeconds: 0
++      }
++    }
++  }
++})
++
+diff --git a/client/src/stores/seclusion.js b/client/src/stores/seclusion.js
+new file mode 100644
+index 0000000..e723d0f
+--- /dev/null
++++ b/client/src/stores/seclusion.js
+@@ -0,0 +1,72 @@
++import { defineStore } from 'pinia'
++import axios from 'axios'
++import { useAuthStore } from './auth'
++import { usePlayerStore } from './player'
++
++export const useSeclusionStore = defineStore('seclusion', {
++  state: () => ({
++    systemConfig: {}
++  }),
++
++  actions: {
++    async fetchStatus() {
++      const authStore = useAuthStore()
++      const playerStore = usePlayerStore()
++      if (!authStore.token) return null
++
++      try {
++        const res = await axios.get('/api/seclusion/status')
++        if (res.data) {
++          if (playerStore.player) {
++            playerStore.player.is_secluded = res.data.is_secluded
++            playerStore.player.seclusion_start_time = res.data.seclusion_start_time
++            playerStore.player.seclusion_duration = res.data.seclusion_duration
++          }
++          this.systemConfig.cultivate_interval = res.data.cultivate_interval
++          this.systemConfig.deep_seclusion_exp_rate = res.data.deep_seclusion_exp_rate
++          this.systemConfig.deep_seclusion_interval = res.data.deep_seclusion_interval
++          return res.data
++        }
++      } catch (error) {
++        console.error('获取闭关状态失败:', error)
++      }
++
++      return null
++    },
++
++    async start(duration) {
++      const authStore = useAuthStore()
++      const playerStore = usePlayerStore()
++      if (!authStore.token) return null
++
++      const res = await axios.post('/api/seclusion/start', { duration })
++      if (playerStore.player) {
++        playerStore.player.is_secluded = true
++        playerStore.player.seclusion_start_time = res.data.data.seclusion_start_time
++        playerStore.player.seclusion_duration = res.data.data.seclusion_duration
++      }
++      return res.data
++    },
++
++    async end() {
++      const authStore = useAuthStore()
++      const playerStore = usePlayerStore()
++      if (!authStore.token) return null
++
++      const res = await axios.post('/api/seclusion/end')
++      if (playerStore.player) {
++        playerStore.player.is_secluded = false
++        playerStore.player.seclusion_start_time = null
++        playerStore.player.seclusion_duration = 0
++        if (res.data.data.player) {
++          playerStore.player.exp = res.data.data.player.exp
++          if (res.data.data.player.last_seclusion_time) {
++            playerStore.player.last_seclusion_time = res.data.data.player.last_seclusion_time
++          }
++        }
++      }
++      return res.data
++    }
++  }
++})
++
+diff --git a/client/src/views/Login.vue b/client/src/views/Login.vue
+index bf42313..1f9bf9e 100644
+--- a/client/src/views/Login.vue
++++ b/client/src/views/Login.vue
+@@ -2,7 +2,9 @@
+ import { ref, watch } from 'vue'
+ import axios from 'axios'
+ import { usePlayerStore } from '../stores/player'
++import { useAuthStore } from '../stores/auth'
+ import { useUIStore } from '../stores/ui'
++import { useRealtimeStore } from '../stores/realtime'
+ 
+ const isLogin = ref(true) // true: 登录模式, false: 注册模式
+ const form = ref({
+@@ -18,7 +20,9 @@ const nicknameError = ref('')
+ const checking = ref({ username: false, nickname: false })
+ 
+ const playerStore = usePlayerStore()
++const authStore = useAuthStore()
+ const uiStore = useUIStore()
++const realtimeStore = useRealtimeStore()
+ 
+ const emit = defineEmits(['login-success'])
+ 
+@@ -116,13 +120,14 @@ const handleSubmit = async () => {
+         password: form.value.password
+       })
+       // 清除之前的登出原因
+-      playerStore.logoutReason = null;
++      authStore.logoutReason = null;
+       
+       // 使用 Pinia 存储状态
+-      playerStore.setToken(res.data.token)
++      authStore.setToken(res.data.token)
+       
+       // 获取完整玩家数据
+       await playerStore.fetchPlayer()
++      realtimeStore.connect(playerStore.player?.id)
+       
+       // 触发登录成功事件，传递 true 表示成功，不需要传 player 对象，避免传旧数据
+       emit('login-success', true)
+@@ -153,8 +158,8 @@ const handleSubmit = async () => {
+       <p class="text-center text-gray-500 mb-8 text-sm">踏入仙途，逆天改命</p>
+       
+       <!-- 登出/互踢提示 -->
+-      <div v-if="playerStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm text-center animate-pulse">
+-        {{ playerStore.logoutReason }}
++      <div v-if="authStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm text-center animate-pulse">
++        {{ authStore.logoutReason }}
+       </div>
+ 
+       <form @submit.prevent="handleSubmit" class="space-y-6">
+diff --git a/scripts/migrate_realms.js b/scripts/migrate_realms.js
+new file mode 100644
+index 0000000..feca850
+--- /dev/null
++++ b/scripts/migrate_realms.js
+@@ -0,0 +1,81 @@
++const fs = require('fs');
++
++const calcExpCapByRank = (rank) => {
++    const r = Math.max(1, Number(rank) || 1);
++    return Math.floor(1000 * Math.pow(r, 3));
++};
++
++const realmData = [
++    { name: "凡人", rank: 1, base_hp: 100, base_atk: 10, base_def: 5, base_speed: 10, base_mp: 0, base_sense: 10, base_lifespan: 60, mp_regen_rate: 0, toxicity_decay: 0 },
++    { name: "炼气期1层", rank: 2, base_hp: 200, base_atk: 20, base_def: 10, base_speed: 15, base_mp: 100, base_sense: 20, base_lifespan: 80, mp_regen_rate: 20, toxicity_decay: 1 },
++    { name: "炼气期2层", rank: 3, base_hp: 250, base_atk: 25, base_def: 13, base_speed: 17, base_mp: 150, base_sense: 25, base_lifespan: 83, mp_regen_rate: 23, toxicity_decay: 1 },
++    { name: "炼气期3层", rank: 4, base_hp: 300, base_atk: 30, base_def: 16, base_speed: 19, base_mp: 200, base_sense: 30, base_lifespan: 86, mp_regen_rate: 26, toxicity_decay: 1 },
++    { name: "炼气期4层", rank: 5, base_hp: 350, base_atk: 35, base_def: 19, base_speed: 21, base_mp: 250, base_sense: 35, base_lifespan: 89, mp_regen_rate: 29, toxicity_decay: 1 },
++    { name: "炼气期5层", rank: 6, base_hp: 400, base_atk: 40, base_def: 22, base_speed: 23, base_mp: 300, base_sense: 40, base_lifespan: 92, mp_regen_rate: 32, toxicity_decay: 1 },
++    { name: "炼气期6层", rank: 7, base_hp: 450, base_atk: 45, base_def: 26, base_speed: 24, base_mp: 350, base_sense: 45, base_lifespan: 95, mp_regen_rate: 35, toxicity_decay: 2 },
++    { name: "炼气期7层", rank: 8, base_hp: 500, base_atk: 50, base_def: 30, base_speed: 25, base_mp: 400, base_sense: 50, base_lifespan: 100, mp_regen_rate: 40, toxicity_decay: 2 },
++    { name: "炼气期8层", rank: 9, base_hp: 550, base_atk: 55, base_def: 33, base_speed: 27, base_mp: 450, base_sense: 55, base_lifespan: 103, mp_regen_rate: 43, toxicity_decay: 2 },
++    { name: "炼气期9层", rank: 10, base_hp: 600, base_atk: 60, base_def: 36, base_speed: 29, base_mp: 500, base_sense: 60, base_lifespan: 106, mp_regen_rate: 46, toxicity_decay: 2 },
++    { name: "炼气期10层", rank: 11, base_hp: 650, base_atk: 65, base_def: 39, base_speed: 31, base_mp: 550, base_sense: 65, base_lifespan: 109, mp_regen_rate: 49, toxicity_decay: 2 },
++    { name: "炼气期11层", rank: 12, base_hp: 700, base_atk: 70, base_def: 42, base_speed: 33, base_mp: 600, base_sense: 70, base_lifespan: 112, mp_regen_rate: 52, toxicity_decay: 3 },
++    { name: "炼气期12层", rank: 13, base_hp: 750, base_atk: 75, base_def: 46, base_speed: 34, base_mp: 650, base_sense: 75, base_lifespan: 115, mp_regen_rate: 55, toxicity_decay: 3 },
++    { name: "炼气期13层", rank: 14, base_hp: 800, base_atk: 80, base_def: 50, base_speed: 35, base_mp: 800, base_sense: 80, base_lifespan: 120, mp_regen_rate: 60, toxicity_decay: 3 },
++    { name: "筑基初期", rank: 15, base_hp: 1500, base_atk: 150, base_def: 100, base_speed: 50, base_mp: 1500, base_sense: 150, base_lifespan: 150, mp_regen_rate: 100, toxicity_decay: 5 },
++    { name: "筑基中期", rank: 16, base_hp: 2000, base_atk: 200, base_def: 150, base_speed: 60, base_mp: 2000, base_sense: 200, base_lifespan: 170, mp_regen_rate: 120, toxicity_decay: 6 },
++    { name: "筑基后期", rank: 17, base_hp: 2500, base_atk: 250, base_def: 200, base_speed: 70, base_mp: 2500, base_sense: 250, base_lifespan: 190, mp_regen_rate: 140, toxicity_decay: 7 },
++    { name: "筑基大圆满", rank: 18, base_hp: 3000, base_atk: 300, base_def: 250, base_speed: 80, base_mp: 3000, base_sense: 300, base_lifespan: 200, mp_regen_rate: 160, toxicity_decay: 8 },
++    { name: "结丹初期", rank: 19, base_hp: 5000, base_atk: 500, base_def: 400, base_speed: 100, base_mp: 5000, base_sense: 500, base_lifespan: 400, mp_regen_rate: 200, toxicity_decay: 10 },
++    { name: "结丹中期", rank: 20, base_hp: 7000, base_atk: 700, base_def: 500, base_speed: 120, base_mp: 7000, base_sense: 700, base_lifespan: 450, mp_regen_rate: 240, toxicity_decay: 12 },
++    { name: "结丹后期", rank: 21, base_hp: 9000, base_atk: 900, base_def: 600, base_speed: 140, base_mp: 9000, base_sense: 900, base_lifespan: 500, mp_regen_rate: 280, toxicity_decay: 14 },
++    { name: "结丹大圆满", rank: 22, base_hp: 12000, base_atk: 1200, base_def: 800, base_speed: 160, base_mp: 12000, base_sense: 1200, base_lifespan: 600, mp_regen_rate: 320, toxicity_decay: 16 },
++    { name: "元婴初期", rank: 23, base_hp: 20000, base_atk: 2000, base_def: 1500, base_speed: 200, base_mp: 20000, base_sense: 2000, base_lifespan: 800, mp_regen_rate: 400, toxicity_decay: 20 },
++    { name: "元婴中期", rank: 24, base_hp: 25000, base_atk: 2500, base_def: 1800, base_speed: 220, base_mp: 25000, base_sense: 2500, base_lifespan: 900, mp_regen_rate: 450, toxicity_decay: 22 },
++    { name: "元婴后期", rank: 25, base_hp: 30000, base_atk: 3000, base_def: 2100, base_speed: 240, base_mp: 30000, base_sense: 3000, base_lifespan: 1000, mp_regen_rate: 500, toxicity_decay: 24 },
++    { name: "元婴大圆满", rank: 26, base_hp: 40000, base_atk: 4000, base_def: 2500, base_speed: 260, base_mp: 40000, base_sense: 4000, base_lifespan: 1200, mp_regen_rate: 550, toxicity_decay: 26 },
++    { name: "化神初期", rank: 27, base_hp: 60000, base_atk: 6000, base_def: 3500, base_speed: 300, base_mp: 60000, base_sense: 6000, base_lifespan: 1500, mp_regen_rate: 600, toxicity_decay: 30 },
++    { name: "化神中期", rank: 28, base_hp: 75000, base_atk: 7500, base_def: 4000, base_speed: 320, base_mp: 75000, base_sense: 7500, base_lifespan: 1700, mp_regen_rate: 650, toxicity_decay: 32 },
++    { name: "化神后期", rank: 29, base_hp: 90000, base_atk: 9000, base_def: 4500, base_speed: 340, base_mp: 90000, base_sense: 9000, base_lifespan: 1900, mp_regen_rate: 700, toxicity_decay: 34 },
++    { name: "化神大圆满", rank: 30, base_hp: 120000, base_atk: 12000, base_def: 5000, base_speed: 360, base_mp: 120000, base_sense: 12000, base_lifespan: 2000, mp_regen_rate: 750, toxicity_decay: 36 },
++    { name: "炼虚初期", rank: 31, base_hp: 200000, base_atk: 20000, base_def: 10000, base_speed: 400, base_mp: 200000, base_sense: 20000, base_lifespan: 8000, mp_regen_rate: 800, toxicity_decay: 40 },
++    { name: "炼虚中期", rank: 32, base_hp: 250000, base_atk: 25000, base_def: 12000, base_speed: 420, base_mp: 250000, base_sense: 25000, base_lifespan: 9000, mp_regen_rate: 850, toxicity_decay: 42 },
++    { name: "炼虚后期", rank: 33, base_hp: 300000, base_atk: 30000, base_def: 14000, base_speed: 440, base_mp: 300000, base_sense: 30000, base_lifespan: 10000, mp_regen_rate: 900, toxicity_decay: 44 },
++    { name: "炼虚大圆满", rank: 34, base_hp: 400000, base_atk: 40000, base_def: 16000, base_speed: 460, base_mp: 400000, base_sense: 40000, base_lifespan: 12000, mp_regen_rate: 950, toxicity_decay: 46 },
++    { name: "合体初期", rank: 35, base_hp: 600000, base_atk: 60000, base_def: 30000, base_speed: 500, base_mp: 600000, base_sense: 60000, base_lifespan: 50000, mp_regen_rate: 1000, toxicity_decay: 50 },
++    { name: "合体中期", rank: 36, base_hp: 750000, base_atk: 75000, base_def: 35000, base_speed: 520, base_mp: 750000, base_sense: 75000, base_lifespan: 60000, mp_regen_rate: 1050, toxicity_decay: 52 },
++    { name: "合体后期", rank: 37, base_hp: 900000, base_atk: 90000, base_def: 40000, base_speed: 540, base_mp: 900000, base_sense: 90000, base_lifespan: 70000, mp_regen_rate: 1100, toxicity_decay: 54 },
++    { name: "合体大圆满", rank: 38, base_hp: 1200000, base_atk: 120000, base_def: 45000, base_speed: 560, base_mp: 1200000, base_sense: 120000, base_lifespan: 80000, mp_regen_rate: 1150, toxicity_decay: 56 },
++    { name: "大乘初期", rank: 39, base_hp: 2000000, base_atk: 200000, base_def: 100000, base_speed: 600, base_mp: 2000000, base_sense: 200000, base_lifespan: 200000, mp_regen_rate: 1200, toxicity_decay: 60 },
++    { name: "大乘中期", rank: 40, base_hp: 2500000, base_atk: 250000, base_def: 120000, base_speed: 620, base_mp: 2500000, base_sense: 250000, base_lifespan: 300000, mp_regen_rate: 1250, toxicity_decay: 62 },
++    { name: "大乘后期", rank: 41, base_hp: 3000000, base_atk: 300000, base_def: 140000, base_speed: 640, base_mp: 3000000, base_sense: 300000, base_lifespan: 400000, mp_regen_rate: 1300, toxicity_decay: 64 },
++    { name: "大乘大圆满", rank: 42, base_hp: 4000000, base_atk: 400000, base_def: 160000, base_speed: 660, base_mp: 4000000, base_sense: 400000, base_lifespan: 500000, mp_regen_rate: 1350, toxicity_decay: 66 },
++    { name: "真仙初期", rank: 43, base_hp: 6000000, base_atk: 600000, base_def: 300000, base_speed: 700, base_mp: 6000000, base_sense: 600000, base_lifespan: 1000000, mp_regen_rate: 1400, toxicity_decay: 70 },
++    { name: "金仙初期", rank: 44, base_hp: 20000000, base_atk: 2000000, base_def: 1000000, base_speed: 800, base_mp: 20000000, base_sense: 2000000, base_lifespan: 5000000, mp_regen_rate: 1500, toxicity_decay: 80 },
++    { name: "太乙初期", rank: 45, base_hp: 60000000, base_atk: 6000000, base_def: 3000000, base_speed: 900, base_mp: 60000000, base_sense: 6000000, base_lifespan: 10000000, mp_regen_rate: 1600, toxicity_decay: 90 },
++    { name: "大罗初期", rank: 46, base_hp: 200000000, base_atk: 20000000, base_def: 10000000, base_speed: 1000, base_mp: 200000000, base_sense: 20000000, base_lifespan: 50000000, mp_regen_rate: 1700, toxicity_decay: 100 },
++    { name: "道祖", rank: 47, base_hp: 600000000, base_atk: 60000000, base_def: 30000000, base_speed: 1200, base_mp: 600000000, base_sense: 60000000, base_lifespan: 100000000, mp_regen_rate: 1800, toxicity_decay: 120 }
++].map((r) => {
++    // Generate id like qi_refining_1 or gold_early
++    // We can just keep name and rank, add breakthrough_probability
++    const prob = Math.max(10, 100 - (r.rank * 2));
++    return {
++        id: "realm_" + r.rank,
++        name: r.name,
++        rank: r.rank,
++        base_hp: r.base_hp,
++        base_mp: r.base_mp,
++        base_atk: r.base_atk,
++        base_def: r.base_def,
++        base_speed: r.base_speed,
++        base_sense: r.base_sense,
++        exp_cap: calcExpCapByRank(r.rank),
++        lifespan_max: r.base_lifespan,
++        mp_regen_rate: r.mp_regen_rate,
++        toxicity_decay: r.toxicity_decay,
++        breakthrough_probability: prob,
++        description: `境界 ${r.name}`
++    }
++});
++
++const config = { realms: realmData };
++fs.writeFileSync('/workspace/server/config/realm_breakthrough.json', JSON.stringify(config, null, 4));
++console.log('Realms migrated to realm_breakthrough.json');
+diff --git a/server/config/realm_breakthrough.json b/server/config/realm_breakthrough.json
+index ceda0fd..d05253a 100644
+--- a/server/config/realm_breakthrough.json
++++ b/server/config/realm_breakthrough.json
+@@ -1,349 +1,803 @@
+ {
+     "realms": [
+         {
+-            "id": "mortal",
++            "id": "realm_1",
+             "name": "凡人",
+-            "rank": 0,
++            "rank": 1,
+             "base_hp": 100,
+-            "base_mp": 100,
++            "base_mp": 0,
+             "base_atk": 10,
+             "base_def": 5,
+             "base_speed": 10,
+             "base_sense": 10,
+-            "exp_cap": 100,
++            "exp_cap": 1000,
+             "lifespan_max": 60,
+-            "breakthrough_probability": 100,
+-            "description": "尚未踏入修仙之门的凡人"
++            "mp_regen_rate": 0,
++            "toxicity_decay": 0,
++            "breakthrough_probability": 98,
++            "description": "境界 凡人"
+         },
+         {
+-            "id": "qi_refining_1",
+-            "name": "炼气1层",
+-            "rank": 1,
+-            "base_hp": 110,
+-            "base_mp": 200,
+-            "base_atk": 12,
+-            "base_def": 6,
+-            "base_speed": 10,
+-            "base_sense": 10,
+-            "exp_cap": 100,
+-            "lifespan_max": 100,
+-            "breakthrough_probability": 100,
+-            "description": "初步感应天地灵气"
+-        },
+-        {
+-            "id": "qi_refining_2",
+-            "name": "炼气2层",
++            "id": "realm_2",
++            "name": "炼气期1层",
+             "rank": 2,
+-            "base_hp": 115,
+-            "base_mp": 300,
+-            "base_atk": 14,
+-            "base_def": 7,
+-            "base_speed": 10,
+-            "base_sense": 10,
+-            "exp_cap": 250,
+-            "lifespan_max": 105,
+-            "breakthrough_probability": 95,
+-            "description": "灵气开始在体内流转"
++            "base_hp": 200,
++            "base_mp": 100,
++            "base_atk": 20,
++            "base_def": 10,
++            "base_speed": 15,
++            "base_sense": 20,
++            "exp_cap": 8000,
++            "lifespan_max": 80,
++            "mp_regen_rate": 20,
++            "toxicity_decay": 1,
++            "breakthrough_probability": 96,
++            "description": "境界 炼气期1层"
+         },
+         {
+-            "id": "qi_refining_3",
+-            "name": "炼气3层",
++            "id": "realm_3",
++            "name": "炼气期2层",
+             "rank": 3,
+-            "base_hp": 125,
+-            "base_mp": 400,
+-            "base_atk": 17,
+-            "base_def": 9,
+-            "base_speed": 10,
+-            "base_sense": 10,
+-            "exp_cap": 450,
+-            "lifespan_max": 110,
+-            "breakthrough_probability": 95,
+-            "description": "丹田初具规模"
++            "base_hp": 250,
++            "base_mp": 150,
++            "base_atk": 25,
++            "base_def": 13,
++            "base_speed": 17,
++            "base_sense": 25,
++            "exp_cap": 27000,
++            "lifespan_max": 83,
++            "mp_regen_rate": 23,
++            "toxicity_decay": 1,
++            "breakthrough_probability": 94,
++            "description": "境界 炼气期2层"
+         },
+         {
+-            "id": "qi_refining_4",
+-            "name": "炼气4层",
++            "id": "realm_4",
++            "name": "炼气期3层",
+             "rank": 4,
+-            "base_hp": 130,
+-            "base_mp": 500,
+-            "base_atk": 20,
+-            "base_def": 11,
+-            "base_speed": 11,
+-            "base_sense": 10,
+-            "exp_cap": 750,
+-            "lifespan_max": 115,
+-            "breakthrough_probability": 95,
+-            "description": "灵气可以外放"
++            "base_hp": 300,
++            "base_mp": 200,
++            "base_atk": 30,
++            "base_def": 16,
++            "base_speed": 19,
++            "base_sense": 30,
++            "exp_cap": 64000,
++            "lifespan_max": 86,
++            "mp_regen_rate": 26,
++            "toxicity_decay": 1,
++            "breakthrough_probability": 92,
++            "description": "境界 炼气期3层"
+         },
+         {
+-            "id": "qi_refining_5",
+-            "name": "炼气5层",
++            "id": "realm_5",
++            "name": "炼气期4层",
+             "rank": 5,
+-            "base_hp": 140,
+-            "base_mp": 600,
+-            "base_atk": 24,
+-            "base_def": 14,
+-            "base_speed": 11,
+-            "base_sense": 11,
+-            "exp_cap": 1200,
+-            "lifespan_max": 120,
++            "base_hp": 350,
++            "base_mp": 250,
++            "base_atk": 35,
++            "base_def": 19,
++            "base_speed": 21,
++            "base_sense": 35,
++            "exp_cap": 125000,
++            "lifespan_max": 89,
++            "mp_regen_rate": 29,
++            "toxicity_decay": 1,
+             "breakthrough_probability": 90,
+-            "description": "可以学习基础法术"
++            "description": "境界 炼气期4层"
+         },
+         {
+-            "id": "qi_refining_6",
+-            "name": "炼气6层",
++            "id": "realm_6",
++            "name": "炼气期5层",
+             "rank": 6,
+-            "base_hp": 145,
+-            "base_mp": 700,
+-            "base_atk": 28,
+-            "base_def": 17,
+-            "base_speed": 12,
+-            "base_sense": 12,
+-            "exp_cap": 1800,
+-            "lifespan_max": 125,
+-            "breakthrough_probability": 90,
+-            "description": "灵气储量增加"
++            "base_hp": 400,
++            "base_mp": 300,
++            "base_atk": 40,
++            "base_def": 22,
++            "base_speed": 23,
++            "base_sense": 40,
++            "exp_cap": 216000,
++            "lifespan_max": 92,
++            "mp_regen_rate": 32,
++            "toxicity_decay": 1,
++            "breakthrough_probability": 88,
++            "description": "境界 炼气期5层"
+         },
+         {
+-            "id": "qi_refining_7",
+-            "name": "炼气7层",
++            "id": "realm_7",
++            "name": "炼气期6层",
+             "rank": 7,
+-            "base_hp": 155,
+-            "base_mp": 800,
+-            "base_atk": 33,
+-            "base_def": 21,
+-            "base_speed": 12,
+-            "base_sense": 13,
+-            "exp_cap": 2600,
+-            "lifespan_max": 130,
+-            "breakthrough_probability": 90,
+-            "description": "神识开始增长"
++            "base_hp": 450,
++            "base_mp": 350,
++            "base_atk": 45,
++            "base_def": 26,
++            "base_speed": 24,
++            "base_sense": 45,
++            "exp_cap": 343000,
++            "lifespan_max": 95,
++            "mp_regen_rate": 35,
++            "toxicity_decay": 2,
++            "breakthrough_probability": 86,
++            "description": "境界 炼气期6层"
+         },
+         {
+-            "id": "qi_refining_8",
+-            "name": "炼气8层",
++            "id": "realm_8",
++            "name": "炼气期7层",
+             "rank": 8,
+-            "base_hp": 160,
+-            "base_mp": 900,
+-            "base_atk": 38,
+-            "base_def": 25,
+-            "base_speed": 13,
+-            "base_sense": 14,
+-            "exp_cap": 3600,
+-            "lifespan_max": 135,
+-            "breakthrough_probability": 90,
+-            "description": "可以炼制基础丹药"
++            "base_hp": 500,
++            "base_mp": 400,
++            "base_atk": 50,
++            "base_def": 30,
++            "base_speed": 25,
++            "base_sense": 50,
++            "exp_cap": 512000,
++            "lifespan_max": 100,
++            "mp_regen_rate": 40,
++            "toxicity_decay": 2,
++            "breakthrough_probability": 84,
++            "description": "境界 炼气期7层"
+         },
+         {
+-            "id": "qi_refining_9",
+-            "name": "炼气9层",
++            "id": "realm_9",
++            "name": "炼气期8层",
+             "rank": 9,
+-            "base_hp": 170,
+-            "base_mp": 1000,
+-            "base_atk": 44,
+-            "base_def": 30,
+-            "base_speed": 14,
+-            "base_sense": 15,
+-            "exp_cap": 4800,
+-            "lifespan_max": 140,
+-            "breakthrough_probability": 90,
+-            "description": "灵气液化初现"
++            "base_hp": 550,
++            "base_mp": 450,
++            "base_atk": 55,
++            "base_def": 33,
++            "base_speed": 27,
++            "base_sense": 55,
++            "exp_cap": 729000,
++            "lifespan_max": 103,
++            "mp_regen_rate": 43,
++            "toxicity_decay": 2,
++            "breakthrough_probability": 82,
++            "description": "境界 炼气期8层"
+         },
+         {
+-            "id": "qi_refining_10",
+-            "name": "炼气10层",
++            "id": "realm_10",
++            "name": "炼气期9层",
+             "rank": 10,
+-            "base_hp": 175,
+-            "base_mp": 1100,
+-            "base_atk": 50,
+-            "base_def": 35,
+-            "base_speed": 15,
+-            "base_sense": 16,
+-            "exp_cap": 6300,
+-            "lifespan_max": 145,
++            "base_hp": 600,
++            "base_mp": 500,
++            "base_atk": 60,
++            "base_def": 36,
++            "base_speed": 29,
++            "base_sense": 60,
++            "exp_cap": 1000000,
++            "lifespan_max": 106,
++            "mp_regen_rate": 46,
++            "toxicity_decay": 2,
+             "breakthrough_probability": 80,
+-            "description": "炼气期巅峰，需完成瓶颈任务方可突破"
++            "description": "境界 炼气期9层"
+         },
+         {
+-            "id": "foundation_early",
+-            "name": "筑基初期",
++            "id": "realm_11",
++            "name": "炼气期10层",
+             "rank": 11,
+-            "base_hp": 600,
+-            "base_mp": 1200,
+-            "base_atk": 80,
+-            "base_def": 70,
+-            "base_speed": 20,
+-            "base_sense": 25,
+-            "exp_cap": 35000,
+-            "lifespan_max": 200,
+-            "breakthrough_probability": 60,
+-            "description": "奠定修仙根基"
++            "base_hp": 650,
++            "base_mp": 550,
++            "base_atk": 65,
++            "base_def": 39,
++            "base_speed": 31,
++            "base_sense": 65,
++            "exp_cap": 1331000,
++            "lifespan_max": 109,
++            "mp_regen_rate": 49,
++            "toxicity_decay": 2,
++            "breakthrough_probability": 78,
++            "description": "境界 炼气期10层"
+         },
+         {
+-            "id": "foundation_mid",
+-            "name": "筑基中期",
++            "id": "realm_12",
++            "name": "炼气期11层",
+             "rank": 12,
+-            "base_hp": 650,
+-            "base_mp": 1300,
+-            "base_atk": 95,
+-            "base_def": 85,
+-            "base_speed": 22,
+-            "base_sense": 30,
+-            "exp_cap": 75000,
+-            "lifespan_max": 210,
+-            "breakthrough_probability": 85,
+-            "description": "筑基根基稳固"
++            "base_hp": 700,
++            "base_mp": 600,
++            "base_atk": 70,
++            "base_def": 42,
++            "base_speed": 33,
++            "base_sense": 70,
++            "exp_cap": 1728000,
++            "lifespan_max": 112,
++            "mp_regen_rate": 52,
++            "toxicity_decay": 3,
++            "breakthrough_probability": 76,
++            "description": "境界 炼气期11层"
+         },
+         {
+-            "id": "foundation_late",
+-            "name": "筑基后期",
++            "id": "realm_13",
++            "name": "炼气期12层",
+             "rank": 13,
+-            "base_hp": 700,
+-            "base_mp": 1400,
+-            "base_atk": 110,
+-            "base_def": 100,
+-            "base_speed": 25,
+-            "base_sense": 35,
+-            "exp_cap": 150000,
+-            "lifespan_max": 220,
+-            "breakthrough_probability": 75,
+-            "description": "筑基期巅峰，需完成瓶颈任务"
++            "base_hp": 750,
++            "base_mp": 650,
++            "base_atk": 75,
++            "base_def": 46,
++            "base_speed": 34,
++            "base_sense": 75,
++            "exp_cap": 2197000,
++            "lifespan_max": 115,
++            "mp_regen_rate": 55,
++            "toxicity_decay": 3,
++            "breakthrough_probability": 74,
++            "description": "境界 炼气期12层"
+         },
+         {
+-            "id": "foundation_perfect",
+-            "name": "筑基大圆满",
++            "id": "realm_14",
++            "name": "炼气期13层",
+             "rank": 14,
+             "base_hp": 800,
+-            "base_mp": 1500,
+-            "base_atk": 140,
+-            "base_def": 130,
+-            "base_speed": 28,
+-            "base_sense": 45,
+-            "exp_cap": 300000,
+-            "lifespan_max": 240,
+-            "breakthrough_probability": 70,
+-            "description": "筑基圆满，可冲击金丹"
++            "base_mp": 800,
++            "base_atk": 80,
++            "base_def": 50,
++            "base_speed": 35,
++            "base_sense": 80,
++            "exp_cap": 2744000,
++            "lifespan_max": 120,
++            "mp_regen_rate": 60,
++            "toxicity_decay": 3,
++            "breakthrough_probability": 72,
++            "description": "境界 炼气期13层"
+         },
+         {
+-            "id": "gold_early",
+-            "name": "金丹初期",
++            "id": "realm_15",
++            "name": "筑基初期",
+             "rank": 15,
+-            "base_hp": 1000,
+-            "base_mp": 1600,
+-            "base_atk": 180,
+-            "base_def": 150,
+-            "base_speed": 35,
+-            "base_sense": 55,
+-            "exp_cap": 450000,
+-            "lifespan_max": 500,
+-            "breakthrough_probability": 40,
+-            "description": "凝聚金丹"
++            "base_hp": 1500,
++            "base_mp": 1500,
++            "base_atk": 150,
++            "base_def": 100,
++            "base_speed": 50,
++            "base_sense": 150,
++            "exp_cap": 3375000,
++            "lifespan_max": 150,
++            "mp_regen_rate": 100,
++            "toxicity_decay": 5,
++            "breakthrough_probability": 70,
++            "description": "境界 筑基初期"
+         },
+         {
+-            "id": "gold_mid",
+-            "name": "金丹中期",
++            "id": "realm_16",
++            "name": "筑基中期",
+             "rank": 16,
+-            "base_hp": 1100,
+-            "base_mp": 1700,
++            "base_hp": 2000,
++            "base_mp": 2000,
+             "base_atk": 200,
+-            "base_def": 170,
+-            "base_speed": 40,
+-            "base_sense": 65,
+-            "exp_cap": 1200000,
+-            "lifespan_max": 520,
+-            "breakthrough_probability": 70,
+-            "description": "金丹稳固"
++            "base_def": 150,
++            "base_speed": 60,
++            "base_sense": 200,
++            "exp_cap": 4096000,
++            "lifespan_max": 170,
++            "mp_regen_rate": 120,
++            "toxicity_decay": 6,
++            "breakthrough_probability": 68,
++            "description": "境界 筑基中期"
+         },
+         {
+-            "id": "gold_late",
+-            "name": "金丹后期",
++            "id": "realm_17",
++            "name": "筑基后期",
+             "rank": 17,
+-            "base_hp": 1200,
+-            "base_mp": 1800,
+-            "base_atk": 220,
+-            "base_def": 190,
+-            "base_speed": 45,
+-            "base_sense": 75,
+-            "exp_cap": 3000000,
+-            "lifespan_max": 540,
+-            "breakthrough_probability": 65,
+-            "description": "金丹期巅峰，需完成瓶颈任务"
++            "base_hp": 2500,
++            "base_mp": 2500,
++            "base_atk": 250,
++            "base_def": 200,
++            "base_speed": 70,
++            "base_sense": 250,
++            "exp_cap": 4913000,
++            "lifespan_max": 190,
++            "mp_regen_rate": 140,
++            "toxicity_decay": 7,
++            "breakthrough_probability": 66,
++            "description": "境界 筑基后期"
+         },
+         {
+-            "id": "gold_perfect",
+-            "name": "金丹大圆满",
++            "id": "realm_18",
++            "name": "筑基大圆满",
+             "rank": 18,
+-            "base_hp": 1400,
+-            "base_mp": 1900,
+-            "base_atk": 260,
+-            "base_def": 230,
+-            "base_speed": 50,
+-            "base_sense": 90,
+-            "exp_cap": 6000000,
+-            "lifespan_max": 570,
+-            "breakthrough_probability": 50,
+-            "description": "金丹圆满，可冲击元婴"
++            "base_hp": 3000,
++            "base_mp": 3000,
++            "base_atk": 300,
++            "base_def": 250,
++            "base_speed": 80,
++            "base_sense": 300,
++            "exp_cap": 5832000,
++            "lifespan_max": 200,
++            "mp_regen_rate": 160,
++            "toxicity_decay": 8,
++            "breakthrough_probability": 64,
++            "description": "境界 筑基大圆满"
+         },
+         {
+-            "id": "nascent_early",
+-            "name": "元婴初期",
++            "id": "realm_19",
++            "name": "结丹初期",
+             "rank": 19,
+-            "base_hp": 1800,
+-            "base_mp": 2000,
+-            "base_atk": 320,
+-            "base_def": 280,
+-            "base_speed": 60,
+-            "base_sense": 110,
+-            "exp_cap": 8000000,
+-            "lifespan_max": 1000,
+-            "breakthrough_probability": 30,
+-            "description": "元婴初成"
++            "base_hp": 5000,
++            "base_mp": 5000,
++            "base_atk": 500,
++            "base_def": 400,
++            "base_speed": 100,
++            "base_sense": 500,
++            "exp_cap": 6859000,
++            "lifespan_max": 400,
++            "mp_regen_rate": 200,
++            "toxicity_decay": 10,
++            "breakthrough_probability": 62,
++            "description": "境界 结丹初期"
+         },
+         {
+-            "id": "nascent_mid",
+-            "name": "元婴中期",
++            "id": "realm_20",
++            "name": "结丹中期",
+             "rank": 20,
+-            "base_hp": 2000,
+-            "base_mp": 2100,
+-            "base_atk": 360,
+-            "base_def": 320,
+-            "base_speed": 70,
+-            "base_sense": 130,
+-            "exp_cap": 22000000,
+-            "lifespan_max": 1030,
++            "base_hp": 7000,
++            "base_mp": 7000,
++            "base_atk": 700,
++            "base_def": 500,
++            "base_speed": 120,
++            "base_sense": 700,
++            "exp_cap": 8000000,
++            "lifespan_max": 450,
++            "mp_regen_rate": 240,
++            "toxicity_decay": 12,
+             "breakthrough_probability": 60,
+-            "description": "元婴稳固"
++            "description": "境界 结丹中期"
+         },
+         {
+-            "id": "nascent_late",
+-            "name": "元婴后期",
++            "id": "realm_21",
++            "name": "结丹后期",
+             "rank": 21,
+-            "base_hp": 2200,
+-            "base_mp": 2200,
+-            "base_atk": 400,
+-            "base_def": 360,
+-            "base_speed": 80,
+-            "base_sense": 150,
+-            "exp_cap": 60000000,
+-            "lifespan_max": 1060,
+-            "breakthrough_probability": 55,
+-            "description": "元婴期巅峰，需完成瓶颈任务"
++            "base_hp": 9000,
++            "base_mp": 9000,
++            "base_atk": 900,
++            "base_def": 600,
++            "base_speed": 140,
++            "base_sense": 900,
++            "exp_cap": 9261000,
++            "lifespan_max": 500,
++            "mp_regen_rate": 280,
++            "toxicity_decay": 14,
++            "breakthrough_probability": 58,
++            "description": "境界 结丹后期"
+         },
+         {
+-            "id": "nascent_perfect",
+-            "name": "元婴大圆满",
++            "id": "realm_22",
++            "name": "结丹大圆满",
+             "rank": 22,
+-            "base_hp": 2500,
+-            "base_mp": 2300,
+-            "base_atk": 450,
+-            "base_def": 410,
+-            "base_speed": 90,
+-            "base_sense": 180,
+-            "exp_cap": 120000000,
+-            "lifespan_max": 1100,
++            "base_hp": 12000,
++            "base_mp": 12000,
++            "base_atk": 1200,
++            "base_def": 800,
++            "base_speed": 160,
++            "base_sense": 1200,
++            "exp_cap": 10648000,
++            "lifespan_max": 600,
++            "mp_regen_rate": 320,
++            "toxicity_decay": 16,
++            "breakthrough_probability": 56,
++            "description": "境界 结丹大圆满"
++        },
++        {
++            "id": "realm_23",
++            "name": "元婴初期",
++            "rank": 23,
++            "base_hp": 20000,
++            "base_mp": 20000,
++            "base_atk": 2000,
++            "base_def": 1500,
++            "base_speed": 200,
++            "base_sense": 2000,
++            "exp_cap": 12167000,
++            "lifespan_max": 800,
++            "mp_regen_rate": 400,
++            "toxicity_decay": 20,
++            "breakthrough_probability": 54,
++            "description": "境界 元婴初期"
++        },
++        {
++            "id": "realm_24",
++            "name": "元婴中期",
++            "rank": 24,
++            "base_hp": 25000,
++            "base_mp": 25000,
++            "base_atk": 2500,
++            "base_def": 1800,
++            "base_speed": 220,
++            "base_sense": 2500,
++            "exp_cap": 13824000,
++            "lifespan_max": 900,
++            "mp_regen_rate": 450,
++            "toxicity_decay": 22,
++            "breakthrough_probability": 52,
++            "description": "境界 元婴中期"
++        },
++        {
++            "id": "realm_25",
++            "name": "元婴后期",
++            "rank": 25,
++            "base_hp": 30000,
++            "base_mp": 30000,
++            "base_atk": 3000,
++            "base_def": 2100,
++            "base_speed": 240,
++            "base_sense": 3000,
++            "exp_cap": 15625000,
++            "lifespan_max": 1000,
++            "mp_regen_rate": 500,
++            "toxicity_decay": 24,
++            "breakthrough_probability": 50,
++            "description": "境界 元婴后期"
++        },
++        {
++            "id": "realm_26",
++            "name": "元婴大圆满",
++            "rank": 26,
++            "base_hp": 40000,
++            "base_mp": 40000,
++            "base_atk": 4000,
++            "base_def": 2500,
++            "base_speed": 260,
++            "base_sense": 4000,
++            "exp_cap": 17576000,
++            "lifespan_max": 1200,
++            "mp_regen_rate": 550,
++            "toxicity_decay": 26,
++            "breakthrough_probability": 48,
++            "description": "境界 元婴大圆满"
++        },
++        {
++            "id": "realm_27",
++            "name": "化神初期",
++            "rank": 27,
++            "base_hp": 60000,
++            "base_mp": 60000,
++            "base_atk": 6000,
++            "base_def": 3500,
++            "base_speed": 300,
++            "base_sense": 6000,
++            "exp_cap": 19683000,
++            "lifespan_max": 1500,
++            "mp_regen_rate": 600,
++            "toxicity_decay": 30,
++            "breakthrough_probability": 46,
++            "description": "境界 化神初期"
++        },
++        {
++            "id": "realm_28",
++            "name": "化神中期",
++            "rank": 28,
++            "base_hp": 75000,
++            "base_mp": 75000,
++            "base_atk": 7500,
++            "base_def": 4000,
++            "base_speed": 320,
++            "base_sense": 7500,
++            "exp_cap": 21952000,
++            "lifespan_max": 1700,
++            "mp_regen_rate": 650,
++            "toxicity_decay": 32,
++            "breakthrough_probability": 44,
++            "description": "境界 化神中期"
++        },
++        {
++            "id": "realm_29",
++            "name": "化神后期",
++            "rank": 29,
++            "base_hp": 90000,
++            "base_mp": 90000,
++            "base_atk": 9000,
++            "base_def": 4500,
++            "base_speed": 340,
++            "base_sense": 9000,
++            "exp_cap": 24389000,
++            "lifespan_max": 1900,
++            "mp_regen_rate": 700,
++            "toxicity_decay": 34,
++            "breakthrough_probability": 42,
++            "description": "境界 化神后期"
++        },
++        {
++            "id": "realm_30",
++            "name": "化神大圆满",
++            "rank": 30,
++            "base_hp": 120000,
++            "base_mp": 120000,
++            "base_atk": 12000,
++            "base_def": 5000,
++            "base_speed": 360,
++            "base_sense": 12000,
++            "exp_cap": 27000000,
++            "lifespan_max": 2000,
++            "mp_regen_rate": 750,
++            "toxicity_decay": 36,
+             "breakthrough_probability": 40,
+-            "description": "元婴圆满，可冲击化神"
++            "description": "境界 化神大圆满"
++        },
++        {
++            "id": "realm_31",
++            "name": "炼虚初期",
++            "rank": 31,
++            "base_hp": 200000,
++            "base_mp": 200000,
++            "base_atk": 20000,
++            "base_def": 10000,
++            "base_speed": 400,
++            "base_sense": 20000,
++            "exp_cap": 29791000,
++            "lifespan_max": 8000,
++            "mp_regen_rate": 800,
++            "toxicity_decay": 40,
++            "breakthrough_probability": 38,
++            "description": "境界 炼虚初期"
++        },
++        {
++            "id": "realm_32",
++            "name": "炼虚中期",
++            "rank": 32,
++            "base_hp": 250000,
++            "base_mp": 250000,
++            "base_atk": 25000,
++            "base_def": 12000,
++            "base_speed": 420,
++            "base_sense": 25000,
++            "exp_cap": 32768000,
++            "lifespan_max": 9000,
++            "mp_regen_rate": 850,
++            "toxicity_decay": 42,
++            "breakthrough_probability": 36,
++            "description": "境界 炼虚中期"
++        },
++        {
++            "id": "realm_33",
++            "name": "炼虚后期",
++            "rank": 33,
++            "base_hp": 300000,
++            "base_mp": 300000,
++            "base_atk": 30000,
++            "base_def": 14000,
++            "base_speed": 440,
++            "base_sense": 30000,
++            "exp_cap": 35937000,
++            "lifespan_max": 10000,
++            "mp_regen_rate": 900,
++            "toxicity_decay": 44,
++            "breakthrough_probability": 34,
++            "description": "境界 炼虚后期"
++        },
++        {
++            "id": "realm_34",
++            "name": "炼虚大圆满",
++            "rank": 34,
++            "base_hp": 400000,
++            "base_mp": 400000,
++            "base_atk": 40000,
++            "base_def": 16000,
++            "base_speed": 460,
++            "base_sense": 40000,
++            "exp_cap": 39304000,
++            "lifespan_max": 12000,
++            "mp_regen_rate": 950,
++            "toxicity_decay": 46,
++            "breakthrough_probability": 32,
++            "description": "境界 炼虚大圆满"
++        },
++        {
++            "id": "realm_35",
++            "name": "合体初期",
++            "rank": 35,
++            "base_hp": 600000,
++            "base_mp": 600000,
++            "base_atk": 60000,
++            "base_def": 30000,
++            "base_speed": 500,
++            "base_sense": 60000,
++            "exp_cap": 42875000,
++            "lifespan_max": 50000,
++            "mp_regen_rate": 1000,
++            "toxicity_decay": 50,
++            "breakthrough_probability": 30,
++            "description": "境界 合体初期"
++        },
++        {
++            "id": "realm_36",
++            "name": "合体中期",
++            "rank": 36,
++            "base_hp": 750000,
++            "base_mp": 750000,
++            "base_atk": 75000,
++            "base_def": 35000,
++            "base_speed": 520,
++            "base_sense": 75000,
++            "exp_cap": 46656000,
++            "lifespan_max": 60000,
++            "mp_regen_rate": 1050,
++            "toxicity_decay": 52,
++            "breakthrough_probability": 28,
++            "description": "境界 合体中期"
++        },
++        {
++            "id": "realm_37",
++            "name": "合体后期",
++            "rank": 37,
++            "base_hp": 900000,
++            "base_mp": 900000,
++            "base_atk": 90000,
++            "base_def": 40000,
++            "base_speed": 540,
++            "base_sense": 90000,
++            "exp_cap": 50653000,
++            "lifespan_max": 70000,
++            "mp_regen_rate": 1100,
++            "toxicity_decay": 54,
++            "breakthrough_probability": 26,
++            "description": "境界 合体后期"
++        },
++        {
++            "id": "realm_38",
++            "name": "合体大圆满",
++            "rank": 38,
++            "base_hp": 1200000,
++            "base_mp": 1200000,
++            "base_atk": 120000,
++            "base_def": 45000,
++            "base_speed": 560,
++            "base_sense": 120000,
++            "exp_cap": 54872000,
++            "lifespan_max": 80000,
++            "mp_regen_rate": 1150,
++            "toxicity_decay": 56,
++            "breakthrough_probability": 24,
++            "description": "境界 合体大圆满"
++        },
++        {
++            "id": "realm_39",
++            "name": "大乘初期",
++            "rank": 39,
++            "base_hp": 2000000,
++            "base_mp": 2000000,
++            "base_atk": 200000,
++            "base_def": 100000,
++            "base_speed": 600,
++            "base_sense": 200000,
++            "exp_cap": 59319000,
++            "lifespan_max": 200000,
++            "mp_regen_rate": 1200,
++            "toxicity_decay": 60,
++            "breakthrough_probability": 22,
++            "description": "境界 大乘初期"
++        },
++        {
++            "id": "realm_40",
++            "name": "大乘中期",
++            "rank": 40,
++            "base_hp": 2500000,
++            "base_mp": 2500000,
++            "base_atk": 250000,
++            "base_def": 120000,
++            "base_speed": 620,
++            "base_sense": 250000,
++            "exp_cap": 64000000,
++            "lifespan_max": 300000,
++            "mp_regen_rate": 1250,
++            "toxicity_decay": 62,
++            "breakthrough_probability": 20,
++            "description": "境界 大乘中期"
++        },
++        {
++            "id": "realm_41",
++            "name": "大乘后期",
++            "rank": 41,
++            "base_hp": 3000000,
++            "base_mp": 3000000,
++            "base_atk": 300000,
++            "base_def": 140000,
++            "base_speed": 640,
++            "base_sense": 300000,
++            "exp_cap": 68921000,
++            "lifespan_max": 400000,
++            "mp_regen_rate": 1300,
++            "toxicity_decay": 64,
++            "breakthrough_probability": 18,
++            "description": "境界 大乘后期"
++        },
++        {
++            "id": "realm_42",
++            "name": "大乘大圆满",
++            "rank": 42,
++            "base_hp": 4000000,
++            "base_mp": 4000000,
++            "base_atk": 400000,
++            "base_def": 160000,
++            "base_speed": 660,
++            "base_sense": 400000,
++            "exp_cap": 74088000,
++            "lifespan_max": 500000,
++            "mp_regen_rate": 1350,
++            "toxicity_decay": 66,
++            "breakthrough_probability": 16,
++            "description": "境界 大乘大圆满"
++        },
++        {
++            "id": "realm_43",
++            "name": "真仙初期",
++            "rank": 43,
++            "base_hp": 6000000,
++            "base_mp": 6000000,
++            "base_atk": 600000,
++            "base_def": 300000,
++            "base_speed": 700,
++            "base_sense": 600000,
++            "exp_cap": 79507000,
++            "lifespan_max": 1000000,
++            "mp_regen_rate": 1400,
++            "toxicity_decay": 70,
++            "breakthrough_probability": 14,
++            "description": "境界 真仙初期"
++        },
++        {
++            "id": "realm_44",
++            "name": "金仙初期",
++            "rank": 44,
++            "base_hp": 20000000,
++            "base_mp": 20000000,
++            "base_atk": 2000000,
++            "base_def": 1000000,
++            "base_speed": 800,
++            "base_sense": 2000000,
++            "exp_cap": 85184000,
++            "lifespan_max": 5000000,
++            "mp_regen_rate": 1500,
++            "toxicity_decay": 80,
++            "breakthrough_probability": 12,
++            "description": "境界 金仙初期"
++        },
++        {
++            "id": "realm_45",
++            "name": "太乙初期",
++            "rank": 45,
++            "base_hp": 60000000,
++            "base_mp": 60000000,
++            "base_atk": 6000000,
++            "base_def": 3000000,
++            "base_speed": 900,
++            "base_sense": 6000000,
++            "exp_cap": 91125000,
++            "lifespan_max": 10000000,
++            "mp_regen_rate": 1600,
++            "toxicity_decay": 90,
++            "breakthrough_probability": 10,
++            "description": "境界 太乙初期"
++        },
++        {
++            "id": "realm_46",
++            "name": "大罗初期",
++            "rank": 46,
++            "base_hp": 200000000,
++            "base_mp": 200000000,
++            "base_atk": 20000000,
++            "base_def": 10000000,
++            "base_speed": 1000,
++            "base_sense": 20000000,
++            "exp_cap": 97336000,
++            "lifespan_max": 50000000,
++            "mp_regen_rate": 1700,
++            "toxicity_decay": 100,
++            "breakthrough_probability": 10,
++            "description": "境界 大罗初期"
++        },
++        {
++            "id": "realm_47",
++            "name": "道祖",
++            "rank": 47,
++            "base_hp": 600000000,
++            "base_mp": 600000000,
++            "base_atk": 60000000,
++            "base_def": 30000000,
++            "base_speed": 1200,
++            "base_sense": 60000000,
++            "exp_cap": 103823000,
++            "lifespan_max": 100000000,
++            "mp_regen_rate": 1800,
++            "toxicity_decay": 120,
++            "breakthrough_probability": 10,
++            "description": "境界 道祖"
+         }
+     ]
+-}
++}
+\ No newline at end of file
+diff --git a/server/config/system.json b/server/config/system.json
+index 1dd3911..1f90024 100644
+--- a/server/config/system.json
++++ b/server/config/system.json
+@@ -18,5 +18,36 @@
+       "defaultValue": 3000,
+       "displayName": "服务器端口"
+     }
++  },
++  "combat": {
++    "monster_stat_multiplier_base": 0.8,
++    "monster_stat_multiplier_per_level": 0.1,
++    "skill_mp_cost": 20,
++    "skill_damage_multiplier": 1.5,
++    "escape_chance": 0.5,
++    "death_exp_penalty_percent": 5,
++    "revive_hp_percent": 30,
++    "player_damage_variance": { "min": -5, "max": 4 },
++    "monster_damage_variance": { "min": -3, "max": 2 }
++  },
++  "map": {
++    "type_multiplier": {
++      "sect": 0,
++      "village": 0,
++      "city": 0.5,
++      "country": 1,
++      "mountain": 1.5,
++      "forest": 2,
++      "ocean": 3,
++      "world": 5
++    },
++    "terrain_factor": {
++      "safe": 0,
++      "plains": 1,
++      "forest": 1.5,
++      "mountain": 2,
++      "ocean": 2.5,
++      "ruins": 3
++    }
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/server/modules/core/MapService.js b/server/modules/core/MapService.js
+index a27e103..5178eb7 100644
+--- a/server/modules/core/MapService.js
++++ b/server/modules/core/MapService.js
+@@ -1,3 +1,9 @@
++const sequelize = require('../../config/database');
++const Player = require('../../models/player');
++const PlayerMapPosition = require('../../models/playerMapPosition');
++const PlayerMovement = require('../../models/playerMovement');
++const RealmService = require('./RealmService');
++
+ /**
+  * 地图服务模块
+  * 处理地图、区域、资源分布等核心业务逻辑
+@@ -129,6 +135,295 @@ class MapService {
+         return map?.teleports || [];
+     }
+ 
++    /**
++     * 计算移动到目标地图的消耗
++     * @param {Object} targetMap 目标地图配置
++     * @param {Object} player 玩家对象
++     * @param {Object} currentMap 当前地图配置
++     */
++    calculateTravelCost(targetMap, player, currentMap = null) {
++        const systemConfig = this.configLoader?.getConfig('system');
++        const mapSysCfg = systemConfig?.map || {
++            type_multiplier: { country: 1, sect: 1, mountain: 1.5, ocean: 2, talent: 3, world: 5 },
++            terrain_factor: { plains: 1, mountain: 1.5, ocean: 2, cave: 1.8, mixed: 1.2, celestial: 1 }
++        };
++
++        const baseCost = 10;
++        const baseTime = 60;
++        
++        const dangerLevel = targetMap.danger_level || 1;
++        const travelTime = targetMap.travel_time || 5;
++        const type = targetMap.type || 'country';
++        const environment = targetMap.environment || 'plains';
++        
++        let distance = 0;
++        let time = baseTime;
++        
++        if (currentMap && currentMap.x !== undefined && targetMap.x !== undefined) {
++            distance = Math.sqrt(
++                Math.pow(targetMap.x - currentMap.x, 2) + 
++                Math.pow(targetMap.y - currentMap.y, 2)
++            );
++            const terrainMod = mapSysCfg.terrain_factor[environment] || 1;
++            const playerSpeed = player.attributes?.speed || 10;
++            time = Math.floor(baseTime + (distance * terrainMod * 10) / (playerSpeed / 10));
++        } else {
++            time = travelTime * 60;
++        }
++        
++        let cost = baseCost;
++        cost += Math.floor(distance / 10);
++        cost += dangerLevel * 2;
++        cost += travelTime / 2;
++        cost *= mapSysCfg.type_multiplier[type] || 1;
++        
++        return {
++            cost: Math.floor(cost),
++            time: time,
++            distance: Math.floor(distance * 100) / 100
++        };
++    }
++
++    /**
++     * 获取地图信息
++     * @param {string} playerId 玩家ID
++     */
++    async getMapInfo(playerId) {
++        const player = await Player.findByPk(playerId);
++        if (!player) throw new Error('玩家不存在');
++
++        let playerMapPos = await PlayerMapPosition.findOne({
++            where: { player_id: player.id }
++        });
++
++        let mapId = player.current_map_id;
++
++        if (!mapId) {
++            const defaultMap = this.getAllMaps().find(m => m.id === 'mortal_village_1') || this.getAllMaps()[0];
++            if (defaultMap) {
++                mapId = defaultMap.id;
++                player.current_map_id = mapId;
++                await player.save();
++
++                playerMapPos = await PlayerMapPosition.create({
++                    player_id: player.id,
++                    map_id: mapId
++                });
++            }
++        }
++
++        const mapConfigData = this.getMapById(mapId);
++        if (!mapConfigData) {
++            const defaultMap = this.getAllMaps().find(m => m.id === 'mortal_village_1') || this.getAllMaps()[0];
++            if (defaultMap) {
++                player.current_map_id = defaultMap.id;
++                await player.save();
++                return { 
++                    current_map: defaultMap, 
++                    player_data: null,
++                    connected_maps: [],
++                    is_moving: false
++                };
++            }
++            throw new Error('Map not found');
++        }
++
++        // 处理连接的地图
++        const connectedMapIds = mapConfigData.connections || [];
++        const connectedMaps = this.getAllMaps().filter(m => connectedMapIds.includes(m.id));
++
++        const responseData = {
++            ...mapConfigData,
++            player_data: playerMapPos ? {
++                exploration_progress: playerMapPos.exploration_progress,
++                visited_nodes: playerMapPos.visited_nodes,
++                last_visit_time: playerMapPos.last_visit_time,
++                resource_gather_count: playerMapPos.resource_gather_count,
++                monster_defeat_count: playerMapPos.monster_defeat_count
++            } : null
++        };
++
++        return {
++            current_map: responseData,
++            connected_maps: connectedMaps.map(m => ({
++                id: m.id,
++                name: m.name,
++                type: m.type,
++                environment: m.environment,
++                requiredRealm: m.requiredRealm,
++                danger_level: m.danger_level,
++                description: m.description,
++                travel_time: m.travel_time
++            })),
++            is_moving: player.is_moving || false
++        };
++    }
++
++    /**
++     * 开始移动
++     * @param {string} playerId 玩家ID
++     * @param {string} targetMapId 目标地图ID
++     */
++    async startMove(playerId, targetMapId) {
++        const player = await Player.findByPk(playerId);
++        if (!player) throw new Error('玩家不存在');
++
++        if (player.is_moving) {
++            throw new Error('您正在移动中，请等待到达目的地');
++        }
++
++        const currentMapId = player.current_map_id;
++        if (currentMapId == targetMapId) {
++            throw new Error('您已经在目标地图');
++        }
++
++        const currentMapConfig = this.getMapById(currentMapId);
++        const targetMapConfig = this.getMapById(targetMapId);
++
++        if (!currentMapConfig || !targetMapConfig) {
++            throw new Error('地图配置不存在');
++        }
++
++        const playerRealmRank = RealmService.getRealmByName(player.realm)?.rank || 0;
++        const requiredRealmRank = RealmService.getRealmByName(targetMapConfig.requiredRealm || '凡人')?.rank || 0;
++
++        if (playerRealmRank < requiredRealmRank) {
++            throw new Error(`境界不足，需达到 ${targetMapConfig.requiredRealm} 才能进入`);
++        }
++
++        const travelCostInfo = this.calculateTravelCost(targetMapConfig, player, currentMapConfig);
++        
++        if (player.mp_current < travelCostInfo.cost) {
++            throw new Error(`灵力不足，需要 ${travelCostInfo.cost} 点灵力`);
++        }
++
++        const now = new Date();
++        const endTime = new Date(now.getTime() + travelCostInfo.time * 1000);
++
++        const t = await sequelize.transaction();
++        try {
++            player.mp_current = BigInt(player.mp_current) - BigInt(travelCostInfo.cost);
++            player.is_moving = true;
++            player.moving_from_map_id = currentMapId;
++            player.moving_to_map_id = targetMapId;
++            player.move_start_time = now;
++            player.move_end_time = endTime;
++            await player.save({ transaction: t });
++
++            await PlayerMovement.create({
++                player_id: player.id,
++                from_map_id: currentMapId,
++                from_map_name: currentMapConfig.name,
++                to_map_id: targetMapId,
++                to_map_name: targetMapConfig.name,
++                distance: travelCostInfo.distance,
++                mp_consumed: travelCostInfo.cost,
++                duration_seconds: travelCostInfo.time,
++                status: 'moving',
++                started_at: now
++            }, { transaction: t });
++
++            await t.commit();
++
++            return {
++                travelCostInfo,
++                currentMapConfig,
++                targetMapConfig,
++                now,
++                endTime
++            };
++        } catch (e) {
++            await t.rollback();
++            throw e;
++        }
++    }
++
++    /**
++     * 取消移动
++     * @param {string} playerId 玩家ID
++     */
++    async cancelMove(playerId) {
++        const player = await Player.findByPk(playerId);
++        if (!player) throw new Error('玩家不存在');
++
++        if (!player.is_moving) {
++            throw new Error('您当前没有在移动中');
++        }
++
++        player.is_moving = false;
++        player.moving_from_map_id = null;
++        player.moving_to_map_id = null;
++        player.move_start_time = null;
++        player.move_end_time = null;
++        await player.save();
++
++        const movement = await PlayerMovement.findOne({
++            where: { 
++                player_id: player.id, 
++                status: 'moving' 
++            },
++            order: [['createdAt', 'DESC']]
++        });
++
++        if (movement) {
++            movement.status = 'cancelled';
++            movement.completed_at = new Date();
++            await movement.save();
++        }
++
++        return true;
++    }
++
++    /**
++     * 完成移动
++     * @param {string} playerId 玩家ID
++     */
++    async completeMove(playerId) {
++        const player = await Player.findByPk(playerId);
++        if (!player) throw new Error('玩家不存在');
++
++        if (!player.is_moving) {
++            throw new Error('玩家不在移动中');
++        }
++
++        const targetMapId = player.moving_to_map_id;
++        const targetMapConfig = this.getMapById(targetMapId);
++
++        player.current_map_id = targetMapId;
++        player.last_map_move_time = new Date();
++        player.is_moving = false;
++        player.moving_from_map_id = null;
++        player.moving_to_map_id = null;
++        player.move_start_time = null;
++        player.move_end_time = null;
++        await player.save();
++
++        await PlayerMapPosition.upsert({
++            player_id: player.id,
++            map_id: targetMapId,
++            last_visit_time: new Date()
++        });
++
++        const movement = await PlayerMovement.findOne({
++            where: { 
++                player_id: player.id, 
++                status: 'moving' 
++            },
++            order: [['createdAt', 'DESC']]
++        });
++
++        if (movement) {
++            movement.status = 'completed';
++            movement.completed_at = new Date();
++            await movement.save();
++        }
++
++        return {
++            targetMapConfig,
++            player
++        };
++    }
++
+     /**
+      * 检查地图是否安全
+      * @param {string} mapId - 地图ID
+diff --git a/server/routes/breakthrough.js b/server/routes/breakthrough.js
+index 808314d..85de0b4 100644
+--- a/server/routes/breakthrough.js
++++ b/server/routes/breakthrough.js
+@@ -75,14 +75,13 @@ router.post('/try', authenticateToken, async (req, res) => {
+         const success = roll < probability;
+ 
+         if (!success) {
+-            await t.commit();
+-            
+             const expLoss = BigInt(Math.floor(Number(player.exp) * 0.1));
+             player.exp = BigInt(player.exp) - expLoss;
+             
+             const ageIncrease = currentRealm.rank * 2;
+             player.lifespan_current = (player.lifespan_current || 0) + ageIncrease;
+-            await player.save();
++            await player.save({ transaction: t });
++            await t.commit();
+ 
+             return res.json({
+                 code: 200,
+diff --git a/server/routes/combat.js b/server/routes/combat.js
+index a5178ec..719081d 100644
+--- a/server/routes/combat.js
++++ b/server/routes/combat.js
+@@ -129,64 +129,14 @@ router.get('/history', auth, async (req, res) => {
+ router.post('/use-item', auth, async (req, res) => {
+     try {
+         const { itemId, quantity } = req.body;
+-        
+-        if (!itemId) {
+-            return res.status(400).json({ error: '物品ID不能为空' });
+-        }
+-
+-        const player = await require('../models/player').findByPk(req.user.id);
+-        const item = await require('../models/item').findOne({
+-            where: { player_id: req.user.id, item_key: itemId }
+-        });
+-
+-        if (!item || item.quantity < (quantity || 1)) {
+-            return res.status(400).json({ error: '物品数量不足' });
+-        }
+-
+-        const itemConfig = await require('../services/ItemConfigLoader').getItem(itemId);
+-        if (!itemConfig || itemConfig.type !== 'consumable') {
+-            return res.status(400).json({ error: '该物品不可使用' });
+-        }
+-
+-        const effect = itemConfig.effect || {};
+-        let message = '使用物品成功';
+-
+-        if (effect.hp_restore) {
+-            const restoreAmount = Math.min(
+-                effect.hp_restore * (quantity || 1),
+-                Number(player.hp_max) - Number(player.hp_current)
+-            );
+-            player.hp_current = BigInt(Number(player.hp_current) + restoreAmount);
+-            message += `，恢复 ${restoreAmount} 气血`;
+-        }
+-
+-        if (effect.mp_restore) {
+-            const restoreAmount = Math.min(
+-                effect.mp_restore * (quantity || 1),
+-                Number(player.attributes?.mp_max || 0) - Number(player.mp_current)
+-            );
+-            player.mp_current = BigInt(Number(player.mp_current) + restoreAmount);
+-            message += `，恢复 ${restoreAmount} 灵力`;
+-        }
+-
+-        item.quantity -= (quantity || 1);
+-        if (item.quantity <= 0) {
+-            await item.destroy();
+-        } else {
+-            await item.save();
+-        }
+-
+-        await player.save();
+-
++        const result = await CombatService.useItem(req.user.id, itemId, quantity);
+         res.json({
+             code: 200,
+-            message: message,
+-            player_hp: player.hp_current.toString(),
+-            player_mp: player.mp_current.toString()
++            ...result
+         });
+     } catch (error) {
+         console.error('Use Item Error:', error);
+-        res.status(500).json({ error: error.message || 'Server error' });
++        res.status(error.status || 500).json({ error: error.message || 'Server error' });
+     }
+ });
+ 
+@@ -195,33 +145,11 @@ router.post('/use-item', auth, async (req, res) => {
+  */
+ router.get('/monsters', auth, async (req, res) => {
+     try {
+-        const player = await require('../models/player').findByPk(req.user.id);
+-        if (!player) return res.status(404).json({ error: 'Player not found' });
+-
+-        const MapConfigLoader = require('../services/MapConfigLoader');
+-        const mapConfig = MapConfigLoader.getMap(player.current_map_id);
+-        
+-        if (!mapConfig || !mapConfig.monsters) {
+-            return res.json({
+-                map_id: player.current_map_id,
+-                monsters: []
+-            });
+-        }
+-
+-        const monsters = mapConfig.monsters.map(m => ({
+-            id: m.id,
+-            name: m.name,
+-            realm: m.realm,
+-            exp: m.exp
+-        }));
+-
+-        res.json({
+-            map_id: player.current_map_id,
+-            monsters: monsters
+-        });
++        const result = await CombatService.getMonsters(req.user.id);
++        res.json(result);
+     } catch (error) {
+         console.error('Get Monsters Error:', error);
+-        res.status(500).json({ error: error.message || 'Server error' });
++        res.status(error.status || 500).json({ error: error.message || 'Server error' });
+     }
+ });
+ 
+diff --git a/server/routes/config.js b/server/routes/config.js
+index 4a63226..063855b 100644
+--- a/server/routes/config.js
++++ b/server/routes/config.js
+@@ -18,7 +18,8 @@ router.get('/list', async (req, res) => {
+             'item_data',
+             'map_data',
+             'ui_layout',
+-            'ui_routes'
++            'ui_routes',
++            'system'
+         ];
+ 
+         const configs = {};
+@@ -56,7 +57,8 @@ router.get('/:configName', async (req, res) => {
+             'item_data',
+             'map_data',
+             'ui_layout',
+-            'ui_routes'
++            'ui_routes',
++            'system'
+         ];
+ 
+         if (!validConfigs.includes(configName)) {
+@@ -227,6 +229,34 @@ router.get('/data/maps', async (req, res) => {
+     }
+ });
+ 
++/**
++ * 获取系统配置
++ * GET /api/config/data/system
++ */
++router.get('/data/system', async (req, res) => {
++    try {
++        const config = infrastructure.ConfigLoader?.getConfig('system');
++        
++        if (!config) {
++            return res.status(404).json({ 
++                code: 404, 
++                message: '系统配置未加载' 
++            });
++        }
++
++        res.json({
++            code: 200,
++            data: config
++        });
++    } catch (error) {
++        console.error('获取系统配置失败:', error);
++        res.status(500).json({ 
++            code: 500, 
++            message: '服务器错误' 
++        });
++    }
++});
++
+ /**
+  * 触发配置热更新
+  * POST /api/config/hot-update
+@@ -240,7 +270,8 @@ router.post('/hot-update', async (req, res) => {
+             'item_data',
+             'map_data',
+             'ui_layout',
+-            'ui_routes'
++            'ui_routes',
++            'system'
+         ];
+ 
+         if (!configName) {
+diff --git a/server/routes/map.js b/server/routes/map.js
+index 54683c5..5726fe7 100644
+--- a/server/routes/map.js
++++ b/server/routes/map.js
+@@ -7,162 +7,29 @@
+  */
+ const express = require('express');
+ const router = express.Router();
+-const sequelize = require('../config/database');
+ const Player = require('../models/player');
+ const PlayerMapPosition = require('../models/playerMapPosition');
+-const PlayerMovement = require('../models/playerMovement');
+ const MapConfigLoader = require('../services/MapConfigLoader');
+ const AdventureEventService = require('../services/AdventureEventService');
+-const Realm = require('../models/realm');
++const MapService = require('../modules/core/MapService');
+ const auth = require('../middleware/auth');
+-const { Op } = require('sequelize');
+ 
+ const mapConfig = MapConfigLoader;
+ let adventureService = null;
+ 
+-/**
+- * 获取境界等级
+- */
+-async function getRealmRank(realmName) {
+-    const realm = await Realm.findOne({ where: { name: realmName } });
+-    return realm ? realm.rank : 0;
+-}
+-
+ /**
+  * 获取当前地图信息
+  */
+ router.get('/info', auth, async (req, res) => {
+     try {
+-        const player = await Player.findByPk(req.user.id);
+-        if (!player) return res.status(404).json({ error: 'Player not found' });
+-
+-        let playerMapPos = await PlayerMapPosition.findOne({
+-            where: { player_id: player.id }
+-        });
+-
+-        let mapId = player.current_map_id;
+-
+-        if (!mapId) {
+-            const defaultMap = mapConfig.getDefaultMap();
+-            if (defaultMap) {
+-                mapId = defaultMap.id;
+-                player.current_map_id = mapId;
+-                await player.save();
+-
+-                playerMapPos = await PlayerMapPosition.create({
+-                    player_id: player.id,
+-                    map_id: mapId
+-                });
+-            }
+-        }
+-
+-        const mapConfigData = mapConfig.getMap(mapId);
+-        if (!mapConfigData) {
+-            const defaultMap = mapConfig.getDefaultMap();
+-            if (defaultMap) {
+-                player.current_map_id = defaultMap.id;
+-                await player.save();
+-                return res.json({ 
+-                    current_map: defaultMap, 
+-                    player_data: null,
+-                    connected_maps: [],
+-                    is_moving: false
+-                });
+-            }
+-            return res.status(404).json({ error: 'Map not found' });
+-        }
+-
+-        const connectedMaps = mapConfig.getConnectedMaps(mapId);
+-
+-        const responseData = {
+-            ...mapConfigData,
+-            player_data: playerMapPos ? {
+-                exploration_progress: playerMapPos.exploration_progress,
+-                visited_nodes: playerMapPos.visited_nodes,
+-                last_visit_time: playerMapPos.last_visit_time,
+-                resource_gather_count: playerMapPos.resource_gather_count,
+-                monster_defeat_count: playerMapPos.monster_defeat_count
+-            } : null
+-        };
+-
+-        res.json({
+-            current_map: responseData,
+-            connected_maps: connectedMaps.map(m => ({
+-                id: m.id,
+-                name: m.name,
+-                type: m.type,
+-                environment: m.environment,
+-                requiredRealm: m.requiredRealm,
+-                danger_level: m.danger_level,
+-                description: m.description,
+-                travel_time: m.travel_time
+-            })),
+-            is_moving: player.is_moving || false
+-        });
++        const result = await MapService.getMapInfo(req.user.id);
++        res.json(result);
+     } catch (error) {
+         console.error('Map Info Error:', error);
+-        res.status(500).json({ error: 'Server error' });
++        res.status(500).json({ error: error.message || 'Server error' });
+     }
+ });
+ 
+-/**
+- * 计算移动到目标地图的消耗
+- */
+-function calculateTravelCost(targetMap, player, currentMap = null) {
+-    const baseCost = 10;
+-    const baseTime = 60;
+-    
+-    const typeMultiplier = {
+-        'country': 1,
+-        'sect': 1,
+-        'mountain': 1.5,
+-        'ocean': 2,
+-        'talent': 3,
+-        'world': 5
+-    };
+-    
+-    const terrainFactor = {
+-        'plains': 1,
+-        'mountain': 1.5,
+-        'ocean': 2,
+-        'cave': 1.8,
+-        'mixed': 1.2,
+-        'celestial': 1
+-    };
+-    
+-    const dangerLevel = targetMap.danger_level || 1;
+-    const travelTime = targetMap.travel_time || 5;
+-    const type = targetMap.type || 'country';
+-    const environment = targetMap.environment || 'plains';
+-    
+-    let distance = 0;
+-    let time = baseTime;
+-    
+-    if (currentMap && currentMap.x !== undefined && targetMap.x !== undefined) {
+-        distance = Math.sqrt(
+-            Math.pow(targetMap.x - currentMap.x, 2) + 
+-            Math.pow(targetMap.y - currentMap.y, 2)
+-        );
+-        const terrainMod = terrainFactor[environment] || 1;
+-        const playerSpeed = player.attributes?.speed || 10;
+-        time = Math.floor(baseTime + (distance * terrainMod * 10) / (playerSpeed / 10));
+-    } else {
+-        time = travelTime * 60;
+-    }
+-    
+-    let cost = baseCost;
+-    cost += Math.floor(distance / 10);
+-    cost += dangerLevel * 2;
+-    cost += travelTime / 2;
+-    cost *= typeMultiplier[type] || 1;
+-    
+-    return {
+-        cost: Math.floor(cost),
+-        time: time,
+-        distance: Math.floor(distance * 100) / 100
+-    };
+-}
+-
+ /**
+  * 开始移动到目标地图（延时模式）
+  * 
+@@ -173,90 +40,30 @@ router.post('/start-move', auth, async (req, res) => {
+         const { targetMapId } = req.body;
+         if (!targetMapId) return res.status(400).json({ error: '目标地图ID不能为空' });
+ 
+-        const player = await Player.findByPk(req.user.id);
+-        if (!player) return res.status(404).json({ error: '玩家不存在' });
++        const result = await MapService.startMove(req.user.id, targetMapId);
+ 
+-        if (player.is_moving) {
+-            return res.status(400).json({ error: '您正在移动中，请等待到达目的地' });
+-        }
+-
+-        const currentMapId = player.current_map_id;
+-        if (currentMapId == targetMapId) {
+-            return res.status(400).json({ error: '您已经在目标地图' });
+-        }
+-
+-        const currentMapConfig = mapConfig.getMap(currentMapId);
+-        const targetMapConfig = mapConfig.getMap(targetMapId);
+-
+-        if (!currentMapConfig || !targetMapConfig) {
+-            return res.status(404).json({ error: '地图配置不存在' });
+-        }
+-
+-        const canEnter = mapConfig.canEnter(targetMapConfig, player.realm);
+-        if (!canEnter) {
+-            return res.status(403).json({ 
+-                error: `境界不足，需达到 ${targetMapConfig.requiredRealm} 才能进入` 
+-            });
+-        }
+-
+-        const travelCostInfo = calculateTravelCost(targetMapConfig, player, currentMapConfig);
+-        
+-        if (player.mp_current < travelCostInfo.cost) {
+-            return res.status(400).json({ 
+-                error: `灵力不足，需要 ${travelCostInfo.cost} 点灵力` 
+-            });
+-        }
+-
+-        const now = new Date();
+-        const endTime = new Date(now.getTime() + travelCostInfo.time * 1000);
+-
+-        const t = await sequelize.transaction();
+-        try {
+-            player.mp_current = BigInt(player.mp_current) - BigInt(travelCostInfo.cost);
+-            player.is_moving = true;
+-            player.moving_from_map_id = currentMapId;
+-            player.moving_to_map_id = targetMapId;
+-            player.move_start_time = now;
+-            player.move_end_time = endTime;
+-            await player.save({ transaction: t });
+-
+-            await PlayerMovement.create({
+-                player_id: player.id,
+-                from_map_id: currentMapId,
+-                from_map_name: currentMapConfig.name,
+-                to_map_id: targetMapId,
+-                to_map_name: targetMapConfig.name,
+-                distance: travelCostInfo.distance,
+-                mp_consumed: travelCostInfo.cost,
+-                duration_seconds: travelCostInfo.time,
+-                status: 'moving',
+-                started_at: now
+-            }, { transaction: t });
+-
+-            await t.commit();
+-
+-            res.json({
+-                code: 200,
+-                message: `开始移动，预计需要 ${formatTime(travelCostInfo.time)}`,
+-                data: {
+-                    from_map_id: currentMapId,
+-                    to_map_id: targetMapId,
+-                    from_map_name: currentMapConfig.name,
+-                    to_map_name: targetMapConfig.name,
+-                    start_time: now.toISOString(),
+-                    end_time: endTime.toISOString(),
+-                    total_seconds: travelCostInfo.time,
+-                    remaining_seconds: travelCostInfo.time
+-                }
+-            });
+-        } catch (e) {
+-            await t.rollback();
+-            throw e;
+-        }
++        res.json({
++            code: 200,
++            message: `开始移动，预计需要 ${formatTime(result.travelCostInfo.time)}`,
++            data: {
++                from_map_id: result.currentMapConfig.id,
++                to_map_id: result.targetMapConfig.id,
++                from_map_name: result.currentMapConfig.name,
++                to_map_name: result.targetMapConfig.name,
++                start_time: result.now.toISOString(),
++                end_time: result.endTime.toISOString(),
++                total_seconds: result.travelCostInfo.time,
++                remaining_seconds: result.travelCostInfo.time
++            }
++        });
+ 
+     } catch (error) {
+         console.error('Start Move Error:', error);
+-        res.status(500).json({ error: 'Server error' });
++        const status = error.message.includes('灵力不足') || 
++                      error.message.includes('移动中') || 
++                      error.message.includes('境界不足') || 
++                      error.message.includes('已经在') ? 400 : 500;
++        res.status(status).json({ error: error.message || 'Server error' });
+     }
+ });
+ 
+@@ -306,33 +113,7 @@ router.get('/move-status', auth, async (req, res) => {
+  */
+ router.post('/cancel-move', auth, async (req, res) => {
+     try {
+-        const player = await Player.findByPk(req.user.id);
+-        if (!player) return res.status(404).json({ error: '玩家不存在' });
+-
+-        if (!player.is_moving) {
+-            return res.status(400).json({ error: '您当前没有在移动中' });
+-        }
+-
+-        player.is_moving = false;
+-        player.moving_from_map_id = null;
+-        player.moving_to_map_id = null;
+-        player.move_start_time = null;
+-        player.move_end_time = null;
+-        await player.save();
+-
+-        const movement = await PlayerMovement.findOne({
+-            where: { 
+-                player_id: player.id, 
+-                status: 'moving' 
+-            },
+-            order: [['createdAt', 'DESC']]
+-        });
+-
+-        if (movement) {
+-            movement.status = 'cancelled';
+-            movement.completed_at = new Date();
+-            await movement.save();
+-        }
++        await MapService.cancelMove(req.user.id);
+ 
+         res.json({
+             code: 200,
+@@ -340,7 +121,8 @@ router.post('/cancel-move', auth, async (req, res) => {
+         });
+     } catch (error) {
+         console.error('Cancel Move Error:', error);
+-        res.status(500).json({ error: 'Server error' });
++        const status = error.message.includes('当前没有在移动中') ? 400 : 500;
++        res.status(status).json({ error: error.message || 'Server error' });
+     }
+ });
+ 
+@@ -349,54 +131,18 @@ router.post('/cancel-move', auth, async (req, res) => {
+  */
+ router.post('/complete-move-internal', auth, async (req, res) => {
+     try {
+-        const player = await Player.findByPk(req.user.id);
+-        if (!player) return res.status(404).json({ error: '玩家不存在' });
+-
+-        if (!player.is_moving) {
+-            return res.status(400).json({ error: '玩家不在移动中' });
+-        }
+-
+-        const targetMapId = player.moving_to_map_id;
+-        const targetMapConfig = mapConfig.getMap(targetMapId);
+-
+-        player.current_map_id = targetMapId;
+-        player.last_map_move_time = new Date();
+-        player.is_moving = false;
+-        player.moving_from_map_id = null;
+-        player.moving_to_map_id = null;
+-        player.move_start_time = null;
+-        player.move_end_time = null;
+-        await player.save();
+-
+-        await PlayerMapPosition.upsert({
+-            player_id: player.id,
+-            map_id: targetMapId,
+-            last_visit_time: new Date()
+-        });
+-
+-        const movement = await PlayerMovement.findOne({
+-            where: { 
+-                player_id: player.id, 
+-                status: 'moving' 
+-            },
+-            order: [['createdAt', 'DESC']]
+-        });
+-
+-        if (movement) {
+-            movement.status = 'completed';
+-            movement.completed_at = new Date();
+-            await movement.save();
+-        }
++        const result = await MapService.completeMove(req.user.id);
+ 
+         res.json({
+             code: 200,
+-            message: `已到达 ${targetMapConfig?.name || '目标地图'}`,
+-            new_map: targetMapConfig,
+-            mp_current: player.mp_current.toString()
++            message: `已到达 ${result.targetMapConfig?.name || '目标地图'}`,
++            new_map: result.targetMapConfig,
++            mp_current: result.player.mp_current.toString()
+         });
+     } catch (error) {
+         console.error('Complete Move Error:', error);
+-        res.status(500).json({ error: 'Server error' });
++        const status = error.message.includes('不在移动中') ? 400 : 500;
++        res.status(status).json({ error: error.message || 'Server error' });
+     }
+ });
+ 
+diff --git a/server/routes/player.js b/server/routes/player.js
+index 40c953a..1fa7ba3 100644
+--- a/server/routes/player.js
++++ b/server/routes/player.js
+@@ -133,10 +133,7 @@ router.put('/me', authMiddleware, async (req, res) => {
+ 
+         const updates = req.body;
+         const allowedUpdates = [
+-            'nickname', 'realm', 'exp', 'spirit_stones',
+-            'lifespan_current', 'lifespan_max', 'attributes',
+-            'hp_current', 'mp_current', 'toxicity', 'is_secluded',
+-            'seclusion_end_time'
++            'nickname'
+         ];
+ 
+         allowedUpdates.forEach(key => {
+diff --git a/server/routes/seclusion.js b/server/routes/seclusion.js
+index caa9ced..43aef5c 100644
+--- a/server/routes/seclusion.js
++++ b/server/routes/seclusion.js
+@@ -1,7 +1,8 @@
+ const express = require('express');
+ const router = express.Router();
++const sequelize = require('../config/database');
+ const Player = require('../models/player');
+-const Realm = require('../models/realm');
++const { core } = require('../modules');
+ const authenticateToken = require('../middleware/auth');
+ const configLoader = require('../modules/infrastructure/ConfigLoader');
+ const fs = require('fs');
+@@ -134,15 +135,18 @@ router.post('/start', authenticateToken, async (req, res) => {
+  * @access Private
+  */
+ router.post('/end', authenticateToken, async (req, res) => {
++    const t = await sequelize.transaction();
+     try {
+         const playerId = req.user.id;
+-        const player = await Player.findByPk(playerId);
++        const player = await Player.findByPk(playerId, { transaction: t });
+ 
+         if (!player) {
++            await t.rollback();
+             return res.status(404).json({ error: '玩家不存在' });
+         }
+ 
+         if (!player.is_secluded) {
++            await t.rollback();
+             return res.status(400).json({ error: '玩家未在闭关中' });
+         }
+ 
+@@ -153,28 +157,21 @@ router.post('/end', authenticateToken, async (req, res) => {
+         // Calculate rewards
+         const baseExpRate = await getSeclusionExpRate(); 
+         
+-        // 获取境界加成
+         let realmMultiplier = 1.0;
+-        try {
+-            const realm = await Realm.findByPk(player.realm);
+-            if (realm) {
+-                // 境界加成逻辑：每提升一个境界 Rank，收益增加 10%
+-                // 凡人(Rank 1) 为 1.0 倍，炼气1层(Rank 2) 为 1.1 倍，以此类推
+-                realmMultiplier = 1.0 + (realm.rank - 1) * 0.1;
+-            }
+-        } catch (err) {
+-            console.error('获取境界加成失败:', err);
++        const realm = core.RealmService.getRealmByName(player.realm);
++        if (realm?.rank) {
++            realmMultiplier = 1.0 + (realm.rank - 1) * 0.1;
+         }
+ 
+         const expGain = Math.floor(actualDurationSeconds * baseExpRate * realmMultiplier);
+ 
+-        // Update player stats
+-        player.exp = (BigInt(player.exp) + BigInt(expGain)).toString();
++        player.exp = BigInt(player.exp || 0) + BigInt(expGain);
+         player.is_secluded = false;
+         player.seclusion_start_time = null;
+         player.seclusion_duration = 0;
+         player.last_seclusion_time = now; // 记录结束时间
+-        await player.save();
++        await player.save({ transaction: t });
++        await t.commit();
+ 
+         const cooldown = await getSeclusionCooldown();
+ 
+@@ -193,6 +190,7 @@ router.post('/end', authenticateToken, async (req, res) => {
+         });
+ 
+     } catch (err) {
++        try { await t.rollback(); } catch (e) {}
+         console.error(err);
+         res.status(500).json({ error: '服务器错误' });
+     }
+diff --git a/server/routes/time.js b/server/routes/time.js
+index 36cdc36..ee8e12a 100644
+--- a/server/routes/time.js
++++ b/server/routes/time.js
+@@ -103,6 +103,7 @@ router.post('/start_activity', authMiddleware, async (req, res) => {
+         const currentTimeData = player.time_system_data || {};
+         currentTimeData.pending_activities = currentTimeData.pending_activities || [];
+         currentTimeData.pending_activities.push({
++            id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+             activity_type: activity_type,
+             start_time: Date.now(),
+             time_cost: timeResult.time_cost_years,
+@@ -299,4 +300,4 @@ router.get('/world_events', authMiddleware, async (req, res) => {
+     }
+ });
+ 
+-module.exports = router;
+\ No newline at end of file
++module.exports = router;
+diff --git a/server/services/AIService.js b/server/services/AIService.js
+index f2f6a6b..2f75c1d 100644
+--- a/server/services/AIService.js
++++ b/server/services/AIService.js
+@@ -6,6 +6,9 @@
+  */
+ const axios = require('axios');
+ 
++const configLoader = require('../modules/infrastructure/ConfigLoader');
++const RealmService = require('../modules/core/RealmService');
++
+ class AIService {
+     /**
+      * 构造函数
+@@ -670,16 +673,14 @@ class AIService {
+         const envMonsters = monsterNames[mapEnvironment] || monsterNames['平原'];
+         const name = envMonsters[Math.floor(Math.random() * envMonsters.length)];
+         
+-        const realmLevels = {
+-            '凡人': { hp: 80, atk: 10, def: 5, exp: 10 },
+-            '炼气1层': { hp: 100, atk: 15, def: 8, exp: 20 },
+-            '炼气3层': { hp: 150, atk: 25, def: 12, exp: 40 },
+-            '炼气6层': { hp: 250, atk: 40, def: 20, exp: 80 },
+-            '筑基期': { hp: 500, atk: 80, def: 40, exp: 200 },
+-            '筑基中期': { hp: 800, atk: 120, def: 60, exp: 350 }
++        const realm = RealmService.getRealmByName(playerRealm) || RealmService.getRealmByName('炼气1层');
++        const baseStats = {
++            hp: realm?.base_hp || 100,
++            atk: realm?.base_atk || 15,
++            def: realm?.base_def || 8,
++            exp: Math.floor((realm?.exp_cap || 200) / 10)
+         };
+ 
+-        const baseStats = realmLevels[playerRealm] || realmLevels['炼气1层'];
+         const variance = 0.9 + Math.random() * 0.2;
+ 
+         return {
+diff --git a/server/services/CombatService.js b/server/services/CombatService.js
+index d4373af..666d639 100644
+--- a/server/services/CombatService.js
++++ b/server/services/CombatService.js
+@@ -10,6 +10,8 @@ const Player = require('../models/player');
+ const Item = require('../models/item');
+ const MapConfigLoader = require('./MapConfigLoader');
+ const DropLoader = require('./DropLoader');
++const RealmService = require('../modules/core/RealmService');
++const configLoader = require('../modules/infrastructure/ConfigLoader');
+ 
+ class CombatService {
+     /**
+@@ -107,8 +109,11 @@ class CombatService {
+      * 生成怪物数据（根据玩家等级调整）
+      */
+     static generateMonsterData(monsterConfig, player) {
++        const systemConfig = configLoader.getConfig('system');
++        const combatCfg = systemConfig?.combat || { monster_stat_multiplier_base: 0.8, monster_stat_multiplier_per_level: 0.1 };
++        
+         const playerLevel = this.getPlayerLevel(player);
+-        const levelMultiplier = 0.8 + (playerLevel * 0.1);
++        const levelMultiplier = combatCfg.monster_stat_multiplier_base + (playerLevel * combatCfg.monster_stat_multiplier_per_level);
+ 
+         return {
+             id: monsterConfig.id,
+@@ -127,16 +132,8 @@ class CombatService {
+      * 获取玩家等级（基于境界）
+      */
+     static getPlayerLevel(player) {
+-        const realmOrder = [
+-            '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
+-            '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
+-            '炼气11层', '炼气12层', '炼气13层', '炼气圆满',
+-            '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
+-            '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
+-            '元婴期', '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
+-            '化神期', '炼虚期', '合体期', '大乘期', '渡劫期', '真仙'
+-        ];
+-        return realmOrder.indexOf(player.realm) + 1;
++        const realm = RealmService.getRealmByName(player.realm);
++        return realm ? realm.rank : 1;
+     }
+ 
+     /**
+@@ -156,17 +153,26 @@ class CombatService {
+         }
+ 
+         const player = await Player.findByPk(playerId);
++        const systemConfig = configLoader.getConfig('system');
++        const combatCfg = systemConfig?.combat || { 
++            player_damage_variance: { min: -5, max: 4 }, 
++            skill_mp_cost: 20, 
++            skill_damage_multiplier: 1.5 
++        };
++
+         const playerStats = player.attributes || {};
+         const playerAtk = playerStats.atk || 10;
+         const playerDef = playerStats.def || 5;
+         const playerSpd = playerStats.speed || 10;
+         const monsterDef = battle.monster_data?.def || 5;
+ 
+-        let damage = Math.max(1, playerAtk - monsterDef + Math.floor(Math.random() * 10) - 5);
++        const variance = combatCfg.player_damage_variance;
++        const varianceValue = Math.floor(Math.random() * (variance.max - variance.min + 1)) + variance.min;
++        let damage = Math.max(1, playerAtk - monsterDef + varianceValue);
+         
+-        if (action === 'skill' && player.mp_current >= 20) {
+-            damage = Math.floor(damage * 1.5);
+-            battle.player_mp = BigInt(battle.player_mp) - BigInt(20);
++        if (action === 'skill' && player.mp_current >= combatCfg.skill_mp_cost) {
++            damage = Math.floor(damage * combatCfg.skill_damage_multiplier);
++            battle.player_mp = BigInt(battle.player_mp) - BigInt(combatCfg.skill_mp_cost);
+         }
+ 
+         battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
+@@ -216,11 +222,16 @@ class CombatService {
+         }
+ 
+         const player = await Player.findByPk(playerId);
++        const systemConfig = configLoader.getConfig('system');
++        const combatCfg = systemConfig?.combat || { monster_damage_variance: { min: -3, max: 2 } };
++
+         const playerStats = player.attributes || {};
+         const playerDef = playerStats.def || 5;
+ 
+         const monsterData = battle.monster_data;
+-        let damage = Math.max(1, monsterData.atk - playerDef + Math.floor(Math.random() * 6) - 3);
++        const variance = combatCfg.monster_damage_variance;
++        const varianceValue = Math.floor(Math.random() * (variance.max - variance.min + 1)) + variance.min;
++        let damage = Math.max(1, monsterData.atk - playerDef + varianceValue);
+ 
+         battle.player_hp = BigInt(battle.player_hp) - BigInt(damage);
+         battle.damage_received = BigInt(battle.damage_received) + BigInt(damage);
+@@ -270,7 +281,8 @@ class CombatService {
+             throw new Error('没有正在进行的战斗');
+         }
+ 
+-        const escapeChance = 0.5;
++        const systemConfig = configLoader.getConfig('system');
++        const escapeChance = systemConfig?.combat?.escape_chance || 0.5;
+         const success = Math.random() < escapeChance;
+ 
+         if (success) {
+@@ -317,75 +329,94 @@ class CombatService {
+      */
+     static async checkBattleEnd(battle, player) {
+         if (battle.monster_hp <= 0n) {
+-            const dropResult = DropLoader.rollDrop(battle.monster_id);
+-            
+-            const gainedExp = dropResult.exp;
+-            player.exp = BigInt(player.exp) + BigInt(gainedExp);
+-
+-            const gainedItems = [];
+-            for (const item of dropResult.items) {
+-                const [itemRecord] = await Item.upsert({
+-                    player_id: player.id,
+-                    item_key: item.item_id,
+-                    quantity: item.quantity
+-                });
+-                gainedItems.push({
+-                    item_id: item.item_id,
+-                    quantity: item.quantity
+-                });
+-            }
+-
+-            await player.save();
+-
+-            const logEntry = {
+-                round: battle.round,
+-                attacker: 'player',
+-                action: 'victory',
+-                exp: gainedExp,
+-                items: gainedItems,
+-                timestamp: new Date().toISOString()
+-            };
+-            battle.battle_log.push(logEntry);
++            const t = await sequelize.transaction();
++            try {
++                const dropResult = DropLoader.rollDrop(battle.monster_id);
++                
++                const gainedExp = dropResult.exp;
++                player.exp = BigInt(player.exp) + BigInt(gainedExp);
++
++                const gainedItems = [];
++                for (const item of dropResult.items) {
++                    await Item.upsert({
++                        player_id: player.id,
++                        item_key: item.item_id,
++                        quantity: item.quantity
++                    }, { transaction: t });
++                    gainedItems.push({
++                        item_id: item.item_id,
++                        quantity: item.quantity
++                    });
++                }
+ 
+-            await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems });
+-            await battle.destroy();
++                await player.save({ transaction: t });
+ 
+-            return {
+-                in_battle: false,
+-                result: 'win',
+-                message: `击败 ${battle.monster_name}！获得 ${gainedExp} 修为`,
+-                rewards: {
++                const logEntry = {
++                    round: battle.round,
++                    attacker: 'player',
++                    action: 'victory',
+                     exp: gainedExp,
+-                    items: gainedItems
+-                }
+-            };
++                    items: gainedItems,
++                    timestamp: new Date().toISOString()
++                };
++                battle.battle_log.push(logEntry);
++                await battle.save({ transaction: t });
++
++                await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems }, t);
++                await battle.destroy({ transaction: t });
++                await t.commit();
++
++                return {
++                    in_battle: false,
++                    result: 'win',
++                    message: `击败 ${battle.monster_name}！获得 ${gainedExp} 修为`,
++                    rewards: {
++                        exp: gainedExp,
++                        items: gainedItems
++                    }
++                };
++            } catch (e) {
++                try { await t.rollback(); } catch (_) {}
++                throw e;
++            }
+         }
+ 
+         if (battle.player_hp <= 0n) {
+-            const currentExp = BigInt(player.exp);
+-            const penaltyExp = currentExp * 5n / 100n;
+-            player.exp = currentExp - penaltyExp;
+-            player.hp_current = Math.max(100, Math.floor(Number(player.hp_max) * 0.3));
+-            await player.save();
+-
+-            const logEntry = {
+-                round: battle.round,
+-                attacker: 'monster',
+-                action: 'defeat',
+-                penalty_exp: penaltyExp.toString(),
+-                timestamp: new Date().toISOString()
+-            };
+-            battle.battle_log.push(logEntry);
+-
+-            await this.saveBattleRecord(battle, player, 'lose', { penalty_exp: penaltyExp.toString() });
+-            await battle.destroy();
+-
+-            return {
+-                in_battle: false,
+-                result: 'lose',
+-                message: `被 ${battle.monster_name} 击败！扣除 ${penaltyExp} 修为`,
+-                penalty_exp: penaltyExp.toString()
+-            };
++            const t = await sequelize.transaction();
++            try {
++                const systemConfig = configLoader.getConfig('system');
++                const combatCfg = systemConfig?.combat || { death_exp_penalty_percent: 5, revive_hp_percent: 30 };
++                
++                const currentExp = BigInt(player.exp);
++                const penaltyExp = currentExp * BigInt(combatCfg.death_exp_penalty_percent) / 100n;
++                player.exp = currentExp - penaltyExp;
++                player.hp_current = Math.max(100, Math.floor(Number(player.hp_max) * (combatCfg.revive_hp_percent / 100)));
++                await player.save({ transaction: t });
++
++                const logEntry = {
++                    round: battle.round,
++                    attacker: 'monster',
++                    action: 'defeat',
++                    penalty_exp: penaltyExp.toString(),
++                    timestamp: new Date().toISOString()
++                };
++                battle.battle_log.push(logEntry);
++                await battle.save({ transaction: t });
++
++                await this.saveBattleRecord(battle, player, 'lose', { penalty_exp: penaltyExp.toString() }, t);
++                await battle.destroy({ transaction: t });
++                await t.commit();
++
++                return {
++                    in_battle: false,
++                    result: 'lose',
++                    message: `被 ${battle.monster_name} 击败！扣除 ${penaltyExp} 修为`,
++                    penalty_exp: penaltyExp.toString()
++                };
++            } catch (e) {
++                try { await t.rollback(); } catch (_) {}
++                throw e;
++            }
+         }
+ 
+         return null;
+@@ -394,7 +425,7 @@ class CombatService {
+     /**
+      * 保存战斗记录
+      */
+-    static async saveBattleRecord(battle, player, result, rewards) {
++    static async saveBattleRecord(battle, player, result, rewards, transaction = null) {
+         await PlayerCombat.create({
+             player_id: player.id,
+             monster_id: battle.monster_id,
+@@ -409,7 +440,7 @@ class CombatService {
+             rewards_exp: rewards?.exp || 0,
+             rewards_items: JSON.stringify(rewards?.items || []),
+             battle_duration: Math.floor((Date.now() - battle.battle_start_time.getTime()) / 1000)
+-        });
++        }, transaction ? { transaction } : undefined);
+     }
+ 
+     /**
+@@ -499,9 +530,12 @@ class CombatService {
+             throw new Error('还未轮到你的回合');
+         }
+ 
++        const systemConfig = configLoader.getConfig('system');
++        const combatCfg = systemConfig?.combat || { skill_mp_cost: 20, skill_damage_multiplier: 1.5 };
++        
+         const player = await Player.findByPk(playerId);
+-        if (player.mp_current < 20) {
+-            throw new Error('灵力不足，需要 20 点灵力');
++        if (player.mp_current < combatCfg.skill_mp_cost) {
++            throw new Error(`灵力不足，需要 ${combatCfg.skill_mp_cost} 点灵力`);
+         }
+ 
+         const playerStats = player.attributes || {};
+@@ -509,10 +543,10 @@ class CombatService {
+         const playerDef = playerStats.def || 5;
+         const monsterDef = battle.monster_data?.def || 5;
+ 
+-        let damage = Math.floor(playerAtk * 1.5 - monsterDef + Math.floor(Math.random() * 15) - 7);
++        let damage = Math.floor(playerAtk * combatCfg.skill_damage_multiplier - monsterDef + Math.floor(Math.random() * 15) - 7);
+         damage = Math.max(1, damage);
+ 
+-        battle.player_mp = BigInt(battle.player_mp) - BigInt(20);
++        battle.player_mp = BigInt(battle.player_mp) - BigInt(combatCfg.skill_mp_cost);
+         battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
+         battle.damage_dealt = BigInt(battle.damage_dealt) + BigInt(damage);
+ 
+@@ -579,6 +613,115 @@ class CombatService {
+             }))
+         };
+     }
++
++    static async useItem(playerId, itemId, quantity = 1) {
++        if (!itemId) {
++            const err = new Error('物品ID不能为空');
++            err.status = 400;
++            throw err;
++        }
++
++        const qty = Math.max(1, parseInt(quantity, 10) || 1);
++
++        const player = await Player.findByPk(playerId);
++        if (!player) {
++            const err = new Error('玩家不存在');
++            err.status = 404;
++            throw err;
++        }
++
++        const item = await Item.findOne({
++            where: { player_id: playerId, item_key: itemId }
++        });
++
++        if (!item || item.quantity < qty) {
++            const err = new Error('物品数量不足');
++            err.status = 400;
++            throw err;
++        }
++
++        const itemConfig = configLoader.getConfig('item_data')?.items?.find(i => i.id === itemId);
++        if (!itemConfig || itemConfig.type !== 'consumable') {
++            const err = new Error('该物品不可使用');
++            err.status = 400;
++            throw err;
++        }
++
++        const effect = itemConfig.effect || {};
++        let message = '使用物品成功';
++
++        if (effect.hp_restore) {
++            const restoreAmount = Math.min(
++                Number(effect.hp_restore) * qty,
++                Math.max(0, Number(player.hp_max) - Number(player.hp_current))
++            );
++            player.hp_current = BigInt(Number(player.hp_current) + restoreAmount);
++            message += `，恢复 ${restoreAmount} 气血`;
++        }
++
++        if (effect.mp_restore) {
++            const mpMax = Number(player.attributes?.mp_max || 0);
++            const restoreAmount = Math.min(
++                Number(effect.mp_restore) * qty,
++                Math.max(0, mpMax - Number(player.mp_current))
++            );
++            player.mp_current = BigInt(Number(player.mp_current) + restoreAmount);
++            message += `，恢复 ${restoreAmount} 灵力`;
++        }
++
++        item.quantity -= qty;
++        if (item.quantity <= 0) {
++            await item.destroy();
++        } else {
++            await item.save();
++        }
++
++        await player.save();
++
++        const battle = await ActiveBattle.findOne({
++            where: { player_id: playerId }
++        });
++        if (battle) {
++            battle.player_hp = player.hp_current;
++            battle.player_mp = player.mp_current;
++            await battle.save();
++        }
++
++        return {
++            message: message,
++            player_hp: player.hp_current.toString(),
++            player_mp: player.mp_current.toString()
++        };
++    }
++
++    static async getMonsters(playerId) {
++        const player = await Player.findByPk(playerId);
++        if (!player) {
++            const err = new Error('Player not found');
++            err.status = 404;
++            throw err;
++        }
++
++        const mapConfig = MapConfigLoader.getMap(player.current_map_id);
++        if (!mapConfig || !mapConfig.monsters) {
++            return {
++                map_id: player.current_map_id,
++                monsters: []
++            };
++        }
++
++        const monsters = mapConfig.monsters.map(m => ({
++            id: m.id,
++            name: m.name,
++            realm: m.realm,
++            exp: m.exp
++        }));
++
++        return {
++            map_id: player.current_map_id,
++            monsters: monsters
++        };
++    }
+ }
+ 
+ module.exports = CombatService;

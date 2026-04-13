@@ -103,6 +103,7 @@ router.post('/start_activity', authMiddleware, async (req, res) => {
         const currentTimeData = player.time_system_data || {};
         currentTimeData.pending_activities = currentTimeData.pending_activities || [];
         currentTimeData.pending_activities.push({
+            id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
             activity_type: activity_type,
             start_time: Date.now(),
             time_cost: timeResult.time_cost_years,

@@ -133,10 +133,7 @@ router.put('/me', authMiddleware, async (req, res) => {
 
         const updates = req.body;
         const allowedUpdates = [
-            'nickname', 'realm', 'exp', 'spirit_stones',
-            'lifespan_current', 'lifespan_max', 'attributes',
-            'hp_current', 'mp_current', 'toxicity', 'is_secluded',
-            'seclusion_end_time'
+            'nickname'
         ];
 
         allowedUpdates.forEach(key => {

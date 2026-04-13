@@ -10,6 +10,8 @@ const Player = require('../models/player');
 const Item = require('../models/item');
 const MapConfigLoader = require('./MapConfigLoader');
 const DropLoader = require('./DropLoader');
+const RealmService = require('../modules/core/RealmService');
+const configLoader = require('../modules/infrastructure/ConfigLoader');
 
 class CombatService {
     /**
@@ -107,8 +109,11 @@ class CombatService {
      * 生成怪物数据（根据玩家等级调整）
      */
     static generateMonsterData(monsterConfig, player) {
+        const systemConfig = configLoader.getConfig('system');
+        const combatCfg = systemConfig?.combat || { monster_stat_multiplier_base: 0.8, monster_stat_multiplier_per_level: 0.1 };
+        
         const playerLevel = this.getPlayerLevel(player);
-        const levelMultiplier = 0.8 + (playerLevel * 0.1);
+        const levelMultiplier = combatCfg.monster_stat_multiplier_base + (playerLevel * combatCfg.monster_stat_multiplier_per_level);
 
         return {
             id: monsterConfig.id,
@@ -127,16 +132,8 @@ class CombatService {
      * 获取玩家等级（基于境界）
      */
     static getPlayerLevel(player) {
-        const realmOrder = [
-            '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
-            '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
-            '炼气11层', '炼气12层', '炼气13层', '炼气圆满',
-            '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
-            '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
-            '元婴期', '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
-            '化神期', '炼虚期', '合体期', '大乘期', '渡劫期', '真仙'
-        ];
-        return realmOrder.indexOf(player.realm) + 1;
+        const realm = RealmService.getRealmByName(player.realm);
+        return realm ? realm.rank : 1;
     }
 
     /**
@@ -156,17 +153,26 @@ class CombatService {
         }
 
         const player = await Player.findByPk(playerId);
+        const systemConfig = configLoader.getConfig('system');
+        const combatCfg = systemConfig?.combat || { 
+            player_damage_variance: { min: -5, max: 4 }, 
+            skill_mp_cost: 20, 
+            skill_damage_multiplier: 1.5 
+        };
+
         const playerStats = player.attributes || {};
         const playerAtk = playerStats.atk || 10;
         const playerDef = playerStats.def || 5;
         const playerSpd = playerStats.speed || 10;
         const monsterDef = battle.monster_data?.def || 5;
 
-        let damage = Math.max(1, playerAtk - monsterDef + Math.floor(Math.random() * 10) - 5);
+        const variance = combatCfg.player_damage_variance;
+        const varianceValue = Math.floor(Math.random() * (variance.max - variance.min + 1)) + variance.min;
+        let damage = Math.max(1, playerAtk - monsterDef + varianceValue);
         
-        if (action === 'skill' && player.mp_current >= 20) {
-            damage = Math.floor(damage * 1.5);
-            battle.player_mp = BigInt(battle.player_mp) - BigInt(20);
+        if (action === 'skill' && player.mp_current >= combatCfg.skill_mp_cost) {
+            damage = Math.floor(damage * combatCfg.skill_damage_multiplier);
+            battle.player_mp = BigInt(battle.player_mp) - BigInt(combatCfg.skill_mp_cost);
         }
 
         battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
@@ -216,11 +222,16 @@ class CombatService {
         }
 
         const player = await Player.findByPk(playerId);
+        const systemConfig = configLoader.getConfig('system');
+        const combatCfg = systemConfig?.combat || { monster_damage_variance: { min: -3, max: 2 } };
+
         const playerStats = player.attributes || {};
         const playerDef = playerStats.def || 5;
 
         const monsterData = battle.monster_data;
-        let damage = Math.max(1, monsterData.atk - playerDef + Math.floor(Math.random() * 6) - 3);
+        const variance = combatCfg.monster_damage_variance;
+        const varianceValue = Math.floor(Math.random() * (variance.max - variance.min + 1)) + variance.min;
+        let damage = Math.max(1, monsterData.atk - playerDef + varianceValue);
 
         battle.player_hp = BigInt(battle.player_hp) - BigInt(damage);
         battle.damage_received = BigInt(battle.damage_received) + BigInt(damage);
@@ -270,7 +281,8 @@ class CombatService {
             throw new Error('没有正在进行的战斗');
         }
 
-        const escapeChance = 0.5;
+        const systemConfig = configLoader.getConfig('system');
+        const escapeChance = systemConfig?.combat?.escape_chance || 0.5;
         const success = Math.random() < escapeChance;
 
         if (success) {
@@ -317,75 +329,94 @@ class CombatService {
      */
     static async checkBattleEnd(battle, player) {
         if (battle.monster_hp <= 0n) {
-            const dropResult = DropLoader.rollDrop(battle.monster_id);
-            
-            const gainedExp = dropResult.exp;
-            player.exp = BigInt(player.exp) + BigInt(gainedExp);
+            const t = await sequelize.transaction();
+            try {
+                const dropResult = DropLoader.rollDrop(battle.monster_id);
+                
+                const gainedExp = dropResult.exp;
+                player.exp = BigInt(player.exp) + BigInt(gainedExp);
 
-            const gainedItems = [];
-            for (const item of dropResult.items) {
-                const [itemRecord] = await Item.upsert({
-                    player_id: player.id,
-                    item_key: item.item_id,
-                    quantity: item.quantity
-                });
-                gainedItems.push({
-                    item_id: item.item_id,
-                    quantity: item.quantity
-                });
-            }
-
-            await player.save();
-
-            const logEntry = {
-                round: battle.round,
-                attacker: 'player',
-                action: 'victory',
-                exp: gainedExp,
-                items: gainedItems,
-                timestamp: new Date().toISOString()
-            };
-            battle.battle_log.push(logEntry);
-
-            await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems });
-            await battle.destroy();
-
-            return {
-                in_battle: false,
-                result: 'win',
-                message: `击败 ${battle.monster_name}！获得 ${gainedExp} 修为`,
-                rewards: {
-                    exp: gainedExp,
-                    items: gainedItems
+                const gainedItems = [];
+                for (const item of dropResult.items) {
+                    await Item.upsert({
+                        player_id: player.id,
+                        item_key: item.item_id,
+                        quantity: item.quantity
+                    }, { transaction: t });
+                    gainedItems.push({
+                        item_id: item.item_id,
+                        quantity: item.quantity
+                    });
                 }
-            };
+
+                await player.save({ transaction: t });
+
+                const logEntry = {
+                    round: battle.round,
+                    attacker: 'player',
+                    action: 'victory',
+                    exp: gainedExp,
+                    items: gainedItems,
+                    timestamp: new Date().toISOString()
+                };
+                battle.battle_log.push(logEntry);
+                await battle.save({ transaction: t });
+
+                await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems }, t);
+                await battle.destroy({ transaction: t });
+                await t.commit();
+
+                return {
+                    in_battle: false,
+                    result: 'win',
+                    message: `击败 ${battle.monster_name}！获得 ${gainedExp} 修为`,
+                    rewards: {
+                        exp: gainedExp,
+                        items: gainedItems
+                    }
+                };
+            } catch (e) {
+                try { await t.rollback(); } catch (_) {}
+                throw e;
+            }
         }
 
         if (battle.player_hp <= 0n) {
-            const currentExp = BigInt(player.exp);
-            const penaltyExp = currentExp * 5n / 100n;
-            player.exp = currentExp - penaltyExp;
-            player.hp_current = Math.max(100, Math.floor(Number(player.hp_max) * 0.3));
-            await player.save();
+            const t = await sequelize.transaction();
+            try {
+                const systemConfig = configLoader.getConfig('system');
+                const combatCfg = systemConfig?.combat || { death_exp_penalty_percent: 5, revive_hp_percent: 30 };
+                
+                const currentExp = BigInt(player.exp);
+                const penaltyExp = currentExp * BigInt(combatCfg.death_exp_penalty_percent) / 100n;
+                player.exp = currentExp - penaltyExp;
+                player.hp_current = Math.max(100, Math.floor(Number(player.hp_max) * (combatCfg.revive_hp_percent / 100)));
+                await player.save({ transaction: t });
 
-            const logEntry = {
-                round: battle.round,
-                attacker: 'monster',
-                action: 'defeat',
-                penalty_exp: penaltyExp.toString(),
-                timestamp: new Date().toISOString()
-            };
-            battle.battle_log.push(logEntry);
+                const logEntry = {
+                    round: battle.round,
+                    attacker: 'monster',
+                    action: 'defeat',
+                    penalty_exp: penaltyExp.toString(),
+                    timestamp: new Date().toISOString()
+                };
+                battle.battle_log.push(logEntry);
+                await battle.save({ transaction: t });
 
-            await this.saveBattleRecord(battle, player, 'lose', { penalty_exp: penaltyExp.toString() });
-            await battle.destroy();
+                await this.saveBattleRecord(battle, player, 'lose', { penalty_exp: penaltyExp.toString() }, t);
+                await battle.destroy({ transaction: t });
+                await t.commit();
 
-            return {
-                in_battle: false,
-                result: 'lose',
-                message: `被 ${battle.monster_name} 击败！扣除 ${penaltyExp} 修为`,
-                penalty_exp: penaltyExp.toString()
-            };
+                return {
+                    in_battle: false,
+                    result: 'lose',
+                    message: `被 ${battle.monster_name} 击败！扣除 ${penaltyExp} 修为`,
+                    penalty_exp: penaltyExp.toString()
+                };
+            } catch (e) {
+                try { await t.rollback(); } catch (_) {}
+                throw e;
+            }
         }
 
         return null;
@@ -394,7 +425,7 @@ class CombatService {
     /**
      * 保存战斗记录
      */
-    static async saveBattleRecord(battle, player, result, rewards) {
+    static async saveBattleRecord(battle, player, result, rewards, transaction = null) {
         await PlayerCombat.create({
             player_id: player.id,
             monster_id: battle.monster_id,
@@ -409,7 +440,7 @@ class CombatService {
             rewards_exp: rewards?.exp || 0,
             rewards_items: JSON.stringify(rewards?.items || []),
             battle_duration: Math.floor((Date.now() - battle.battle_start_time.getTime()) / 1000)
-        });
+        }, transaction ? { transaction } : undefined);
     }
 
     /**
@@ -499,9 +530,12 @@ class CombatService {
             throw new Error('还未轮到你的回合');
         }
 
+        const systemConfig = configLoader.getConfig('system');
+        const combatCfg = systemConfig?.combat || { skill_mp_cost: 20, skill_damage_multiplier: 1.5 };
+        
         const player = await Player.findByPk(playerId);
-        if (player.mp_current < 20) {
-            throw new Error('灵力不足，需要 20 点灵力');
+        if (player.mp_current < combatCfg.skill_mp_cost) {
+            throw new Error(`灵力不足，需要 ${combatCfg.skill_mp_cost} 点灵力`);
         }
 
         const playerStats = player.attributes || {};
@@ -509,10 +543,10 @@ class CombatService {
         const playerDef = playerStats.def || 5;
         const monsterDef = battle.monster_data?.def || 5;
 
-        let damage = Math.floor(playerAtk * 1.5 - monsterDef + Math.floor(Math.random() * 15) - 7);
+        let damage = Math.floor(playerAtk * combatCfg.skill_damage_multiplier - monsterDef + Math.floor(Math.random() * 15) - 7);
         damage = Math.max(1, damage);
 
-        battle.player_mp = BigInt(battle.player_mp) - BigInt(20);
+        battle.player_mp = BigInt(battle.player_mp) - BigInt(combatCfg.skill_mp_cost);
         battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
         battle.damage_dealt = BigInt(battle.damage_dealt) + BigInt(damage);
 
@@ -577,6 +611,115 @@ class CombatService {
                 exp: b.rewards_exp.toString(),
                 time: b.created_at
             }))
+        };
+    }
+
+    static async useItem(playerId, itemId, quantity = 1) {
+        if (!itemId) {
+            const err = new Error('物品ID不能为空');
+            err.status = 400;
+            throw err;
+        }
+
+        const qty = Math.max(1, parseInt(quantity, 10) || 1);
+
+        const player = await Player.findByPk(playerId);
+        if (!player) {
+            const err = new Error('玩家不存在');
+            err.status = 404;
+            throw err;
+        }
+
+        const item = await Item.findOne({
+            where: { player_id: playerId, item_key: itemId }
+        });
+
+        if (!item || item.quantity < qty) {
+            const err = new Error('物品数量不足');
+            err.status = 400;
+            throw err;
+        }
+
+        const itemConfig = configLoader.getConfig('item_data')?.items?.find(i => i.id === itemId);
+        if (!itemConfig || itemConfig.type !== 'consumable') {
+            const err = new Error('该物品不可使用');
+            err.status = 400;
+            throw err;
+        }
+
+        const effect = itemConfig.effect || {};
+        let message = '使用物品成功';
+
+        if (effect.hp_restore) {
+            const restoreAmount = Math.min(
+                Number(effect.hp_restore) * qty,
+                Math.max(0, Number(player.hp_max) - Number(player.hp_current))
+            );
+            player.hp_current = BigInt(Number(player.hp_current) + restoreAmount);
+            message += `，恢复 ${restoreAmount} 气血`;
+        }
+
+        if (effect.mp_restore) {
+            const mpMax = Number(player.attributes?.mp_max || 0);
+            const restoreAmount = Math.min(
+                Number(effect.mp_restore) * qty,
+                Math.max(0, mpMax - Number(player.mp_current))
+            );
+            player.mp_current = BigInt(Number(player.mp_current) + restoreAmount);
+            message += `，恢复 ${restoreAmount} 灵力`;
+        }
+
+        item.quantity -= qty;
+        if (item.quantity <= 0) {
+            await item.destroy();
+        } else {
+            await item.save();
+        }
+
+        await player.save();
+
+        const battle = await ActiveBattle.findOne({
+            where: { player_id: playerId }
+        });
+        if (battle) {
+            battle.player_hp = player.hp_current;
+            battle.player_mp = player.mp_current;
+            await battle.save();
+        }
+
+        return {
+            message: message,
+            player_hp: player.hp_current.toString(),
+            player_mp: player.mp_current.toString()
+        };
+    }
+
+    static async getMonsters(playerId) {
+        const player = await Player.findByPk(playerId);
+        if (!player) {
+            const err = new Error('Player not found');
+            err.status = 404;
+            throw err;
+        }
+
+        const mapConfig = MapConfigLoader.getMap(player.current_map_id);
+        if (!mapConfig || !mapConfig.monsters) {
+            return {
+                map_id: player.current_map_id,
+                monsters: []
+            };
+        }
+
+        const monsters = mapConfig.monsters.map(m => ({
+            id: m.id,
+            name: m.name,
+            realm: m.realm,
+            exp: m.exp
+        }));
+
+        return {
+            map_id: player.current_map_id,
+            monsters: monsters
         };
     }
 }
