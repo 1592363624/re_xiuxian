@@ -18,7 +18,8 @@ router.get('/list', async (req, res) => {
             'item_data',
             'map_data',
             'ui_layout',
-            'ui_routes'
+            'ui_routes',
+            'system'
         ];
 
         const configs = {};
@@ -56,7 +57,8 @@ router.get('/:configName', async (req, res) => {
             'item_data',
             'map_data',
             'ui_layout',
-            'ui_routes'
+            'ui_routes',
+            'system'
         ];
 
         if (!validConfigs.includes(configName)) {
@@ -228,6 +230,34 @@ router.get('/data/maps', async (req, res) => {
 });
 
 /**
+ * 获取系统配置
+ * GET /api/config/data/system
+ */
+router.get('/data/system', async (req, res) => {
+    try {
+        const config = infrastructure.ConfigLoader?.getConfig('system');
+        
+        if (!config) {
+            return res.status(404).json({ 
+                code: 404, 
+                message: '系统配置未加载' 
+            });
+        }
+
+        res.json({
+            code: 200,
+            data: config
+        });
+    } catch (error) {
+        console.error('获取系统配置失败:', error);
+        res.status(500).json({ 
+            code: 500, 
+            message: '服务器错误' 
+        });
+    }
+});
+
+/**
  * 触发配置热更新
  * POST /api/config/hot-update
  */
@@ -240,7 +270,8 @@ router.post('/hot-update', async (req, res) => {
             'item_data',
             'map_data',
             'ui_layout',
-            'ui_routes'
+            'ui_routes',
+            'system'
         ];
 
         if (!configName) {

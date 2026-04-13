@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { useConfigStore } from '../../stores/config'
 
 const props = defineProps({
   initialBattleId: {
@@ -14,6 +15,7 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const configStore = useConfigStore()
 
 const loading = ref(true)
 const combatLoading = ref(false)
@@ -213,7 +215,7 @@ const refreshStats = async () => {
 }
 
 const getMonsterDifficulty = (monster) => {
-  const realmOrder = [
+  const realmOrder = configStore.realmOrder.length > 0 ? configStore.realmOrder : [
     '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
     '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
     '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',

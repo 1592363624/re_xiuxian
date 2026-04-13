@@ -7,6 +7,7 @@ import ToastContainer from './components/common/ToastContainer.vue'
 import MovingOverlay from './components/overlays/MovingOverlay.vue'
 import { usePlayerStore } from './stores/player'
 import { useUIStore } from './stores/ui'
+import { useConfigStore } from './stores/config'
 import ChangelogModal from './components/modals/ChangelogModal.vue'
 import { currentVersion } from './data/changelog'
 
@@ -15,6 +16,7 @@ const dbStatus = ref('检查中...')
 const ping = ref(0)
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
+const configStore = useConfigStore()
 const showChangelog = ref(false)
 
 // 使用计算属性响应 Pinia 中的 player 变化
@@ -42,6 +44,7 @@ const checkStatus = async () => {
 // 监听登录成功事件
 const handleLoginSuccess = async () => {
   console.log('Login success event received')
+  await configStore.fetchConfigs()
   // 登录后获取完整数据 (双重保险，如果 Login 页面已经获取过，这里会再次获取最新状态)
   await playerStore.fetchPlayer()
   console.log('Player after fetch:', playerStore.player)
@@ -77,6 +80,7 @@ onMounted(async () => {
   if (playerStore.token) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${playerStore.token}`
     try {
+      await configStore.fetchConfigs()
       await playerStore.fetchPlayer()
       if (!playerStore.player) {
          // 如果 fetchPlayer 后依然没有 player (比如后端返回空但没报错，虽然不太可能)，视为失败

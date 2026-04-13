@@ -10,6 +10,8 @@ const Player = require('../models/player');
 const Item = require('../models/item');
 const MapConfigLoader = require('./MapConfigLoader');
 const DropLoader = require('./DropLoader');
+const RealmService = require('../modules/core/RealmService');
+const configLoader = require('../modules/infrastructure/ConfigLoader');
 
 class CombatService {
     /**
@@ -107,8 +109,11 @@ class CombatService {
      * 生成怪物数据（根据玩家等级调整）
      */
     static generateMonsterData(monsterConfig, player) {
+        const systemConfig = configLoader.getConfig('system');
+        const combatCfg = systemConfig?.combat || { monster_stat_multiplier_base: 0.8, monster_stat_multiplier_per_level: 0.1 };
+        
         const playerLevel = this.getPlayerLevel(player);
-        const levelMultiplier = 0.8 + (playerLevel * 0.1);
+        const levelMultiplier = combatCfg.monster_stat_multiplier_base + (playerLevel * combatCfg.monster_stat_multiplier_per_level);
 
         return {
             id: monsterConfig.id,
@@ -127,16 +132,8 @@ class CombatService {
      * 获取玩家等级（基于境界）
      */
     static getPlayerLevel(player) {
-        const realmOrder = [
-            '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
-            '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
-            '炼气11层', '炼气12层', '炼气13层', '炼气圆满',
-            '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
-            '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
-            '元婴期', '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
-            '化神期', '炼虚期', '合体期', '大乘期', '渡劫期', '真仙'
-        ];
-        return realmOrder.indexOf(player.realm) + 1;
+        const realm = RealmService.getRealmByName(player.realm);
+        return realm ? realm.rank : 1;
     }
 
     /**
@@ -156,17 +153,26 @@ class CombatService {
         }
 
         const player = await Player.findByPk(playerId);
+        const systemConfig = configLoader.getConfig('system');
+        const combatCfg = systemConfig?.combat || { 
+            player_damage_variance: { min: -5, max: 4 }, 
+            skill_mp_cost: 20, 
+            skill_damage_multiplier: 1.5 
+        };
+
         const playerStats = player.attributes || {};
         const playerAtk = playerStats.atk || 10;
         const playerDef = playerStats.def || 5;
         const playerSpd = playerStats.speed || 10;
         const monsterDef = battle.monster_data?.def || 5;
 
-        let damage = Math.max(1, playerAtk - monsterDef + Math.floor(Math.random() * 10) - 5);
+        const variance = combatCfg.player_damage_variance;
+        const varianceValue = Math.floor(Math.random() * (variance.max - variance.min + 1)) + variance.min;
+        let damage = Math.max(1, playerAtk - monsterDef + varianceValue);
         
-        if (action === 'skill' && player.mp_current >= 20) {
-            damage = Math.floor(damage * 1.5);
-            battle.player_mp = BigInt(battle.player_mp) - BigInt(20);
+        if (action === 'skill' && player.mp_current >= combatCfg.skill_mp_cost) {
+            damage = Math.floor(damage * combatCfg.skill_damage_multiplier);
+            battle.player_mp = BigInt(battle.player_mp) - BigInt(combatCfg.skill_mp_cost);
         }
 
         battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
@@ -216,11 +222,16 @@ class CombatService {
         }
 
         const player = await Player.findByPk(playerId);
+        const systemConfig = configLoader.getConfig('system');
+        const combatCfg = systemConfig?.combat || { monster_damage_variance: { min: -3, max: 2 } };
+
         const playerStats = player.attributes || {};
         const playerDef = playerStats.def || 5;
 
         const monsterData = battle.monster_data;
-        let damage = Math.max(1, monsterData.atk - playerDef + Math.floor(Math.random() * 6) - 3);
+        const variance = combatCfg.monster_damage_variance;
+        const varianceValue = Math.floor(Math.random() * (variance.max - variance.min + 1)) + variance.min;
+        let damage = Math.max(1, monsterData.atk - playerDef + varianceValue);
 
         battle.player_hp = BigInt(battle.player_hp) - BigInt(damage);
         battle.damage_received = BigInt(battle.damage_received) + BigInt(damage);
@@ -270,7 +281,8 @@ class CombatService {
             throw new Error('没有正在进行的战斗');
         }
 
-        const escapeChance = 0.5;
+        const systemConfig = configLoader.getConfig('system');
+        const escapeChance = systemConfig?.combat?.escape_chance || 0.5;
         const success = Math.random() < escapeChance;
 
         if (success) {
@@ -362,10 +374,13 @@ class CombatService {
         }
 
         if (battle.player_hp <= 0n) {
+            const systemConfig = configLoader.getConfig('system');
+            const combatCfg = systemConfig?.combat || { death_exp_penalty_percent: 5, revive_hp_percent: 30 };
+            
             const currentExp = BigInt(player.exp);
-            const penaltyExp = currentExp * 5n / 100n;
+            const penaltyExp = currentExp * BigInt(combatCfg.death_exp_penalty_percent) / 100n;
             player.exp = currentExp - penaltyExp;
-            player.hp_current = Math.max(100, Math.floor(Number(player.hp_max) * 0.3));
+            player.hp_current = Math.max(100, Math.floor(Number(player.hp_max) * (combatCfg.revive_hp_percent / 100)));
             await player.save();
 
             const logEntry = {
@@ -499,9 +514,12 @@ class CombatService {
             throw new Error('还未轮到你的回合');
         }
 
+        const systemConfig = configLoader.getConfig('system');
+        const combatCfg = systemConfig?.combat || { skill_mp_cost: 20, skill_damage_multiplier: 1.5 };
+        
         const player = await Player.findByPk(playerId);
-        if (player.mp_current < 20) {
-            throw new Error('灵力不足，需要 20 点灵力');
+        if (player.mp_current < combatCfg.skill_mp_cost) {
+            throw new Error(`灵力不足，需要 ${combatCfg.skill_mp_cost} 点灵力`);
         }
 
         const playerStats = player.attributes || {};
@@ -509,10 +527,10 @@ class CombatService {
         const playerDef = playerStats.def || 5;
         const monsterDef = battle.monster_data?.def || 5;
 
-        let damage = Math.floor(playerAtk * 1.5 - monsterDef + Math.floor(Math.random() * 15) - 7);
+        let damage = Math.floor(playerAtk * combatCfg.skill_damage_multiplier - monsterDef + Math.floor(Math.random() * 15) - 7);
         damage = Math.max(1, damage);
 
-        battle.player_mp = BigInt(battle.player_mp) - BigInt(20);
+        battle.player_mp = BigInt(battle.player_mp) - BigInt(combatCfg.skill_mp_cost);
         battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
         battle.damage_dealt = BigInt(battle.damage_dealt) + BigInt(damage);
 

@@ -6,6 +6,9 @@
  */
 const axios = require('axios');
 
+const configLoader = require('../modules/infrastructure/ConfigLoader');
+const RealmService = require('../modules/core/RealmService');
+
 class AIService {
     /**
      * 构造函数
@@ -670,16 +673,14 @@ class AIService {
         const envMonsters = monsterNames[mapEnvironment] || monsterNames['平原'];
         const name = envMonsters[Math.floor(Math.random() * envMonsters.length)];
         
-        const realmLevels = {
-            '凡人': { hp: 80, atk: 10, def: 5, exp: 10 },
-            '炼气1层': { hp: 100, atk: 15, def: 8, exp: 20 },
-            '炼气3层': { hp: 150, atk: 25, def: 12, exp: 40 },
-            '炼气6层': { hp: 250, atk: 40, def: 20, exp: 80 },
-            '筑基期': { hp: 500, atk: 80, def: 40, exp: 200 },
-            '筑基中期': { hp: 800, atk: 120, def: 60, exp: 350 }
+        const realm = RealmService.getRealmByName(playerRealm) || RealmService.getRealmByName('炼气1层');
+        const baseStats = {
+            hp: realm?.base_hp || 100,
+            atk: realm?.base_atk || 15,
+            def: realm?.base_def || 8,
+            exp: Math.floor((realm?.exp_cap || 200) / 10)
         };
 
-        const baseStats = realmLevels[playerRealm] || realmLevels['炼气1层'];
         const variance = 0.9 + Math.random() * 0.2;
 
         return {
