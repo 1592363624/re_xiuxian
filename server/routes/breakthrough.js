@@ -75,14 +75,13 @@ router.post('/try', authenticateToken, async (req, res) => {
         const success = roll < probability;
 
         if (!success) {
-            await t.commit();
-            
             const expLoss = BigInt(Math.floor(Number(player.exp) * 0.1));
             player.exp = BigInt(player.exp) - expLoss;
             
             const ageIncrease = currentRealm.rank * 2;
             player.lifespan_current = (player.lifespan_current || 0) + ageIncrease;
-            await player.save();
+            await player.save({ transaction: t });
+            await t.commit();
 
             return res.json({
                 code: 200,

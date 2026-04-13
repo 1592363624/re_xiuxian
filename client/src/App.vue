@@ -6,22 +6,26 @@ import Login from './views/Login.vue'
 import ToastContainer from './components/common/ToastContainer.vue'
 import MovingOverlay from './components/overlays/MovingOverlay.vue'
 import { usePlayerStore } from './stores/player'
+import { useAuthStore } from './stores/auth'
 import { useUIStore } from './stores/ui'
 import { useConfigStore } from './stores/config'
+import { useRealtimeStore } from './stores/realtime'
 import ChangelogModal from './components/modals/ChangelogModal.vue'
 import { currentVersion } from './data/changelog'
 
 const serverStatus = ref('正在连接...')
 const dbStatus = ref('检查中...')
 const ping = ref(0)
+const authStore = useAuthStore()
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
 const configStore = useConfigStore()
+const realtimeStore = useRealtimeStore()
 const showChangelog = ref(false)
 
 // 使用计算属性响应 Pinia 中的 player 变化
 const currentPlayer = computed(() => playerStore.player)
-const movingState = computed(() => playerStore.movingState)
+const movingState = computed(() => realtimeStore.movingState)
 
 const isInitialized = ref(false)
 
@@ -47,12 +51,13 @@ const handleLoginSuccess = async () => {
   await configStore.fetchConfigs()
   // 登录后获取完整数据 (双重保险，如果 Login 页面已经获取过，这里会再次获取最新状态)
   await playerStore.fetchPlayer()
+  realtimeStore.connect(playerStore.player?.id)
   console.log('Player after fetch:', playerStore.player)
 }
 
 // 移动完成处理
 const handleMoveComplete = async () => {
-  playerStore.clearMovingState()
+  realtimeStore.clearMovingState()
   uiStore.showToast('已到达目的地', 'success')
   await playerStore.fetchPlayer()
 }
@@ -77,8 +82,8 @@ onMounted(async () => {
   }
 
   // 恢复 Token 并验证
-  if (playerStore.token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${playerStore.token}`
+  if (authStore.token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${authStore.token}`
     try {
       await configStore.fetchConfigs()
       await playerStore.fetchPlayer()
@@ -86,13 +91,18 @@ onMounted(async () => {
          // 如果 fetchPlayer 后依然没有 player (比如后端返回空但没报错，虽然不太可能)，视为失败
          throw new Error('No player data')
       }
+      realtimeStore.connect(playerStore.player?.id)
     } catch (e) {
       // 验证失败，清除状态
-      playerStore.logout()
+      authStore.logout()
+      playerStore.clear()
+      realtimeStore.disconnect()
     }
   } else {
     // 没有 token，确保清除可能残留的 player 数据
-    playerStore.logout()
+    authStore.logout()
+    playerStore.clear()
+    realtimeStore.disconnect()
   }
   
   isInitialized.value = true

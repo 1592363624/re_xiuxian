@@ -329,78 +329,94 @@ class CombatService {
      */
     static async checkBattleEnd(battle, player) {
         if (battle.monster_hp <= 0n) {
-            const dropResult = DropLoader.rollDrop(battle.monster_id);
-            
-            const gainedExp = dropResult.exp;
-            player.exp = BigInt(player.exp) + BigInt(gainedExp);
+            const t = await sequelize.transaction();
+            try {
+                const dropResult = DropLoader.rollDrop(battle.monster_id);
+                
+                const gainedExp = dropResult.exp;
+                player.exp = BigInt(player.exp) + BigInt(gainedExp);
 
-            const gainedItems = [];
-            for (const item of dropResult.items) {
-                const [itemRecord] = await Item.upsert({
-                    player_id: player.id,
-                    item_key: item.item_id,
-                    quantity: item.quantity
-                });
-                gainedItems.push({
-                    item_id: item.item_id,
-                    quantity: item.quantity
-                });
-            }
-
-            await player.save();
-
-            const logEntry = {
-                round: battle.round,
-                attacker: 'player',
-                action: 'victory',
-                exp: gainedExp,
-                items: gainedItems,
-                timestamp: new Date().toISOString()
-            };
-            battle.battle_log.push(logEntry);
-
-            await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems });
-            await battle.destroy();
-
-            return {
-                in_battle: false,
-                result: 'win',
-                message: `击败 ${battle.monster_name}！获得 ${gainedExp} 修为`,
-                rewards: {
-                    exp: gainedExp,
-                    items: gainedItems
+                const gainedItems = [];
+                for (const item of dropResult.items) {
+                    await Item.upsert({
+                        player_id: player.id,
+                        item_key: item.item_id,
+                        quantity: item.quantity
+                    }, { transaction: t });
+                    gainedItems.push({
+                        item_id: item.item_id,
+                        quantity: item.quantity
+                    });
                 }
-            };
+
+                await player.save({ transaction: t });
+
+                const logEntry = {
+                    round: battle.round,
+                    attacker: 'player',
+                    action: 'victory',
+                    exp: gainedExp,
+                    items: gainedItems,
+                    timestamp: new Date().toISOString()
+                };
+                battle.battle_log.push(logEntry);
+                await battle.save({ transaction: t });
+
+                await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems }, t);
+                await battle.destroy({ transaction: t });
+                await t.commit();
+
+                return {
+                    in_battle: false,
+                    result: 'win',
+                    message: `击败 ${battle.monster_name}！获得 ${gainedExp} 修为`,
+                    rewards: {
+                        exp: gainedExp,
+                        items: gainedItems
+                    }
+                };
+            } catch (e) {
+                try { await t.rollback(); } catch (_) {}
+                throw e;
+            }
         }
 
         if (battle.player_hp <= 0n) {
-            const systemConfig = configLoader.getConfig('system');
-            const combatCfg = systemConfig?.combat || { death_exp_penalty_percent: 5, revive_hp_percent: 30 };
-            
-            const currentExp = BigInt(player.exp);
-            const penaltyExp = currentExp * BigInt(combatCfg.death_exp_penalty_percent) / 100n;
-            player.exp = currentExp - penaltyExp;
-            player.hp_current = Math.max(100, Math.floor(Number(player.hp_max) * (combatCfg.revive_hp_percent / 100)));
-            await player.save();
+            const t = await sequelize.transaction();
+            try {
+                const systemConfig = configLoader.getConfig('system');
+                const combatCfg = systemConfig?.combat || { death_exp_penalty_percent: 5, revive_hp_percent: 30 };
+                
+                const currentExp = BigInt(player.exp);
+                const penaltyExp = currentExp * BigInt(combatCfg.death_exp_penalty_percent) / 100n;
+                player.exp = currentExp - penaltyExp;
+                player.hp_current = Math.max(100, Math.floor(Number(player.hp_max) * (combatCfg.revive_hp_percent / 100)));
+                await player.save({ transaction: t });
 
-            const logEntry = {
-                round: battle.round,
-                attacker: 'monster',
-                action: 'defeat',
-                penalty_exp: penaltyExp.toString(),
-                timestamp: new Date().toISOString()
-            };
-            battle.battle_log.push(logEntry);
+                const logEntry = {
+                    round: battle.round,
+                    attacker: 'monster',
+                    action: 'defeat',
+                    penalty_exp: penaltyExp.toString(),
+                    timestamp: new Date().toISOString()
+                };
+                battle.battle_log.push(logEntry);
+                await battle.save({ transaction: t });
 
-            await this.saveBattleRecord(battle, player, 'lose', { penalty_exp: penaltyExp.toString() });
-            await battle.destroy();
+                await this.saveBattleRecord(battle, player, 'lose', { penalty_exp: penaltyExp.toString() }, t);
+                await battle.destroy({ transaction: t });
+                await t.commit();
 
-            return {
-                in_battle: false,
-                result: 'lose',
-                message: `被 ${battle.monster_name} 击败！扣除 ${penaltyExp} 修为`,
-                penalty_exp: penaltyExp.toString()
-            };
+                return {
+                    in_battle: false,
+                    result: 'lose',
+                    message: `被 ${battle.monster_name} 击败！扣除 ${penaltyExp} 修为`,
+                    penalty_exp: penaltyExp.toString()
+                };
+            } catch (e) {
+                try { await t.rollback(); } catch (_) {}
+                throw e;
+            }
         }
 
         return null;
@@ -409,7 +425,7 @@ class CombatService {
     /**
      * 保存战斗记录
      */
-    static async saveBattleRecord(battle, player, result, rewards) {
+    static async saveBattleRecord(battle, player, result, rewards, transaction = null) {
         await PlayerCombat.create({
             player_id: player.id,
             monster_id: battle.monster_id,
@@ -424,7 +440,7 @@ class CombatService {
             rewards_exp: rewards?.exp || 0,
             rewards_items: JSON.stringify(rewards?.items || []),
             battle_duration: Math.floor((Date.now() - battle.battle_start_time.getTime()) / 1000)
-        });
+        }, transaction ? { transaction } : undefined);
     }
 
     /**

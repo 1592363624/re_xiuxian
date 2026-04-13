@@ -1,9 +1,11 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { usePlayerStore } from '../../stores/player'
+import { useBreakthroughStore } from '../../stores/breakthrough'
 import { useUIStore } from '../../stores/ui'
 
 const playerStore = usePlayerStore()
+const breakthroughStore = useBreakthroughStore()
 const uiStore = useUIStore()
 
 const isTrying = ref(false)
@@ -216,7 +218,7 @@ const handleBreakthroughClick = async () => {
 
   isTrying.value = true
   try {
-    const res = await playerStore.tryBreakthrough()
+    const res = await breakthroughStore.tryBreakthrough()
     if (!res) return
 
     if (res.success) {
@@ -390,4 +392,3 @@ onUnmounted(() => {
   }
 }
 </style>
-

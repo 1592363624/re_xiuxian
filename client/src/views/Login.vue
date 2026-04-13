@@ -2,7 +2,9 @@
 import { ref, watch } from 'vue'
 import axios from 'axios'
 import { usePlayerStore } from '../stores/player'
+import { useAuthStore } from '../stores/auth'
 import { useUIStore } from '../stores/ui'
+import { useRealtimeStore } from '../stores/realtime'
 
 const isLogin = ref(true) // true: 登录模式, false: 注册模式
 const form = ref({
@@ -18,7 +20,9 @@ const nicknameError = ref('')
 const checking = ref({ username: false, nickname: false })
 
 const playerStore = usePlayerStore()
+const authStore = useAuthStore()
 const uiStore = useUIStore()
+const realtimeStore = useRealtimeStore()
 
 const emit = defineEmits(['login-success'])
 
@@ -116,13 +120,14 @@ const handleSubmit = async () => {
         password: form.value.password
       })
       // 清除之前的登出原因
-      playerStore.logoutReason = null;
+      authStore.logoutReason = null;
       
       // 使用 Pinia 存储状态
-      playerStore.setToken(res.data.token)
+      authStore.setToken(res.data.token)
       
       // 获取完整玩家数据
       await playerStore.fetchPlayer()
+      realtimeStore.connect(playerStore.player?.id)
       
       // 触发登录成功事件，传递 true 表示成功，不需要传 player 对象，避免传旧数据
       emit('login-success', true)
@@ -153,8 +158,8 @@ const handleSubmit = async () => {
       <p class="text-center text-gray-500 mb-8 text-sm">踏入仙途，逆天改命</p>
       
       <!-- 登出/互踢提示 -->
-      <div v-if="playerStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm text-center animate-pulse">
-        {{ playerStore.logoutReason }}
+      <div v-if="authStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm text-center animate-pulse">
+        {{ authStore.logoutReason }}
       </div>
 
       <form @submit.prevent="handleSubmit" class="space-y-6">

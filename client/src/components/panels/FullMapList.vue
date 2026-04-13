@@ -4,11 +4,13 @@ import axios from 'axios'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { useConfigStore } from '../../stores/config'
+import { useRealtimeStore } from '../../stores/realtime'
 
 const emit = defineEmits(['close', 'mapChanged'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
 const configStore = useConfigStore()
+const realtimeStore = useRealtimeStore()
 
 const loading = ref(true)
 const allMaps = ref([])
@@ -176,22 +178,11 @@ const handleMove = async (targetMap) => {
     const currentMap = allMaps.value.find(m => m.id === currentMapId.value)
     const res = await axios.post('/api/map/start-move', { targetMapId: targetMap.id })
     
-    if (res.data.success) {
-      const movingState = {
-        isMoving: true,
-        fromMapId: currentMapId.value,
-        toMapId: targetMap.id,
-        fromMapName: currentMap?.name || '未知地点',
-        toMapName: targetMap.name,
-        startTime: res.data.start_time,
-        endTime: res.data.end_time,
-        totalSeconds: res.data.total_seconds,
-        remainingSeconds: res.data.total_seconds
-      }
-      playerStore.setMovingState(movingState)
+    if (res.data?.code === 200 && res.data?.data) {
+      realtimeStore.setMovingState(res.data.data)
       
       uiStore.addLog({
-        content: `你从 ${currentMap?.name || '未知地点'} 出发，前往 ${targetMap.name}，预计 ${formatTime(res.data.total_seconds)} 后到达。`,
+        content: `你从 ${currentMap?.name || '未知地点'} 出发，前往 ${targetMap.name}，预计 ${formatTime(res.data.data.total_seconds)} 后到达。`,
         type: 'movement',
         actorId: 'self'
       })

@@ -1,10 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
-import { usePlayerStore } from '../../stores/player'
+import { useRealtimeStore } from '../../stores/realtime'
 import { useUIStore } from '../../stores/ui'
 
-const playerStore = usePlayerStore()
+const realtimeStore = useRealtimeStore()
 const uiStore = useUIStore()
 
 const props = defineProps({
@@ -21,7 +21,7 @@ const progress = ref(0)
 const intervalId = ref(null)
 const cancelling = ref(false)
 
-const movingState = computed(() => playerStore.movingState)
+const movingState = computed(() => realtimeStore.movingState)
 
 const fromMapName = computed(() => movingState.value.fromMapName || '起点')
 const toMapName = computed(() => movingState.value.toMapName || '终点')
@@ -52,7 +52,7 @@ const startCountdown = () => {
   intervalId.value = setInterval(() => {
     if (countdown.value > 0) {
       countdown.value--
-      playerStore.updateRemainingTime(countdown.value)
+      realtimeStore.updateRemainingTime(countdown.value)
       
       const total = movingState.value.totalSeconds || 1
       progress.value = Math.round((1 - countdown.value / total) * 100)
@@ -73,7 +73,7 @@ const cancelMove = async () => {
   cancelling.value = true
   try {
     await axios.post('/api/map/cancel-move')
-    playerStore.clearMovingState()
+    realtimeStore.clearMovingState()
     uiStore.addLog({
       content: `你取消了移动，返回了 ${fromMapName.value}。`,
       type: 'movement',

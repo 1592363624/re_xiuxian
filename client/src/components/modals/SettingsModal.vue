@@ -94,13 +94,19 @@
 
 <script setup>
 import { usePlayerStore } from '../../stores/player'
+import { useAuthStore } from '../../stores/auth'
+import { useRealtimeStore } from '../../stores/realtime'
 
 const emit = defineEmits(['close'])
 const playerStore = usePlayerStore()
+const authStore = useAuthStore()
+const realtimeStore = useRealtimeStore()
 
 const handleLogout = () => {
   if (confirm('确定要注销当前账号吗？')) {
-    playerStore.logout()
+    authStore.logout()
+    realtimeStore.disconnect()
+    playerStore.clear()
     window.location.reload()
   }
 }
