@@ -1,3 +1,9 @@
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
+const PlayerMapPosition = require('../../models/playerMapPosition');
+const PlayerMovement = require('../../models/playerMovement');
+const RealmService = require('./RealmService');
+
 /**
  * 地图服务模块
  * 处理地图、区域、资源分布等核心业务逻辑
@@ -127,6 +133,295 @@ class MapService {
     getMapTeleports(mapId) {
         const map = this.getMapById(mapId);
         return map?.teleports || [];
+    }
+
+    /**
+     * 计算移动到目标地图的消耗
+     * @param {Object} targetMap 目标地图配置
+     * @param {Object} player 玩家对象
+     * @param {Object} currentMap 当前地图配置
+     */
+    calculateTravelCost(targetMap, player, currentMap = null) {
+        const systemConfig = this.configLoader?.getConfig('system');
+        const mapSysCfg = systemConfig?.map || {
+            type_multiplier: { country: 1, sect: 1, mountain: 1.5, ocean: 2, talent: 3, world: 5 },
+            terrain_factor: { plains: 1, mountain: 1.5, ocean: 2, cave: 1.8, mixed: 1.2, celestial: 1 }
+        };
+
+        const baseCost = 10;
+        const baseTime = 60;
+        
+        const dangerLevel = targetMap.danger_level || 1;
+        const travelTime = targetMap.travel_time || 5;
+        const type = targetMap.type || 'country';
+        const environment = targetMap.environment || 'plains';
+        
+        let distance = 0;
+        let time = baseTime;
+        
+        if (currentMap && currentMap.x !== undefined && targetMap.x !== undefined) {
+            distance = Math.sqrt(
+                Math.pow(targetMap.x - currentMap.x, 2) + 
+                Math.pow(targetMap.y - currentMap.y, 2)
+            );
+            const terrainMod = mapSysCfg.terrain_factor[environment] || 1;
+            const playerSpeed = player.attributes?.speed || 10;
+            time = Math.floor(baseTime + (distance * terrainMod * 10) / (playerSpeed / 10));
+        } else {
+            time = travelTime * 60;
+        }
+        
+        let cost = baseCost;
+        cost += Math.floor(distance / 10);
+        cost += dangerLevel * 2;
+        cost += travelTime / 2;
+        cost *= mapSysCfg.type_multiplier[type] || 1;
+        
+        return {
+            cost: Math.floor(cost),
+            time: time,
+            distance: Math.floor(distance * 100) / 100
+        };
+    }
+
+    /**
+     * 获取地图信息
+     * @param {string} playerId 玩家ID
+     */
+    async getMapInfo(playerId) {
+        const player = await Player.findByPk(playerId);
+        if (!player) throw new Error('玩家不存在');
+
+        let playerMapPos = await PlayerMapPosition.findOne({
+            where: { player_id: player.id }
+        });
+
+        let mapId = player.current_map_id;
+
+        if (!mapId) {
+            const defaultMap = this.getAllMaps().find(m => m.id === 'mortal_village_1') || this.getAllMaps()[0];
+            if (defaultMap) {
+                mapId = defaultMap.id;
+                player.current_map_id = mapId;
+                await player.save();
+
+                playerMapPos = await PlayerMapPosition.create({
+                    player_id: player.id,
+                    map_id: mapId
+                });
+            }
+        }
+
+        const mapConfigData = this.getMapById(mapId);
+        if (!mapConfigData) {
+            const defaultMap = this.getAllMaps().find(m => m.id === 'mortal_village_1') || this.getAllMaps()[0];
+            if (defaultMap) {
+                player.current_map_id = defaultMap.id;
+                await player.save();
+                return { 
+                    current_map: defaultMap, 
+                    player_data: null,
+                    connected_maps: [],
+                    is_moving: false
+                };
+            }
+            throw new Error('Map not found');
+        }
+
+        // 处理连接的地图
+        const connectedMapIds = mapConfigData.connections || [];
+        const connectedMaps = this.getAllMaps().filter(m => connectedMapIds.includes(m.id));
+
+        const responseData = {
+            ...mapConfigData,
+            player_data: playerMapPos ? {
+                exploration_progress: playerMapPos.exploration_progress,
+                visited_nodes: playerMapPos.visited_nodes,
+                last_visit_time: playerMapPos.last_visit_time,
+                resource_gather_count: playerMapPos.resource_gather_count,
+                monster_defeat_count: playerMapPos.monster_defeat_count
+            } : null
+        };
+
+        return {
+            current_map: responseData,
+            connected_maps: connectedMaps.map(m => ({
+                id: m.id,
+                name: m.name,
+                type: m.type,
+                environment: m.environment,
+                requiredRealm: m.requiredRealm,
+                danger_level: m.danger_level,
+                description: m.description,
+                travel_time: m.travel_time
+            })),
+            is_moving: player.is_moving || false
+        };
+    }
+
+    /**
+     * 开始移动
+     * @param {string} playerId 玩家ID
+     * @param {string} targetMapId 目标地图ID
+     */
+    async startMove(playerId, targetMapId) {
+        const player = await Player.findByPk(playerId);
+        if (!player) throw new Error('玩家不存在');
+
+        if (player.is_moving) {
+            throw new Error('您正在移动中，请等待到达目的地');
+        }
+
+        const currentMapId = player.current_map_id;
+        if (currentMapId == targetMapId) {
+            throw new Error('您已经在目标地图');
+        }
+
+        const currentMapConfig = this.getMapById(currentMapId);
+        const targetMapConfig = this.getMapById(targetMapId);
+
+        if (!currentMapConfig || !targetMapConfig) {
+            throw new Error('地图配置不存在');
+        }
+
+        const playerRealmRank = RealmService.getRealmByName(player.realm)?.rank || 0;
+        const requiredRealmRank = RealmService.getRealmByName(targetMapConfig.requiredRealm || '凡人')?.rank || 0;
+
+        if (playerRealmRank < requiredRealmRank) {
+            throw new Error(`境界不足，需达到 ${targetMapConfig.requiredRealm} 才能进入`);
+        }
+
+        const travelCostInfo = this.calculateTravelCost(targetMapConfig, player, currentMapConfig);
+        
+        if (player.mp_current < travelCostInfo.cost) {
+            throw new Error(`灵力不足，需要 ${travelCostInfo.cost} 点灵力`);
+        }
+
+        const now = new Date();
+        const endTime = new Date(now.getTime() + travelCostInfo.time * 1000);
+
+        const t = await sequelize.transaction();
+        try {
+            player.mp_current = BigInt(player.mp_current) - BigInt(travelCostInfo.cost);
+            player.is_moving = true;
+            player.moving_from_map_id = currentMapId;
+            player.moving_to_map_id = targetMapId;
+            player.move_start_time = now;
+            player.move_end_time = endTime;
+            await player.save({ transaction: t });
+
+            await PlayerMovement.create({
+                player_id: player.id,
+                from_map_id: currentMapId,
+                from_map_name: currentMapConfig.name,
+                to_map_id: targetMapId,
+                to_map_name: targetMapConfig.name,
+                distance: travelCostInfo.distance,
+                mp_consumed: travelCostInfo.cost,
+                duration_seconds: travelCostInfo.time,
+                status: 'moving',
+                started_at: now
+            }, { transaction: t });
+
+            await t.commit();
+
+            return {
+                travelCostInfo,
+                currentMapConfig,
+                targetMapConfig,
+                now,
+                endTime
+            };
+        } catch (e) {
+            await t.rollback();
+            throw e;
+        }
+    }
+
+    /**
+     * 取消移动
+     * @param {string} playerId 玩家ID
+     */
+    async cancelMove(playerId) {
+        const player = await Player.findByPk(playerId);
+        if (!player) throw new Error('玩家不存在');
+
+        if (!player.is_moving) {
+            throw new Error('您当前没有在移动中');
+        }
+
+        player.is_moving = false;
+        player.moving_from_map_id = null;
+        player.moving_to_map_id = null;
+        player.move_start_time = null;
+        player.move_end_time = null;
+        await player.save();
+
+        const movement = await PlayerMovement.findOne({
+            where: { 
+                player_id: player.id, 
+                status: 'moving' 
+            },
+            order: [['createdAt', 'DESC']]
+        });
+
+        if (movement) {
+            movement.status = 'cancelled';
+            movement.completed_at = new Date();
+            await movement.save();
+        }
+
+        return true;
+    }
+
+    /**
+     * 完成移动
+     * @param {string} playerId 玩家ID
+     */
+    async completeMove(playerId) {
+        const player = await Player.findByPk(playerId);
+        if (!player) throw new Error('玩家不存在');
+
+        if (!player.is_moving) {
+            throw new Error('玩家不在移动中');
+        }
+
+        const targetMapId = player.moving_to_map_id;
+        const targetMapConfig = this.getMapById(targetMapId);
+
+        player.current_map_id = targetMapId;
+        player.last_map_move_time = new Date();
+        player.is_moving = false;
+        player.moving_from_map_id = null;
+        player.moving_to_map_id = null;
+        player.move_start_time = null;
+        player.move_end_time = null;
+        await player.save();
+
+        await PlayerMapPosition.upsert({
+            player_id: player.id,
+            map_id: targetMapId,
+            last_visit_time: new Date()
+        });
+
+        const movement = await PlayerMovement.findOne({
+            where: { 
+                player_id: player.id, 
+                status: 'moving' 
+            },
+            order: [['createdAt', 'DESC']]
+        });
+
+        if (movement) {
+            movement.status = 'completed';
+            movement.completed_at = new Date();
+            await movement.save();
+        }
+
+        return {
+            targetMapConfig,
+            player
+        };
     }
 
     /**
