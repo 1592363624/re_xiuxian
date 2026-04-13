@@ -597,6 +597,115 @@ class CombatService {
             }))
         };
     }
+
+    static async useItem(playerId, itemId, quantity = 1) {
+        if (!itemId) {
+            const err = new Error('物品ID不能为空');
+            err.status = 400;
+            throw err;
+        }
+
+        const qty = Math.max(1, parseInt(quantity, 10) || 1);
+
+        const player = await Player.findByPk(playerId);
+        if (!player) {
+            const err = new Error('玩家不存在');
+            err.status = 404;
+            throw err;
+        }
+
+        const item = await Item.findOne({
+            where: { player_id: playerId, item_key: itemId }
+        });
+
+        if (!item || item.quantity < qty) {
+            const err = new Error('物品数量不足');
+            err.status = 400;
+            throw err;
+        }
+
+        const itemConfig = configLoader.getConfig('item_data')?.items?.find(i => i.id === itemId);
+        if (!itemConfig || itemConfig.type !== 'consumable') {
+            const err = new Error('该物品不可使用');
+            err.status = 400;
+            throw err;
+        }
+
+        const effect = itemConfig.effect || {};
+        let message = '使用物品成功';
+
+        if (effect.hp_restore) {
+            const restoreAmount = Math.min(
+                Number(effect.hp_restore) * qty,
+                Math.max(0, Number(player.hp_max) - Number(player.hp_current))
+            );
+            player.hp_current = BigInt(Number(player.hp_current) + restoreAmount);
+            message += `，恢复 ${restoreAmount} 气血`;
+        }
+
+        if (effect.mp_restore) {
+            const mpMax = Number(player.attributes?.mp_max || 0);
+            const restoreAmount = Math.min(
+                Number(effect.mp_restore) * qty,
+                Math.max(0, mpMax - Number(player.mp_current))
+            );
+            player.mp_current = BigInt(Number(player.mp_current) + restoreAmount);
+            message += `，恢复 ${restoreAmount} 灵力`;
+        }
+
+        item.quantity -= qty;
+        if (item.quantity <= 0) {
+            await item.destroy();
+        } else {
+            await item.save();
+        }
+
+        await player.save();
+
+        const battle = await ActiveBattle.findOne({
+            where: { player_id: playerId }
+        });
+        if (battle) {
+            battle.player_hp = player.hp_current;
+            battle.player_mp = player.mp_current;
+            await battle.save();
+        }
+
+        return {
+            message: message,
+            player_hp: player.hp_current.toString(),
+            player_mp: player.mp_current.toString()
+        };
+    }
+
+    static async getMonsters(playerId) {
+        const player = await Player.findByPk(playerId);
+        if (!player) {
+            const err = new Error('Player not found');
+            err.status = 404;
+            throw err;
+        }
+
+        const mapConfig = MapConfigLoader.getMap(player.current_map_id);
+        if (!mapConfig || !mapConfig.monsters) {
+            return {
+                map_id: player.current_map_id,
+                monsters: []
+            };
+        }
+
+        const monsters = mapConfig.monsters.map(m => ({
+            id: m.id,
+            name: m.name,
+            realm: m.realm,
+            exp: m.exp
+        }));
+
+        return {
+            map_id: player.current_map_id,
+            monsters: monsters
+        };
+    }
 }
 
 module.exports = CombatService;
