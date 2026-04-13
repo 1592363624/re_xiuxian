@@ -1,0 +1,373 @@
+File: client/src/App.vue
+  Added lines: 20
+  Deleted lines: 6
+  Additions sample:
+    +import { useAuthStore } from './stores/auth'
+    +import { useConfigStore } from './stores/config'
+    +import { useRealtimeStore } from './stores/realtime'
+    +const authStore = useAuthStore()
+    +const configStore = useConfigStore()
+  Deletions sample:
+    -const movingState = computed(() => playerStore.movingState)
+    -  playerStore.clearMovingState()
+    -  if (playerStore.token) {
+    -    axios.defaults.headers.common['Authorization'] = `Bearer ${playerStore.token}`
+    -      playerStore.logout()
+
+File: client/src/components/layout/GameLayout.vue
+  Added lines: 10
+  Deleted lines: 2
+  Additions sample:
+    +import { useAuthStore } from '../../stores/auth';
+    +import { useRealtimeStore } from '../../stores/realtime';
+    +import { useSeclusionStore } from '../../stores/seclusion';
+    +const authStore = useAuthStore();
+    +const realtimeStore = useRealtimeStore();
+  Deletions sample:
+    -      await playerStore.startSeclusion();
+    -  playerStore.logout();
+
+File: client/src/components/modals/SettingsModal.vue
+  Added lines: 7
+  Deleted lines: 1
+  Additions sample:
+    +import { useAuthStore } from '../../stores/auth'
+    +import { useRealtimeStore } from '../../stores/realtime'
+    +const authStore = useAuthStore()
+    +const realtimeStore = useRealtimeStore()
+    +    authStore.logout()
+  Deletions sample:
+    -    playerStore.logout()
+
+File: client/src/components/overlays/MovingOverlay.vue
+  Added lines: 5
+  Deleted lines: 5
+  Additions sample:
+    +import { useRealtimeStore } from '../../stores/realtime'
+    +const realtimeStore = useRealtimeStore()
+    +const movingState = computed(() => realtimeStore.movingState)
+    +      realtimeStore.updateRemainingTime(countdown.value)
+    +    realtimeStore.clearMovingState()
+  Deletions sample:
+    -import { usePlayerStore } from '../../stores/player'
+    -const playerStore = usePlayerStore()
+    -const movingState = computed(() => playerStore.movingState)
+    -      playerStore.updateRemainingTime(countdown.value)
+    -    playerStore.clearMovingState()
+
+File: client/src/components/panels/CombatPanel.vue
+  Added lines: 3
+  Deleted lines: 1
+  Additions sample:
+    +import { useConfigStore } from '../../stores/config'
+    +const configStore = useConfigStore()
+    +  const realmOrder = configStore.realmOrder.length > 0 ? configStore.realmOrder : [
+  Deletions sample:
+    -  const realmOrder = [
+
+File: client/src/components/panels/FullMapList.vue
+  Added lines: 20
+  Deleted lines: 28
+  Additions sample:
+    +import { useConfigStore } from '../../stores/config'
+    +import { useRealtimeStore } from '../../stores/realtime'
+    +const configStore = useConfigStore()
+    +const realtimeStore = useRealtimeStore()
+    +const getRealmRank = (realmName) => {
+  Deletions sample:
+    -const realmOrder = [
+    -  '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
+    -  '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
+    -  '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
+    -  '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
+
+File: client/src/components/panels/MapPanel.vue
+  Added lines: 3
+  Deleted lines: 1
+  Additions sample:
+    +import { useRealtimeStore } from '../../stores/realtime'
+    +const realtimeStore = useRealtimeStore()
+    +    realtimeStore.setMovingState({
+  Deletions sample:
+    -    playerStore.setMovingState({
+
+File: client/src/components/panels/SeclusionOverlay.vue
+  Added lines: 6
+  Deleted lines: 4
+  Additions sample:
+    +import { useSeclusionStore } from '../../stores/seclusion'
+    +const playerStore = usePlayerStore()
+    +const seclusionStore = useSeclusionStore()
+    +  return playerStore.player?.seclusion_start_time ? new Date(playerStore.player.seclusion_start_tim
+    +    const res = await seclusionStore.end()
+  Deletions sample:
+    -const store = usePlayerStore()
+    -  return store.player?.seclusion_start_time ? new Date(store.player.seclusion_start_time).getTime()
+    -    const res = await store.endSeclusion()
+    -  const status = await store.fetchSeclusionStatus()
+
+File: client/src/components/widgets/BreakthroughPortal.vue
+  Added lines: 3
+  Deleted lines: 2
+  Additions sample:
+    +import { useBreakthroughStore } from '../../stores/breakthrough'
+    +const breakthroughStore = useBreakthroughStore()
+    +    const res = await breakthroughStore.tryBreakthrough()
+  Deletions sample:
+    -    const res = await playerStore.tryBreakthrough()
+    -
+
+File: client/src/stores/auth.js
+  Added lines: 30
+  Deleted lines: 0
+  Additions sample:
+    +import { defineStore } from 'pinia'
+    +import axios from 'axios'
+    +
+    +export const useAuthStore = defineStore('auth', {
+    +  state: () => ({
+
+File: client/src/stores/breakthrough.js
+  Added lines: 23
+  Deleted lines: 0
+  Additions sample:
+    +import { defineStore } from 'pinia'
+    +import axios from 'axios'
+    +import { useAuthStore } from './auth'
+    +import { usePlayerStore } from './player'
+    +
+
+File: client/src/stores/config.js
+  Added lines: 39
+  Deleted lines: 0
+  Additions sample:
+    +import { defineStore } from 'pinia'
+    +import axios from 'axios'
+    +
+    +export const useConfigStore = defineStore('config', {
+    +  state: () => ({
+
+File: client/src/stores/player.js
+  Added lines: 28
+  Deleted lines: 233
+  Additions sample:
+    +import { useAuthStore } from './auth'
+    +    autoSaveInterval: null
+    +    clear() {
+    +      this.player = null
+    +      localStorage.removeItem('player')
+  Deletions sample:
+    -import { useUIStore } from './ui'
+    -import { io } from 'socket.io-client'
+    -    token: localStorage.getItem('token') || null,
+    -    autoSaveInterval: null,
+    -    logoutReason: null,
+
+File: client/src/stores/realtime.js
+  Added lines: 124
+  Deleted lines: 0
+  Additions sample:
+    +import { defineStore } from 'pinia'
+    +import { io } from 'socket.io-client'
+    +import { useAuthStore } from './auth'
+    +import { usePlayerStore } from './player'
+    +
+
+File: client/src/stores/seclusion.js
+  Added lines: 72
+  Deleted lines: 0
+  Additions sample:
+    +import { defineStore } from 'pinia'
+    +import axios from 'axios'
+    +import { useAuthStore } from './auth'
+    +import { usePlayerStore } from './player'
+    +
+
+File: client/src/views/Login.vue
+  Added lines: 9
+  Deleted lines: 4
+  Additions sample:
+    +import { useAuthStore } from '../stores/auth'
+    +import { useRealtimeStore } from '../stores/realtime'
+    +const authStore = useAuthStore()
+    +const realtimeStore = useRealtimeStore()
+    +      authStore.logoutReason = null;
+  Deletions sample:
+    -      playerStore.logoutReason = null;
+    -      playerStore.setToken(res.data.token)
+    -      <div v-if="playerStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 roun
+    -        {{ playerStore.logoutReason }}
+
+File: scripts/migrate_realms.js
+  Added lines: 81
+  Deleted lines: 0
+  Additions sample:
+    +const fs = require('fs');
+    +
+    +const calcExpCapByRank = (rank) => {
+    +    const r = Math.max(1, Number(rank) || 1);
+    +    return Math.floor(1000 * Math.pow(r, 3));
+
+File: server/config/realm_breakthrough.json
+  Added lines: 722
+  Deleted lines: 268
+  Additions sample:
+    +            "id": "realm_1",
+    +            "rank": 1,
+    +            "base_mp": 0,
+    +            "exp_cap": 1000,
+    +            "mp_regen_rate": 0,
+  Deletions sample:
+    -            "id": "mortal",
+    -            "rank": 0,
+    -            "base_mp": 100,
+    -            "exp_cap": 100,
+    -            "breakthrough_probability": 100,
+
+File: server/config/system.json
+  Added lines: 32
+  Deleted lines: 1
+  Additions sample:
+    +  },
+    +  "combat": {
+    +    "monster_stat_multiplier_base": 0.8,
+    +    "monster_stat_multiplier_per_level": 0.1,
+    +    "skill_mp_cost": 20,
+  Deletions sample:
+    -}
+
+File: server/modules/core/MapService.js
+  Added lines: 295
+  Deleted lines: 0
+  Additions sample:
+    +const sequelize = require('../../config/database');
+    +const Player = require('../../models/player');
+    +const PlayerMapPosition = require('../../models/playerMapPosition');
+    +const PlayerMovement = require('../../models/playerMovement');
+    +const RealmService = require('./RealmService');
+
+File: server/routes/breakthrough.js
+  Added lines: 2
+  Deleted lines: 3
+  Additions sample:
+    +            await player.save({ transaction: t });
+    +            await t.commit();
+  Deletions sample:
+    -            await t.commit();
+    -            
+    -            await player.save();
+
+File: server/routes/combat.js
+  Added lines: 6
+  Deleted lines: 78
+  Additions sample:
+    +        const result = await CombatService.useItem(req.user.id, itemId, quantity);
+    +            ...result
+    +        res.status(error.status || 500).json({ error: error.message || 'Server error' });
+    +        const result = await CombatService.getMonsters(req.user.id);
+    +        res.json(result);
+  Deletions sample:
+    -        
+    -        if (!itemId) {
+    -            return res.status(400).json({ error: '物品ID不能为空' });
+    -        }
+    -
+
+File: server/routes/config.js
+  Added lines: 34
+  Deleted lines: 3
+  Additions sample:
+    +            'ui_routes',
+    +            'system'
+    +            'ui_routes',
+    +            'system'
+    +/**
+  Deletions sample:
+    -            'ui_routes'
+    -            'ui_routes'
+    -            'ui_routes'
+
+File: server/routes/map.js
+  Added lines: 33
+  Deleted lines: 287
+  Additions sample:
+    +const MapService = require('../modules/core/MapService');
+    +        const result = await MapService.getMapInfo(req.user.id);
+    +        res.json(result);
+    +        res.status(500).json({ error: error.message || 'Server error' });
+    +        const result = await MapService.startMove(req.user.id, targetMapId);
+  Deletions sample:
+    -const sequelize = require('../config/database');
+    -const PlayerMovement = require('../models/playerMovement');
+    -const Realm = require('../models/realm');
+    -const { Op } = require('sequelize');
+    -/**
+
+File: server/routes/player.js
+  Added lines: 1
+  Deleted lines: 4
+  Additions sample:
+    +            'nickname'
+  Deletions sample:
+    -            'nickname', 'realm', 'exp', 'spirit_stones',
+    -            'lifespan_current', 'lifespan_max', 'attributes',
+    -            'hp_current', 'mp_current', 'toxicity', 'is_secluded',
+    -            'seclusion_end_time'
+
+File: server/routes/seclusion.js
+  Added lines: 13
+  Deleted lines: 15
+  Additions sample:
+    +const sequelize = require('../config/database');
+    +const { core } = require('../modules');
+    +    const t = await sequelize.transaction();
+    +        const player = await Player.findByPk(playerId, { transaction: t });
+    +            await t.rollback();
+  Deletions sample:
+    -const Realm = require('../models/realm');
+    -        const player = await Player.findByPk(playerId);
+    -        // 获取境界加成
+    -        try {
+    -            const realm = await Realm.findByPk(player.realm);
+
+File: server/routes/time.js
+  Added lines: 2
+  Deleted lines: 1
+  Additions sample:
+    +            id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    +module.exports = router;
+  Deletions sample:
+    -module.exports = router;
+
+File: server/services/AIService.js
+  Added lines: 9
+  Deleted lines: 8
+  Additions sample:
+    +const configLoader = require('../modules/infrastructure/ConfigLoader');
+    +const RealmService = require('../modules/core/RealmService');
+    +
+    +        const realm = RealmService.getRealmByName(playerRealm) || RealmService.getRealmByName('炼气1层
+    +        const baseStats = {
+  Deletions sample:
+    -        const realmLevels = {
+    -            '凡人': { hp: 80, atk: 10, def: 5, exp: 10 },
+    -            '炼气1层': { hp: 100, atk: 15, def: 8, exp: 20 },
+    -            '炼气3层': { hp: 150, atk: 25, def: 12, exp: 40 },
+    -            '炼气6层': { hp: 250, atk: 40, def: 20, exp: 80 },
+
+File: server/services/CombatService.js
+  Added lines: 229
+  Deleted lines: 86
+  Additions sample:
+    +const RealmService = require('../modules/core/RealmService');
+    +const configLoader = require('../modules/infrastructure/ConfigLoader');
+    +        const systemConfig = configLoader.getConfig('system');
+    +        const combatCfg = systemConfig?.combat || { monster_stat_multiplier_base: 0.8, monster_stat
+    +        
+  Deletions sample:
+    -        const levelMultiplier = 0.8 + (playerLevel * 0.1);
+    -        const realmOrder = [
+    -            '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
+    -            '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
+    -            '炼气11层', '炼气12层', '炼气13层', '炼气圆满',
+
