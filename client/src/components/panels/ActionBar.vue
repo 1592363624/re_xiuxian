@@ -57,8 +57,12 @@
 </template>
 
 <script setup>
+/**
+ * 操作栏组件
+ * 显示修炼、历练等操作按钮
+ */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import axios from 'axios'
+import { getStatus as getSeclusionStatus } from '../../api/seclusion'
 
 const props = defineProps({
   player: {
@@ -71,10 +75,12 @@ const currentTime = ref(Date.now())
 const seclusionCooldown = ref(3600) // 默认 60 分钟
 let timer = null
 
-// 获取系统配置
+/**
+ * 获取系统配置
+ */
 const fetchConfig = async () => {
   try {
-    const res = await axios.get('/api/seclusion/status')
+    const res = await getSeclusionStatus()
     if (res.data && res.data.cultivate_interval) {
       seclusionCooldown.value = res.data.cultivate_interval
     }

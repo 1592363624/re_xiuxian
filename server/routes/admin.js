@@ -15,8 +15,8 @@ const configLoader = require('../modules/infrastructure/ConfigLoader');
 const fs = require('fs');
 const path = require('path');
 
-const LifespanService = require('../services/LifespanService');
-const webSocketNotificationService = require('../services/WebSocketNotificationService');
+const LifespanService = require('../game/core/LifespanService');
+const webSocketNotificationService = require('../game/services/WebSocketNotificationService');
 
 const SECLUSION_CONFIG_FILE = path.join(__dirname, '../config/seclusion.json');
 
@@ -215,10 +215,21 @@ router.put('/players/:id', auth, adminCheck, async (req, res) => {
             return res.status(404).json({ message: '玩家不存在' });
         }
 
-        const updates = req.body;
-        delete updates.id;
-        delete updates.password;
-        delete updates.username;
+        // 字段白名单，防止恶意字段更新
+        const allowedFields = [
+            'nickname', 'role', 'realm', 'exp', 'spirit_stones',
+            'hp_current', 'hp_max', 'mp_current', 'mp_max',
+            'attributes', 'lifespan_current', 'lifespan_max',
+            'is_secluded', 'seclusion_end_time', 'is_banned',
+            'ban_reason', 'ban_expire_time'
+        ];
+
+        const updates = {};
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                updates[field] = req.body[field];
+            }
+        });
 
         const oldData = player.toJSON();
         await player.update(updates);
@@ -342,7 +353,7 @@ router.post('/give-item', auth, adminCheck, async (req, res) => {
 
         const item = await Item.create({
             player_id: playerId,
-            item_id: itemId,
+            item_key: itemId,
             quantity
         });
 
@@ -740,10 +751,10 @@ router.delete('/players/:id', auth, adminCheck, async (req, res) => {
             return res.status(400).json({ message: '无法删除管理员账号' });
         }
 
-        await Item.destroy({ where: { player_id: playerId } });
+        await Item.destroy({ where: { player_id: req.params.id } });
         await AdminLog.destroy({ where: { admin_id: player.id } });
 
-        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_delete');
+        webSocketNotificationService.notifyPlayerUpdate(req.params.id, 'gm_delete');
 
         await player.destroy();
 

@@ -1,4 +1,4 @@
-const service = require('./modules/core/AttributeMaxService');
+const service = require('./game/core/AttributeMaxService');
 
 // 模拟配置加载器
 service.initialize({

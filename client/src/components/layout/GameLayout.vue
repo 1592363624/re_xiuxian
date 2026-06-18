@@ -86,7 +86,7 @@
     <GlobalChat />
     
     <!-- 闭关遮罩层 -->
-    <SeclusionOverlay v-if="playerStore.player?.is_secluded" />
+    <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
 
     <BreakthroughPortal v-if="playerStore.player" />
     
@@ -121,45 +121,18 @@
       </div>
     </div>
 
-    <!-- 自动保存动态指示器 -->
-    <div class="fixed bottom-4 left-4 z-50 flex items-center gap-2 px-3 py-2 rounded-full bg-[#1c1917]/90 border border-stone-800 shadow-lg backdrop-blur-sm transition-all duration-500 pointer-events-none select-none"
-         :class="{ 'opacity-0 translate-y-4': playerStore.saveStatus === 'idle', 'opacity-100 translate-y-0': playerStore.saveStatus !== 'idle' }">
-      
-      <!-- 保存中 (旋转) -->
-      <svg v-if="playerStore.saveStatus === 'saving'" class="animate-spin text-amber-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-      </svg>
-      
-      <!-- 保存成功 -->
-      <svg v-else-if="playerStore.saveStatus === 'success'" class="text-emerald-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-      </svg>
-      
-      <!-- 保存失败 -->
-      <svg v-else-if="playerStore.saveStatus === 'error'" class="text-rose-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="8" x2="12" y2="12"></line>
-        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-      </svg>
-
-      <span class="text-xs font-mono font-bold" :class="{
-        'text-stone-400': playerStore.saveStatus === 'saving',
-        'text-emerald-400 animate-pulse': playerStore.saveStatus === 'success',
-        'text-rose-400': playerStore.saveStatus === 'error'
-      }">
-        {{ playerStore.saveStatus === 'saving' ? '自动存档中...' : (playerStore.saveStatus === 'error' ? '存档失败' : '存档完成') }}
-      </span>
-    </div>
-
     <!-- 系统通知弹窗 -->
     <SystemAlert />
   </div>
 </template>
 
 <script setup lang="ts">
+/**
+ * 游戏主布局组件
+ * 负责整体页面结构和路由管理
+ */
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
-import axios from 'axios';
+import { getStats } from '../../api/system';
 import { currentVersion } from '../../data/changelog';
 import { usePlayerStore } from '../../stores/player';
 import { useUIStore } from '../../stores/ui';
@@ -190,6 +163,7 @@ const emit = defineEmits(['action']);
 
 const playerStore = usePlayerStore();
 const uiStore = useUIStore();
+const notificationStore = useNotificationStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
 const isCharacterOpen = ref(false);
@@ -201,20 +175,28 @@ const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
 const onlineCount = ref(0);
 const totalPlayers = ref(0);
+// 标记是否已完成后端状态同步，防止用 localStorage 旧数据误渲染闭关遮罩
+const isStateSynced = ref(false);
 let statsInterval: any = null;
 
+/**
+ * 获取系统统计
+ */
 const fetchStats = async () => {
   try {
-    const res = await axios.get('/api/system/stats');
+    const res = await getStats();
     if (res.data) {
       onlineCount.value = res.data.online;
       totalPlayers.value = res.data.total;
     }
   } catch (error) {
-    console.error('Fetch stats failed:', error);
+    console.error('获取统计失败:', error);
   }
 };
 
+/**
+ * 处理操作栏动作
+ */
 const handleAction = async (actionId: string) => {
   console.log('ActionBar emitted action:', actionId);
   
@@ -242,6 +224,9 @@ const handleAction = async (actionId: string) => {
   emit('action', actionId);
 };
 
+/**
+ * 处理历练战斗
+ */
 const handleExploreCombat = (battleId?: string) => {
   if (battleId) {
     currentBattleId.value = battleId
@@ -249,6 +234,9 @@ const handleExploreCombat = (battleId?: string) => {
   isCombatOpen.value = true
 }
 
+/**
+ * 处理菜单点击
+ */
 const handleMenuClick = (btnName: string) => {
   if (btnName === '设置') {
     isSettingsOpen.value = true;
@@ -265,30 +253,44 @@ const handleMenuClick = (btnName: string) => {
   }
 };
 
+/**
+ * 处理退出登录点击
+ */
 const handleLogoutClick = () => {
   isLogoutConfirmOpen.value = true;
 };
 
+/**
+ * 确认退出登录
+ */
 const confirmLogout = () => {
   playerStore.logout();
   isLogoutConfirmOpen.value = false;
 };
 
-onMounted(() => {
-  playerStore.startAutoSave();
+onMounted(async () => {
+  // 初始化通知系统的 Socket 监听
+  notificationStore.initSocketListeners();
   fetchStats();
   statsInterval = setInterval(fetchStats, 30000);
+  // 从后端同步闭关状态，避免 localStorage 缓存的旧状态导致遮罩误显示
+  try {
+    await playerStore.fetchSeclusionStatus();
+  } catch (e) {
+    console.warn('同步闭关状态失败:', e);
+  }
+  // 状态同步完成，允许渲染闭关遮罩
+  isStateSynced.value = true;
 });
 
 onUnmounted(() => {
-  playerStore.stopAutoSave();
   if (statsInterval) clearInterval(statsInterval);
 });
 
 const menuButtons = [
   { name: '地图', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' },
   { name: '功法', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>' },
-  { name: '储物', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>' }, // 暂时用个图标代替
+  { name: '储物', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>' },
   { name: '角色', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
   { name: '成就', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>' },
   { name: '灵宠', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-2.97 7 .41 1.04 1 2.02 1.56 2.85 2.53 3.8-1.41 6.35-4.5 4.73l-3.23-1.68a19 19 0 0 0-2.57 0l-3.23 1.68c-3.09 1.62-7.03-.93-4.5-4.73.56-.83 1.15-1.81 1.56-2.85-2.55 0-4.37-6.42-2.97-7C4.62 2.25 7.87 3.09 9.65 5.09 10.3 4.92 11.33 5 12 5z"/></svg>' },

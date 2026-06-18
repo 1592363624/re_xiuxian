@@ -113,8 +113,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 历练探索面板组件
+ * 使用统一 API 层进行历练操作
+ */
 import { ref, onMounted, onUnmounted } from 'vue'
-import axios from 'axios'
+import {
+  getAiStatus,
+  getExploreEvent,
+  startExplore,
+  completeExplore,
+  enterCombat
+} from '../../api/explore'
+import { getMapInfo } from '../../api/map'
 import { useUIStore } from '../../stores/ui'
 
 const emit = defineEmits(['close', 'combat'])
@@ -130,11 +141,14 @@ const currentEvent = ref<any>(null)
 const isLoading = ref(false)
 let autoCompleteTimer: number | null = null
 
+/**
+ * 获取历练信息
+ */
 const fetchExploreInfo = async () => {
   try {
     const [mapRes, aiRes] = await Promise.all([
-      axios.get('/api/map/info'),
-      axios.get('/api/map/explore/ai-status')
+      getMapInfo(),
+      getAiStatus()
     ])
     
     if (mapRes.data?.current_map) {
@@ -149,9 +163,12 @@ const fetchExploreInfo = async () => {
   }
 }
 
+/**
+ * 获取环境信息
+ */
 const fetchEnvironment = async () => {
   try {
-    const res = await axios.get('/api/map/explore/event')
+    const res = await getExploreEvent()
     if (res.data?.data) {
       timeOfDay.value = res.data.data.time_of_day || ''
       weather.value = res.data.data.weather || ''
@@ -161,14 +178,15 @@ const fetchEnvironment = async () => {
   }
 }
 
-const startExplore = async () => {
+/**
+ * 开始历练
+ */
+const startExploreAction = async () => {
   if (isLoading.value) return
   isLoading.value = true
   
   try {
-    const res = await axios.post('/api/map/explore/start', {
-      duration: 90
-    })
+    const res = await startExplore(90)
     
     if (res.data?.data?.event) {
       isExploring.value = true
@@ -185,7 +203,7 @@ const startExplore = async () => {
       
       if (!isCombat && duration > 0) {
         autoCompleteTimer = window.setTimeout(async () => {
-          await completeExplore()
+          await completeExploreAction()
         }, duration * 1000)
       }
     }
@@ -197,9 +215,12 @@ const startExplore = async () => {
   }
 }
 
-const completeExplore = async () => {
+/**
+ * 完成历练
+ */
+const completeExploreAction = async () => {
   try {
-    const res = await axios.post('/api/map/explore/complete')
+    const res = await completeExplore()
     
     if (res.data?.data?.rewards) {
       const rewards = res.data.data.rewards
@@ -241,9 +262,12 @@ const completeExplore = async () => {
   }
 }
 
-const enterCombat = async () => {
+/**
+ * 进入战斗
+ */
+const enterCombatAction = async () => {
   try {
-    const res = await axios.post('/api/map/explore/combat')
+    const res = await enterCombat()
     
     if (res.data?.data?.battle_id) {
       uiStore.addLog({

@@ -1,6 +1,19 @@
 <script setup>
+/**
+ * 战斗面板组件
+ * 使用统一 API 层进行战斗操作
+ */
 import { ref, computed, onMounted } from 'vue'
-import axios from 'axios'
+import {
+  getCombatStatus,
+  getMonsters,
+  getCombatStats,
+  encounter,
+  attack,
+  useSkill,
+  escape
+} from '../../api/combat'
+import { getMapInfo } from '../../api/map'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 
@@ -23,13 +36,16 @@ const currentBattle = ref(null)
 const battleLog = ref([])
 const combatStats = ref(null)
 
+/**
+ * 获取战斗数据
+ */
 const fetchData = async () => {
   loading.value = true
   let battleRes = null
   
   if (props.initialBattleId) {
     try {
-      battleRes = await axios.get(`/api/combat/status?battle_id=${props.initialBattleId}`)
+      battleRes = await getCombatStatus(props.initialBattleId)
       if (battleRes.data.in_battle) {
         currentBattle.value = battleRes.data
       }
@@ -40,9 +56,9 @@ const fetchData = async () => {
   
   try {
     const [mapRes, monstersRes, statsRes] = await Promise.all([
-      axios.get('/api/map/info'),
-      axios.get('/api/combat/monsters'),
-      axios.get('/api/combat/stats')
+      getMapInfo(),
+      getMonsters(),
+      getCombatStats()
     ])
     
     currentMap.value = mapRes.data.current_map
@@ -50,7 +66,7 @@ const fetchData = async () => {
     combatStats.value = statsRes.data
     battleLog.value = battleRes?.data?.battle_log || []
   } catch (error) {
-    console.error('Failed to fetch combat data:', error)
+    console.error('获取战斗数据失败:', error)
     if (error.response?.status === 404) {
       monsters.value = []
     } else {
@@ -61,12 +77,15 @@ const fetchData = async () => {
   }
 }
 
+/**
+ * 遭遇怪物
+ */
 const handleEncounter = async (monster) => {
   if (combatLoading.value) return
   
   combatLoading.value = true
   try {
-    const res = await axios.post('/api/combat/encounter', { monsterId: monster.id })
+    const res = await encounter(monster.id)
     
     currentBattle.value = res.data.battle
     uiStore.addLog({
@@ -84,12 +103,15 @@ const handleEncounter = async (monster) => {
   }
 }
 
+/**
+ * 普通攻击
+ */
 const handleAttack = async () => {
   if (combatLoading.value || !currentBattle.value) return
   
   combatLoading.value = true
   try {
-    const res = await axios.post('/api/combat/attack')
+    const res = await attack()
     
     const result = res.data
     if (result.victory) {
@@ -129,12 +151,15 @@ const handleAttack = async () => {
   }
 }
 
+/**
+ * 使用技能
+ */
 const handleUseSkill = async (skillIndex) => {
   if (combatLoading.value || !currentBattle.value) return
   
   combatLoading.value = true
   try {
-    const res = await axios.post('/api/combat/skill', { skillIndex })
+    const res = await useSkill(skillIndex)
     
     const result = res.data
     if (result.victory) {
@@ -180,12 +205,15 @@ const handleUseSkill = async (skillIndex) => {
   }
 }
 
+/**
+ * 逃跑
+ */
 const handleEscape = async () => {
   if (combatLoading.value || !currentBattle.value) return
   
   combatLoading.value = true
   try {
-    await axios.post('/api/combat/escape')
+    await escape()
     
     uiStore.showToast('成功逃跑', 'info')
     uiStore.addLog({
@@ -203,15 +231,21 @@ const handleEscape = async () => {
   }
 }
 
+/**
+ * 刷新战斗统计
+ */
 const refreshStats = async () => {
   try {
-    const res = await axios.get('/api/combat/stats')
+    const res = await getCombatStats()
     combatStats.value = res.data
   } catch (error) {
-    console.error('Failed to refresh stats:', error)
+    console.error('刷新统计失败:', error)
   }
 }
 
+/**
+ * 获取怪物难度
+ */
 const getMonsterDifficulty = (monster) => {
   const realmOrder = [
     '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',

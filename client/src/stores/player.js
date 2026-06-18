@@ -1,17 +1,20 @@
+/**
+ * 玩家状态管理
+ * 负责玩家数据的存储和基础操作
+ * 业务逻辑已移至后端，前端只负责数据展示和 API 调用
+ */
 import { defineStore } from 'pinia'
-import axios from 'axios'
-import { useUIStore } from './ui'
-import { io } from 'socket.io-client'
+import { getPlayer } from '../api/player'
+import { getStatus as getSeclusionStatus, start as startSeclusionApi, end as endSeclusionApi } from '../api/seclusion'
+import { getConfig as getSystemConfig } from '../api/system'
+import { socketService } from '../services/socket'
 
 export const usePlayerStore = defineStore('player', {
   state: () => ({
     token: localStorage.getItem('token') || null,
     player: JSON.parse(localStorage.getItem('player')) || null,
-    saveStatus: 'idle', // 'idle' | 'saving' | 'success' | 'error'
-    autoSaveInterval: null,
     logoutReason: null,
     systemConfig: {},
-    socket: null,
     isSocketConnected: false,
     movingState: {
       isMoving: false,
@@ -30,8 +33,9 @@ export const usePlayerStore = defineStore('player', {
     setToken(token) {
       this.token = token
       localStorage.setItem('token', token)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      this.initializeSocket()
+      // 初始化 Socket 连接
+      socketService.connect({ playerId: this.player?.id })
+      this.setupSocketListeners()
     },
     
     setPlayer(player) {
@@ -40,41 +44,22 @@ export const usePlayerStore = defineStore('player', {
     },
 
     /**
-     * 初始化 WebSocket 连接
-     * 用于接收实时数据更新通知
+     * 设置 Socket 事件监听
+     * 统一处理后端推送的数据更新
      */
-    initializeSocket() {
-      if (this.socket) {
-        this.socket.disconnect()
-      }
-
-      this.socket = io('/', {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        auth: {
-          playerId: this.player?.id
-        }
-      })
-
-      this.socket.on('connect', () => {
-        console.log('[PlayerStore] WebSocket 连接成功')
+    setupSocketListeners() {
+      // 监听连接状态
+      socketService.on('connected', () => {
         this.isSocketConnected = true
       })
 
-      this.socket.on('disconnect', () => {
-        console.log('[PlayerStore] WebSocket 连接断开')
+      socketService.on('disconnected', () => {
         this.isSocketConnected = false
       })
 
-      this.socket.on('connect_error', (error) => {
-        console.warn('[PlayerStore] WebSocket 连接失败:', error.message)
-        this.isSocketConnected = false
-      })
-
-      this.socket.on('player:updated', async (data) => {
-        console.log('[PlayerStore] 收到玩家数据更新通知:', data)
+      // 监听玩家数据更新
+      socketService.on('player:updated', async (data) => {
+        console.log('[PlayerStore] 收到玩家数据更新:', data)
         
         if (data.updateType === 'gm_delete') {
           this.logout('您的账号已被管理员删除')
@@ -86,48 +71,45 @@ export const usePlayerStore = defineStore('player', {
           return
         }
 
+        // 重新获取玩家数据
         await this.fetchPlayer()
-        console.log('[PlayerStore] 玩家数据已自动刷新')
       })
 
-      this.socket.on('move:completed', async (data) => {
-        console.log('[PlayerStore] 移动完成通知:', data)
+      // 监听移动完成
+      socketService.on('move:completed', async () => {
         this.clearMovingState()
         await this.fetchPlayer()
       })
     },
 
     /**
-     * 断开 WebSocket 连接
+     * 断开 Socket 连接
      */
     disconnectSocket() {
-      if (this.socket) {
-        this.socket.disconnect()
-        this.socket = null
-        this.isSocketConnected = false
-        console.log('[PlayerStore] WebSocket 连接已断开')
-      }
+      socketService.disconnect()
+      this.isSocketConnected = false
     },
 
+    /**
+     * 获取玩家信息
+     */
     async fetchPlayer() {
       if (!this.token) return
       try {
-        const res = await axios.get('/api/player/me')
+        const res = await getPlayer()
         this.setPlayer(res.data.data)
       } catch (error) {
         if (error.response) {
           // 处理互踢逻辑
-          if (error.response.data && error.response.data.code === 'SESSION_EXPIRED') {
-             this.logout('您的账号已在其他设备登录，当前会话已失效');
-             return;
+          if (error.response.data?.code === 'SESSION_EXPIRED') {
+             this.logout('您的账号已在其他设备登录，当前会话已失效')
+             return
           }
 
           if (error.response.status === 401) {
-            console.warn('登录凭证已过期，请重新登录')
             this.logout('登录已过期，请重新登录')
             return
           } else if (error.response.status === 404) {
-            console.warn('玩家数据不存在，请重新登录')
             this.logout('玩家数据不存在')
             return
           }
@@ -136,15 +118,21 @@ export const usePlayerStore = defineStore('player', {
       }
     },
 
+    /**
+     * 获取闭关状态
+     */
     async fetchSeclusionStatus() {
-      if (!this.token) return
+      if (!this.token) return null
       try {
-        const res = await axios.get('/api/seclusion/status')
+        const res = await getSeclusionStatus()
         if (res.data) {
              if (this.player) {
+                 // 更新闭关相关状态
                  this.player.is_secluded = res.data.is_secluded
                  this.player.seclusion_start_time = res.data.seclusion_start_time
                  this.player.seclusion_duration = res.data.seclusion_duration
+                 // 同步更新 localStorage，确保数据一致性
+                 localStorage.setItem('player', JSON.stringify(this.player))
              }
              this.systemConfig.cultivate_interval = res.data.cultivate_interval
              this.systemConfig.deep_seclusion_exp_rate = res.data.deep_seclusion_exp_rate
@@ -157,14 +145,19 @@ export const usePlayerStore = defineStore('player', {
       return null
     },
 
+    /**
+     * 开始闭关
+     * 业务逻辑由后端处理，前端调用API后立即更新本地状态
+     */
     async startSeclusion(duration) {
       if (!this.token) return
       try {
-        const res = await axios.post('/api/seclusion/start', { duration })
-        if (this.player) {
+        const res = await startSeclusionApi(duration)
+        // 立即更新本地状态，确保UI即时响应
+        if (res.data && this.player) {
           this.player.is_secluded = true
-          this.player.seclusion_start_time = res.data.data.seclusion_start_time
-          this.player.seclusion_duration = res.data.data.seclusion_duration
+          this.player.seclusion_start_time = res.data.data?.seclusion_start_time || new Date()
+          localStorage.setItem('player', JSON.stringify(this.player))
         }
         return res.data
       } catch (error) {
@@ -173,21 +166,20 @@ export const usePlayerStore = defineStore('player', {
       }
     },
 
+    /**
+     * 结束闭关
+     * 业务逻辑由后端处理，前端调用API后立即更新本地状态
+     */
     async endSeclusion() {
       if (!this.token) return
       try {
-        const res = await axios.post('/api/seclusion/end')
-        if (this.player) {
-            this.player.is_secluded = false
-            this.player.seclusion_start_time = null
-            this.player.seclusion_duration = 0
-            // Update other stats if returned
-            if (res.data.data.player) {
-                this.player.exp = res.data.data.player.exp
-                if (res.data.data.player.last_seclusion_time) {
-                    this.player.last_seclusion_time = res.data.data.player.last_seclusion_time
-                }
-            }
+        const res = await endSeclusionApi()
+        // 立即更新本地状态，确保UI即时响应
+        if (res.data && this.player) {
+          this.player.is_secluded = false
+          this.player.exp = res.data.data?.exp || this.player.exp
+          this.player.last_seclusion_time = res.data.data?.last_seclusion_time || new Date()
+          localStorage.setItem('player', JSON.stringify(this.player))
         }
         return res.data
       } catch (error) {
@@ -196,104 +188,38 @@ export const usePlayerStore = defineStore('player', {
       }
     },
 
+    /**
+     * 尝试突破
+     */
     async tryBreakthrough() {
       if (!this.token) return null
-      const res = await axios.post('/api/breakthrough/try')
       try {
-        await this.fetchPlayer()
-      } catch (e) {
-        console.warn('刷新玩家数据失败:', e)
-      }
-      return res.data
-    },
-
-    async savePlayer(retryCount = 0) {
-      if (!this.player || !this.token) return
-      
-      // 仅在首次尝试时设置状态，避免重试时UI闪烁
-      if (retryCount === 0) {
-        this.saveStatus = 'saving'
-      }
-
-      try {
-        await axios.put('/api/player/me', this.player)
-        
-        this.saveStatus = 'success'
-        // 3秒后自动恢复为空闲状态
-        setTimeout(() => {
-          if (this.saveStatus === 'success') {
-            this.saveStatus = 'idle'
-          }
-        }, 3000)
+        const apiClient = (await import('../api/index')).default
+        const res = await apiClient.post('/breakthrough/try')
+        // 等待 Socket.IO 推送更新
+        return res.data
       } catch (error) {
-        if (error.response) {
-          // 处理互踢逻辑
-          if (error.response.data && error.response.data.code === 'SESSION_EXPIRED') {
-             this.logout('您的账号已在其他设备登录，当前会话已失效');
-             return;
-          }
-
-          if (error.response.status === 401 || error.response.status === 404) {
-            console.warn('保存失败：认证无效或玩家不存在')
-            this.saveStatus = 'error'
-            this.logout('认证失败')
-            return
-          }
-        }
-
-        console.error(`自动保存失败 (尝试 ${retryCount + 1}/3):`, error)
-        
-        // 重试逻辑：最多重试2次（共3次请求）
-        if (retryCount < 2) {
-          // 指数退避：1s, 2s
-          const delay = 1000 * Math.pow(2, retryCount)
-          await new Promise(resolve => setTimeout(resolve, delay))
-          return this.savePlayer(retryCount + 1)
-        }
-
-        this.saveStatus = 'error'
-        // 出错后保留错误状态一段时间
-        setTimeout(() => {
-          if (this.saveStatus === 'error') {
-            this.saveStatus = 'idle'
-          }
-        }, 5000)
+        console.error('突破失败:', error)
+        throw error
       }
     },
 
+    /**
+     * 获取系统配置
+     */
     async fetchSystemConfig() {
-      if (!this.token) return;
+      if (!this.token) return
       try {
-        const res = await axios.get('/api/system/config');
-        this.systemConfig = res.data;
+        const res = await getSystemConfig()
+        this.systemConfig = res.data
       } catch (error) {
-        console.warn('获取系统配置失败，使用默认值:', error);
+        console.warn('获取系统配置失败，使用默认值:', error)
       }
     },
 
-    async startAutoSave() {
-      if (this.autoSaveInterval) clearInterval(this.autoSaveInterval)
-      
-      // 获取配置，优先使用配置的间隔
-      if (Object.keys(this.systemConfig).length === 0) {
-        await this.fetchSystemConfig();
-      }
-      
-      const interval = this.systemConfig.auto_save_interval || 10000;
-      console.log(`启动自动存档，间隔: ${interval}ms`);
-
-      this.autoSaveInterval = setInterval(() => {
-        this.savePlayer()
-      }, interval)
-    },
-
-    stopAutoSave() {
-      if (this.autoSaveInterval) {
-        clearInterval(this.autoSaveInterval)
-        this.autoSaveInterval = null
-      }
-    },
-
+    /**
+     * 设置移动状态
+     */
     setMovingState(state) {
       this.movingState = {
         isMoving: true,
@@ -308,10 +234,16 @@ export const usePlayerStore = defineStore('player', {
       }
     },
 
+    /**
+     * 更新剩余时间
+     */
     updateRemainingTime(remainingSeconds) {
       this.movingState.remainingSeconds = remainingSeconds
     },
 
+    /**
+     * 清除移动状态
+     */
     clearMovingState() {
       this.movingState = {
         isMoving: false,
@@ -326,15 +258,16 @@ export const usePlayerStore = defineStore('player', {
       }
     },
     
+    /**
+     * 登出
+     */
     logout(reason = null) {
-      this.stopAutoSave()
       this.disconnectSocket()
       this.token = null
       this.player = null
       this.logoutReason = reason
       localStorage.removeItem('token')
       localStorage.removeItem('player')
-      delete axios.defaults.headers.common['Authorization']
     }
   }
 })

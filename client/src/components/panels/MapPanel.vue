@@ -1,9 +1,9 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import axios from 'axios'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import FullMapList from './FullMapList.vue'
+import { getMapInfo, getMapConfig, startMove } from '../../api/map'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
@@ -41,7 +41,7 @@ const safetyLevelMap = {
 const fetchMapInfo = async () => {
   loading.value = true
   try {
-    const res = await axios.get('/api/map/info')
+    const res = await getMapInfo()
     currentMap.value = res.data.current_map
     connectedMaps.value = res.data.connected_maps
   } catch (error) {
@@ -54,7 +54,7 @@ const fetchMapInfo = async () => {
 
 const fetchMapConfigs = async () => {
   try {
-    const res = await axios.get('/api/map/config')
+    const res = await getMapConfig()
     res.data.maps.forEach(m => {
       mapConfigs.value[m.id] = m
     })
@@ -139,7 +139,7 @@ const handleMove = async (targetMap) => {
 
   moving.value = true
   try {
-    const res = await axios.post('/api/map/start-move', { targetMapId: targetMap.id })
+    const res = await startMove(targetMap.id)
     const moveData = res.data.data
     
     playerStore.setMovingState({

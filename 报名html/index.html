@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创意报名 - 凡人修仙传·文字修仙游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a1a2e 100%);
+            color: #e0d5c0;
+            min-height: 100vh;
+            padding: 40px 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* 背景粒子效果 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(2px 2px at 20% 30%, rgba(255, 215, 0, 0.3), transparent),
+                radial-gradient(2px 2px at 40% 70%, rgba(255, 215, 0, 0.2), transparent),
+                radial-gradient(1px 1px at 60% 20%, rgba(255, 255, 255, 0.3), transparent),
+                radial-gradient(1px 1px at 80% 50%, rgba(255, 215, 0, 0.2), transparent),
+                radial-gradient(2px 2px at 10% 80%, rgba(255, 255, 255, 0.2), transparent),
+                radial-gradient(1px 1px at 70% 90%, rgba(255, 215, 0, 0.3), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 标题区域 */
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        .header::after {
+            content: '';
+            display: block;
+            width: 200px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #d4af37, transparent);
+            margin: 20px auto 0;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            color: #d4af37;
+            text-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 1.1em;
+            color: #a0987a;
+            letter-spacing: 2px;
+        }
+
+        /* 章节卡片 */
+        .section {
+            background: rgba(20, 15, 30, 0.85);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 12px;
+            padding: 35px 40px;
+            margin-bottom: 30px;
+            position: relative;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .section:hover {
+            border-color: rgba(212, 175, 55, 0.6);
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .section-number {
+            position: absolute;
+            top: -15px;
+            left: 30px;
+            background: linear-gradient(135deg, #d4af37, #b8860b);
+            color: #1a0a2e;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            color: #d4af37;
+            margin-bottom: 25px;
+            padding-left: 15px;
+            border-left: 3px solid #d4af37;
+            letter-spacing: 1px;
+        }
+
+        /* 条目样式 */
+        .item {
+            margin-bottom: 22px;
+            padding-left: 15px;
+        }
+
+        .item:last-child {
+            margin-bottom: 0;
+        }
+
+        .item-label {
+            font-size: 1.05em;
+            color: #c9b06b;
+            margin-bottom: 8px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .item-label::before {
+            content: '◆';
+            color: #d4af37;
+            font-size: 0.7em;
+        }
+
+        .item-content {
+            color: #c8bfa0;
+            line-height: 1.8;
+            padding-left: 20px;
+            font-size: 0.98em;
+        }
+
+        /* 高亮文本 */
+        .highlight {
+            color: #e8c547;
+            font-weight: 600;
+        }
+
+        /* 标签样式 */
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding-left: 20px;
+            margin-top: 5px;
+        }
+
+        .tag {
+            background: rgba(212, 175, 55, 0.15);
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            color: #d4af37;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+
+        /* 分隔线 */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.3), transparent);
+            margin: 20px 0;
+        }
+
+        /* 底部信息 */
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(212, 175, 55, 0.2);
+        }
+
+        .footer p {
+            color: #7a7260;
+            font-size: 0.9em;
+            letter-spacing: 1px;
+        }
+
+        .footer .dao-quote {
+            color: #a0987a;
+            font-style: italic;
+            margin-bottom: 15px;
+            font-size: 1em;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .section {
+                padding: 25px 20px;
+            }
+
+            .section-title {
+                font-size: 1.3em;
+            }
+        }
+
+        /* 动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .section {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .section:nth-child(1) { animation-delay: 0.1s; }
+        .section:nth-child(2) { animation-delay: 0.3s; }
+        .section:nth-child(3) { animation-delay: 0.5s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 标题 -->
+        <div class="header">
+            <h1>凡人修仙传</h1>
+            <p class="subtitle">文字修仙游戏 · 创意报名书</p>
+        </div>
+
+        <!-- 第一部分：创意名称 + 创意介绍 -->
+        <div class="section">
+            <div class="section-number">1</div>
+            <h2 class="section-title">创意名称 + 创意介绍</h2>
+
+            <div class="item">
+                <div class="item-label">想解决什么问题</div>
+                <div class="item-content">
+                    当前市面上的修仙游戏大多以<span class="highlight">重度氪金、自动挂机</span>为主，玩家缺乏深度策略体验与沉浸式修仙感受。本创意旨在解决修仙游戏<span class="highlight">"数值堆砌、缺乏养成乐趣"</span>的痛点，打造一款真正体现"慢养成、强策略"核心调性的文字修仙作品，让玩家体验从凡人到修仙者的真实成长历程。
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="item">
+                <div class="item-label">为什么会想到做这个</div>
+                <div class="item-content">
+                    灵感来源于对《凡人修仙传》原著的热爱，以及对当前修仙游戏市场同质化严重的不满。韩立从一个山村少年一步步修炼至大乘境界的历程，本身就是一部<span class="highlight">"策略与耐心"</span>的修仙史诗。我们希望还原这种<span class="highlight">"步步为营、稳扎稳打"</span>的修仙体验，而非一键满级的快餐式游戏。
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="item">
+                <div class="item-label">大概是什么产品</div>
+                <div class="item-content">
+                    一款基于 <span class="highlight">Web 端的文字修仙游戏（网站 + 后端服务系统）</span>，采用前后端分离架构，以纯文字交互为核心，辅以数据可视化展示，让玩家在浏览器中体验完整的修仙人生。
+                </div>
+            </div>
+
+            <div class="tags">
+                <span class="tag">文字游戏</span>
+                <span class="tag">修仙题材</span>
+                <span class="tag">慢养成</span>
+                <span class="tag">强策略</span>
+                <span class="tag">Web应用</span>
+            </div>
+        </div>
+
+        <!-- 第二部分：目标用户及痛点 -->
+        <div class="section">
+            <div class="section-number">2</div>
+            <h2 class="section-title">目标用户及痛点</h2>
+
+            <div class="item">
+                <div class="item-label">面向哪些用户</div>
+                <div class="item-content">
+                    <span class="highlight">核心用户群体：</span>修仙/玄幻小说爱好者、文字游戏爱好者、喜欢深度养成与策略规划的玩家、对《凡人修仙传》IP有情怀的读者。年龄层主要集中在 <span class="highlight">18-35 岁</span>，偏好轻度操作但深度思考的游戏体验。
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="item">
+                <div class="item-label">在什么场景下使用</div>
+                <div class="item-content">
+                    <span class="highlight">碎片化时间：</span>通勤路上、午休间隙、睡前放松时，打开浏览器即可修炼。<br>
+                    <span class="highlight">挂机养成：</span>闭关修炼、资源采集等系统支持离线收益，无需长时间在线。<br>
+                    <span class="highlight">策略决策：</span>突破境界、选择功法、探索秘境等关键节点需要玩家深思熟虑。
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="item">
+                <div class="item-label">当前痛点</div>
+                <div class="item-content">
+                    <span class="highlight">痛点一：</span>市面修仙手游多为"充钱变强"，缺乏真正的策略深度，玩家沦为数值奴隶。<br>
+                    <span class="highlight">痛点二：</span>传统文字MUD门槛高、界面老旧，难以吸引新一代玩家。<br>
+                    <span class="highlight">痛点三：</span>修仙题材游戏往往缺乏完整的境界体系与数值平衡，成长感不足。<br>
+                    <span class="highlight">痛点四：</span>缺少一个能让人静下心来"慢慢修仙"的产品，大部分游戏都在催促玩家消费。
+                </div>
+            </div>
+        </div>
+
+        <!-- 第三部分：价值与意义 -->
+        <div class="section">
+            <div class="section-number">3</div>
+            <h2 class="section-title">价值与意义</h2>
+
+            <div class="item">
+                <div class="item-label">商业价值</div>
+                <div class="item-content">
+                    <span class="highlight">低成本高回报：</span>文字游戏开发成本远低于3D游戏，但用户粘性高、生命周期长。<br>
+                    <span class="highlight">IP衍生潜力：</span>基于《凡人修仙传》世界观，可拓展周边小说、有声书、动漫等联动。<br>
+                    <span class="highlight">付费模式健康：</span>可通过外观装饰、加速道具、VIP特权等方式变现，不破坏核心数值平衡。
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="item">
+                <div class="item-label">效率提升</div>
+                <div class="item-content">
+                    <span class="highlight">开发效率：</span>采用前后端分离 + 配置化设计，静态配置用JSON、动态数据用MySQL，便于快速迭代。<br>
+                    <span class="highlight">运营效率：</span>内置GM后台管理系统，可实时调整游戏参数、发放奖励、处理玩家问题。<br>
+                    <span class="highlight">用户体验效率：</span>一键启动（start.bat）、无需下载安装、跨平台兼容。
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="item">
+                <div class="item-label">社会价值</div>
+                <div class="item-content">
+                    <span class="highlight">文化传承：</span>以游戏为载体，传播中国传统修仙文化与道家哲学思想。<br>
+                    <span class="highlight">健康游戏理念：</span>倡导"慢养成"而非"快餐消费"，引导玩家理性游戏。<br>
+                    <span class="highlight">技术示范：</span>为文字游戏开发者提供一套完整的架构参考（配置中心化、数据逻辑分离）。
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部 -->
+        <div class="footer">
+            <p class="dao-quote">"大道三千，殊途同归；修仙之路，贵在坚持。"</p>
+            <p>凡人修仙传 · 文字修仙游戏项目组</p>
+        </div>
+    </div>
+</body>
+</html>

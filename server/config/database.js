@@ -14,7 +14,7 @@ const sequelize = new Sequelize(
         dialect: 'mysql',
         logging: false, // 关闭SQL日志输出
         pool: {
-            max: 5,
+            max: 20,
             min: 0,
             acquire: 30000,
             idle: 10000

@@ -110,8 +110,9 @@ const handleEnd = async () => {
     })
     // 闭关结束，组件会被销毁（因为父组件v-if会变为false）
   } catch (err) {
-    console.error(err)
-    uiStore.showToast('结束闭关失败，请重试', 'error')
+    console.error('结束闭关失败:', err)
+    const msg = err?.response?.data?.error || err?.response?.data?.message || '结束闭关失败，请重试'
+    uiStore.showToast(msg, 'error')
   } finally {
     loading.value = false
   }

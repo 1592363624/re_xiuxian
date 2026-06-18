@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const NotificationService = require('../services/NotificationService');
+const NotificationService = require('../game/services/NotificationService');
 const authenticateToken = require('../middleware/auth');
 
 /**

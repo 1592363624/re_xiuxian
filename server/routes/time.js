@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { core } = require('../modules');
+const game = require('../game');
 const authMiddleware = require('../middleware/auth');
 
 /**
@@ -23,10 +23,10 @@ router.get('/status', authMiddleware, async (req, res) => {
         }
 
         // 获取时间系统全局状态
-        const timeSystemStatus = core.DualTimeService.getTimeSystemStatus();
+        const timeSystemStatus = game.DualTimeService.getTimeSystemStatus();
         
         // 计算玩家寿元信息
-        const lifespanInfo = core.DualTimeService.calculateRemainingLifespan(player);
+        const lifespanInfo = game.DualTimeService.calculateRemainingLifespan(player);
         
         const responseData = {
             code: 200,
@@ -46,7 +46,7 @@ router.get('/status', authMiddleware, async (req, res) => {
                     lifespan_percentage: lifespanInfo.lifespan_percentage
                 },
                 // 可用活动
-                available_activities: core.DualTimeService.getAvailableActivities(player)
+                available_activities: game.DualTimeService.getAvailableActivities(player)
             }
         };
 
@@ -84,7 +84,7 @@ router.post('/start_activity', authMiddleware, async (req, res) => {
         }
 
         // 验证活动类型是否可用
-        const availableActivities = core.DualTimeService.getAvailableActivities(player);
+        const availableActivities = game.DualTimeService.getAvailableActivities(player);
         if (!availableActivities.includes(activity_type)) {
             return res.status(400).json({ 
                 code: 400, 
@@ -93,7 +93,7 @@ router.post('/start_activity', authMiddleware, async (req, res) => {
         }
 
         // 处理红尘时间消耗
-        const timeResult = core.DualTimeService.processMortalTimeConsumption(
+        const timeResult = game.DualTimeService.processMortalTimeConsumption(
             player, 
             activity_type, 
             activity_config || {}
@@ -181,7 +181,7 @@ router.post('/complete_activity', authMiddleware, async (req, res) => {
         }
 
         // 根据活动类型处理结果
-        const activityResult = await core.DualTimeService.processActivityCompletion(
+        const activityResult = await game.DualTimeService.processActivityCompletion(
             player, 
             activity
         );
@@ -272,7 +272,7 @@ router.get('/world_events', authMiddleware, async (req, res) => {
             });
         }
 
-        const timeSystemStatus = core.DualTimeService.getTimeSystemStatus();
+        const timeSystemStatus = game.DualTimeService.getTimeSystemStatus();
         const currentTimeData = player.time_system_data || {};
         const worldEventParticipation = currentTimeData.world_event_participation || {};
 

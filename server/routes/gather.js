@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const Player = require('../models/player');
-const GatheringService = require('../services/GatheringService');
+const GatheringService = require('../game/services/GatheringService');
 const auth = require('../middleware/auth');
 
 /**

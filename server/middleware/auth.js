@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
 const Player = require('../models/player');
+const gameBalanceConfig = require('../config/game_balance.json');
+
+// 从配置文件读取在线更新时间间隔
+const LAST_ONLINE_UPDATE_INTERVAL_MS = gameBalanceConfig.time_intervals.last_online_update_interval_ms;
 
 module.exports = async (req, res, next) => {
     const token = req.header('Authorization');
@@ -10,7 +14,7 @@ module.exports = async (req, res, next) => {
 
     try {
         // Bearer Token 格式处理
-        const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET || 'xiuxian_secret_key');
+        const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET);
         
         // 校验版本号 (单点登录核心逻辑)
         const player = await Player.findByPk(decoded.id);
@@ -36,9 +40,9 @@ module.exports = async (req, res, next) => {
         req.user = decoded;
         req.player = player; // 挂载 player 对象供后续使用
 
-        // 更新最后在线时间 (每分钟最多更新一次，避免频繁写入)
+        // 更新最后在线时间 (使用配置文件中的时间间隔，避免频繁写入)
         const now = new Date();
-        if (!player.last_online || (now - new Date(player.last_online)) > 60000) {
+        if (!player.last_online || (now - new Date(player.last_online)) > LAST_ONLINE_UPDATE_INTERVAL_MS) {
             player.last_online = now;
             await player.save({ silent: true }); // 使用 silent: true 避免触发表的 updatedAt 更新
         }

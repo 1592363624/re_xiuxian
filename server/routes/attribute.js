@@ -4,8 +4,9 @@
  */
 const express = require('express');
 const router = express.Router();
-const { core } = require('../modules');
+const game = require('../game');
 const authMiddleware = require('../middleware/auth');
+const Item = require('../models/item');
 
 /**
  * 获取玩家完整属性信息（包含最大值）
@@ -23,13 +24,13 @@ router.get('/full', authMiddleware, async (req, res) => {
         }
 
         // 计算完整属性（包含最大值）
-        const realmConfig = core.RealmService.getRealmByName(player.realm);
-        const fullAttributesResult = core.AttributeService.calculateFullAttributes(player);
-        const maxValues = core.AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
-        const expCap = core.ExperienceService.getExpCap(player);
+        const realmConfig = game.RealmService.getRealmByName(player.realm);
+        const fullAttributesResult = game.AttributeService.calculateFullAttributes(player);
+        const maxValues = game.AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
+        const expCap = game.ExperienceService.getExpCap(player);
         
         // 验证当前属性值是否合法
-        const validation = core.AttributeMaxService.validateAttributeValues(player, maxValues);
+        const validation = game.AttributeMaxService.validateAttributeValues(player, maxValues);
         
         const responseData = {
             code: 200,
@@ -62,15 +63,15 @@ router.get('/full', authMiddleware, async (req, res) => {
                 // 附加信息 (天赋、称号等)
                 info: {
                     ...fullAttributesResult.info,
-                    all_titles: core.AttributeService.getAllTitles(),
+                    all_titles: game.AttributeService.getAllTitles(),
                     owned_titles: player.titles || []
                 },
                 // 玩家统计数据
                 player_stats: player.stats || {},
                 // 恢复信息
                 recovery: {
-                    natural: core.AttributeMaxService.getRecoveryRates('natural'),
-                    meditation: core.AttributeMaxService.getRecoveryRates('meditation')
+                    natural: game.AttributeMaxService.getRecoveryRates('natural'),
+                    meditation: game.AttributeMaxService.getRecoveryRates('meditation')
                 },
                 // 验证结果
                 validation: validation,
@@ -112,7 +113,7 @@ router.post('/allocate', authMiddleware, async (req, res) => {
             });
         }
 
-        const result = await core.AttributeService.allocatePoints(player, points);
+        const result = await game.AttributeService.allocatePoints(player, points);
 
         if (result.success) {
             res.json({
@@ -169,11 +170,11 @@ router.post('/recover', authMiddleware, async (req, res) => {
         }
 
         // 计算属性最大值
-        const realmConfig = core.RealmService.getRealmByName(player.realm);
-        const maxValues = core.AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
+        const realmConfig = game.RealmService.getRealmByName(player.realm);
+        const maxValues = game.AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
         
         // 处理属性恢复
-        const recoveryResult = core.AttributeMaxService.processAttributeRecovery(
+        const recoveryResult = game.AttributeMaxService.processAttributeRecovery(
             player, 
             maxValues, 
             recovery_type, 
@@ -212,11 +213,13 @@ router.post('/recover', authMiddleware, async (req, res) => {
  * POST /api/attribute/use_pill
  */
 router.post('/use_pill', authMiddleware, async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         const player = req.player;
         const { pill_id, pill_effect } = req.body;
         
         if (!player) {
+            await t.rollback();
             return res.status(404).json({ 
                 code: 404, 
                 message: '玩家不存在' 
@@ -224,17 +227,32 @@ router.post('/use_pill', authMiddleware, async (req, res) => {
         }
 
         if (!pill_id || !pill_effect) {
+            await t.rollback();
             return res.status(400).json({ 
                 code: 400, 
                 message: '缺少必要参数：pill_id, pill_effect' 
             });
         }
 
-        // TODO: 验证玩家是否拥有该丹药
-        // 这里需要集成物品系统来检查丹药所有权
+        // 验证玩家是否拥有该丹药（安全检查：防止无限使用）
+        const playerItem = await Item.findOne({
+            where: { 
+                player_id: player.id, 
+                item_key: pill_id 
+            },
+            transaction: t
+        });
+
+        if (!playerItem || playerItem.quantity < 1) {
+            await t.rollback();
+            return res.status(400).json({ 
+                code: 400, 
+                message: '未拥有该丹药或数量不足' 
+            });
+        }
         
         // 应用丹药效果
-        const newMaxValues = core.AttributeMaxService.applyPillEffect(player, pill_effect);
+        const newMaxValues = game.AttributeMaxService.applyPillEffect(player, pill_effect);
         
         // 更新玩家属性（这里需要根据丹药类型决定如何更新）
         if (pill_effect.type === 'permanent_max_increase') {
@@ -250,10 +268,13 @@ router.post('/use_pill', authMiddleware, async (req, res) => {
             
             await player.update({
                 attributes: currentAttributes
-            });
+            }, { transaction: t });
         }
 
-        // TODO: 消耗丹药
+        // 消耗丹药（数量减1）
+        await playerItem.decrement('quantity', { transaction: t });
+        
+        await t.commit();
         
         res.json({
             code: 200,
@@ -261,10 +282,12 @@ router.post('/use_pill', authMiddleware, async (req, res) => {
                 pill_id: pill_id,
                 effect_type: pill_effect.type,
                 new_max_values: newMaxValues,
+                remaining_quantity: playerItem.quantity - 1,
                 message: '丹药使用成功'
             }
         });
     } catch (error) {
+        await t.rollback();
         console.error('使用丹药失败:', error);
         res.status(500).json({ 
             code: 500, 

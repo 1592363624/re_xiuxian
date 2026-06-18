@@ -8,6 +8,13 @@ const jwt = require('jsonwebtoken');
 const Player = require('../models/player');
 const { Op } = require('sequelize');
 const { ATTRIBUTES } = require('../utils/gameConstants');
+const gameBalanceConfig = require('../config/game_balance.json');
+
+// 从配置文件读取正则表达式
+const USERNAME_REGEX = new RegExp(gameBalanceConfig.auth.username_regex);
+const PASSWORD_REGEX = new RegExp(gameBalanceConfig.auth.password_regex);
+const NICKNAME_MIN_LENGTH = gameBalanceConfig.auth.nickname_min_length;
+const NICKNAME_MAX_LENGTH = gameBalanceConfig.auth.nickname_max_length;
 
 // 检查唯一性 API
 router.get('/check-unique', async (req, res) => {
@@ -16,6 +23,12 @@ router.get('/check-unique', async (req, res) => {
 
         if (!type || !value) {
             return res.status(400).json({ message: '参数缺失' });
+        }
+
+        // 白名单校验，防止 NoSQL 注入
+        const allowedTypes = ['username', 'nickname'];
+        if (!allowedTypes.includes(type)) {
+            return res.status(400).json({ message: '无效的查询类型' });
         }
 
         const where = {};
@@ -39,18 +52,15 @@ router.post('/register', async (req, res) => {
     try {
         const { username, password, nickname } = req.body;
         
-        // 格式验证
-        const USERNAME_REGEX = /^[a-zA-Z0-9]{6,12}$/;
-        const PASSWORD_REGEX = /^[a-zA-Z0-9]{6,12}$/;
-        
+        // 格式验证（使用配置文件中的正则）
         if (!username || !USERNAME_REGEX.test(username)) {
             return res.status(400).json({ message: '账号必须为6-12位英文或数字' });
         }
         if (!password || !PASSWORD_REGEX.test(password)) {
             return res.status(400).json({ message: '密码必须为6-12位英文或数字' });
         }
-        if (!nickname || nickname.length < 2 || nickname.length > 10) {
-            return res.status(400).json({ message: '道号必须为2-10个字符' });
+        if (!nickname || nickname.length < NICKNAME_MIN_LENGTH || nickname.length > NICKNAME_MAX_LENGTH) {
+            return res.status(400).json({ message: `道号必须为${NICKNAME_MIN_LENGTH}-${NICKNAME_MAX_LENGTH}个字符` });
         }
         
         // 1. 业务层预检查 (提升用户体验)
@@ -167,7 +177,7 @@ router.post('/login', async (req, res) => {
         
         const token = jwt.sign(
             payload, 
-            process.env.JWT_SECRET || 'xiuxian_secret_key', 
+            process.env.JWT_SECRET, 
             { expiresIn: '7d' } // 7天过期
         );
 

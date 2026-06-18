@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const Player = require('../models/player');
-const { core } = require('../modules');
+const game = require('../game');
 const authMiddleware = require('../middleware/auth');
 
 /**
@@ -23,11 +23,11 @@ router.get('/me', authMiddleware, async (req, res) => {
             });
         }
 
-        const realmConfig = core.RealmService.getRealmByName(player.realm);
-        const fullAttributes = core.AttributeService.calculateFullAttributes(player);
-        const lifespanStatus = core.LifespanService.getLifespanStatus(player);
-        const expResult = core.ExperienceService.getExpCap(player);
-        const canBreakthrough = core.ExperienceService.canBreakthrough(player);
+        const realmConfig = game.RealmService.getRealmByName(player.realm);
+        const fullAttributes = game.AttributeService.calculateFullAttributes(player);
+        const lifespanStatus = game.LifespanService.getLifespanStatus(player);
+        const expResult = game.ExperienceService.getExpCap(player);
+        const canBreakthrough = game.ExperienceService.canBreakthrough(player);
 
         const responseData = {
             code: 200,
@@ -45,9 +45,7 @@ router.get('/me', authMiddleware, async (req, res) => {
                 exp: player.exp?.toString() || '0',
                 exp_next: expResult.toString(),
                 exp_cap: expResult.toString(),
-                exp_progress: player.exp && expResult > 0n 
-                    ? Math.floor(Number(BigInt(player.exp) * 10000n / expResult) / 10000 * 100) / 100 
-                    : 0,
+                exp_progress: game.ExperienceService.calculateExpProgress(player.exp, expResult),
                 can_breakthrough: canBreakthrough.canBreak,
                 spirit_roots: player.spirit_roots ? {
                     type: player.spirit_roots.type || 'wood',
@@ -96,15 +94,15 @@ router.get('/attributes', authMiddleware, async (req, res) => {
             });
         }
 
-        const fullAttributes = core.AttributeService.calculateFullAttributes(player);
-        const battleAttributes = core.AttributeService.getBattleAttributes(player, 'normal');
+        const fullAttributes = game.AttributeService.calculateFullAttributes(player);
+        const battleAttributes = game.AttributeService.getBattleAttributes(player, 'normal');
 
         res.json({
             code: 200,
             data: {
                 basic_attributes: fullAttributes,
                 battle_attributes: battleAttributes,
-                spirit_root_bonus: core.AttributeService.getSpiritRootBonus(player.spirit_root)
+                spirit_root_bonus: game.AttributeService.getSpiritRootBonus(player.spirit_root)
             }
         });
     } catch (error) {
@@ -132,11 +130,9 @@ router.put('/me', authMiddleware, async (req, res) => {
         }
 
         const updates = req.body;
+        // 仅允许更新非敏感字段，敏感字段（exp/realm/spirit_stones等）需通过专用接口处理
         const allowedUpdates = [
-            'nickname', 'realm', 'exp', 'spirit_stones',
-            'lifespan_current', 'lifespan_max', 'attributes',
-            'hp_current', 'mp_current', 'toxicity', 'is_secluded',
-            'seclusion_end_time'
+            'nickname', 'is_secluded', 'seclusion_end_time'
         ];
 
         allowedUpdates.forEach(key => {
@@ -181,10 +177,10 @@ router.get('/realm', authMiddleware, async (req, res) => {
             });
         }
 
-        const currentRealm = core.RealmService.getRealmByName(player.realm);
-        const nextRealm = currentRealm ? core.RealmService.getNextRealm(currentRealm) : null;
-        const expCap = core.ExperienceService.getExpCap(player);
-        const breakthroughCheck = core.ExperienceService.canBreakthrough(player);
+        const currentRealm = game.RealmService.getRealmByName(player.realm);
+        const nextRealm = currentRealm ? game.RealmService.getNextRealm(currentRealm) : null;
+        const expCap = game.ExperienceService.getExpCap(player);
+        const breakthroughCheck = game.ExperienceService.canBreakthrough(player);
 
         res.json({
             code: 200,
@@ -222,7 +218,7 @@ router.post('/breakthrough', authMiddleware, async (req, res) => {
         }
 
         console.log('开始境界突破，玩家ID:', player.id, '当前境界:', player.realm, '经验:', player.exp?.toString());
-        const result = await core.RealmService.breakthrough(player.id);
+        const result = await game.RealmService.breakthrough(player.id);
         console.log('境界突破结果:', result);
 
         if (result.success) {

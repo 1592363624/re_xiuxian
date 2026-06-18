@@ -1,0 +1,18 @@
+{
+  "time_intervals": {
+    "lifespan_update_interval_ms": 600000,
+    "lifespan_update_interval_sec": 600,
+    "move_check_interval_ms": 5000,
+    "last_online_update_interval_ms": 60000
+  },
+  "auth": {
+    "username_regex": "^[a-zA-Z0-9]{6,12}$",
+    "password_regex": "^[a-zA-Z0-9]{6,12}$",
+    "nickname_min_length": 2,
+    "nickname_max_length": 10
+  },
+  "breakthrough": {
+    "failure_exp_loss_rate": 0.1,
+    "failure_age_multiplier": 2
+  }
+}

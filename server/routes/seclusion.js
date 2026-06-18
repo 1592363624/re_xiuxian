@@ -4,6 +4,7 @@ const Player = require('../models/player');
 const Realm = require('../models/realm');
 const authenticateToken = require('../middleware/auth');
 const configLoader = require('../modules/infrastructure/ConfigLoader');
+const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 const fs = require('fs');
 const path = require('path');
 
@@ -114,6 +115,12 @@ router.post('/start', authenticateToken, async (req, res) => {
         player.seclusion_duration = 0; // 不再限制时长，设为0表示无限期直至手动停止
         await player.save();
 
+        // 推送状态变更给前端
+        WebSocketNotificationService.notifyPlayerUpdate(playerId, 'seclusion_start', {
+            is_secluded: true,
+            seclusion_start_time: player.seclusion_start_time
+        });
+
         res.json({
             message: '进入闭关状态',
             data: {
@@ -175,6 +182,14 @@ router.post('/end', authenticateToken, async (req, res) => {
         player.seclusion_duration = 0;
         player.last_seclusion_time = now; // 记录结束时间
         await player.save();
+
+        // 推送状态变更给前端
+        WebSocketNotificationService.notifyPlayerUpdate(playerId, 'seclusion_end', {
+            is_secluded: false,
+            exp_gain: expGain,
+            exp: player.exp,
+            last_seclusion_time: player.last_seclusion_time
+        });
 
         const cooldown = await getSeclusionCooldown();
 

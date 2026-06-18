@@ -1,7 +1,7 @@
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const sequelize = require('./config/database');
 const Player = require('./models/player');
-const LifespanService = require('./services/LifespanService');
+const LifespanService = require('./game/core/LifespanService');
 
 async function triggerUpdate() {
     try {

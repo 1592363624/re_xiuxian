@@ -9,7 +9,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const sequelize = require('../config/database');
 const PlayerMapPosition = require('../models/playerMapPosition');
-const MapConfigLoader = require('../services/MapConfigLoader');
+const MapConfigLoader = require('../game/services/MapConfigLoader');
 
 async function initMaps() {
     try {

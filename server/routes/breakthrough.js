@@ -6,9 +6,14 @@ const express = require('express');
 const router = express.Router();
 const sequelize = require('../config/database');
 const Player = require('../models/player');
-const { core } = require('../modules');
-const NotificationService = require('../services/NotificationService');
+const game = require('../game');
+const NotificationService = require('../game/services/NotificationService');
 const authenticateToken = require('../middleware/auth');
+const gameBalanceConfig = require('../config/game_balance.json');
+
+// 从配置文件读取突破惩罚数值
+const FAILURE_EXP_LOSS_RATE = gameBalanceConfig.breakthrough.failure_exp_loss_rate;
+const FAILURE_AGE_MULTIPLIER = gameBalanceConfig.breakthrough.failure_age_multiplier;
 
 /**
  * 尝试境界突破
@@ -39,7 +44,7 @@ router.post('/try', authenticateToken, async (req, res) => {
             });
         }
 
-        const currentRealm = core.RealmService.getRealmByName(player.realm);
+        const currentRealm = game.RealmService.getRealmByName(player.realm);
         if (!currentRealm) {
             await t.rollback();
             return res.status(400).json({ 
@@ -48,7 +53,7 @@ router.post('/try', authenticateToken, async (req, res) => {
             });
         }
 
-        const nextRealm = core.RealmService.getNextRealm(currentRealm);
+        const nextRealm = game.RealmService.getNextRealm(currentRealm);
         if (!nextRealm) {
             await t.rollback();
             return res.status(400).json({ 
@@ -57,7 +62,7 @@ router.post('/try', authenticateToken, async (req, res) => {
             });
         }
 
-        const canBreakthrough = core.ExperienceService.canBreakthrough(player);
+        const canBreakthrough = game.ExperienceService.canBreakthrough(player);
         if (!canBreakthrough.canBreak) {
             await t.rollback();
             return res.status(400).json({
@@ -70,20 +75,22 @@ router.post('/try', authenticateToken, async (req, res) => {
             });
         }
 
-        const probability = core.RealmService.calculateBreakthroughProbability(player, nextRealm);
+        const probability = game.RealmService.calculateBreakthroughProbability(player, nextRealm);
         const roll = Math.random() * 100;
         const success = roll < probability;
 
         if (!success) {
-            await t.commit();
-            
-            const expLoss = BigInt(Math.floor(Number(player.exp) * 0.1));
+            // 突破失败：在事务内处理修为损失和年龄增加（使用配置文件中的惩罚数值）
+            const expLoss = BigInt(Math.floor(Number(player.exp) * FAILURE_EXP_LOSS_RATE));
             player.exp = BigInt(player.exp) - expLoss;
             
-            const ageIncrease = currentRealm.rank * 2;
+            const ageIncrease = currentRealm.rank * FAILURE_AGE_MULTIPLIER;
             player.lifespan_current = (player.lifespan_current || 0) + ageIncrease;
-            await player.save();
-
+            
+            // 在事务内保存玩家数据
+            await player.save({ transaction: t });
+            await t.commit();
+            
             return res.json({
                 code: 200,
                 success: false,
@@ -101,12 +108,11 @@ router.post('/try', authenticateToken, async (req, res) => {
             });
         }
 
+        // 突破成功：更新境界
         const oldRealm = player.realm;
         player.realm = nextRealm.name;
 
-        const newExpCap = core.ExperienceService.getExpCap(player);
-        player.exp = player.exp;
-
+        // 更新突破后的属性
         if (nextRealm.base_hp) {
             const attrs = typeof player.attributes === 'string' 
                 ? JSON.parse(player.attributes) 
@@ -125,7 +131,8 @@ router.post('/try', authenticateToken, async (req, res) => {
         await player.save({ transaction: t });
         await t.commit();
 
-        const attributeGain = core.ExperienceService.getBreakthroughAttributeGain(oldRealm, nextRealm.name);
+        const newExpCap = game.ExperienceService.getExpCap(player);
+        const attributeGain = game.ExperienceService.getBreakthroughAttributeGain(oldRealm, nextRealm.name);
 
         try {
             await NotificationService.sendBreakthroughNotification(
@@ -187,13 +194,13 @@ router.get('/info', authenticateToken, async (req, res) => {
             });
         }
 
-        const currentRealm = core.RealmService.getRealmByName(player.realm);
-        const nextRealm = currentRealm ? core.RealmService.getNextRealm(currentRealm) : null;
-        const expCap = core.ExperienceService.getExpCap(player);
-        const canBreakthrough = core.ExperienceService.canBreakthrough(player);
+        const currentRealm = game.RealmService.getRealmByName(player.realm);
+        const nextRealm = currentRealm ? game.RealmService.getNextRealm(currentRealm) : null;
+        const expCap = game.ExperienceService.getExpCap(player);
+        const canBreakthrough = game.ExperienceService.canBreakthrough(player);
         
         const probability = nextRealm 
-            ? core.RealmService.calculateBreakthroughProbability(player, nextRealm)
+            ? game.RealmService.calculateBreakthroughProbability(player, nextRealm)
             : 0;
 
         res.json({
@@ -206,7 +213,7 @@ router.get('/info', authenticateToken, async (req, res) => {
                 can_breakthrough: canBreakthrough.canBreak,
                 breakthrough_probability: probability,
                 attribute_gain: nextRealm && currentRealm 
-                    ? core.ExperienceService.getBreakthroughAttributeGain(currentRealm.name, nextRealm.name)
+                    ? game.ExperienceService.getBreakthroughAttributeGain(currentRealm.name, nextRealm.name)
                     : null
             }
         });

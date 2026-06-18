@@ -1,6 +1,17 @@
+/**
+ * 通知状态管理
+ * 负责通知数据的存储和操作
+ * 使用统一 Socket 服务接收实时通知
+ */
 import { defineStore } from 'pinia'
-import axios from 'axios'
-import { io } from 'socket.io-client'
+import {
+  getNotifications,
+  getUnreadCount,
+  getGlobalNotifications,
+  markAsRead,
+  markAllAsRead
+} from '../api/notification'
+import { socketService } from '../services/socket'
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
@@ -9,56 +20,23 @@ export const useNotificationStore = defineStore('notification', {
     unreadCount: 0,
     isLoading: false,
     systemAlert: null,
-    socket: null,
-    isConnected: false,
     liveNotifications: []
   }),
 
   actions: {
     /**
-     * 初始化 WebSocket 连接
-     * @param {Object} options - 连接选项
+     * 初始化 Socket 事件监听
+     * 由 playerStore 在登录时统一调用
      */
-    initSocket(options = {}) {
-      const playerId = options.playerId || this.playerId
-      if (!playerId) {
-        console.warn('[NotificationStore] 无法初始化WebSocket：缺少playerId')
-        return
-      }
-
-      if (this.socket?.connected) {
-        console.log('[NotificationStore] WebSocket 已连接，跳过初始化')
-        return
-      }
-
-      const serverUrl = options.serverUrl || window.location.origin
-      this.socket = io(serverUrl, {
-        query: { playerId },
-        transports: ['websocket', 'polling'],
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
-      })
-
-      this.socket.on('connect', () => {
-        this.isConnected = true
-        console.log('[NotificationStore] WebSocket 已连接')
-      })
-
-      this.socket.on('disconnect', () => {
-        this.isConnected = false
-        console.log('[NotificationStore] WebSocket 已断开')
-      })
-
-      this.socket.on('connect_error', (error) => {
-        console.error('[NotificationStore] WebSocket 连接错误:', error)
-      })
-
-      this.socket.on('notification', (data) => {
+    initSocketListeners() {
+      // 监听个人通知
+      socketService.on('notification', (data) => {
         console.log('[NotificationStore] 收到个人通知:', data)
         this.handleRealTimeNotification(data)
       })
 
-      this.socket.on('notification:global', (data) => {
+      // 监听全服通知
+      socketService.on('notification:global', (data) => {
         console.log('[NotificationStore] 收到全服通知:', data)
         this.handleRealTimeNotification(data)
         this.showSystemAlert({
@@ -71,7 +49,6 @@ export const useNotificationStore = defineStore('notification', {
 
     /**
      * 处理实时通知
-     * @param {Object} notification - 通知数据
      */
     handleRealTimeNotification(notification) {
       this.liveNotifications.unshift({
@@ -88,29 +65,12 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * 断开 WebSocket 连接
-     */
-    disconnectSocket() {
-      if (this.socket) {
-        this.socket.disconnect()
-        this.socket = null
-        this.isConnected = false
-        console.log('[NotificationStore] WebSocket 已断开')
-      }
-    },
-    /**
      * 获取通知列表
      */
     async fetchNotifications(options = {}) {
       this.isLoading = true
       try {
-        const params = new URLSearchParams()
-        if (options.page) params.append('page', options.page)
-        if (options.limit) params.append('limit', options.limit)
-        if (options.type) params.append('type', options.type)
-        if (options.unreadOnly) params.append('unreadOnly', 'true')
-
-        const res = await axios.get(`/api/notifications?${params}`)
+        const res = await getNotifications(options)
         if (res.data.notifications) {
           this.notifications = res.data.notifications
         }
@@ -128,7 +88,7 @@ export const useNotificationStore = defineStore('notification', {
      */
     async fetchUnreadCount() {
       try {
-        const res = await axios.get('/api/notifications/unread-count')
+        const res = await getUnreadCount()
         this.unreadCount = res.data.count
         return this.unreadCount
       } catch (error) {
@@ -142,7 +102,7 @@ export const useNotificationStore = defineStore('notification', {
      */
     async fetchGlobalNotifications(limit = 10) {
       try {
-        const res = await axios.get(`/api/notifications/global?limit=${limit}`)
+        const res = await getGlobalNotifications(limit)
         this.globalNotifications = res.data.notifications || []
         return this.globalNotifications
       } catch (error) {
@@ -156,7 +116,7 @@ export const useNotificationStore = defineStore('notification', {
      */
     async markAsRead(notificationId) {
       try {
-        await axios.post(`/api/notifications/${notificationId}/read`)
+        await markAsRead(notificationId)
         const notification = this.notifications.find(n => n.id === notificationId)
         if (notification) {
           notification.isRead = true
@@ -175,7 +135,7 @@ export const useNotificationStore = defineStore('notification', {
      */
     async markAllAsRead() {
       try {
-        await axios.post('/api/notifications/read-all')
+        await markAllAsRead()
         this.notifications.forEach(n => {
           n.isRead = true
         })
@@ -188,7 +148,6 @@ export const useNotificationStore = defineStore('notification', {
 
     /**
      * 显示系统警告（弹窗通知）
-     * @param {Object} alert - 警告信息 { title, message, type }
      */
     showSystemAlert(alert) {
       this.systemAlert = {
@@ -206,7 +165,7 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * 添加临时通知到列表（用于实时推送）
+     * 添加临时通知到列表
      */
     addTemporaryNotification(notification) {
       this.notifications.unshift({

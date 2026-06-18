@@ -5,7 +5,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const CombatService = require('../services/CombatService');
+const CombatService = require('../game/services/CombatService');
 const auth = require('../middleware/auth');
 
 /**
@@ -143,7 +143,7 @@ router.post('/use-item', auth, async (req, res) => {
             return res.status(400).json({ error: '物品数量不足' });
         }
 
-        const itemConfig = await require('../services/ItemConfigLoader').getItem(itemId);
+        const itemConfig = await require('../game/config/ItemConfigLoader').getItem(itemId);
         if (!itemConfig || itemConfig.type !== 'consumable') {
             return res.status(400).json({ error: '该物品不可使用' });
         }
@@ -198,7 +198,7 @@ router.get('/monsters', auth, async (req, res) => {
         const player = await require('../models/player').findByPk(req.user.id);
         if (!player) return res.status(404).json({ error: 'Player not found' });
 
-        const MapConfigLoader = require('../services/MapConfigLoader');
+        const MapConfigLoader = require('../game/services/MapConfigLoader');
         const mapConfig = MapConfigLoader.getMap(player.current_map_id);
         
         if (!mapConfig || !mapConfig.monsters) {

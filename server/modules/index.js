@@ -1,25 +1,12 @@
 /**
  * 模块导出索引
  * 按架构分层组织模块导出
+ * 注意：核心游戏服务已迁移至 game/ 目录，此处仅保留基础设施模块
  */
 const infrastructure = {
     ConfigLoader: require('./infrastructure/ConfigLoader'),
     ConfigValidator: require('./infrastructure/ConfigValidator'),
     EventBus: require('./infrastructure/EventBus')
-};
-
-const coreIndex = require('./core');
-const core = {
-    RealmService: coreIndex.RealmService,
-    PlayerService: coreIndex.PlayerService,
-    LifespanService: coreIndex.LifespanService,
-    ItemService: coreIndex.ItemService,
-    ExperienceService: coreIndex.ExperienceService,
-    AttributeService: coreIndex.AttributeService,
-    AttributeMaxService: coreIndex.AttributeMaxService,
-    DualTimeService: coreIndex.DualTimeService,
-    MapService: coreIndex.MapService,
-    initializeCoreServices: coreIndex.initializeCoreServices
 };
 
 const application = {
@@ -30,7 +17,6 @@ const { initializeModules } = require('./initialize');
 
 module.exports = {
     infrastructure,
-    core,
     application,
     initializeModules
 };

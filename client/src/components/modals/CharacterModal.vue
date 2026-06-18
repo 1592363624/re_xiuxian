@@ -98,7 +98,7 @@ import { ref, onMounted, computed } from 'vue';
 import Modal from '../common/Modal.vue';
 import { usePlayerStore } from '../../stores/player';
 import { useUIStore } from '../../stores/ui';
-import axios from 'axios';
+import { getFullAttributes } from '../../api/attribute';
 
 defineEmits(['close']);
 
@@ -123,7 +123,7 @@ const attributes = ref({
 
 const fetchAttributes = async () => {
   try {
-    const res = await axios.get('/api/attribute/full');
+    const res = await getFullAttributes();
     if (res.data && res.data.data) {
       attributes.value = res.data.data;
     }

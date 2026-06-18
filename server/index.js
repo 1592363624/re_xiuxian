@@ -13,6 +13,13 @@ BigInt.prototype.toJSON = function() {
   return this.toString();
 };
 
+// 检查 JWT_SECRET 环境变量（安全要求）
+if (!process.env.JWT_SECRET) {
+  console.error('[安全错误] 未配置 JWT_SECRET 环境变量');
+  console.error('请在 .env 文件中设置 JWT_SECRET，或设置环境变量后启动服务');
+  process.exit(1);
+}
+
 // 引入模型以确保同步
 require('./models/player');
 require('./models/chat');
@@ -31,8 +38,9 @@ require('./models/map');
 
 const http = require('http');
 const socketIo = require('socket.io');
-const { infrastructure, core } = require('./modules');
-const WebSocketNotificationService = require('./services/WebSocketNotificationService');
+const { infrastructure } = require('./modules');
+const game = require('./game');
+const WebSocketNotificationService = require('./game/services/WebSocketNotificationService');
 
 const app = express();
 const server = http.createServer(app);
@@ -43,17 +51,16 @@ const io = socketIo(server, {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // 在线用户跟踪（使用Socket.IO连接状态）
 const onlineUsers = new Map();
 
-// 定时任务：每10分钟 (600秒) 更新一次寿命
-const UPDATE_INTERVAL_MS = 10 * 60 * 1000;
-const UPDATE_INTERVAL_SEC = 10 * 60;
-
-// 定时任务：每5秒检查一次移动是否完成
-const MOVE_CHECK_INTERVAL_MS = 5000;
+// 从配置文件读取时间间隔常量
+const gameBalanceConfig = require('./config/game_balance.json');
+const UPDATE_INTERVAL_MS = gameBalanceConfig.time_intervals.lifespan_update_interval_ms;
+const UPDATE_INTERVAL_SEC = gameBalanceConfig.time_intervals.lifespan_update_interval_sec;
+const MOVE_CHECK_INTERVAL_MS = gameBalanceConfig.time_intervals.move_check_interval_ms;
 
 // 中间件
 app.use(cors());
@@ -77,15 +84,15 @@ async function initializeConfigLoader() {
     }
 }
 
-// 初始化核心服务
+// 初始化游戏核心服务
 async function initializeCoreServices(configLoader) {
     try {
-        const { initializeCoreServices } = require('./modules').core;
-        initializeCoreServices(configLoader);
-        console.log('核心服务模块初始化成功');
+        const { initializeGameServices } = require('./game');
+        initializeGameServices(configLoader);
+        console.log('游戏核心服务模块初始化成功');
         return true;
     } catch (error) {
-        console.error('核心服务初始化失败:', error.message);
+        console.error('游戏核心服务初始化失败:', error.message);
         return false;
     }
 }
@@ -162,7 +169,7 @@ const startServer = async () => {
     // 启动定时任务
     setInterval(async () => {
         try {
-            await core.LifespanService.updateLifespan(UPDATE_INTERVAL_SEC);
+            await game.LifespanService.updateLifespan(UPDATE_INTERVAL_SEC);
         } catch (error) {
             console.error('寿命更新失败:', error.message);
         }
@@ -173,7 +180,7 @@ const startServer = async () => {
     setInterval(async () => {
         try {
             const Player = require('./models/player');
-            const MapConfigLoader = require('./services/MapConfigLoader');
+            const MapConfigLoader = require('./game/services/MapConfigLoader');
             
             const movingPlayers = await Player.findAll({
                 where: {
@@ -232,6 +239,15 @@ const startServer = async () => {
     app.use('/api/time', require('./routes/time'));
     app.use('/api/notifications', require('./routes/notifications'));
 
+    // 全局404路由处理（API路由之后）
+    app.use('/api/*', (req, res) => {
+        res.status(404).json({
+            code: 404,
+            message: 'API接口不存在',
+            path: req.originalUrl
+        });
+    });
+
     // Socket.IO在线用户跟踪
     io.on('connection', (socket) => {
         const playerId = socket.handshake.query.playerId || socket.handshake.auth.playerId;
@@ -281,20 +297,30 @@ const startServer = async () => {
         });
     });
     
-    // 定时保存在线时长 (每分钟)
+    // 定时保存在线时长 (每分钟) - 优化为批量查询
     setInterval(async () => {
         if (onlineUsers.size === 0) return;
         
         const Player = require('./models/player');
         const now = new Date();
+        const playerIds = Array.from(onlineUsers.keys());
         
-        for (const [playerId, info] of onlineUsers.entries()) {
-            const lastSaved = info.lastSavedAt || info.connectedAt;
-            const duration = now - lastSaved;
+        try {
+            // 批量查询所有在线玩家
+            const players = await Player.findAll({
+                where: { id: playerIds }
+            });
             
-            if (duration > 5000) { // 至少5秒才保存
-                try {
-                    const player = await Player.findByPk(playerId);
+            // 创建玩家映射
+            const playerMap = new Map(players.map(p => [p.id, p]));
+            
+            // 批量更新在线时长
+            for (const [playerId, info] of onlineUsers.entries()) {
+                const lastSaved = info.lastSavedAt || info.connectedAt;
+                const duration = now - lastSaved;
+                
+                if (duration > 5000) { // 至少5秒才保存
+                    const player = playerMap.get(playerId);
                     if (player) {
                         player.total_online_time = BigInt(player.total_online_time || 0) + BigInt(duration);
                         await player.save();
@@ -303,10 +329,10 @@ const startServer = async () => {
                         info.lastSavedAt = now;
                         onlineUsers.set(playerId, info);
                     }
-                } catch (err) {
-                    console.error(`定时保存玩家 ${playerId} 在线时长失败:`, err);
                 }
             }
+        } catch (err) {
+            console.error('批量保存玩家在线时长失败:', err);
         }
     }, 60 * 1000);
 
@@ -317,25 +343,12 @@ const startServer = async () => {
     // 将onlineUsers挂载到app
     app.set('onlineUsers', onlineUsers);
 
-    // 生产环境静态资源托管
-    const clientDistPath = path.join(__dirname, '../client/dist');
-    app.use(express.static(clientDistPath));
-
-    // 所有 index.html
-    app.get('*', (req, res) => {
-        if (req.path.startsWith('/api')) {
-            return res.status(404).json({ code: 404, message: 'API Not Found' });
-        }
-        res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
-            if (err) {
-                res.status(500).json({ code: 500, message: 'Server is running. Please build the frontend first.' });
-            }
-        });
-    });
+    // 3000端口仅提供API服务，不托管前端静态文件
+    // 前端游戏客户端和管理后台需单独部署
 
     server.listen(PORT, () => {
-        console.log(`服务器运行在 http://localhost:${PORT}`);
-        console.log(`API文档: http://localhost:${PORT}/api-docs (如已配置)`);
+        console.log(`API服务运行在 http://localhost:${PORT}`);
+        console.log(`注意：此端口仅提供API服务，前端请通过开发服务器访问`);
     });
 };
 

@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import axios from 'axios'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
+import { cancelMove } from '../../api/map'
 
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
@@ -67,12 +67,12 @@ const handleComplete = () => {
   emit('complete')
 }
 
-const cancelMove = async () => {
+const cancelMoveAction = async () => {
   if (cancelling.value) return
   
   cancelling.value = true
   try {
-    await axios.post('/api/map/cancel-move')
+    await cancelMove()
     playerStore.clearMovingState()
     uiStore.addLog({
       content: `你取消了移动，返回了 ${fromMapName.value}。`,
@@ -168,7 +168,7 @@ watch(() => movingState.value.isMoving, (newVal) => {
               <span>移动期间无法进行其他操作</span>
             </div>
             <button 
-              @click="cancelMove"
+              @click="cancelMoveAction"
               :disabled="cancelling"
               class="w-full py-2 px-4 rounded bg-stone-800 border border-stone-700 text-stone-400 hover:bg-stone-700 hover:text-stone-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >

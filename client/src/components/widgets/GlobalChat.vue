@@ -1,15 +1,21 @@
 <script setup>
+/**
+ * 全局聊天组件
+ * 使用统一 API 层和 Socket 服务进行聊天交互
+ */
 import { ref, nextTick, watch, onMounted, onUnmounted, reactive } from 'vue'
-import axios from 'axios'
-import { io } from 'socket.io-client'
+import { getChatHistory, sendMessage, getUnreadCount, markRead } from '../../api/chat'
+import { socketService } from '../../services/socket'
 import { usePlayerStore } from '../../stores/player'
+import { useUIStore } from '../../stores/ui'
 
 const isOpen = ref(false)
 const newMessage = ref('')
 const messages = ref([])
 const messagesContainer = ref(null)
 const playerStore = usePlayerStore()
-let socket = null
+const uiStore = useUIStore()
+let unsubscribe = null // Socket 事件取消监听函数
 
 // 新消息提醒相关
 const unreadCount = ref(0)
@@ -20,26 +26,28 @@ const topNotification = ref({
 })
 let notificationTimer = null
 
-// 获取未读消息数量
+/**
+ * 获取未读消息数量
+ */
 const fetchUnreadCount = async () => {
   try {
-    const res = await axios.get('/api/chat/unread-count', {
-      params: { lastReadTime: lastReadTime.value }
-    })
+    const res = await getUnreadCount(lastReadTime.value)
     unreadCount.value = res.data.count
   } catch (error) {
     console.error('获取未读消息数量失败', error)
   }
 }
 
-// 标记消息已读
+/**
+ * 标记消息已读
+ */
 const markMessagesRead = async () => {
   lastReadTime.value = new Date().toISOString()
   localStorage.setItem('chatLastReadTime', lastReadTime.value)
   unreadCount.value = 0
   
   try {
-    await axios.post('/api/chat/mark-read')
+    await markRead()
   } catch (error) {
     console.error('标记已读失败', error)
   }
@@ -49,15 +57,11 @@ const markMessagesRead = async () => {
 const isDragging = ref(false)
 const chatPosition = reactive(JSON.parse(localStorage.getItem('chatPosition')) || { bottom: 120, right: 20 })
 const dragOffset = reactive({ x: 0, y: 0 })
+// 拖拽阈值，区分点击和拖拽
+const DRAG_THRESHOLD = 5
 
 const onMouseDown = (e) => {
-  isDragging.value = true
-  // 记录点击位置相对于按钮中心的偏移，或者简单点，记录点击位置相对于按钮左上角的偏移
-  // 这里我们采用基于视口坐标的计算
-  // 由于我们使用 bottom/right 定位，计算稍微复杂一点，或者改为 top/left 定位会更直观
-  // 为了简单起见，我们转为 top/left 定位模式，或者在拖拽时计算 delta
-  
-  // 记录鼠标初始位置
+  isDragging.value = false
   dragOffset.x = e.clientX
   dragOffset.y = e.clientY
   
@@ -66,32 +70,46 @@ const onMouseDown = (e) => {
 }
 
 const onMouseMove = (e) => {
-  if (!isDragging.value) return
+  // 计算移动距离，超过阈值才认为是拖拽
+  const dx = Math.abs(e.clientX - dragOffset.x)
+  const dy = Math.abs(e.clientY - dragOffset.y)
   
-  // 计算鼠标移动距离 (Delta)
-  const dx = e.clientX - dragOffset.x
-  const dy = e.clientY - dragOffset.y
+  if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+    isDragging.value = true
+  }
   
-  // 更新位置 (注意：我们用的是 bottom/right，鼠标向下(dy>0)意味着 bottom 减小，鼠标向右(dx>0)意味着 right 减小)
-  chatPosition.bottom -= dy
-  chatPosition.right -= dx
-  
-  // 更新鼠标位置
-  dragOffset.x = e.clientX
-  dragOffset.y = e.clientY
+  if (isDragging.value) {
+    const moveX = e.clientX - dragOffset.x
+    const moveY = e.clientY - dragOffset.y
+    
+    chatPosition.bottom -= moveY
+    chatPosition.right -= moveX
+    
+    dragOffset.x = e.clientX
+    dragOffset.y = e.clientY
+  }
 }
 
 const onMouseUp = () => {
-  isDragging.value = false
-  localStorage.setItem('chatPosition', JSON.stringify(chatPosition))
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
+  
+  if (isDragging.value) {
+    // 拖拽结束，保存位置
+    localStorage.setItem('chatPosition', JSON.stringify(chatPosition))
+    // 延迟重置，防止触发点击事件
+    setTimeout(() => {
+      isDragging.value = false
+    }, 0)
+  }
 }
 
+/**
+ * 获取聊天历史
+ */
 const fetchMessages = async () => {
   try {
-    const res = await axios.get('/api/chat/history')
-    // Process messages to determine type
+    const res = await getChatHistory()
     messages.value = res.data.map(msg => ({
       id: msg.id,
       sender: msg.sender,
@@ -100,37 +118,49 @@ const fetchMessages = async () => {
       createdAt: new Date(msg.createdAt)
     }))
   } catch (error) {
-    console.error('Failed to fetch chat history', error)
+    console.error('获取聊天历史失败', error)
   }
 }
 
 const toggleChat = () => {
-  if (isDragging.value) return // 防止拖拽结束时误触发点击
+  // 如果刚刚拖拽结束，不触发点击
+  if (isDragging.value) return
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     scrollToBottom()
-    // Start polling when open
     fetchMessages()
-    // 打开聊天窗口时标记消息已读
     markMessagesRead()
   }
 }
 
-const sendMessage = async () => {
+/**
+ * 发送消息
+ */
+const sendMessageAction = async () => {
   if (!newMessage.value.trim()) return
   
   const content = newMessage.value
-  newMessage.value = '' // Clear immediately for UX
+  newMessage.value = ''
   
   try {
-    await axios.post('/api/chat/send', { content })
-    // 不再需要 fetchMessages，因为 Socket.IO 会广播新消息
+    const res = await sendMessage(content)
+    // 立即将新消息添加到本地列表，确保UI即时响应
+    if (res.data) {
+      const message = {
+        id: res.data.id,
+        sender: res.data.sender,
+        content: res.data.content,
+        type: 'self', // 自己发送的消息
+        createdAt: new Date(res.data.createdAt)
+      }
+      messages.value.push(message)
+    }
     scrollToBottom()
   } catch (error) {
-    console.error('Failed to send message', error)
-    // Restore message on failure
+    console.error('发送消息失败', error)
     newMessage.value = content
-    alert('发送失败: ' + (error.response?.data?.message || error.message))
+    const errorMsg = error.response?.data?.message || error.message || '未知错误'
+    uiStore.showToast('发送失败: ' + errorMsg, 'error')
   }
 }
 
@@ -142,7 +172,7 @@ const scrollToBottom = () => {
   })
 }
 
-// Watch for new messages to scroll
+// 监听新消息以自动滚动
 watch(messages, (newVal, oldVal) => {
   if (isOpen.value && newVal.length > oldVal.length) {
     scrollToBottom()
@@ -153,18 +183,12 @@ onMounted(() => {
   fetchMessages()
   fetchUnreadCount()
   
-  // 初始化 Socket.IO 连接
-  // 在开发环境下，后端在 3000 端口，前端在 5173 端口，需要指定后端地址
-  // 在生产环境下，由于是同域部署，可以直接不传地址或传空字符串
-  const socketUrl = import.meta.env.DEV ? 'http://localhost:3000' : ''
-  socket = io(socketUrl, {
-    auth: {
-      playerId: playerStore.player?.id
-    }
-  })
-  
-  // 监听新消息事件
-  socket.on('new_message', (msg) => {
+  // 使用统一 Socket 服务监听新消息
+  unsubscribe = socketService.on('new_message', (msg) => {
+    // 检查消息是否已存在，避免重复添加
+    const exists = messages.value.some(m => m.id === msg.id)
+    if (exists) return
+    
     const message = {
       id: msg.id,
       sender: msg.sender,
@@ -174,34 +198,28 @@ onMounted(() => {
     }
     messages.value.push(message)
     
-    // 如果聊天窗口打开，滚动到底部
     if (isOpen.value) {
       scrollToBottom()
-      // 如果是自己发送的消息，不需要增加未读计数
       if (message.type !== 'self') {
         markMessagesRead()
       }
     } else {
-      // 聊天窗口关闭时，增加未读消息计数（仅对他人消息）
       if (message.type !== 'self') {
         unreadCount.value++
       }
     }
     
-    // 显示顶部通知（如果不是自己发送的消息）
+    // 显示顶部通知（非自己发送的消息）
     if (message.type !== 'self') {
-      // 清除之前的定时器
       if (notificationTimer) {
         clearTimeout(notificationTimer)
       }
       
-      // 设置新通知内容
       topNotification.value = {
         visible: true,
         content: `${message.sender}: ${message.content}`
       }
       
-      // 5秒后自动隐藏通知
       notificationTimer = setTimeout(() => {
         topNotification.value.visible = false
       }, 5000)
@@ -210,8 +228,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (socket) {
-    socket.disconnect()
+  // 取消 Socket 监听
+  if (unsubscribe) {
+    unsubscribe()
   }
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
@@ -307,15 +326,15 @@ onUnmounted(() => {
       <!-- Input -->
       <div class="p-3 bg-[#14100d] border-t border-amber-500/20 shrink-0">
         <div class="relative rounded-2xl border border-amber-500/30 bg-[#130f0b] px-3 py-1.5 flex items-center">
-          <input 
+          <input
             v-model="newMessage"
-            @keyup.enter="sendMessage"
-            type="text" 
-            placeholder="切磋武艺，交流感悟..." 
+            @keyup.enter="sendMessageAction"
+            type="text"
+            placeholder="切磋武艺，交流感悟..."
             class="flex-1 bg-transparent outline-none border-none text-sm text-amber-50 placeholder-amber-900/60"
           >
-          <button 
-            @click="sendMessage"
+          <button
+            @click="sendMessageAction"
             class="ml-2 w-8 h-8 rounded-full flex items-center justify-center bg-amber-500 text-[#130f0b] shadow-[0_0_14px_rgba(251,191,36,0.65)] hover:bg-amber-400 active:scale-95 transition-transform transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
