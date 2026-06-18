@@ -4,6 +4,7 @@
  */
 const express = require('express');
 const router = express.Router();
+const sequelize = require('../config/database');
 const game = require('../game');
 const authMiddleware = require('../middleware/auth');
 const Item = require('../models/item');

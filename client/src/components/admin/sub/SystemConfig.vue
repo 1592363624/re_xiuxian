@@ -136,7 +136,7 @@ import { reactive, ref, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
 import { getConfig, updateConfig, timeTravel } from '../../../api/admin'
 
-const emit = defineEmits(['timeTravelComplete'])
+const emit = defineEmits(['timeTravelComplete', 'showConfirm'])
 const uiStore = useUIStore()
 
 // 系统配置
@@ -188,7 +188,7 @@ const saveConfig = async (key, value, desc) => {
 }
 
 /**
- * 确认时间加速
+ * 确认时间加速（显示自定义确认弹窗，替代浏览器原生 confirm）
  */
 const confirmTimeTravel = async () => {
   if (!timeTravelYears.value || timeTravelYears.value <= 0) {
@@ -196,10 +196,15 @@ const confirmTimeTravel = async () => {
     return
   }
 
-  if (!confirm(`确定要让时间加速 ${timeTravelYears.value} 年吗？\n\n⚠️ 警告：这会导致所有在线/离线玩家消耗寿元。寿元耗尽者将会死亡并掉落境界！`)) {
-    return
-  }
+  // 通过父组件 AdminPanel 的自定义确认弹窗进行确认
+  const confirmMessage = `确定要让时间加速 ${timeTravelYears.value} 年吗？\n\n⚠️ 警告：这会导致所有在线/离线玩家消耗寿元。寿元耗尽者将会死亡并掉落境界！`
+  emit('showConfirm', '确认时间加速', confirmMessage, executeTimeTravel)
+}
 
+/**
+ * 执行时间加速操作（在用户确认后调用）
+ */
+const executeTimeTravel = async () => {
   isTimeTraveling.value = true
   try {
     const res = await timeTravel(parseFloat(timeTravelYears.value))

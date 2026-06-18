@@ -29,12 +29,13 @@ const AIService = require('./services/AIService');
  * 初始化所有游戏核心服务
  * @param {Object} configLoader - 配置加载器实例
  */
-function initializeGameServices(configLoader) {
+async function initializeGameServices(configLoader) {
     // 需要初始化的服务
     ItemService.initialize(configLoader);
     ExperienceService.initialize(configLoader);
     AttributeService.initialize(configLoader);
-    AttributeMaxService.initialize(configLoader);
+    // AttributeMaxService.initialize 是异步方法，需要等待
+    await AttributeMaxService.initialize(configLoader);
     DualTimeService.initialize(configLoader);
     MapService.initialize(configLoader);
     

@@ -35,6 +35,12 @@ class GatheringService {
                     : null;
                 const canGather = !cooldownEnd || now >= cooldownEnd;
 
+                // 计算升级所需经验和等级名称（由后端返回，避免前端硬编码）
+                const proficiencyLevel = playerGather?.proficiency_level || 1;
+                const proficiencyExp = playerGather?.proficiency_exp || 0;
+                const expToNextLevel = this._getExpToNextLevel(proficiencyLevel);
+                const levelName = this._getLevelName(proficiencyLevel);
+
                 resources.push({
                     resource_id: res.id,
                     name: resourceConfig.name,
@@ -46,15 +52,41 @@ class GatheringService {
                     can_gather: canGather,
                     next_available_time: canGather ? null : cooldownEnd.toISOString(),
                     player_proficiency: {
-                        level: playerGather?.proficiency_level || 1,
-                        exp: playerGather?.proficiency_exp || 0,
-                        total_count: playerGather?.total_gather_count || 0
+                        level: proficiencyLevel,
+                        exp: proficiencyExp,
+                        total_count: playerGather?.total_gather_count || 0,
+                        exp_to_next_level: expToNextLevel,
+                        level_name: levelName
                     }
                 });
             }
         }
 
         return resources;
+    }
+
+    /**
+     * 计算升级所需经验
+     * @param {number} level 当前等级
+     * @returns {number} 升级所需经验
+     */
+    static _getExpToNextLevel(level) {
+        if (level >= 100) return 0;
+        return Math.floor(100 * Math.pow(1.5, level - 1));
+    }
+
+    /**
+     * 获取等级名称
+     * @param {number} level 等级
+     * @returns {string} 等级名称
+     */
+    static _getLevelName(level) {
+        if (level < 10) return '入门';
+        if (level < 30) return '熟练';
+        if (level < 50) return '精通';
+        if (level < 70) return '专家';
+        if (level < 90) return '大师';
+        return '宗师';
     }
 
     /**

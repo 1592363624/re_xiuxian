@@ -232,6 +232,29 @@ router.get('/status', authenticateToken, async (req, res) => {
         const deepSeclusionRate = await getDeepSeclusionExpRate();
         const deepSeclusionInterval = await getDeepSeclusionInterval();
 
+        // 由后端计算当前闭关已获修为，避免前端自行计算
+        let expGained = 0;
+        let currentDuration = 0;
+        if (player.is_secluded && player.seclusion_start_time) {
+            const startTime = new Date(player.seclusion_start_time);
+            const now = new Date();
+            currentDuration = Math.floor((now - startTime) / 1000);
+
+            // 获取境界加成
+            let realmMultiplier = 1.0;
+            try {
+                const Realm = require('../../models/realm');
+                const realm = await Realm.findByPk(player.realm);
+                if (realm) {
+                    realmMultiplier = 1.0 + (realm.rank - 1) * 0.1;
+                }
+            } catch (err) {
+                console.error('获取境界加成失败:', err);
+            }
+
+            expGained = Math.floor(currentDuration * rate * realmMultiplier);
+        }
+
         res.json({
             is_secluded: player.is_secluded,
             seclusion_start_time: player.seclusion_start_time,
@@ -239,7 +262,10 @@ router.get('/status', authenticateToken, async (req, res) => {
             exp_rate: rate,
             cultivate_interval: cultivateInterval,
             deep_seclusion_exp_rate: deepSeclusionRate,
-            deep_seclusion_interval: deepSeclusionInterval
+            deep_seclusion_interval: deepSeclusionInterval,
+            // 后端计算的当前闭关已获修为
+            exp_gained: expGained,
+            current_duration: currentDuration
         });
 
     } catch (err) {

@@ -88,7 +88,8 @@ async function initializeConfigLoader() {
 async function initializeCoreServices(configLoader) {
     try {
         const { initializeGameServices } = require('./game');
-        initializeGameServices(configLoader);
+        // initializeGameServices 是异步函数，需要等待
+        await initializeGameServices(configLoader);
         console.log('游戏核心服务模块初始化成功');
         return true;
     } catch (error) {

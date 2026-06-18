@@ -25,6 +25,13 @@ export const getMapConfig = () => {
 };
 
 /**
+ * 计算移动到目标地图的消耗
+ */
+export const calculateMoveCost = (targetMapId: number) => {
+  return apiClient.post('/map/calculate-move-cost', { targetMapId });
+};
+
+/**
  * 开始移动
  */
 export const startMove = (targetMapId: string) => {

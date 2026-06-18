@@ -74,6 +74,7 @@ const startCountdowns = () => {
 const handleGather = async (resource) => {
   if (gathering.value || !resource.can_gather) return
   
+  // 灵力校验由后端处理，前端仅做快速反馈提示
   if (playerStore.player.mp_current < resource.mp_cost) {
     uiStore.showToast(`灵力不足，需要 ${resource.mp_cost} 点灵力`, 'error')
     return
@@ -92,7 +93,8 @@ const handleGather = async (resource) => {
       actorId: 'self'
     })
     
-    if (result.mp_remaining) {
+    // 使用后端返回的剩余灵力更新
+    if (result.mp_remaining !== undefined) {
       playerStore.player.mp_current = result.mp_remaining
     }
     
@@ -141,24 +143,9 @@ const getDifficultyColor = (difficulty) => {
 
 const getProficiencyPercent = (resource) => {
   const exp = resource.player_proficiency?.exp || 0
-  const level = resource.player_proficiency?.level || 1
-  const expToNext = getExpToNextLevel(level)
+  const expToNext = resource.player_proficiency?.exp_to_next_level || 0
   if (expToNext <= 0) return 100
   return Math.min(100, (exp / expToNext) * 100)
-}
-
-const getExpToNextLevel = (level) => {
-  if (level >= 100) return 0
-  return Math.floor(100 * Math.pow(1.5, level - 1))
-}
-
-const getLevelName = (level) => {
-  if (level < 10) return '入门'
-  if (level < 30) return '熟练'
-  if (level < 50) return '精通'
-  if (level < 70) return '专家'
-  if (level < 90) return '大师'
-  return '宗师'
 }
 
 const totalGatherCount = computed(() => {
@@ -249,8 +236,8 @@ onUnmounted(() => {
               <div class="flex items-center gap-4 mb-3">
                 <div class="flex-1">
                   <div class="flex justify-between text-xs text-stone-500 mb-1">
-                    <span>熟练度 Lv.{{ resource.player_proficiency?.level || 1 }} {{ getLevelName(resource.player_proficiency?.level || 1) }}</span>
-                    <span>{{ resource.player_proficiency?.exp || 0 }} / {{ getExpToNextLevel(resource.player_proficiency?.level || 1) }}</span>
+                    <span>熟练度 Lv.{{ resource.player_proficiency?.level || 1 }} {{ resource.player_proficiency?.level_name || '入门' }}</span>
+                    <span>{{ resource.player_proficiency?.exp || 0 }} / {{ resource.player_proficiency?.exp_to_next_level || 0 }}</span>
                   </div>
                   <div class="h-2 bg-stone-900 rounded-full overflow-hidden">
                     <div 

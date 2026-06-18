@@ -52,7 +52,7 @@ router.get('/me', authMiddleware, async (req, res) => {
                     value: player.spirit_roots.value || 0
                 } : null,
                 spirit_stones: player.spirit_stones?.toString() || '0',
-                age: player.age,
+                age: player.lifespan_current,
                 lifespan: lifespanStatus,
                 attributes: fullAttributes,
                 hp_current: player.hp_current,
@@ -102,7 +102,7 @@ router.get('/attributes', authMiddleware, async (req, res) => {
             data: {
                 basic_attributes: fullAttributes,
                 battle_attributes: battleAttributes,
-                spirit_root_bonus: game.AttributeService.getSpiritRootBonus(player.spirit_root)
+                spirit_root_bonus: game.AttributeService.getSpiritRootBonus(player.spirit_roots)
             }
         });
     } catch (error) {

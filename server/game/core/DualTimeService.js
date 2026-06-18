@@ -58,19 +58,63 @@ class DualTimeService {
 
     /**
      * 添加游戏时间
-     * @param {string} currentTime - 当前游戏时间
+     * @param {string} currentTime - 当前游戏时间（格式如"仙历元年一月一日"）
      * @param {number} monthsToAdd - 要添加的月数
+     * @returns {string} 新的游戏时间字符串
      */
     addGameTime(currentTime, monthsToAdd) {
-        // 简化实现：只更新年份和月份
-        const [era, yearMonthDay] = currentTime.split('年');
-        const [year, month, day] = yearMonthDay.split(/[月日]/).map(Number);
+        // 中文数字映射表，包含'元'作为1的特殊映射
+        const chineseNumMap = {
+            '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
+            '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+            '十': 10, '元': 1
+        };
         
-        let totalMonths = (parseInt(year) * 12) + month - 1 + monthsToAdd;
+        /**
+         * 解析中文数字字符串为阿拉伯数字
+         * @param {string} str - 中文数字字符串
+         * @returns {number} 解析后的数字
+         */
+        const parseChineseNum = (str) => {
+            if (!str) return 1;
+            // 如果已经是阿拉伯数字，直接返回
+            if (/^\d+$/.test(str)) return parseInt(str);
+            // 单字符直接查表
+            if (chineseNumMap[str] !== undefined) return chineseNumMap[str];
+            // 默认返回1
+            return 1;
+        };
+        
+        // 解析时间字符串，如"仙历元年一月一日"
+        // 匹配格式：{纪元}年{年份}月{月份}日{日期}
+        const eraMatch = currentTime.match(/(.+?)年(.+?)月(.+?)日/);
+        if (!eraMatch) return currentTime;
+        
+        const era = eraMatch[1];
+        const year = parseChineseNum(eraMatch[2]);
+        const month = parseChineseNum(eraMatch[3]);
+        const day = parseChineseNum(eraMatch[4]);
+        
+        // 计算总月数并求新年月
+        let totalMonths = (year * 12) + (month - 1) + Math.floor(monthsToAdd);
         const newYear = Math.floor(totalMonths / 12);
         const newMonth = (totalMonths % 12) + 1;
         
-        return `${era}年${newYear}年${newMonth}月${day}日`;
+        // 将数字转回中文（简化版，只处理0-99）
+        const toChineseNumber = (num) => {
+            const chineseDigits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+            if (num < 10) return chineseDigits[num];
+            if (num < 20) return '十' + (num % 10 === 0 ? '' : chineseDigits[num % 10]);
+            if (num < 100) {
+                const tens = Math.floor(num / 10);
+                const ones = num % 10;
+                return chineseDigits[tens] + '十' + (ones === 0 ? '' : chineseDigits[ones]);
+            }
+            return num.toString();
+        };
+        
+        // 返回格式：{纪元}{年份}年{月份}月{日期}日（修复了原来双'年'字的bug）
+        return `${era}${toChineseNumber(newYear)}年${toChineseNumber(newMonth)}月${toChineseNumber(day)}日`;
     }
 
     /**
@@ -188,7 +232,8 @@ class DualTimeService {
         
         // 应用属性恢复
         const attributeService = require('./AttributeMaxService');
-        attributeService.applyAttributeRecovery(player, offlineDuration);
+        const maxValues = attributeService.calculateAttributeMaxValues(player, {});
+        attributeService.processAttributeRecovery(player, maxValues, 'natural', offlineDuration / 60);
     }
 
     /**
@@ -206,7 +251,8 @@ class DualTimeService {
         
         // 应用属性恢复
         const attributeService = require('./AttributeMaxService');
-        attributeService.applyAttributeRecovery(player, onlineDuration);
+        const maxValues = attributeService.calculateAttributeMaxValues(player, {});
+        attributeService.processAttributeRecovery(player, maxValues, 'natural', onlineDuration / 60);
     }
 }
 

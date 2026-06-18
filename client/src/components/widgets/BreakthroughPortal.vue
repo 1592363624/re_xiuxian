@@ -21,15 +21,15 @@ const quality = ref('medium')
 const pool = []
 let maxPoolSize = 0
 
+/**
+ * 判断是否可以突破
+ * 使用后端返回的 can_breakthrough 字段，避免前端使用 BigInt 进行业务判断
+ */
 const canBreakthrough = computed(() => {
   const p = playerStore.player
   if (!p) return false
-
-  if (p.can_breakthrough === true) return true
-
-  const exp = BigInt(p.exp || 0)
-  const cap = BigInt(p.exp_cap || p.exp_next || 0)
-  return cap > 0n && exp >= cap && !!p.next_realm
+  // 优先使用后端返回的 can_breakthrough 字段
+  return p.can_breakthrough === true
 })
 
 const nextRealmName = computed(() => playerStore.player?.next_realm || '')

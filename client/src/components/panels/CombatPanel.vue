@@ -35,6 +35,7 @@ const monsters = ref([])
 const currentBattle = ref(null)
 const battleLog = ref([])
 const combatStats = ref(null)
+const skillMpCost = ref(20) // 默认值，由后端返回
 
 /**
  * 获取战斗数据
@@ -63,6 +64,7 @@ const fetchData = async () => {
     
     currentMap.value = mapRes.data.current_map
     monsters.value = monstersRes.data.monsters || []
+    skillMpCost.value = monstersRes.data.skill_mp_cost || 20
     combatStats.value = statsRes.data
     battleLog.value = battleRes?.data?.battle_log || []
   } catch (error) {
@@ -245,24 +247,12 @@ const refreshStats = async () => {
 
 /**
  * 获取怪物难度
+ * 使用后端返回的难度标签，避免前端硬编码境界顺序
  */
 const getMonsterDifficulty = (monster) => {
-  const realmOrder = [
-    '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
-    '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
-    '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
-    '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
-    '元婴期'
-  ]
-  const playerRealm = playerStore.player?.realm || '凡人'
-  const playerIdx = realmOrder.indexOf(playerRealm)
-  const monsterIdx = realmOrder.indexOf(monster.realm)
-  
-  const diff = monsterIdx - playerIdx
-  if (diff <= -2) return { class: 'text-emerald-400', name: '弱小的怪物', safe: true }
-  if (diff <= 0) return { class: 'text-yellow-400', name: '同级怪物', safe: true }
-  if (diff <= 2) return { class: 'text-orange-400', name: '较强的怪物', safe: false }
-  return { class: 'text-red-400', name: '极危险的怪物', safe: false }
+  if (monster.difficulty) return monster.difficulty
+  // 兜底：如果后端未返回，显示默认
+  return { class: 'text-stone-400', name: '未知', safe: false }
 }
 
 const getMonsterHpPercent = (battle) => {
@@ -401,10 +391,10 @@ onMounted(() => {
                 </button>
                 <button 
                   @click="handleUseSkill(0)"
-                  :disabled="combatLoading || currentBattle.player.mp < 20"
+                  :disabled="combatLoading || currentBattle.player.mp < skillMpCost"
                   class="flex-1 py-3 rounded bg-purple-900/30 border border-purple-700/50 text-purple-400 hover:bg-purple-800/50 hover:text-purple-300 transition-colors disabled:opacity-50"
                 >
-                  <span>技能 (20灵力)</span>
+                  <span>技能 ({{ skillMpCost }}灵力)</span>
                 </button>
                 <button 
                   @click="handleEscape"

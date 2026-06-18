@@ -82,6 +82,7 @@ const duration = computed(() => {
 })
 
 const expGained = computed(() => {
+  // 使用后端返回的 exp_rate 计算实时收益显示
   return Math.floor(duration.value * expRate.value)
 })
 

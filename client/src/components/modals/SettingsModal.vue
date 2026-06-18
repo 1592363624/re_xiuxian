@@ -89,20 +89,62 @@
         </section>
       </div>
     </div>
+
+    <!-- 注销确认弹窗（自定义，替代浏览器原生 confirm） -->
+    <Teleport to="body">
+      <transition name="modal">
+        <div v-if="showLogoutConfirm" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <!-- 遮罩层 -->
+          <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="showLogoutConfirm = false"></div>
+          <!-- 弹窗内容 -->
+          <div class="relative w-full max-w-sm bg-[#141210] border border-stone-700 rounded-lg shadow-2xl p-6 animate-fade-in">
+            <h3 class="text-lg font-bold text-amber-500 mb-3">确认注销</h3>
+            <p class="text-stone-300 text-sm mb-6">确定要注销当前账号吗？此操作将清除所有本地缓存并返回登录界面。</p>
+            <div class="flex justify-end gap-3">
+              <button
+                @click="showLogoutConfirm = false"
+                class="px-4 py-2 bg-stone-700 hover:bg-stone-600 text-stone-300 rounded transition-colors"
+              >取消</button>
+              <button
+                @click="doLogout"
+                class="px-4 py-2 bg-red-700 hover:bg-red-600 text-red-100 rounded font-bold transition-colors"
+              >确认注销</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
+/**
+ * 设置弹窗组件
+ * 提供游戏设置、快捷键说明、关于信息等功能
+ */
+import { ref } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 
 const emit = defineEmits(['close'])
 const playerStore = usePlayerStore()
 
+// 注销确认弹窗显示状态
+const showLogoutConfirm = ref(false)
+
+/**
+ * 点击"重新开始游戏"按钮，弹出确认弹窗（替代浏览器原生 confirm）
+ */
 const handleLogout = () => {
-  if (confirm('确定要注销当前账号吗？')) {
-    playerStore.logout()
-    window.location.reload()
-  }
+  showLogoutConfirm.value = true
+}
+
+/**
+ * 执行注销操作：清除玩家数据并刷新页面
+ */
+const doLogout = () => {
+  showLogoutConfirm.value = false
+  playerStore.logout()
+  window.location.reload()
 }
 </script>
 

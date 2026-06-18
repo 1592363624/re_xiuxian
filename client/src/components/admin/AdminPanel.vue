@@ -39,6 +39,7 @@
         <SystemConfig
           v-if="currentTab === 'config'"
           @timeTravelComplete="handleTimeTravelComplete"
+          @showConfirm="showConfirm"
         />
 
         <!-- 通知管理 -->
@@ -165,7 +166,7 @@
 
     <!-- 确认对话框 -->
     <Modal :isOpen="confirmDialog.show" title="确认操作" @close="confirmDialog.show = false" width="400px">
-      <p class="text-gray-300">{{ confirmDialog.message }}</p>
+      <p class="text-gray-300 whitespace-pre-line">{{ confirmDialog.message }}</p>
       <template #footer>
         <button @click="confirmDialog.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">
           取消

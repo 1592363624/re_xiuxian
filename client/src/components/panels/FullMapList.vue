@@ -17,6 +17,7 @@ const moving = ref(false)
 const filterType = ref('all')
 const filterRealm = ref('all')
 const searchKeyword = ref('')
+const moveCostCache = ref({})
 
 const mapTypeMap = {
   country: { name: '凡人国度', class: 'text-emerald-400', bg: 'bg-emerald-900/20', border: 'border-emerald-700/50' },
@@ -48,6 +49,18 @@ const fetchData = async () => {
     currentMapId.value = infoRes.data.current_map?.id
     playerRealm.value = playerStore.player?.realm || '凡人'
     playerSpeed.value = playerStore.player?.attributes?.speed || 10
+    
+    // 从后端获取所有地图的移动消耗
+    const moveCostPromises = allMaps.value.map(map => 
+      axios.post('/api/map/calculate-move-cost', { targetMapId: map.id })
+        .then(res => ({ id: map.id, cost: res.data.data }))
+        .catch(() => ({ id: map.id, cost: null }))
+    )
+    const moveCosts = await Promise.all(moveCostPromises)
+    moveCostCache.value = moveCosts.reduce((acc, item) => {
+      if (item.cost) acc[item.id] = item.cost
+      return acc
+    }, {})
   } catch (error) {
     console.error('Failed to fetch map data:', error)
     uiStore.showToast('获取地图数据失败', 'error')
@@ -66,56 +79,18 @@ const canEnter = (map) => {
   return playerRank >= requiredRank
 }
 
-const calculateDistance = (targetMap) => {
-  const currentMap = allMaps.value.find(m => m.id === currentMapId.value)
-  if (!currentMap || currentMap.x === undefined || targetMap.x === undefined) {
-    return 0
+const getMoveCost = (targetMap) => {
+  // 使用后端返回的移动消耗数据
+  const costData = moveCostCache.value[targetMap.id]
+  if (costData) {
+    return {
+      cost: costData.cost,
+      time: costData.time,
+      distance: costData.distance
+    }
   }
-  return Math.sqrt(
-    Math.pow(targetMap.x - currentMap.x, 2) + 
-    Math.pow(targetMap.y - currentMap.y, 2)
-  )
-}
-
-const calculateMoveCost = (targetMap) => {
-  if (targetMap.id === currentMapId.value) {
-    return { cost: 0, time: 0, distance: 0 }
-  }
-
-  const distance = calculateDistance(targetMap)
-  const baseCost = 10
-  const dangerLevel = targetMap.danger_level || 1
-  const travelTime = targetMap.travel_time || 5
-  const type = targetMap.type || 'country'
-
-  const typeMultiplier = {
-    'country': 1,
-    'sect': 1,
-    'mountain': 1.5,
-    'ocean': 2,
-    'talent': 3,
-    'world': 5
-  }
-
-  let cost = baseCost
-  cost += Math.floor(distance / 10)
-  cost += dangerLevel * 2
-  cost += travelTime / 2
-  cost *= typeMultiplier[type] || 1
-
-  const terrainFactor = {
-    'plains': 1,
-    'mountain': 1.5,
-    'ocean': 2,
-    'cave': 1.8,
-    'mixed': 1.2,
-    'celestial': 1
-  }
-  
-  const terrainMod = terrainFactor[targetMap.environment] || 1
-  const time = Math.floor(60 + (distance * terrainMod * 10) / (playerSpeed.value / 10))
-
-  return { cost: Math.floor(cost), time, distance: Math.floor(distance * 100) / 100 }
+  // 如果没有缓存数据，返回默认值
+  return { cost: 0, time: 0, distance: 0 }
 }
 
 const formatTime = (seconds) => {
@@ -164,8 +139,9 @@ const getEnterStatus = (map) => {
 const handleMove = async (targetMap) => {
   if (moving.value) return
   
-  const moveInfo = calculateMoveCost(targetMap)
-  if (playerStore.player.mp_current < moveInfo.cost) {
+  // 使用后端缓存的移动消耗数据进行校验
+  const moveInfo = getMoveCost(targetMap)
+  if (Number(playerStore.player.mp_current) < moveInfo.cost) {
     uiStore.showToast(`灵力不足，需要 ${moveInfo.cost} 点灵力`, 'error')
     return
   }
@@ -175,32 +151,27 @@ const handleMove = async (targetMap) => {
     const currentMap = allMaps.value.find(m => m.id === currentMapId.value)
     const res = await axios.post('/api/map/start-move', { targetMapId: targetMap.id })
     
-    if (res.data.success) {
-      const movingState = {
-        isMoving: true,
-        fromMapId: currentMapId.value,
-        toMapId: targetMap.id,
-        fromMapName: currentMap?.name || '未知地点',
-        toMapName: targetMap.name,
-        startTime: res.data.start_time,
-        endTime: res.data.end_time,
-        totalSeconds: res.data.total_seconds,
-        remainingSeconds: res.data.total_seconds
-      }
-      playerStore.setMovingState(movingState)
-      
-      uiStore.addLog({
-        content: `你从 ${currentMap?.name || '未知地点'} 出发，前往 ${targetMap.name}，预计 ${formatTime(res.data.total_seconds)} 后到达。`,
-        type: 'movement',
-        actorId: 'self'
-      })
-      
-      emit('close')
-    } else {
-      uiStore.showToast(res.data.message || '移动失败', 'error')
-    }
+    const moveData = res.data.data
+    playerStore.setMovingState({
+      from_map_id: moveData.from_map_id,
+      to_map_id: moveData.to_map_id,
+      from_map_name: moveData.from_map_name || currentMap?.name || '未知地点',
+      to_map_name: moveData.to_map_name || targetMap.name,
+      start_time: moveData.start_time,
+      end_time: moveData.end_time,
+      total_seconds: moveData.total_seconds
+    })
+    
+    uiStore.showToast(res.data.message || `开始前往${targetMap.name}`, 'success')
+    uiStore.addLog({
+      content: `你从 ${currentMap?.name || '未知地点'} 出发，前往 ${targetMap.name}，预计 ${formatTime(moveData.total_seconds)} 后到达。`,
+      type: 'movement',
+      actorId: 'self'
+    })
+    
+    emit('close')
   } catch (error) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '移动失败'
+    const msg = error.response?.data?.error || '移动失败'
     uiStore.showToast(msg, 'error')
   } finally {
     moving.value = false
@@ -345,16 +316,16 @@ onMounted(() => {
               </span>
             </div>
 
-            <div v-if="map.x !== undefined" class="text-xs text-stone-500 mb-3">
-              距离: <span class="text-cyan-400">{{ formatDistance(calculateDistance(map)) }}</span>
+            <div v-if="map.x !== undefined && getMoveCost(map).distance" class="text-xs text-stone-500 mb-3">
+              距离: <span class="text-cyan-400">{{ formatDistance(getMoveCost(map).distance) }}</span>
             </div>
 
             <div class="flex items-center justify-between text-xs mt-auto pt-2 border-t border-stone-800/50">
               <div v-if="getEnterStatus(map).canEnter" class="text-stone-400">
-                {{ calculateMoveCost(map).cost }} 灵力 · {{ formatTime(calculateMoveCost(map).time) }}
+                {{ getMoveCost(map).cost }} 灵力 · {{ formatTime(getMoveCost(map).time) }}
               </div>
               <div v-else class="text-stone-500">
-                {{ calculateMoveCost(map).cost }} 灵力 · {{ formatTime(calculateMoveCost(map).time) }}
+                {{ getMoveCost(map).cost }} 灵力 · {{ formatTime(getMoveCost(map).time) }}
                 <span v-if="getEnterStatus(map).reason" class="text-amber-600 ml-2">
                   {{ getEnterStatus(map).reason }}
                 </span>
@@ -362,7 +333,7 @@ onMounted(() => {
               <button 
                 v-if="getEnterStatus(map).canEnter"
                 @click="handleMove(map)"
-                :disabled="moving || playerStore.player.mp_current < calculateMoveCost(map).cost"
+                :disabled="moving || Number(playerStore.player.mp_current) < getMoveCost(map).cost"
                 class="px-3 py-1 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span v-if="moving">移动中...</span>

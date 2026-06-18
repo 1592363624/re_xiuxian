@@ -127,11 +127,11 @@ class PlayerService {
         const player = await Player.findByPk(playerId);
         if (!player) return null;
 
-        player.cultivation = BigInt(player.cultivation) + BigInt(amount);
+        player.exp = (BigInt(player.exp) + BigInt(amount)).toString();
         await player.save();
 
         return {
-            currentCultivation: player.cultivation.toString(),
+            currentExp: player.exp.toString(),
             canBreakthrough: false
         };
     }

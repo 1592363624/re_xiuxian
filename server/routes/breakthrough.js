@@ -124,7 +124,7 @@ router.post('/try', authenticateToken, async (req, res) => {
             player.attributes = attrs;
         }
 
-        player.lifespan_max = nextRealm.lifespan_max || player.lifespan_max;
+        player.lifespan_max = nextRealm.base_lifespan || player.lifespan_max;
         player.hp_current = nextRealm.base_hp || player.hp_current;
         player.mp_current = nextRealm.base_mp || player.mp_current;
 

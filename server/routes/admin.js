@@ -275,7 +275,7 @@ router.post('/players/:id/ban', auth, adminCheck, async (req, res) => {
             : null;
 
         player.role = 'banned';
-        player.banned_until = bannedUntil;
+        player.ban_expire_time = bannedUntil;
         player.ban_reason = reason;
         await player.save();
 
@@ -283,7 +283,7 @@ router.post('/players/:id/ban', auth, adminCheck, async (req, res) => {
             target_id: player.id,
             reason,
             days,
-            banned_until: bannedUntil
+            ban_expire_time: bannedUntil
         }, req);
 
         webSocketNotificationService.notifyPlayerUpdate(player.id, 'gm_ban', {
@@ -317,7 +317,7 @@ router.post('/players/:id/unban', auth, adminCheck, async (req, res) => {
         }
 
         player.role = 'user';
-        player.banned_until = null;
+        player.ban_expire_time = null;
         player.ban_reason = null;
         await player.save();
 

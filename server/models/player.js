@@ -292,6 +292,31 @@ const Player = sequelize.define('Player', {
         type: DataTypes.INTEGER,
         defaultValue: 0,
         comment: '可分配属性点'
+    },
+    is_dead: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否已死亡'
+    },
+    is_banned: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否被封禁'
+    },
+    ban_reason: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: '封禁原因'
+    },
+    ban_expire_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '封禁到期时间'
+    },
+    seclusion_end_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '闭关结束时间'
     }
 }, {
     tableName: 'players',

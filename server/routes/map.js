@@ -72,7 +72,22 @@ router.get('/info', auth, async (req, res) => {
             return res.status(404).json({ error: 'Map not found' });
         }
 
-        const connectedMaps = mapConfig.getConnectedMaps(mapId);
+        const connectedMaps = mapConfig.getConnectedMaps(mapId).map(m => {
+            const costInfo = calculateTravelCost(m, player, mapConfigData);
+            return {
+                id: m.id,
+                name: m.name,
+                type: m.type,
+                environment: m.environment,
+                requiredRealm: m.requiredRealm,
+                danger_level: m.danger_level,
+                description: m.description,
+                travel_time: m.travel_time,
+                move_cost: costInfo.cost,
+                move_time: costInfo.time,
+                move_distance: costInfo.distance
+            };
+        });
 
         const responseData = {
             ...mapConfigData,
@@ -87,17 +102,10 @@ router.get('/info', auth, async (req, res) => {
 
         res.json({
             current_map: responseData,
-            connected_maps: connectedMaps.map(m => ({
-                id: m.id,
-                name: m.name,
-                type: m.type,
-                environment: m.environment,
-                requiredRealm: m.requiredRealm,
-                danger_level: m.danger_level,
-                description: m.description,
-                travel_time: m.travel_time
-            })),
-            is_moving: player.is_moving || false
+            connected_maps: connectedMaps,
+            is_moving: player.is_moving || false,
+            // 返回玩家当前灵力，供前端展示判断
+            player_mp_current: player.mp_current?.toString() || '0'
         });
     } catch (error) {
         console.error('Map Info Error:', error);
@@ -162,6 +170,42 @@ function calculateTravelCost(targetMap, player, currentMap = null) {
         distance: Math.floor(distance * 100) / 100
     };
 }
+
+/**
+ * 计算移动到目标地图的消耗（供前端调用）
+ */
+router.post('/calculate-move-cost', auth, async (req, res) => {
+    try {
+        const { targetMapId } = req.body;
+        if (!targetMapId) return res.status(400).json({ error: '目标地图ID不能为空' });
+
+        const player = await Player.findByPk(req.user.id);
+        if (!player) return res.status(404).json({ error: '玩家不存在' });
+
+        const currentMapId = player.current_map_id;
+        const currentMapConfig = mapConfig.getMap(currentMapId);
+        const targetMapConfig = mapConfig.getMap(targetMapId);
+
+        if (!currentMapConfig || !targetMapConfig) {
+            return res.status(404).json({ error: '地图配置不存在' });
+        }
+
+        const travelCostInfo = calculateTravelCost(targetMapConfig, player, currentMapConfig);
+        
+        res.json({
+            code: 200,
+            data: {
+                cost: travelCostInfo.cost,
+                time: travelCostInfo.time,
+                distance: travelCostInfo.distance,
+                can_afford: player.mp_current >= travelCostInfo.cost
+            }
+        });
+    } catch (error) {
+        console.error('Calculate Move Cost Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
 
 /**
  * 开始移动到目标地图（延时模式）

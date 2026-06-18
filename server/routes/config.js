@@ -4,7 +4,17 @@
  */
 const express = require('express');
 const router = express.Router();
-const { infrastructure } = require('../game');
+const game = require('../game');
+const auth = require('../middleware/auth');
+
+// 管理员权限中间件
+const adminCheck = (req, res, next) => {
+    if (req.player && req.player.role === 'admin') {
+        next();
+    } else {
+        res.status(403).json({ message: '权限不足：需要管理员权限' });
+    }
+};
 
 /**
  * 获取所有配置列表
@@ -23,7 +33,7 @@ router.get('/list', async (req, res) => {
 
         const configs = {};
         for (const name of configNames) {
-            const config = game.ConfigLoader?.getConfig(name);
+            const config = infrastructure.ConfigLoader?.getConfig(name);
             configs[name] = config ? { loaded: true, size: JSON.stringify(config).length } : { loaded: false };
         }
 
@@ -66,7 +76,7 @@ router.get('/:configName', async (req, res) => {
             });
         }
 
-        const config = game.ConfigLoader?.getConfig(configName);
+        const config = infrastructure.ConfigLoader?.getConfig(configName);
         
         if (!config) {
             return res.status(404).json({ 
@@ -97,7 +107,7 @@ router.get('/:configName', async (req, res) => {
  */
 router.get('/data/realms', async (req, res) => {
     try {
-        const config = game.ConfigLoader?.getConfig('realm_breakthrough');
+        const config = infrastructure.ConfigLoader?.getConfig('realm_breakthrough');
         
         if (!config?.realms) {
             return res.status(404).json({ 
@@ -128,7 +138,7 @@ router.get('/data/realms', async (req, res) => {
  */
 router.get('/data/role-init', async (req, res) => {
     try {
-        const config = game.ConfigLoader?.getConfig('role_init');
+        const config = infrastructure.ConfigLoader?.getConfig('role_init');
         
         if (!config) {
             return res.status(404).json({ 
@@ -156,7 +166,7 @@ router.get('/data/role-init', async (req, res) => {
  */
 router.get('/data/items', async (req, res) => {
     try {
-        const config = game.ConfigLoader?.getConfig('item_data');
+        const config = infrastructure.ConfigLoader?.getConfig('item_data');
         
         if (!config?.items) {
             return res.status(404).json({ 
@@ -195,7 +205,7 @@ router.get('/data/items', async (req, res) => {
  */
 router.get('/data/maps', async (req, res) => {
     try {
-        const config = game.ConfigLoader?.getConfig('map_data');
+        const config = infrastructure.ConfigLoader?.getConfig('map_data');
         
         if (!config?.maps) {
             return res.status(404).json({ 
@@ -228,10 +238,10 @@ router.get('/data/maps', async (req, res) => {
 });
 
 /**
- * 触发配置热更新
+ * 触发配置热更新（需要管理员权限）
  * POST /api/config/hot-update
  */
-router.post('/hot-update', async (req, res) => {
+router.post('/hot-update', auth, adminCheck, async (req, res) => {
     try {
         const { configName } = req.body;
         const validConfigs = [
@@ -257,14 +267,14 @@ router.post('/hot-update', async (req, res) => {
             });
         }
 
-        if (!game.ConfigLoader) {
+        if (!infrastructure.ConfigLoader) {
             return res.status(500).json({ 
                 code: 500, 
                 message: '配置加载器未初始化' 
             });
         }
 
-        await game.ConfigLoader.hotUpdateConfig(configName);
+        await infrastructure.ConfigLoader.hotUpdateConfig(configName);
 
         res.json({
             code: 200,

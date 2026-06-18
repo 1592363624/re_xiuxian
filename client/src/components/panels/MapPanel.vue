@@ -63,62 +63,6 @@ const fetchMapConfigs = async () => {
   }
 }
 
-const calculateMoveCost = (targetMap) => {
-  if (!mapConfigs.value[targetMap.id] || !currentMap.value) {
-    return { cost: 10, time: 60 }
-  }
-  const current = currentMap.value
-  const target = mapConfigs.value[targetMap.id]
-  
-  const baseCost = 10
-  const baseTime = 60
-  const dangerLevel = target.danger_level || 1
-  const travelTime = target.travel_time || 5
-  const type = target.type || 'country'
-  const environment = target.environment || 'plains'
-  
-  const typeMultiplier = {
-    'country': 1,
-    'sect': 1,
-    'mountain': 1.5,
-    'ocean': 2,
-    'talent': 3,
-    'world': 5
-  }
-  
-  const terrainFactor = {
-    'plains': 1,
-    'mountain': 1.5,
-    'ocean': 2,
-    'cave': 1.8,
-    'mixed': 1.2,
-    'celestial': 1
-  }
-  
-  let distance = 0
-  let time = baseTime
-  
-  if (current.x !== undefined && target.x !== undefined) {
-    distance = Math.sqrt(
-      Math.pow(target.x - current.x, 2) + 
-      Math.pow(target.y - current.y, 2)
-    )
-    const terrainMod = terrainFactor[environment] || 1
-    const playerSpeed = playerStore.player?.attributes?.speed || 10
-    time = Math.floor(baseTime + (distance * terrainMod * 10) / (playerSpeed / 10))
-  } else {
-    time = travelTime * 60
-  }
-  
-  let cost = baseCost
-  cost += Math.floor(distance / 10)
-  cost += dangerLevel * 2
-  cost += travelTime / 2
-  cost *= typeMultiplier[type] || 1
-  
-  return { cost: Math.floor(cost), time, distance: Math.floor(distance * 100) / 100 }
-}
-
 const formatTime = (seconds) => {
   if (seconds < 60) return `${seconds}秒`
   const mins = Math.floor(seconds / 60)
@@ -131,9 +75,9 @@ const formatTime = (seconds) => {
 const handleMove = async (targetMap) => {
   if (moving.value) return
   
-  const moveInfo = calculateMoveCost(targetMap)
-  if (playerStore.player.mp_current < moveInfo.cost) {
-     uiStore.showToast(`灵力不足，需要 ${moveInfo.cost} 点灵力`, 'error')
+  // 使用后端返回的 move_cost 进行校验
+  if (targetMap.move_cost && Number(playerStore.player.mp_current) < targetMap.move_cost) {
+     uiStore.showToast(`灵力不足，需要 ${targetMap.move_cost} 点灵力`, 'error')
      return
   }
 
@@ -159,10 +103,7 @@ const handleMove = async (targetMap) => {
         actorId: 'self'
     })
     
-    if (res.data.data.mp_cost) {
-      playerStore.player.mp_current = (BigInt(playerStore.player.mp_current) - BigInt(res.data.data.mp_cost)).toString()
-    }
-    
+    // 刷新地图信息以获取最新数据
     await fetchMapInfo()
     emit('close')
   } catch (error) {

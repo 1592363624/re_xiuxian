@@ -66,7 +66,7 @@ router.get('/global', authenticateToken, async (req, res) => {
  */
 router.post('/:id/read', authenticateToken, async (req, res) => {
     try {
-        const playerId = req.user.playerId;
+        const playerId = req.user.id;
         const notificationId = req.params.id;
         
         await NotificationService.markAsRead(notificationId, playerId);
@@ -83,7 +83,7 @@ router.post('/:id/read', authenticateToken, async (req, res) => {
  */
 router.post('/read-all', authenticateToken, async (req, res) => {
     try {
-        const playerId = req.user.playerId;
+        const playerId = req.user.id;
         await NotificationService.markAllAsRead(playerId);
         res.json({ success: true });
     } catch (error) {

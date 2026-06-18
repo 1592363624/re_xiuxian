@@ -13,12 +13,12 @@ class AttributeMaxService {
      * 初始化属性最大值服务
      * @param {Object} configLoader - 配置加载器实例
      */
-    initialize(configLoader) {
+    async initialize(configLoader) {
         this.configLoader = configLoader;
         // 加载灵力系统配置
-        this.spiritConfig = configLoader.loadConfig('spirit_system');
+        this.spiritConfig = await configLoader.loadConfig('spirit_system');
         try {
-            this.attributeConfig = configLoader.loadConfig('attribute_system');
+            this.attributeConfig = await configLoader.loadConfig('attribute_system');
         } catch (error) {
             // 配置文件不存在时使用默认配置
             this.attributeConfig = {};

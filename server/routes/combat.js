@@ -154,7 +154,7 @@ router.post('/use-item', auth, async (req, res) => {
         if (effect.hp_restore) {
             const restoreAmount = Math.min(
                 effect.hp_restore * (quantity || 1),
-                Number(player.hp_max) - Number(player.hp_current)
+                Number(player.attributes?.hp_max || 100) - Number(player.hp_current)
             );
             player.hp_current = BigInt(Number(player.hp_current) + restoreAmount);
             message += `，恢复 ${restoreAmount} 气血`;
@@ -191,6 +191,30 @@ router.post('/use-item', auth, async (req, res) => {
 });
 
 /**
+ * 计算怪物相对玩家的难度标签
+ * @param {string} monsterRealm 怪物境界
+ * @param {string} playerRealm 玩家境界
+ * @returns {object} 难度信息 { class, name, safe }
+ */
+function _getMonsterDifficulty(monsterRealm, playerRealm) {
+    const realmOrder = [
+        '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
+        '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
+        '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
+        '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
+        '元婴期'
+    ];
+    const playerIdx = realmOrder.indexOf(playerRealm || '凡人');
+    const monsterIdx = realmOrder.indexOf(monsterRealm);
+    
+    const diff = monsterIdx - playerIdx;
+    if (diff <= -2) return { class: 'text-emerald-400', name: '弱小的怪物', safe: true };
+    if (diff <= 0) return { class: 'text-yellow-400', name: '同级怪物', safe: true };
+    if (diff <= 2) return { class: 'text-orange-400', name: '较强的怪物', safe: false };
+    return { class: 'text-red-400', name: '极危险的怪物', safe: false };
+}
+
+/**
  * 获取当前地图可遭遇怪物列表
  */
 router.get('/monsters', auth, async (req, res) => {
@@ -208,16 +232,29 @@ router.get('/monsters', auth, async (req, res) => {
             });
         }
 
+        // 读取技能灵力消耗配置
+        const configLoader = require('../modules/infrastructure/ConfigLoader');
+        let skillMpCost = 20; // 默认值
+        try {
+            const balanceConfig = await configLoader.loadConfig('game_balance');
+            skillMpCost = balanceConfig?.combat?.skill_mp_cost || 20;
+        } catch (e) {
+            // 配置加载失败使用默认值
+        }
+
         const monsters = mapConfig.monsters.map(m => ({
             id: m.id,
             name: m.name,
             realm: m.realm,
-            exp: m.exp
+            exp: m.exp,
+            // 由后端计算难度标签，避免前端硬编码境界顺序
+            difficulty: _getMonsterDifficulty(m.realm, player.realm)
         }));
 
         res.json({
             map_id: player.current_map_id,
-            monsters: monsters
+            monsters: monsters,
+            skill_mp_cost: skillMpCost
         });
     } catch (error) {
         console.error('Get Monsters Error:', error);
