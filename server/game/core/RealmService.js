@@ -48,6 +48,16 @@ class RealmService {
     }
 
     /**
+     * 获取境界排名（用于比较境界高低）
+     * @param {string} realmName - 境界名称
+     * @returns {number} 排名，0 表示未找到
+     */
+    getRealmRank(realmName) {
+        const realm = this.getRealmByName(realmName);
+        return realm?.rank || 0;
+    }
+
+    /**
      * 计算当前境界修为上限
      */
     getCultivationLimit(realmId) {

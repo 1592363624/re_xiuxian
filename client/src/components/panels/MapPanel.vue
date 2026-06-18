@@ -42,8 +42,8 @@ const fetchMapInfo = async () => {
   loading.value = true
   try {
     const res = await getMapInfo()
-    currentMap.value = res.data.current_map
-    connectedMaps.value = res.data.connected_maps
+    currentMap.value = res.data.data?.current_map
+    connectedMaps.value = res.data.data?.connected_maps
   } catch (error) {
     console.error('Fetch map info failed:', error)
     uiStore.showToast('获取地图信息失败', 'error')
@@ -55,7 +55,8 @@ const fetchMapInfo = async () => {
 const fetchMapConfigs = async () => {
   try {
     const res = await getMapConfig()
-    res.data.maps.forEach(m => {
+    const maps = res.data.data?.maps || res.data.maps || []
+    maps.forEach(m => {
       mapConfigs.value[m.id] = m
     })
   } catch (error) {
@@ -274,12 +275,7 @@ onMounted(async () => {
                  <div class="flex items-center justify-between text-xs mt-auto pt-2 border-t border-stone-800/50">
                    <span :class="getSafetyStyle(map.danger_level).class">{{ getSafetyStyle(map.danger_level).name }}</span>
                    <span class="text-stone-400 group-hover:text-amber-400 flex items-center gap-1">
-                     <span v-if="currentMap?.type !== map.type">
-                       {{ calculateMoveCost(map).cost }}灵力 · {{ formatTime(calculateMoveCost(map).time) }}
-                     </span>
-                     <span v-else>
-                       {{ calculateMoveCost(map).cost }}灵力 · {{ formatTime(calculateMoveCost(map).time) }}
-                     </span>
+                     {{ map.move_cost || 0 }}灵力 · {{ formatTime(map.move_time || 0) }}
                      <svg v-if="moving" class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"/><path class="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"/></svg>
                      <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform group-hover:translate-x-1 transition-transform"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                    </span>

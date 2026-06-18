@@ -15,17 +15,20 @@ const auth = require('../middleware/auth');
 router.get('/resources', auth, async (req, res) => {
     try {
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: 'Player not found' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         const resources = await GatheringService.getMapResources(player.id, player.current_map_id);
 
         res.json({
-            map_id: player.current_map_id,
-            resources: resources
+            code: 200,
+            data: {
+                map_id: player.current_map_id,
+                resources: resources
+            }
         });
     } catch (error) {
         console.error('Get Resources Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -37,7 +40,7 @@ router.post('/collect', auth, async (req, res) => {
         const { resource_id, resourceId } = req.body;
         const resourceIdToUse = resource_id || resourceId;
         if (!resourceIdToUse) {
-            return res.status(400).json({ error: '资源ID不能为空' });
+            return res.status(400).json({ code: 400, message: '资源ID不能为空' });
         }
 
         const result = await GatheringService.collect(req.user.id, resourceIdToUse);
@@ -49,7 +52,7 @@ router.post('/collect', auth, async (req, res) => {
     } catch (error) {
         console.error('Collect Error:', error);
         const status = error.message.includes('不足') || error.message.includes('冷却') ? 400 : 500;
-        res.status(status).json({ error: error.message || 'Server error' });
+        res.status(status).json({ code: status, message: error.message || '服务器错误' });
     }
 });
 
@@ -66,7 +69,7 @@ router.get('/stats', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Get Stats Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -78,7 +81,7 @@ router.post('/batch-collect', auth, async (req, res) => {
         const { resourceId, count } = req.body;
         
         if (!resourceId) {
-            return res.status(400).json({ error: '资源ID不能为空' });
+            return res.status(400).json({ code: 400, message: '资源ID不能为空' });
         }
 
         const maxCount = Math.min(count || 1, 10);
@@ -117,7 +120,7 @@ router.post('/batch-collect', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Batch Collect Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 

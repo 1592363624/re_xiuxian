@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import axios from 'axios'
+import apiClient from '../../api'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 
@@ -28,31 +28,22 @@ const mapTypeMap = {
   world: { name: '界域', class: 'text-rose-400', bg: 'bg-rose-900/20', border: 'border-rose-700/50' }
 }
 
-const realmOrder = [
-  '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
-  '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
-  '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
-  '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
-  '元婴期', '元婴初期', '元婴中期', '元婴后期', '元婴圆满',
-  '化神期', '炼虚期', '合体期', '大乘期', '渡劫期', '真仙'
-]
-
 const fetchData = async () => {
   loading.value = true
   try {
     const [configRes, infoRes] = await Promise.all([
-      axios.get('/api/map/config'),
-      axios.get('/api/map/info')
+      apiClient.get('/map/config'),
+      apiClient.get('/map/info')
     ])
     
-    allMaps.value = configRes.data.maps
-    currentMapId.value = infoRes.data.current_map?.id
+    allMaps.value = configRes.data.data.maps
+    currentMapId.value = infoRes.data.data.current_map?.id
     playerRealm.value = playerStore.player?.realm || '凡人'
     playerSpeed.value = playerStore.player?.attributes?.speed || 10
     
     // 从后端获取所有地图的移动消耗
     const moveCostPromises = allMaps.value.map(map => 
-      axios.post('/api/map/calculate-move-cost', { targetMapId: map.id })
+      apiClient.post('/map/calculate-move-cost', { targetMapId: map.id })
         .then(res => ({ id: map.id, cost: res.data.data }))
         .catch(() => ({ id: map.id, cost: null }))
     )
@@ -67,16 +58,6 @@ const fetchData = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const getRealmRank = (realmName) => {
-  return realmOrder.indexOf(realmName)
-}
-
-const canEnter = (map) => {
-  const playerRank = getRealmRank(playerRealm.value)
-  const requiredRank = getRealmRank(map.required_realm || '凡人')
-  return playerRank >= requiredRank
 }
 
 const getMoveCost = (targetMap) => {
@@ -114,10 +95,10 @@ const filteredMaps = computed(() => {
     if (map.id === currentMapId.value) return false
     if (filterType.value !== 'all' && map.type !== filterType.value) return false
     if (filterRealm.value !== 'all') {
-      const requiredRank = getRealmRank(map.requiredRealm || '凡人')
-      if (filterRealm.value === 'low' && requiredRank > 10) return false
-      if (filterRealm.value === 'mid' && (requiredRank <= 10 || requiredRank > 25)) return false
-      if (filterRealm.value === 'high' && requiredRank <= 25) return false
+      // 使用后端返回的 can_enter 字段进行筛选
+      if (filterRealm.value === 'low' && !map.can_enter) return false
+      if (filterRealm.value === 'mid' && map.can_enter) return false
+      if (filterRealm.value === 'high' && map.can_enter) return false
     }
     if (searchKeyword.value && !map.name.includes(searchKeyword.value) && !map.description.includes(searchKeyword.value)) {
       return false
@@ -126,14 +107,12 @@ const filteredMaps = computed(() => {
   })
 })
 
+// 使用后端返回的 can_enter 字段
 const getEnterStatus = (map) => {
-  const playerRank = getRealmRank(playerRealm.value)
-  const requiredRank = getRealmRank(map.requiredRealm || '凡人')
-  const diff = requiredRank - playerRank
-  
-  if (diff <= 0) return { canEnter: true, reason: null }
-  if (diff <= 5) return { canEnter: false, reason: `需提升 ${diff} 个境界` }
-  return { canEnter: false, reason: null }
+  return {
+    canEnter: map.can_enter,
+    reason: map.can_enter ? null : '境界不足'
+  }
 }
 
 const handleMove = async (targetMap) => {
@@ -149,7 +128,7 @@ const handleMove = async (targetMap) => {
   moving.value = true
   try {
     const currentMap = allMaps.value.find(m => m.id === currentMapId.value)
-    const res = await axios.post('/api/map/start-move', { targetMapId: targetMap.id })
+    const res = await apiClient.post('/map/start-move', { targetMapId: targetMap.id })
     
     const moveData = res.data.data
     playerStore.setMovingState({
@@ -197,13 +176,12 @@ const getSafetyStyle = (level) => {
 }
 
 const getAccessibilityStatus = (map) => {
-  const requiredRank = getRealmRank(map.required_realm || '凡人')
-  const playerRank = getRealmRank(playerRealm.value)
-  const diff = requiredRank - playerRank
-  
-  if (diff <= 0) return { visible: true, disabled: false, reason: null }
-  if (diff <= 5) return { visible: true, disabled: true, reason: `需提升 ${diff} 个境界` }
-  return { visible: false, disabled: true, reason: null }
+  // 使用后端返回的 can_enter 字段
+  if (map.can_enter) {
+    return { visible: true, disabled: false, reason: null }
+  } else {
+    return { visible: true, disabled: true, reason: '境界不足' }
+  }
 }
 
 onMounted(() => {

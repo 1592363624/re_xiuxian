@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import apiClient from '../../api'
 import { changelog, currentVersion } from '../../data/changelog'
 
 const props = defineProps({
@@ -29,7 +29,7 @@ const fallbackLog = ref(null)
 const fetchChangelog = async () => {
   isLoading.value = true
   try {
-    const res = await axios.get('/api/system/changelog')
+    const res = await apiClient.get('/system/changelog')
     const commits = res.data
     
     if (Array.isArray(commits) && commits.length > 0) {

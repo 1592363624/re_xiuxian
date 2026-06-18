@@ -29,14 +29,19 @@ async function testAuth() {
     console.log(`测试用户: ${player.username}, DB Version: ${player.token_version}`);
 
     // 2. 生成一个没有 'v' 字段的旧 Token (模拟旧版本 Token 或攻击者构造的 Token)
+    // 注意：测试脚本必须使用环境变量中的 JWT_SECRET，不使用硬编码备用密钥
+    if (!process.env.JWT_SECRET) {
+        console.error('错误：未配置 JWT_SECRET 环境变量，测试脚本无法生成有效 Token');
+        process.exit(1);
+    }
     const oldToken = jwt.sign(
         { id: player.id, username: player.username }, // 没有 v
-        process.env.JWT_SECRET || 'xiuxian_secret_key',
+        process.env.JWT_SECRET,
         { expiresIn: '1h' }
     );
 
     // 3. 模拟中间件校验逻辑
-    const decoded = jwt.verify(oldToken, process.env.JWT_SECRET || 'xiuxian_secret_key');
+    const decoded = jwt.verify(oldToken, process.env.JWT_SECRET);
     console.log('Decoded Token:', decoded);
 
     const dbVersion = player.token_version || 0;

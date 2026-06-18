@@ -26,7 +26,7 @@ router.get('/', authenticateToken, async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('获取通知列表失败:', error);
-        res.status(500).json({ error: '获取通知列表失败' });
+        res.status(500).json({ code: 500, message: '获取通知列表失败' });
     }
 });
 
@@ -41,7 +41,7 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
         res.json({ count });
     } catch (error) {
         console.error('获取未读数量失败:', error);
-        res.status(500).json({ error: '获取未读数量失败' });
+        res.status(500).json({ code: 500, message: '获取未读数量失败' });
     }
 });
 
@@ -56,7 +56,7 @@ router.get('/global', authenticateToken, async (req, res) => {
         res.json({ notifications });
     } catch (error) {
         console.error('获取全服通知失败:', error);
-        res.status(500).json({ error: '获取全服通知失败' });
+        res.status(500).json({ code: 500, message: '获取全服通知失败' });
     }
 });
 
@@ -73,7 +73,7 @@ router.post('/:id/read', authenticateToken, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('标记已读失败:', error);
-        res.status(500).json({ error: '标记已读失败' });
+        res.status(500).json({ code: 500, message: '标记已读失败' });
     }
 });
 
@@ -88,7 +88,7 @@ router.post('/read-all', authenticateToken, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('标记全部已读失败:', error);
-        res.status(500).json({ error: '标记全部已读失败' });
+        res.status(500).json({ code: 500, message: '标记全部已读失败' });
     }
 });
 
@@ -98,21 +98,21 @@ router.post('/read-all', authenticateToken, async (req, res) => {
  */
 router.post('/announcement', authenticateToken, async (req, res) => {
     try {
-        if (!req.player || req.player.role !== 'admin') {
-            return res.status(403).json({ error: '权限不足' });
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ code: 403, message: '权限不足' });
         }
 
         const { title, content, priority } = req.body;
         
         if (!title || !content) {
-            return res.status(400).json({ error: '标题和内容不能为空' });
+            return res.status(400).json({ code: 400, message: '标题和内容不能为空' });
         }
 
         await NotificationService.sendAnnouncement(title, content, priority || 'high');
-        res.json({ success: true, message: '公告已发送' });
+        res.json({ code: 200, message: '公告已发送' });
     } catch (error) {
         console.error('发送公告失败:', error);
-        res.status(500).json({ error: '发送公告失败' });
+        res.status(500).json({ code: 500, message: '发送公告失败' });
     }
 });
 
@@ -122,21 +122,21 @@ router.post('/announcement', authenticateToken, async (req, res) => {
  */
 router.post('/event', authenticateToken, async (req, res) => {
     try {
-        if (!req.player || req.player.role !== 'admin') {
-            return res.status(403).json({ error: '权限不足' });
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ code: 403, message: '权限不足' });
         }
 
         const { eventName, content, priority } = req.body;
         
         if (!eventName || !content) {
-            return res.status(400).json({ error: '事件名称和内容不能为空' });
+            return res.status(400).json({ code: 400, message: '事件名称和内容不能为空' });
         }
 
         await NotificationService.sendEventNotification(eventName, content, priority || 'high');
-        res.json({ success: true, message: '事件通知已发送' });
+        res.json({ code: 200, message: '事件通知已发送' });
     } catch (error) {
         console.error('发送事件通知失败:', error);
-        res.status(500).json({ error: '发送事件通知失败' });
+        res.status(500).json({ code: 500, message: '发送事件通知失败' });
     }
 });
 
@@ -146,20 +146,20 @@ router.post('/event', authenticateToken, async (req, res) => {
  */
 router.post('/test/breakthrough', authenticateToken, async (req, res) => {
     try {
-        if (!req.player || req.player.role !== 'admin') {
-            return res.status(403).json({ error: '权限不足' });
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ code: 403, message: '权限不足' });
         }
 
         const { nickname, oldRealm, newRealm } = req.body;
         await NotificationService.sendBreakthroughNotification(
-            { id: req.player.id, nickname: nickname || req.player.nickname || '测试玩家' },
+            { id: req.user.id, nickname: nickname || req.user.nickname || '测试玩家' },
             oldRealm || '炼气期',
             newRealm || '筑基期'
         );
-        res.json({ success: true, message: '突破通知已发送' });
+        res.json({ code: 200, message: '突破通知已发送' });
     } catch (error) {
         console.error('发送测试突破通知失败:', error);
-        res.status(500).json({ error: '发送测试通知失败' });
+        res.status(500).json({ code: 500, message: '发送测试通知失败' });
     }
 });
 
@@ -169,19 +169,19 @@ router.post('/test/breakthrough', authenticateToken, async (req, res) => {
  */
 router.post('/test/death', authenticateToken, async (req, res) => {
     try {
-        if (!req.player || req.player.role !== 'admin') {
-            return res.status(403).json({ error: '权限不足' });
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ code: 403, message: '权限不足' });
         }
 
         const { nickname, reason } = req.body;
         await NotificationService.sendDeathNotification(
-            { id: req.player.id, nickname: nickname || req.player.nickname || '测试玩家' },
+            { id: req.user.id, nickname: nickname || req.user.nickname || '测试玩家' },
             reason || '寿元耗尽'
         );
-        res.json({ success: true, message: '死亡通知已发送' });
+        res.json({ code: 200, message: '死亡通知已发送' });
     } catch (error) {
         console.error('发送测试死亡通知失败:', error);
-        res.status(500).json({ error: '发送测试通知失败' });
+        res.status(500).json({ code: 500, message: '发送测试通知失败' });
     }
 });
 

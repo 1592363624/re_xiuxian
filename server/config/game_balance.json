@@ -22,5 +22,32 @@
     "damage_random_range": 15,
     "damage_random_offset": 7,
     "skill_damage_multiplier": 1.5
+  },
+  "map": {
+    "travel": {
+      "base_cost": 10,
+      "base_time": 60,
+      "distance_divisor": 10,
+      "danger_level_multiplier": 2,
+      "travel_time_divisor": 2,
+      "speed_divisor": 10,
+      "terrain_multiplier": 10
+    },
+    "type_multiplier": {
+      "country": 1,
+      "sect": 1,
+      "mountain": 1.5,
+      "ocean": 2,
+      "talent": 3,
+      "world": 5
+    },
+    "terrain_factor": {
+      "plains": 1,
+      "mountain": 1.5,
+      "ocean": 2,
+      "cave": 1.8,
+      "mixed": 1.2,
+      "celestial": 1
+    }
   }
 }

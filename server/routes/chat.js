@@ -7,18 +7,32 @@ const authenticateToken = require('../middleware/auth');
  * 获取聊天历史记录
  * GET /api/chat/history
  */
-router.get('/history', async (req, res) => {
+router.get('/history', authenticateToken, async (req, res) => {
     try {
         const messages = await Chat.findAll({
             limit: 50,
             order: [['createdAt', 'DESC']]
         });
         // 倒序返回，方便前端展示
-        res.json(messages.reverse());
+        res.json({ code: 200, data: messages.reverse() });
     } catch (error) {
-        res.status(500).json({ message: '获取聊天记录失败', error: error.message });
+        res.status(500).json({ code: 500, message: '获取聊天记录失败', error: error.message });
     }
 });
+
+/**
+ * 简单 XSS 过滤：转义 HTML 标签，防止存储型 XSS
+ * @param {string} str - 原始字符串
+ * @returns {string} 过滤后的安全字符串
+ */
+function sanitizeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
 
 /**
  * 发送消息
@@ -28,12 +42,15 @@ router.post('/send', authenticateToken, async (req, res) => {
     try {
         const { content } = req.body;
         if (!content || !content.trim()) {
-            return res.status(400).json({ message: '消息内容不能为空' });
+            return res.status(400).json({ code: 400, message: '消息内容不能为空' });
         }
+
+        // XSS 过滤：转义 HTML 标签
+        const safeContent = sanitizeHtml(content.trim());
 
         const message = await Chat.create({
             sender: req.player.nickname || req.player.username,
-            content: content.trim(),
+            content: safeContent,
             type: 'player'
         });
 
@@ -49,9 +66,9 @@ router.post('/send', authenticateToken, async (req, res) => {
             });
         }
 
-        res.status(201).json(message);
+        res.status(201).json({ code: 201, data: message });
     } catch (error) {
-        res.status(500).json({ message: '发送消息失败', error: error.message });
+        res.status(500).json({ code: 500, message: '发送消息失败', error: error.message });
     }
 });
 
@@ -79,9 +96,9 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
             count = 0;
         }
         
-        res.json({ count });
+        res.json({ code: 200, count });
     } catch (error) {
-        res.status(500).json({ message: '获取未读消息数量失败', error: error.message });
+        res.status(500).json({ code: 500, message: '获取未读消息数量失败', error: error.message });
     }
 });
 
@@ -93,9 +110,9 @@ router.post('/mark-read', authenticateToken, async (req, res) => {
     try {
         const lastReadTime = new Date();
         
-        res.json({ success: true, lastReadTime: lastReadTime.toISOString() });
+        res.json({ code: 200, success: true, lastReadTime: lastReadTime.toISOString() });
     } catch (error) {
-        res.status(500).json({ message: '标记已读失败', error: error.message });
+        res.status(500).json({ code: 500, message: '标记已读失败', error: error.message });
     }
 });
 

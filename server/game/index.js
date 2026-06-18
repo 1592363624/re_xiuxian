@@ -25,6 +25,9 @@ const WebSocketNotificationService = require('./services/WebSocketNotificationSe
 const AdventureEventService = require('./services/AdventureEventService');
 const AIService = require('./services/AIService');
 
+// 基础设施模块（从 modules 重新导出）
+const { infrastructure } = require('../modules');
+
 /**
  * 初始化所有游戏核心服务
  * @param {Object} configLoader - 配置加载器实例
@@ -64,6 +67,9 @@ module.exports = {
     WebSocketNotificationService,
     AdventureEventService,
     AIService,
+    
+    // 基础设施
+    ConfigLoader: infrastructure?.ConfigLoader,
     
     // 初始化函数
     initializeGameServices

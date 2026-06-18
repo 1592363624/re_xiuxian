@@ -10,13 +10,15 @@ const Player = require('../../models/player');
 const Item = require('../../models/item');
 const MapConfigLoader = require('./MapConfigLoader');
 const DropLoader = require('./DropLoader');
-const fs = require('fs');
-const path = require('path');
+const { infrastructure } = require('../../modules');
 
-// 加载游戏平衡配置
-const gameBalanceConfig = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '../../config/game_balance.json'), 'utf8')
-);
+// 通过 ConfigLoader 获取配置（支持热更新）
+const configLoader = infrastructure.ConfigLoader;
+
+// 懒加载配置，避免模块加载时配置未初始化的问题
+function getGameBalanceConfig() {
+    return configLoader.getConfig('game_balance') || {};
+}
 
 class CombatService {
     /**
@@ -162,11 +164,11 @@ class CombatService {
         const playerSpd = playerStats.speed || 10;
         const monsterDef = battle.monster_data?.def || 5;
 
-        let damage = Math.max(1, playerAtk - monsterDef + Math.floor(Math.random() * gameBalanceConfig.combat.damage_random_range) - gameBalanceConfig.combat.damage_random_offset);
+        let damage = Math.max(1, playerAtk - monsterDef + Math.floor(Math.random() * getGameBalanceConfig().combat.damage_random_range) - getGameBalanceConfig().combat.damage_random_offset);
         
-        if (action === 'skill' && player.mp_current >= gameBalanceConfig.combat.skill_mp_cost) {
-            damage = Math.floor(damage * gameBalanceConfig.combat.skill_damage_multiplier);
-            battle.player_mp = BigInt(battle.player_mp) - BigInt(gameBalanceConfig.combat.skill_mp_cost);
+        if (action === 'skill' && player.mp_current >= getGameBalanceConfig().combat.skill_mp_cost) {
+            damage = Math.floor(damage * getGameBalanceConfig().combat.skill_damage_multiplier);
+            battle.player_mp = BigInt(battle.player_mp) - BigInt(getGameBalanceConfig().combat.skill_mp_cost);
         }
 
         battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
@@ -270,7 +272,7 @@ class CombatService {
             throw new Error('没有正在进行的战斗');
         }
 
-        const escapeChance = gameBalanceConfig.combat.escape_chance;
+        const escapeChance = getGameBalanceConfig().combat.escape_chance;
         const success = Math.random() < escapeChance;
 
         if (success) {
@@ -363,12 +365,12 @@ class CombatService {
 
         if (battle.player_hp <= 0n) {
             const currentExp = BigInt(player.exp);
-            const penaltyExp = currentExp * BigInt(Math.round(gameBalanceConfig.combat.death_exp_penalty_rate * 100)) / 100n;
+            const penaltyExp = currentExp * BigInt(Math.round(getGameBalanceConfig().combat.death_exp_penalty_rate * 100)) / 100n;
             player.exp = currentExp - penaltyExp;
             // hp_max 存储在 attributes JSON 字段中，需要从中读取
             const playerStats = player.attributes || {};
             const playerHpMax = Number(playerStats.hp_max) || 100;
-            player.hp_current = BigInt(Math.max(gameBalanceConfig.combat.death_min_hp, Math.floor(playerHpMax * gameBalanceConfig.combat.death_hp_recovery_rate)));
+            player.hp_current = BigInt(Math.max(getGameBalanceConfig().combat.death_min_hp, Math.floor(playerHpMax * getGameBalanceConfig().combat.death_hp_recovery_rate)));
             await player.save();
 
             const logEntry = {
@@ -503,8 +505,8 @@ class CombatService {
         }
 
         const player = await Player.findByPk(playerId);
-        if (player.mp_current < gameBalanceConfig.combat.skill_mp_cost) {
-            throw new Error(`灵力不足，需要 ${gameBalanceConfig.combat.skill_mp_cost} 点灵力`);
+        if (player.mp_current < getGameBalanceConfig().combat.skill_mp_cost) {
+            throw new Error(`灵力不足，需要 ${getGameBalanceConfig().combat.skill_mp_cost} 点灵力`);
         }
 
         const playerStats = player.attributes || {};
@@ -512,10 +514,10 @@ class CombatService {
         const playerDef = playerStats.def || 5;
         const monsterDef = battle.monster_data?.def || 5;
 
-        let damage = Math.floor(playerAtk * gameBalanceConfig.combat.skill_damage_multiplier - monsterDef + Math.floor(Math.random() * 15) - 7);
+        let damage = Math.floor(playerAtk * getGameBalanceConfig().combat.skill_damage_multiplier - monsterDef + Math.floor(Math.random() * 15) - 7);
         damage = Math.max(1, damage);
 
-        battle.player_mp = BigInt(battle.player_mp) - BigInt(gameBalanceConfig.combat.skill_mp_cost);
+        battle.player_mp = BigInt(battle.player_mp) - BigInt(getGameBalanceConfig().combat.skill_mp_cost);
         battle.monster_hp = BigInt(battle.monster_hp) - BigInt(damage);
         battle.damage_dealt = BigInt(battle.damage_dealt) + BigInt(damage);
 
@@ -545,7 +547,7 @@ class CombatService {
             battle_id: battle.battle_uuid,
             action: 'skill',
             damage: damage,
-            mp_used: gameBalanceConfig.combat.skill_mp_cost,
+            mp_used: getGameBalanceConfig().combat.skill_mp_cost,
             monster_hp: battle.monster_hp.toString(),
             player_mp: battle.player_mp.toString(),
             turn: 'monster',
@@ -580,6 +582,79 @@ class CombatService {
                 exp: b.rewards_exp.toString(),
                 time: b.created_at
             }))
+        };
+    }
+
+    /**
+     * 使用物品（战斗中使用）
+     * @param {number} playerId - 玩家ID
+     * @param {string} itemId - 物品ID
+     * @param {number} quantity - 使用数量，默认为1
+     * @returns {object} 使用结果
+     */
+    static async useItem(playerId, itemId, quantity = 1) {
+        if (!itemId) {
+            throw new Error('物品ID不能为空');
+        }
+
+        // 查询玩家和物品
+        const player = await Player.findByPk(playerId);
+        if (!player) {
+            throw new Error('玩家不存在');
+        }
+
+        const item = await Item.findOne({
+            where: { player_id: playerId, item_key: itemId }
+        });
+
+        if (!item || item.quantity < quantity) {
+            throw new Error('物品数量不足');
+        }
+
+        // 获取物品配置
+        const ItemConfigLoader = require('../../config/ItemConfigLoader');
+        const itemConfig = await ItemConfigLoader.getItem(itemId);
+        if (!itemConfig || itemConfig.type !== 'consumable') {
+            throw new Error('该物品不可使用');
+        }
+
+        // 应用物品效果
+        const effect = itemConfig.effect || {};
+        let message = '使用物品成功';
+
+        if (effect.hp_restore) {
+            const restoreAmount = Math.min(
+                effect.hp_restore * quantity,
+                Number(player.attributes?.hp_max || 100) - Number(player.hp_current)
+            );
+            player.hp_current = BigInt(Number(player.hp_current) + restoreAmount);
+            message += `，恢复 ${restoreAmount} 气血`;
+        }
+
+        if (effect.mp_restore) {
+            const restoreAmount = Math.min(
+                effect.mp_restore * quantity,
+                Number(player.attributes?.mp_max || 0) - Number(player.mp_current)
+            );
+            player.mp_current = BigInt(Number(player.mp_current) + restoreAmount);
+            message += `，恢复 ${restoreAmount} 灵力`;
+        }
+
+        // 更新物品数量
+        item.quantity -= quantity;
+        if (item.quantity <= 0) {
+            await item.destroy();
+        } else {
+            await item.save();
+        }
+
+        // 保存玩家属性
+        await player.save();
+
+        return {
+            message: message,
+            player_hp: player.hp_current.toString(),
+            player_mp: player.mp_current.toString()
         };
     }
 }

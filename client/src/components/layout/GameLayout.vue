@@ -185,9 +185,10 @@ let statsInterval: any = null;
 const fetchStats = async () => {
   try {
     const res = await getStats();
-    if (res.data) {
-      onlineCount.value = res.data.online;
-      totalPlayers.value = res.data.total;
+    const body = res.data;
+    if (body && body.data) {
+      onlineCount.value = body.data.online ?? 0;
+      totalPlayers.value = body.data.total ?? 0;
     }
   } catch (error) {
     console.error('获取统计失败:', error);
@@ -210,7 +211,7 @@ const handleAction = async (actionId: string) => {
         actorId: 'self'
       });
     } catch (error: any) {
-      const msg = error.response?.data?.error || '无法开始闭关';
+      const msg = error.response?.data?.message || error.response?.data?.error || '无法开始闭关';
       uiStore.showToast(msg, 'error');
     }
     return;

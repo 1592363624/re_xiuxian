@@ -81,8 +81,9 @@ let timer = null
 const fetchConfig = async () => {
   try {
     const res = await getSeclusionStatus()
-    if (res.data && res.data.cultivate_interval) {
-      seclusionCooldown.value = res.data.cultivate_interval
+    const data = res.data.data || res.data
+    if (data && data.cultivate_interval) {
+      seclusionCooldown.value = data.cultivate_interval
     }
   } catch (err) {
     console.error('获取系统配置失败:', err)

@@ -22,7 +22,7 @@ router.post('/encounter', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Encounter Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -41,7 +41,7 @@ router.post('/attack', auth, async (req, res) => {
     } catch (error) {
         console.error('Attack Error:', error);
         const status = error.message.includes('还未轮到') ? 400 : 500;
-        res.status(status).json({ error: error.message || 'Server error' });
+        res.status(status).json({ code: status, message: error.message || '服务器错误' });
     }
 });
 
@@ -65,7 +65,7 @@ router.post('/monster-turn', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Monster Turn Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -82,7 +82,7 @@ router.post('/flee', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Flee Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -100,7 +100,7 @@ router.get('/status', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Get Status Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -119,7 +119,7 @@ router.get('/history', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Get History Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -130,63 +130,18 @@ router.post('/use-item', auth, async (req, res) => {
     try {
         const { itemId, quantity } = req.body;
         
-        if (!itemId) {
-            return res.status(400).json({ error: '物品ID不能为空' });
-        }
-
-        const player = await require('../models/player').findByPk(req.user.id);
-        const item = await require('../models/item').findOne({
-            where: { player_id: req.user.id, item_key: itemId }
-        });
-
-        if (!item || item.quantity < (quantity || 1)) {
-            return res.status(400).json({ error: '物品数量不足' });
-        }
-
-        const itemConfig = await require('../game/config/ItemConfigLoader').getItem(itemId);
-        if (!itemConfig || itemConfig.type !== 'consumable') {
-            return res.status(400).json({ error: '该物品不可使用' });
-        }
-
-        const effect = itemConfig.effect || {};
-        let message = '使用物品成功';
-
-        if (effect.hp_restore) {
-            const restoreAmount = Math.min(
-                effect.hp_restore * (quantity || 1),
-                Number(player.attributes?.hp_max || 100) - Number(player.hp_current)
-            );
-            player.hp_current = BigInt(Number(player.hp_current) + restoreAmount);
-            message += `，恢复 ${restoreAmount} 气血`;
-        }
-
-        if (effect.mp_restore) {
-            const restoreAmount = Math.min(
-                effect.mp_restore * (quantity || 1),
-                Number(player.attributes?.mp_max || 0) - Number(player.mp_current)
-            );
-            player.mp_current = BigInt(Number(player.mp_current) + restoreAmount);
-            message += `，恢复 ${restoreAmount} 灵力`;
-        }
-
-        item.quantity -= (quantity || 1);
-        if (item.quantity <= 0) {
-            await item.destroy();
-        } else {
-            await item.save();
-        }
-
-        await player.save();
-
+        // 调用 Service 层方法
+        const result = await game.CombatService.useItem(req.user.id, itemId, quantity || 1);
+        
         res.json({
             code: 200,
-            message: message,
-            player_hp: player.hp_current.toString(),
-            player_mp: player.mp_current.toString()
+            message: result.message,
+            player_hp: result.player_hp,
+            player_mp: result.player_mp
         });
     } catch (error) {
         console.error('Use Item Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(400).json({ code: 400, message: error.message || '服务器错误' });
     }
 });
 
@@ -220,15 +175,18 @@ function _getMonsterDifficulty(monsterRealm, playerRealm) {
 router.get('/monsters', auth, async (req, res) => {
     try {
         const player = await require('../models/player').findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: 'Player not found' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         const MapConfigLoader = require('../game/services/MapConfigLoader');
         const mapConfig = MapConfigLoader.getMap(player.current_map_id);
         
         if (!mapConfig || !mapConfig.monsters) {
             return res.json({
-                map_id: player.current_map_id,
-                monsters: []
+                code: 200,
+                data: {
+                    map_id: player.current_map_id,
+                    monsters: []
+                }
             });
         }
 
@@ -252,13 +210,16 @@ router.get('/monsters', auth, async (req, res) => {
         }));
 
         res.json({
-            map_id: player.current_map_id,
-            monsters: monsters,
-            skill_mp_cost: skillMpCost
+            code: 200,
+            data: {
+                map_id: player.current_map_id,
+                monsters: monsters,
+                skill_mp_cost: skillMpCost
+            }
         });
     } catch (error) {
         console.error('Get Monsters Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -278,7 +239,7 @@ router.post('/skill', auth, async (req, res) => {
         console.error('Use Skill Error:', error);
         const status = error.message.includes('灵力不足') ? 400 : 
                       error.message.includes('技能') ? 400 : 500;
-        res.status(status).json({ error: error.message || 'Server error' });
+        res.status(status).json({ code: status, message: error.message || '服务器错误' });
     }
 });
 
@@ -295,7 +256,7 @@ router.post('/escape', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Escape Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 
@@ -312,7 +273,7 @@ router.get('/stats', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Get Combat Stats Error:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
     }
 });
 

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
-import axios from 'axios'
+import apiClient from '../api'
 import { usePlayerStore } from '../stores/player'
 import { useUIStore } from '../stores/ui'
 
@@ -47,7 +47,7 @@ const checkUnique = async (type, value) => {
   checking.value[type] = true
   
   try {
-    const res = await axios.get(`/api/auth/check-unique?type=${type}&value=${value}`)
+    const res = await apiClient.get(`/auth/check-unique?type=${type}&value=${value}`)
     if (!res.data.available) {
       if (type === 'username') usernameError.value = res.data.message
       if (type === 'nickname') nicknameError.value = res.data.message
@@ -111,7 +111,7 @@ const handleSubmit = async () => {
   try {
     if (isLogin.value) {
       // 登录
-      const res = await axios.post('/api/auth/login', {
+      const res = await apiClient.post('/auth/login', {
         username: form.value.username,
         password: form.value.password
       })
@@ -124,11 +124,14 @@ const handleSubmit = async () => {
       // 获取完整玩家数据
       await playerStore.fetchPlayer()
       
+      // 同步最新的闭关状态，避免 localStorage 缓存的旧状态
+      await playerStore.fetchSeclusionStatus()
+      
       // 触发登录成功事件，传递 true 表示成功，不需要传 player 对象，避免传旧数据
       emit('login-success', true)
     } else {
       // 注册
-      await axios.post('/api/auth/register', form.value)
+      await apiClient.post('/auth/register', form.value)
       isLogin.value = true
       uiStore.addToast('注册成功，请登录', 'success')
       form.value = { username: '', password: '', nickname: '' }

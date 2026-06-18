@@ -46,7 +46,8 @@ class ConfigLoader extends EventEmitter {
             'seclusion',      // 闭关修炼配置
             'system',         // 系统全局配置
             'talents',        // 天赋配置
-            'titles'          // 称号配置
+            'titles',         // 称号配置
+            'game_balance'    // 游戏平衡配置
         ];
         const results = {};
 

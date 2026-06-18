@@ -110,7 +110,7 @@ const onMouseUp = () => {
 const fetchMessages = async () => {
   try {
     const res = await getChatHistory()
-    messages.value = res.data.map(msg => ({
+    messages.value = (res.data.data || []).map(msg => ({
       id: msg.id,
       sender: msg.sender,
       content: msg.content,

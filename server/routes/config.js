@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const game = require('../game');
 const auth = require('../middleware/auth');
+const { infrastructure } = require('../modules');
 
 // 管理员权限中间件
 const adminCheck = (req, res, next) => {

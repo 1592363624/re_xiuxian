@@ -10,6 +10,7 @@ const authenticateToken = require('../middleware/auth');
 
 const { Op } = require('sequelize');
 const axios = require('axios');
+const configLoader = require('../modules/infrastructure/ConfigLoader');
 
 // 缓存
 let changelogCache = null;
@@ -24,7 +25,18 @@ router.get('/changelog', async (req, res) => {
             return res.json(changelogCache);
         }
 
-        const response = await axios.get('https://api.github.com/repos/1592363624/re_xiuxian/commits', {
+        // 从配置文件读取GitHub URL
+        let githubUrl = 'https://api.github.com/repos/1592363624/re_xiuxian/commits';
+        try {
+            const systemConfig = configLoader.getConfig('system_config');
+            if (systemConfig && systemConfig.github_api_url) {
+                githubUrl = systemConfig.github_api_url;
+            }
+        } catch (e) {
+            // 配置加载失败使用默认值
+        }
+
+        const response = await axios.get(githubUrl, {
             params: { per_page: 30 },
             headers: { 'User-Agent': 're_xiuxian-game' }
         });
@@ -41,14 +53,20 @@ router.get('/changelog', async (req, res) => {
         changelogCache = commits;
         lastCacheTime = now;
 
-        res.json(commits);
+        res.json({
+            code: 200,
+            data: commits
+        });
     } catch (error) {
         console.error('获取GitHub提交记录失败:', error.message);
         // 如果有缓存，即使过期也返回
         if (changelogCache) {
-            return res.json(changelogCache);
+            return res.json({
+                code: 200,
+                data: changelogCache
+            });
         }
-        res.status(500).json({ error: '获取更新日志失败' });
+        res.status(500).json({ code: 500, message: '获取更新日志失败' });
     }
 });
 
@@ -76,13 +94,16 @@ router.get('/stats', async (req, res) => {
         }
 
         res.json({
-            online: Math.max(1, onlinePlayers),
-            total: totalPlayers,
-            serverTime: new Date().toISOString()
+            code: 200,
+            data: {
+                online: Math.max(1, onlinePlayers),
+                total: totalPlayers,
+                serverTime: new Date().toISOString()
+            }
         });
     } catch (error) {
         console.error('获取统计信息失败:', error);
-        res.status(500).json({ error: '获取统计信息失败' });
+        res.status(500).json({ code: 500, message: '获取统计信息失败' });
     }
 });
 
@@ -106,10 +127,13 @@ router.get('/config', authenticateToken, async (req, res) => {
       }
     });
 
-    res.json(configMap);
+    res.json({
+        code: 200,
+        data: configMap
+    });
   } catch (error) {
     console.error('获取系统配置失败:', error);
-    res.status(500).json({ error: '获取系统配置失败' });
+    res.status(500).json({ code: 500, message: '获取系统配置失败' });
   }
 });
 

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
-import axios from 'axios'
+import apiClient from '../../api'
 
 const props = defineProps({
   player: {
@@ -91,13 +91,14 @@ const fetchStats = async (isInitial = false) => {
   if (isInitial) statsLoading.value = true
   
   try {
-    const res = await axios.get('/api/system/stats')
-    if (res.data) {
+    const res = await apiClient.get('/system/stats')
+    const body = res.data
+    if (body && body.data) {
       statsError.value = false
-      totalCount.value = res.data.total
+      totalCount.value = body.data.total ?? 0
       
-      if (res.data.online !== onlineCount.value) {
-        onlineCount.value = res.data.online
+      if (body.data.online !== onlineCount.value) {
+        onlineCount.value = body.data.online ?? 0
         animateCount(onlineCount.value)
       }
     }

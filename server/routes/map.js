@@ -16,17 +16,10 @@ const AdventureEventService = require('../game/services/AdventureEventService');
 const Realm = require('../models/realm');
 const auth = require('../middleware/auth');
 const { Op } = require('sequelize');
+const RealmService = require('../game/core/RealmService');
 
 const mapConfig = MapConfigLoader;
 let adventureService = null;
-
-/**
- * 获取境界等级
- */
-async function getRealmRank(realmName) {
-    const realm = await Realm.findOne({ where: { name: realmName } });
-    return realm ? realm.rank : 0;
-}
 
 /**
  * 获取当前地图信息
@@ -34,7 +27,7 @@ async function getRealmRank(realmName) {
 router.get('/info', auth, async (req, res) => {
     try {
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: 'Player not found' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         let playerMapPos = await PlayerMapPosition.findOne({
             where: { player_id: player.id }
@@ -63,13 +56,16 @@ router.get('/info', auth, async (req, res) => {
                 player.current_map_id = defaultMap.id;
                 await player.save();
                 return res.json({ 
-                    current_map: defaultMap, 
-                    player_data: null,
-                    connected_maps: [],
-                    is_moving: false
+                    code: 200,
+                    data: {
+                        current_map: defaultMap, 
+                        player_data: null,
+                        connected_maps: [],
+                        is_moving: false
+                    }
                 });
             }
-            return res.status(404).json({ error: 'Map not found' });
+            return res.status(404).json({ code: 404, message: '地图不存在' });
         }
 
         const connectedMaps = mapConfig.getConnectedMaps(mapId).map(m => {
@@ -101,15 +97,18 @@ router.get('/info', auth, async (req, res) => {
         };
 
         res.json({
-            current_map: responseData,
-            connected_maps: connectedMaps,
-            is_moving: player.is_moving || false,
-            // 返回玩家当前灵力，供前端展示判断
-            player_mp_current: player.mp_current?.toString() || '0'
+            code: 200,
+            data: {
+                current_map: responseData,
+                connected_maps: connectedMaps,
+                is_moving: player.is_moving || false,
+                // 返回玩家当前灵力，供前端展示判断
+                player_mp_current: player.mp_current?.toString() || '0'
+            }
         });
     } catch (error) {
         console.error('Map Info Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -117,26 +116,20 @@ router.get('/info', auth, async (req, res) => {
  * 计算移动到目标地图的消耗
  */
 function calculateTravelCost(targetMap, player, currentMap = null) {
-    const baseCost = 10;
-    const baseTime = 60;
+    // 从配置文件读取移动消耗相关配置
+    const configLoader = require('../modules/infrastructure/ConfigLoader');
+    const gameBalance = configLoader.getConfig('game_balance') || {};
+    const travelConfig = gameBalance.map?.travel || {};
+    const typeMultiplier = gameBalance.map?.type_multiplier || {};
+    const terrainFactor = gameBalance.map?.terrain_factor || {};
     
-    const typeMultiplier = {
-        'country': 1,
-        'sect': 1,
-        'mountain': 1.5,
-        'ocean': 2,
-        'talent': 3,
-        'world': 5
-    };
-    
-    const terrainFactor = {
-        'plains': 1,
-        'mountain': 1.5,
-        'ocean': 2,
-        'cave': 1.8,
-        'mixed': 1.2,
-        'celestial': 1
-    };
+    const baseCost = travelConfig.base_cost || 10;
+    const baseTime = travelConfig.base_time || 60;
+    const distanceDivisor = travelConfig.distance_divisor || 10;
+    const dangerLevelMultiplier = travelConfig.danger_level_multiplier || 2;
+    const travelTimeDivisor = travelConfig.travel_time_divisor || 2;
+    const speedDivisor = travelConfig.speed_divisor || 10;
+    const terrainMultiplier = travelConfig.terrain_multiplier || 10;
     
     const dangerLevel = targetMap.danger_level || 1;
     const travelTime = targetMap.travel_time || 5;
@@ -153,15 +146,15 @@ function calculateTravelCost(targetMap, player, currentMap = null) {
         );
         const terrainMod = terrainFactor[environment] || 1;
         const playerSpeed = player.attributes?.speed || 10;
-        time = Math.floor(baseTime + (distance * terrainMod * 10) / (playerSpeed / 10));
+        time = Math.floor(baseTime + (distance * terrainMod * terrainMultiplier) / (playerSpeed / speedDivisor));
     } else {
-        time = travelTime * 60;
+        time = travelTime * baseTime;
     }
     
     let cost = baseCost;
-    cost += Math.floor(distance / 10);
-    cost += dangerLevel * 2;
-    cost += travelTime / 2;
+    cost += Math.floor(distance / distanceDivisor);
+    cost += dangerLevel * dangerLevelMultiplier;
+    cost += travelTime / travelTimeDivisor;
     cost *= typeMultiplier[type] || 1;
     
     return {
@@ -177,17 +170,17 @@ function calculateTravelCost(targetMap, player, currentMap = null) {
 router.post('/calculate-move-cost', auth, async (req, res) => {
     try {
         const { targetMapId } = req.body;
-        if (!targetMapId) return res.status(400).json({ error: '目标地图ID不能为空' });
+        if (!targetMapId) return res.status(400).json({ code: 400, message: '目标地图ID不能为空' });
 
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: '玩家不存在' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         const currentMapId = player.current_map_id;
         const currentMapConfig = mapConfig.getMap(currentMapId);
         const targetMapConfig = mapConfig.getMap(targetMapId);
 
         if (!currentMapConfig || !targetMapConfig) {
-            return res.status(404).json({ error: '地图配置不存在' });
+            return res.status(404).json({ code: 404, message: '地图配置不存在' });
         }
 
         const travelCostInfo = calculateTravelCost(targetMapConfig, player, currentMapConfig);
@@ -203,7 +196,7 @@ router.post('/calculate-move-cost', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Calculate Move Cost Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -215,31 +208,32 @@ router.post('/calculate-move-cost', auth, async (req, res) => {
 router.post('/start-move', auth, async (req, res) => {
     try {
         const { targetMapId } = req.body;
-        if (!targetMapId) return res.status(400).json({ error: '目标地图ID不能为空' });
+        if (!targetMapId) return res.status(400).json({ code: 400, message: '目标地图ID不能为空' });
 
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: '玩家不存在' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         if (player.is_moving) {
-            return res.status(400).json({ error: '您正在移动中，请等待到达目的地' });
+            return res.status(400).json({ code: 400, message: '您正在移动中，请等待到达目的地' });
         }
 
         const currentMapId = player.current_map_id;
         if (currentMapId == targetMapId) {
-            return res.status(400).json({ error: '您已经在目标地图' });
+            return res.status(400).json({ code: 400, message: '您已经在目标地图' });
         }
 
         const currentMapConfig = mapConfig.getMap(currentMapId);
         const targetMapConfig = mapConfig.getMap(targetMapId);
 
         if (!currentMapConfig || !targetMapConfig) {
-            return res.status(404).json({ error: '地图配置不存在' });
+            return res.status(404).json({ code: 404, message: '地图配置不存在' });
         }
 
         const canEnter = mapConfig.canEnter(targetMapConfig, player.realm);
         if (!canEnter) {
             return res.status(403).json({ 
-                error: `境界不足，需达到 ${targetMapConfig.requiredRealm} 才能进入` 
+                code: 403,
+                message: `境界不足，需达到 ${targetMapConfig.requiredRealm} 才能进入` 
             });
         }
 
@@ -247,7 +241,8 @@ router.post('/start-move', auth, async (req, res) => {
         
         if (player.mp_current < travelCostInfo.cost) {
             return res.status(400).json({ 
-                error: `灵力不足，需要 ${travelCostInfo.cost} 点灵力` 
+                code: 400,
+                message: `灵力不足，需要 ${travelCostInfo.cost} 点灵力` 
             });
         }
 
@@ -300,7 +295,7 @@ router.post('/start-move', auth, async (req, res) => {
 
     } catch (error) {
         console.error('Start Move Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -310,12 +305,14 @@ router.post('/start-move', auth, async (req, res) => {
 router.get('/move-status', auth, async (req, res) => {
     try {
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: '玩家不存在' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         if (!player.is_moving) {
             return res.json({
                 code: 200,
-                is_moving: false
+                data: {
+                    is_moving: false
+                }
             });
         }
 
@@ -329,19 +326,21 @@ router.get('/move-status', auth, async (req, res) => {
 
         res.json({
             code: 200,
-            is_moving: true,
-            from_map_id: player.moving_from_map_id,
-            to_map_id: player.moving_to_map_id,
-            from_map_name: fromMap?.name || '未知',
-            to_map_name: toMap?.name || '未知',
-            start_time: player.move_start_time,
-            end_time: player.move_end_time,
-            remaining_seconds: remainingSeconds,
-            total_seconds: Math.ceil((endTime - new Date(player.move_start_time)) / 1000)
+            data: {
+                is_moving: true,
+                from_map_id: player.moving_from_map_id,
+                to_map_id: player.moving_to_map_id,
+                from_map_name: fromMap?.name || '未知',
+                to_map_name: toMap?.name || '未知',
+                start_time: player.move_start_time,
+                end_time: player.move_end_time,
+                remaining_seconds: remainingSeconds,
+                total_seconds: Math.ceil((endTime - new Date(player.move_start_time)) / 1000)
+            }
         });
     } catch (error) {
         console.error('Move Status Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -351,10 +350,10 @@ router.get('/move-status', auth, async (req, res) => {
 router.post('/cancel-move', auth, async (req, res) => {
     try {
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: '玩家不存在' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         if (!player.is_moving) {
-            return res.status(400).json({ error: '您当前没有在移动中' });
+            return res.status(400).json({ code: 400, message: '您当前没有在移动中' });
         }
 
         player.is_moving = false;
@@ -384,7 +383,7 @@ router.post('/cancel-move', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Cancel Move Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -394,10 +393,10 @@ router.post('/cancel-move', auth, async (req, res) => {
 router.post('/complete-move-internal', auth, async (req, res) => {
     try {
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: '玩家不存在' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         if (!player.is_moving) {
-            return res.status(400).json({ error: '玩家不在移动中' });
+            return res.status(400).json({ code: 400, message: '玩家不在移动中' });
         }
 
         const targetMapId = player.moving_to_map_id;
@@ -435,12 +434,14 @@ router.post('/complete-move-internal', auth, async (req, res) => {
         res.json({
             code: 200,
             message: `已到达 ${targetMapConfig?.name || '目标地图'}`,
-            new_map: targetMapConfig,
-            mp_current: player.mp_current.toString()
+            data: {
+                new_map: targetMapConfig,
+                mp_current: player.mp_current.toString()
+            }
         });
     } catch (error) {
         console.error('Complete Move Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -461,11 +462,17 @@ function formatTime(seconds) {
 /**
  * 获取地图静态配置列表
  */
-router.get('/config', async (req, res) => {
+router.get('/config', auth, async (req, res) => {
     try {
+        const player = await Player.findByPk(req.user.id);
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
+
         const allMaps = mapConfig.getAllMaps();
-        res.json({
-            maps: allMaps.map(m => ({
+        
+        // 为每个地图计算是否可进入的状态
+        const mapsWithStatus = allMaps.map(m => {
+            const canEnter = mapConfig.canEnter(m, player.realm);
+            return {
                 id: m.id,
                 name: m.name,
                 type: m.type,
@@ -476,12 +483,47 @@ router.get('/config', async (req, res) => {
                 danger_level: m.danger_level,
                 travel_time: m.travel_time,
                 description: m.description,
-                connections: m.connections
-            }))
+                connections: m.connections,
+                can_enter: canEnter,
+                player_realm: player.realm
+            };
+        });
+
+        res.json({
+            code: 200,
+            data: {
+                maps: mapsWithStatus
+            }
         });
     } catch (error) {
         console.error('Map Config Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
+    }
+});
+
+/**
+ * 获取境界配置（境界顺序列表）
+ */
+router.get('/realm-config', auth, async (req, res) => {
+    try {
+        const realms = await Realm.findAll({
+            order: [['rank', 'ASC']]
+        });
+        
+        const realmOrder = realms.map(r => ({
+            name: r.name,
+            rank: r.rank
+        }));
+
+        res.json({
+            code: 200,
+            data: {
+                realms: realmOrder
+            }
+        });
+    } catch (error) {
+        console.error('Realm Config Error:', error);
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -490,11 +532,14 @@ router.get('/config', async (req, res) => {
  */
 router.get('/validate', auth, async (req, res) => {
     try {
-        const validation = mapConfig.validate();
-        res.json(validation);
+        const validationResult = mapConfig.validate();
+        res.json({
+            code: 200,
+            data: validationResult
+        });
     } catch (error) {
         console.error('Map Validate Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -509,8 +554,9 @@ router.post('/explore/start', auth, async (req, res) => {
         
         if (!adventureService) {
             return res.status(503).json({ 
-                error: '历练服务暂不可用',
-                message: '请稍后再试或联系管理员'
+                code: 503,
+                message: '历练服务暂不可用',
+                detail: '请稍后再试或联系管理员'
             });
         }
 
@@ -528,12 +574,12 @@ router.post('/explore/start', auth, async (req, res) => {
         } else {
             res.status(400).json({
                 code: 400,
-                error: result.error
+                message: result.error
             });
         }
     } catch (error) {
         console.error('Start Explore Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -545,11 +591,11 @@ router.post('/explore/start', auth, async (req, res) => {
 router.get('/explore/event', auth, async (req, res) => {
     try {
         if (!adventureService) {
-            return res.status(503).json({ error: '历练服务暂不可用' });
+            return res.status(503).json({ code: 503, message: '历练服务暂不可用' });
         }
 
         const player = await Player.findByPk(req.user.id);
-        if (!player) return res.status(404).json({ error: '玩家不存在' });
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
 
         const currentMap = mapConfig.getMap(player.current_map_id);
         
@@ -567,7 +613,7 @@ router.get('/explore/event', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Get Explore Event Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -579,7 +625,7 @@ router.get('/explore/event', auth, async (req, res) => {
 router.post('/explore/complete', auth, async (req, res) => {
     try {
         if (!adventureService) {
-            return res.status(503).json({ error: '历练服务暂不可用' });
+            return res.status(503).json({ code: 503, message: '历练服务暂不可用' });
         }
 
         const result = await adventureService.completeAdventure(req.user.id);
@@ -595,12 +641,12 @@ router.post('/explore/complete', auth, async (req, res) => {
         } else {
             res.status(400).json({
                 code: 400,
-                error: result.error
+                message: result.error
             });
         }
     } catch (error) {
         console.error('Complete Explore Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -612,7 +658,7 @@ router.post('/explore/complete', auth, async (req, res) => {
 router.post('/explore/combat', auth, async (req, res) => {
     try {
         if (!adventureService) {
-            return res.status(503).json({ error: '历练服务暂不可用' });
+            return res.status(503).json({ code: 503, message: '历练服务暂不可用' });
         }
 
         const result = await adventureService.generateCombatEncounter(req.user.id);
@@ -626,12 +672,12 @@ router.post('/explore/combat', auth, async (req, res) => {
         } else {
             res.status(400).json({
                 code: 400,
-                error: result.error
+                message: result.error
             });
         }
     } catch (error) {
         console.error('Generate Combat Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -660,7 +706,7 @@ router.get('/explore/ai-status', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Get AI Status Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 

@@ -56,25 +56,38 @@ const PORT = process.env.PORT || 5000;
 // 在线用户跟踪（使用Socket.IO连接状态）
 const onlineUsers = new Map();
 
-// 从配置文件读取时间间隔常量
-const gameBalanceConfig = require('./config/game_balance.json');
-const UPDATE_INTERVAL_MS = gameBalanceConfig.time_intervals.lifespan_update_interval_ms;
-const UPDATE_INTERVAL_SEC = gameBalanceConfig.time_intervals.lifespan_update_interval_sec;
-const MOVE_CHECK_INTERVAL_MS = gameBalanceConfig.time_intervals.move_check_interval_ms;
+// 从配置文件读取时间间隔常量（通过 ConfigLoader 支持热更新）
+// 使用懒加载函数，避免模块加载时配置未初始化的问题
+function getTimeIntervals() {
+    return configLoader.getConfig('game_balance')?.time_intervals || {};
+}
+
+// 提供配置访问函数，而非立即获取配置值
+const UPDATE_INTERVAL_MS = () => getTimeIntervals().lifespan_update_interval_ms || 600000;
+const UPDATE_INTERVAL_SEC = () => getTimeIntervals().lifespan_update_interval_sec || 600;
+const MOVE_CHECK_INTERVAL_MS = () => getTimeIntervals().move_check_interval_ms || 5000;
+
+// CORS 配置 - 生产环境应配置白名单域名
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || '*', // 生产环境建议配置具体域名，如 'https://yourdomain.com'
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
 
 // 中间件
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // 将 io 实例挂载到 app 上，供路由使用
 app.set('io', io);
 
 // 初始化配置加载器
-let configLoader;
 async function initializeConfigLoader() {
     try {
         const { initializeModules } = require('./modules');
         const result = await initializeModules();
+        // configLoader 已在第 60 行声明，这里直接赋值
         configLoader = result.configLoader || require('./modules').infrastructure.ConfigLoader;
         console.log('配置加载器初始化成功，已加载配置:', configLoader.getLoadedConfigNames());
         return true;
@@ -170,11 +183,11 @@ const startServer = async () => {
     // 启动定时任务
     setInterval(async () => {
         try {
-            await game.LifespanService.updateLifespan(UPDATE_INTERVAL_SEC);
+            await game.LifespanService.updateLifespan(UPDATE_INTERVAL_SEC());
         } catch (error) {
             console.error('寿命更新失败:', error.message);
         }
-    }, UPDATE_INTERVAL_MS);
+    }, UPDATE_INTERVAL_MS());
     console.log('寿命更新定时任务已启动');
 
     // 移动完成检查定时任务
@@ -221,7 +234,7 @@ const startServer = async () => {
         } catch (error) {
             console.error('移动检查失败:', error.message);
         }
-    }, MOVE_CHECK_INTERVAL_MS);
+    }, MOVE_CHECK_INTERVAL_MS());
     console.log('移动完成检查定时任务已启动 (每5秒检查一次)');
 
     // 路由

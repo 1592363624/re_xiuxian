@@ -125,19 +125,21 @@ export const usePlayerStore = defineStore('player', {
       if (!this.token) return null
       try {
         const res = await getSeclusionStatus()
-        if (res.data) {
+        // 后端返回格式: { code: 200, data: { is_secluded, ... } }
+        const data = res.data?.data || res.data
+        if (data) {
              if (this.player) {
                  // 更新闭关相关状态
-                 this.player.is_secluded = res.data.is_secluded
-                 this.player.seclusion_start_time = res.data.seclusion_start_time
-                 this.player.seclusion_duration = res.data.seclusion_duration
+                 this.player.is_secluded = data.is_secluded
+                 this.player.seclusion_start_time = data.seclusion_start_time
+                 this.player.seclusion_duration = data.seclusion_duration
                  // 同步更新 localStorage，确保数据一致性
                  localStorage.setItem('player', JSON.stringify(this.player))
              }
-             this.systemConfig.cultivate_interval = res.data.cultivate_interval
-             this.systemConfig.deep_seclusion_exp_rate = res.data.deep_seclusion_exp_rate
-             this.systemConfig.deep_seclusion_interval = res.data.deep_seclusion_interval
-             return res.data
+             this.systemConfig.cultivate_interval = data.cultivate_interval
+             this.systemConfig.deep_seclusion_exp_rate = data.deep_seclusion_exp_rate
+             this.systemConfig.deep_seclusion_interval = data.deep_seclusion_interval
+             return data
         }
       } catch (error) {
         console.error('获取闭关状态失败:', error)
@@ -150,7 +152,10 @@ export const usePlayerStore = defineStore('player', {
      * 业务逻辑由后端处理，前端调用API后立即更新本地状态
      */
     async startSeclusion(duration) {
-      if (!this.token) return
+      if (!this.token) {
+        console.warn('开始闭关失败: 未登录或token不存在')
+        return
+      }
       try {
         const res = await startSeclusionApi(duration)
         // 立即更新本地状态，确保UI即时响应
@@ -161,7 +166,12 @@ export const usePlayerStore = defineStore('player', {
         }
         return res.data
       } catch (error) {
-        console.error('开始闭关失败:', error)
+        console.error('开始闭关失败:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+        })
+        // 直接抛出原始错误，保留 response 结构供上层处理
         throw error
       }
     },
@@ -183,7 +193,7 @@ export const usePlayerStore = defineStore('player', {
         }
         return res.data
       } catch (error) {
-        console.error('结束闭关失败:', error)
+        console.error('结束闭关失败:', error.response?.data || error.message || error)
         throw error
       }
     },
@@ -199,7 +209,7 @@ export const usePlayerStore = defineStore('player', {
         // 等待 Socket.IO 推送更新
         return res.data
       } catch (error) {
-        console.error('突破失败:', error)
+        console.error('尝试突破失败:', error.response?.data || error.message || error)
         throw error
       }
     },

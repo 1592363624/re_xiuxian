@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 const Player = require('../models/player');
-const gameBalanceConfig = require('../config/game_balance.json');
+const { infrastructure } = require('../modules');
+
+// 通过 ConfigLoader 获取配置
+const configLoader = infrastructure.ConfigLoader;
+const gameBalanceConfig = configLoader.getConfig('game_balance');
 
 // 从配置文件读取在线更新时间间隔
 const LAST_ONLINE_UPDATE_INTERVAL_MS = gameBalanceConfig.time_intervals.last_online_update_interval_ms;

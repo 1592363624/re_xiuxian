@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import axios from 'axios'
+import apiClient from '../../api'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 
@@ -20,9 +20,9 @@ const fetchData = async () => {
   loading.value = true
   try {
     const [mapRes, resourcesRes, statsRes] = await Promise.all([
-      axios.get('/api/map/info'),
-      axios.get('/api/gather/resources'),
-      axios.get('/api/gather/stats')
+      apiClient.get('/map/info'),
+      apiClient.get('/gather/resources'),
+      apiClient.get('/gather/stats')
     ])
     
     currentMap.value = mapRes.data.current_map
@@ -82,7 +82,7 @@ const handleGather = async (resource) => {
 
   gathering.value = true
   try {
-    const res = await axios.post('/api/gather/collect', { resourceId: resource.resource_id })
+    const res = await apiClient.post('/gather/collect', { resourceId: resource.resource_id })
     
     const result = res.data
     uiStore.showToast(`采集成功！获得 ${result.quantity} 个 ${resource.name}${result.is_crit ? '（暴击）' : ''}`, 'success')
@@ -110,8 +110,8 @@ const handleGather = async (resource) => {
 
 const refreshResource = async (resourceId) => {
   try {
-    const res = await axios.get('/api/gather/resources')
-    const updatedResources = res.data.resources || []
+    const res = await apiClient.get('/gather/resources')
+    const updatedResources = res.data.data?.resources || res.data.resources || []
     const updated = updatedResources.find(r => r.resource_id === resourceId)
     if (updated) {
       const index = resources.value.findIndex(r => r.resource_id === resourceId)
@@ -127,7 +127,7 @@ const refreshResource = async (resourceId) => {
 
 const fetchStats = async () => {
   try {
-    const res = await axios.get('/api/gather/stats')
+    const res = await apiClient.get('/gather/stats')
     stats.value = res.data
   } catch (error) {
     console.error('Failed to fetch stats:', error)

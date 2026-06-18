@@ -88,7 +88,7 @@ router.post('/time-travel', auth, adminCheck, async (req, res) => {
     try {
         const { years } = req.body;
         if (!years || isNaN(years) || years <= 0) {
-            return res.status(400).json({ message: '无效的时间参数 (years)' });
+            return res.status(400).json({ code: 400, message: '无效的时间参数 (years)' });
         }
 
         const seconds = years * LifespanService.SECONDS_PER_YEAR;
@@ -112,12 +112,15 @@ router.post('/time-travel', auth, adminCheck, async (req, res) => {
         await logAdminAction(req.player.id, 'time_travel', { years, deadCount: result?.deadCount || 0 }, req);
 
         res.json({ 
+            code: 200,
             message, 
-            userDied,
-            dead_count: result?.deadCount || 0
+            data: {
+                userDied,
+                dead_count: result?.deadCount || 0
+            }
         });
     } catch (error) {
-        res.status(500).json({ message: '时间加速失败', error: error.message });
+        res.status(500).json({ code: 500, message: '时间加速失败', error: error.message });
     }
 });
 
@@ -177,7 +180,7 @@ router.get('/players', auth, adminCheck, async (req, res) => {
             total: count
         });
     } catch (error) {
-        res.status(500).json({ message: '获取玩家列表失败', error: error.message });
+        res.status(500).json({ code: 500, message: '获取玩家列表失败', error: error.message });
     }
 });
 
@@ -192,7 +195,7 @@ router.get('/players/:id', auth, adminCheck, async (req, res) => {
         });
 
         if (!player) {
-            return res.status(404).json({ message: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
         res.json({
@@ -200,7 +203,7 @@ router.get('/players/:id', auth, adminCheck, async (req, res) => {
             data: player
         });
     } catch (error) {
-        res.status(500).json({ message: '获取玩家详情失败', error: error.message });
+        res.status(500).json({ code: 500, message: '获取玩家详情失败', error: error.message });
     }
 });
 
@@ -212,7 +215,7 @@ router.put('/players/:id', auth, adminCheck, async (req, res) => {
     try {
         const player = await Player.findByPk(req.params.id);
         if (!player) {
-            return res.status(404).json({ message: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
         // 字段白名单，防止恶意字段更新
@@ -249,7 +252,7 @@ router.put('/players/:id', auth, adminCheck, async (req, res) => {
             player 
         });
     } catch (error) {
-        res.status(500).json({ message: '更新失败', error: error.message });
+        res.status(500).json({ code: 500, message: '更新失败', error: error.message });
     }
 });
 
@@ -263,11 +266,11 @@ router.post('/players/:id/ban', auth, adminCheck, async (req, res) => {
         const player = await Player.findByPk(req.params.id);
 
         if (!player) {
-            return res.status(404).json({ message: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
         if (player.role === 'admin') {
-            return res.status(400).json({ message: '无法封禁管理员账号' });
+            return res.status(400).json({ code: 400, message: '无法封禁管理员账号' });
         }
 
         const bannedUntil = days > 0 
@@ -296,7 +299,7 @@ router.post('/players/:id/ban', auth, adminCheck, async (req, res) => {
             message: days > 0 ? `玩家已封禁，解封时间：${bannedUntil.toLocaleString()}` : '玩家已永久封禁'
         });
     } catch (error) {
-        res.status(500).json({ message: '封禁失败', error: error.message });
+        res.status(500).json({ code: 500, message: '封禁失败', error: error.message });
     }
 });
 
@@ -309,11 +312,11 @@ router.post('/players/:id/unban', auth, adminCheck, async (req, res) => {
         const player = await Player.findByPk(req.params.id);
 
         if (!player) {
-            return res.status(404).json({ message: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
         if (player.role !== 'banned') {
-            return res.status(400).json({ message: '该玩家未被封禁' });
+            return res.status(400).json({ code: 400, message: '该玩家未被封禁' });
         }
 
         player.role = 'user';
@@ -330,7 +333,7 @@ router.post('/players/:id/unban', auth, adminCheck, async (req, res) => {
             message: '玩家已解封'
         });
     } catch (error) {
-        res.status(500).json({ message: '解封失败', error: error.message });
+        res.status(500).json({ code: 500, message: '解封失败', error: error.message });
     }
 });
 
@@ -343,12 +346,12 @@ router.post('/give-item', auth, adminCheck, async (req, res) => {
         const { playerId, itemId, quantity = 1 } = req.body;
 
         if (!playerId || !itemId || quantity < 1) {
-            return res.status(400).json({ message: '参数错误' });
+            return res.status(400).json({ code: 400, message: '参数错误' });
         }
 
         const player = await Player.findByPk(playerId);
         if (!player) {
-            return res.status(404).json({ message: '目标玩家不存在' });
+            return res.status(404).json({ code: 404, message: '目标玩家不存在' });
         }
 
         const item = await Item.create({
@@ -386,12 +389,12 @@ router.post('/give-spirit-stones', auth, adminCheck, async (req, res) => {
         const { playerId, amount } = req.body;
 
         if (!playerId || !amount || BigInt(amount) <= 0n) {
-            return res.status(400).json({ message: '参数错误' });
+            return res.status(400).json({ code: 400, message: '参数错误' });
         }
 
         const player = await Player.findByPk(playerId);
         if (!player) {
-            return res.status(404).json({ message: '目标玩家不存在' });
+            return res.status(404).json({ code: 404, message: '目标玩家不存在' });
         }
 
         player.spirit_stones = (BigInt(player.spirit_stones) + BigInt(amount)).toString();
@@ -414,7 +417,7 @@ router.post('/give-spirit-stones', auth, adminCheck, async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: '发放失败', error: error.message });
+        res.status(500).json({ code: 500, message: '发放失败', error: error.message });
     }
 });
 
@@ -427,12 +430,12 @@ router.post('/add-exp', auth, adminCheck, async (req, res) => {
         const { playerId, amount } = req.body;
 
         if (!playerId || !amount || BigInt(amount) <= 0n) {
-            return res.status(400).json({ message: '参数错误' });
+            return res.status(400).json({ code: 400, message: '参数错误' });
         }
 
         const player = await Player.findByPk(playerId);
         if (!player) {
-            return res.status(404).json({ message: '目标玩家不存在' });
+            return res.status(404).json({ code: 404, message: '目标玩家不存在' });
         }
 
         player.exp = (BigInt(player.exp) + BigInt(amount)).toString();
@@ -455,7 +458,7 @@ router.post('/add-exp', auth, adminCheck, async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: '增加失败', error: error.message });
+        res.status(500).json({ code: 500, message: '增加失败', error: error.message });
     }
 });
 
@@ -469,7 +472,7 @@ router.post('/reset-player', auth, adminCheck, async (req, res) => {
 
         const player = await Player.findByPk(playerId);
         if (!player) {
-            return res.status(404).json({ message: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
         if (!keepItems) {
@@ -511,7 +514,7 @@ router.post('/reset-player', auth, adminCheck, async (req, res) => {
             message: '玩家已重置为初始状态'
         });
     } catch (error) {
-        res.status(500).json({ message: '重置失败', error: error.message });
+        res.status(500).json({ code: 500, message: '重置失败', error: error.message });
     }
 });
 
@@ -525,7 +528,7 @@ router.post('/breakthrough', auth, adminCheck, async (req, res) => {
 
         const player = await Player.findByPk(playerId);
         if (!player) {
-            return res.status(404).json({ message: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
         player.realm = targetRealm;
@@ -548,7 +551,7 @@ router.post('/breakthrough', auth, adminCheck, async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: '操作失败', error: error.message });
+        res.status(500).json({ code: 500, message: '操作失败', error: error.message });
     }
 });
 
@@ -600,7 +603,7 @@ router.get('/config', auth, adminCheck, async (req, res) => {
             data: result
         });
     } catch (error) {
-        res.status(500).json({ message: '获取配置失败', error: error.message });
+        res.status(500).json({ code: 500, message: '获取配置失败', error: error.message });
     }
 });
 
@@ -614,7 +617,7 @@ router.post('/config', auth, adminCheck, async (req, res) => {
         const { key, value, description } = req.body;
         
         if (!key || value === undefined) {
-            return res.status(400).json({ message: '配置键和值不能为空' });
+            return res.status(400).json({ code: 400, message: '配置键和值不能为空' });
         }
 
         // 判断是否是闭关相关配置
@@ -628,7 +631,7 @@ router.post('/config', auth, adminCheck, async (req, res) => {
                     data: { key, value, source: 'json' }
                 });
             } else {
-                res.status(500).json({ message: '保存配置失败' });
+                res.status(500).json({ code: 500, message: '保存配置失败' });
             }
             return;
         }
@@ -651,7 +654,7 @@ router.post('/config', auth, adminCheck, async (req, res) => {
             data: config
         });
     } catch (error) {
-        res.status(500).json({ message: '保存配置失败', error: error.message });
+        res.status(500).json({ code: 500, message: '保存配置失败', error: error.message });
     }
 });
 

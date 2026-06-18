@@ -8,7 +8,11 @@ const jwt = require('jsonwebtoken');
 const Player = require('../models/player');
 const { Op } = require('sequelize');
 const { ATTRIBUTES } = require('../utils/gameConstants');
-const gameBalanceConfig = require('../config/game_balance.json');
+const { infrastructure } = require('../modules');
+
+// 通过 ConfigLoader 获取配置
+const configLoader = infrastructure.ConfigLoader;
+const gameBalanceConfig = configLoader.getConfig('game_balance');
 
 // 从配置文件读取正则表达式
 const USERNAME_REGEX = new RegExp(gameBalanceConfig.auth.username_regex);
@@ -22,13 +26,13 @@ router.get('/check-unique', async (req, res) => {
         const { type, value } = req.query; // type: 'username' or 'nickname'
 
         if (!type || !value) {
-            return res.status(400).json({ message: '参数缺失' });
+            return res.status(400).json({ code: 400, message: '参数缺失' });
         }
 
         // 白名单校验，防止 NoSQL 注入
         const allowedTypes = ['username', 'nickname'];
         if (!allowedTypes.includes(type)) {
-            return res.status(400).json({ message: '无效的查询类型' });
+            return res.status(400).json({ code: 400, message: '无效的查询类型' });
         }
 
         const where = {};
@@ -38,12 +42,12 @@ router.get('/check-unique', async (req, res) => {
 
         if (player) {
             const msg = type === 'username' ? '该账号已被注册，请更换其他账号' : '该道号已被使用，请选择其他道号';
-            return res.json({ available: false, message: msg });
+            return res.json({ code: 200, available: false, message: msg });
         }
 
-        res.json({ available: true });
+        res.json({ code: 200, available: true });
     } catch (error) {
-        res.status(500).json({ message: '服务器错误', error: error.message });
+        res.status(500).json({ code: 500, message: '服务器错误', error: error.message });
     }
 });
 
@@ -54,13 +58,13 @@ router.post('/register', async (req, res) => {
         
         // 格式验证（使用配置文件中的正则）
         if (!username || !USERNAME_REGEX.test(username)) {
-            return res.status(400).json({ message: '账号必须为6-12位英文或数字' });
+            return res.status(400).json({ code: 400, message: '账号必须为6-12位英文或数字' });
         }
         if (!password || !PASSWORD_REGEX.test(password)) {
-            return res.status(400).json({ message: '密码必须为6-12位英文或数字' });
+            return res.status(400).json({ code: 400, message: '密码必须为6-12位英文或数字' });
         }
         if (!nickname || nickname.length < NICKNAME_MIN_LENGTH || nickname.length > NICKNAME_MAX_LENGTH) {
-            return res.status(400).json({ message: `道号必须为${NICKNAME_MIN_LENGTH}-${NICKNAME_MAX_LENGTH}个字符` });
+            return res.status(400).json({ code: 400, message: `道号必须为${NICKNAME_MIN_LENGTH}-${NICKNAME_MAX_LENGTH}个字符` });
         }
         
         // 1. 业务层预检查 (提升用户体验)
@@ -76,10 +80,10 @@ router.post('/register', async (req, res) => {
 
         if (existingPlayer) {
             if (existingPlayer.username === username) {
-                return res.status(400).json({ message: '该账号已被注册，请更换其他账号' });
+                return res.status(400).json({ code: 400, message: '该账号已被注册，请更换其他账号' });
             }
             if (existingPlayer.nickname === nickname) {
-                return res.status(400).json({ message: '该道号已被使用，请选择其他道号' });
+                return res.status(400).json({ code: 400, message: '该道号已被使用，请选择其他道号' });
             }
         }
 
@@ -108,6 +112,7 @@ router.post('/register', async (req, res) => {
         });
 
         res.status(201).json({ 
+            code: 201,
             message: '注册成功，踏入仙途',
             playerId: newPlayer.id 
         });
@@ -124,16 +129,16 @@ router.post('/register', async (req, res) => {
             
             // 简单处理：
             if (error.message.includes('username') || (error.errors[0] && error.errors[0].message.includes('username'))) {
-                 return res.status(400).json({ message: '该账号已被注册，请更换其他账号' });
+                 return res.status(400).json({ code: 400, message: '该账号已被注册，请更换其他账号' });
             }
             if (error.message.includes('nickname') || (error.errors[0] && error.errors[0].message.includes('nickname'))) {
-                 return res.status(400).json({ message: '该道号已被使用，请选择其他道号' });
+                 return res.status(400).json({ code: 400, message: '该道号已被使用，请选择其他道号' });
             }
             
-            return res.status(400).json({ message: '账号或道号已被占用' });
+            return res.status(400).json({ code: 400, message: '账号或道号已被占用' });
         }
 
-        res.status(500).json({ message: '服务器错误', error: error.message });
+        res.status(500).json({ code: 500, message: '服务器错误', error: error.message });
     }
 });
 
@@ -151,13 +156,13 @@ router.post('/login', async (req, res) => {
             const dummyHash = '$2a$10$abcdefghijklmnopqrstuvwxyz123456'; // 示例无效哈希
             await bcrypt.compare(password, dummyHash).catch(() => {}); 
             
-            return res.status(404).json({ message: '该账号不存在，请检查或注册新账号' });
+            return res.status(404).json({ code: 404, message: '该账号不存在，请检查或注册新账号' });
         }
 
         // 验证密码
         const isMatch = await bcrypt.compare(password, player.password);
         if (!isMatch) {
-            return res.status(401).json({ message: '密码错误，请重新输入' });
+            return res.status(401).json({ code: 401, message: '密码错误，请重新输入' });
         }
 
         // 获取IP地址
@@ -182,6 +187,7 @@ router.post('/login', async (req, res) => {
         );
 
         res.json({
+            code: 200,
             message: '登录成功',
             token,
             player: {
@@ -192,7 +198,7 @@ router.post('/login', async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: '服务器错误', error: error.message });
+        res.status(500).json({ code: 500, message: '服务器错误', error: error.message });
     }
 });
 

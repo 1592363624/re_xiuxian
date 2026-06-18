@@ -9,7 +9,11 @@ const Player = require('../models/player');
 const game = require('../game');
 const NotificationService = require('../game/services/NotificationService');
 const authenticateToken = require('../middleware/auth');
-const gameBalanceConfig = require('../config/game_balance.json');
+const { infrastructure } = require('../modules');
+
+// 通过 ConfigLoader 获取配置
+const configLoader = infrastructure.ConfigLoader;
+const gameBalanceConfig = configLoader.getConfig('game_balance');
 
 // 从配置文件读取突破惩罚数值
 const FAILURE_EXP_LOSS_RATE = gameBalanceConfig.breakthrough.failure_exp_loss_rate;

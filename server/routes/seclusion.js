@@ -45,34 +45,57 @@ function saveConfigValue(key, value) {
     }
 }
 
-// 获取闭关经验倍率 (默认 0.1 / 秒，即 1点/10秒)
-function getSeclusionExpRate() {
-    const value = getConfigValue('seclusion_exp_rate');
-    return value !== null ? value : 0.1;
-}
-
-// 获取闭关冷却时间 (默认 3600 秒)
+/**
+ * 获取闭关冷却时间（秒）
+ */
 function getSeclusionCooldown() {
-    const value = getConfigValue('seclusion_cooldown');
-    return value !== null ? value : 3600;
+    const val = getConfigValue('seclusion_cooldown');
+    return val ? parseInt(val) : 60;
 }
 
-// 获取修炼时间间隔 (默认 60 秒)
+/**
+ * 获取闭关基础修为收益率（每秒）
+ */
+function getSeclusionExpRate() {
+    const val = getConfigValue('seclusion_exp_rate');
+    return val ? parseFloat(val) : 1;
+}
+
+/**
+ * 获取修炼时间间隔（秒）
+ */
 function getCultivateInterval() {
-    const value = getConfigValue('cultivate_interval');
-    return value !== null ? value : 60;
+    const val = getConfigValue('cultivate_interval');
+    return val ? parseInt(val) : 60;
 }
 
-// 获取深度闭关收益倍率 (默认 2.0)
+/**
+ * 获取深度闭关修为收益倍率
+ */
 function getDeepSeclusionExpRate() {
-    const value = getConfigValue('deep_seclusion_exp_rate');
-    return value !== null ? value : 2.0;
+    const val = getConfigValue('deep_seclusion_exp_rate');
+    return val ? parseFloat(val) : 2;
 }
 
-// 获取深度闭关时间间隔 (默认 300 秒)
+/**
+ * 获取深度闭关时间间隔（秒）
+ */
 function getDeepSeclusionInterval() {
-    const value = getConfigValue('deep_seclusion_interval');
-    return value !== null ? value : 300;
+    const val = getConfigValue('deep_seclusion_interval');
+    return val ? parseInt(val) : 72000;
+}
+
+// 获取境界加成倍率
+async function getRealmMultiplier(realmName) {
+    try {
+        const realm = await Realm.findOne({ where: { name: realmName } });
+        if (realm) {
+            return 1.0 + (realm.rank - 1) * 0.1;
+        }
+    } catch (err) {
+        console.error('获取境界加成失败:', err);
+    }
+    return 1.0;
 }
 
 /**
@@ -86,16 +109,16 @@ router.post('/start', authenticateToken, async (req, res) => {
         const player = await Player.findByPk(playerId);
         
         if (!player) {
-            return res.status(404).json({ error: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
         if (player.is_secluded) {
-            return res.status(400).json({ error: '玩家已在闭关中' });
+            return res.status(400).json({ code: 400, message: '玩家已在闭关中' });
         }
 
         // 检查冷却时间
         if (player.last_seclusion_time) {
-            const cooldown = await getSeclusionCooldown();
+            const cooldown = getSeclusionCooldown();
             const now = new Date();
             const lastEnd = new Date(player.last_seclusion_time);
             const diffSeconds = Math.floor((now - lastEnd) / 1000);
@@ -103,7 +126,8 @@ router.post('/start', authenticateToken, async (req, res) => {
             if (diffSeconds < cooldown) {
                 const remainingMinutes = Math.ceil((cooldown - diffSeconds) / 60);
                 return res.status(400).json({ 
-                    error: `闭关冷却中，还需要等待 ${remainingMinutes} 分钟`,
+                    code: 400,
+                    message: `闭关冷却中，还需要等待 ${remainingMinutes} 分钟`,
                     remaining_seconds: cooldown - diffSeconds
                 });
             }
@@ -122,6 +146,7 @@ router.post('/start', authenticateToken, async (req, res) => {
         });
 
         res.json({
+            code: 200,
             message: '进入闭关状态',
             data: {
                 is_secluded: player.is_secluded,
@@ -131,7 +156,7 @@ router.post('/start', authenticateToken, async (req, res) => {
 
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: '服务器错误' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -146,11 +171,11 @@ router.post('/end', authenticateToken, async (req, res) => {
         const player = await Player.findByPk(playerId);
 
         if (!player) {
-            return res.status(404).json({ error: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
         if (!player.is_secluded) {
-            return res.status(400).json({ error: '玩家未在闭关中' });
+            return res.status(400).json({ code: 400, message: '玩家未在闭关中' });
         }
 
         const startTime = new Date(player.seclusion_start_time);
@@ -158,20 +183,10 @@ router.post('/end', authenticateToken, async (req, res) => {
         const actualDurationSeconds = Math.floor((now - startTime) / 1000);
         
         // Calculate rewards
-        const baseExpRate = await getSeclusionExpRate(); 
+        const baseExpRate = getSeclusionExpRate(); 
         
         // 获取境界加成
-        let realmMultiplier = 1.0;
-        try {
-            const realm = await Realm.findByPk(player.realm);
-            if (realm) {
-                // 境界加成逻辑：每提升一个境界 Rank，收益增加 10%
-                // 凡人(Rank 1) 为 1.0 倍，炼气1层(Rank 2) 为 1.1 倍，以此类推
-                realmMultiplier = 1.0 + (realm.rank - 1) * 0.1;
-            }
-        } catch (err) {
-            console.error('获取境界加成失败:', err);
-        }
+        const realmMultiplier = await getRealmMultiplier(player.realm);
 
         const expGain = Math.floor(actualDurationSeconds * baseExpRate * realmMultiplier);
 
@@ -191,9 +206,10 @@ router.post('/end', authenticateToken, async (req, res) => {
             last_seclusion_time: player.last_seclusion_time
         });
 
-        const cooldown = await getSeclusionCooldown();
+        const cooldown = getSeclusionCooldown();
 
         res.json({
+            code: 200,
             message: `闭关结束，本次闭关获得修为 ${expGain} 点。下次闭关需间隔 ${Math.floor(cooldown / 60)} 分钟。`,
             data: {
                 exp_gain: expGain,
@@ -209,7 +225,7 @@ router.post('/end', authenticateToken, async (req, res) => {
 
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: '服务器错误' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -224,13 +240,13 @@ router.get('/status', authenticateToken, async (req, res) => {
         const player = await Player.findByPk(playerId);
 
         if (!player) {
-            return res.status(404).json({ error: '玩家不存在' });
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
-        const rate = await getSeclusionExpRate();
-        const cultivateInterval = await getCultivateInterval();
-        const deepSeclusionRate = await getDeepSeclusionExpRate();
-        const deepSeclusionInterval = await getDeepSeclusionInterval();
+        const rate = getSeclusionExpRate();
+        const cultivateInterval = getCultivateInterval();
+        const deepSeclusionRate = getDeepSeclusionExpRate();
+        const deepSeclusionInterval = getDeepSeclusionInterval();
 
         // 由后端计算当前闭关已获修为，避免前端自行计算
         let expGained = 0;
@@ -241,36 +257,30 @@ router.get('/status', authenticateToken, async (req, res) => {
             currentDuration = Math.floor((now - startTime) / 1000);
 
             // 获取境界加成
-            let realmMultiplier = 1.0;
-            try {
-                const Realm = require('../../models/realm');
-                const realm = await Realm.findByPk(player.realm);
-                if (realm) {
-                    realmMultiplier = 1.0 + (realm.rank - 1) * 0.1;
-                }
-            } catch (err) {
-                console.error('获取境界加成失败:', err);
-            }
+            const realmMultiplier = await getRealmMultiplier(player.realm);
 
             expGained = Math.floor(currentDuration * rate * realmMultiplier);
         }
 
         res.json({
-            is_secluded: player.is_secluded,
-            seclusion_start_time: player.seclusion_start_time,
-            seclusion_duration: player.seclusion_duration,
-            exp_rate: rate,
-            cultivate_interval: cultivateInterval,
-            deep_seclusion_exp_rate: deepSeclusionRate,
-            deep_seclusion_interval: deepSeclusionInterval,
-            // 后端计算的当前闭关已获修为
-            exp_gained: expGained,
-            current_duration: currentDuration
+            code: 200,
+            data: {
+                is_secluded: player.is_secluded,
+                seclusion_start_time: player.seclusion_start_time,
+                seclusion_duration: player.seclusion_duration,
+                exp_rate: rate,
+                cultivate_interval: cultivateInterval,
+                deep_seclusion_exp_rate: deepSeclusionRate,
+                deep_seclusion_interval: deepSeclusionInterval,
+                // 后端计算的当前闭关已获修为
+                exp_gained: expGained,
+                current_duration: currentDuration
+            }
         });
 
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: '服务器错误' });
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 

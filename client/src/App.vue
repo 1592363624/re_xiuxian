@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import axios from 'axios'
+import apiClient from './api'
 import GameLayout from './components/layout/GameLayout.vue'
 import Login from './views/Login.vue'
 import ToastContainer from './components/common/ToastContainer.vue'
@@ -27,7 +27,7 @@ const checkStatus = async () => {
   const start = performance.now()
   try {
     // 添加时间戳防止缓存
-    const res = await axios.get(`/api/status?t=${Date.now()}`)
+    const res = await apiClient.get(`/system/stats?t=${Date.now()}`)
     const end = performance.now()
     ping.value = Math.round(end - start)
     serverStatus.value = res.data.message
@@ -75,7 +75,7 @@ onMounted(async () => {
 
   // 恢复 Token 并验证
   if (playerStore.token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${playerStore.token}`
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${playerStore.token}`
     try {
       await playerStore.fetchPlayer()
       if (!playerStore.player) {
