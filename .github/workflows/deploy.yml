@@ -83,58 +83,58 @@ jobs:
         # 重要：脚本中只使用 ASCII 字符，避免 PowerShell 5.1 读取 UTF-8 (无 BOM) 文件时出现中文乱码导致语法错误
         # 注意：heredoc 中的内容不能缩进，否则生成的脚本会有语法错误
         cat <<'EOF' > deploy.ps1
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$ErrorActionPreference = 'Stop'
-Start-Transcript -Path "C:\Projects\re_xiuxian_temp\deploy_log.txt" -Force
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        $ErrorActionPreference = 'Stop'
+        Start-Transcript -Path "C:\Projects\re_xiuxian_temp\deploy_log.txt" -Force
 
-Write-Host "Starting deployment process..."
-$tempDir = "C:\Projects\re_xiuxian_temp"
-$targetDir = "C:\Projects\re_xiuxian"
-$zipPath = "$tempDir\deploy_package.zip"
+        Write-Host "Starting deployment process..."
+        $tempDir = "C:\Projects\re_xiuxian_temp"
+        $targetDir = "C:\Projects\re_xiuxian"
+        $zipPath = "$tempDir\deploy_package.zip"
 
-# 1. Check file existence
-if (-not (Test-Path $zipPath)) {
-    Throw "Error: Deployment package not found at $zipPath"
-}
+        # 1. Check file existence
+        if (-not (Test-Path $zipPath)) {
+            Throw "Error: Deployment package not found at $zipPath"
+        }
 
-# 2. Stop existing PM2 process if running
-Write-Host "Stopping existing service..."
-if (Get-Command pm2 -ErrorAction SilentlyContinue) {
-    pm2 stop xiuxian-server -ErrorAction SilentlyContinue
-}
+        # 2. Stop existing PM2 process if running
+        Write-Host "Stopping existing service..."
+        if (Get-Command pm2 -ErrorAction SilentlyContinue) {
+            pm2 stop xiuxian-server -ErrorAction SilentlyContinue
+        }
 
-# 3. Clean and create target directory
-if (Test-Path $targetDir) {
-    Write-Host "Cleaning target directory..."
-    # Keep node_modules to speed up install
-    Get-ChildItem -Path $targetDir -Recurse -Exclude "node_modules" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-} else {
-    New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
-}
+        # 3. Clean and create target directory
+        if (Test-Path $targetDir) {
+            Write-Host "Cleaning target directory..."
+            # Keep node_modules to speed up install
+            Get-ChildItem -Path $targetDir -Recurse -Exclude "node_modules" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        } else {
+            New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
+        }
 
-# 4. Extract ZIP
-Write-Host "Extracting package to $targetDir..."
-Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
+        # 4. Extract ZIP
+        Write-Host "Extracting package to $targetDir..."
+        Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
 
-# 5. Install Server Dependencies
-Write-Host "Installing server dependencies..."
-Set-Location "$targetDir\server"
-npm install --production --no-audit
+        # 5. Install Server Dependencies
+        Write-Host "Installing server dependencies..."
+        Set-Location "$targetDir\server"
+        npm install --production --no-audit
 
-# 6. Configure PM2
-Write-Host "Configuring PM2..."
-if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
-    Write-Host "Installing PM2 globally..."
-    npm install -g pm2
-}
+        # 6. Configure PM2
+        Write-Host "Configuring PM2..."
+        if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
+            Write-Host "Installing PM2 globally..."
+            npm install -g pm2
+        }
 
-Write-Host "Starting application..."
-pm2 startOrReload ecosystem.config.js --env production
-pm2 save
+        Write-Host "Starting application..."
+        pm2 startOrReload ecosystem.config.js --env production
+        pm2 save
 
-Write-Host "Deployment completed successfully!"
-Stop-Transcript
-EOF
+        Write-Host "Deployment completed successfully!"
+        Stop-Transcript
+        EOF
 
         # 验证脚本内容
         echo "Generated deploy.ps1 content:"
@@ -204,4 +204,4 @@ EOF
               Write-Error "Deployment script failed. Check C:\\Projects\\re_xiuxian_temp\\deploy_log.txt for details."
               exit 1
             }
-            "
+            
