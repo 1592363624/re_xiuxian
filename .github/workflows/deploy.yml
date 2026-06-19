@@ -51,69 +51,90 @@ jobs:
           apps: [{
             name: 'xiuxian-server',
             script: './index.js',
+            instances: 1,
+            autorestart: true,
+            watch: false,
+            max_memory_restart: '1G',
             env: {
-              PORT: 3000,
+              PORT: 5000,
               NODE_ENV: 'production',
               DB_HOST: '${{ secrets.DB_HOST }}',
               DB_USER: '${{ secrets.DB_USER }}',
               DB_PASS: '${{ secrets.DB_PASS }}',
               DB_NAME: '${{ secrets.DB_USER }}',
-              DB_DIALECT: 'mysql'
+              DB_DIALECT: 'mysql',
+              JWT_SECRET: '${{ secrets.JWT_SECRET }}'
             }
           }]
         }" > release/server/ecosystem.config.js
+
+    # 2.5 创建前端生产环境配置
+    - name: Create Client Production Config
+      run: |
+        # 前端生产环境 API 地址 (指向服务器自身，由 Nginx 反向代理)
+        echo "VITE_API_BASE_URL=http://localhost:5000" > client/.env.production
+        echo "VITE_WS_URL=http://localhost:5000" >> client/.env.production
+        cat client/.env.production
 
     # 3. 生成部署脚本与构建产物
     - name: Prepare Deployment Artifacts
       run: |
         # 创建部署脚本 deploy.ps1 (在 Windows 端执行)
         # 重要：脚本中只使用 ASCII 字符，避免 PowerShell 5.1 读取 UTF-8 (无 BOM) 文件时出现中文乱码导致语法错误
-        cat <<EOF > deploy.ps1
-        \$ErrorActionPreference = 'Stop'
-        Start-Transcript -Path "C:\\Projects\\re_xiuxian_temp\\deploy_log.txt" -Force
+        # 注意：heredoc 中的内容不能缩进，否则生成的脚本会有语法错误
+        cat <<'EOF' > deploy.ps1
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = 'Stop'
+Start-Transcript -Path "C:\Projects\re_xiuxian_temp\deploy_log.txt" -Force
 
-        Write-Host "Starting deployment process..."
-        \$tempDir = "C:\\Projects\\re_xiuxian_temp"
-        \$targetDir = "C:\\Projects\\re_xiuxian"
-        \$zipPath = "\$tempDir\\deploy_package.zip"
+Write-Host "Starting deployment process..."
+$tempDir = "C:\Projects\re_xiuxian_temp"
+$targetDir = "C:\Projects\re_xiuxian"
+$zipPath = "$tempDir\deploy_package.zip"
 
-        # 1. Check file existence
-        if (-not (Test-Path \$zipPath)) {
-            Throw "Error: Deployment package not found at \$zipPath"
-        }
+# 1. Check file existence
+if (-not (Test-Path $zipPath)) {
+    Throw "Error: Deployment package not found at $zipPath"
+}
 
-        # 2. Clean and create target directory
-        if (Test-Path \$targetDir) {
-            Write-Host "Cleaning target directory..."
-            # Optional: Keep node_modules to speed up install
-            # Remove-Item "\$targetDir\\*" -Recurse -Force -Exclude "node_modules"
-        } else {
-            New-Item -Path \$targetDir -ItemType Directory -Force | Out-Null
-        }
+# 2. Stop existing PM2 process if running
+Write-Host "Stopping existing service..."
+if (Get-Command pm2 -ErrorAction SilentlyContinue) {
+    pm2 stop xiuxian-server -ErrorAction SilentlyContinue
+}
 
-        # 3. Extract ZIP
-        Write-Host "Extracting package to \$targetDir..."
-        Expand-Archive -Path \$zipPath -DestinationPath \$targetDir -Force
+# 3. Clean and create target directory
+if (Test-Path $targetDir) {
+    Write-Host "Cleaning target directory..."
+    # Keep node_modules to speed up install
+    Get-ChildItem -Path $targetDir -Recurse -Exclude "node_modules" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+} else {
+    New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
+}
 
-        # 4. Install Server Dependencies
-        Write-Host "Installing server dependencies..."
-        Set-Location "\$targetDir\\server"
-        npm install --production --no-audit
+# 4. Extract ZIP
+Write-Host "Extracting package to $targetDir..."
+Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
 
-        # 5. Configure PM2
-        Write-Host "Configuring PM2..."
-        if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
-            Write-Host "Installing PM2 globally..."
-            npm install -g pm2
-        }
+# 5. Install Server Dependencies
+Write-Host "Installing server dependencies..."
+Set-Location "$targetDir\server"
+npm install --production --no-audit
 
-        Write-Host "Reloading application..."
-        pm2 startOrReload ecosystem.config.js
-        pm2 save
+# 6. Configure PM2
+Write-Host "Configuring PM2..."
+if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing PM2 globally..."
+    npm install -g pm2
+}
 
-        Write-Host "Deployment completed successfully!"
-        Stop-Transcript
-        EOF
+Write-Host "Starting application..."
+pm2 startOrReload ecosystem.config.js --env production
+pm2 save
+
+Write-Host "Deployment completed successfully!"
+Stop-Transcript
+EOF
 
         # 验证脚本内容
         echo "Generated deploy.ps1 content:"
