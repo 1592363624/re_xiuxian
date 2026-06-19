@@ -35,7 +35,12 @@
              </div>
           </div>
 
-          <button v-for="btn in displayMenuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" class="w-full flex items-center gap-3 px-4 py-3 text-sm text-stone-300 hover:bg-[#292524] hover:text-amber-500 rounded transition-colors border border-transparent hover:border-stone-700">
+          <button v-for="btn in displayMenuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" :class="[
+            'w-full flex items-center gap-3 px-4 py-3 text-sm rounded transition-colors border',
+            btn.name === 'GM' 
+              ? 'bg-gradient-to-r from-purple-900/40 to-pink-900/40 text-pink-300 hover:from-purple-800/60 hover:to-pink-800/60 hover:text-pink-200 border-pink-700/50 hover:border-pink-500 shadow-lg shadow-pink-900/20'
+              : 'text-stone-300 hover:bg-[#292524] hover:text-amber-500 border-transparent hover:border-stone-700'
+          ]">
             <span v-html="btn.icon"></span>
             {{ btn.name }}
           </button>
@@ -60,7 +65,12 @@
         
         <!-- 桌面端顶部按钮组 -->
         <div class="hidden md:flex items-center gap-2">
-          <button v-for="btn in displayMenuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" class="flex items-center gap-2 px-3 py-2 bg-[#292524] hover:bg-[#44403c] border border-stone-700 hover:border-stone-500 text-stone-300 hover:text-amber-100 rounded transition-all text-sm min-w-[80px] justify-center group">
+          <button v-for="btn in displayMenuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" :class="[
+            'flex items-center gap-2 px-3 py-2 rounded transition-all text-sm min-w-[80px] justify-center group border',
+            btn.name === 'GM'
+              ? 'bg-gradient-to-r from-purple-900/40 to-pink-900/40 hover:from-purple-800/60 hover:to-pink-800/60 text-pink-300 hover:text-pink-200 border-pink-700/50 hover:border-pink-500 shadow-lg shadow-pink-900/20'
+              : 'bg-[#292524] hover:bg-[#44403c] border-stone-700 hover:border-stone-500 text-stone-300 hover:text-amber-100'
+          ]">
             <span class="group-hover:scale-110 transition-transform" v-html="btn.icon"></span>
             {{ btn.name }}
           </button>
@@ -103,7 +113,7 @@
     <ExplorePanel v-if="isExploreOpen" @close="isExploreOpen = false" @combat="handleExploreCombat" />
     
     <!-- 战斗面板 -->
-    <CombatPanel v-if="isCombatOpen" :initialBattleId="currentBattleId" @close="isCombatOpen = false" />
+    <CombatPanel v-if="isCombatOpen" :initialBattleId="currentBattleId ?? undefined" @close="isCombatOpen = false" />
     
     <!-- 角色弹窗 -->
     <CharacterModal v-if="isCharacterOpen" @close="isCharacterOpen = false" />
