@@ -8,6 +8,7 @@ const sequelize = require('../config/database');
 const Player = require('../models/player');
 const game = require('../game');
 const NotificationService = require('../game/services/NotificationService');
+const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 const authenticateToken = require('../middleware/auth');
 const { infrastructure } = require('../modules');
 
@@ -94,7 +95,20 @@ router.post('/try', authenticateToken, async (req, res) => {
             // 在事务内保存玩家数据
             await player.save({ transaction: t });
             await t.commit();
-            
+
+            // 通过 WebSocket 推送玩家数据更新（失败时修为和年龄已变化，需同步给前端）
+            try {
+                WebSocketNotificationService.notifyPlayerUpdate(player.id, 'breakthrough_failure', {
+                    realm: player.realm,
+                    exp: player.exp.toString(),
+                    lifespan_current: player.lifespan_current,
+                    exp_loss: expLoss.toString(),
+                    age_increase: ageIncrease
+                });
+            } catch (wsError) {
+                console.error('WebSocket 推送突破失败更新失败:', wsError);
+            }
+
             return res.json({
                 code: 200,
                 success: false,
@@ -146,6 +160,17 @@ router.post('/try', authenticateToken, async (req, res) => {
             );
         } catch (notificationError) {
             console.error('发送突破通知失败:', notificationError);
+        }
+
+        // 通过 WebSocket 推送玩家数据更新
+        try {
+            WebSocketNotificationService.notifyPlayerUpdate(player.id, 'breakthrough', {
+                realm: nextRealm.name,
+                exp: player.exp.toString(),
+                attributes: player.attributes
+            });
+        } catch (wsError) {
+            console.error('WebSocket 推送突破更新失败:', wsError);
         }
 
         return res.json({

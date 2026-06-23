@@ -40,7 +40,7 @@ apiClient.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response;
       
-      // 统一错误处理
+      // 统一错误处理：只处理通用错误，业务错误由组件自行处理
       if (status === 401) {
         const playerStore = usePlayerStore();
         playerStore.logout();
@@ -51,10 +51,8 @@ apiClient.interceptors.response.use(
         uiStore.showToast('请求的资源不存在', 'error');
       } else if (status === 500) {
         uiStore.showToast('服务器错误，请稍后重试', 'error');
-      } else {
-        const message = (data as any)?.message || '请求失败';
-        uiStore.showToast(message, 'error');
       }
+      // 400 等业务错误不在此处弹 toast，由调用方组件处理
     } else if (error.request) {
       uiStore.showToast('网络错误，请检查网络连接', 'error');
     } else {

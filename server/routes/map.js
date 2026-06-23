@@ -639,9 +639,10 @@ router.post('/explore/complete', auth, async (req, res) => {
                 }
             });
         } else {
+            // 使用 code 和 message 字段，与 service 返回格式一致
             res.status(400).json({
-                code: 400,
-                message: result.error
+                code: result.code || 400,
+                message: result.message || '操作失败'
             });
         }
     } catch (error) {

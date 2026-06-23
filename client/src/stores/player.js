@@ -187,8 +187,9 @@ export const usePlayerStore = defineStore('player', {
         // 立即更新本地状态，确保UI即时响应
         if (res.data && this.player) {
           this.player.is_secluded = false
-          this.player.exp = res.data.data?.exp || this.player.exp
-          this.player.last_seclusion_time = res.data.data?.last_seclusion_time || new Date()
+          // 修复：后端返回的数据在 res.data.data.player 中
+          this.player.exp = res.data.data?.player?.exp || this.player.exp
+          this.player.last_seclusion_time = res.data.data?.player?.last_seclusion_time || new Date()
           localStorage.setItem('player', JSON.stringify(this.player))
         }
         return res.data
@@ -206,9 +207,12 @@ export const usePlayerStore = defineStore('player', {
       try {
         const apiClient = (await import('../api/index')).default
         const res = await apiClient.post('/breakthrough/try')
-        // 等待 Socket.IO 推送更新
+        // 无论突破成功或失败，都需要刷新玩家数据（失败时后端会扣除修为），确保 UI 及时更新
+        await this.fetchPlayer()
         return res.data
       } catch (error) {
+        // 即使接口返回错误（如修为不足），也刷新数据以保持 UI 同步
+        await this.fetchPlayer()
         console.error('尝试突破失败:', error.response?.data || error.message || error)
         throw error
       }
