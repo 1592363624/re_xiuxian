@@ -68,7 +68,7 @@ echo ===============================================
 echo [成功] 服务器启动完成！
 echo.
 echo 后端服务器: http://localhost:5000
-echo 前端客户端: http://localhost:5173
+echo 前端客户端: http://localhost:8000
 echo API文档: http://localhost:5000/api-docs
 echo.
 echo 测试账号: 1592363624

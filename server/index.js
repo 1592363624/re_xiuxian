@@ -262,6 +262,10 @@ const startServer = async () => {
         });
     });
 
+    // 全局错误处理中间件（必须在所有路由和404处理之后）
+    const { errorHandler } = require('./middleware/errorHandler');
+    app.use(errorHandler);
+
     // Socket.IO在线用户跟踪
     io.on('connection', (socket) => {
         const playerId = socket.handshake.query.playerId || socket.handshake.auth.playerId;

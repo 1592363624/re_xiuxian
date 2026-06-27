@@ -7,13 +7,17 @@ const express = require('express');
 const router = express.Router();
 const CombatService = require('../game/services/CombatService');
 const auth = require('../middleware/auth');
+const { AppError, ErrorCodes } = require('../middleware/errorHandler');
+const Validator = require('../utils/validator');
+const ConfigHelper = require('../utils/configHelper');
 
 /**
  * 遭遇怪物
  */
-router.post('/encounter', auth, async (req, res) => {
+router.post('/encounter', auth, async (req, res, next) => {
     try {
         const { monsterId } = req.body;
+        Validator.isRequired(monsterId, '怪物ID');
         const result = await CombatService.encounter(req.user.id, monsterId);
 
         res.json({
@@ -21,15 +25,14 @@ router.post('/encounter', auth, async (req, res) => {
             ...result
         });
     } catch (error) {
-        console.error('Encounter Error:', error);
-        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 发起攻击
  */
-router.post('/attack', auth, async (req, res) => {
+router.post('/attack', auth, async (req, res, next) => {
     try {
         const { action } = req.body;
         const result = await CombatService.attack(req.user.id, action || 'attack');
@@ -39,16 +42,14 @@ router.post('/attack', auth, async (req, res) => {
             ...result
         });
     } catch (error) {
-        console.error('Attack Error:', error);
-        const status = error.message.includes('还未轮到') ? 400 : 500;
-        res.status(status).json({ code: status, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 怪物行动（客户端轮询）
  */
-router.post('/monster-turn', auth, async (req, res) => {
+router.post('/monster-turn', auth, async (req, res, next) => {
     try {
         const result = await CombatService.monsterTurn(req.user.id);
 
@@ -64,15 +65,14 @@ router.post('/monster-turn', auth, async (req, res) => {
             ...result
         });
     } catch (error) {
-        console.error('Monster Turn Error:', error);
-        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 尝试逃跑
  */
-router.post('/flee', auth, async (req, res) => {
+router.post('/flee', auth, async (req, res, next) => {
     try {
         const result = await CombatService.flee(req.user.id);
 
@@ -81,15 +81,14 @@ router.post('/flee', auth, async (req, res) => {
             ...result
         });
     } catch (error) {
-        console.error('Flee Error:', error);
-        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 获取战斗状态
  */
-router.get('/status', auth, async (req, res) => {
+router.get('/status', auth, async (req, res, next) => {
     try {
         const { battle_id } = req.query;
         const status = await CombatService.getBattleStatus(req.user.id, battle_id);
@@ -99,15 +98,14 @@ router.get('/status', auth, async (req, res) => {
             ...status
         });
     } catch (error) {
-        console.error('Get Status Error:', error);
-        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 获取战斗历史
  */
-router.get('/history', auth, async (req, res) => {
+router.get('/history', auth, async (req, res, next) => {
     try {
         const limit = Math.min(parseInt(req.query.limit) || 20, 100);
         const history = await CombatService.getBattleHistory(req.user.id, limit);
@@ -118,21 +116,28 @@ router.get('/history', auth, async (req, res) => {
             battles: history
         });
     } catch (error) {
-        console.error('Get History Error:', error);
-        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 使用物品（战斗中使用）
  */
-router.post('/use-item', auth, async (req, res) => {
+router.post('/use-item', auth, async (req, res, next) => {
     try {
         const { itemId, quantity } = req.body;
-        
-        // 调用 Service 层方法
-        const result = await game.CombatService.useItem(req.user.id, itemId, quantity || 1);
-        
+
+        // 输入验证
+        Validator.isNonEmptyString(itemId, '物品ID');
+        Validator.isPositiveInteger(quantity || 1, '数量');
+
+        // 验证服务对象存在性
+        if (!CombatService.useItem) {
+            throw new AppError('战斗服务暂不可用', 503, ErrorCodes.SERVICE_UNAVAILABLE);
+        }
+
+        const result = await CombatService.useItem(req.user.id, itemId, quantity || 1);
+
         res.json({
             code: 200,
             message: result.message,
@@ -140,8 +145,7 @@ router.post('/use-item', auth, async (req, res) => {
             player_mp: result.player_mp
         });
     } catch (error) {
-        console.error('Use Item Error:', error);
-        res.status(400).json({ code: 400, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
@@ -172,10 +176,12 @@ function _getMonsterDifficulty(monsterRealm, playerRealm) {
 /**
  * 获取当前地图可遭遇怪物列表
  */
-router.get('/monsters', auth, async (req, res) => {
+router.get('/monsters', auth, async (req, res, next) => {
     try {
         const player = await require('../models/player').findByPk(req.user.id);
-        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
+        if (!player) {
+            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+        }
 
         const MapConfigLoader = require('../game/services/MapConfigLoader');
         const mapConfig = MapConfigLoader.getMap(player.current_map_id);
@@ -190,15 +196,10 @@ router.get('/monsters', auth, async (req, res) => {
             });
         }
 
-        // 读取技能灵力消耗配置
-        const configLoader = require('../modules/infrastructure/ConfigLoader');
-        let skillMpCost = 20; // 默认值
-        try {
-            const balanceConfig = await configLoader.loadConfig('game_balance');
-            skillMpCost = balanceConfig?.combat?.skill_mp_cost || 20;
-        } catch (e) {
-            // 配置加载失败使用默认值
-        }
+        // 使用 ConfigHelper 安全读取技能灵力消耗配置
+        const skillMpCost = ConfigHelper.getNumericConfig(
+            'game_balance', 'combat.skill_mp_cost', 20, 1, 1000
+        );
 
         const monsters = mapConfig.monsters.map(m => ({
             id: m.id,
@@ -218,15 +219,14 @@ router.get('/monsters', auth, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Get Monsters Error:', error);
-        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 使用技能
  */
-router.post('/skill', auth, async (req, res) => {
+router.post('/skill', auth, async (req, res, next) => {
     try {
         const { skillIndex } = req.body;
         const result = await CombatService.useSkill(req.user.id, skillIndex || 0);
@@ -236,17 +236,14 @@ router.post('/skill', auth, async (req, res) => {
             ...result
         });
     } catch (error) {
-        console.error('Use Skill Error:', error);
-        const status = error.message.includes('灵力不足') ? 400 : 
-                      error.message.includes('技能') ? 400 : 500;
-        res.status(status).json({ code: status, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 逃跑（兼容旧接口）
  */
-router.post('/escape', auth, async (req, res) => {
+router.post('/escape', auth, async (req, res, next) => {
     try {
         const result = await CombatService.flee(req.user.id);
 
@@ -255,15 +252,14 @@ router.post('/escape', auth, async (req, res) => {
             ...result
         });
     } catch (error) {
-        console.error('Escape Error:', error);
-        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 
 /**
  * 获取战斗统计
  */
-router.get('/stats', auth, async (req, res) => {
+router.get('/stats', auth, async (req, res, next) => {
     try {
         const stats = await CombatService.getCombatStats(req.user.id);
 
@@ -272,8 +268,7 @@ router.get('/stats', auth, async (req, res) => {
             ...stats
         });
     } catch (error) {
-        console.error('Get Combat Stats Error:', error);
-        res.status(500).json({ code: 500, message: error.message || '服务器错误' });
+        next(error);
     }
 });
 

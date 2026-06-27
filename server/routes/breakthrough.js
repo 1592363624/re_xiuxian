@@ -10,31 +10,29 @@ const game = require('../game');
 const NotificationService = require('../game/services/NotificationService');
 const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 const authenticateToken = require('../middleware/auth');
-const { infrastructure } = require('../modules');
+const { AppError, ErrorCodes } = require('../middleware/errorHandler');
+const ConfigHelper = require('../utils/configHelper');
 
-// 通过 ConfigLoader 获取配置
-const configLoader = infrastructure.ConfigLoader;
-const gameBalanceConfig = configLoader.getConfig('game_balance');
-
-// 从配置文件读取突破惩罚数值
-const FAILURE_EXP_LOSS_RATE = gameBalanceConfig.breakthrough.failure_exp_loss_rate;
-const FAILURE_AGE_MULTIPLIER = gameBalanceConfig.breakthrough.failure_age_multiplier;
+// 使用 ConfigHelper 安全读取突破惩罚数值，提供默认值
+const FAILURE_EXP_LOSS_RATE = ConfigHelper.getNumericConfig(
+    'game_balance', 'breakthrough.failure_exp_loss_rate', 0.1, 0, 1
+);
+const FAILURE_AGE_MULTIPLIER = ConfigHelper.getNumericConfig(
+    'game_balance', 'breakthrough.failure_age_multiplier', 1, 0, 100
+);
 
 /**
  * 尝试境界突破
  * POST /api/breakthrough/try
  */
-router.post('/try', authenticateToken, async (req, res) => {
+router.post('/try', authenticateToken, async (req, res, next) => {
     const t = await sequelize.transaction();
     try {
         const playerId = req.user?.id;
         
         if (!playerId) {
             await t.rollback();
-            return res.status(401).json({ 
-                code: 401, 
-                message: '未登录或登录已过期' 
-            });
+            throw new AppError('未登录或登录已过期', 401, ErrorCodes.UNAUTHORIZED);
         }
 
         const player = await Player.findByPk(playerId, { 
@@ -43,41 +41,25 @@ router.post('/try', authenticateToken, async (req, res) => {
         
         if (!player) {
             await t.rollback();
-            return res.status(404).json({ 
-                code: 404, 
-                message: '玩家不存在' 
-            });
+            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
         const currentRealm = game.RealmService.getRealmByName(player.realm);
         if (!currentRealm) {
             await t.rollback();
-            return res.status(400).json({ 
-                code: 400, 
-                message: '当前境界数据异常，无法突破' 
-            });
+            throw new AppError('当前境界数据异常，无法突破', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
         const nextRealm = game.RealmService.getNextRealm(currentRealm);
         if (!nextRealm) {
             await t.rollback();
-            return res.status(400).json({ 
-                code: 400, 
-                message: '已是最高境界，无法继续突破' 
-            });
+            throw new AppError('已是最高境界，无法继续突破', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
         const canBreakthrough = game.ExperienceService.canBreakthrough(player);
         if (!canBreakthrough.canBreak) {
             await t.rollback();
-            return res.status(400).json({
-                code: 400,
-                message: canBreakthrough.reason,
-                data: {
-                    current_exp: canBreakthrough.currentExp,
-                    required_exp: canBreakthrough.requiredExp
-                }
-            });
+            throw new AppError(canBreakthrough.reason, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
         const probability = game.RealmService.calculateBreakthroughProbability(player, nextRealm);
@@ -190,12 +172,7 @@ router.post('/try', authenticateToken, async (req, res) => {
         });
     } catch (error) {
         await t.rollback();
-        console.error('突破失败:', error);
-        return res.status(500).json({ 
-            code: 500, 
-            message: '服务器错误',
-            error: error.message 
-        });
+        next(error);
     }
 });
 
@@ -203,24 +180,18 @@ router.post('/try', authenticateToken, async (req, res) => {
  * 获取突破信息
  * GET /api/breakthrough/info
  */
-router.get('/info', authenticateToken, async (req, res) => {
+router.get('/info', authenticateToken, async (req, res, next) => {
     try {
         const playerId = req.user?.id;
         
         if (!playerId) {
-            return res.status(401).json({ 
-                code: 401, 
-                message: '未登录或登录已过期' 
-            });
+            throw new AppError('未登录或登录已过期', 401, ErrorCodes.UNAUTHORIZED);
         }
 
         const player = await Player.findByPk(playerId);
         
         if (!player) {
-            return res.status(404).json({ 
-                code: 404, 
-                message: '玩家不存在' 
-            });
+            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
         const currentRealm = game.RealmService.getRealmByName(player.realm);
@@ -247,11 +218,7 @@ router.get('/info', authenticateToken, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('获取突破信息失败:', error);
-        res.status(500).json({ 
-            code: 500, 
-            message: '服务器错误' 
-        });
+        next(error);
     }
 });
 

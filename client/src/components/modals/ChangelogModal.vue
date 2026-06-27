@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import apiClient from '../../api'
 import { changelog, currentVersion } from '../../data/changelog'
 
@@ -85,8 +85,11 @@ const fetchChangelog = async () => {
   }
 }
 
-onMounted(() => {
-  fetchChangelog()
+// 监听弹窗打开，仅在打开时请求数据
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    fetchChangelog()
+  }
 })
 </script>
 
