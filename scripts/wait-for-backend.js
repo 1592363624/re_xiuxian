@@ -8,7 +8,7 @@ const http = require('http');
 const path = require('path');
 
 const BACKEND_PORT = 5000;
-const FRONTEND_PORT = 8000;
+const FRONTEND_PORT = 5173;
 const MAX_WAIT_TIME = 60 * 1000; // 最长等待60秒
 const CHECK_INTERVAL = 1000; // 每秒检查一次
 

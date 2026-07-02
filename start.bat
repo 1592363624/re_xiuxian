@@ -58,7 +58,7 @@ for /f "usebackq tokens=1,2 delims==" %%a in ("server\.env") do (
     )
 )
 
-set CLIENT_PORT=8000
+set CLIENT_PORT=5173
 for /f "usebackq tokens=1,2 delims==" %%a in ("client\.env") do (
     set "env_key=%%a"
     if not "!env_key:~0,1!"=="#" (

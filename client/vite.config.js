@@ -5,7 +5,7 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd())
-  const clientPort = parseInt(env.VITE_CLIENT_PORT) || 8000
+  const clientPort = parseInt(env.VITE_CLIENT_PORT) || 5173
   const apiUrl = env.VITE_API_URL || 'http://localhost:5000'
 
   return {
