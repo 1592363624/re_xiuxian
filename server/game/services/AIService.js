@@ -781,17 +781,127 @@ class AIService {
     clearCache(maxAge = 0) {
         const now = Date.now();
         let cleared = 0;
-        
+
         for (const [key, value] of this.cache.entries()) {
             if (now - value.timestamp > maxAge) {
                 this.cache.delete(key);
                 cleared++;
             }
         }
-        
+
         console.log(`[AI Service] 清理了 ${cleared} 条过期缓存`);
         return cleared;
     }
 }
+
+/**
+ * 模块级 AI 服务实例引用
+ * 用于支持从 GM 后台热重载配置时，替换全局实例
+ */
+let activeInstance = null;
+
+/**
+ * 设置当前活跃的 AI 服务实例
+ * @param {AIService} instance - AI 服务实例
+ */
+AIService.setActiveInstance = function(instance) {
+    activeInstance = instance;
+};
+
+/**
+ * 获取当前活跃的 AI 服务实例
+ * @returns {AIService|null} AI 服务实例
+ */
+AIService.getActiveInstance = function() {
+    return activeInstance;
+};
+
+/**
+ * 从数据库热重载 AI 配置
+ * GM 后台激活新配置后调用，替换全局实例并通知 AdventureEventService
+ *
+ * 优先级：数据库启用配置 > 环境变量 > JSON 配置文件
+ * @returns {Promise<AIService>} 新的 AI 服务实例
+ */
+AIService.reloadFromDatabase = async function() {
+    try {
+        // 延迟加载 AiConfig 模型，避免循环依赖
+        const AiConfig = require('../../models/ai_config');
+        const cryptoHelper = require('../../utils/cryptoHelper');
+
+        // 查询当前启用的配置
+        const dbConfig = await AiConfig.findOne({ where: { is_active: true } });
+
+        let newConfig = null;
+
+        if (dbConfig) {
+            // 从数据库读取并解密 API Key
+            let apiKey = '';
+            if (dbConfig.encrypted_api_key) {
+                try {
+                    apiKey = cryptoHelper.decrypt(dbConfig.encrypted_api_key);
+                } catch (e) {
+                    console.warn('[AI Service] 数据库 API Key 解密失败，降级为无 Key:', e.message);
+                }
+            }
+
+            newConfig = {
+                provider: dbConfig.provider,
+                apiKey,
+                baseUrl: dbConfig.base_url,
+                model: dbConfig.model,
+                protocol: dbConfig.protocol,
+                temperature: parseFloat(dbConfig.temperature),
+                maxTokens: dbConfig.max_tokens,
+                timeout: dbConfig.timeout,
+                enableCache: true,
+                fallbackToTemplate: true
+            };
+            console.log(`[AI Service] 从数据库加载配置: ${dbConfig.display_name} (${dbConfig.provider})`);
+        } else {
+            // 数据库无启用配置，使用原有初始化逻辑（环境变量 + JSON 配置文件）
+            console.log('[AI Service] 数据库无启用配置，使用环境变量/JSON 配置');
+            const { infrastructure } = require('../../modules');
+            const configLoader = infrastructure.ConfigLoader;
+            newConfig = null;  // null 表示使用 initialize 默认逻辑
+        }
+
+        // 创建新实例（若 dbConfig 为 null，则走 initialize 默认逻辑）
+        let newInstance;
+        if (newConfig) {
+            newInstance = new AIService(newConfig);
+            if (newConfig.apiKey) {
+                console.log(`[AI Service] 已热重载，提供商: ${newConfig.provider}, 模型: ${newConfig.model}, 协议: ${newConfig.protocol}`);
+            } else {
+                console.warn('[AI Service] 已热重载，但未配置 API Key，将使用模板生成模式');
+            }
+        } else {
+            // 降级为 initialize 默认逻辑
+            const { infrastructure } = require('../../modules');
+            newInstance = await AIService.initialize(infrastructure.ConfigLoader);
+        }
+
+        // 替换全局实例
+        activeInstance = newInstance;
+
+        // 通知 AdventureEventService 更新引用
+        try {
+            const AdventureEventService = require('./AdventureEventService');
+            const advInstance = AdventureEventService.getActiveInstance?.();
+            if (advInstance) {
+                advInstance.aiService = newInstance;
+                console.log('[AI Service] 已通知 AdventureEventService 更新 AI 服务引用');
+            }
+        } catch (e) {
+            console.warn('[AI Service] 通知 AdventureEventService 失败:', e.message);
+        }
+
+        return newInstance;
+    } catch (error) {
+        console.error('[AI Service] 从数据库热重载失败:', error.message);
+        // 失败时保留旧实例，不替换
+        return activeInstance;
+    }
+};
 
 module.exports = AIService;

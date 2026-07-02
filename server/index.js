@@ -245,6 +245,7 @@ const startServer = async () => {
     app.use('/api/player', require('./routes/player'));
     app.use('/api/chat', require('./routes/chat'));
     app.use('/api/admin', require('./routes/admin'));
+    app.use('/api/admin/ai-config', require('./routes/admin_ai'));
     app.use('/api/system', require('./routes/system'));
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));

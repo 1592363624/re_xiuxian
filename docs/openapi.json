@@ -3,7 +3,7 @@
   "info": {
     "title": "重生之凡人修仙传 API",
     "description": "修仙文字游戏后端接口文档，基于《凡人修仙传》世界观。包含玩家注册登录、角色管理、境界突破、地图探索、闭关修炼、GM管理、系统通知、WebSocket实时推送、玩家数据实时同步等完整功能。",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "contact": {
       "name": "Shell",
       "email": "1592363624@qq.com"
@@ -78,7 +78,7 @@
     },
     {
       "name": "AI",
-      "description": "AI大模型服务"
+      "description": "AI大模型服务与配置管理（GM 后台，支持多厂商 OpenAI 兼容协议）"
     }
   ],
   "security": [
@@ -88,6 +88,29 @@
   ],
   "components": {
     "schemas": {
+      "AiConfig": {
+        "type": "object",
+        "description": "AI 配置（API Key 已脱敏）",
+        "properties": {
+          "id": {"type": "integer", "description": "主键 ID"},
+          "provider": {"type": "string", "description": "提供商标识", "example": "deepseek"},
+          "display_name": {"type": "string", "description": "显示名称", "example": "DeepSeek 测试"},
+          "base_url": {"type": "string", "description": "API 基础 URL", "example": "https://api.deepseek.com/v1"},
+          "model": {"type": "string", "description": "模型名称", "example": "deepseek-chat"},
+          "api_key_masked": {"type": "string", "description": "脱敏后的 API Key（仅显示后4位）", "example": "****1234"},
+          "has_api_key": {"type": "boolean", "description": "是否已配置 Key"},
+          "protocol": {"type": "string", "enum": ["openai", "anthropic"], "description": "通信协议"},
+          "temperature": {"type": "number", "description": "采样温度"},
+          "max_tokens": {"type": "integer", "description": "最大 token 数"},
+          "timeout": {"type": "integer", "description": "超时时间（毫秒）"},
+          "is_active": {"type": "boolean", "description": "是否启用"},
+          "last_tested_at": {"type": "string", "format": "date-time", "nullable": true},
+          "last_test_status": {"type": "string", "enum": ["success", "failed"], "nullable": true},
+          "last_test_message": {"type": "string", "nullable": true},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
       "Notification": {
         "type": "object",
         "description": "系统通知",
@@ -5509,6 +5532,205 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/admin/ai-config": {
+      "get": {
+        "summary": "获取 AI 配置列表",
+        "description": "获取所有 AI 配置，API Key 脱敏返回（仅显示后4位）。需要管理员权限。",
+        "tags": ["AI", "Admin"],
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "成功返回配置列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {"type": "integer", "example": 200},
+                    "message": {"type": "string", "example": "success"},
+                    "data": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/AiConfig"}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {"description": "权限不足"}
+        }
+      },
+      "post": {
+        "summary": "新增 AI 配置",
+        "description": "新增 AI 配置，API Key 使用 AES-256-CBC 加密存储。若设为启用，其他配置将自动停用。需要管理员权限。",
+        "tags": ["AI", "Admin"],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["provider", "display_name", "base_url", "model"],
+                "properties": {
+                  "provider": {"type": "string", "example": "deepseek", "description": "提供商标识"},
+                  "display_name": {"type": "string", "example": "DeepSeek 测试"},
+                  "base_url": {"type": "string", "example": "https://api.deepseek.com/v1"},
+                  "model": {"type": "string", "example": "deepseek-chat"},
+                  "api_key": {"type": "string", "description": "API Key（明文传入，加密存储）"},
+                  "protocol": {"type": "string", "enum": ["openai", "anthropic"], "default": "openai"},
+                  "temperature": {"type": "number", "default": 0.7},
+                  "max_tokens": {"type": "integer", "default": 1000},
+                  "timeout": {"type": "integer", "default": 30000},
+                  "is_active": {"type": "boolean", "default": false}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "创建成功"},
+          "400": {"description": "参数错误或提供商已存在"}
+        }
+      }
+    },
+    "/api/admin/ai-config/providers": {
+      "get": {
+        "summary": "获取可选 AI 提供商列表",
+        "description": "从 ai_config.json 读取可选提供商列表，供前端下拉选择。需要管理员权限。",
+        "tags": ["AI", "Admin"],
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "成功返回提供商列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {"type": "integer", "example": 200},
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {"type": "string", "example": "deepseek"},
+                          "name": {"type": "string", "example": "DeepSeek 深度求索"},
+                          "models": {"type": "array", "items": {"type": "string"}, "example": ["deepseek-chat", "deepseek-reasoner"]},
+                          "default_endpoint": {"type": "string", "example": "https://api.deepseek.com/v1"},
+                          "compatible_with": {"type": "string", "example": "openai"},
+                          "description": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/ai-config/{id}": {
+      "put": {
+        "summary": "更新 AI 配置",
+        "description": "更新指定 AI 配置（支持部分更新）。API Key 留空表示不修改。需要管理员权限。",
+        "tags": ["AI", "Admin"],
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "display_name": {"type": "string"},
+                  "base_url": {"type": "string"},
+                  "model": {"type": "string"},
+                  "api_key": {"type": "string", "description": "留空表示不修改"},
+                  "protocol": {"type": "string", "enum": ["openai", "anthropic"]},
+                  "temperature": {"type": "number"},
+                  "max_tokens": {"type": "integer"},
+                  "timeout": {"type": "integer"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "更新成功"},
+          "404": {"description": "配置不存在"}
+        }
+      },
+      "delete": {
+        "summary": "删除 AI 配置",
+        "description": "删除指定 AI 配置。不允许删除当前启用的配置。需要管理员权限。",
+        "tags": ["AI", "Admin"],
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {"description": "删除成功"},
+          "400": {"description": "不允许删除当前启用的配置"},
+          "404": {"description": "配置不存在"}
+        }
+      }
+    },
+    "/api/admin/ai-config/{id}/activate": {
+      "post": {
+        "summary": "激活 AI 配置",
+        "description": "激活指定 AI 配置，其他配置自动停用。激活后触发 AIService 热重载，立即生效。需要管理员权限。",
+        "tags": ["AI", "Admin"],
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {"description": "激活成功"},
+          "404": {"description": "配置不存在"}
+        }
+      }
+    },
+    "/api/admin/ai-config/{id}/test": {
+      "post": {
+        "summary": "测试 AI 配置连接性",
+        "description": "向目标 AI API 发送简短测试请求，验证配置（URL、Key、模型）是否可用。测试请求在后端组装，不下发 API Key 到前端。需要管理员权限。",
+        "tags": ["AI", "Admin"],
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "测试结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {"type": "integer", "example": 200},
+                    "message": {"type": "string", "example": "连接成功，模型响应正常（HTTP 200）"},
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {"type": "string", "enum": ["success", "failed"]},
+                        "message": {"type": "string"},
+                        "tested_at": {"type": "string", "format": "date-time"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {"description": "未配置 API Key 或配置不存在"}
         }
       }
     }
