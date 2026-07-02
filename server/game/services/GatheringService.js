@@ -234,6 +234,52 @@ class GatheringService {
             }))
         };
     }
+
+    /**
+     * 批量采集（一次采集多个同类资源）
+     * 业务逻辑下沉到 Service 层，路由仅做参数校验和响应
+     * @param {number} playerId - 玩家 ID
+     * @param {string} resourceId - 资源 ID
+     * @param {number} count - 期望采集次数
+     * @param {number} maxAllowed - 配置允许的最大次数（由路由传入，避免 Service 读配置耦合）
+     * @returns {Object} 批量采集结果
+     */
+    static async batchCollect(playerId, resourceId, count, maxAllowed) {
+        // 批量上限由路由层从配置读取后传入，Service 层不直接读配置
+        const actualCount = Math.min(count || 1, maxAllowed);
+        const results = [];
+        let totalMpUsed = 0;
+        const totalItems = {};
+
+        for (let i = 0; i < actualCount; i++) {
+            try {
+                const result = await this.collect(playerId, resourceId);
+                results.push({
+                    success: true,
+                    quantity: result.quantity,
+                    is_crit: result.is_crit
+                });
+
+                totalMpUsed += result.mp_cost;
+                totalItems[result.item_id] = (totalItems[result.item_id] || 0) + result.quantity;
+            } catch (e) {
+                // 任一次失败则停止后续采集（如灵力不足、冷却未到）
+                results.push({
+                    success: false,
+                    error: e.message
+                });
+                break;
+            }
+        }
+
+        return {
+            total_attempts: results.length,
+            total_success: results.filter(r => r.success).length,
+            total_mp_used: totalMpUsed,
+            total_items: totalItems,
+            details: results
+        };
+    }
 }
 
 module.exports = GatheringService;

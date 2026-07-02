@@ -82,6 +82,15 @@
         </div>
       </header>
 
+      <!-- 闭关修炼浮动状态条（header 下方，不遮挡内容） -->
+      <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
+
+      <!-- 赶路移动浮动状态条（header 下方，不遮挡内容） -->
+      <MovingOverlay
+        :show="movingState.isMoving"
+        @complete="handleMoveComplete"
+      />
+
       <!-- 游戏内容区 (日志 + 战斗视觉) -->
       <div class="flex-1 overflow-hidden relative flex flex-col">
         <!-- 这里可以放战斗视觉层 (CombatVisuals) -->
@@ -94,9 +103,6 @@
 
     <!-- 全局聊天组件 -->
     <GlobalChat />
-    
-    <!-- 闭关遮罩层 -->
-    <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
 
     <BreakthroughPortal v-if="playerStore.player" />
     
@@ -155,6 +161,7 @@ import BreakthroughPortal from '../widgets/BreakthroughPortal.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
+import MovingOverlay from '../overlays/MovingOverlay.vue';
 import MapPanel from '../panels/MapPanel.vue';
 import SystemAlert from '../widgets/SystemAlert.vue';
 import ExplorePanel from '../panels/ExplorePanel.vue';
@@ -188,6 +195,21 @@ const totalPlayers = ref(0);
 // 标记是否已完成后端状态同步，防止用 localStorage 旧数据误渲染闭关遮罩
 const isStateSynced = ref(false);
 let statsInterval: any = null;
+
+/**
+ * 移动状态计算属性
+ */
+const movingState = computed(() => playerStore.movingState);
+
+/**
+ * 移动完成处理
+ * 注意：不立即 fetchPlayer，因为后端定时任务可能还没处理完成
+ * 后端会通过 Socket 推送 move:completed 事件，由 player store 自动处理刷新
+ */
+const handleMoveComplete = () => {
+  playerStore.clearMovingState();
+  uiStore.showToast('已到达目的地', 'success');
+};
 
 /**
  * 获取系统统计

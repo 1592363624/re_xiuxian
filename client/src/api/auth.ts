@@ -43,3 +43,14 @@ export const register = (data: RegisterRequest) => {
 export const logout = () => {
   return apiClient.post('/auth/logout');
 };
+
+/**
+ * 检查账号/道号唯一性
+ * @param type - 'username' | 'nickname'
+ * @param value - 待校验的值
+ */
+export const checkUnique = (type: 'username' | 'nickname', value: string) => {
+  return apiClient.get('/auth/check-unique', {
+    params: { type, value }
+  });
+};

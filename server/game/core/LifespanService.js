@@ -3,7 +3,9 @@
  * 核心逻辑层 - 处理玩家年龄增长与寿命管理
  */
 const Player = require('../../models/player');
-const configLoader = require('../../modules/infrastructure/ConfigLoader');
+// 修复：统一通过 modules/index.js 导出引用 ConfigLoader
+const { infrastructure } = require('../../modules');
+const configLoader = infrastructure.ConfigLoader;
 
 class LifespanService {
     /**

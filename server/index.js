@@ -56,10 +56,13 @@ const PORT = process.env.PORT || 5000;
 // 在线用户跟踪（使用Socket.IO连接状态）
 const onlineUsers = new Map();
 
+// 修复：显式声明 configLoader，避免隐式全局变量污染
+let configLoader = null;
+
 // 从配置文件读取时间间隔常量（通过 ConfigLoader 支持热更新）
 // 使用懒加载函数，避免模块加载时配置未初始化的问题
 function getTimeIntervals() {
-    return configLoader.getConfig('game_balance')?.time_intervals || {};
+    return configLoader?.getConfig('game_balance')?.time_intervals || {};
 }
 
 // 提供配置访问函数，而非立即获取配置值
@@ -87,7 +90,7 @@ async function initializeConfigLoader() {
     try {
         const { initializeModules } = require('./modules');
         const result = await initializeModules();
-        // configLoader 已在第 60 行声明，这里直接赋值
+        // 修复：configLoader 已在文件顶部声明（let configLoader = null），此处赋值即可
         configLoader = result.configLoader || require('./modules').infrastructure.ConfigLoader;
         console.log('配置加载器初始化成功，已加载配置:', configLoader.getLoadedConfigNames());
         return true;
@@ -98,11 +101,11 @@ async function initializeConfigLoader() {
 }
 
 // 初始化游戏核心服务
-async function initializeCoreServices(configLoader) {
+async function initializeCoreServices(configLoaderInstance) {
     try {
         const { initializeGameServices } = require('./game');
         // initializeGameServices 是异步函数，需要等待
-        await initializeGameServices(configLoader);
+        await initializeGameServices(configLoaderInstance);
         console.log('游戏核心服务模块初始化成功');
         return true;
     } catch (error) {
@@ -221,7 +224,7 @@ const startServer = async () => {
                     await player.save();
                     
                     // 通过 WebSocket 通知前端
-                    const playerSocketId = onlineUsers.get(player.id.toString());
+                    const playerSocketId = onlineUsers.get(String(player.id));
                     if (playerSocketId?.socketId) {
                         io.to(playerSocketId.socketId).emit('move:completed', {
                             player_id: player.id,
@@ -242,6 +245,7 @@ const startServer = async () => {
     app.use('/api/player', require('./routes/player'));
     app.use('/api/chat', require('./routes/chat'));
     app.use('/api/admin', require('./routes/admin'));
+    app.use('/api/admin/ai-config', require('./routes/admin_ai'));
     app.use('/api/system', require('./routes/system'));
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));
@@ -262,51 +266,79 @@ const startServer = async () => {
         });
     });
 
-    // Socket.IO在线用户跟踪
-    io.on('connection', (socket) => {
-        const playerId = socket.handshake.query.playerId || socket.handshake.auth.playerId;
-        if (playerId) {
-            if (!onlineUsers.has(playerId)) {
-                onlineUsers.set(playerId, {
-                    socketId: socket.id,
-                    connectedAt: new Date(),
-                    lastSavedAt: new Date()
-                });
-            } else {
-                // 更新 socketId，保留连接时间
-                const info = onlineUsers.get(playerId);
-                info.socketId = socket.id;
-                onlineUsers.set(playerId, info);
-            }
-            console.log(`玩家 ${playerId} 已连接，SocketID: ${socket.id}`);
+    // 全局错误处理中间件（必须在所有路由和404处理之后）
+    const { errorHandler } = require('./middleware/errorHandler');
+    app.use(errorHandler);
+
+    // Socket.IO 在线用户跟踪（与 WebSocketNotificationService 共享 JWT 鉴权）
+    // 修复安全漏洞：禁止信任客户端传入的 playerId，必须通过 JWT 校验
+    const jwt = require('jsonwebtoken');
+    const Player = require('./models/player');
+
+    async function authenticateSocket(socket) {
+        const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+        if (!token) {
+            socket.emit('auth_error', { message: '未提供认证令牌' });
+            socket.disconnect(true);
+            return null;
         }
+        try {
+            const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET);
+            const player = await Player.findByPk(decoded.id);
+            if (!player || player.token_version !== decoded.v) {
+                socket.emit('auth_error', { message: '认证失败，请重新登录' });
+                socket.disconnect(true);
+                return null;
+            }
+            return player.id;
+        } catch (err) {
+            socket.emit('auth_error', { message: '令牌无效或已过期' });
+            socket.disconnect(true);
+            return null;
+        }
+    }
+
+    io.on('connection', async (socket) => {
+        const playerId = await authenticateSocket(socket);
+        if (!playerId) return;
+
+        if (!onlineUsers.has(playerId.toString())) {
+            onlineUsers.set(playerId.toString(), {
+                socketId: socket.id,
+                connectedAt: new Date(),
+                lastSavedAt: new Date()
+            });
+        } else {
+            // 更新 socketId，保留连接时间
+            const info = onlineUsers.get(playerId.toString());
+            info.socketId = socket.id;
+            onlineUsers.set(playerId.toString(), info);
+        }
+        console.log(`玩家 ${playerId} 已连接，SocketID: ${socket.id}`);
 
         socket.on('disconnect', async () => {
-            if (playerId) {
-                const userInfo = onlineUsers.get(playerId);
-                if (userInfo && userInfo.socketId === socket.id) {
-                    // 计算并保存时长
-                    const now = new Date();
-                    const lastSaved = userInfo.lastSavedAt || userInfo.connectedAt;
-                    const duration = now - lastSaved;
+            const userInfo = onlineUsers.get(playerId.toString());
+            if (userInfo && userInfo.socketId === socket.id) {
+                // 计算并保存时长
+                const now = new Date();
+                const lastSaved = userInfo.lastSavedAt || userInfo.connectedAt;
+                const duration = now - lastSaved;
 
-                    if (duration > 0) {
-                        try {
-                            const Player = require('./models/player');
-                            const player = await Player.findByPk(playerId);
-                            if (player) {
-                                player.total_online_time = BigInt(player.total_online_time || 0) + BigInt(duration);
-                                await player.save();
-                                console.log(`玩家 ${playerId} 下线，增加在线时长 ${duration}ms`);
-                            }
-                        } catch (err) {
-                            console.error(`保存玩家 ${playerId} 在线时长失败:`, err);
+                if (duration > 0) {
+                    try {
+                        const player = await Player.findByPk(playerId);
+                        if (player) {
+                            player.total_online_time = BigInt(player.total_online_time || 0) + BigInt(duration);
+                            await player.save();
+                            console.log(`玩家 ${playerId} 下线，增加在线时长 ${duration}ms`);
                         }
+                    } catch (err) {
+                        console.error(`保存玩家 ${playerId} 在线时长失败:`, err);
                     }
-
-                    onlineUsers.delete(playerId);
-                    console.log(`玩家 ${playerId} 已断开连接`);
                 }
+
+                onlineUsers.delete(playerId.toString());
+                console.log(`玩家 ${playerId} 已断开连接`);
             }
         });
     });

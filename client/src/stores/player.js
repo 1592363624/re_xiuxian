@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { getPlayer } from '../api/player'
 import { getStatus as getSeclusionStatus, start as startSeclusionApi, end as endSeclusionApi } from '../api/seclusion'
 import { getConfig as getSystemConfig } from '../api/system'
+import { tryBreakthrough as tryBreakthroughApi } from '../api/breakthrough'
 import { socketService } from '../services/socket'
 
 export const usePlayerStore = defineStore('player', {
@@ -33,8 +34,8 @@ export const usePlayerStore = defineStore('player', {
     setToken(token) {
       this.token = token
       localStorage.setItem('token', token)
-      // 初始化 Socket 连接
-      socketService.connect({ playerId: this.player?.id })
+      // 初始化 Socket 连接（携带 JWT 供服务端鉴权）
+      socketService.connect({ token, playerId: this.player?.id })
       this.setupSocketListeners()
     },
     
@@ -79,6 +80,12 @@ export const usePlayerStore = defineStore('player', {
       socketService.on('move:completed', async () => {
         this.clearMovingState()
         await this.fetchPlayer()
+      })
+
+      // 监听 WebSocket 鉴权失败：服务端 JWT 校验失败时强制登出
+      socketService.on('auth_error', (data) => {
+        console.warn('[PlayerStore] 收到鉴权失败事件:', data)
+        this.logout(data?.message || 'WebSocket 鉴权失败，请重新登录')
       })
     },
 
@@ -187,8 +194,9 @@ export const usePlayerStore = defineStore('player', {
         // 立即更新本地状态，确保UI即时响应
         if (res.data && this.player) {
           this.player.is_secluded = false
-          this.player.exp = res.data.data?.exp || this.player.exp
-          this.player.last_seclusion_time = res.data.data?.last_seclusion_time || new Date()
+          // 修复：后端返回的数据在 res.data.data.player 中
+          this.player.exp = res.data.data?.player?.exp || this.player.exp
+          this.player.last_seclusion_time = res.data.data?.player?.last_seclusion_time || new Date()
           localStorage.setItem('player', JSON.stringify(this.player))
         }
         return res.data
@@ -204,11 +212,14 @@ export const usePlayerStore = defineStore('player', {
     async tryBreakthrough() {
       if (!this.token) return null
       try {
-        const apiClient = (await import('../api/index')).default
-        const res = await apiClient.post('/breakthrough/try')
-        // 等待 Socket.IO 推送更新
+        // 修复：使用统一封装的 breakthrough API 替代动态 import，避免循环依赖警告
+        const res = await tryBreakthroughApi()
+        // 无论突破成功或失败，都需要刷新玩家数据（失败时后端会扣除修为），确保 UI 及时更新
+        await this.fetchPlayer()
         return res.data
       } catch (error) {
+        // 即使接口返回错误（如修为不足），也刷新数据以保持 UI 同步
+        await this.fetchPlayer()
         console.error('尝试突破失败:', error.response?.data || error.message || error)
         throw error
       }

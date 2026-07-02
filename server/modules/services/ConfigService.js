@@ -2,6 +2,7 @@
  * 系统配置统一管理模块
  * 负责从 JSON 文件读取/写入系统配置
  */
+// 修复：modules/services 子目录引用本模块 infrastructure，使用相对路径正确
 const configLoader = require('../infrastructure/ConfigLoader');
 const fs = require('fs');
 const path = require('path');

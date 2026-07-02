@@ -12,6 +12,7 @@ import {
   markAllAsRead
 } from '../api/notification'
 import { socketService } from '../services/socket'
+import { UI_CONFIG } from '../config'
 
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
@@ -59,7 +60,9 @@ export const useNotificationStore = defineStore('notification', {
       this.unreadCount++
       this.notifications.unshift(this.liveNotifications[0])
 
-      if (this.liveNotifications.length > 10) {
+      // 实时通知上限从配置读取，避免硬编码
+      const maxLive = UI_CONFIG.maxLiveNotifications
+      if (this.liveNotifications.length > maxLive) {
         this.liveNotifications.pop()
       }
     },

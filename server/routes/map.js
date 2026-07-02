@@ -17,6 +17,11 @@ const Realm = require('../models/realm');
 const auth = require('../middleware/auth');
 const { Op } = require('sequelize');
 const RealmService = require('../game/core/RealmService');
+// 修复：统一在文件顶部引入 ConfigLoader，避免函数体内重复 require
+const { infrastructure } = require('../modules');
+const configLoader = infrastructure.ConfigLoader;
+// 修复：引入 MapService，将业务算法下沉到 Service 层
+const MapService = require('../game/services/MapService');
 
 const mapConfig = MapConfigLoader;
 let adventureService = null;
@@ -69,7 +74,7 @@ router.get('/info', auth, async (req, res) => {
         }
 
         const connectedMaps = mapConfig.getConnectedMaps(mapId).map(m => {
-            const costInfo = calculateTravelCost(m, player, mapConfigData);
+            const costInfo = MapService.calculateTravelCost(m, player, mapConfigData);
             return {
                 id: m.id,
                 name: m.name,
@@ -113,59 +118,8 @@ router.get('/info', auth, async (req, res) => {
 });
 
 /**
- * 计算移动到目标地图的消耗
- */
-function calculateTravelCost(targetMap, player, currentMap = null) {
-    // 从配置文件读取移动消耗相关配置
-    const configLoader = require('../modules/infrastructure/ConfigLoader');
-    const gameBalance = configLoader.getConfig('game_balance') || {};
-    const travelConfig = gameBalance.map?.travel || {};
-    const typeMultiplier = gameBalance.map?.type_multiplier || {};
-    const terrainFactor = gameBalance.map?.terrain_factor || {};
-    
-    const baseCost = travelConfig.base_cost || 10;
-    const baseTime = travelConfig.base_time || 60;
-    const distanceDivisor = travelConfig.distance_divisor || 10;
-    const dangerLevelMultiplier = travelConfig.danger_level_multiplier || 2;
-    const travelTimeDivisor = travelConfig.travel_time_divisor || 2;
-    const speedDivisor = travelConfig.speed_divisor || 10;
-    const terrainMultiplier = travelConfig.terrain_multiplier || 10;
-    
-    const dangerLevel = targetMap.danger_level || 1;
-    const travelTime = targetMap.travel_time || 5;
-    const type = targetMap.type || 'country';
-    const environment = targetMap.environment || 'plains';
-    
-    let distance = 0;
-    let time = baseTime;
-    
-    if (currentMap && currentMap.x !== undefined && targetMap.x !== undefined) {
-        distance = Math.sqrt(
-            Math.pow(targetMap.x - currentMap.x, 2) + 
-            Math.pow(targetMap.y - currentMap.y, 2)
-        );
-        const terrainMod = terrainFactor[environment] || 1;
-        const playerSpeed = player.attributes?.speed || 10;
-        time = Math.floor(baseTime + (distance * terrainMod * terrainMultiplier) / (playerSpeed / speedDivisor));
-    } else {
-        time = travelTime * baseTime;
-    }
-    
-    let cost = baseCost;
-    cost += Math.floor(distance / distanceDivisor);
-    cost += dangerLevel * dangerLevelMultiplier;
-    cost += travelTime / travelTimeDivisor;
-    cost *= typeMultiplier[type] || 1;
-    
-    return {
-        cost: Math.floor(cost),
-        time: time,
-        distance: Math.floor(distance * 100) / 100
-    };
-}
-
-/**
  * 计算移动到目标地图的消耗（供前端调用）
+ * 业务算法委托 MapService.calculateTravelCost
  */
 router.post('/calculate-move-cost', auth, async (req, res) => {
     try {
@@ -183,8 +137,8 @@ router.post('/calculate-move-cost', auth, async (req, res) => {
             return res.status(404).json({ code: 404, message: '地图配置不存在' });
         }
 
-        const travelCostInfo = calculateTravelCost(targetMapConfig, player, currentMapConfig);
-        
+        const travelCostInfo = MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
+
         res.json({
             code: 200,
             data: {
@@ -237,8 +191,8 @@ router.post('/start-move', auth, async (req, res) => {
             });
         }
 
-        const travelCostInfo = calculateTravelCost(targetMapConfig, player, currentMapConfig);
-        
+        const travelCostInfo = MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
+
         if (player.mp_current < travelCostInfo.cost) {
             return res.status(400).json({ 
                 code: 400,
@@ -276,7 +230,7 @@ router.post('/start-move', auth, async (req, res) => {
 
             res.json({
                 code: 200,
-                message: `开始移动，预计需要 ${formatTime(travelCostInfo.time)}`,
+                message: `开始移动，预计需要 ${MapService.formatTime(travelCostInfo.time)}`,
                 data: {
                     from_map_id: currentMapId,
                     to_map_id: targetMapId,
@@ -444,20 +398,6 @@ router.post('/complete-move-internal', auth, async (req, res) => {
         res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
-
-/**
- * 辅助函数：格式化时间
- */
-function formatTime(seconds) {
-    if (seconds < 60) return `${seconds}秒`;
-    const mins = Math.floor(seconds / 60);
-    if (mins < 60) return `${mins}分钟`;
-    const hours = Math.floor(mins / 60);
-    const remainingMins = mins % 60;
-    if (hours < 24) return `${hours}小时${remainingMins}分钟`;
-    const days = Math.floor(hours / 24);
-    return `${days}天${hours % 24}小时`;
-}
 
 /**
  * 获取地图静态配置列表
@@ -639,9 +579,10 @@ router.post('/explore/complete', auth, async (req, res) => {
                 }
             });
         } else {
+            // 使用 code 和 message 字段，与 service 返回格式一致
             res.status(400).json({
-                code: 400,
-                message: result.error
+                code: result.code || 400,
+                message: result.message || '操作失败'
             });
         }
     } catch (error) {

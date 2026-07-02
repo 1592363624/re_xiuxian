@@ -4,7 +4,6 @@ import apiClient from './api'
 import GameLayout from './components/layout/GameLayout.vue'
 import Login from './views/Login.vue'
 import ToastContainer from './components/common/ToastContainer.vue'
-import MovingOverlay from './components/overlays/MovingOverlay.vue'
 import { usePlayerStore } from './stores/player'
 import { useUIStore } from './stores/ui'
 import ChangelogModal from './components/modals/ChangelogModal.vue'
@@ -19,7 +18,6 @@ const showChangelog = ref(false)
 
 // 使用计算属性响应 Pinia 中的 player 变化
 const currentPlayer = computed(() => playerStore.player)
-const movingState = computed(() => playerStore.movingState)
 
 const isInitialized = ref(false)
 
@@ -45,13 +43,6 @@ const handleLoginSuccess = async () => {
   // 登录后获取完整数据 (双重保险，如果 Login 页面已经获取过，这里会再次获取最新状态)
   await playerStore.fetchPlayer()
   console.log('Player after fetch:', playerStore.player)
-}
-
-// 移动完成处理
-const handleMoveComplete = async () => {
-  playerStore.clearMovingState()
-  uiStore.showToast('已到达目的地', 'success')
-  await playerStore.fetchPlayer()
 }
 
 // 关闭更新日志
@@ -119,9 +110,5 @@ onUnmounted(() => {
     />
   </template>
   <ToastContainer />
-  <MovingOverlay 
-    :show="movingState.isMoving" 
-    @complete="handleMoveComplete"
-  />
   <ChangelogModal :isOpen="showChangelog" @close="handleChangelogClose" />
 </template>

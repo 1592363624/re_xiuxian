@@ -6,6 +6,7 @@
 
 import { io } from 'socket.io-client'
 import { usePlayerStore } from '../stores/player'
+import { SOCKET_CONFIG, SOCKET_EVENTS } from '../config'
 
 class SocketService {
   constructor() {
@@ -17,7 +18,8 @@ class SocketService {
   /**
    * 初始化 WebSocket 连接
    * @param {Object} options - 连接选项
-   * @param {number} options.playerId - 玩家ID
+   * @param {string} options.token - JWT 令牌（必填，用于服务端鉴权）
+   * @param {number} options.playerId - 玩家ID（仅用于本地日志，不传给服务端）
    * @param {string} options.serverUrl - 服务器地址（开发环境需要指定）
    */
   connect(options = {}) {
@@ -27,10 +29,12 @@ class SocketService {
     }
 
     const playerStore = usePlayerStore()
+    // 安全修复：服务端通过 JWT 鉴权，playerId 仅用于本地日志
     const playerId = options.playerId || playerStore.player?.id
+    const token = options.token || playerStore.token
 
-    if (!playerId) {
-      console.warn('[SocketService] 无法初始化WebSocket：缺少playerId')
+    if (!token) {
+      console.warn('[SocketService] 无法初始化WebSocket：缺少 token')
       return
     }
 
@@ -40,12 +44,13 @@ class SocketService {
     const serverUrl = options.serverUrl || (import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:5000') : '')
 
     this.socket = io(serverUrl, {
-      transports: ['websocket', 'polling'],
+      transports: SOCKET_CONFIG.transports,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: SOCKET_CONFIG.reconnectionAttempts,
+      reconnectionDelay: SOCKET_CONFIG.reconnectionDelay,
       auth: {
-        playerId: playerId
+        // 安全修复：携带 JWT 供服务端校验，不再传 playerId
+        token: token
       }
     })
 
@@ -70,6 +75,13 @@ class SocketService {
       this.emit('connect_error', error)
     })
 
+    // 鉴权失败事件：服务端校验 JWT 失败时触发，需强制登出
+    this.socket.on('auth_error', (data) => {
+      console.warn('[SocketService] 鉴权失败:', data?.message)
+      this.isConnected = false
+      this.emit('auth_error', data)
+    })
+
     // 转发所有服务器事件到对应的监听器
     this.setupEventForwarding()
   }
@@ -81,16 +93,8 @@ class SocketService {
   setupEventForwarding() {
     if (!this.socket) return
 
-    // 监听所有可能的事件类型
-    const events = [
-      'player:updated',
-      'move:completed',
-      'notification',
-      'notification:global',
-      'new_message'
-    ]
-
-    events.forEach(event => {
+    // 监听所有可能的事件类型（事件列表从配置读取，避免散落硬编码）
+    SOCKET_EVENTS.forEach(event => {
       this.socket.on(event, (data) => {
         this.emit(event, data)
       })

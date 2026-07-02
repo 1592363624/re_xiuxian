@@ -43,7 +43,7 @@
         <!-- 历练按钮 -->
         <div v-if="!isExploring" class="space-y-3">
           <button 
-            @click="startExplore" 
+            @click="startExploreAction" 
             :disabled="isLoading"
             class="w-full py-4 px-6 bg-gradient-to-r from-emerald-900/80 to-[#064e3b] hover:from-emerald-800/80 hover:to-[#047857] border border-emerald-700 hover:border-emerald-500 text-emerald-400 hover:text-emerald-300 rounded-lg transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
           >
@@ -72,7 +72,7 @@
             
             <div v-if="currentEvent.type === 'combat'" class="mt-4">
               <button 
-                @click="enterCombat"
+                @click="enterCombatAction"
                 class="w-full py-3 bg-gradient-to-r from-rose-900/80 to-[#881337] hover:from-rose-800/80 hover:to-[#9f1239] border border-rose-700 text-rose-400 rounded-lg transition-all font-bold"
               >
                 进入战斗
@@ -85,7 +85,7 @@
           </div>
           
           <button 
-            @click="completeExplore"
+            @click="completeExploreAction"
             class="py-2 px-4 bg-[#44403c] hover:bg-[#57534e] border border-stone-600 text-stone-300 rounded-lg transition-colors"
           >
             结束历练

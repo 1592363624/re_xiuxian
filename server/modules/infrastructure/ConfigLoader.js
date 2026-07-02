@@ -37,17 +37,18 @@ class ConfigLoader extends EventEmitter {
      */
     async loadAllConfigs() {
         const configFiles = [
-            'realm_breakthrough', 
-            'role_init', 
-            'item_data', 
-            'map_data', 
-            'ui_layout', 
+            'realm_breakthrough',
+            'role_init',
+            'item_data',
+            'map_data',
+            'ui_layout',
             'ui_routes',
             'seclusion',      // 闭关修炼配置
             'system',         // 系统全局配置
             'talents',        // 天赋配置
             'titles',         // 称号配置
-            'game_balance'    // 游戏平衡配置
+            'game_balance',   // 游戏平衡配置
+            'ai_config'       // AI 大模型配置（支持多厂商 OpenAI 兼容协议）
         ];
         const results = {};
 

@@ -3,23 +3,33 @@ const router = express.Router();
 const Player = require('../models/player');
 const Realm = require('../models/realm');
 const authenticateToken = require('../middleware/auth');
-const configLoader = require('../modules/infrastructure/ConfigLoader');
+// 修复：统一通过 modules/index.js 导出引用 ConfigLoader
+const { infrastructure } = require('../modules');
+const configLoader = infrastructure.ConfigLoader;
 const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
+const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const fs = require('fs');
 const path = require('path');
 
 const CONFIG_FILE = path.join(__dirname, '../config/seclusion.json');
 
-function getConfigValue(key) {
+/**
+ * 获取配置值，带默认值支持
+ * @param {string} key - 配置键名
+ * @param {*} defaultValue - 默认值
+ * @returns {*} 配置值或默认值
+ */
+function getConfigValue(key, defaultValue = null) {
     try {
         const config = configLoader.getConfig('seclusion');
         if (config && config.settings && config.settings[key]) {
-            return config.settings[key].value;
+            const value = config.settings[key].value;
+            return value !== null && value !== undefined ? value : defaultValue;
         }
-        return null;
+        return defaultValue;
     } catch (err) {
-        console.error('获取配置失败:', err);
-        return null;
+        console.warn(`获取配置 ${key} 失败，使用默认值:`, err.message);
+        return defaultValue;
     }
 }
 
@@ -49,40 +59,40 @@ function saveConfigValue(key, value) {
  * 获取闭关冷却时间（秒）
  */
 function getSeclusionCooldown() {
-    const val = getConfigValue('seclusion_cooldown');
-    return val ? parseInt(val) : 60;
+    const val = getConfigValue('seclusion_cooldown', 60);
+    return parseInt(val) || 60;
 }
 
 /**
  * 获取闭关基础修为收益率（每秒）
  */
 function getSeclusionExpRate() {
-    const val = getConfigValue('seclusion_exp_rate');
-    return val ? parseFloat(val) : 1;
+    const val = getConfigValue('seclusion_exp_rate', 1);
+    return parseFloat(val) || 1;
 }
 
 /**
  * 获取修炼时间间隔（秒）
  */
 function getCultivateInterval() {
-    const val = getConfigValue('cultivate_interval');
-    return val ? parseInt(val) : 60;
+    const val = getConfigValue('cultivate_interval', 60);
+    return parseInt(val) || 60;
 }
 
 /**
  * 获取深度闭关修为收益倍率
  */
 function getDeepSeclusionExpRate() {
-    const val = getConfigValue('deep_seclusion_exp_rate');
-    return val ? parseFloat(val) : 2;
+    const val = getConfigValue('deep_seclusion_exp_rate', 2);
+    return parseFloat(val) || 2;
 }
 
 /**
  * 获取深度闭关时间间隔（秒）
  */
 function getDeepSeclusionInterval() {
-    const val = getConfigValue('deep_seclusion_interval');
-    return val ? parseInt(val) : 72000;
+    const val = getConfigValue('deep_seclusion_interval', 72000);
+    return parseInt(val) || 72000;
 }
 
 // 获取境界加成倍率
@@ -103,17 +113,17 @@ async function getRealmMultiplier(realmName) {
  * @desc 开始闭关
  * @access Private
  */
-router.post('/start', authenticateToken, async (req, res) => {
+router.post('/start', authenticateToken, async (req, res, next) => {
     try {
         const playerId = req.user.id;
         const player = await Player.findByPk(playerId);
         
         if (!player) {
-            return res.status(404).json({ code: 404, message: '玩家不存在' });
+            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
         if (player.is_secluded) {
-            return res.status(400).json({ code: 400, message: '玩家已在闭关中' });
+            throw new AppError('玩家已在闭关中', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
         // 检查冷却时间
@@ -125,11 +135,11 @@ router.post('/start', authenticateToken, async (req, res) => {
             
             if (diffSeconds < cooldown) {
                 const remainingMinutes = Math.ceil((cooldown - diffSeconds) / 60);
-                return res.status(400).json({ 
-                    code: 400,
-                    message: `闭关冷却中，还需要等待 ${remainingMinutes} 分钟`,
-                    remaining_seconds: cooldown - diffSeconds
-                });
+                throw new AppError(
+                    `闭关冷却中，还需要等待 ${remainingMinutes} 分钟`,
+                    400,
+                    ErrorCodes.BUSINESS_LOGIC_ERROR
+                );
             }
         }
 
@@ -154,9 +164,8 @@ router.post('/start', authenticateToken, async (req, res) => {
             }
         });
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ code: 500, message: '服务器错误' });
+    } catch (error) {
+        next(error);
     }
 });
 
@@ -165,17 +174,17 @@ router.post('/start', authenticateToken, async (req, res) => {
  * @desc 结束闭关 (结算奖励)
  * @access Private
  */
-router.post('/end', authenticateToken, async (req, res) => {
+router.post('/end', authenticateToken, async (req, res, next) => {
     try {
         const playerId = req.user.id;
         const player = await Player.findByPk(playerId);
 
         if (!player) {
-            return res.status(404).json({ code: 404, message: '玩家不存在' });
+            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
         if (!player.is_secluded) {
-            return res.status(400).json({ code: 400, message: '玩家未在闭关中' });
+            throw new AppError('玩家未在闭关中', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
         const startTime = new Date(player.seclusion_start_time);
@@ -223,9 +232,8 @@ router.post('/end', authenticateToken, async (req, res) => {
             }
         });
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ code: 500, message: '服务器错误' });
+    } catch (error) {
+        next(error);
     }
 });
 
@@ -234,13 +242,13 @@ router.post('/end', authenticateToken, async (req, res) => {
  * @desc 获取闭关状态
  * @access Private
  */
-router.get('/status', authenticateToken, async (req, res) => {
+router.get('/status', authenticateToken, async (req, res, next) => {
     try {
         const playerId = req.user.id;
         const player = await Player.findByPk(playerId);
 
         if (!player) {
-            return res.status(404).json({ code: 404, message: '玩家不存在' });
+            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
         const rate = getSeclusionExpRate();
@@ -278,9 +286,8 @@ router.get('/status', authenticateToken, async (req, res) => {
             }
         });
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ code: 500, message: '服务器错误' });
+    } catch (error) {
+        next(error);
     }
 });
 

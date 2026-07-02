@@ -32,15 +32,31 @@ class AdventureEventService {
     static async initialize(configLoader) {
         let aiService = null;
         try {
-            aiService = await AIService.initialize(configLoader);
+            // 优先从数据库加载启用的 AI 配置（GM 后台配置优先）
+            aiService = await AIService.reloadFromDatabase();
+            if (!aiService) {
+                // 数据库无配置时降级为环境变量/JSON 配置
+                aiService = await AIService.initialize(configLoader);
+            }
             console.log('[AdventureEventService] AI 服务初始化成功');
         } catch (error) {
             console.warn('[AdventureEventService] AI 服务初始化失败，将使用模板模式:', error.message);
         }
 
         const service = new AdventureEventService(aiService);
+        // 保存模块级实例引用，供 AIService.reloadFromDatabase 在热重载时更新
+        AdventureEventService._activeInstance = service;
         console.log('[AdventureEventService] 历练事件服务已初始化');
         return service;
+    }
+
+    /**
+     * 获取当前活跃的 AdventureEventService 实例
+     * 供 AIService.reloadFromDatabase 在热重载时更新内部 aiService 引用
+     * @returns {AdventureEventService|null} 服务实例
+     */
+    static getActiveInstance() {
+        return AdventureEventService._activeInstance || null;
     }
 
     /**
@@ -221,6 +237,8 @@ class AdventureEventService {
 
             const event = await this.generateEvent(eventContext);
 
+            // 确保 duration 是有效数字，避免 Invalid Date
+            const durationSeconds = eventContext.duration || 60;
             const adventure = await PlayerAdventure.create({
                 player_id: playerId,
                 map_id: player.current_map_id,
@@ -229,7 +247,7 @@ class AdventureEventService {
                 event_type: event.type,
                 event_data: JSON.stringify(event),
                 start_time: new Date(),
-                end_time: new Date(Date.now() + eventContext.duration * 1000),
+                end_time: new Date(Date.now() + durationSeconds * 1000),
                 status: 'in_progress',
                 rewards_claimed: false
             });
@@ -647,8 +665,12 @@ class AdventureEventService {
 
             const adventure = await this.getLastAdventureEvent(playerId);
             if (adventure) {
+                // 战斗触发后，将 end_time 更新为当前时间，允许用户立即结束历练
                 await PlayerAdventure.update(
-                    { combat_battle_id: battle.battle_uuid },
+                    {
+                        combat_battle_id: battle.battle_uuid,
+                        end_time: new Date()
+                    },
                     { where: { id: adventure.id } }
                 );
             }

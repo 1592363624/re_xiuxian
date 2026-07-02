@@ -1,8 +1,12 @@
 <script setup>
 import { ref, watch } from 'vue'
 import apiClient from '../api'
+// 修复：使用统一封装的 auth API 替代直接调用 apiClient
+import { checkUnique as checkUniqueApi, login as loginApi, register as registerApi } from '../api/auth'
 import { usePlayerStore } from '../stores/player'
 import { useUIStore } from '../stores/ui'
+// 修复：正则与道号长度限制从配置读取，避免硬编码
+import { AUTH_REGEX, NICKNAME_LIMITS, UI_CONFIG } from '../config'
 
 const isLogin = ref(true) // true: 登录模式, false: 注册模式
 const form = ref({
@@ -22,17 +26,17 @@ const uiStore = useUIStore()
 
 const emit = defineEmits(['login-success'])
 
-const USERNAME_REGEX = /^[a-zA-Z0-9]{6,12}$/
-const PASSWORD_REGEX = /^[a-zA-Z0-9]{6,12}$/
+// 正则与长度限制从配置读取
+const { username: USERNAME_REGEX, password: PASSWORD_REGEX } = AUTH_REGEX
 
 const validateFormat = () => {
   if (!isLogin.value) {
     if (!USERNAME_REGEX.test(form.value.username)) {
-      errorMsg.value = '账号必须为6-12位英文或数字'
+      errorMsg.value = `账号必须为${NICKNAME_LIMITS.min}-${NICKNAME_LIMITS.max + 4}位英文或数字`
       return false
     }
     if (!PASSWORD_REGEX.test(form.value.password)) {
-      errorMsg.value = '密码必须为6-12位英文或数字'
+      errorMsg.value = `密码必须为${NICKNAME_LIMITS.min}-${NICKNAME_LIMITS.max + 4}位英文或数字`
       return false
     }
   }
@@ -45,12 +49,14 @@ const timers = {}
 const checkUnique = async (type, value) => {
   if (!value) return
   checking.value[type] = true
-  
+
   try {
-    const res = await apiClient.get(`/auth/check-unique?type=${type}&value=${value}`)
-    if (!res.data.available) {
-      if (type === 'username') usernameError.value = res.data.message
-      if (type === 'nickname') nicknameError.value = res.data.message
+    // 修复：使用统一封装的 auth API
+    const res = await checkUniqueApi(type, value)
+    const body = res.data || res
+    if (!body.available) {
+      if (type === 'username') usernameError.value = body.message
+      if (type === 'nickname') nicknameError.value = body.message
     } else {
       if (type === 'username') usernameError.value = ''
       if (type === 'nickname') nicknameError.value = ''
@@ -64,20 +70,21 @@ const checkUnique = async (type, value) => {
 
 const handleInput = (type) => {
   if (isLogin.value) return
-  
+
   const value = form.value[type]
-  
+
   // 清除对应错误
   if (type === 'username') usernameError.value = ''
   if (type === 'nickname') nicknameError.value = ''
-  
+
   if (!value) return
 
   if (timers[type]) clearTimeout(timers[type])
-  
+
+  // 防抖时间从配置读取
   timers[type] = setTimeout(() => {
     checkUnique(type, value)
-  }, 500)
+  }, UI_CONFIG.loginDebounce)
 }
 
 // 切换模式时清空状态
@@ -110,28 +117,29 @@ const handleSubmit = async () => {
   
   try {
     if (isLogin.value) {
-      // 登录
-      const res = await apiClient.post('/auth/login', {
+      // 登录（使用统一封装的 auth API）
+      const res = await loginApi({
         username: form.value.username,
         password: form.value.password
       })
       // 清除之前的登出原因
       playerStore.logoutReason = null;
-      
+
       // 使用 Pinia 存储状态
-      playerStore.setToken(res.data.token)
-      
+      const token = res.data?.token || res.token
+      playerStore.setToken(token)
+
       // 获取完整玩家数据
       await playerStore.fetchPlayer()
-      
+
       // 同步最新的闭关状态，避免 localStorage 缓存的旧状态
       await playerStore.fetchSeclusionStatus()
-      
+
       // 触发登录成功事件，传递 true 表示成功，不需要传 player 对象，避免传旧数据
       emit('login-success', true)
     } else {
-      // 注册
-      await apiClient.post('/auth/register', form.value)
+      // 注册（使用统一封装的 auth API）
+      await registerApi(form.value)
       isLogin.value = true
       uiStore.addToast('注册成功，请登录', 'success')
       form.value = { username: '', password: '', nickname: '' }
@@ -139,10 +147,10 @@ const handleSubmit = async () => {
   } catch (error) {
     errorMsg.value = error.response?.data?.message || '请求失败，请检查网络'
   } finally {
-    // 确保 loading 至少显示 500ms，避免闪烁
+    // loading 最小显示时间从配置读取，避免硬编码
     const elapsed = Date.now() - startTime
-    if (elapsed < 500) {
-      await new Promise(resolve => setTimeout(resolve, 500 - elapsed))
+    if (elapsed < UI_CONFIG.minLoadingTime) {
+      await new Promise(resolve => setTimeout(resolve, UI_CONFIG.minLoadingTime - elapsed))
     }
     loading.value = false
   }

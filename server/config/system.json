@@ -11,12 +11,21 @@
       "value": 100,
       "displayName": "初始寿元"
     },
-    "server_port": {
-      "value": 3000,
-      "unit": "端口",
-      "description": "服务器端口",
-      "defaultValue": 3000,
-      "displayName": "服务器端口"
+    "github_api_url": {
+      "value": "https://api.github.com/repos/1592363624/re_xiuxian/commits",
+      "displayName": "GitHub 提交记录 API 地址"
+    },
+    "github_user_agent": {
+      "value": "re_xiuxian-game",
+      "displayName": "GitHub API User-Agent"
+    },
+    "changelog_cache_duration_ms": {
+      "value": 600000,
+      "displayName": "更新日志缓存时长（毫秒）"
+    },
+    "client_config_keys": {
+      "value": ["auto_save_interval"],
+      "displayName": "允许下发给客户端的配置键白名单"
     }
   }
 }
