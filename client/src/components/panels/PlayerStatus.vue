@@ -1,6 +1,10 @@
 <script setup>
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import apiClient from '../../api'
+// 修复：使用统一封装的 system API 替代直接调用 apiClient
+import { getStats as getSystemStats } from '../../api/system'
+import { DEFAULT_AVATAR, ROOT_TYPE_MAP, POLL_INTERVALS, UI_CONFIG } from '../../config'
+import { formatDuration, formatNumber } from '../../utils/format'
 
 const props = defineProps({
   player: {
@@ -30,16 +34,12 @@ const isConnected = computed(() => {
   return props.serverStatus === '服务器正常运行，数据库连接成功' || props.serverStatus?.includes('正常')
 })
 
-// 默认头像 (凡人修仙传韩立风格)
-const defaultAvatar = 'https://i.postimg.cc/q73059Z3/hanli.jpg'
+// 默认头像从配置读取，避免硬编码外部图床 URL
+const defaultAvatar = DEFAULT_AVATAR
 
 const isExpChanged = ref(false)
 
-// 监听经验变化
-watch(() => props.player, (newVal) => {
-  console.log('PlayerStatus player update:', newVal)
-}, { deep: true, immediate: true })
-
+// 监听经验变化（清理调试日志）
 watch(() => props.player.exp, (newVal, oldVal) => {
   if (newVal !== oldVal) {
     isExpChanged.value = true
@@ -89,14 +89,15 @@ const animateCount = (target) => {
 
 const fetchStats = async (isInitial = false) => {
   if (isInitial) statsLoading.value = true
-  
+
   try {
-    const res = await apiClient.get('/system/stats')
-    const body = res.data
+    // 修复：使用统一封装的 system API 替代直接调用 apiClient
+    const res = await getSystemStats()
+    const body = res.data || res
     if (body && body.data) {
       statsError.value = false
       totalCount.value = body.data.total ?? 0
-      
+
       if (body.data.online !== onlineCount.value) {
         onlineCount.value = body.data.online ?? 0
         animateCount(onlineCount.value)
@@ -112,16 +113,8 @@ const fetchStats = async (isInitial = false) => {
   }
 }
 
-const rootTypeMap = {
-  metal: { name: '金', class: 'text-yellow-600' },
-  wood: { name: '木', class: 'text-emerald-600' },
-  water: { name: '水', class: 'text-blue-500' },
-  fire: { name: '火', class: 'text-rose-600' },
-  earth: { name: '土', class: 'text-stone-500' },
-  thunder: { name: '雷', class: 'text-purple-600' },
-  ice: { name: '冰', class: 'text-cyan-400' },
-  wind: { name: '风', class: 'text-teal-400' }
-}
+// 灵根映射从配置读取，避免硬编码
+const rootTypeMap = ROOT_TYPE_MAP
 
 const currentRoot = computed(() => {
   if (!props.player.spirit_roots || !props.player.spirit_roots.type) return null
@@ -133,22 +126,12 @@ const rootValue = computed(() => {
   return props.player.spirit_roots?.value || 0
 })
 
-const formatDuration = (ms) => {
-  if (!ms) return '0秒'
-  const seconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-
-  if (days > 0) return `${days}天${hours % 24}小时`
-  if (hours > 0) return `${hours}小时${minutes % 60}分`
-  if (minutes > 0) return `${minutes}分${seconds % 60}秒`
-  return `${seconds}秒`
-}
+// formatDuration 已从 utils/format 引入，此处删除本地实现避免重复
 
 onMounted(() => {
   fetchStats(true)
-  statsInterval = setInterval(() => fetchStats(false), 30000)
+  // 轮询间隔从配置读取，避免硬编码
+  statsInterval = setInterval(() => fetchStats(false), POLL_INTERVALS.stats)
 })
 
 onUnmounted(() => {

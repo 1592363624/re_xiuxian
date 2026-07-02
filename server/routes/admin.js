@@ -11,7 +11,9 @@ const SystemConfig = require('../models/system_config');
 const AdminLog = require('../models/admin_log');
 const Item = require('../models/item');
 const auth = require('../middleware/auth');
-const configLoader = require('../modules/infrastructure/ConfigLoader');
+// 修复：统一通过 modules/index.js 导出引用 ConfigLoader，避免路径混乱
+const { infrastructure } = require('../modules');
+const configLoader = infrastructure.ConfigLoader;
 const fs = require('fs');
 const path = require('path');
 

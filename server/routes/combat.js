@@ -10,6 +10,8 @@ const auth = require('../middleware/auth');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const Validator = require('../utils/validator');
 const ConfigHelper = require('../utils/configHelper');
+// 修复：境界顺序统一从 gameConstants 读取，避免重复定义和不一致
+const { REALM_ORDER } = require('../utils/gameConstants');
 
 /**
  * 遭遇怪物
@@ -107,7 +109,12 @@ router.get('/status', auth, async (req, res, next) => {
  */
 router.get('/history', auth, async (req, res, next) => {
     try {
-        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+        // 历史记录默认/最大条数从配置读取，避免硬编码
+        const { infrastructure } = require('../modules');
+        const historyConfig = infrastructure.ConfigLoader.getConfig('game_balance')?.combat_history || {};
+        const defaultLimit = historyConfig.default_limit ?? 20;
+        const maxLimit = historyConfig.max_limit ?? 100;
+        const limit = Math.min(parseInt(req.query.limit) || defaultLimit, maxLimit);
         const history = await CombatService.getBattleHistory(req.user.id, limit);
 
         res.json({
@@ -151,22 +158,20 @@ router.post('/use-item', auth, async (req, res, next) => {
 
 /**
  * 计算怪物相对玩家的难度标签
+ * 境界顺序统一从 gameConstants.REALM_ORDER 读取，避免重复定义和不一致
  * @param {string} monsterRealm 怪物境界
  * @param {string} playerRealm 玩家境界
  * @returns {object} 难度信息 { class, name, safe }
  */
 function _getMonsterDifficulty(monsterRealm, playerRealm) {
-    const realmOrder = [
-        '凡人', '炼气1层', '炼气2层', '炼气3层', '炼气4层', '炼气5层',
-        '炼气6层', '炼气7层', '炼气8层', '炼气9层', '炼气10层',
-        '筑基期', '筑基初期', '筑基中期', '筑基后期', '筑基圆满',
-        '金丹期', '金丹初期', '金丹中期', '金丹后期', '金丹圆满',
-        '元婴期'
-    ];
-    const playerIdx = realmOrder.indexOf(playerRealm || '凡人');
-    const monsterIdx = realmOrder.indexOf(monsterRealm);
-    
-    const diff = monsterIdx - playerIdx;
+    const playerIdx = REALM_ORDER.indexOf(playerRealm || '凡人');
+    const monsterIdx = REALM_ORDER.indexOf(monsterRealm);
+
+    // 未在境界表中的境界视为最低
+    const pIdx = playerIdx < 0 ? 0 : playerIdx;
+    const mIdx = monsterIdx < 0 ? 0 : monsterIdx;
+
+    const diff = mIdx - pIdx;
     if (diff <= -2) return { class: 'text-emerald-400', name: '弱小的怪物', safe: true };
     if (diff <= 0) return { class: 'text-yellow-400', name: '同级怪物', safe: true };
     if (diff <= 2) return { class: 'text-orange-400', name: '较强的怪物', safe: false };
@@ -178,12 +183,14 @@ function _getMonsterDifficulty(monsterRealm, playerRealm) {
  */
 router.get('/monsters', auth, async (req, res, next) => {
     try {
-        const player = await require('../models/player').findByPk(req.user.id);
+        // 修复：避免函数体内动态 require，统一在文件顶部引入
+        const Player = require('../models/player');
+        const MapConfigLoader = require('../game/services/MapConfigLoader');
+        const player = await Player.findByPk(req.user.id);
         if (!player) {
             throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
-        const MapConfigLoader = require('../game/services/MapConfigLoader');
         const mapConfig = MapConfigLoader.getMap(player.current_map_id);
         
         if (!mapConfig || !mapConfig.monsters) {
@@ -230,22 +237,6 @@ router.post('/skill', auth, async (req, res, next) => {
     try {
         const { skillIndex } = req.body;
         const result = await CombatService.useSkill(req.user.id, skillIndex || 0);
-
-        res.json({
-            code: 200,
-            ...result
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * 逃跑（兼容旧接口）
- */
-router.post('/escape', auth, async (req, res, next) => {
-    try {
-        const result = await CombatService.flee(req.user.id);
 
         res.json({
             code: 200,

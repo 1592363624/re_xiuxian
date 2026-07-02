@@ -2,7 +2,9 @@
  * 玩家服务
  * 核心逻辑层 - 处理玩家相关的核心玩法逻辑
  */
-const configLoader = require('../../modules/infrastructure/ConfigLoader');
+// 修复：统一通过 modules/index.js 导出引用 ConfigLoader
+const { infrastructure } = require('../../modules');
+const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 
 class PlayerService {
@@ -44,11 +46,18 @@ class PlayerService {
     }
 
     /**
-     * 初始化玩家数据
+     * 初始化玩家数据（静态方法）
+     * 统一的玩家创建逻辑，供 auth 路由调用，避免业务逻辑散落到路由层
+     * @param {string} username - 账号
+     * @param {string} hashedPassword - 已加密的密码（bcrypt 哈希）
+     * @param {string} nickname - 道号
+     * @param {Object} [extra] - 可选附加字段（IP、设备信息等）
+     * @returns {Promise<Object>} 创建的玩家对象
      */
-    async initializePlayer(username, password, nickname) {
+    static async initializePlayer(username, hashedPassword, nickname, extra = {}) {
         const roleInitConfig = configLoader.getConfig('role_init');
-        
+        const gameBalanceConfig = configLoader.getConfig('game_balance');
+
         const initialAttributes = roleInitConfig?.initialAttributes || {
             hp_max: 100,
             mp_max: 0,
@@ -63,7 +72,7 @@ class PlayerService {
         const probabilities = roleInitConfig?.spiritRootProbabilities || {
             '金': 0.2, '木': 0.2, '水': 0.2, '火': 0.2, '土': 0.2
         };
-        
+
         let random = Math.random();
         let selectedRoot = '木';
         let cumulative = 0;
@@ -75,6 +84,7 @@ class PlayerService {
             }
         }
 
+        // 灵根数据结构统一为 { `${root}灵根`: { level, affinity } }
         const spiritRoots = {};
         spiritRoots[`${selectedRoot}灵根`] = {
             level: '基础',
@@ -83,7 +93,7 @@ class PlayerService {
 
         const player = await Player.create({
             username,
-            password,
+            password: hashedPassword,
             nickname,
             realm: '凡人',
             exp: 0,
@@ -96,7 +106,9 @@ class PlayerService {
             lifespan_max: roleInitConfig?.initialLifespan || 60,
             attributes: initialAttributes,
             spirit_roots: spiritRoots,
-            role: 'user'
+            role: 'user',
+            ip_address: extra.ip || null,
+            device_info: extra.userAgent || null
         });
 
         return player;
@@ -199,24 +211,31 @@ class PlayerService {
 
     /**
      * 玩家死亡处理
+     * 死亡惩罚比例、寿元增加、复活地点从配置读取
      */
     async handlePlayerDeath(playerId) {
         const player = await Player.findByPk(playerId);
         if (!player) return null;
 
-        const expLoss = BigInt(Math.floor(Number(player.exp) * 0.1));
+        const gameBalanceConfig = configLoader.getConfig('game_balance');
+        // 死亡惩罚参数从配置读取，避免硬编码
+        const expLossRate = gameBalanceConfig?.combat?.death_exp_penalty_rate ?? 0.1;
+        const ageIncrease = gameBalanceConfig?.death?.age_increase ?? 10;
+        const respawnAt = gameBalanceConfig?.death?.respawn_location ?? '出生地';
+
+        const expLoss = BigInt(Math.floor(Number(player.exp) * expLossRate));
         player.exp = BigInt(player.exp) - expLoss;
         if (player.exp < 0n) player.exp = 0n;
-        
+
         player.hp_current = player.attributes?.hp_max || 100;
-        player.lifespan_current = (player.lifespan_current || 0) + 10;
-        
+        player.lifespan_current = (player.lifespan_current || 0) + ageIncrease;
+
         await player.save();
 
         return {
             expLoss: expLoss.toString(),
-            ageIncrease: 10,
-            respawnAt: '出生地'
+            ageIncrease,
+            respawnAt
         };
     }
 
@@ -236,13 +255,17 @@ class PlayerService {
 
     /**
      * 获取在线玩家列表
+     * 在线阈值从配置读取，避免硬编码
      */
     async getOnlinePlayers() {
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const { Op } = require('sequelize');
+        const gameBalanceConfig = configLoader.getConfig('game_balance');
+        const thresholdMinutes = gameBalanceConfig?.auth?.online_threshold_minutes ?? 5;
+        const thresholdAgo = new Date(Date.now() - thresholdMinutes * 60 * 1000);
         return await Player.findAll({
             where: {
                 last_online: {
-                    [require('sequelize').Op.gte]: fiveMinutesAgo
+                    [Op.gte]: thresholdAgo
                 }
             }
         });

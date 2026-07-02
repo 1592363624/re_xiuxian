@@ -9,7 +9,10 @@
     "username_regex": "^[a-zA-Z0-9]{6,12}$",
     "password_regex": "^[a-zA-Z0-9]{6,12}$",
     "nickname_min_length": 2,
-    "nickname_max_length": 10
+    "nickname_max_length": 10,
+    "bcrypt_salt_rounds": 10,
+    "jwt_expires_in": "7d",
+    "online_threshold_minutes": 5
   },
   "breakthrough": {
     "failure_exp_loss_rate": 0.1,
@@ -21,7 +24,17 @@
     "escape_success_rate": 0.5,
     "damage_random_range": 15,
     "damage_random_offset": 7,
-    "skill_damage_multiplier": 1.5
+    "skill_damage_multiplier": 1.5,
+    "battle_expire_minutes": 30,
+    "level_multiplier_base": 1.0,
+    "level_multiplier_per_level": 0.1,
+    "base_monster_hp": 50,
+    "base_monster_atk": 8,
+    "base_monster_def": 3,
+    "base_monster_speed": 8,
+    "death_exp_penalty_rate": 0.1,
+    "monster_damage_random_range": 6,
+    "monster_damage_random_offset": 3
   },
   "map": {
     "travel": {
@@ -49,5 +62,16 @@
       "mixed": 1.2,
       "celestial": 1
     }
+  },
+  "gather": {
+    "batch_max_count": 10
+  },
+  "combat_history": {
+    "default_limit": 20,
+    "max_limit": 100
+  },
+  "death": {
+    "age_increase": 10,
+    "respawn_location": "出生地"
   }
 }

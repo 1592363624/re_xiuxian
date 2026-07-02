@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title 重生之凡人修仙传 - 一键启动脚本
 color 0A
 
@@ -48,6 +49,23 @@ if not exist "server\config\database.js" (
     exit /b 1
 )
 
+:: 从环境变量文件读取端口配置，避免硬编码
+set SERVER_PORT=5000
+for /f "usebackq tokens=1,2 delims==" %%a in ("server\.env") do (
+    set "env_key=%%a"
+    if not "!env_key:~0,1!"=="#" (
+        if "%%a"=="PORT" set SERVER_PORT=%%b
+    )
+)
+
+set CLIENT_PORT=8000
+for /f "usebackq tokens=1,2 delims==" %%a in ("client\.env") do (
+    set "env_key=%%a"
+    if not "!env_key:~0,1!"=="#" (
+        if "%%a"=="VITE_CLIENT_PORT" set CLIENT_PORT=%%b
+    )
+)
+
 echo [信息] 正在启动服务器...
 echo.
 
@@ -67,9 +85,9 @@ echo.
 echo ===============================================
 echo [成功] 服务器启动完成！
 echo.
-echo 后端服务器: http://localhost:5000
-echo 前端客户端: http://localhost:8000
-echo API文档: http://localhost:5000/api-docs
+echo 后端服务器: http://localhost:%SERVER_PORT%
+echo 前端客户端: http://localhost:%CLIENT_PORT%
+echo API入口: http://localhost:%SERVER_PORT%/api
 echo.
 echo 测试账号: 1592363624
 echo 测试密码: 1592363624

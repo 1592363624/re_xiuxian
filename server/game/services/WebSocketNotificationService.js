@@ -1,8 +1,11 @@
 /**
  * WebSocket 通知服务
  * 负责通过 WebSocket 实时推送通知和玩家数据更新给客户端
+ * 安全要求：必须在 connection 回调内校验 JWT，禁止信任客户端传入的 playerId
  */
+const jwt = require('jsonwebtoken');
 const eventBus = require('../../modules/infrastructure/EventBus');
+const Player = require('../../models/player');
 
 class WebSocketNotificationService {
     constructor() {
@@ -18,30 +21,55 @@ class WebSocketNotificationService {
     initialize(io) {
         this.io = io;
 
-        io.on('connection', (socket) => {
-            const playerId = socket.handshake.query.playerId || socket.handshake.auth.playerId;
-            if (playerId) {
-                this.onlineUsers.set(playerId.toString(), {
-                    socketId: socket.id,
-                    connectedAt: new Date()
-                });
-                console.log(`[WebSocket] 玩家 ${playerId} 已连接，SocketID: ${socket.id}`);
+        io.on('connection', async (socket) => {
+            // 修复安全漏洞：必须通过 JWT 校验身份，禁止信任客户端传入的 playerId
+            const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+            let playerId = null;
 
-                socket.join(`player:${playerId}`);
+            if (token) {
+                try {
+                    const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET);
+                    // 二次校验玩家存在性和 token_version（与 auth middleware 保持一致）
+                    const player = await Player.findByPk(decoded.id);
+                    if (player && player.token_version === decoded.v) {
+                        playerId = player.id;
+                    } else {
+                        console.warn(`[WebSocket] 玩家 ${decoded.id} 不存在或 token_version 不一致，拒绝连接`);
+                        socket.emit('auth_error', { message: '认证失败，请重新登录' });
+                        socket.disconnect(true);
+                        return;
+                    }
+                } catch (err) {
+                    console.warn(`[WebSocket] JWT 校验失败: ${err.message}`);
+                    socket.emit('auth_error', { message: '令牌无效或已过期' });
+                    socket.disconnect(true);
+                    return;
+                }
+            } else {
+                console.warn('[WebSocket] 连接未携带 token，拒绝连接');
+                socket.emit('auth_error', { message: '未提供认证令牌' });
+                socket.disconnect(true);
+                return;
             }
 
+            // 绑定 playerId（来自 JWT 解码后查库结果，非客户端传入）
+            this.onlineUsers.set(playerId.toString(), {
+                socketId: socket.id,
+                connectedAt: new Date()
+            });
+            console.log(`[WebSocket] 玩家 ${playerId} 已连接，SocketID: ${socket.id}`);
+            socket.join(`player:${playerId}`);
+
             socket.on('disconnect', () => {
-                if (playerId) {
-                    const userInfo = this.onlineUsers.get(playerId.toString());
-                    if (userInfo && userInfo.socketId === socket.id) {
-                        this.onlineUsers.delete(playerId.toString());
-                        console.log(`[WebSocket] 玩家 ${playerId} 已断开连接`);
-                    }
+                const userInfo = this.onlineUsers.get(playerId.toString());
+                if (userInfo && userInfo.socketId === socket.id) {
+                    this.onlineUsers.delete(playerId.toString());
+                    console.log(`[WebSocket] 玩家 ${playerId} 已断开连接`);
                 }
             });
         });
 
-        console.log('[WebSocket] 通知服务初始化完成');
+        console.log('[WebSocket] 通知服务初始化完成（已启用 JWT 鉴权）');
     }
 
     /**

@@ -86,7 +86,8 @@ class CombatService {
             monster_hp: monsterData.max_hp,
             monster_max_hp: monsterData.max_hp,
             is_player_turn: true,
-            expires_at: new Date(Date.now() + 30 * 60 * 1000)
+            // 战斗过期时间从配置读取，避免硬编码
+            expires_at: new Date(Date.now() + (getGameBalanceConfig().combat?.battle_expire_minutes ?? 30) * 60 * 1000)
         });
 
         return {
@@ -114,10 +115,12 @@ class CombatService {
 
     /**
      * 生成怪物数据（根据玩家等级调整）
+     * 通过懒加载函数读取配置，避免模块加载时配置未初始化的问题
      */
     static generateMonsterData(monsterConfig, player) {
         const playerLevel = this.getPlayerLevel(player);
-        const { combat } = gameBalanceConfig;
+        // 修复：原代码误用未声明的 gameBalanceConfig，应使用懒加载函数 getGameBalanceConfig
+        const { combat } = getGameBalanceConfig();
         const levelMultiplier = combat.level_multiplier_base + (playerLevel * combat.level_multiplier_per_level);
 
         return {
@@ -222,7 +225,11 @@ class CombatService {
         const playerDef = playerStats.def || 5;
 
         const monsterData = battle.monster_data;
-        let damage = Math.max(1, monsterData.atk - playerDef + Math.floor(Math.random() * 6) - 3);
+        // 怪物伤害随机范围从配置读取，与玩家伤害公式保持一致
+        const monsterDmgConfig = getGameBalanceConfig().combat || {};
+        const monsterDmgRange = monsterDmgConfig.monster_damage_random_range ?? 6;
+        const monsterDmgOffset = monsterDmgConfig.monster_damage_random_offset ?? 3;
+        let damage = Math.max(1, monsterData.atk - playerDef + Math.floor(Math.random() * monsterDmgRange) - monsterDmgOffset);
 
         battle.player_hp = BigInt(battle.player_hp) - BigInt(damage);
         battle.damage_received = BigInt(battle.damage_received) + BigInt(damage);
@@ -514,7 +521,11 @@ class CombatService {
         const playerDef = playerStats.def || 5;
         const monsterDef = battle.monster_data?.def || 5;
 
-        let damage = Math.floor(playerAtk * getGameBalanceConfig().combat.skill_damage_multiplier - monsterDef + Math.floor(Math.random() * 15) - 7);
+        // 技能伤害随机范围从配置读取（与 damage_random_range/offset 复用，避免新增配置项）
+        const skillDmgConfig = getGameBalanceConfig().combat || {};
+        const skillDmgRange = skillDmgConfig.damage_random_range ?? 15;
+        const skillDmgOffset = skillDmgConfig.damage_random_offset ?? 7;
+        let damage = Math.floor(playerAtk * skillDmgConfig.skill_damage_multiplier - monsterDef + Math.floor(Math.random() * skillDmgRange) - skillDmgOffset);
         damage = Math.max(1, damage);
 
         battle.player_mp = BigInt(battle.player_mp) - BigInt(getGameBalanceConfig().combat.skill_mp_cost);

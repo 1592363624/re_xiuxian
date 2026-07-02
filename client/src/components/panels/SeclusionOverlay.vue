@@ -154,6 +154,8 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
+// 修复：使用统一的 utils 替代组件内 formatTime 重复实现
+import { formatTime } from '../../utils/format'
 
 const store = usePlayerStore()
 const uiStore = useUIStore()
@@ -176,21 +178,7 @@ const expGained = computed(() => {
   return Math.floor(duration.value * expRate.value)
 })
 
-/**
- * 格式化时长显示
- * @param {number} seconds - 秒数
- * @returns {string} 格式化后的时长字符串
- */
-const formatTime = (seconds) => {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-
-  if (h > 0) {
-    return `${h}h ${m}m ${s}s`
-  }
-  return `${m}m ${s}s`
-}
+// formatTime 已从 utils/format 引入，此处删除本地实现避免重复
 
 /**
  * 结束闭关修炼

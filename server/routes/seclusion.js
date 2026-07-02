@@ -3,7 +3,9 @@ const router = express.Router();
 const Player = require('../models/player');
 const Realm = require('../models/realm');
 const authenticateToken = require('../middleware/auth');
-const configLoader = require('../modules/infrastructure/ConfigLoader');
+// 修复：统一通过 modules/index.js 导出引用 ConfigLoader
+const { infrastructure } = require('../modules');
+const configLoader = infrastructure.ConfigLoader;
 const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const fs = require('fs');

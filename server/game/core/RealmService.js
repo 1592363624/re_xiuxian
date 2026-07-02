@@ -2,7 +2,9 @@
  * 境界服务
  * 核心逻辑层 - 处理境界相关的核心玩法逻辑
  */
-const configLoader = require('../../modules/infrastructure/ConfigLoader');
+// 修复：统一通过 modules/index.js 导出引用 ConfigLoader
+const { infrastructure } = require('../../modules');
+const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 
 class RealmService {

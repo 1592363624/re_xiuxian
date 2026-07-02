@@ -171,7 +171,10 @@ router.post('/try', authenticateToken, async (req, res, next) => {
             }
         });
     } catch (error) {
-        await t.rollback();
+        // 修复：仅在事务未完成时回滚，避免对已 rollback/commit 的事务重复操作导致服务崩溃
+        if (t && !t.finished) {
+            await t.rollback();
+        }
         next(error);
     }
 });
