@@ -64,41 +64,107 @@
     "providers": {
         "openai": {
             "name": "OpenAI GPT",
-            "models": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"],
-            "endpoint": "https://api.openai.com/v1/chat/completions",
-            "authHeader": "Bearer"
+            "models": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o"],
+            "endpoint": "https://api.openai.com/v1",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "OpenAI 官方 API，OpenAI 协议的标准实现"
         },
         "anthropic": {
             "name": "Claude",
             "models": ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
-            "endpoint": "https://api.anthropic.com/v1/messages",
-            "authHeader": "x-api-key"
+            "endpoint": "https://api.anthropic.com/v1",
+            "authHeader": "x-api-key",
+            "compatibleWith": "anthropic",
+            "description": "Anthropic Claude，使用专有协议"
         },
         "qwen": {
             "name": "通义千问",
             "models": ["qwen-turbo", "qwen-plus", "qwen-max"],
-            "endpoint": "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
-            "authHeader": "Bearer"
+            "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "阿里云通义千问，已提供 OpenAI 兼容接口（recommended），旧版专有接口已弃用"
         },
         "zhipu": {
             "name": "智谱清言",
             "models": ["glm-4", "glm-4v", "glm-3-turbo"],
-            "endpoint": "https://open.bigmodel.cn/api/paas/v3/chat/completions",
-            "authHeader": "Bearer"
+            "endpoint": "https://open.bigmodel.cn/api/paas/v4",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "智谱 GLM-4，已提供 OpenAI 兼容接口"
         },
         "azure": {
             "name": "Azure OpenAI",
-            "models": ["gpt-35-turbo", "gpt-4"],
-            "endpoint": "https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions",
-            "authHeader": "api-key"
+            "models": ["gpt-35-turbo", "gpt-4", "gpt-4o"],
+            "endpoint": "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
+            "authHeader": "api-key",
+            "compatibleWith": "openai",
+            "description": "Azure OpenAI Service，endpoint 需替换 {resource} 和 {deployment}"
         },
         "xiaomi": {
             "name": "小米 MiMo",
             "models": ["mimo-v2-flash", "mimo-v2-pro"],
             "endpoint": "https://api.xiaomimimo.com/v1",
-            "authHeader": "api-key",
+            "authHeader": "Bearer",
             "compatibleWith": "openai",
             "description": "小米 MiMo 开放平台，兼容 OpenAI API 格式，API Key 在 https://platform.xiaomimimo.com/ 获取"
+        },
+        "deepseek": {
+            "name": "DeepSeek 深度求索",
+            "models": ["deepseek-chat", "deepseek-reasoner"],
+            "endpoint": "https://api.deepseek.com/v1",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "DeepSeek 深度求索，完全兼容 OpenAI API 格式，性价比高"
+        },
+        "moonshot": {
+            "name": "Moonshot Kimi",
+            "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+            "endpoint": "https://api.moonshot.cn/v1",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "月之暗面 Kimi，完全兼容 OpenAI API 格式，长上下文能力强"
+        },
+        "yi": {
+            "name": "零一万物",
+            "models": ["yi-large", "yi-medium", "yi-spark"],
+            "endpoint": "https://api.lingyiwanwu.com/v1",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "零一万物 Yi 系列，完全兼容 OpenAI API 格式"
+        },
+        "baichuan": {
+            "name": "百川大模型",
+            "models": ["Baichuan4", "Baichuan3-Turbo"],
+            "endpoint": "https://api.baichuan-ai.com/v1",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "百川智能 Baichuan 系列，完全兼容 OpenAI API 格式"
+        },
+        "minimax": {
+            "name": "MiniMax 稀宇",
+            "models": ["abab6.5-chat", "abab6.5s-chat"],
+            "endpoint": "https://api.minimax.chat/v1",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "MiniMax 稀宇科技，兼容 OpenAI API 格式"
+        },
+        "siliconflow": {
+            "name": "SiliconCloud 硅基流动",
+            "models": ["Qwen/Qwen2.5-7B-Instruct", "deepseek-ai/DeepSeek-V2-Chat"],
+            "endpoint": "https://api.siliconflow.cn/v1",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "硅基流动聚合平台，兼容 OpenAI API 格式，提供多个开源模型"
+        },
+        "custom": {
+            "name": "自定义 OpenAI 兼容服务",
+            "models": [],
+            "endpoint": "",
+            "authHeader": "Bearer",
+            "compatibleWith": "openai",
+            "description": "自定义 OpenAI 兼容接口，填入 endpoint 和 apiKey 即可使用任意兼容服务"
         }
     },
     "rateLimit": {

@@ -1,8 +1,15 @@
 /**
  * AI 大模型服务
- * 
+ *
  * 支持多种 AI API 提供商，用于生成游戏事件描述
- * 支持 OpenAI GPT、Claude、通义千问、智谱清言等主流模型
+ * 兼容所有支持 OpenAI 协议的模型（DeepSeek、Moonshot/Kimi、零一万物、通义千问、智谱 GLM-4 等）
+ * 同时保留对 Anthropic Claude 专有协议的适配
+ *
+ * 协议判定逻辑：
+ *   - openai/azure/qwen/zhipu/xiaomi 及其他未识别 provider -> 走 OpenAI 兼容协议
+ *   - anthropic -> 走 Anthropic 专有协议
+ *
+ * 用户可通过 ai_config.json 的 providers[].compatibleWith 字段强制指定协议
  */
 const axios = require('axios');
 
@@ -22,12 +29,27 @@ class AIService {
             timeout: config.timeout || 30000,
             enableCache: config.enableCache !== false,
             cacheDuration: config.cacheDuration || 3600000,
-            fallbackToTemplate: config.fallbackToTemplate !== false
+            fallbackToTemplate: config.fallbackToTemplate !== false,
+            // 通信协议：'openai'（默认，兼容所有 OpenAI 协议模型）或 'anthropic'
+            protocol: config.protocol || this.inferProtocol(config.provider)
         };
-        
+
         this.cache = new Map();
         this.requestQueue = [];
         this.isProcessing = false;
+    }
+
+    /**
+     * 根据 provider 推断通信协议
+     * 默认所有 provider 都走 OpenAI 兼容协议，仅 anthropic 走专有协议
+     * @param {string} provider - 提供商标识
+     * @returns {string} 协议类型：'openai' | 'anthropic'
+     */
+    inferProtocol(provider) {
+        if (!provider) return 'openai';
+        // 仅 Claude 走 Anthropic 专有协议，其他厂商均提供 OpenAI 兼容接口
+        if (provider === 'anthropic') return 'anthropic';
+        return 'openai';
     }
 
     /**
@@ -73,14 +95,26 @@ class AIService {
                     }
 
                     const envProvider = process.env.AI_PROVIDER;
-                    const providerFromConfig = envProvider || aiConfig.provider;
-                    
+                    const providerFromConfig = envProvider || loadedConfig.provider || aiConfig.provider;
+                    aiConfig.provider = providerFromConfig;
+
                     if (loadedConfig.providers && loadedConfig.providers[providerFromConfig]) {
                         const providerConfig = loadedConfig.providers[providerFromConfig];
+                        // 优先使用 providers 节点中配置的 endpoint
                         if (!process.env.AI_BASE_URL && providerConfig.endpoint) {
                             aiConfig.baseUrl = providerConfig.endpoint;
                         }
+                        // 读取 compatibleWith 字段，用于强制指定协议（如某些自定义 provider）
+                        if (providerConfig.compatibleWith) {
+                            aiConfig.protocol = providerConfig.compatibleWith;
+                        }
                         console.log(`[AI Service] 已加载提供商 ${providerFromConfig} 的配置`);
+                    }
+
+                    // 推断通信协议（未显式指定时，根据 provider 自动判定）
+                    if (!aiConfig.protocol) {
+                        const tempService = new AIService(aiConfig);
+                        aiConfig.protocol = tempService.config.protocol;
                     }
 
                     console.log('[AI Service] 配置加载完成（环境变量优先级最高）');
@@ -91,13 +125,13 @@ class AIService {
         }
 
         const service = new AIService(aiConfig);
-        
+
         if (!aiConfig.apiKey) {
             console.warn('[AI Service] 未配置 API Key，将使用模板生成模式');
         } else {
-            console.log(`[AI Service] 已初始化，提供商: ${aiConfig.provider}, 模型: ${aiConfig.model}`);
+            console.log(`[AI Service] 已初始化，提供商: ${aiConfig.provider}, 模型: ${aiConfig.model}, 协议: ${aiConfig.protocol}`);
         }
-        
+
         return service;
     }
 
@@ -229,6 +263,7 @@ class AIService {
 
     /**
      * 构建请求体
+     * 根据 protocol 字段决定走 OpenAI 兼容协议或 Anthropic 专有协议
      * @param {Array} messages - 消息数组
      * @param {Object} options - 选项
      * @returns {Object} 请求体
@@ -240,26 +275,14 @@ class AIService {
             max_tokens: options.maxTokens || this.config.maxTokens
         };
 
-        switch (this.config.provider) {
-            case 'openai':
-            case 'azure':
-                body.model = this.config.model;
-                break;
-            case 'anthropic':
-                body.model = this.config.model;
-                break;
-            case 'qwen':
-                body.model = this.config.model;
-                break;
-            case 'zhipu':
-                body.model = this.config.model;
-                break;
-            case 'xiaomi':
-                body.model = this.config.model;
-                body.thinking = { type: 'disabled' };
-                break;
-            default:
-                body.model = this.config.model;
+        // 根据协议类型构建请求体
+        if (this.config.protocol === 'anthropic') {
+            // Anthropic 专有协议：max_tokens 是必填字段，messages 格式相同
+            body.model = this.config.model;
+            // Anthropic 的 max_tokens 字段名一致，无需特殊处理
+        } else {
+            // OpenAI 兼容协议（适用于 openai/azure/qwen/zhipu/xiaomi/deepseek/moonshot 等）
+            body.model = this.config.model;
         }
 
         return body;
@@ -290,6 +313,7 @@ class AIService {
 
     /**
      * 获取请求头
+     * 根据 protocol 字段决定请求头格式
      * @returns {Object} 请求头
      */
     getHeaders() {
@@ -297,28 +321,13 @@ class AIService {
             'Content-Type': 'application/json'
         };
 
-        switch (this.config.provider) {
-            case 'openai':
-                headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-                break;
-            case 'azure':
-                headers['api-key'] = this.config.apiKey;
-                break;
-            case 'anthropic':
-                headers['x-api-key'] = this.config.apiKey;
-                headers['anthropic-version'] = '2023-06-01';
-                break;
-            case 'qwen':
-                headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-                break;
-            case 'zhipu':
-                headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-                break;
-            case 'xiaomi':
-                headers['api-key'] = this.config.apiKey;
-                break;
-            default:
-                headers['Authorization'] = `Bearer ${this.config.apiKey}`;
+        if (this.config.protocol === 'anthropic') {
+            // Anthropic 专有协议：使用 x-api-key 头
+            headers['x-api-key'] = this.config.apiKey;
+            headers['anthropic-version'] = '2023-06-01';
+        } else {
+            // OpenAI 兼容协议：统一使用 Bearer Token 认证
+            headers['Authorization'] = `Bearer ${this.config.apiKey}`;
         }
 
         return headers;
@@ -326,72 +335,63 @@ class AIService {
 
     /**
      * 获取 API 端点
+     * 根据 protocol 字段决定端点路径
+     * 注意：用户应在 ai_config.json 的 providers 节点配置完整的 baseUrl（含路径）
      * @returns {string} 端点 URL
      */
     getEndpoint() {
         const baseUrl = this.config.baseUrl.replace(/\/$/, '');
-        
-        switch (this.config.provider) {
-            case 'openai':
-                return `${baseUrl}/chat/completions`;
-            case 'azure':
-                return `${baseUrl}/openai/deployments/${this.config.model}/chat/completions?api-version=2023-05-15`;
-            case 'anthropic':
-                return `${baseUrl}/messages`;
-            case 'qwen':
-                return `${baseUrl}/api/v1/services/aigc/text-generation/generation`;
-            case 'zhipu':
-                return `${baseUrl}/api/v1/chat/completions`;
-            case 'xiaomi':
-                return `${baseUrl}/chat/completions`;
-            default:
-                return `${baseUrl}/chat/completions`;
+
+        if (this.config.protocol === 'anthropic') {
+            // Anthropic 专有协议端点
+            return `${baseUrl}/messages`;
         }
+
+        // OpenAI 兼容协议端点
+        // 用户在 ai_config.json 配置的 baseUrl 应已包含版本号路径（如 /v1）
+        // 若配置的 baseUrl 已包含 /chat/completions，则直接使用，避免重复拼接
+        if (baseUrl.endsWith('/chat/completions')) {
+            return baseUrl;
+        }
+        return `${baseUrl}/chat/completions`;
     }
 
     /**
      * 解析响应
+     * 根据 protocol 字段决定解析逻辑，添加 default 分支保证未识别 provider 也能正常解析
      * @param {Object} response - API 响应
-     * @returns {Object} 解析结果
+     * @returns {Object} 解析结果 { content, usage, error }
      */
     parseResponse(response) {
         try {
-            switch (this.config.provider) {
-                case 'openai':
-                case 'azure':
-                    if (response.data?.choices?.[0]?.message?.content) {
-                        return {
-                            content: response.data.choices[0].message.content.trim(),
-                            usage: response.data.usage
-                        };
-                    }
-                    break;
-                case 'anthropic':
-                    if (response.data?.content?.[0]?.text) {
-                        return {
-                            content: response.data.content[0].text.trim(),
-                            usage: response.data.usage
-                        };
-                    }
-                    break;
-                case 'qwen':
-                    if (response.data?.output?.text) {
-                        return {
-                            content: response.data.output.text.trim(),
-                            usage: response.data.usage
-                        };
-                    }
-                    break;
-                case 'zhipu':
-                    if (response.data?.choices?.[0]?.message?.content) {
-                        return {
-                            content: response.data.choices[0].message.content.trim(),
-                            usage: response.data.usage
-                        };
-                    }
-                    break;
+            // 优先尝试 OpenAI 兼容协议响应格式（choices[0].message.content）
+            // 这是绝大多数模型的标准格式，未识别的 provider 也走此分支
+            if (response.data?.choices?.[0]?.message?.content) {
+                return {
+                    content: response.data.choices[0].message.content.trim(),
+                    usage: response.data.usage
+                };
             }
-            
+
+            // Anthropic 专有协议响应格式（content[0].text）
+            if (this.config.protocol === 'anthropic' && response.data?.content?.[0]?.text) {
+                return {
+                    content: response.data.content[0].text.trim(),
+                    usage: response.data.usage
+                };
+            }
+
+            // 通义千问旧版专有协议响应格式（output.text）
+            // 多数通义千问场景已兼容 OpenAI 格式，此处保留兼容旧版
+            if (response.data?.output?.text) {
+                return {
+                    content: response.data.output.text.trim(),
+                    usage: response.data.usage
+                };
+            }
+
+            // 兜底：记录无法识别的响应结构，便于排查
+            console.warn('[AI Service] 无法解析响应格式，响应结构:', JSON.stringify(response.data).substring(0, 200));
             return { content: null, error: '无法解析响应格式' };
         } catch (error) {
             return { content: null, error: error.message };
@@ -761,6 +761,7 @@ class AIService {
         const status = {
             provider: this.config.provider,
             model: this.config.model,
+            protocol: this.config.protocol,
             hasApiKey: !!this.config.apiKey,
             cacheEnabled: this.config.enableCache,
             cacheSize: this.cache.size
