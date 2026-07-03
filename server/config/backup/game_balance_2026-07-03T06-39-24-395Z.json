@@ -117,7 +117,7 @@
       "short": {
         "duration": 30,
         "reward_multiplier": 0.6,
-        "injury_chance": 0,
+        "injury_chance": 0.02,
         "injury_hp_loss_rate": 0.05,
         "label": "短时历练"
       },

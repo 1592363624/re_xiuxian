@@ -1,7 +1,7 @@
 {
   "description": "闭关修炼系统配置（重构版：区分常规闭关与深度闭关）",
   "version": "2.0.0",
-  "lastUpdated": "2026-07-03T06:39:24.328Z",
+  "lastUpdated": "2026-07-03T06:39:24.169Z",
   "settings": {
     "seclusion_exp_rate": {
       "value": 1,
@@ -20,7 +20,7 @@
       "value": {
         "max_duration": 1800,
         "daily_limit": 3,
-        "cooldown": 360,
+        "cooldown": 420,
         "exp_rate": 1
       },
       "description": "常规闭关配置：短时挂机，每日3次，冷却5分钟，单次最长30分钟",

@@ -248,6 +248,8 @@ const startServer = async () => {
     app.use('/api/admin', require('./routes/admin'));
     app.use('/api/admin/ai-config', require('./routes/admin_ai'));
     app.use('/api/admin/sect', require('./routes/admin_sect'));
+    // 修炼配置管理（闭关 + 历练，支持热加载）
+    app.use('/api/admin/cultivation', require('./routes/admin_cultivation'));
     app.use('/api/system', require('./routes/system'));
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));

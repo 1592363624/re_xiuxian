@@ -1,7 +1,7 @@
 {
   "description": "闭关修炼系统配置（重构版：区分常规闭关与深度闭关）",
   "version": "2.0.0",
-  "lastUpdated": "2026-07-03T06:39:24.328Z",
+  "lastUpdated": "2026-07-03T06:39:24.032Z",
   "settings": {
     "seclusion_exp_rate": {
       "value": 1,

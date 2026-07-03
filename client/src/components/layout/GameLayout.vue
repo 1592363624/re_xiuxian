@@ -117,6 +117,9 @@
     
     <!-- 历练面板 -->
     <ExplorePanel v-if="isExploreOpen" @close="isExploreOpen = false" @combat="handleExploreCombat" />
+
+    <!-- 闭关修炼选择面板（让玩家选择常规/深度闭关） -->
+    <SeclusionPanel v-if="isSeclusionOpen" @close="isSeclusionOpen = false" />
     
     <!-- 战斗面板 -->
     <CombatPanel v-if="isCombatOpen" :initialBattleId="currentBattleId ?? undefined" @close="isCombatOpen = false" />
@@ -170,6 +173,7 @@ import BreakthroughPortal from '../widgets/BreakthroughPortal.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
+import SeclusionPanel from '../panels/SeclusionPanel.vue';
 import MovingOverlay from '../overlays/MovingOverlay.vue';
 import MapPanel from '../panels/MapPanel.vue';
 import SystemAlert from '../widgets/SystemAlert.vue';
@@ -199,6 +203,8 @@ const isCharacterOpen = ref(false);
 const isMapOpen = ref(false);
 const isExploreOpen = ref(false)
 const isCombatOpen = ref(false)
+// 闭关修炼选择面板状态（用于让玩家选择常规/深度闭关模式）
+const isSeclusionOpen = ref(false)
 // 新增功能面板状态
 const isInventoryOpen = ref(false);
 const isSectOpen = ref(false);
@@ -250,18 +256,9 @@ const handleAction = async (actionId: string) => {
   console.log('ActionBar emitted action:', actionId);
   
   if (actionId === 'cultivate') {
-    try {
-      await playerStore.startSeclusion();
-      uiStore.showToast('进入闭关状态', 'success');
-      uiStore.addLog({
-        content: '开始闭关修炼，摒除杂念，感悟天地灵气。',
-        type: 'info',
-        actorId: 'self'
-      });
-    } catch (error: any) {
-      const msg = error.response?.data?.message || error.response?.data?.error || '无法开始闭关';
-      uiStore.showToast(msg, 'error');
-    }
+    // 重构后：不再直接开始闭关，而是打开修炼选择面板
+    // 让玩家根据自身境界选择常规闭关（normal）或深度闭关（deep）
+    isSeclusionOpen.value = true;
     return;
   }
   

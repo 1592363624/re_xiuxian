@@ -20,13 +20,13 @@
   },
   "combat": {
     "skill_mp_cost": 20,
-    "base_damage_multiplier": 1,
+    "base_damage_multiplier": 1.0,
     "escape_success_rate": 0.5,
     "damage_random_range": 15,
     "damage_random_offset": 7,
     "skill_damage_multiplier": 1.5,
     "battle_expire_minutes": 30,
-    "level_multiplier_base": 1,
+    "level_multiplier_base": 1.0,
     "level_multiplier_per_level": 0.1,
     "base_monster_hp": 50,
     "base_monster_atk": 8,
@@ -82,7 +82,7 @@
     "transfer_gain_exp": 200,
     "transfer_cooldown_hours": 24,
     "default_min_realm_rank": 1,
-    "leave_contribution_loss_rate": 1
+    "leave_contribution_loss_rate": 1.0
   },
   "market": {
     "max_active_listings": 20,
@@ -97,13 +97,7 @@
     "sect_contribution_max": 100000000
   },
   "equipment": {
-    "valid_slots": [
-      "weapon",
-      "armor",
-      "accessory",
-      "boots",
-      "dharma"
-    ],
+    "valid_slots": ["weapon", "armor", "accessory", "boots", "dharma"],
     "slot_names": {
       "weapon": "武器",
       "armor": "护甲",
@@ -123,7 +117,7 @@
       },
       "medium": {
         "duration": 90,
-        "reward_multiplier": 1,
+        "reward_multiplier": 1.0,
         "injury_chance": 0.05,
         "injury_hp_loss_rate": 0.08,
         "label": "中时历练"

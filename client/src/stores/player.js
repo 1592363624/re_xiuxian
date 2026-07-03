@@ -5,7 +5,7 @@
  */
 import { defineStore } from 'pinia'
 import { getPlayer } from '../api/player'
-import { getStatus as getSeclusionStatus, start as startSeclusionApi, end as endSeclusionApi } from '../api/seclusion'
+import { getStatus as getSeclusionStatus, start as startSeclusionApi, end as endSeclusionApi, forceEnd as forceEndSeclusionApi } from '../api/seclusion'
 import { getConfig as getSystemConfig } from '../api/system'
 import { tryBreakthrough as tryBreakthroughApi } from '../api/breakthrough'
 import { socketService } from '../services/socket'
@@ -127,22 +127,38 @@ export const usePlayerStore = defineStore('player', {
 
     /**
      * 获取闭关状态
+     * 重构后支持常规/深度闭关双模式，含进度、每日剩余次数、配置信息
      */
     async fetchSeclusionStatus() {
       if (!this.token) return null
       try {
         const res = await getSeclusionStatus()
-        // 后端返回格式: { code: 200, data: { is_secluded, ... } }
+        // 后端返回格式: { code: 200, data: { is_secluded, seclusion_mode, ... } }
         const data = res.data?.data || res.data
         if (data) {
              if (this.player) {
-                 // 更新闭关相关状态
+                 // 更新闭关相关状态（含模式）
                  this.player.is_secluded = data.is_secluded
+                 this.player.seclusion_mode = data.seclusion_mode || 'normal'
                  this.player.seclusion_start_time = data.seclusion_start_time
                  this.player.seclusion_duration = data.seclusion_duration
+                 this.player.seclusion_end_time = data.seclusion_end_time
                  // 同步更新 localStorage，确保数据一致性
                  localStorage.setItem('player', JSON.stringify(this.player))
              }
+             // 缓存闭关配置信息，供前端展示与模式选择使用
+             this.systemConfig.seclusion = {
+                normal: data.normal_config,
+                deep: data.deep_config,
+                normal_remaining: data.normal_remaining,
+                deep_remaining: data.deep_remaining,
+                exp_rate: data.exp_rate,
+                exp_gained: data.exp_gained,
+                current_duration: data.current_duration,
+                remaining_time: data.remaining_time,
+                progress: data.progress
+             }
+             // 兼容旧字段
              this.systemConfig.cultivate_interval = data.cultivate_interval
              this.systemConfig.deep_seclusion_exp_rate = data.deep_seclusion_exp_rate
              this.systemConfig.deep_seclusion_interval = data.deep_seclusion_interval
@@ -157,18 +173,24 @@ export const usePlayerStore = defineStore('player', {
     /**
      * 开始闭关
      * 业务逻辑由后端处理，前端调用API后立即更新本地状态
+     * @param {string} mode - 闭关模式 normal|deep（默认 normal）
+     * @param {number} duration - 期望闭关时长（秒），可选
      */
-    async startSeclusion(duration) {
+    async startSeclusion(mode = 'normal', duration) {
       if (!this.token) {
         console.warn('开始闭关失败: 未登录或token不存在')
         return
       }
       try {
-        const res = await startSeclusionApi(duration)
+        const res = await startSeclusionApi(mode, duration)
         // 立即更新本地状态，确保UI即时响应
         if (res.data && this.player) {
+          const data = res.data.data || {}
           this.player.is_secluded = true
-          this.player.seclusion_start_time = res.data.data?.seclusion_start_time || new Date()
+          this.player.seclusion_mode = data.seclusion_mode || mode
+          this.player.seclusion_start_time = data.seclusion_start_time || new Date()
+          this.player.seclusion_end_time = data.seclusion_end_time || null
+          this.player.seclusion_duration = data.seclusion_duration || 0
           localStorage.setItem('player', JSON.stringify(this.player))
         }
         return res.data
@@ -184,8 +206,8 @@ export const usePlayerStore = defineStore('player', {
     },
 
     /**
-     * 结束闭关
-     * 业务逻辑由后端处理，前端调用API后立即更新本地状态
+     * 结束闭关（正常结算）
+     * 深度闭关未达最短时长时按强行出关处理，损失 forced_penalty 比例收益
      */
     async endSeclusion() {
       if (!this.token) return
@@ -194,6 +216,9 @@ export const usePlayerStore = defineStore('player', {
         // 立即更新本地状态，确保UI即时响应
         if (res.data && this.player) {
           this.player.is_secluded = false
+          this.player.seclusion_mode = 'normal'
+          this.player.seclusion_start_time = null
+          this.player.seclusion_end_time = null
           // 修复：后端返回的数据在 res.data.data.player 中
           this.player.exp = res.data.data?.player?.exp || this.player.exp
           this.player.last_seclusion_time = res.data.data?.player?.last_seclusion_time || new Date()
@@ -202,6 +227,30 @@ export const usePlayerStore = defineStore('player', {
         return res.data
       } catch (error) {
         console.error('结束闭关失败:', error.response?.data || error.message || error)
+        throw error
+      }
+    },
+
+    /**
+     * 强行出关（深度闭关专用快捷接口）
+     * 逻辑等同 endSeclusion，仅作为语义上的快捷入口
+     */
+    async forceEndSeclusion() {
+      if (!this.token) return
+      try {
+        const res = await forceEndSeclusionApi()
+        if (res.data && this.player) {
+          this.player.is_secluded = false
+          this.player.seclusion_mode = 'normal'
+          this.player.seclusion_start_time = null
+          this.player.seclusion_end_time = null
+          this.player.exp = res.data.data?.player?.exp || this.player.exp
+          this.player.last_seclusion_time = res.data.data?.player?.last_seclusion_time || new Date()
+          localStorage.setItem('player', JSON.stringify(this.player))
+        }
+        return res.data
+      } catch (error) {
+        console.error('强行出关失败:', error.response?.data || error.message || error)
         throw error
       }
     },

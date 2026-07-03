@@ -490,17 +490,18 @@ router.get('/validate', auth, async (req, res) => {
  */
 router.post('/explore/start', auth, async (req, res) => {
     try {
-        const { duration } = req.body;
-        
+        // durationType: short/medium/long 时长分级；duration 向后兼容
+        const { duration, durationType } = req.body;
+
         if (!adventureService) {
-            return res.status(503).json({ 
+            return res.status(503).json({
                 code: 503,
                 message: '历练服务暂不可用',
                 detail: '请稍后再试或联系管理员'
             });
         }
 
-        const result = await adventureService.startAdventure(req.user.id, { duration });
+        const result = await adventureService.startAdventure(req.user.id, { duration, durationType });
         
         if (result.success) {
             res.json({
