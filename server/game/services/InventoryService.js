@@ -8,7 +8,8 @@
  *   - 使用物品时，根据物品效果类型分别处理：恢复气血/灵力、突破加成、增益 buff
  *   - 丢弃/出售物品时使用事务保证数据一致性
  */
-const { sequelize } = require('../../config/database');
+// 修复：config/database.js 直接导出 sequelize 实例，不能用解构导入（否则拿到 undefined）
+const sequelize = require('../../config/database');
 const { infrastructure } = require('../../modules');
 const Player = require('../../models/player');
 const Item = require('../../models/item');

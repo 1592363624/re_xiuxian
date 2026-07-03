@@ -60,10 +60,6 @@ const confirmModal = ref<{
   payload: null
 })
 
-// ====== 冷却时间常量（与后端 game_balance.sect 配置保持一致，仅用于前端倒计时展示） ======
-const CHECKIN_COOLDOWN_HOURS = 24
-const TRANSFER_COOLDOWN_HOURS = 24
-
 // ====== 计算属性 ======
 
 /**
@@ -72,25 +68,30 @@ const TRANSFER_COOLDOWN_HOURS = 24
 const hasJoined = computed(() => !!mySect.value)
 
 /**
- * 点卯剩余冷却毫秒数（0 表示可点卯）
+ * 基于后端权威冷却剩余 + 本地 tick 递减计算点卯剩余冷却毫秒
+ * 设计说明：冷却时长由后端配置（game_balance.sect.checkin_cooldown_hours）权威计算，
+ * 前端不再硬编码 24h，仅基于后端返回的剩余值做本地平滑递减展示，避免时钟漂移误差
  */
 const checkInRemainingMs = computed(() => {
-  if (!mySect.value?.last_check_in) return 0
-  const last = new Date(mySect.value.last_check_in).getTime()
-  const next = last + CHECKIN_COOLDOWN_HOURS * 3600 * 1000
-  const remain = next - currentTime.value
-  return remain > 0 ? remain : 0
+  if (!mySect.value) return 0
+  const backendRemaining = mySect.value.checkin_cooldown_remaining_ms ?? 0
+  if (backendRemaining <= 0) return 0
+  // 基于服务端时间戳计算本地流逝时间，避免时钟漂移
+  const serverTime = mySect.value.server_time || Date.now()
+  const localElapsedMs = currentTime.value - serverTime
+  return Math.max(0, backendRemaining - localElapsedMs)
 })
 
 /**
- * 传功剩余冷却毫秒数（0 表示可传功）
+ * 传功剩余冷却毫秒（基于后端权威值 + 本地 tick 递减）
  */
 const transferRemainingMs = computed(() => {
-  if (!mySect.value?.last_transfer) return 0
-  const last = new Date(mySect.value.last_transfer).getTime()
-  const next = last + TRANSFER_COOLDOWN_HOURS * 3600 * 1000
-  const remain = next - currentTime.value
-  return remain > 0 ? remain : 0
+  if (!mySect.value) return 0
+  const backendRemaining = mySect.value.transfer_cooldown_remaining_ms ?? 0
+  if (backendRemaining <= 0) return 0
+  const serverTime = mySect.value.server_time || Date.now()
+  const localElapsedMs = currentTime.value - serverTime
+  return Math.max(0, backendRemaining - localElapsedMs)
 })
 
 /**

@@ -317,40 +317,31 @@ const remainingTime = computed(() => {
 })
 
 /**
- * 已获修为（实时计算）
+ * 已获修为（直接使用后端权威计算的 exp_gained）
+ * 设计说明：删除前端降级计算路径（duration * expRate），统一由后端实时计算，
+ * 避免前端公式与后端不一致导致显示偏差；后端未返回时显示 0
  */
 const expGained = computed(() => {
-  // 优先使用后端返回的实时已获修为
-  const backendGain = store.systemConfig?.seclusion?.exp_gained
-  if (backendGain !== undefined && backendGain !== null) {
-    return backendGain
-  }
-  // 降级：使用 exp_rate 计算实时收益显示
-  return Math.floor(duration.value * expRate.value)
+  return store.systemConfig?.seclusion?.exp_gained ?? 0
 })
 
 /**
- * 进度百分比（深度闭关按最短时长计算）
+ * 进度百分比（直接使用后端权威计算的 progress）
+ * 设计说明：删除前端本地估算降级路径，统一由后端按 min_duration/seclusion_duration 计算
  */
 const progress = computed(() => {
-  const backendProgress = store.systemConfig?.seclusion?.progress
-  if (backendProgress !== undefined && backendProgress !== null) {
-    return backendProgress
-  }
-  // 降级：本地估算
-  if (!isDeep.value) return Math.min(100, Math.floor(duration.value / 1800 * 100))
-  const minDuration = 14400 // 默认 4 小时
-  return Math.min(100, Math.floor(duration.value / minDuration * 100))
+  return store.systemConfig?.seclusion?.progress ?? 0
 })
 
 /**
  * 深度闭关是否已达最短时长
  * 用于决定是否显示"强行出关"按钮（未达时长才显示）
+ * 深度闭关最短时长从后端配置读取（deep.min_duration），不再硬编码 14400
  */
 const reachedMinDuration = computed(() => {
   if (!isDeep.value) return true
-  // 深度闭关最短时长 4 小时（14400 秒），从配置读取降级默认
-  const minDuration = store.systemConfig?.seclusion?.deep?.min_duration || 14400
+  const minDuration = store.systemConfig?.seclusion?.deep?.min_duration || 0
+  if (!minDuration) return true
   return duration.value >= minDuration
 })
 
@@ -411,17 +402,25 @@ const handleForceEnd = async () => {
 onMounted(async () => {
   const status = await store.fetchSeclusionStatus()
   if (status) {
-    // 根据模式设置不同的修为速率显示
-    if (isDeep.value) {
-      // 深度闭关 2 倍收益
-      expRate.value = (status.exp_rate || 1) * 2
-    } else {
-      expRate.value = status.exp_rate || 0.1
-    }
+    // 修为速率直接使用后端返回的 exp_rate（后端已包含模式倍率，无需前端再乘 2）
+    // 后端 status 接口返回的 exp_rate 为基础速率，实际收益已通过 exp_gained 体现
+    // 此处仅用于"速率"展示，不再前端二次计算倍率
+    expRate.value = status.exp_rate || 0
   }
 
+  // 计数器节流：每 5 秒同步一次后端权威数据
+  let syncCounter = 0
   timer.value = setInterval(() => {
     now.value = Date.now()
+    // 闭关中每隔一段时间同步后端权威数据（exp_gained / progress），
+    // 确保前端展示的实时数值与后端一致
+    if (store.player?.is_secluded) {
+      syncCounter++
+      if (syncCounter >= 5) {
+        syncCounter = 0
+        store.fetchSeclusionStatus()
+      }
+    }
   }, 1000)
 })
 

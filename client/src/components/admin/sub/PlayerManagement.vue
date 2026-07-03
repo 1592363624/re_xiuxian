@@ -187,13 +187,12 @@ const getLifespanClass = (player) => {
 }
 
 /**
- * 判断玩家是否在线 (5分钟内活跃)
+ * 判断玩家是否在线
+ * 直接读取后端权威返回的 is_online 字段（基于 WebSocket 连接表）
+ * 避免前端用"5 分钟阈值"猜测在线状态导致误判
  */
 const isOnline = (player) => {
-  if (!player || !player.last_online) return false
-  const lastOnline = new Date(player.last_online).getTime()
-  const now = Date.now()
-  return (now - lastOnline) < 5 * 60 * 1000
+  return !!(player && player.is_online)
 }
 
 /**

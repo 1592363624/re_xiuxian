@@ -174,9 +174,17 @@ router.get('/players', auth, adminCheck, async (req, res) => {
             order: [[validSortBy, validSortOrder]]
         });
 
+        // 后端权威判断在线状态：以 WebSocket 连接表（onlineUsers）为准
+        // 避免前端用"5 分钟阈值"猜测在线状态导致误判
+        const players = rows.map(p => {
+            const data = p.toJSON();
+            data.is_online = webSocketNotificationService.isPlayerOnline(p.id);
+            return data;
+        });
+
         res.json({
             code: 200,
-            players: rows,
+            players,
             currentPage: page,
             totalPages: Math.ceil(count / limit),
             total: count
@@ -367,6 +375,22 @@ router.post('/give-item', auth, adminCheck, async (req, res) => {
             item_id: itemId,
             quantity
         }, req);
+
+        // 推送物品发放通知，目标玩家前端据此刷新背包数据
+        try {
+            webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_give_item', {
+                item_key: itemId,
+                quantity
+            });
+            webSocketNotificationService.sendToPlayer(playerId, {
+                type: 'gm_give_item',
+                title: '收到物品',
+                content: `管理员向你发放了 ${quantity} 个 ${itemId}`,
+                priority: 'info'
+            });
+        } catch (e) {
+            console.warn('[Admin] 推送物品发放通知失败:', e.message);
+        }
 
         res.json({
             code: 200,

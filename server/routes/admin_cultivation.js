@@ -673,4 +673,143 @@ function formatFileSize(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+/**
+ * 递归对比 before/after 对象，提取所有叶子节点的变化
+ *
+ * 业务计算放后端的核心体现：前端只负责渲染，不再做 diff 算法
+ *
+ * @param {object} beforeObj - 修改前对象
+ * @param {object} afterObj - 修改后对象
+ * @param {string} prefix - 字段路径前缀（用于嵌套对象，如 "normal.max_duration"）
+ * @returns {Array<{path: string, before: any, after: any, changeType: string}>}
+ *          字段变化列表，changeType: added | removed | modified
+ */
+function computeDiff(beforeObj, afterObj, prefix = '') {
+    const fields = [];
+    // 收集所有 key（before 和 after 的并集）
+    const allKeys = new Set([
+        ...Object.keys(beforeObj || {}),
+        ...Object.keys(afterObj || {})
+    ]);
+
+    for (const key of allKeys) {
+        const path = prefix ? `${prefix}.${key}` : key;
+        const beforeVal = beforeObj?.[key];
+        const afterVal = afterObj?.[key];
+
+        // 两者都是对象（非 null、非数组），递归
+        if (
+            beforeVal && typeof beforeVal === 'object' && !Array.isArray(beforeVal) &&
+            afterVal && typeof afterVal === 'object' && !Array.isArray(afterVal)
+        ) {
+            fields.push(...computeDiff(beforeVal, afterVal, path));
+        } else {
+            // 叶子节点，对比值
+            let changeType = 'unchanged';
+            if (beforeVal === undefined) changeType = 'added';
+            else if (afterVal === undefined) changeType = 'removed';
+            else if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) changeType = 'modified';
+
+            // 只展示有变化的字段（避免表格过长）
+            if (changeType !== 'unchanged') {
+                fields.push({ path, before: beforeVal, after: afterVal, changeType });
+            }
+        }
+    }
+    return fields;
+}
+
+/**
+ * GET /api/admin/cultivation/logs/:logId/diff
+ * 获取指定操作日志的字段级 diff（后端权威计算）
+ *
+ * 业务计算放后端的设计目的：
+ *   - 防止前端伪造 diff 结果（如篡改 before/after 值）
+ *   - 统一 diff 算法实现，避免前端版本漂移
+ *   - 前端只负责渲染返回的 fields 数组
+ *
+ * 路径参数：
+ *   logId - AdminLog 主键 ID
+ *
+ * 返回结构：
+ *   { code, data: { target, backup, fields: [{path, before, after, changeType}] } }
+ */
+router.get('/logs/:logId/diff', auth, adminCheck, async (req, res, next) => {
+    try {
+        const { logId } = req.params;
+        // 校验 logId 为正整数
+        const logIdNum = parseInt(logId, 10);
+        if (isNaN(logIdNum) || logIdNum <= 0) {
+            throw new AppError('日志ID必须为正整数', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        // 查询日志记录
+        const log = await AdminLog.findByPk(logIdNum);
+        if (!log) {
+            throw new AppError(`日志 ${logId} 不存在`, 404, ErrorCodes.NOT_FOUND);
+        }
+
+        // 仅允许修炼配置变更类日志查看 diff，避免越权获取其他日志的解析结果
+        const allowedActions = [
+            'update_cultivation_seclusion',
+            'update_cultivation_adventure',
+            'rollback_cultivation_config'
+        ];
+        if (!allowedActions.includes(log.action)) {
+            throw new AppError(
+                `该日志类型 "${log.action}" 不支持 diff 查看，仅修炼配置变更日志可查看`,
+                400,
+                ErrorCodes.VALIDATION_ERROR
+            );
+        }
+
+        // 解析 details JSON
+        let parsed;
+        try {
+            parsed = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+        } catch (e) {
+            throw new AppError(
+                `日志 ${logId} 的 details JSON 解析失败：${e.message}`,
+                500,
+                ErrorCodes.INTERNAL_ERROR
+            );
+        }
+
+        if (!parsed || typeof parsed !== 'object') {
+            throw new AppError(
+                `日志 ${logId} 的 details 格式异常`,
+                500,
+                ErrorCodes.INTERNAL_ERROR
+            );
+        }
+
+        // 提取 before/after，回滚类日志可能字段名为 rollbackFrom/rollbackTo，
+        // 但同样有 before/after 字段（参见 rollback 接口的 logAdminAction 调用）
+        const before = parsed.before || {};
+        const after = parsed.after || {};
+
+        // 后端权威 diff 计算
+        const fields = computeDiff(before, after);
+
+        res.json({
+            code: 200,
+            data: {
+                target: parsed.target || '',
+                backup: parsed.backup || parsed.preRollbackBackup || '',
+                fields,
+                // 附带日志元数据，便于前端展示
+                meta: {
+                    logId: log.id,
+                    action: log.action,
+                    adminId: log.admin_id,
+                    createdAt: log.createdAt,
+                    ip: log.ip
+                }
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 module.exports = router;

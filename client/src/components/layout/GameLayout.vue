@@ -79,11 +79,26 @@
           <button @click="handleLogoutClick" class="p-2 ml-2 text-stone-500 hover:text-rose-500 transition-colors rounded-full hover:bg-stone-800/50" title="退出登录">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
+          <!-- 返回战斗按钮：仅当玩家有进行中战斗且战斗面板未打开时显示 -->
+          <button
+            v-if="hasActiveBattle && !isCombatOpen"
+            @click="handleReturnToBattle"
+            class="ml-2 px-3 py-1.5 text-xs font-bold rounded bg-red-700 hover:bg-red-600 text-white animate-pulse"
+            title="您有进行中的战斗，点击返回"
+          >
+            <span class="inline-flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
+              返回战斗
+            </span>
+          </button>
         </div>
       </header>
 
       <!-- 闭关修炼浮动状态条（header 下方，不遮挡内容） -->
       <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
+
+      <!-- 历练进行中浮动状态条（参考闭关设计，后端权威数据驱动） -->
+      <ExploreOverlay v-if="isStateSynced && playerStore.adventureStatus?.is_adventuring" />
 
       <!-- 赶路移动浮动状态条（header 下方，不遮挡内容） -->
       <MovingOverlay
@@ -161,6 +176,7 @@
  */
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { getStats } from '../../api/system';
+import { getCombatStatus } from '../../api/combat';
 import { currentVersion } from '../../data/changelog';
 import { usePlayerStore } from '../../stores/player';
 import { useUIStore } from '../../stores/ui';
@@ -173,6 +189,7 @@ import BreakthroughPortal from '../widgets/BreakthroughPortal.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
 import AdminPanel from '../admin/AdminPanel.vue';
 import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
+import ExploreOverlay from '../panels/ExploreOverlay.vue';
 import SeclusionPanel from '../panels/SeclusionPanel.vue';
 import MovingOverlay from '../overlays/MovingOverlay.vue';
 import MapPanel from '../panels/MapPanel.vue';
@@ -216,6 +233,9 @@ const onlineCount = ref(0);
 const totalPlayers = ref(0);
 // 标记是否已完成后端状态同步，防止用 localStorage 旧数据误渲染闭关遮罩
 const isStateSynced = ref(false);
+// 标记玩家是否有进行中战斗（用于显示"返回战斗"按钮）
+// 后端权威判断：调用 /combat/status（不带 battleId）查询是否有 ActiveBattle 记录
+const hasActiveBattle = ref(false);
 let statsInterval: any = null;
 
 /**
@@ -299,6 +319,37 @@ const handleExploreCombat = (battleId?: string) => {
 }
 
 /**
+ * 检查玩家是否有进行中战斗（后端权威判断）
+ * 用于显示"返回战斗"按钮，解决战斗中关闭面板后无法恢复入口的问题
+ */
+const checkActiveBattle = async () => {
+  try {
+    const res = await getCombatStatus()
+    // 后端 /combat/status 不带 battleId 时查询玩家当前 ActiveBattle
+    // 返回结构：{ code: 200, in_battle: true, battle_id: "xxx", ... } 或 { in_battle: false }
+    const data = res.data?.in_battle ? res.data : (res.data?.data || {})
+    if (data.in_battle && data.battle_id) {
+      hasActiveBattle.value = true
+      currentBattleId.value = data.battle_id
+    } else {
+      hasActiveBattle.value = false
+    }
+  } catch (e) {
+    // 静默失败，不影响主流程
+    console.warn('检查进行中战斗失败:', e)
+  }
+}
+
+/**
+ * 点击"返回战斗"按钮：恢复战斗面板
+ */
+const handleReturnToBattle = () => {
+  isCombatOpen.value = true
+  // 打开面板后标记为已处理，避免重复提示
+  hasActiveBattle.value = false
+}
+
+/**
  * 处理菜单点击
  */
 const handleMenuClick = (btnName: string) => {
@@ -352,10 +403,14 @@ onMounted(async () => {
   // 从后端同步闭关状态，避免 localStorage 缓存的旧状态导致遮罩误显示
   try {
     await playerStore.fetchSeclusionStatus();
+    // 同步历练状态，恢复"历练中"浮动状态条（关闭面板/重启浏览器后状态恢复）
+    await playerStore.fetchAdventureStatus();
+    // 检查是否有进行中战斗（用于显示"返回战斗"按钮）
+    await checkActiveBattle();
   } catch (e) {
-    console.warn('同步闭关状态失败:', e);
+    console.warn('同步状态失败:', e);
   }
-  // 状态同步完成，允许渲染闭关遮罩
+  // 状态同步完成，允许渲染遮罩
   isStateSynced.value = true;
 });
 

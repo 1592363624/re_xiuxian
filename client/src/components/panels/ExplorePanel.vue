@@ -234,6 +234,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   getAiStatus,
   getExploreEvent,
+  getExploreStatus,
   startExplore,
   completeExplore,
   enterCombat,
@@ -486,10 +487,96 @@ const enterCombatAction = async () => {
   }
 }
 
-onMounted(() => {
+/**
+ * 组件挂载时：
+ *   1. 先调用 /explore/status 恢复"历练中"状态（防止关闭面板后状态丢失）
+ *   2. 并行拉取地图信息与环境信息
+ *
+ * 业务计算下沉后端的核心体现：
+ *   - 剩余时间、总时长、是否过期均由后端权威返回
+ *   - 前端不再用本地缓存估算历练进度
+ */
+onMounted(async () => {
+  // 第一步：恢复进行中的历练状态
+  await restoreAdventureStatus()
+
+  // 第二步：并行拉取地图与环境信息
   fetchExploreInfo()
   fetchEnvironment()
 })
+
+/**
+ * 从后端恢复"历练中"状态
+ *
+ * 场景：玩家在历练进行中关闭了面板，重新打开时
+ *   - 后端仍有 in_progress 的 PlayerAdventure 记录
+ *   - 前端本地状态已丢失（组件被 v-if 销毁）
+ *   - 需要根据后端权威数据恢复 isExploring、currentEvent、计时器等
+ */
+const restoreAdventureStatus = async () => {
+  try {
+    const res = await getExploreStatus()
+    const data = res.data?.data
+    if (!data || !data.is_adventuring || !data.adventure) {
+      // 无进行中的历练，保持默认的"未历练"状态
+      return
+    }
+
+    const adventure = data.adventure
+    // 恢复"历练中"状态
+    isExploring.value = true
+    // event_data 是后端权威事件数据（含 type/title/description/duration/rewards）
+    currentEvent.value = adventure.event_data || {
+      type: adventure.event_type,
+      title: '进行中的历练',
+      description: '你正在进行历练，请等待完成或手动结束。',
+      duration: data.total_seconds
+    }
+    // 恢复开始时间（基于后端返回的 start_time）
+    exploreStartTime.value = new Date(adventure.start_time).getTime()
+    exploreTotalDuration.value = data.total_seconds || 0
+
+    // 启动进度刷新计时器（每秒 tick 驱动进度条）
+    if (progressTimer) clearInterval(progressTimer)
+    progressTimer = window.setInterval(() => {
+      nowTick.value = Date.now()
+    }, 1000)
+
+    // 已过期：提示玩家点击完成领取奖励
+    if (data.is_expired) {
+      uiStore.addLog({
+        content: '历练时间已到，请点击"完成历练"领取奖励',
+        type: 'warning',
+        actorId: 'self'
+      })
+      uiStore.showToast('历练已结束，请点击完成领取奖励', 'warning')
+      return
+    }
+
+    // 战斗事件：提示玩家进入战斗
+    if (adventure.event_type === 'combat') {
+      uiStore.addLog({
+        content: '历练中遭遇敌人，请进入战斗',
+        type: 'combat',
+        actorId: 'self'
+      })
+      return
+    }
+
+    // 非战斗事件且未过期：重新设置自动完成定时器
+    // 剩余秒数由后端权威计算，避免时钟漂移
+    const remainingMs = data.remaining_seconds * 1000
+    if (autoCompleteTimer) {
+      clearTimeout(autoCompleteTimer)
+    }
+    autoCompleteTimer = window.setTimeout(async () => {
+      await completeExploreAction()
+    }, remainingMs)
+  } catch (error) {
+    console.error('恢复历练状态失败:', error)
+    // 失败时不阻塞面板初始化，玩家可正常开始新历练
+  }
+}
 
 onUnmounted(() => {
   if (autoCompleteTimer) {

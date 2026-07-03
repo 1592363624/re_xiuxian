@@ -139,6 +139,12 @@ export interface MySect {
   last_check_in: string | null;
   /** 上次传功时间 */
   last_transfer: string | null;
+  /** 点卯冷却剩余毫秒（后端权威计算，前端基于此 + server_time tick 递减） */
+  checkin_cooldown_remaining_ms?: number;
+  /** 传功冷却剩余毫秒（后端权威计算，前端基于此 + server_time tick 递减） */
+  transfer_cooldown_remaining_ms?: number;
+  /** 服务端时间戳（毫秒），供前端基于此 tick 计算实时冷却剩余，避免时钟漂移 */
+  server_time?: number;
   /** 静态配置是否缺失（兜底标志） */
   config_missing?: boolean;
 }

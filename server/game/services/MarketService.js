@@ -11,7 +11,11 @@
  *   - 物品静态属性从 item_data.json 读取（配置中心化）
  *   - 业务错误统一使用 AppError + ErrorCodes 抛出，由全局 errorHandler 处理
  */
-const { sequelize } = require('../../config/database');
+// 修复：config/database.js 直接导出 sequelize 实例（module.exports = sequelize），
+// 不能用解构导入 const { sequelize } = require(...)，否则会拿到 undefined
+// 旧代码导致 createListing 调用 sequelize.transaction() 时抛出
+// "Cannot read properties of undefined (reading 'transaction')" 500 错误
+const sequelize = require('../../config/database');
 const InventoryService = require('./InventoryService');
 const Player = require('../../models/player');
 const MarketListing = require('../../models/marketListing');

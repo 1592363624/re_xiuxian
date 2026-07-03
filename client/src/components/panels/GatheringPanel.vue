@@ -15,6 +15,10 @@ const stats = ref(null)
 const currentMap = ref(null)
 const currentMapId = ref(null)
 const countdownIntervals = ref({})
+// UI-only 标记集合：记录本地倒计时已归零的资源ID
+// 设计说明：倒计时归零后不直接改写 resource.can_gather（业务状态应由后端权威返回），
+// 仅在本地标记，允许用户点击采集按钮尝试；后端会做最终校验，若仍在冷却则返回错误并触发刷新
+const countdownEnded = ref(new Set())
 
 const fetchData = async () => {
   loading.value = true
@@ -48,7 +52,7 @@ const startCountdowns = () => {
   Object.keys(countdownIntervals.value).forEach(key => {
     clearInterval(countdownIntervals.value[key])
   })
-  
+
   resources.value.forEach(resource => {
     if (!resource.can_gather && resource.next_available_time) {
       const key = resource.resource_id
@@ -56,9 +60,11 @@ const startCountdowns = () => {
         const now = new Date()
         const nextTime = new Date(resource.next_available_time)
         const diff = nextTime - now
-        
+
         if (diff <= 0) {
-          resource.can_gather = true
+          // 倒计时归零：不直接改写后端权威的 can_gather，仅标记本地 UI 状态
+          // 实际 can_gather 状态由后端下次拉取或采集请求校验后返回
+          countdownEnded.value.add(key)
           resource.countdown = null
           clearInterval(countdownIntervals.value[key])
         } else {
@@ -71,9 +77,20 @@ const startCountdowns = () => {
   })
 }
 
+/**
+ * 判断资源是否可采集（后端权威 can_gather 或本地倒计时已归零）
+ * 后端返回的 can_gather 为权威值；本地 countdownEnded 仅用于倒计时归零后允许尝试点击，
+ * 最终校验仍由后端完成，避免前端写死业务状态
+ * @param {Object} resource - 资源对象
+ * @returns {boolean} 是否可尝试采集
+ */
+const isResourceGatherable = (resource) => {
+  return resource.can_gather || countdownEnded.value.has(resource.resource_id)
+}
+
 const handleGather = async (resource) => {
-  if (gathering.value || !resource.can_gather) return
-  
+  if (gathering.value || !isResourceGatherable(resource)) return
+
   // 灵力校验由后端处理，前端仅做快速反馈提示
   if (playerStore.player.mp_current < resource.mp_cost) {
     uiStore.showToast(`灵力不足，需要 ${resource.mp_cost} 点灵力`, 'error')
@@ -83,26 +100,33 @@ const handleGather = async (resource) => {
   gathering.value = true
   try {
     const res = await apiClient.post('/gather/collect', { resourceId: resource.resource_id })
-    
+
     const result = res.data
     uiStore.showToast(`采集成功！获得 ${result.quantity} 个 ${resource.name}${result.is_crit ? '（暴击）' : ''}`, 'success')
-    
+
     uiStore.addLog({
       content: `你在 ${currentMap.value?.name || '未知地点'} 采集了 ${result.quantity} 个 ${resource.name}。`,
       type: 'gather',
       actorId: 'self'
     })
-    
+
     // 使用后端返回的剩余灵力更新
     if (result.mp_remaining !== undefined) {
       playerStore.player.mp_current = result.mp_remaining
     }
-    
+
+    // 采集成功后清除本地倒计时标记，由后端刷新的 can_gather 权威值接管
+    countdownEnded.value.delete(resource.resource_id)
     await refreshResource(resource.resource_id)
     await fetchStats()
   } catch (error) {
     const msg = error.response?.data?.error || '采集失败'
     uiStore.showToast(msg, 'error')
+    // 采集失败时（如仍在冷却），刷新资源状态以同步后端权威值
+    if (error.response?.status === 400) {
+      countdownEnded.value.delete(resource.resource_id)
+      await refreshResource(resource.resource_id)
+    }
   } finally {
     gathering.value = false
   }
@@ -211,11 +235,11 @@ onUnmounted(() => {
               <p class="text-sm text-stone-500">{{ currentMap.description }}</p>
             </div>
 
-            <div 
-              v-for="resource in resources" 
+            <div
+              v-for="resource in resources"
               :key="resource.resource_id"
               class="bg-[#1c1917] border border-stone-800 rounded-lg p-4 transition-all"
-              :class="{ 'opacity-60': !resource.can_gather }"
+              :class="{ 'opacity-60': !isResourceGatherable(resource) }"
             >
               <div class="flex justify-between items-start mb-3">
                 <div>
@@ -253,16 +277,16 @@ onUnmounted(() => {
 
               <div class="flex items-center justify-between">
                 <div class="text-xs">
-                  <span v-if="resource.can_gather" class="text-emerald-400">可采集</span>
+                  <span v-if="isResourceGatherable(resource)" class="text-emerald-400">可采集</span>
                   <span v-else class="text-orange-400">冷却中 {{ resource.countdown }}</span>
                 </div>
-                <button 
+                <button
                   @click="handleGather(resource)"
-                  :disabled="gathering || !resource.can_gather || playerStore.player.mp_current < resource.mp_cost"
+                  :disabled="gathering || !isResourceGatherable(resource) || playerStore.player.mp_current < resource.mp_cost"
                   class="px-4 py-1.5 rounded bg-emerald-900/30 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span v-if="gathering">采集中...</span>
-                  <span v-else-if="!resource.can_gather">等待冷却</span>
+                  <span v-else-if="!isResourceGatherable(resource)">等待冷却</span>
                   <span v-else-if="playerStore.player.mp_current < resource.mp_cost">灵力不足</span>
                   <span v-else>采集</span>
                 </button>

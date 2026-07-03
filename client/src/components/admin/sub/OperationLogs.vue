@@ -104,52 +104,76 @@
 
         <!-- 内容 -->
         <div class="p-5 space-y-4">
-          <!-- 备份文件路径 -->
-          <div v-if="diffData.backup" class="bg-emerald-950/30 border border-emerald-800/50 rounded p-3 text-xs">
-            <div class="text-emerald-400 font-bold mb-1">备份文件</div>
-            <div class="text-emerald-300 font-mono break-all">{{ diffData.backup }}</div>
+          <!-- 加载中骨架：后端正在计算 diff -->
+          <div v-if="diffLoading" class="flex items-center justify-center py-12 text-stone-400">
+            <svg class="animate-spin h-5 w-5 mr-3 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-sm">正在请求后端计算 diff...</span>
           </div>
 
-          <!-- 修改目标 -->
-          <div v-if="diffData.target" class="text-xs text-stone-400">
-            修改目标：<span class="text-amber-400 font-mono">{{ diffData.target }}</span>
+          <!-- 错误提示：后端业务错误或网络异常 -->
+          <div v-else-if="diffError" class="bg-rose-950/40 border border-rose-800/60 rounded p-4 text-sm">
+            <div class="text-rose-400 font-bold mb-1">获取 diff 失败</div>
+            <div class="text-rose-300 text-xs break-all">{{ diffError }}</div>
+            <button @click="openDiff(diffDrawer.log)" class="mt-3 px-3 py-1 text-xs bg-rose-800 hover:bg-rose-700 text-white rounded">重试</button>
           </div>
 
-          <!-- 字段级 diff 表格 -->
-          <div v-if="diffData.fields.length > 0">
-            <h4 class="text-sm font-bold text-stone-300 mb-2">字段级变更对比</h4>
-            <div class="overflow-x-auto border border-stone-700 rounded">
-              <table class="w-full text-xs">
-                <thead class="bg-stone-800 text-stone-400">
-                  <tr>
-                    <th class="px-3 py-2 text-left">字段</th>
-                    <th class="px-3 py-2 text-left">修改前</th>
-                    <th class="px-3 py-2 text-left">修改后</th>
-                    <th class="px-3 py-2 text-left">变化</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-stone-800">
-                  <tr v-for="field in diffData.fields" :key="field.path" class="hover:bg-stone-900/50">
-                    <td class="px-3 py-2 text-stone-300 font-mono whitespace-nowrap">{{ field.path }}</td>
-                    <td class="px-3 py-2 text-rose-400 font-mono">{{ formatValue(field.before) }}</td>
-                    <td class="px-3 py-2 text-emerald-400 font-mono">{{ formatValue(field.after) }}</td>
-                    <td class="px-3 py-2">
-                      <span v-if="field.changeType === 'added'" class="px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 text-[10px]">新增</span>
-                      <span v-else-if="field.changeType === 'removed'" class="px-1.5 py-0.5 rounded bg-rose-950/60 text-rose-400 text-[10px]">删除</span>
-                      <span v-else-if="field.changeType === 'modified'" class="px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-400 text-[10px]">修改</span>
-                      <span v-else class="px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 text-[10px]">未变</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+          <!-- 正常展示 diff 结果 -->
+          <template v-else>
+            <!-- 备份文件路径 -->
+            <div v-if="diffData.backup" class="bg-emerald-950/30 border border-emerald-800/50 rounded p-3 text-xs">
+              <div class="text-emerald-400 font-bold mb-1">备份文件</div>
+              <div class="text-emerald-300 font-mono break-all">{{ diffData.backup }}</div>
             </div>
-          </div>
 
-          <!-- 原始 JSON 折叠区 -->
-          <details class="mt-4">
-            <summary class="cursor-pointer text-xs text-stone-500 hover:text-stone-300">查看原始 JSON</summary>
-            <pre class="mt-2 text-xs text-stone-500 bg-stone-900/50 p-3 rounded overflow-x-auto font-mono">{{ formatRawDetails(diffDrawer.log?.details) }}</pre>
-          </details>
+            <!-- 修改目标 -->
+            <div v-if="diffData.target" class="text-xs text-stone-400">
+              修改目标：<span class="text-amber-400 font-mono">{{ diffData.target }}</span>
+            </div>
+
+            <!-- 字段级 diff 表格 -->
+            <div v-if="diffData.fields.length > 0">
+              <h4 class="text-sm font-bold text-stone-300 mb-2">字段级变更对比（{{ diffData.fields.length }} 项）</h4>
+              <div class="overflow-x-auto border border-stone-700 rounded">
+                <table class="w-full text-xs">
+                  <thead class="bg-stone-800 text-stone-400">
+                    <tr>
+                      <th class="px-3 py-2 text-left">字段</th>
+                      <th class="px-3 py-2 text-left">修改前</th>
+                      <th class="px-3 py-2 text-left">修改后</th>
+                      <th class="px-3 py-2 text-left">变化</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-stone-800">
+                    <tr v-for="field in diffData.fields" :key="field.path" class="hover:bg-stone-900/50">
+                      <td class="px-3 py-2 text-stone-300 font-mono whitespace-nowrap">{{ field.path }}</td>
+                      <td class="px-3 py-2 text-rose-400 font-mono">{{ formatValue(field.before) }}</td>
+                      <td class="px-3 py-2 text-emerald-400 font-mono">{{ formatValue(field.after) }}</td>
+                      <td class="px-3 py-2">
+                        <span v-if="field.changeType === 'added'" class="px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 text-[10px]">新增</span>
+                        <span v-else-if="field.changeType === 'removed'" class="px-1.5 py-0.5 rounded bg-rose-950/60 text-rose-400 text-[10px]">删除</span>
+                        <span v-else-if="field.changeType === 'modified'" class="px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-400 text-[10px]">修改</span>
+                        <span v-else class="px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 text-[10px]">未变</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 空数据提示：后端计算完成但无变化字段 -->
+            <div v-else class="text-center py-8 text-stone-500 text-sm">
+              该日志无字段变化
+            </div>
+
+            <!-- 原始 JSON 折叠区 -->
+            <details class="mt-4">
+              <summary class="cursor-pointer text-xs text-stone-500 hover:text-stone-300">查看原始 JSON</summary>
+              <pre class="mt-2 text-xs text-stone-500 bg-stone-900/50 p-3 rounded overflow-x-auto font-mono">{{ formatRawDetails(diffDrawer.log?.details) }}</pre>
+            </details>
+          </template>
         </div>
       </div>
     </div>
@@ -161,14 +185,15 @@
  * 操作日志子组件
  * 负责展示管理员操作日志，支持修炼配置变更的字段级 diff 可视化
  *
- * 重构说明：
- *   - 新增 "修炼配置-闭关/历练" 筛选选项
- *   - 修炼配置变更日志提供「查看 diff」按钮，打开抽屉展示字段级对比表
- *   - 其他日志保留原始 JSON 展开方式
- *   - diff 算法：递归对比 before/after 对象，提取所有叶子节点的变化
+ * 重构说明（业务计算下沉后端）：
+ *   - diff 算法已从前端移除，改由后端 GET /api/admin/cultivation/logs/:logId/diff 计算
+ *   - 前端只负责：调用接口 + 渲染返回的 fields 数组
+ *   - 防止前端伪造 diff 结果（如篡改 before/after 值）
+ *   - formatDetailsPreview 中递归 countChanges 也已移除，改用简洁文案展示
  */
 import { ref, reactive, onMounted } from 'vue'
 import { getLogs } from '../../../api/admin'
+import { getConfigDiff } from '../../../api/admin_cultivation'
 
 // 日志数据
 const logs = ref([])
@@ -188,12 +213,17 @@ const diffDrawer = reactive({
   log: null
 })
 
-// 解析后的 diff 数据
+// 解析后的 diff 数据（由后端权威计算后返回）
 const diffData = reactive({
   target: '',
   backup: '',
   fields: []
 })
+
+// diff 加载状态：调用后端接口期间展示骨架
+const diffLoading = ref(false)
+// diff 调用错误信息（后端返回或网络异常）
+const diffError = ref('')
 
 /**
  * 获取日志列表
@@ -222,12 +252,35 @@ const isCultivationConfigAction = (action) => {
 }
 
 /**
- * 打开 diff 抽屉并解析字段级变化
+ * 打开 diff 抽屉并请求后端计算字段级 diff
+ *
+ * 业务计算下沉后端的核心体现：
+ *   前端不再递归遍历 before/after 对象，而是请求后端 /logs/:logId/diff
+ *   后端负责：查询日志、校验类型、解析 JSON、递归 diff、返回 fields 数组
  */
-const openDiff = (log) => {
+const openDiff = async (log) => {
   diffDrawer.log = log
   diffDrawer.visible = true
-  parseDiff(log)
+  // 重置状态
+  diffData.target = ''
+  diffData.backup = ''
+  diffData.fields = []
+  diffError.value = ''
+  diffLoading.value = true
+
+  try {
+    const res = await getConfigDiff(log.id)
+    const data = res.data?.data || {}
+    diffData.target = data.target || ''
+    diffData.backup = data.backup || ''
+    diffData.fields = Array.isArray(data.fields) ? data.fields : []
+  } catch (error) {
+    console.error('Fetch diff error:', error)
+    // 后端返回的业务错误（如日志类型不支持）或网络错误
+    diffError.value = error?.response?.data?.message || error?.message || '获取 diff 失败'
+  } finally {
+    diffLoading.value = false
+  }
 }
 
 /**
@@ -239,6 +292,8 @@ const closeDiff = () => {
   diffData.target = ''
   diffData.backup = ''
   diffData.fields = []
+  diffError.value = ''
+  diffLoading.value = false
 }
 
 /**
@@ -253,73 +308,7 @@ const toggleRaw = (id) => {
 }
 
 /**
- * 解析修炼配置变更日志，提取字段级 diff
- * 算法：递归遍历 before/after 对象，对比所有叶子节点
- */
-const parseDiff = (log) => {
-  diffData.target = ''
-  diffData.backup = ''
-  diffData.fields = []
-
-  if (!log?.details) return
-
-  let parsed
-  try {
-    parsed = typeof log.details === 'string' ? JSON.parse(log.details) : log.details
-  } catch (e) {
-    console.error('解析日志详情失败:', e)
-    return
-  }
-
-  diffData.target = parsed.target || ''
-  diffData.backup = parsed.backup || ''
-
-  const before = parsed.before || {}
-  const after = parsed.after || {}
-
-  // 递归对比，提取所有叶子节点的变化
-  const fields = []
-  const collectDiff = (beforeObj, afterObj, prefix = '') => {
-    // 收集所有 key（before 和 after 的并集）
-    const allKeys = new Set([...Object.keys(beforeObj || {}), ...Object.keys(afterObj || {})])
-
-    for (const key of allKeys) {
-      const path = prefix ? `${prefix}.${key}` : key
-      const beforeVal = beforeObj?.[key]
-      const afterVal = afterObj?.[key]
-
-      // 两者都是对象（非 null、非数组），递归
-      if (
-        beforeVal && typeof beforeVal === 'object' && !Array.isArray(beforeVal) &&
-        afterVal && typeof afterVal === 'object' && !Array.isArray(afterVal)
-      ) {
-        collectDiff(beforeVal, afterVal, path)
-      } else {
-        // 叶子节点，对比值
-        let changeType = 'unchanged'
-        if (beforeVal === undefined) changeType = 'added'
-        else if (afterVal === undefined) changeType = 'removed'
-        else if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) changeType = 'modified'
-
-        // 只展示有变化的字段（避免表格过长）
-        if (changeType !== 'unchanged') {
-          fields.push({
-            path,
-            before: beforeVal,
-            after: afterVal,
-            changeType
-          })
-        }
-      }
-    }
-  }
-
-  collectDiff(before, after)
-  diffData.fields = fields
-}
-
-/**
- * 格式化值用于 diff 表格显示
+ * 格式化值用于 diff 表格显示（纯展示用途，无业务计算）
  */
 const formatValue = (val) => {
   if (val === undefined) return '-'
@@ -329,31 +318,18 @@ const formatValue = (val) => {
 }
 
 /**
- * 格式化操作详情预览（截断长字符串）
+ * 格式化操作详情预览
+ *
+ * 重构说明：原实现中递归 countChanges 统计变化字段数已删除，
+ * 该统计属于业务计算，应由后端 diff 接口返回。列表预览仅展示目标信息。
  */
 const formatDetailsPreview = (log) => {
   if (isCultivationConfigAction(log.action)) {
-    // 修炼配置变更：显示简洁摘要
+    // 修炼配置变更：仅显示目标文件，字段变化数由 diff 抽屉展示
     try {
       const parsed = typeof log.details === 'string' ? JSON.parse(log.details) : log.details
       const target = parsed.target || ''
-      const before = parsed.before || {}
-      const after = parsed.after || {}
-      // 统计变化字段数
-      let changedCount = 0
-      const countChanges = (b, a) => {
-        const keys = new Set([...Object.keys(b || {}), ...Object.keys(a || {})])
-        for (const k of keys) {
-          if (b?.[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) &&
-              a?.[k] && typeof a[k] === 'object' && !Array.isArray(a[k])) {
-            countChanges(b[k], a[k])
-          } else if (JSON.stringify(b?.[k]) !== JSON.stringify(a?.[k])) {
-            changedCount++
-          }
-        }
-      }
-      countChanges(before, after)
-      return `${target} · ${changedCount} 个字段变化`
+      return target ? `${target} · 点击查看 diff` : '修炼配置变更'
     } catch (e) {
       return '修炼配置变更'
     }

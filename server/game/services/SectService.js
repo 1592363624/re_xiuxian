@@ -292,6 +292,7 @@ class SectService {
 
     /**
      * 获取我的宗门信息（合并静态配置 + 动态成员数据）
+     * 后端权威计算点卯/传功冷却剩余毫秒，避免前端硬编码冷却时长导致不一致
      * @param {number} playerId - 玩家ID
      * @returns {Promise<Object|null>} 宗门信息，未加入返回 null
      */
@@ -302,6 +303,25 @@ class SectService {
         if (!playerSect) {
             return null;
         }
+
+        // 读取宗门数值平衡配置，获取冷却时长（小时）
+        const balance = this.getBalanceConfig();
+        const checkinCooldownHours = balance.checkin_cooldown_hours ?? 24;
+        const transferCooldownHours = balance.transfer_cooldown_hours ?? 24;
+        const checkinCooldownMs = checkinCooldownHours * 3600 * 1000;
+        const transferCooldownMs = transferCooldownHours * 3600 * 1000;
+
+        // 后端权威计算点卯/传功冷却剩余毫秒（避免前端硬编码 24h 且存在时钟漂移）
+        const now = new Date();
+        const computeRemainingMs = (lastTime, cooldownMs) => {
+            if (!lastTime) return 0;
+            const lastTs = new Date(lastTime).getTime();
+            if (isNaN(lastTs)) return 0;
+            const remain = lastTs + cooldownMs - now.getTime();
+            return remain > 0 ? remain : 0;
+        };
+        const checkinCooldownRemainingMs = computeRemainingMs(playerSect.last_check_in, checkinCooldownMs);
+        const transferCooldownRemainingMs = computeRemainingMs(playerSect.last_transfer, transferCooldownMs);
 
         const sect = this.findSectById(playerSect.sect_id);
         if (!sect) {
@@ -315,6 +335,11 @@ class SectService {
                 joined_at: playerSect.joined_at,
                 last_check_in: playerSect.last_check_in,
                 last_transfer: playerSect.last_transfer,
+                // 冷却剩余毫秒（后端权威计算）
+                checkin_cooldown_remaining_ms: checkinCooldownRemainingMs,
+                transfer_cooldown_remaining_ms: transferCooldownRemainingMs,
+                // 服务端时间戳（毫秒），供前端基于此 tick 计算实时剩余，避免时钟漂移
+                server_time: now.getTime(),
                 config_missing: true
             };
         }
@@ -331,7 +356,12 @@ class SectService {
             role: playerSect.role,
             joined_at: playerSect.joined_at,
             last_check_in: playerSect.last_check_in,
-            last_transfer: playerSect.last_transfer
+            last_transfer: playerSect.last_transfer,
+            // 冷却剩余毫秒（后端权威计算，前端直接展示，避免硬编码冷却时长）
+            checkin_cooldown_remaining_ms: checkinCooldownRemainingMs,
+            transfer_cooldown_remaining_ms: transferCooldownRemainingMs,
+            // 服务端时间戳（毫秒），供前端基于此 tick 计算实时剩余，避免时钟漂移
+            server_time: now.getTime()
         };
     }
 

@@ -411,15 +411,11 @@ const cooldownRemainingText = computed(() => {
 
 /**
  * 当前玩家境界是否达到深度闭关要求
- * 后端返回 REALM_ORDER 中筑基期以上的境界才可深度闭关
- * 前端仅做基本判断，最终由后端校验
+ * 直接读取后端权威计算的 can_deep 字段，前端不再做境界关键词匹配
+ * 避免前端硬编码境界列表导致的判断不一致
  */
 const canDeep = computed(() => {
-  const playerRealm = store.player?.realm || '凡人'
-  const minRealm = deepConfig.value.min_realm || '筑基期'
-  // 简化判断：境界名称中包含筑基/金丹/元婴/化神/炼虚/合体/大乘/渡劫/真仙 即视为达到要求
-  const highRealmKeywords = ['筑基', '金丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫', '真仙']
-  return highRealmKeywords.some(k => playerRealm.includes(k)) || playerRealm === minRealm
+  return store.systemConfig?.seclusion?.can_deep ?? false
 })
 
 /**

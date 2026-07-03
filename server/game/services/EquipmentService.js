@@ -9,7 +9,8 @@
  *   - 穿戴时从背包扣减物品，卸下时归还背包，使用事务保证数据一致性
  *   - 通过延迟 require InventoryService 避免循环依赖（InventoryService.useItem 也会延迟 require 本服务）
  */
-const { sequelize } = require('../../config/database');
+// 修复：config/database.js 直接导出 sequelize 实例，不能用解构导入（否则拿到 undefined）
+const sequelize = require('../../config/database');
 const PlayerEquipment = require('../../models/playerEquipment');
 const Player = require('../../models/player');
 const Item = require('../../models/item');

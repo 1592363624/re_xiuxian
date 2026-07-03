@@ -8,6 +8,7 @@ import { getPlayer } from '../api/player'
 import { getStatus as getSeclusionStatus, start as startSeclusionApi, end as endSeclusionApi, forceEnd as forceEndSeclusionApi } from '../api/seclusion'
 import { getConfig as getSystemConfig } from '../api/system'
 import { tryBreakthrough as tryBreakthroughApi } from '../api/breakthrough'
+import { getExploreStatus } from '../api/explore'
 import { socketService } from '../services/socket'
 
 export const usePlayerStore = defineStore('player', {
@@ -17,6 +18,16 @@ export const usePlayerStore = defineStore('player', {
     logoutReason: null,
     systemConfig: {},
     isSocketConnected: false,
+    // 历练进行中状态（后端权威计算，供 ExploreOverlay 全局浮动状态条使用）
+    // 重启浏览器/关闭面板后通过 fetchAdventureStatus 从后端恢复
+    adventureStatus: {
+      is_adventuring: false,
+      adventure: null,
+      remaining_seconds: 0,
+      total_seconds: 0,
+      is_expired: false,
+      server_time: 0
+    },
     movingState: {
       isMoving: false,
       fromMapId: null,
@@ -61,7 +72,7 @@ export const usePlayerStore = defineStore('player', {
       // 监听玩家数据更新
       socketService.on('player:updated', async (data) => {
         console.log('[PlayerStore] 收到玩家数据更新:', data)
-        
+
         if (data.updateType === 'gm_delete') {
           this.logout('您的账号已被管理员删除')
           return
@@ -72,8 +83,25 @@ export const usePlayerStore = defineStore('player', {
           return
         }
 
-        // 重新获取玩家数据
+        // 重新获取玩家数据（含 HP/修为/灵石/突破状态等）
         await this.fetchPlayer()
+
+        // 关键节点同步刷新闭关状态（含冷却剩余、每日次数等）
+        // 确保 ActionBar 冷却倒计时、SeclusionPanel 等组件在面板重开时显示最新值
+        // 触发场景：闭关开始/结束、历练开始/完成、战斗遭遇、GM 发放物品/灵石/修为
+        const cooldownAffectingEvents = [
+          'seclusion_start', 'seclusion_end',
+          'adventure_start', 'adventure_complete',
+          'combat_encounter', 'combat_action', 'combat_flee',
+          'gm_give_item', 'gm_give_spirit_stones', 'gm_add_exp'
+        ]
+        if (cooldownAffectingEvents.includes(data.updateType)) {
+          await this.fetchSeclusionStatus()
+          // 历练事件额外刷新历练状态，确保 ExploreOverlay 浮动条同步显示/隐藏
+          if (data.updateType === 'adventure_start' || data.updateType === 'adventure_complete') {
+            await this.fetchAdventureStatus()
+          }
+        }
       })
 
       // 监听移动完成
@@ -155,6 +183,8 @@ export const usePlayerStore = defineStore('player', {
                 // 冷却剩余秒数（后端权威计算，避免前端时钟漂移误差）
                 normal_cooldown_remaining: data.normal_cooldown_remaining ?? 0,
                 deep_cooldown_remaining: data.deep_cooldown_remaining ?? 0,
+                // 是否可进行深度闭关（后端权威判断境界要求，前端直接据此渲染）
+                can_deep: data.can_deep ?? false,
                 // 服务端时间戳（用于前端 tick 计算实时剩余，避免时区/时钟漂移）
                 server_time: data.server_time || Date.now(),
                 exp_rate: data.exp_rate,
@@ -171,6 +201,37 @@ export const usePlayerStore = defineStore('player', {
         }
       } catch (error) {
         console.error('获取闭关状态失败:', error)
+      }
+      return null
+    },
+
+    /**
+     * 获取历练状态（后端权威计算）
+     * 用于 ExploreOverlay 全局浮动状态条显示历练进度
+     * 触发场景：玩家登录、GameLayout 挂载、socket 推送 adventure_start/complete
+     *
+     * 业务计算下沉后端的核心体现：
+     *   - 剩余时间、总时长、是否过期均由后端权威计算
+     *   - 前端关闭面板/重启浏览器后通过此接口恢复状态
+     */
+    async fetchAdventureStatus() {
+      if (!this.token) return null
+      try {
+        const res = await getExploreStatus()
+        const data = res.data?.data || res.data
+        if (data) {
+          this.adventureStatus = {
+            is_adventuring: data.is_adventuring ?? false,
+            adventure: data.adventure || null,
+            remaining_seconds: data.remaining_seconds ?? 0,
+            total_seconds: data.total_seconds ?? 0,
+            is_expired: data.is_expired ?? false,
+            server_time: data.server_time || Date.now()
+          }
+        }
+        return data
+      } catch (error) {
+        console.error('获取历练状态失败:', error)
       }
       return null
     },

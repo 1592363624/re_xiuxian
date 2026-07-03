@@ -554,7 +554,7 @@ class AdventureEventService {
             }
 
             await PlayerAdventure.update(
-                { 
+                {
                     status: 'completed',
                     rewards_claimed: true,
                     rewards: JSON.stringify(result.granted)
@@ -564,10 +564,18 @@ class AdventureEventService {
                 }
             );
 
+            // 修复：返回结构扁平化，rewards 直接是 granted 内容 + 额外标记
+            // 避免前端 res.data.data.rewards.exp 拿到 undefined（旧版返回的是 { success, granted } 嵌套结构）
             return {
                 success: true,
                 message: '历练完成',
-                rewards: result
+                rewards: {
+                    ...result.granted,
+                    // 透传提前结束 / 受伤等额外标记，前端可直接 rewards.early_finish 读取
+                    early_finish: result.early_finish || false,
+                    reward_scale: result.reward_scale || null,
+                    injury: result.injury || null
+                }
             };
         } catch (error) {
             console.error('[AdventureEventService] 完成历练失败:', error);

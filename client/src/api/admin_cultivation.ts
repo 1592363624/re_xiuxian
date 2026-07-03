@@ -157,3 +157,53 @@ export const getBackupVersions = (type?: 'seclusion' | 'game_balance') => {
 export const rollbackConfig = (filename: string) => {
   return apiClient.post('/admin/cultivation/rollback', { filename });
 };
+
+/** 字段变化类型 */
+export type DiffChangeType = 'added' | 'removed' | 'modified' | 'unchanged';
+
+/** 单个字段级 diff 项（后端权威计算后返回） */
+export interface DiffField {
+  /** 字段路径（嵌套对象用 . 分隔，如 "normal.max_duration"） */
+  path: string;
+  /** 修改前的值 */
+  before: unknown;
+  /** 修改后的值 */
+  after: unknown;
+  /** 变化类型 */
+  changeType: DiffChangeType;
+}
+
+/** 日志元数据（后端 diff 接口附带） */
+export interface DiffLogMeta {
+  logId: number;
+  action: string;
+  adminId: number;
+  createdAt: string;
+  ip: string | null;
+}
+
+/** GET /logs/:logId/diff 返回的数据结构 */
+export interface ConfigDiffData {
+  /** 修改目标（配置文件名） */
+  target: string;
+  /** 备份文件路径 */
+  backup: string;
+  /** 字段级 diff 列表（后端权威计算） */
+  fields: DiffField[];
+  /** 日志元数据 */
+  meta: DiffLogMeta;
+}
+
+/**
+ * 获取指定操作日志的字段级 diff（后端权威计算）
+ * GET /api/admin/cultivation/logs/:logId/diff
+ *
+ * 设计说明：
+ *   - diff 算法在后端实现，前端只负责渲染返回的 fields 数组
+ *   - 防止前端伪造 diff 结果，避免篡改 before/after 值
+ *
+ * @param logId AdminLog 主键 ID
+ */
+export const getConfigDiff = (logId: number) => {
+  return apiClient.get(`/admin/cultivation/logs/${logId}/diff`);
+};

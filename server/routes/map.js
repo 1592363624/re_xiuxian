@@ -22,6 +22,8 @@ const { infrastructure } = require('../modules');
 const configLoader = infrastructure.ConfigLoader;
 // 修复：引入 MapService，将业务算法下沉到 Service 层
 const MapService = require('../game/services/MapService');
+// 引入 WebSocket 通知服务，用于历练关键节点主动推送玩家数据更新
+const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 
 const mapConfig = MapConfigLoader;
 let adventureService = null;
@@ -150,6 +152,66 @@ router.post('/calculate-move-cost', auth, async (req, res) => {
         });
     } catch (error) {
         console.error('Calculate Move Cost Error:', error);
+        res.status(500).json({ code: 500, message: '服务器错误' });
+    }
+});
+
+/**
+ * 批量计算移动消耗（性能优化接口）
+ *
+ * 设计目的：FullMapList 全图浏览时需要展示所有地图的移动消耗，
+ *   旧实现前端对每个地图发一次 /calculate-move-cost 请求，N 个地图会产生 N 次请求。
+ *   本接口接收 targetMapIds 数组，一次性返回所有地图的移动消耗，减少 HTTP 往返。
+ *
+ * 请求体：{ targetMapIds: [1, 2, 3, ...] }
+ * 返回：{ code: 200, data: { costs: { "1": {cost, time, distance, can_afford}, ... } } }
+ */
+router.post('/batch-calculate-move-cost', auth, async (req, res) => {
+    try {
+        const { targetMapIds } = req.body;
+        if (!Array.isArray(targetMapIds) || targetMapIds.length === 0) {
+            return res.status(400).json({ code: 400, message: 'targetMapIds 必须为非空数组' });
+        }
+
+        // 限制单次批量查询上限，防止恶意大请求
+        const MAX_BATCH = 100;
+        if (targetMapIds.length > MAX_BATCH) {
+            return res.status(400).json({ code: 400, message: `单次批量查询上限 ${MAX_BATCH} 个地图` });
+        }
+
+        const player = await Player.findByPk(req.user.id);
+        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
+
+        const currentMapId = player.current_map_id;
+        const currentMapConfig = mapConfig.getMap(currentMapId);
+
+        if (!currentMapConfig) {
+            return res.status(404).json({ code: 404, message: '当前地图配置不存在' });
+        }
+
+        // 批量计算所有目标地图的移动消耗
+        const costs = {};
+        for (const targetMapId of targetMapIds) {
+            const targetMapConfig = mapConfig.getMap(targetMapId);
+            if (!targetMapConfig) {
+                // 配置不存在的地图跳过，不写入结果
+                continue;
+            }
+            const travelCostInfo = MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
+            costs[targetMapId] = {
+                cost: travelCostInfo.cost,
+                time: travelCostInfo.time,
+                distance: travelCostInfo.distance,
+                can_afford: player.mp_current >= travelCostInfo.cost
+            };
+        }
+
+        res.json({
+            code: 200,
+            data: { costs }
+        });
+    } catch (error) {
+        console.error('Batch Calculate Move Cost Error:', error);
         res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
@@ -502,8 +564,18 @@ router.post('/explore/start', auth, async (req, res) => {
         }
 
         const result = await adventureService.startAdventure(req.user.id, { duration, durationType });
-        
+
         if (result.success) {
+            // 推送历练开始事件，前端据此刷新状态（如 ActionBar 冷却、闭关状态）
+            try {
+                WebSocketNotificationService.notifyPlayerUpdate(req.user.id, 'adventure_start', {
+                    is_adventuring: true,
+                    adventure_id: result.adventure?.id,
+                    duration_type: durationType
+                });
+            } catch (e) {
+                console.warn('[Map] 推送历练开始事件失败:', e.message);
+            }
             res.json({
                 code: 200,
                 message: '历练已开始',
@@ -526,7 +598,7 @@ router.post('/explore/start', auth, async (req, res) => {
 
 /**
  * 获取当前历练事件
- * 
+ *
  * 获取正在进行的历练事件详情
  */
 router.get('/explore/event', auth, async (req, res) => {
@@ -559,6 +631,72 @@ router.get('/explore/event', auth, async (req, res) => {
 });
 
 /**
+ * 获取当前历练状态（用于前端面板重开时恢复"历练中"状态）
+ *
+ * 业务计算下沉后端的核心体现：
+ *   - 后端权威返回剩余时间、总时长、是否结束
+ *   - 前端不再用本地缓存估算历练进度，避免关闭面板后状态丢失
+ *   - 防止前端伪造历练状态
+ *
+ * 返回结构：
+ *   {
+ *     is_adventuring: boolean,
+ *     adventure: { id, event_type, event_data, start_time, end_time, ... } | null,
+ *     remaining_seconds: number,  // 后端权威剩余秒数
+ *     total_seconds: number,      // 后端权威总时长
+ *     is_expired: boolean,         // 是否已到结束时间（玩家应点击完成领取奖励）
+ *     server_time: number          // 服务器当前时间戳（毫秒，用于前端时钟对齐）
+ *   }
+ */
+router.get('/explore/status', auth, async (req, res) => {
+    try {
+        if (!adventureService) {
+            return res.status(503).json({ code: 503, message: '历练服务暂不可用' });
+        }
+
+        // 查询玩家是否有进行中的历练
+        const adventure = await adventureService.getLastAdventureEvent(req.user.id);
+
+        if (!adventure) {
+            return res.json({
+                code: 200,
+                data: {
+                    is_adventuring: false,
+                    adventure: null,
+                    remaining_seconds: 0,
+                    total_seconds: 0,
+                    is_expired: false,
+                    server_time: Date.now()
+                }
+            });
+        }
+
+        // 后端权威计算剩余时间与总时长
+        const now = Date.now();
+        const startMs = new Date(adventure.start_time).getTime();
+        const endMs = new Date(adventure.end_time).getTime();
+        const totalSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
+        const remainingSeconds = Math.max(0, Math.floor((endMs - now) / 1000));
+        const isExpired = now >= endMs;
+
+        res.json({
+            code: 200,
+            data: {
+                is_adventuring: true,
+                adventure,
+                remaining_seconds: remainingSeconds,
+                total_seconds: totalSeconds,
+                is_expired: isExpired,
+                server_time: now
+            }
+        });
+    } catch (error) {
+        console.error('Get Explore Status Error:', error);
+        res.status(500).json({ code: 500, message: '服务器错误' });
+    }
+});
+
+/**
  * 完成历练
  * 
  * 结束当前历练并领取奖励
@@ -570,8 +708,17 @@ router.post('/explore/complete', auth, async (req, res) => {
         }
 
         const result = await adventureService.completeAdventure(req.user.id);
-        
+
         if (result.success) {
+            // 推送历练完成事件，前端据此刷新玩家数据（修为/灵石/HP等变化）
+            try {
+                WebSocketNotificationService.notifyPlayerUpdate(req.user.id, 'adventure_complete', {
+                    is_adventuring: false,
+                    rewards: result.rewards
+                });
+            } catch (e) {
+                console.warn('[Map] 推送历练完成事件失败:', e.message);
+            }
             res.json({
                 code: 200,
                 message: result.message,
@@ -604,8 +751,17 @@ router.post('/explore/combat', auth, async (req, res) => {
         }
 
         const result = await adventureService.generateCombatEncounter(req.user.id);
-        
+
         if (result.success) {
+            // 推送战斗遭遇事件，前端据此刷新状态（进入战斗模式）
+            try {
+                WebSocketNotificationService.notifyPlayerUpdate(req.user.id, 'combat_encounter', {
+                    in_combat: true,
+                    monster: result.monster?.name
+                });
+            } catch (e) {
+                console.warn('[Map] 推送战斗遭遇事件失败:', e.message);
+            }
             res.json({
                 code: 200,
                 message: '遭遇怪物',

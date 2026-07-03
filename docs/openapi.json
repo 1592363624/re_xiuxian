@@ -5883,6 +5883,144 @@
         }
       }
     },
+    "/api/map/explore/status": {
+      "get": {
+        "summary": "获取当前历练状态（用于前端面板重开时恢复历练中状态）",
+        "description": "查询玩家是否有进行中的历练，返回后端权威的剩余时间、总时长、是否过期等数据。\n\n业务计算下沉后端的核心体现：\n- 前端面板关闭后本地状态会丢失，重新打开时调用此接口恢复\n- 剩余时间、总时长、是否过期均由后端权威计算\n- 防止前端伪造历练状态\n\n典型场景：玩家在历练进行中关闭面板，重新打开时调用此接口恢复 isExploring、currentEvent、autoCompleteTimer 等状态。",
+        "tags": [
+          "Explore"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "is_adventuring": {
+                          "type": "boolean",
+                          "description": "是否正在历练"
+                        },
+                        "adventure": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "进行中的历练详情（无则为 null）",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "player_id": {
+                              "type": "integer"
+                            },
+                            "map_id": {
+                              "type": "integer"
+                            },
+                            "map_name": {
+                              "type": "string"
+                            },
+                            "event_id": {
+                              "type": "string"
+                            },
+                            "event_type": {
+                              "type": "string",
+                              "enum": [
+                                "peaceful",
+                                "combat",
+                                "treasure",
+                                "encounter",
+                                "discovery"
+                              ]
+                            },
+                            "event_data": {
+                              "type": "object",
+                              "description": "事件完整数据（含 type/title/description/duration/rewards）"
+                            },
+                            "start_time": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "end_time": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "in_progress",
+                                "completed",
+                                "cancelled"
+                              ]
+                            },
+                            "combat_battle_id": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "remaining_seconds": {
+                          "type": "integer",
+                          "description": "后端权威剩余秒数",
+                          "example": 45
+                        },
+                        "total_seconds": {
+                          "type": "integer",
+                          "description": "后端权威总时长（秒）",
+                          "example": 90
+                        },
+                        "is_expired": {
+                          "type": "boolean",
+                          "description": "是否已到结束时间（玩家应点击完成领取奖励）"
+                        },
+                        "server_time": {
+                          "type": "integer",
+                          "description": "服务器当前时间戳（毫秒，用于前端时钟对齐）",
+                          "example": 1751548800000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "历练服务暂不可用",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 503,
+                  "message": "历练服务暂不可用"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/map/explore/complete": {
       "post": {
         "summary": "完成历练（结算奖励，含提前结束惩罚与受伤风险）",
@@ -10302,6 +10440,195 @@
                   "code": 404,
                   "error_code": "NOT_FOUND",
                   "message": "备份文件 xxx.json 不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/cultivation/logs/{logId}/diff": {
+      "get": {
+        "summary": "获取操作日志的字段级 diff（后端权威计算）",
+        "description": "查询指定操作日志，提取 before/after 对象，递归计算字段级 diff，返回变化字段列表。\n\n业务计算下沉后端的设计目的：\n- 防止前端伪造 diff 结果（如篡改 before/after 值）\n- 统一 diff 算法实现，避免前端版本漂移\n- 前端只负责渲染返回的 fields 数组\n\n权限：\n- 需要 Bearer Token 认证\n- 需要管理员权限（auth + adminCheck 双层校验）\n\n仅允许修炼配置变更类日志查看 diff：\n- update_cultivation_seclusion\n- update_cultivation_adventure\n- rollback_cultivation_config",
+        "tags": [
+          "管理员-修炼配置"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "logId",
+            "in": "path",
+            "required": true,
+            "description": "AdminLog 主键 ID",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "example": 123
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "diff 计算成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "type": "string",
+                          "description": "修改目标（配置文件名）",
+                          "example": "seclusion.json"
+                        },
+                        "backup": {
+                          "type": "string",
+                          "description": "备份文件路径（可能为空字符串）",
+                          "example": "server/config/backup/seclusion_2026-07-03T06-38-07-017Z.json"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "description": "字段级 diff 列表（后端权威计算）",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string",
+                                "description": "字段路径（嵌套对象用 . 分隔）",
+                                "example": "normal.max_duration"
+                              },
+                              "before": {
+                                "description": "修改前的值（任意类型）"
+                              },
+                              "after": {
+                                "description": "修改后的值（任意类型）"
+                              },
+                              "changeType": {
+                                "type": "string",
+                                "enum": [
+                                  "added",
+                                  "removed",
+                                  "modified",
+                                  "unchanged"
+                                ],
+                                "description": "变化类型：added 新增 / removed 删除 / modified 修改 / unchanged 未变（仅当字段有变化时才返回）",
+                                "example": "modified"
+                              }
+                            }
+                          }
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "日志元数据",
+                          "properties": {
+                            "logId": {
+                              "type": "integer",
+                              "example": 123
+                            },
+                            "action": {
+                              "type": "string",
+                              "example": "update_cultivation_seclusion"
+                            },
+                            "adminId": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "example": "2026-07-03T06:38:07.017Z"
+                            },
+                            "ip": {
+                              "type": "string",
+                              "nullable": true,
+                              "example": "127.0.0.1"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "logId 非正整数": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "日志ID必须为正整数"
+                    }
+                  },
+                  "日志类型不支持 diff": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "该日志类型 \"modify_player\" 不支持 diff 查看，仅修炼配置变更日志可查看"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "error_code": "UNAUTHORIZED",
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "日志不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "error_code": "NOT_FOUND",
+                  "message": "日志 123 不存在"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器错误（如 details JSON 解析失败）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "error_code": "INTERNAL_ERROR",
+                  "message": "日志 123 的 details JSON 解析失败：Unexpected token } in JSON at position 42"
                 }
               }
             }

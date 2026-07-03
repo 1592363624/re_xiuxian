@@ -401,6 +401,19 @@ router.get('/status', authenticateToken, async (req, res, next) => {
         const normalCooldownRemaining = computeCooldownRemaining(normalConfig);
         const deepCooldownRemaining = computeCooldownRemaining(deepConfig);
 
+        // 后端权威判断当前玩家是否达到深度闭关境界要求
+        // 与 /start 接口的校验逻辑保持一致，避免前端重复实现境界判断
+        // 前端仅依据此布尔值渲染按钮禁用状态，最终校验仍由后端 /start 完成
+        let canDeep = false;
+        try {
+            const playerRealmIdx = REALM_ORDER.indexOf(player.realm);
+            const minRealmIdx = REALM_ORDER.indexOf(deepConfig.min_realm);
+            canDeep = playerRealmIdx >= 0 && playerRealmIdx >= minRealmIdx;
+        } catch (e) {
+            console.warn('计算 can_deep 失败:', e.message);
+            canDeep = false;
+        }
+
         res.json({
             code: 200,
             data: {
@@ -425,6 +438,8 @@ router.get('/status', authenticateToken, async (req, res, next) => {
                 // 冷却剩余秒数（由后端权威计算，前端直接展示，避免时钟漂移误差）
                 normal_cooldown_remaining: normalCooldownRemaining,
                 deep_cooldown_remaining: deepCooldownRemaining,
+                // 是否可进行深度闭关（后端权威判断境界要求，前端直接据此渲染）
+                can_deep: canDeep,
                 // 配置信息（供前端展示）
                 normal_config: normalConfig,
                 deep_config: deepConfig,

@@ -62,9 +62,13 @@ const fetchData = async () => {
       getCombatStats()
     ])
     
-    currentMap.value = mapRes.data.current_map
-    monsters.value = monstersRes.data.monsters || []
-    skillMpCost.value = monstersRes.data.skill_mp_cost || 20
+    // 修复：后端 /map/info 与 /combat/monsters 返回结构为 { code, data: {...} }
+    // 旧代码访问 .data.current_map 会拿到 undefined（缺少一层 data 包裹）
+    // /combat/stats 直接展开返回（无 data 包裹），保留原访问方式
+    currentMap.value = mapRes.data?.data?.current_map || mapRes.data.current_map
+    const monstersData = monstersRes.data?.data || monstersRes.data
+    monsters.value = monstersData?.monsters || []
+    skillMpCost.value = monstersData?.skill_mp_cost || 20
     combatStats.value = statsRes.data
     battleLog.value = battleRes?.data?.battle_log || []
   } catch (error) {
