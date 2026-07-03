@@ -45,6 +45,9 @@
         <!-- AI 配置管理 -->
         <AIConfig v-if="currentTab === 'ai_config'" />
 
+        <!-- 宗门管理 -->
+        <SectManagement v-if="currentTab === 'sect'" @showConfirm="showConfirm" />
+
         <!-- 通知管理 -->
         <NotificationManagement
           v-if="currentTab === 'notifications'"
@@ -212,6 +215,7 @@ import NotificationManagement from './sub/NotificationManagement.vue'
 import ServerStats from './sub/ServerStats.vue'
 import OperationLogs from './sub/OperationLogs.vue'
 import AIConfig from './sub/AIConfig.vue'
+import SectManagement from './sub/SectManagement.vue'
 import {
   updatePlayer,
   banPlayer,
@@ -230,6 +234,7 @@ const tabs = [
   { id: 'players', name: '玩家数据' },
   { id: 'config', name: '系统配置' },
   { id: 'ai_config', name: 'AI 配置' },
+  { id: 'sect', name: '宗门管理' },
   { id: 'notifications', name: '通知管理' },
   { id: 'stats', name: '服务器统计' },
   { id: 'logs', name: '操作日志' }

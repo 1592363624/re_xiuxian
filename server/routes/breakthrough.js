@@ -9,6 +9,8 @@ const Player = require('../models/player');
 const game = require('../game');
 const NotificationService = require('../game/services/NotificationService');
 const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
+// 引入宗门服务（导出单例实例），用于获取突破成功率加成
+const SectService = require('../game/services/SectService');
 const authenticateToken = require('../middleware/auth');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const ConfigHelper = require('../utils/configHelper');
@@ -63,8 +65,22 @@ router.post('/try', authenticateToken, async (req, res, next) => {
         }
 
         const probability = game.RealmService.calculateBreakthroughProbability(player, nextRealm);
+
+        // 获取宗门突破加成（如星宫 +5% 突破成功率，凌霄宫 +10% 突破成功率）
+        // 使用 try-catch 包裹，宗门加成获取失败不应阻断突破主流程
+        let finalProbability = probability;
+        try {
+            const sectInfo = await SectService.getPlayerSectBonus(player.id);
+            const breakthroughBonus = sectInfo.bonus?.breakthrough_bonus || 0;
+            // 应用宗门突破加成，breakthrough_bonus 配置为小数增量（如 0.05），需乘以 100 转换为百分点
+            finalProbability = Math.min(100, finalProbability + breakthroughBonus * 100);
+        } catch (e) {
+            // 宗门加成获取失败时按无加成处理，使用原始成功率
+            finalProbability = probability;
+        }
+
         const roll = Math.random() * 100;
-        const success = roll < probability;
+        const success = roll < finalProbability;
 
         if (!success) {
             // 突破失败：在事务内处理修为损失和年龄增加（使用配置文件中的惩罚数值）
@@ -100,7 +116,8 @@ router.post('/try', authenticateToken, async (req, res, next) => {
                     exp: player.exp.toString(),
                     exp_cap: canBreakthrough.expCap,
                     next_realm: nextRealm.name,
-                    probability: probability,
+                    // 返回应用宗门加成后的最终成功率，便于前端展示
+                    probability: finalProbability,
                     rolled: roll.toFixed(2),
                     exp_loss: expLoss.toString(),
                     age_increase: ageIncrease

@@ -48,7 +48,8 @@ class ConfigLoader extends EventEmitter {
             'talents',        // 天赋配置
             'titles',         // 称号配置
             'game_balance',   // 游戏平衡配置
-            'ai_config'       // AI 大模型配置（支持多厂商 OpenAI 兼容协议）
+            'ai_config',      // AI 大模型配置（支持多厂商 OpenAI 兼容协议）
+            'sect_data'       // 宗门静态配置（6 大宗门信息、宝库、任务）
         ];
         const results = {};
 

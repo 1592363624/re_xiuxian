@@ -1,7 +1,14 @@
 /**
  * 属性服务模块
  * 处理玩家属性计算、成长、加点等核心业务逻辑
+ *
+ * 装备加成集成说明：
+ *   - calculateFullAttributes 保持同步，通过 player._equipmentBonus 读取装备加成
+ *   - calculateFullAttributesAsync 为异步版本，内部获取装备加成后调用同步方法
+ *   - 需要装备加成的调用方应使用 calculateFullAttributesAsync
  */
+const EquipmentService = require('../services/EquipmentService');
+
 class AttributeService {
     constructor() {
         this.configLoader = null;
@@ -108,9 +115,8 @@ class AttributeService {
         const title = this.getTitleConfig(player.equipped_title_id);
         const titleBonus = this.calculateBonuses(base, title?.bonuses);
 
-        // 6. 装备加成 (Placeholder)
-        // TODO: 需要集成装备系统
-        const equipmentBonus = {};
+        // 6. 装备加成（由调用方通过 player._equipmentBonus 传入，异步版本会自动填充）
+        const equipmentBonus = player._equipmentBonus || {};
 
         // 汇总计算
         const final = { ...base };
@@ -164,6 +170,24 @@ class AttributeService {
                 spirit_root: spiritRoot
             }
         };
+    }
+
+    /**
+     * 计算玩家完整属性（异步版本，包含装备加成）
+     * 内部获取装备加成后临时挂载到 player 对象，再调用同步方法计算
+     * 调用后自动清理临时属性，不影响 player 原始数据
+     * @param {Object} player - 玩家对象
+     * @returns {Promise<Object>} 完整属性对象 { final, breakdown, info }
+     */
+    async calculateFullAttributesAsync(player) {
+        // 异步获取装备总加成
+        const equipmentBonus = await EquipmentService.getEquipmentBonus(player.id);
+        // 临时挂载到 player 对象，供同步方法读取
+        player._equipmentBonus = equipmentBonus;
+        const result = this.calculateFullAttributes(player);
+        // 清理临时属性，避免污染 player 原始数据
+        delete player._equipmentBonus;
+        return result;
     }
 
     /**

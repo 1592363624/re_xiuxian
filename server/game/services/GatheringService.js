@@ -9,6 +9,8 @@ const Item = require('../../models/item');
 const Player = require('../../models/player');
 const ResourceLoader = require('./ResourceLoader');
 const MapConfigLoader = require('./MapConfigLoader');
+// 引入宗门服务（导出单例实例），用于获取采集加成
+const SectService = require('./SectService');
 
 class GatheringService {
     /**
@@ -98,6 +100,18 @@ class GatheringService {
             throw new Error('玩家不存在');
         }
 
+        // 获取宗门采集加成（如落云宗 +15% 采集产出）
+        // 使用 try-catch 包裹，宗门加成获取失败不应阻断采集主流程
+        let gatherBonus = 0;
+        try {
+            const sectInfo = await SectService.getPlayerSectBonus(playerId);
+            // gather_bonus 配置为小数增量（如 0.15 表示 +15%）
+            gatherBonus = sectInfo.bonus?.gather_bonus || 0;
+        } catch (e) {
+            // 宗门加成获取失败时按无加成处理，保证采集流程正常进行
+            gatherBonus = 0;
+        }
+
         const mapConfig = MapConfigLoader.getMap(player.current_map_id);
         if (!mapConfig) {
             throw new Error('当前地图配置不存在');
@@ -137,6 +151,12 @@ class GatheringService {
 
         let yieldRange = ResourceLoader.getYield(resourceId, playerGather?.proficiency_level || 1);
         let quantity = Math.floor(Math.random() * (yieldRange[1] - yieldRange[0] + 1)) + yieldRange[0];
+
+        // 应用宗门采集加成（百分比加成，向上取整避免小数导致产量缩水）
+        // 加成作用于基础产量，暴击时暴击倍率会进一步放大加成后产量
+        if (gatherBonus > 0) {
+            quantity = Math.ceil(quantity * (1 + gatherBonus));
+        }
 
         let isCrit = false;
         if (Math.random() < ResourceLoader.getCritChance(resourceId)) {
@@ -198,6 +218,8 @@ class GatheringService {
                 mp_cost: mpCost,
                 mp_remaining: player.mp_current.toString(),
                 exp_gained: expGain,
+                // 标识本次采集是否应用了宗门加成，便于前端展示宗门福利
+                sect_bonus_applied: gatherBonus > 0,
                 new_proficiency: playerGather ? {
                     level: playerGather.proficiency_level,
                     exp: playerGather.proficiency_exp,

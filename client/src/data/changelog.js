@@ -1,4 +1,4 @@
-export const currentVersion = 'v0.0.3_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
+export const currentVersion = 'v0.0.4_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
 
 // 🛡️ 兜底数据：仅在无法连接 GitHub API 时显示
 export const changelog = [

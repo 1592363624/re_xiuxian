@@ -123,6 +123,15 @@
     
     <!-- 角色弹窗 -->
     <CharacterModal v-if="isCharacterOpen" @close="isCharacterOpen = false" />
+
+    <!-- 背包（储物袋）面板 -->
+    <InventoryPanel v-if="isInventoryOpen" @close="isInventoryOpen = false" />
+
+    <!-- 宗门面板 -->
+    <SectPanel v-if="isSectOpen" @close="isSectOpen = false" />
+
+    <!-- 坊市（万宝楼）面板 -->
+    <MarketPanel v-if="isMarketOpen" @close="isMarketOpen = false" />
     
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
@@ -167,6 +176,9 @@ import SystemAlert from '../widgets/SystemAlert.vue';
 import ExplorePanel from '../panels/ExplorePanel.vue';
 import CombatPanel from '../panels/CombatPanel.vue';
 import CharacterModal from '../modals/CharacterModal.vue';
+import InventoryPanel from '../panels/InventoryPanel.vue';
+import SectPanel from '../panels/SectPanel.vue';
+import MarketPanel from '../panels/MarketPanel.vue';
 
 const props = defineProps<{
   player: any
@@ -187,6 +199,10 @@ const isCharacterOpen = ref(false);
 const isMapOpen = ref(false);
 const isExploreOpen = ref(false)
 const isCombatOpen = ref(false)
+// 新增功能面板状态
+const isInventoryOpen = ref(false);
+const isSectOpen = ref(false);
+const isMarketOpen = ref(false);
 const currentBattleId = ref<string | null>(null);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
@@ -253,6 +269,24 @@ const handleAction = async (actionId: string) => {
     isExploreOpen.value = true;
     return;
   }
+
+  // 背包（储物袋）按钮：打开背包面板
+  if (actionId === 'inventory') {
+    isInventoryOpen.value = true;
+    return;
+  }
+
+  // 宗门按钮：打开宗门面板
+  if (actionId === 'sect') {
+    isSectOpen.value = true;
+    return;
+  }
+
+  // 坊市按钮：打开坊市（万宝楼）面板
+  if (actionId === 'market') {
+    isMarketOpen.value = true;
+    return;
+  }
   
   emit('action', actionId);
 };
@@ -282,6 +316,18 @@ const handleMenuClick = (btnName: string) => {
     isMobileMenuOpen.value = false;
   } else if (btnName === '角色') {
     isCharacterOpen.value = true;
+    isMobileMenuOpen.value = false;
+  } else if (btnName === '储物') {
+    // 打开背包（储物袋）面板
+    isInventoryOpen.value = true;
+    isMobileMenuOpen.value = false;
+  } else if (btnName === '宗门') {
+    // 打开宗门面板
+    isSectOpen.value = true;
+    isMobileMenuOpen.value = false;
+  } else if (btnName === '坊市') {
+    // 打开坊市（万宝楼）面板
+    isMarketOpen.value = true;
     isMobileMenuOpen.value = false;
   }
 };
@@ -324,6 +370,8 @@ const menuButtons = [
   { name: '地图', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' },
   { name: '功法', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>' },
   { name: '储物', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>' },
+  { name: '宗门', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/></svg>' },
+  { name: '坊市', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"/></svg>' },
   { name: '角色', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
   { name: '成就', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>' },
   { name: '灵宠', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-2.97 7 .41 1.04 1 2.02 1.56 2.85 2.53 3.8-1.41 6.35-4.5 4.73l-3.23-1.68a19 19 0 0 0-2.57 0l-3.23 1.68c-3.09 1.62-7.03-.93-4.5-4.73.56-.83 1.15-1.81 1.56-2.85-2.55 0-4.37-6.42-2.97-7C4.62 2.25 7.87 3.09 9.65 5.09 10.3 4.92 11.33 5 12 5z"/></svg>' },

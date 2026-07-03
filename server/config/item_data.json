@@ -188,6 +188,226 @@
             "subtype": "mineral",
             "description": "炼制化婴丹的辅材",
             "price": 300
+        },
+        {
+            "id": "firewood",
+            "name": "干柴",
+            "type": "material",
+            "subtype": "wood",
+            "description": "山林间拾得的干枯木柴，可作为炼丹炉的燃料",
+            "price": 2
+        },
+        {
+            "id": "wild_herb",
+            "name": "普通灵草",
+            "type": "material",
+            "subtype": "herb",
+            "description": "野外常见的灵草，炼制低阶丹药的辅材",
+            "price": 5
+        },
+        {
+            "id": "seaweed",
+            "name": "海藻",
+            "type": "material",
+            "subtype": "herb",
+            "description": "海边采集的水生灵草，含微弱灵气",
+            "price": 4
+        },
+        {
+            "id": "pearl",
+            "name": "珍珠",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "海中蚌类孕育的灵珠，可作饰品原料",
+            "price": 80
+        },
+        {
+            "id": "coral",
+            "name": "珊瑚",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "深海的灵珊瑚，蕴含水行灵气，炼器奇材",
+            "price": 150
+        },
+        {
+            "id": "spirit_seed",
+            "name": "灵眼树种子",
+            "type": "material",
+            "subtype": "seed",
+            "description": "落云宗灵眼之树的种子，可于洞府药园培育",
+            "price": 500
+        },
+        {
+            "id": "star_sand",
+            "name": "星辰砂",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "星宫弟子采集的星辉结晶，炼器辅材",
+            "price": 120
+        },
+        {
+            "id": "fate_disk",
+            "name": "命盘碎片",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "天星宗弟子推演命格的灵物碎片",
+            "price": 180
+        },
+        {
+            "id": "heart_stone",
+            "name": "问心石",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "凌霄宫问心台出产的灵石，稳固道心之用",
+            "price": 160
+        },
+        {
+            "id": "soul_banner_fragment",
+            "name": "阴罗幡残片",
+            "type": "material",
+            "subtype": "soul",
+            "description": "阴罗宗阴罗幡的残片，可升级本命法器",
+            "price": 220
+        },
+        {
+            "id": "heart_seal_stone",
+            "name": "心印石",
+            "type": "material",
+            "subtype": "soul",
+            "description": "合欢宗心印之术的载体，可种下心印",
+            "price": 200
+        },
+        {
+            "id": "exp_book_mid",
+            "name": "中阶道典",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "uncommon",
+            "description": "前人修仙心得札记，阅读后获得 500 修为",
+            "effect": { "exp": 500 },
+            "price": 300
+        },
+        {
+            "id": "wooden_sword",
+            "name": "桃木剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "common",
+            "description": "入门弟子常用的桃木剑，略有灵气",
+            "effect": { "atk": 5 },
+            "price": 200,
+            "required_realm_rank": 1
+        },
+        {
+            "id": "spirit_steel_sword",
+            "name": "灵钢剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "uncommon",
+            "description": "以灵钢锻造的长剑，锋利无匹",
+            "effect": { "atk": 20, "speed": 3 },
+            "price": 1500,
+            "required_realm_rank": 3
+        },
+        {
+            "id": "skyfire_sword",
+            "name": "天火剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "rare",
+            "description": "封印天火之灵的长剑，斩敌如焚",
+            "effect": { "atk": 60, "speed": 8 },
+            "price": 8000,
+            "required_realm_rank": 5
+        },
+        {
+            "id": "spirit_robe",
+            "name": "灵丝法袍",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "uncommon",
+            "description": "以灵蚕丝编织的法袍，御敌于外",
+            "effect": { "def": 15, "hp_max": 50 },
+            "price": 1200,
+            "required_realm_rank": 2
+        },
+        {
+            "id": "purple_cloud_armor",
+            "name": "紫云玄甲",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "rare",
+            "description": "紫云宗秘传玄甲，刀枪不入",
+            "effect": { "def": 50, "hp_max": 200 },
+            "price": 6000,
+            "required_realm_rank": 4
+        },
+        {
+            "id": "jade_pendant",
+            "name": "护身玉佩",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "common",
+            "description": "温润的玉佩，可护心脉",
+            "effect": { "hp_max": 30, "luck": 2 },
+            "price": 300,
+            "required_realm_rank": 1
+        },
+        {
+            "id": "spirit_sense_ring",
+            "name": "神识戒",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "rare",
+            "description": "蕴含神识之力的戒指，提升感知",
+            "effect": { "sense": 15, "mp_max": 50 },
+            "price": 4500,
+            "required_realm_rank": 4
+        },
+        {
+            "id": "cloud_stepping_boots",
+            "name": "踏云靴",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "uncommon",
+            "description": "内嵌风行阵的靴子，行如踏云",
+            "effect": { "speed": 12 },
+            "price": 900,
+            "required_realm_rank": 2
+        },
+        {
+            "id": "flying_dragon_boots",
+            "name": "飞龙靴",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "epic",
+            "description": "以龙鳞炼制，瞬息千里",
+            "effect": { "speed": 35, "def": 10 },
+            "price": 12000,
+            "required_realm_rank": 5
+        },
+        {
+            "id": "foundation_dharma",
+            "name": "筑基法器",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "rare",
+            "description": "辅助筑基修士修炼的本命法器",
+            "effect": { "mp_max": 100, "sense": 10, "cultivate_speed": 5 },
+            "price": 5000,
+            "required_realm_rank": 3
+        },
+        {
+            "id": "purple_cloud_dharma",
+            "name": "紫云金钟",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "epic",
+            "description": "紫云宗镇宗法器，攻守兼备",
+            "effect": { "atk": 30, "def": 30, "mp_max": 150 },
+            "price": 15000,
+            "required_realm_rank": 5
         }
     ]
 }
+
