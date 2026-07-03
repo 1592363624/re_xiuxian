@@ -5,6 +5,19 @@
        <button @click="fetchConfig" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新配置</button>
     </div>
 
+    <!-- 闭关/历练参数已迁移至「修炼配置」Tab 的提示 -->
+    <div class="bg-cyan-950/30 border border-cyan-800/50 rounded-lg p-3 flex items-start gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+      <div class="text-xs text-cyan-300">
+        <div class="font-bold mb-0.5">闭关与历练参数已迁移</div>
+        <div class="text-cyan-400/80">常规闭关、深度闭关、历练时长分级的参数配置已迁移至「修炼配置」Tab，支持整体编辑与热加载。本页仅保留通用系统参数。</div>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <!-- 自动存档间隔 -->
       <div class="bg-gray-800 p-4 rounded border border-gray-700">
@@ -20,36 +33,7 @@
         <p class="mt-1 text-xs text-gray-500">默认: 10000 (10秒)</p>
       </div>
 
-      <!-- 闭关冷却时间 -->
-      <div class="bg-gray-800 p-4 rounded border border-gray-700">
-        <label class="block text-sm font-medium text-gray-400 mb-2">闭关冷却时间 (秒)</label>
-        <div class="flex space-x-2">
-          <input
-            v-model="configs.seclusion_cooldown"
-            type="number"
-            class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
-          >
-          <button @click="saveConfig('seclusion_cooldown', configs.seclusion_cooldown, '闭关冷却时间(秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
-        </div>
-        <p class="mt-1 text-xs text-gray-500">默认: 3600 (60分钟)</p>
-      </div>
-
-      <!-- 闭关经验倍率 -->
-      <div class="bg-gray-800 p-4 rounded border border-gray-700">
-        <label class="block text-sm font-medium text-gray-400 mb-2">闭关基础收益 (修为/秒)</label>
-        <div class="flex space-x-2">
-          <input
-            v-model="configs.seclusion_exp_rate"
-            type="number"
-            step="0.01"
-            class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
-          >
-          <button @click="saveConfig('seclusion_exp_rate', configs.seclusion_exp_rate, '闭关经验倍率(修为/秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
-        </div>
-        <p class="mt-1 text-xs text-gray-500">默认: 0.1 (每10秒1点修为)</p>
-      </div>
-
-      <!-- 修炼时间间隔 -->
+      <!-- 修炼时间间隔（保留字段，向后兼容） -->
       <div class="bg-gray-800 p-4 rounded border border-gray-700">
         <label class="block text-sm font-medium text-gray-400 mb-2">修炼时间间隔 (秒)</label>
         <div class="flex space-x-2">
@@ -62,39 +46,6 @@
           <button @click="saveConfig('cultivate_interval', configs.cultivate_interval, '修炼时间间隔(秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
         </div>
         <p class="mt-1 text-xs text-gray-500">默认: 60 (1分钟)</p>
-      </div>
-
-      <!-- 深度闭关配置 -->
-      <div class="bg-gray-800 p-4 rounded border border-gray-700 md:col-span-2 lg:col-span-3">
-        <h4 class="text-md font-bold text-purple-400 mb-4">深度闭关配置</h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-400 mb-2">深度闭关收益倍率</label>
-            <div class="flex space-x-2">
-              <input
-                v-model="configs.deep_seclusion_exp_rate"
-                type="number"
-                step="0.1"
-                class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
-              >
-              <button @click="saveConfig('deep_seclusion_exp_rate', configs.deep_seclusion_exp_rate, '深度闭关收益倍率')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
-            </div>
-            <p class="mt-1 text-xs text-gray-500">默认: 2.0 (2倍收益)</p>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-400 mb-2">深度闭关时间间隔 (秒)</label>
-            <div class="flex space-x-2">
-              <input
-                v-model="configs.deep_seclusion_interval"
-                type="number"
-                min="1"
-                class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
-              >
-              <button @click="saveConfig('deep_seclusion_interval', configs.deep_seclusion_interval, '深度闭关时间间隔(秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
-            </div>
-            <p class="mt-1 text-xs text-gray-500">默认: 300 (5分钟)</p>
-          </div>
-        </div>
       </div>
 
       <!-- 时间控制 (GM) -->
@@ -130,7 +81,14 @@
 <script setup>
 /**
  * 系统配置子组件
- * 负责系统参数配置展示和修改
+ * 负责通用系统参数配置展示和修改
+ *
+ * 重构说明：
+ *   - 闭关/历练相关参数（seclusion_cooldown、seclusion_exp_rate、
+ *     deep_seclusion_exp_rate、deep_seclusion_interval）已迁移至
+ *     CultivationConfig.vue（「修炼配置」Tab），支持整体编辑与热加载
+ *   - 本页仅保留通用系统参数（auto_save_interval、cultivate_interval）
+ *     和时间加速功能，避免管理员在两处重复修改同一参数
  */
 import { reactive, ref, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
@@ -139,14 +97,10 @@ import { getConfig, updateConfig, timeTravel } from '../../../api/admin'
 const emit = defineEmits(['timeTravelComplete', 'showConfirm'])
 const uiStore = useUIStore()
 
-// 系统配置
+// 系统配置（已移除闭关/历练相关字段，仅保留通用参数）
 const configs = reactive({
   auto_save_interval: 10000,
-  seclusion_cooldown: 3600,
-  seclusion_exp_rate: 0.1,
-  cultivate_interval: 60,
-  deep_seclusion_exp_rate: 2.0,
-  deep_seclusion_interval: 300
+  cultivate_interval: 60
 })
 
 // 时间加速
@@ -154,7 +108,7 @@ const timeTravelYears = ref(1)
 const isTimeTraveling = ref(false)
 
 /**
- * 获取配置
+ * 获取配置（仅拉取通用系统参数，闭关/历练参数由 CultivationConfig 自行拉取）
  */
 const fetchConfig = async () => {
   try {
@@ -163,11 +117,7 @@ const fetchConfig = async () => {
     if (Array.isArray(configData)) {
       configData.forEach(item => {
         if (item.key === 'auto_save_interval') configs.auto_save_interval = parseInt(item.value)
-        if (item.key === 'seclusion_cooldown') configs.seclusion_cooldown = parseInt(item.value)
-        if (item.key === 'seclusion_exp_rate') configs.seclusion_exp_rate = parseFloat(item.value)
         if (item.key === 'cultivate_interval') configs.cultivate_interval = parseInt(item.value)
-        if (item.key === 'deep_seclusion_exp_rate') configs.deep_seclusion_exp_rate = parseFloat(item.value)
-        if (item.key === 'deep_seclusion_interval') configs.deep_seclusion_interval = parseInt(item.value)
       })
     }
   } catch (error) {

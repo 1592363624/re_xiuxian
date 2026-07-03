@@ -1,0 +1,136 @@
+{
+  "time_intervals": {
+    "lifespan_update_interval_ms": 600000,
+    "lifespan_update_interval_sec": 600,
+    "move_check_interval_ms": 5000,
+    "last_online_update_interval_ms": 60000
+  },
+  "auth": {
+    "username_regex": "^[a-zA-Z0-9]{6,12}$",
+    "password_regex": "^[a-zA-Z0-9]{6,12}$",
+    "nickname_min_length": 2,
+    "nickname_max_length": 10,
+    "bcrypt_salt_rounds": 10,
+    "jwt_expires_in": "7d",
+    "online_threshold_minutes": 5
+  },
+  "breakthrough": {
+    "failure_exp_loss_rate": 0.1,
+    "failure_age_multiplier": 2
+  },
+  "combat": {
+    "skill_mp_cost": 20,
+    "base_damage_multiplier": 1.0,
+    "escape_success_rate": 0.5,
+    "damage_random_range": 15,
+    "damage_random_offset": 7,
+    "skill_damage_multiplier": 1.5,
+    "battle_expire_minutes": 30,
+    "level_multiplier_base": 1.0,
+    "level_multiplier_per_level": 0.1,
+    "base_monster_hp": 50,
+    "base_monster_atk": 8,
+    "base_monster_def": 3,
+    "base_monster_speed": 8,
+    "death_exp_penalty_rate": 0.1,
+    "monster_damage_random_range": 6,
+    "monster_damage_random_offset": 3
+  },
+  "map": {
+    "travel": {
+      "base_cost": 10,
+      "base_time": 60,
+      "distance_divisor": 10,
+      "danger_level_multiplier": 2,
+      "travel_time_divisor": 2,
+      "speed_divisor": 10,
+      "terrain_multiplier": 10
+    },
+    "type_multiplier": {
+      "country": 1,
+      "sect": 1,
+      "mountain": 1.5,
+      "ocean": 2,
+      "talent": 3,
+      "world": 5
+    },
+    "terrain_factor": {
+      "plains": 1,
+      "mountain": 1.5,
+      "ocean": 2,
+      "cave": 1.8,
+      "mixed": 1.2,
+      "celestial": 1
+    }
+  },
+  "gather": {
+    "batch_max_count": 10
+  },
+  "combat_history": {
+    "default_limit": 20,
+    "max_limit": 100
+  },
+  "death": {
+    "age_increase": 10,
+    "respawn_location": "出生地"
+  },
+  "sect": {
+    "checkin_contribution": 10,
+    "checkin_exp": 50,
+    "checkin_cooldown_hours": 24,
+    "transfer_cost_spirit_stones": 100,
+    "transfer_gain_exp": 200,
+    "transfer_cooldown_hours": 24,
+    "default_min_realm_rank": 1,
+    "leave_contribution_loss_rate": 1.0
+  },
+  "market": {
+    "max_active_listings": 20,
+    "listing_page_size": 20,
+    "search_page_size": 20,
+    "my_listing_page_size": 20
+  },
+  "admin": {
+    "sect_members_page_size": 20,
+    "sect_members_max_page_size": 100,
+    "sect_contribution_min": 0,
+    "sect_contribution_max": 100000000
+  },
+  "equipment": {
+    "valid_slots": ["weapon", "armor", "accessory", "boots", "dharma"],
+    "slot_names": {
+      "weapon": "武器",
+      "armor": "护甲",
+      "accessory": "饰品",
+      "boots": "靴子",
+      "dharma": "法器"
+    }
+  },
+  "adventure": {
+    "duration_types": {
+      "short": {
+        "duration": 30,
+        "reward_multiplier": 0.6,
+        "injury_chance": 0,
+        "injury_hp_loss_rate": 0.05,
+        "label": "短时历练"
+      },
+      "medium": {
+        "duration": 90,
+        "reward_multiplier": 1.0,
+        "injury_chance": 0.05,
+        "injury_hp_loss_rate": 0.08,
+        "label": "中时历练"
+      },
+      "long": {
+        "duration": 300,
+        "reward_multiplier": 1.8,
+        "injury_chance": 0.1,
+        "injury_hp_loss_rate": 0.12,
+        "label": "长时历练"
+      }
+    },
+    "default_duration_type": "medium",
+    "early_finish_penalty": 0.5
+  }
+}

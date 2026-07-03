@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import apiClient from '../../api'
+import { getMapConfig, getMapInfo, batchCalculateMoveCost } from '../../api/map'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 
@@ -32,26 +33,29 @@ const fetchData = async () => {
   loading.value = true
   try {
     const [configRes, infoRes] = await Promise.all([
-      apiClient.get('/map/config'),
-      apiClient.get('/map/info')
+      getMapConfig(),
+      getMapInfo()
     ])
-    
+
     allMaps.value = configRes.data.data.maps
     currentMapId.value = infoRes.data.data.current_map?.id
     playerRealm.value = playerStore.player?.realm || '凡人'
     playerSpeed.value = playerStore.player?.attributes?.speed || 10
-    
-    // 从后端获取所有地图的移动消耗
-    const moveCostPromises = allMaps.value.map(map => 
-      apiClient.post('/map/calculate-move-cost', { targetMapId: map.id })
-        .then(res => ({ id: map.id, cost: res.data.data }))
-        .catch(() => ({ id: map.id, cost: null }))
-    )
-    const moveCosts = await Promise.all(moveCostPromises)
-    moveCostCache.value = moveCosts.reduce((acc, item) => {
-      if (item.cost) acc[item.id] = item.cost
-      return acc
-    }, {})
+
+    // 优化：使用批量接口一次性获取所有地图的移动消耗
+    // 旧实现对每个地图发一次 /calculate-move-cost 请求（N 次请求），
+    // 改为单次 /batch-calculate-move-cost 请求（1 次请求）
+    const targetMapIds = allMaps.value.map(m => m.id)
+    if (targetMapIds.length > 0) {
+      try {
+        const batchRes = await batchCalculateMoveCost(targetMapIds)
+        const costs = batchRes.data?.data?.costs || {}
+        moveCostCache.value = costs
+      } catch (e) {
+        console.warn('批量获取移动消耗失败，降级为空缓存:', e.message)
+        moveCostCache.value = {}
+      }
+    }
   } catch (error) {
     console.error('Failed to fetch map data:', error)
     uiStore.showToast('获取地图数据失败', 'error')

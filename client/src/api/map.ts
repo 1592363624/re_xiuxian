@@ -32,6 +32,18 @@ export const calculateMoveCost = (targetMapId: number) => {
 };
 
 /**
+ * 批量计算移动消耗（性能优化接口）
+ *
+ * 设计目的：FullMapList 全图浏览时一次性获取所有地图的移动消耗，
+ *   避免前端对每个地图发一次 /calculate-move-cost 请求（N 次请求）
+ *
+ * @param targetMapIds 目标地图ID数组
+ */
+export const batchCalculateMoveCost = (targetMapIds: number[]) => {
+  return apiClient.post('/map/batch-calculate-move-cost', { targetMapIds });
+};
+
+/**
  * 开始移动
  */
 export const startMove = (targetMapId: string) => {

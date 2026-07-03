@@ -42,8 +42,14 @@
           @showConfirm="showConfirm"
         />
 
+        <!-- 修炼配置（闭关 + 历练，热加载） -->
+        <CultivationConfig v-if="currentTab === 'cultivation'" />
+
         <!-- AI 配置管理 -->
         <AIConfig v-if="currentTab === 'ai_config'" />
+
+        <!-- 宗门管理 -->
+        <SectManagement v-if="currentTab === 'sect'" @showConfirm="showConfirm" />
 
         <!-- 通知管理 -->
         <NotificationManagement
@@ -212,6 +218,9 @@ import NotificationManagement from './sub/NotificationManagement.vue'
 import ServerStats from './sub/ServerStats.vue'
 import OperationLogs from './sub/OperationLogs.vue'
 import AIConfig from './sub/AIConfig.vue'
+import SectManagement from './sub/SectManagement.vue'
+// 修炼配置（闭关 + 历练）子组件：提供 GM 后台对参数的可视化编辑与热加载
+import CultivationConfig from './sub/CultivationConfig.vue'
 import {
   updatePlayer,
   banPlayer,
@@ -229,7 +238,9 @@ const uiStore = useUIStore()
 const tabs = [
   { id: 'players', name: '玩家数据' },
   { id: 'config', name: '系统配置' },
+  { id: 'cultivation', name: '修炼配置' },
   { id: 'ai_config', name: 'AI 配置' },
+  { id: 'sect', name: '宗门管理' },
   { id: 'notifications', name: '通知管理' },
   { id: 'stats', name: '服务器统计' },
   { id: 'logs', name: '操作日志' }

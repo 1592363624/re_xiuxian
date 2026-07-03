@@ -5,9 +5,10 @@
  */
 import { defineStore } from 'pinia'
 import { getPlayer } from '../api/player'
-import { getStatus as getSeclusionStatus, start as startSeclusionApi, end as endSeclusionApi } from '../api/seclusion'
+import { getStatus as getSeclusionStatus, start as startSeclusionApi, end as endSeclusionApi, forceEnd as forceEndSeclusionApi } from '../api/seclusion'
 import { getConfig as getSystemConfig } from '../api/system'
 import { tryBreakthrough as tryBreakthroughApi } from '../api/breakthrough'
+import { getExploreStatus } from '../api/explore'
 import { socketService } from '../services/socket'
 
 export const usePlayerStore = defineStore('player', {
@@ -17,6 +18,16 @@ export const usePlayerStore = defineStore('player', {
     logoutReason: null,
     systemConfig: {},
     isSocketConnected: false,
+    // 历练进行中状态（后端权威计算，供 ExploreOverlay 全局浮动状态条使用）
+    // 重启浏览器/关闭面板后通过 fetchAdventureStatus 从后端恢复
+    adventureStatus: {
+      is_adventuring: false,
+      adventure: null,
+      remaining_seconds: 0,
+      total_seconds: 0,
+      is_expired: false,
+      server_time: 0
+    },
     movingState: {
       isMoving: false,
       fromMapId: null,
@@ -61,7 +72,7 @@ export const usePlayerStore = defineStore('player', {
       // 监听玩家数据更新
       socketService.on('player:updated', async (data) => {
         console.log('[PlayerStore] 收到玩家数据更新:', data)
-        
+
         if (data.updateType === 'gm_delete') {
           this.logout('您的账号已被管理员删除')
           return
@@ -72,8 +83,25 @@ export const usePlayerStore = defineStore('player', {
           return
         }
 
-        // 重新获取玩家数据
+        // 重新获取玩家数据（含 HP/修为/灵石/突破状态等）
         await this.fetchPlayer()
+
+        // 关键节点同步刷新闭关状态（含冷却剩余、每日次数等）
+        // 确保 ActionBar 冷却倒计时、SeclusionPanel 等组件在面板重开时显示最新值
+        // 触发场景：闭关开始/结束、历练开始/完成、战斗遭遇、GM 发放物品/灵石/修为
+        const cooldownAffectingEvents = [
+          'seclusion_start', 'seclusion_end',
+          'adventure_start', 'adventure_complete',
+          'combat_encounter', 'combat_action', 'combat_flee',
+          'gm_give_item', 'gm_give_spirit_stones', 'gm_add_exp'
+        ]
+        if (cooldownAffectingEvents.includes(data.updateType)) {
+          await this.fetchSeclusionStatus()
+          // 历练事件额外刷新历练状态，确保 ExploreOverlay 浮动条同步显示/隐藏
+          if (data.updateType === 'adventure_start' || data.updateType === 'adventure_complete') {
+            await this.fetchAdventureStatus()
+          }
+        }
       })
 
       // 监听移动完成
@@ -127,22 +155,45 @@ export const usePlayerStore = defineStore('player', {
 
     /**
      * 获取闭关状态
+     * 重构后支持常规/深度闭关双模式，含进度、每日剩余次数、配置信息
      */
     async fetchSeclusionStatus() {
       if (!this.token) return null
       try {
         const res = await getSeclusionStatus()
-        // 后端返回格式: { code: 200, data: { is_secluded, ... } }
+        // 后端返回格式: { code: 200, data: { is_secluded, seclusion_mode, ... } }
         const data = res.data?.data || res.data
         if (data) {
              if (this.player) {
-                 // 更新闭关相关状态
+                 // 更新闭关相关状态（含模式）
                  this.player.is_secluded = data.is_secluded
+                 this.player.seclusion_mode = data.seclusion_mode || 'normal'
                  this.player.seclusion_start_time = data.seclusion_start_time
                  this.player.seclusion_duration = data.seclusion_duration
+                 this.player.seclusion_end_time = data.seclusion_end_time
                  // 同步更新 localStorage，确保数据一致性
                  localStorage.setItem('player', JSON.stringify(this.player))
              }
+             // 缓存闭关配置信息，供前端展示与模式选择使用
+             this.systemConfig.seclusion = {
+                normal: data.normal_config,
+                deep: data.deep_config,
+                normal_remaining: data.normal_remaining,
+                deep_remaining: data.deep_remaining,
+                // 冷却剩余秒数（后端权威计算，避免前端时钟漂移误差）
+                normal_cooldown_remaining: data.normal_cooldown_remaining ?? 0,
+                deep_cooldown_remaining: data.deep_cooldown_remaining ?? 0,
+                // 是否可进行深度闭关（后端权威判断境界要求，前端直接据此渲染）
+                can_deep: data.can_deep ?? false,
+                // 服务端时间戳（用于前端 tick 计算实时剩余，避免时区/时钟漂移）
+                server_time: data.server_time || Date.now(),
+                exp_rate: data.exp_rate,
+                exp_gained: data.exp_gained,
+                current_duration: data.current_duration,
+                remaining_time: data.remaining_time,
+                progress: data.progress
+             }
+             // 兼容旧字段
              this.systemConfig.cultivate_interval = data.cultivate_interval
              this.systemConfig.deep_seclusion_exp_rate = data.deep_seclusion_exp_rate
              this.systemConfig.deep_seclusion_interval = data.deep_seclusion_interval
@@ -155,20 +206,57 @@ export const usePlayerStore = defineStore('player', {
     },
 
     /**
+     * 获取历练状态（后端权威计算）
+     * 用于 ExploreOverlay 全局浮动状态条显示历练进度
+     * 触发场景：玩家登录、GameLayout 挂载、socket 推送 adventure_start/complete
+     *
+     * 业务计算下沉后端的核心体现：
+     *   - 剩余时间、总时长、是否过期均由后端权威计算
+     *   - 前端关闭面板/重启浏览器后通过此接口恢复状态
+     */
+    async fetchAdventureStatus() {
+      if (!this.token) return null
+      try {
+        const res = await getExploreStatus()
+        const data = res.data?.data || res.data
+        if (data) {
+          this.adventureStatus = {
+            is_adventuring: data.is_adventuring ?? false,
+            adventure: data.adventure || null,
+            remaining_seconds: data.remaining_seconds ?? 0,
+            total_seconds: data.total_seconds ?? 0,
+            is_expired: data.is_expired ?? false,
+            server_time: data.server_time || Date.now()
+          }
+        }
+        return data
+      } catch (error) {
+        console.error('获取历练状态失败:', error)
+      }
+      return null
+    },
+
+    /**
      * 开始闭关
      * 业务逻辑由后端处理，前端调用API后立即更新本地状态
+     * @param {string} mode - 闭关模式 normal|deep（默认 normal）
+     * @param {number} duration - 期望闭关时长（秒），可选
      */
-    async startSeclusion(duration) {
+    async startSeclusion(mode = 'normal', duration) {
       if (!this.token) {
         console.warn('开始闭关失败: 未登录或token不存在')
         return
       }
       try {
-        const res = await startSeclusionApi(duration)
+        const res = await startSeclusionApi(mode, duration)
         // 立即更新本地状态，确保UI即时响应
         if (res.data && this.player) {
+          const data = res.data.data || {}
           this.player.is_secluded = true
-          this.player.seclusion_start_time = res.data.data?.seclusion_start_time || new Date()
+          this.player.seclusion_mode = data.seclusion_mode || mode
+          this.player.seclusion_start_time = data.seclusion_start_time || new Date()
+          this.player.seclusion_end_time = data.seclusion_end_time || null
+          this.player.seclusion_duration = data.seclusion_duration || 0
           localStorage.setItem('player', JSON.stringify(this.player))
         }
         return res.data
@@ -184,8 +272,8 @@ export const usePlayerStore = defineStore('player', {
     },
 
     /**
-     * 结束闭关
-     * 业务逻辑由后端处理，前端调用API后立即更新本地状态
+     * 结束闭关（正常结算）
+     * 深度闭关未达最短时长时按强行出关处理，损失 forced_penalty 比例收益
      */
     async endSeclusion() {
       if (!this.token) return
@@ -194,6 +282,9 @@ export const usePlayerStore = defineStore('player', {
         // 立即更新本地状态，确保UI即时响应
         if (res.data && this.player) {
           this.player.is_secluded = false
+          this.player.seclusion_mode = 'normal'
+          this.player.seclusion_start_time = null
+          this.player.seclusion_end_time = null
           // 修复：后端返回的数据在 res.data.data.player 中
           this.player.exp = res.data.data?.player?.exp || this.player.exp
           this.player.last_seclusion_time = res.data.data?.player?.last_seclusion_time || new Date()
@@ -202,6 +293,30 @@ export const usePlayerStore = defineStore('player', {
         return res.data
       } catch (error) {
         console.error('结束闭关失败:', error.response?.data || error.message || error)
+        throw error
+      }
+    },
+
+    /**
+     * 强行出关（深度闭关专用快捷接口）
+     * 逻辑等同 endSeclusion，仅作为语义上的快捷入口
+     */
+    async forceEndSeclusion() {
+      if (!this.token) return
+      try {
+        const res = await forceEndSeclusionApi()
+        if (res.data && this.player) {
+          this.player.is_secluded = false
+          this.player.seclusion_mode = 'normal'
+          this.player.seclusion_start_time = null
+          this.player.seclusion_end_time = null
+          this.player.exp = res.data.data?.player?.exp || this.player.exp
+          this.player.last_seclusion_time = res.data.data?.player?.last_seclusion_time || new Date()
+          localStorage.setItem('player', JSON.stringify(this.player))
+        }
+        return res.data
+      } catch (error) {
+        console.error('强行出关失败:', error.response?.data || error.message || error)
         throw error
       }
     },

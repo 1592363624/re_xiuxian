@@ -12,6 +12,8 @@ const Validator = require('../utils/validator');
 const ConfigHelper = require('../utils/configHelper');
 // 修复：境界顺序统一从 gameConstants 读取，避免重复定义和不一致
 const { REALM_ORDER } = require('../utils/gameConstants');
+// 引入 WebSocket 通知服务，用于战斗关键节点主动推送玩家数据更新
+const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 
 /**
  * 遭遇怪物
@@ -38,6 +40,17 @@ router.post('/attack', auth, async (req, res, next) => {
     try {
         const { action } = req.body;
         const result = await CombatService.attack(req.user.id, action || 'attack');
+
+        // 推送战斗攻击结果，前端据此刷新玩家 HP/状态（战斗中 HP 变化需实时同步）
+        try {
+            WebSocketNotificationService.notifyPlayerUpdate(req.user.id, 'combat_action', {
+                action: 'attack',
+                battle_ended: result.battleEnded || result.victory || false,
+                hp_current: result.player_hp
+            });
+        } catch (e) {
+            console.warn('[Combat] 推送战斗攻击事件失败:', e.message);
+        }
 
         res.json({
             code: 200,
@@ -77,6 +90,16 @@ router.post('/monster-turn', auth, async (req, res, next) => {
 router.post('/flee', auth, async (req, res, next) => {
     try {
         const result = await CombatService.flee(req.user.id);
+
+        // 推送逃跑结果，前端据此刷新战斗状态（退出战斗或继续战斗）
+        try {
+            WebSocketNotificationService.notifyPlayerUpdate(req.user.id, 'combat_flee', {
+                fled: result.fled || false,
+                battle_ended: result.fled || false
+            });
+        } catch (e) {
+            console.warn('[Combat] 推送逃跑事件失败:', e.message);
+        }
 
         res.json({
             code: 200,

@@ -1,0 +1,64 @@
+{
+  "description": "闭关修炼系统配置（重构版：区分常规闭关与深度闭关）",
+  "version": "2.0.0",
+  "lastUpdated": "2026-07-03T06:38:07.016Z",
+  "settings": {
+    "seclusion_exp_rate": {
+      "value": 1,
+      "unit": "修为/秒",
+      "description": "闭关基础修为收益率（每秒），实际收益=基础收益×境界加成×模式倍率",
+      "displayName": "闭关基础修为收益率"
+    },
+    "cultivate_interval": {
+      "value": "60",
+      "unit": "秒",
+      "description": "修炼结算时间间隔（保留字段，向后兼容）",
+      "defaultValue": 60,
+      "displayName": "修炼结算间隔"
+    },
+    "normal_seclusion": {
+      "value": {
+        "max_duration": 1800,
+        "daily_limit": 3,
+        "cooldown": 360,
+        "exp_rate": 1
+      },
+      "description": "常规闭关配置：短时挂机，每日3次，冷却5分钟，单次最长30分钟",
+      "displayName": "常规闭关配置"
+    },
+    "deep_seclusion": {
+      "value": {
+        "min_duration": 14400,
+        "max_duration": 28800,
+        "daily_limit": 1,
+        "cooldown": 3600,
+        "exp_rate": 2,
+        "min_realm": "筑基期",
+        "forced_penalty": 0.5
+      },
+      "description": "深度闭关配置：长线挂机4-8小时，每日1次，2倍收益，筑基以上，强行出关损失50%",
+      "displayName": "深度闭关配置"
+    },
+    "deep_seclusion_exp_rate": {
+      "value": 2,
+      "unit": "倍率",
+      "description": "深度闭关收益倍率（向后兼容字段，实际以 deep_seclusion.exp_rate 为准）",
+      "defaultValue": 2,
+      "displayName": "深度闭关收益倍率（兼容）"
+    },
+    "deep_seclusion_interval": {
+      "value": "14400",
+      "unit": "秒",
+      "description": "深度闭关最短时长（向后兼容字段，实际以 deep_seclusion.min_duration 为准）",
+      "defaultValue": 14400,
+      "displayName": "深度闭关最短时长（兼容）"
+    },
+    "seclusion_cooldown": {
+      "value": "300",
+      "unit": "秒",
+      "description": "常规闭关冷却时间（向后兼容字段，实际以 normal_seclusion.cooldown 为准）",
+      "defaultValue": 300,
+      "displayName": "常规闭关冷却时间（兼容）"
+    }
+  }
+}

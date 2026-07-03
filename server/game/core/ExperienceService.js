@@ -2,6 +2,9 @@
  * 经验服务模块
  * 处理经验获取、等级成长等核心业务逻辑
  */
+// 引入宗门服务（导出单例实例），用于获取经验加成
+const SectService = require('../services/SectService');
+
 class ExperienceService {
     constructor() {
         this.configLoader = null;
@@ -83,7 +86,23 @@ class ExperienceService {
      * @returns {Object} 增加结果
      */
     async addExp(player, expAmount) {
-        const exp = BigInt(player.exp) + BigInt(expAmount);
+        // 获取宗门经验加成（如落云宗 exp_multiplier=1.1 表示修为获取 1.1 倍，即 +10%）
+        // 使用 try-catch 包裹，宗门加成获取失败不应阻断经验获取主流程
+        let sectMultiplier = 1.0;
+        try {
+            const sectInfo = await SectService.getPlayerSectBonus(player.id);
+            if (sectInfo.bonus?.exp_multiplier) {
+                // exp_multiplier 配置为总乘数（如 1.1 表示 1.1 倍），直接覆盖默认值
+                sectMultiplier = sectInfo.bonus.exp_multiplier;
+            }
+        } catch (e) {
+            // 宗门加成获取失败时按无加成处理，使用默认乘数 1.0
+            sectMultiplier = 1.0;
+        }
+        // 使用 BigInt 计算避免浮点精度损失：乘以百分比整数再除以 100
+        // 例如 exp_multiplier=1.1 时，乘以 110 再除以 100，得到 1.1 倍结果
+        const finalExpAmount = BigInt(expAmount) * BigInt(Math.floor(sectMultiplier * 100)) / BigInt(100);
+        const exp = BigInt(player.exp) + finalExpAmount;
         const expCap = this.getExpCap(player);
         let isLevelUp = false;
         let overflowExp = BigInt(0);
@@ -98,7 +117,9 @@ class ExperienceService {
             currentExp: exp.toString(),
             expCap: expCap.toString(),
             isLevelUp: isLevelUp,
-            overflowExp: overflowExp.toString()
+            overflowExp: overflowExp.toString(),
+            // 返回宗门经验加成乘数，便于前端展示加成来源
+            sect_bonus_multiplier: sectMultiplier
         };
     }
 

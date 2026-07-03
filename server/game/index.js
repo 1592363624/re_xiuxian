@@ -24,6 +24,10 @@ const NotificationService = require('./services/NotificationService');
 const WebSocketNotificationService = require('./services/WebSocketNotificationService');
 const AdventureEventService = require('./services/AdventureEventService');
 const AIService = require('./services/AIService');
+const InventoryService = require('./services/InventoryService');
+const SectService = require('./services/SectService');
+const MarketService = require('./services/MarketService');
+const EquipmentService = require('./services/EquipmentService');
 
 // 基础设施模块（从 modules 重新导出）
 const { infrastructure } = require('../modules');
@@ -41,6 +45,11 @@ async function initializeGameServices(configLoader) {
     await AttributeMaxService.initialize(configLoader);
     DualTimeService.initialize(configLoader);
     MapService.initialize(configLoader);
+    // 新增系统服务初始化
+    InventoryService.initialize(configLoader);
+    SectService.initialize(configLoader);
+    MarketService.initialize(configLoader);
+    EquipmentService.initialize(configLoader);
     
     console.log('游戏核心服务模块初始化完成');
 }
@@ -67,6 +76,10 @@ module.exports = {
     WebSocketNotificationService,
     AdventureEventService,
     AIService,
+    InventoryService,
+    SectService,
+    MarketService,
+    EquipmentService,
     
     // 基础设施
     ConfigLoader: infrastructure?.ConfigLoader,

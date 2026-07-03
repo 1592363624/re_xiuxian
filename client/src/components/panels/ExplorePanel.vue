@@ -1,8 +1,8 @@
 <template>
   <div class="fixed inset-0 z-50 flex items-center justify-center">
     <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="$emit('close')"></div>
-    
-    <div class="relative bg-[#1c1917] border border-stone-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl animate-fade-in max-h-[80vh] flex flex-col">
+
+    <div class="relative bg-[#1c1917] border border-stone-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl animate-fade-in max-h-[85vh] flex flex-col">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-bold text-emerald-400 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -14,8 +14,8 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
       </div>
-      
-      <div class="flex-1 overflow-y-auto space-y-4">
+
+      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
         <!-- 当前地图信息 -->
         <div v-if="currentMap" class="bg-[#292524] rounded-lg p-4 border border-stone-700">
           <div class="flex items-center gap-3 mb-2">
@@ -27,7 +27,7 @@
           </div>
           <p class="text-sm text-stone-400">{{ currentMap.description }}</p>
         </div>
-        
+
         <!-- 环境信息 -->
         <div class="flex gap-2 text-sm text-stone-400">
           <span class="bg-[#292524] px-3 py-1.5 rounded border border-stone-700 flex items-center gap-1.5">
@@ -39,22 +39,115 @@
             {{ weather }}
           </span>
         </div>
-        
-        <!-- 历练按钮 -->
+
+        <!-- 历练时长选择（未历练时显示） -->
         <div v-if="!isExploring" class="space-y-3">
-          <button 
-            @click="startExploreAction" 
+          <div class="text-sm text-stone-400 mb-2">
+            <span class="text-emerald-400 font-bold">选择历练时长</span>
+            <span class="text-stone-500 text-xs ml-2">时长越长奖励越高，但受伤风险也越大</span>
+          </div>
+          <!-- 时长类型选择卡片 -->
+          <div class="grid grid-cols-3 gap-2">
+            <!-- 短时历练 -->
+            <button
+              @click="selectDurationType('short')"
+              class="text-left bg-[#292524] border rounded-lg p-3 transition-all duration-300"
+              :class="selectedDurationType === 'short'
+                ? 'border-emerald-600 ring-1 ring-emerald-600/30'
+                : 'border-stone-700 hover:border-emerald-700'"
+            >
+              <div class="text-sm font-bold text-emerald-300 mb-1">短时历练</div>
+              <div class="text-xs text-stone-400 mb-2">30秒</div>
+              <div class="space-y-0.5">
+                <div class="text-[10px] text-stone-500 flex justify-between">
+                  <span>奖励</span><span class="text-emerald-400">×0.6</span>
+                </div>
+                <div class="text-[10px] text-stone-500 flex justify-between">
+                  <span>受伤</span><span class="text-emerald-400">0%</span>
+                </div>
+              </div>
+            </button>
+            <!-- 中时历练（默认） -->
+            <button
+              @click="selectDurationType('medium')"
+              class="text-left bg-[#292524] border rounded-lg p-3 transition-all duration-300 relative"
+              :class="selectedDurationType === 'medium'
+                ? 'border-amber-600 ring-1 ring-amber-600/30'
+                : 'border-stone-700 hover:border-amber-700'"
+            >
+              <div class="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 text-[9px] tracking-wider">推荐</div>
+              <div class="text-sm font-bold text-amber-300 mb-1">中时历练</div>
+              <div class="text-xs text-stone-400 mb-2">1分30秒</div>
+              <div class="space-y-0.5">
+                <div class="text-[10px] text-stone-500 flex justify-between">
+                  <span>奖励</span><span class="text-amber-400">×1.0</span>
+                </div>
+                <div class="text-[10px] text-stone-500 flex justify-between">
+                  <span>受伤</span><span class="text-amber-400">5%</span>
+                </div>
+              </div>
+            </button>
+            <!-- 长时历练 -->
+            <button
+              @click="selectDurationType('long')"
+              class="text-left bg-[#292524] border rounded-lg p-3 transition-all duration-300"
+              :class="selectedDurationType === 'long'
+                ? 'border-rose-600 ring-1 ring-rose-600/30'
+                : 'border-stone-700 hover:border-rose-700'"
+            >
+              <div class="text-sm font-bold text-rose-300 mb-1">长时历练</div>
+              <div class="text-xs text-stone-400 mb-2">5分钟</div>
+              <div class="space-y-0.5">
+                <div class="text-[10px] text-stone-500 flex justify-between">
+                  <span>奖励</span><span class="text-rose-400">×1.8</span>
+                </div>
+                <div class="text-[10px] text-stone-500 flex justify-between">
+                  <span>受伤</span><span class="text-rose-400">10%</span>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <!-- 风险提示 -->
+          <div class="bg-[#292524] rounded-lg p-3 border border-stone-700 text-xs text-stone-400 space-y-1.5">
+            <div class="flex items-start gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <div>
+                <span class="text-amber-400 font-bold">提前结束惩罚：</span>
+                按已时长比例结算，并扣除 50% 收益，<span class="text-rose-400">不设保底</span>。
+              </div>
+            </div>
+            <div class="flex items-start gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-rose-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <div>
+                <span class="text-rose-400 font-bold">受伤风险：</span>
+                历练结束时按概率受伤，损失当前气血的一定比例。时长越长风险越高。
+              </div>
+            </div>
+          </div>
+
+          <!-- 开始历练按钮 -->
+          <button
+            @click="startExploreAction"
             :disabled="isLoading"
             class="w-full py-4 px-6 bg-gradient-to-r from-emerald-900/80 to-[#064e3b] hover:from-emerald-800/80 hover:to-[#047857] border border-emerald-700 hover:border-emerald-500 text-emerald-400 hover:text-emerald-300 rounded-lg transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
               <path d="M12 2 2.5 9.5l1 10.5L12 22l8.5-2L22 10l-10-7.5z"/>
             </svg>
-            <span class="font-bold text-lg">开始历练</span>
+            <span class="font-bold text-lg">开始{{ durationTypeLabel }}</span>
           </button>
           <p class="text-xs text-stone-500 text-center">历练过程中会遭遇各种随机事件，可能获得修为、物品或触发战斗</p>
         </div>
-        
+
         <!-- 历练中状态 -->
         <div v-else class="bg-[#292524] rounded-lg p-6 border border-stone-700 text-center space-y-4">
           <div class="flex justify-center">
@@ -64,34 +157,48 @@
               </svg>
             </div>
           </div>
-          
+
           <div v-if="currentEvent" class="space-y-3">
             <span class="text-xs text-stone-500 uppercase tracking-wider">历练事件</span>
             <h3 class="text-lg font-bold text-amber-400">{{ currentEvent.title }}</h3>
             <p class="text-stone-300 text-sm leading-relaxed">{{ currentEvent.description }}</p>
-            
+
+            <!-- 历练进度 -->
+            <div v-if="currentEvent.duration > 0" class="bg-[#1c1917] rounded p-2 border border-stone-700">
+              <div class="flex justify-between text-xs text-stone-500 mb-1">
+                <span>历练进度</span>
+                <span>{{ exploreProgressText }}</span>
+              </div>
+              <div class="h-1.5 bg-stone-800 rounded-full overflow-hidden">
+                <div
+                  class="h-full bg-gradient-to-r from-emerald-700 to-emerald-400 transition-all duration-1000"
+                  :style="{ width: `${exploreProgressPercent}%` }"
+                ></div>
+              </div>
+            </div>
+
             <div v-if="currentEvent.type === 'combat'" class="mt-4">
-              <button 
+              <button
                 @click="enterCombatAction"
                 class="w-full py-3 bg-gradient-to-r from-rose-900/80 to-[#881337] hover:from-rose-800/80 hover:to-[#9f1239] border border-rose-700 text-rose-400 rounded-lg transition-all font-bold"
               >
                 进入战斗
               </button>
             </div>
-            
+
             <div v-if="currentEvent.rewards && currentEvent.rewards.exp" class="text-sm text-emerald-400">
               预计获得: {{ currentEvent.rewards.exp }} 修为
             </div>
           </div>
-          
-          <button 
+
+          <button
             @click="completeExploreAction"
             class="py-2 px-4 bg-[#44403c] hover:bg-[#57534e] border border-stone-600 text-stone-300 rounded-lg transition-colors"
           >
             结束历练
           </button>
         </div>
-        
+
         <!-- AI 状态 -->
         <div v-if="aiStatus" class="bg-[#292524] rounded-lg p-3 border border-stone-700">
           <div class="flex items-center gap-2 text-sm">
@@ -114,16 +221,24 @@
 
 <script setup lang="ts">
 /**
- * 历练探索面板组件
- * 使用统一 API 层进行历练操作
+ * 历练探索面板组件（重构版）
+ *
+ * 重构要点：
+ *   1. 新增时长类型选择 UI（short/medium/long）
+ *   2. 显示各时长的奖励倍率与受伤概率
+ *   3. 风险提示：提前结束惩罚、受伤风险
+ *   4. 历练中显示进度条
+ *   5. 使用统一 API 层进行历练操作
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   getAiStatus,
   getExploreEvent,
+  getExploreStatus,
   startExplore,
   completeExplore,
-  enterCombat
+  enterCombat,
+  type DurationType
 } from '../../api/explore'
 import { getMapInfo } from '../../api/map'
 import { useUIStore } from '../../stores/ui'
@@ -139,7 +254,49 @@ const aiStatus = ref<any>(null)
 const isExploring = ref(false)
 const currentEvent = ref<any>(null)
 const isLoading = ref(false)
+// 默认中时历练（推荐档位）
+const selectedDurationType = ref<DurationType>('medium')
+// 历练开始时间与总时长（用于进度展示）
+const exploreStartTime = ref<number>(0)
+const exploreTotalDuration = ref<number>(0)
+const nowTick = ref<number>(Date.now())
 let autoCompleteTimer: number | null = null
+let progressTimer: number | null = null
+
+/**
+ * 当前选中的时长类型标签
+ */
+const durationTypeLabel = computed(() => {
+  const labels = { short: '短时历练', medium: '中时历练', long: '长时历练' }
+  return labels[selectedDurationType.value]
+})
+
+/**
+ * 历练进度百分比
+ */
+const exploreProgressPercent = computed(() => {
+  if (!exploreTotalDuration.value || !exploreStartTime.value) return 0
+  const elapsed = Math.floor((nowTick.value - exploreStartTime.value) / 1000)
+  return Math.min(100, Math.max(0, Math.floor(elapsed / exploreTotalDuration.value * 100)))
+})
+
+/**
+ * 历练进度文本（已时长/总时长）
+ */
+const exploreProgressText = computed(() => {
+  if (!exploreTotalDuration.value || !exploreStartTime.value) return ''
+  const elapsed = Math.max(0, Math.floor((nowTick.value - exploreStartTime.value) / 1000))
+  return `${formatSeconds(elapsed)} / ${formatSeconds(exploreTotalDuration.value)}`
+})
+
+/**
+ * 格式化秒数为 mm:ss
+ */
+const formatSeconds = (sec: number) => {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
 
 /**
  * 获取历练信息
@@ -150,11 +307,11 @@ const fetchExploreInfo = async () => {
       getMapInfo(),
       getAiStatus()
     ])
-    
+
     if (mapRes.data?.current_map) {
       currentMap.value = mapRes.data.current_map
     }
-    
+
     if (aiRes.data?.data) {
       aiStatus.value = aiRes.data.data
     }
@@ -179,28 +336,47 @@ const fetchEnvironment = async () => {
 }
 
 /**
+ * 选择时长类型
+ */
+const selectDurationType = (type: DurationType) => {
+  selectedDurationType.value = type
+}
+
+/**
  * 开始历练
+ * 重构后传递 durationType（short/medium/long），由后端根据配置计算具体时长与奖励
  */
 const startExploreAction = async () => {
   if (isLoading.value) return
   isLoading.value = true
-  
+
   try {
-    const res = await startExplore(90)
-    
+    const res = await startExplore(selectedDurationType.value)
+
     if (res.data?.data?.event) {
       isExploring.value = true
       currentEvent.value = res.data.data.event
-      
+
+      // 记录开始时间与总时长，用于进度展示
+      exploreStartTime.value = Date.now()
+      exploreTotalDuration.value = res.data.data.event.duration || 0
+
+      // 启动进度刷新计时器
+      if (progressTimer) clearInterval(progressTimer)
+      progressTimer = window.setInterval(() => {
+        nowTick.value = Date.now()
+      }, 1000)
+
       uiStore.addLog({
-        content: `开始历练：${res.data.data.event.title}`,
+        content: `开始${durationTypeLabel.value}：${res.data.data.event.title}`,
         type: 'info',
         actorId: 'self'
       })
 
       const duration = res.data.data.event.duration || 30
       const isCombat = res.data.data.event.type === 'combat'
-      
+
+      // 自动完成定时器：非战斗事件且有时长时，到时自动结算
       if (!isCombat && duration > 0) {
         autoCompleteTimer = window.setTimeout(async () => {
           await completeExploreAction()
@@ -208,7 +384,7 @@ const startExploreAction = async () => {
       }
     }
   } catch (error: any) {
-    const msg = error.response?.data?.error || '历练失败'
+    const msg = error.response?.data?.message || error.response?.data?.error || '历练失败'
     uiStore.showToast(msg, 'error')
   } finally {
     isLoading.value = false
@@ -217,11 +393,12 @@ const startExploreAction = async () => {
 
 /**
  * 完成历练
+ * 后端会根据实际时长计算奖励，提前结束时按比例 × (1 - early_finish_penalty) 结算
  */
 const completeExploreAction = async () => {
   try {
     const res = await completeExplore()
-    
+
     if (res.data?.data?.rewards) {
       const rewards = res.data.data.rewards
       let rewardText = `获得 ${rewards.exp || 0} 修为`
@@ -231,29 +408,51 @@ const completeExploreAction = async () => {
       if (rewards.spirit_stones) {
         rewardText += `，${rewards.spirit_stones} 灵石`
       }
-      
+
+      // 提前结束时提示奖励缩放比例（后端返回字符串如 "1%"，直接显示）
+      if (rewards.early_finish) {
+        const scale = rewards.reward_scale
+        // 兼容字符串（"1%"）和数字（0.01）两种格式
+        const scaleText = typeof scale === 'string'
+          ? scale
+          : `${Math.round((scale || 0) * 100)}%`
+        rewardText += `（提前结束，仅获得 ${scaleText} 奖励）`
+      }
+
+      // 受伤提示
+      if (rewards.injury) {
+        rewardText += `，并因战斗受伤损失 ${rewards.injury.hp_loss || 0} 气血`
+      }
+
       uiStore.addLog({
         content: `历练完成：${rewardText}`,
-        type: 'success',
+        type: rewards.injury ? 'warning' : 'success',
         actorId: 'self'
       })
-      
-      uiStore.showToast('历练完成！', 'success')
+
+      uiStore.showToast(rewards.injury ? '历练完成，但受了伤' : '历练完成！', rewards.injury ? 'warning' : 'success')
     }
-    
+
     isExploring.value = false
     currentEvent.value = null
-    
+    exploreStartTime.value = 0
+    exploreTotalDuration.value = 0
+
     if (autoCompleteTimer) {
       clearTimeout(autoCompleteTimer)
       autoCompleteTimer = null
     }
-    
+    if (progressTimer) {
+      clearInterval(progressTimer)
+      progressTimer = null
+    }
+
     emit('close')
   } catch (error: any) {
+    // 后端返回 { code, message }，兼容旧格式
     const code = error.response?.data?.code
     const msg = error.response?.data?.message || '完成历练失败'
-    
+
     if (code === 'ADVENTURE_NOT_COMPLETED') {
       uiStore.showToast(msg, 'warning')
     } else {
@@ -268,34 +467,125 @@ const completeExploreAction = async () => {
 const enterCombatAction = async () => {
   try {
     const res = await enterCombat()
-    
+
     if (res.data?.data?.battle_id) {
       uiStore.addLog({
         content: `战斗遭遇：${res.data.data.description || '遭遇敌人'}`,
         type: 'combat',
         actorId: 'self'
       })
-      
+
       emit('close')
       emit('combat', res.data.data.battle_id)
     } else {
       uiStore.showToast('生成战斗失败', 'error')
     }
   } catch (error: any) {
-    const msg = error.response?.data?.error || '进入战斗失败'
+    // 后端返回 { code, message }，兼容 error 字段
+    const msg = error.response?.data?.message || error.response?.data?.error || '进入战斗失败'
     uiStore.showToast(msg, 'error')
   }
 }
 
-onMounted(() => {
+/**
+ * 组件挂载时：
+ *   1. 先调用 /explore/status 恢复"历练中"状态（防止关闭面板后状态丢失）
+ *   2. 并行拉取地图信息与环境信息
+ *
+ * 业务计算下沉后端的核心体现：
+ *   - 剩余时间、总时长、是否过期均由后端权威返回
+ *   - 前端不再用本地缓存估算历练进度
+ */
+onMounted(async () => {
+  // 第一步：恢复进行中的历练状态
+  await restoreAdventureStatus()
+
+  // 第二步：并行拉取地图与环境信息
   fetchExploreInfo()
   fetchEnvironment()
 })
+
+/**
+ * 从后端恢复"历练中"状态
+ *
+ * 场景：玩家在历练进行中关闭了面板，重新打开时
+ *   - 后端仍有 in_progress 的 PlayerAdventure 记录
+ *   - 前端本地状态已丢失（组件被 v-if 销毁）
+ *   - 需要根据后端权威数据恢复 isExploring、currentEvent、计时器等
+ */
+const restoreAdventureStatus = async () => {
+  try {
+    const res = await getExploreStatus()
+    const data = res.data?.data
+    if (!data || !data.is_adventuring || !data.adventure) {
+      // 无进行中的历练，保持默认的"未历练"状态
+      return
+    }
+
+    const adventure = data.adventure
+    // 恢复"历练中"状态
+    isExploring.value = true
+    // event_data 是后端权威事件数据（含 type/title/description/duration/rewards）
+    currentEvent.value = adventure.event_data || {
+      type: adventure.event_type,
+      title: '进行中的历练',
+      description: '你正在进行历练，请等待完成或手动结束。',
+      duration: data.total_seconds
+    }
+    // 恢复开始时间（基于后端返回的 start_time）
+    exploreStartTime.value = new Date(adventure.start_time).getTime()
+    exploreTotalDuration.value = data.total_seconds || 0
+
+    // 启动进度刷新计时器（每秒 tick 驱动进度条）
+    if (progressTimer) clearInterval(progressTimer)
+    progressTimer = window.setInterval(() => {
+      nowTick.value = Date.now()
+    }, 1000)
+
+    // 已过期：提示玩家点击完成领取奖励
+    if (data.is_expired) {
+      uiStore.addLog({
+        content: '历练时间已到，请点击"完成历练"领取奖励',
+        type: 'warning',
+        actorId: 'self'
+      })
+      uiStore.showToast('历练已结束，请点击完成领取奖励', 'warning')
+      return
+    }
+
+    // 战斗事件：提示玩家进入战斗
+    if (adventure.event_type === 'combat') {
+      uiStore.addLog({
+        content: '历练中遭遇敌人，请进入战斗',
+        type: 'combat',
+        actorId: 'self'
+      })
+      return
+    }
+
+    // 非战斗事件且未过期：重新设置自动完成定时器
+    // 剩余秒数由后端权威计算，避免时钟漂移
+    const remainingMs = data.remaining_seconds * 1000
+    if (autoCompleteTimer) {
+      clearTimeout(autoCompleteTimer)
+    }
+    autoCompleteTimer = window.setTimeout(async () => {
+      await completeExploreAction()
+    }, remainingMs)
+  } catch (error) {
+    console.error('恢复历练状态失败:', error)
+    // 失败时不阻塞面板初始化，玩家可正常开始新历练
+  }
+}
 
 onUnmounted(() => {
   if (autoCompleteTimer) {
     clearTimeout(autoCompleteTimer)
     autoCompleteTimer = null
+  }
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
   }
 })
 </script>

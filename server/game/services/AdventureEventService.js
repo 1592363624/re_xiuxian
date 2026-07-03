@@ -13,6 +13,9 @@ const PlayerAdventure = require('../../models/playerAdventure');
 const MapConfigLoader = require('./MapConfigLoader');
 const DropLoader = require('./DropLoader');
 const AIService = require('./AIService');
+// 配置加载器，用于读取 game_balance.json 中的历练时长分级配置
+const { infrastructure } = require('../../modules');
+const configLoader = infrastructure.ConfigLoader;
 
 class AdventureEventService {
     /**
@@ -221,9 +224,14 @@ class AdventureEventService {
                 console.log(`[AdventureEventService] 自动取消异常历练 ID: ${existingAdventure.id}`);
             }
 
-            const adventureConfig = options.duration 
-                ? { duration: options.duration }
-                : this.getAdventureConfig();
+            // 读取时长分级配置（short/medium/long），向后兼容旧的 duration 参数
+            const durationType = options.durationType || 'medium';
+            const durationConfig = this.getAdventureDurationConfig(durationType);
+            const adventureConfig = {
+                duration: durationConfig.duration,
+                duration_type: durationConfig.type,
+                reward_multiplier: durationConfig.reward_multiplier
+            };
 
             const eventContext = {
                 playerRealm: player.realm,
@@ -236,6 +244,9 @@ class AdventureEventService {
             };
 
             const event = await this.generateEvent(eventContext);
+            // 写入时长类型与奖励倍率，供 completeAdventure 读取
+            event.duration_type = durationConfig.type;
+            event.reward_multiplier = durationConfig.reward_multiplier;
 
             // 确保 duration 是有效数字，避免 Invalid Date
             const durationSeconds = eventContext.duration || 60;
@@ -387,7 +398,7 @@ class AdventureEventService {
     }
 
     /**
-     * 获取历练配置
+     * 获取历练配置（向后兼容，默认中等时长）
      * @returns {Object} 配置
      */
     getAdventureConfig() {
@@ -395,6 +406,49 @@ class AdventureEventService {
             duration: 60 + Math.floor(Math.random() * 60),
             expMultiplier: 1.0
         };
+    }
+
+    /**
+     * 根据时长类型读取历练配置（时长分级）
+     * 配置来源于 game_balance.json 的 adventure.duration_types
+     * @param {string} durationType - 时长类型：short/medium/long
+     * @returns {Object} 时长配置 { duration, reward_multiplier, injury_chance, injury_hp_loss_rate, label }
+     */
+    getAdventureDurationConfig(durationType) {
+        const defaultType = 'medium';
+        const defaultConfig = {
+            duration: 90,
+            reward_multiplier: 1.0,
+            injury_chance: 0.05,
+            injury_hp_loss_rate: 0.08,
+            label: '中时历练'
+        };
+        try {
+            const balance = configLoader.getConfig('game_balance');
+            const types = balance?.adventure?.duration_types;
+            if (!types) return { ...defaultConfig, type: defaultType };
+            const type = types[durationType] ? durationType : defaultType;
+            return { ...types[type], type };
+        } catch (e) {
+            console.warn('[AdventureEventService] 读取历练时长配置失败，使用默认值:', e.message);
+            return { ...defaultConfig, type: defaultType };
+        }
+    }
+
+    /**
+     * 读取提前结束历练的惩罚比例
+     * 配置来源于 game_balance.json 的 adventure.early_finish_penalty
+     * @returns {number} 惩罚比例（0-1，0.5 表示获得 50% 收益）
+     */
+    getEarlyFinishPenalty() {
+        try {
+            const balance = configLoader.getConfig('game_balance');
+            const penalty = balance?.adventure?.early_finish_penalty;
+            // 限制在 0-1 范围内
+            return Math.max(0, Math.min(1, parseFloat(penalty) || 0.5));
+        } catch (e) {
+            return 0.5;
+        }
     }
 
     /**
@@ -440,25 +494,67 @@ class AdventureEventService {
 
             const now = new Date();
             const endTime = new Date(eventData.end_time);
+            // 提前结束时按时间比例给奖励，并按配置扣除 early_finish_penalty 比例
+            // 设计理念：提前结束属于违约，仅按已时长比例结算，并按配置扣除部分收益
+            // 不设保底，避免玩家反复"开始历练→立即结束"刷保底奖励
+            const earlyFinishPenalty = this.getEarlyFinishPenalty();
+            let rewardScale = 1.0;
+            let earlyFinish = false;
             if (now < endTime) {
-                const remainingSeconds = Math.ceil((endTime - now) / 1000);
-                const minutes = Math.floor(remainingSeconds / 60);
-                const seconds = remainingSeconds % 60;
-                return { 
-                    success: false, 
-                    code: 'ADVENTURE_NOT_COMPLETED', 
-                    message: `历练尚未结束，请等待 ${minutes}分${seconds}秒` 
-                };
+                const startTime = new Date(eventData.createdAt);
+                const totalDuration = endTime - startTime;
+                const elapsed = now - startTime;
+                // 按比例 × (1 - penalty) 折扣，最低 0（立即结束无奖励）
+                rewardScale = totalDuration > 0 ? (elapsed / totalDuration) * (1 - earlyFinishPenalty) : 0;
+                earlyFinish = true;
             }
 
             const eventObj = typeof eventData.event_data === 'string' 
                 ? JSON.parse(eventData.event_data) 
                 : eventData.event_data;
-            const rewards = eventObj?.rewards || {};
+            // 读取时长分级配置的奖励倍率（长时历练 1.8 倍，短时历练 0.6 倍）
+            const rewardMultiplier = eventObj?.reward_multiplier || 1.0;
+            // 奖励 = 基础奖励 × 提前结束折扣 × 时长倍率
+            const rawRewards = eventObj?.rewards || {};
+            const rewards = {
+                exp: Math.floor((rawRewards.exp || 0) * rewardScale * rewardMultiplier),
+                spirit_stones: Math.floor((rawRewards.spirit_stones || 0) * rewardScale * rewardMultiplier),
+                items: rawRewards.items || []
+            };
             const result = await this.grantRewards(playerId, rewards);
 
+            // 风险机制：历练可能受伤（损失气血），长时历练受伤概率更高
+            const durationType = eventObj?.duration_type || 'medium';
+            const durationConfig = this.getAdventureDurationConfig(durationType);
+            let injury = null;
+            if (Math.random() < (durationConfig.injury_chance || 0)) {
+                // 重新获取玩家（grantRewards 已更新玩家数据）
+                const playerForInjury = await Player.findByPk(playerId);
+                if (playerForInjury) {
+                    const currentHp = Number(playerForInjury.hp_current);
+                    const hpLoss = Math.floor(currentHp * (durationConfig.injury_hp_loss_rate || 0.08));
+                    if (hpLoss > 0) {
+                        let newHp = BigInt(playerForInjury.hp_current) - BigInt(hpLoss);
+                        if (newHp < 0n) newHp = 0n;
+                        playerForInjury.hp_current = newHp;
+                        await playerForInjury.save();
+                        injury = { hp_loss: hpLoss };
+                    }
+                }
+            }
+
+            // 提前结束时在消息中标注奖励缩放比例
+            if (earlyFinish) {
+                result.early_finish = true;
+                result.reward_scale = Math.round(rewardScale * 100) + '%';
+            }
+            // 受伤信息
+            if (injury) {
+                result.injury = injury;
+            }
+
             await PlayerAdventure.update(
-                { 
+                {
                     status: 'completed',
                     rewards_claimed: true,
                     rewards: JSON.stringify(result.granted)
@@ -468,10 +564,18 @@ class AdventureEventService {
                 }
             );
 
+            // 修复：返回结构扁平化，rewards 直接是 granted 内容 + 额外标记
+            // 避免前端 res.data.data.rewards.exp 拿到 undefined（旧版返回的是 { success, granted } 嵌套结构）
             return {
                 success: true,
                 message: '历练完成',
-                rewards: result
+                rewards: {
+                    ...result.granted,
+                    // 透传提前结束 / 受伤等额外标记，前端可直接 rewards.early_finish 读取
+                    early_finish: result.early_finish || false,
+                    reward_scale: result.reward_scale || null,
+                    injury: result.injury || null
+                }
             };
         } catch (error) {
             console.error('[AdventureEventService] 完成历练失败:', error);
@@ -599,6 +703,13 @@ class AdventureEventService {
             if (!currentMap || !currentMap.monsters || currentMap.monsters.length === 0) {
                 return { success: false, error: '当前地图没有怪物' };
             }
+
+            // 清理该玩家旧的进行中战斗记录
+            // ActiveBattle 表 player_id 有唯一约束 uk_player_battle，
+            // 若不先清理旧记录，创建新战斗会因唯一约束冲突而失败
+            await ActiveBattle.destroy({
+                where: { player_id: playerId }
+            });
 
             let monsterResult;
             if (this.aiService) {

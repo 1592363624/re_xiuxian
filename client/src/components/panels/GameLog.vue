@@ -31,7 +31,28 @@ const getLogStyle = (type) => {
     case 'warning': return 'border-amber-800/60'
     case 'combat': return 'border-rose-800/60'
     case 'system': return 'border-purple-800/60 bg-[#161318]'
+    case 'combat_damage': return 'border-red-900/60'
+    case 'combat_heal': return 'border-green-900/60'
+    case 'item': return 'border-amber-700/60'
+    case 'exp': return 'border-cyan-800/60'
+    case 'spirit_stone': return 'border-yellow-800/60'
     case 'info': default: return 'border-stone-800/50'
+  }
+}
+
+// 根据日志类型获取文字颜色（支持更多颜色高亮）
+const getTextColor = (type) => {
+  switch (type) {
+    case 'success': return 'text-emerald-400'
+    case 'warning': return 'text-amber-400'
+    case 'combat': return 'text-rose-400'
+    case 'system': return 'text-purple-400 font-bold'
+    case 'combat_damage': return 'text-red-400'
+    case 'combat_heal': return 'text-green-400'
+    case 'item': return 'text-amber-300'
+    case 'exp': return 'text-cyan-400'
+    case 'spirit_stone': return 'text-yellow-400'
+    case 'info': default: return 'text-stone-300'
   }
 }
 
@@ -75,20 +96,20 @@ onUnmounted(() => {
 <template>
   <div class="flex-1 flex flex-col bg-[#0c0a09] overflow-hidden relative min-h-[200px] border border-stone-800/50 rounded-lg mx-2 my-1">
     <!-- 日志内容区 -->
-    <div ref="logContainer" class="flex-1 overflow-y-auto font-mono text-base relative scroll-smooth bg-[#0c0a09]">
-      <div class="flex flex-col gap-3 p-3 relative z-10">
+    <div ref="logContainer" class="flex-1 overflow-y-auto font-mono text-xs relative scroll-smooth bg-[#0c0a09] custom-scrollbar">
+      <div class="flex flex-col gap-1 px-2 py-2 relative z-10">
         <TransitionGroup name="scroll">
-          <div 
-            v-for="(log, index) in filteredLogs" 
-            :key="log.id" 
-            class="flex flex-col p-3 rounded bg-[#111] border-l-4 border-stone-700/50 hover:bg-[#1a1a1a] transition-all duration-300 shadow-md mb-1"
+          <div
+            v-for="(log, index) in filteredLogs"
+            :key="log.id"
+            class="flex items-start gap-2 px-2 py-1 rounded border-l-2 hover:bg-[#1a1a1a] transition-all duration-200"
             :class="getLogStyle(log.type)"
           >
-            <span class="text-stone-500 text-xs mb-1 font-sans opacity-70">{{ log.time }}</span>
-            <span class="text-stone-300 leading-loose break-words" :class="{'text-emerald-400': log.type === 'success', 'text-amber-400': log.type === 'warning', 'text-rose-400': log.type === 'combat', 'text-purple-400 font-bold': log.type === 'system'}">{{ log.content }}</span>
+            <span class="text-stone-600 text-[10px] mt-0.5 font-sans opacity-60 shrink-0">{{ log.time }}</span>
+            <span class="leading-snug break-words" :class="getTextColor(log.type)">{{ log.content }}</span>
           </div>
         </TransitionGroup>
-        
+
         <div v-if="filteredLogs.length === 0" class="text-stone-700 text-center mt-20 text-sm">
           暂无相关日志...
         </div>
@@ -132,3 +153,20 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 自定义滚动条样式（日志内容区） */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #44403c;
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #57534e;
+}
+</style>

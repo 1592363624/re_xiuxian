@@ -32,6 +32,7 @@ require('./models/playerMovement');
 require('./models/playerAdventure');
 require('./models/activeBattle');
 require('./models/item');
+require('./models/playerEquipment');
 require('./models/realm');
 require('./models/admin_log');
 require('./models/map');
@@ -246,6 +247,9 @@ const startServer = async () => {
     app.use('/api/chat', require('./routes/chat'));
     app.use('/api/admin', require('./routes/admin'));
     app.use('/api/admin/ai-config', require('./routes/admin_ai'));
+    app.use('/api/admin/sect', require('./routes/admin_sect'));
+    // 修炼配置管理（闭关 + 历练，支持热加载）
+    app.use('/api/admin/cultivation', require('./routes/admin_cultivation'));
     app.use('/api/system', require('./routes/system'));
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));
@@ -256,6 +260,10 @@ const startServer = async () => {
     app.use('/api/attribute', require('./routes/attribute'));
     app.use('/api/time', require('./routes/time'));
     app.use('/api/notifications', require('./routes/notifications'));
+    app.use('/api/inventory', require('./routes/inventory'));
+    app.use('/api/sect', require('./routes/sect'));
+    app.use('/api/market', require('./routes/market'));
+    app.use('/api/equipment', require('./routes/equipment'));
 
     // 全局404路由处理（API路由之后）
     app.use('/api/*', (req, res) => {

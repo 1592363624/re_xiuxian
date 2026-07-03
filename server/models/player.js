@@ -316,7 +316,27 @@ const Player = sequelize.define('Player', {
     seclusion_end_time: {
         type: DataTypes.DATE,
         allowNull: true,
-        comment: '闭关结束时间'
+        comment: '闭关预计结束时间（深度闭关为长线挂机，需明确结束时间点）'
+    },
+    seclusion_mode: {
+        type: DataTypes.STRING,
+        defaultValue: 'normal',
+        comment: '闭关模式：normal=常规闭关，deep=深度闭关'
+    },
+    daily_seclusion_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日常规闭关已用次数（跨日重置）'
+    },
+    daily_deep_seclusion_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日深度闭关已用次数（跨日重置）'
+    },
+    last_seclusion_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '最后闭关日期（DATEONLY，用于跨日重置每日次数）'
     }
 }, {
     tableName: 'players',

@@ -3,7 +3,7 @@
   "info": {
     "title": "重生之凡人修仙传 API",
     "description": "修仙文字游戏后端接口文档，基于《凡人修仙传》世界观。包含玩家注册登录、角色管理、境界突破、地图探索、闭关修炼、GM管理、系统通知、WebSocket实时推送、玩家数据实时同步等完整功能。",
-    "version": "2.4.0",
+    "version": "2.6.0",
     "contact": {
       "name": "Shell",
       "email": "1592363624@qq.com"
@@ -79,6 +79,26 @@
     {
       "name": "AI",
       "description": "AI大模型服务与配置管理（GM 后台，支持多厂商 OpenAI 兼容协议）"
+    },
+    {
+      "name": "背包",
+      "description": "储物袋系统 - 物品查询、使用、丢弃、分类"
+    },
+    {
+      "name": "宗门",
+      "description": "宗门系统 - 拜入、叛出、点卯、传功、宝库兑换、宗门任务"
+    },
+    {
+      "name": "坊市",
+      "description": "万宝楼坊市系统 - 挂单上架、购买换物、下架、搜索"
+    },
+    {
+      "name": "装备",
+      "description": "装备穿戴系统"
+    },
+    {
+      "name": "管理员-修炼配置",
+      "description": "GM 后台修炼参数管理（闭关 + 历练，支持热加载）"
     }
   ],
   "security": [
@@ -92,23 +112,88 @@
         "type": "object",
         "description": "AI 配置（API Key 已脱敏）",
         "properties": {
-          "id": {"type": "integer", "description": "主键 ID"},
-          "provider": {"type": "string", "description": "提供商标识", "example": "deepseek"},
-          "display_name": {"type": "string", "description": "显示名称", "example": "DeepSeek 测试"},
-          "base_url": {"type": "string", "description": "API 基础 URL", "example": "https://api.deepseek.com/v1"},
-          "model": {"type": "string", "description": "模型名称", "example": "deepseek-chat"},
-          "api_key_masked": {"type": "string", "description": "脱敏后的 API Key（仅显示后4位）", "example": "****1234"},
-          "has_api_key": {"type": "boolean", "description": "是否已配置 Key"},
-          "protocol": {"type": "string", "enum": ["openai", "anthropic"], "description": "通信协议"},
-          "temperature": {"type": "number", "description": "采样温度"},
-          "max_tokens": {"type": "integer", "description": "最大 token 数"},
-          "timeout": {"type": "integer", "description": "超时时间（毫秒）"},
-          "is_active": {"type": "boolean", "description": "是否启用"},
-          "last_tested_at": {"type": "string", "format": "date-time", "nullable": true},
-          "last_test_status": {"type": "string", "enum": ["success", "failed"], "nullable": true},
-          "last_test_message": {"type": "string", "nullable": true},
-          "createdAt": {"type": "string", "format": "date-time"},
-          "updatedAt": {"type": "string", "format": "date-time"}
+          "id": {
+            "type": "integer",
+            "description": "主键 ID"
+          },
+          "provider": {
+            "type": "string",
+            "description": "提供商标识",
+            "example": "deepseek"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "显示名称",
+            "example": "DeepSeek 测试"
+          },
+          "base_url": {
+            "type": "string",
+            "description": "API 基础 URL",
+            "example": "https://api.deepseek.com/v1"
+          },
+          "model": {
+            "type": "string",
+            "description": "模型名称",
+            "example": "deepseek-chat"
+          },
+          "api_key_masked": {
+            "type": "string",
+            "description": "脱敏后的 API Key（仅显示后4位）",
+            "example": "****1234"
+          },
+          "has_api_key": {
+            "type": "boolean",
+            "description": "是否已配置 Key"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "anthropic"
+            ],
+            "description": "通信协议"
+          },
+          "temperature": {
+            "type": "number",
+            "description": "采样温度"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "最大 token 数"
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "超时时间（毫秒）"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "是否启用"
+          },
+          "last_tested_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "last_test_status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failed"
+            ],
+            "nullable": true
+          },
+          "last_test_message": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "Notification": {
@@ -292,6 +377,524 @@
             "type": "string",
             "format": "date-time",
             "description": "推送时间"
+          }
+        }
+      },
+      "InventoryItem": {
+        "type": "object",
+        "description": "背包物品（储物袋中的一格物品，合并静态配置与动态数量）",
+        "properties": {
+          "record_id": {
+            "type": "integer",
+            "description": "背包记录唯一ID"
+          },
+          "item_key": {
+            "type": "string",
+            "description": "物品配置键名",
+            "example": "mid_healing_pill"
+          },
+          "name": {
+            "type": "string",
+            "description": "物品名称",
+            "example": "中品培元丹"
+          },
+          "type": {
+            "type": "string",
+            "description": "物品大类",
+            "enum": [
+              "consumable",
+              "material",
+              "equipment",
+              "unknown"
+            ]
+          },
+          "subtype": {
+            "type": "string",
+            "nullable": true,
+            "description": "物品子类"
+          },
+          "quality": {
+            "type": "string",
+            "description": "品质",
+            "enum": [
+              "common",
+              "uncommon",
+              "rare",
+              "epic",
+              "legendary"
+            ],
+            "example": "common"
+          },
+          "description": {
+            "type": "string",
+            "description": "物品描述"
+          },
+          "effect": {
+            "type": "object",
+            "description": "使用效果（消耗品为生效属性，其他类型为空对象）"
+          },
+          "price": {
+            "type": "integer",
+            "description": "出售/基准价格（灵石）",
+            "example": 50
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "持有数量",
+            "example": 3
+          },
+          "usable": {
+            "type": "boolean",
+            "description": "是否可使用（仅 consumable 类型为 true）"
+          }
+        }
+      },
+      "Sect": {
+        "type": "object",
+        "description": "宗门基础信息（列表展示用）",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "宗门ID",
+            "example": "luoyun"
+          },
+          "name": {
+            "type": "string",
+            "description": "宗门名称",
+            "example": "落云宗"
+          },
+          "description": {
+            "type": "string",
+            "description": "宗门简介"
+          },
+          "alignment": {
+            "type": "string",
+            "description": "正邪立场",
+            "enum": [
+              "正道",
+              "魔道",
+              "中立"
+            ]
+          },
+          "element": {
+            "type": "string",
+            "description": "五行属性",
+            "enum": [
+              "金",
+              "木",
+              "水",
+              "火",
+              "土"
+            ]
+          },
+          "join_requirement": {
+            "type": "object",
+            "description": "拜入条件",
+            "properties": {
+              "realm_min": {
+                "type": "string",
+                "description": "最低境界要求",
+                "example": "炼气初期"
+              },
+              "spirit_stones": {
+                "type": "integer",
+                "description": "所需灵石",
+                "example": 100
+              }
+            }
+          },
+          "bonus": {
+            "type": "object",
+            "description": "宗门加成（键为加成类型，值为系数）",
+            "additionalProperties": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "SectDetail": {
+        "type": "object",
+        "description": "宗门详情（含宝库与任务列表）",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Sect"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "treasury": {
+                "type": "array",
+                "description": "宝库可兑换物品列表",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "宝库物品ID",
+                      "example": "luoyun_pill_1"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "宝库物品名称",
+                      "example": "落云培元丹"
+                    },
+                    "item_key": {
+                      "type": "string",
+                      "description": "兑换后入袋的物品键名",
+                      "example": "mid_healing_pill"
+                    },
+                    "cost": {
+                      "type": "integer",
+                      "description": "兑换所需贡献度",
+                      "example": 50
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "宝库物品描述"
+                    }
+                  }
+                }
+              },
+              "quests": {
+                "type": "array",
+                "description": "宗门任务列表",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "任务ID",
+                      "example": "luoyun_q1"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "任务名称",
+                      "example": "灵树灌溉"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "任务描述"
+                    },
+                    "contribution": {
+                      "type": "integer",
+                      "description": "贡献度奖励",
+                      "example": 20
+                    },
+                    "exp_reward": {
+                      "type": "integer",
+                      "description": "修为奖励",
+                      "example": 100
+                    },
+                    "daily": {
+                      "type": "boolean",
+                      "description": "是否每日任务",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MarketListing": {
+        "type": "object",
+        "description": "坊市挂单（万宝楼寄售记录）",
+        "properties": {
+          "listing_id": {
+            "type": "integer",
+            "description": "挂单ID"
+          },
+          "seller_id": {
+            "type": "integer",
+            "description": "卖家玩家ID"
+          },
+          "seller_name": {
+            "type": "string",
+            "description": "卖家道号"
+          },
+          "item_key": {
+            "type": "string",
+            "description": "出售物品键名",
+            "example": "mid_healing_pill"
+          },
+          "item_name": {
+            "type": "string",
+            "description": "出售物品名称",
+            "example": "中品培元丹"
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "出售数量",
+            "example": 5
+          },
+          "want_item_key": {
+            "type": "string",
+            "description": "换取物品键名",
+            "example": "exp_book_mid"
+          },
+          "want_item_name": {
+            "type": "string",
+            "description": "换取物品名称",
+            "example": "中品道典"
+          },
+          "want_quantity": {
+            "type": "integer",
+            "description": "换取数量",
+            "example": 1
+          },
+          "status": {
+            "type": "string",
+            "description": "挂单状态",
+            "enum": [
+              "active",
+              "sold",
+              "cancelled"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "上架时间"
+          }
+        }
+      },
+      "AdminSectMember": {
+        "type": "object",
+        "description": "GM 宗门成员信息（合并 PlayerSect 动态数据 + Player 基础信息 + sect_data.json 静态配置）",
+        "properties": {
+          "player_id": {
+            "type": "integer",
+            "description": "玩家ID"
+          },
+          "username": {
+            "type": "string",
+            "description": "登录账号"
+          },
+          "nickname": {
+            "type": "string",
+            "description": "道号",
+            "example": "青云散人"
+          },
+          "realm": {
+            "type": "string",
+            "description": "境界",
+            "example": "炼气初期"
+          },
+          "realm_rank": {
+            "type": "integer",
+            "description": "境界排名"
+          },
+          "sect_id": {
+            "type": "string",
+            "description": "宗门ID",
+            "example": "luoyun"
+          },
+          "sect_name": {
+            "type": "string",
+            "description": "宗门名称",
+            "example": "落云宗"
+          },
+          "contribution": {
+            "type": "integer",
+            "description": "宗门贡献度"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "disciple",
+              "elder"
+            ],
+            "description": "宗门身份（disciple弟子/elder长老）"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "加入时间"
+          },
+          "last_check_in": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "上次点卯时间"
+          },
+          "last_transfer": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "上次传功时间"
+          }
+        }
+      },
+      "AdminSectStats": {
+        "type": "object",
+        "description": "GM 宗门统计数据（按 sect_id 聚合）",
+        "properties": {
+          "sect_id": {
+            "type": "string",
+            "description": "宗门ID",
+            "example": "luoyun"
+          },
+          "sect_name": {
+            "type": "string",
+            "description": "宗门名称",
+            "example": "落云宗"
+          },
+          "member_count": {
+            "type": "integer",
+            "description": "成员总数"
+          },
+          "total_contribution": {
+            "type": "integer",
+            "description": "总贡献度"
+          },
+          "elder_count": {
+            "type": "integer",
+            "description": "长老数"
+          },
+          "disciple_count": {
+            "type": "integer",
+            "description": "弟子数"
+          }
+        }
+      },
+      "EquippedItem": {
+        "type": "object",
+        "description": "已装备物品（玩家当前穿戴在某槽位的装备，合并静态配置与动态记录）",
+        "properties": {
+          "slot": {
+            "type": "string",
+            "description": "装备槽位标识",
+            "enum": [
+              "weapon",
+              "armor",
+              "accessory",
+              "boots",
+              "dharma"
+            ],
+            "example": "weapon"
+          },
+          "slot_name": {
+            "type": "string",
+            "description": "槽位中文名称",
+            "example": "武器"
+          },
+          "item_key": {
+            "type": "string",
+            "description": "装备的物品配置键名（对应 item_data.json 的 items[].id）",
+            "example": "qingfeng_sword"
+          },
+          "item_name": {
+            "type": "string",
+            "description": "装备名称",
+            "example": "清风剑"
+          },
+          "quality": {
+            "type": "string",
+            "description": "品质",
+            "enum": [
+              "common",
+              "uncommon",
+              "rare",
+              "epic",
+              "legendary"
+            ],
+            "example": "rare"
+          },
+          "description": {
+            "type": "string",
+            "description": "装备描述"
+          },
+          "effect": {
+            "type": "object",
+            "description": "装备加成效果（属性键值对，如 atk/def/hp_max 等）",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "equipped_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "装备穿戴时间（ISO8601）"
+          }
+        }
+      },
+      "EquipmentBonus": {
+        "type": "object",
+        "description": "装备总加成（玩家所有已穿戴装备提供的属性加成汇总）",
+        "properties": {
+          "atk": {
+            "type": "integer",
+            "description": "攻击力加成",
+            "example": 25
+          },
+          "def": {
+            "type": "integer",
+            "description": "防御力加成",
+            "example": 10
+          },
+          "hp_max": {
+            "type": "integer",
+            "description": "生命上限加成",
+            "example": 100
+          },
+          "mp_max": {
+            "type": "integer",
+            "description": "灵力上限加成",
+            "example": 50
+          },
+          "speed": {
+            "type": "integer",
+            "description": "速度加成",
+            "example": 5
+          },
+          "sense": {
+            "type": "integer",
+            "description": "悟性加成",
+            "example": 3
+          },
+          "luck": {
+            "type": "integer",
+            "description": "气运加成",
+            "example": 2
+          },
+          "cultivate_speed": {
+            "type": "number",
+            "description": "修炼速度加成（百分比）",
+            "example": 10.5
+          }
+        }
+      },
+      "DurationTypeConfig": {
+        "type": "object",
+        "description": "单档时长配置",
+        "properties": {
+          "duration": {
+            "type": "integer",
+            "description": "时长（秒，10-3600）",
+            "example": 90
+          },
+          "reward_multiplier": {
+            "type": "number",
+            "description": "奖励倍率（0.1-10）",
+            "example": 1
+          },
+          "injury_chance": {
+            "type": "number",
+            "description": "受伤概率（0-1）",
+            "example": 0.05
+          },
+          "injury_hp_loss_rate": {
+            "type": "number",
+            "description": "受伤气血损失比例（0-1）",
+            "example": 0.08
+          },
+          "label": {
+            "type": "string",
+            "description": "显示标签",
+            "example": "中时历练"
           }
         }
       }
@@ -1141,10 +1744,10 @@
     },
     "/api/seclusion/start": {
       "post": {
-        "summary": "开始闭关",
-        "description": "消耗灵石开始闭关修炼，闭关期间自动获取修为",
+        "summary": "开始闭关（支持常规/深度双模式）",
+        "description": "开始闭关修炼。\n\n两种模式：\n- 常规闭关（normal）：短时挂机，单次最长 30 分钟，每日 3 次，冷却 5 分钟，基础收益。\n- 深度闭关（deep）：长线挂机 4-8 小时，每日 1 次，2 倍收益，需筑基期以上境界。\n\n深度闭关未达最短时长结束时按强行出关处理，损失 50% 收益。",
         "tags": [
-          "Seclusion"
+          "闭关修炼"
         ],
         "security": [
           {
@@ -1152,27 +1755,25 @@
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "hours"
-                ],
                 "properties": {
-                  "hours": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "normal",
+                      "deep"
+                    ],
+                    "default": "normal",
+                    "description": "闭关模式：normal=常规闭关，deep=深度闭关"
+                  },
+                  "duration": {
                     "type": "integer",
-                    "minimum": 1,
-                    "maximum": 24,
-                    "description": "闭关时长(小时)"
-                  }
-                }
-              },
-              "examples": {
-                "normal": {
-                  "value": {
-                    "hours": 1
+                    "description": "期望闭关时长（秒）。常规闭关最长 1800 秒，深度闭关 14400-28800 秒。",
+                    "example": 1800
                   }
                 }
               }
@@ -1181,7 +1782,7 @@
         },
         "responses": {
           "200": {
-            "description": "闭关成功",
+            "description": "进入闭关状态",
             "content": {
               "application/json": {
                 "schema": {
@@ -1193,23 +1794,35 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "闭关成功，开始修炼"
+                      "example": "进入常规闭关状态"
                     },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "hours": {
-                          "type": "integer",
-                          "description": "闭关时长"
+                        "is_secluded": {
+                          "type": "boolean",
+                          "example": true
                         },
-                        "end_time": {
+                        "seclusion_mode": {
                           "type": "string",
-                          "format": "date-time",
-                          "description": "预计结束时间"
+                          "enum": [
+                            "normal",
+                            "deep"
+                          ],
+                          "example": "normal"
                         },
-                        "cost": {
+                        "seclusion_start_time": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "seclusion_end_time": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "seclusion_duration": {
                           "type": "integer",
-                          "description": "消耗灵石"
+                          "description": "闭关总时长（秒）",
+                          "example": 1800
                         }
                       }
                     }
@@ -1219,28 +1832,49 @@
             }
           },
           "400": {
-            "description": "无法开始闭关",
+            "description": "业务错误（已在闭关中、移动中、境界不足、次数用尽、冷却中）",
             "content": {
               "application/json": {
                 "examples": {
-                  "already_secluded": {
+                  "已在闭关中": {
                     "value": {
                       "code": 400,
-                      "message": "正在闭关中，无法重复闭关"
+                      "error_code": "BUSINESS_LOGIC_ERROR",
+                      "message": "玩家已在闭关中"
                     }
                   },
-                  "no_mp": {
+                  "境界不足": {
                     "value": {
                       "code": 400,
-                      "message": "灵力不足，需要 100 点灵力"
+                      "error_code": "BUSINESS_LOGIC_ERROR",
+                      "message": "深度闭关需达到 筑基期 境界"
                     }
                   },
-                  "no_spirit_stones": {
+                  "次数用尽": {
                     "value": {
                       "code": 400,
-                      "message": "灵石不足，需要 10 灵石"
+                      "error_code": "BUSINESS_LOGIC_ERROR",
+                      "message": "今日常规闭关次数已用尽（每日 3 次）"
+                    }
+                  },
+                  "冷却中": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "BUSINESS_LOGIC_ERROR",
+                      "message": "闭关冷却中，还需等待 5 分钟"
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
                 }
               }
             }
@@ -1250,10 +1884,10 @@
     },
     "/api/seclusion/status": {
       "get": {
-        "summary": "获取闭关状态",
-        "description": "获取当前闭关状态和进度，包括修炼配置参数",
+        "summary": "获取闭关状态（含双模式配置与每日次数）",
+        "description": "查询当前闭关状态，包括：\n- 闭关模式（normal/deep）与进度\n- 已获修为、剩余时间\n- 每日剩余次数（常规/深度）\n- 闭关配置信息（供前端展示与模式选择）\n\n跨日时会自动重置每日闭关次数。",
         "tags": [
-          "Seclusion"
+          "闭关修炼"
         ],
         "security": [
           {
@@ -1262,42 +1896,160 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "闭关状态",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "is_secluded": {
-                      "type": "boolean",
-                      "description": "是否正在闭关"
-                    },
-                    "seclusion_start_time": {
-                      "type": "string",
-                      "format": "date-time",
-                      "description": "闭关开始时间"
-                    },
-                    "seclusion_duration": {
+                    "code": {
                       "type": "integer",
-                      "description": "闭关持续时间（秒）"
+                      "example": 200
                     },
-                    "exp_rate": {
-                      "type": "number",
-                      "description": "闭关基础收益（修为/秒）"
-                    },
-                    "cultivate_interval": {
-                      "type": "integer",
-                      "description": "修炼时间间隔（秒），默认60"
-                    },
-                    "deep_seclusion_exp_rate": {
-                      "type": "number",
-                      "description": "深度闭关收益倍率，默认2.0"
-                    },
-                    "deep_seclusion_interval": {
-                      "type": "integer",
-                      "description": "深度闭关时间间隔（秒），默认300"
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "is_secluded": {
+                          "type": "boolean",
+                          "example": false
+                        },
+                        "seclusion_mode": {
+                          "type": "string",
+                          "enum": [
+                            "normal",
+                            "deep"
+                          ],
+                          "example": "normal"
+                        },
+                        "seclusion_start_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "seclusion_end_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "seclusion_duration": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "exp_rate": {
+                          "type": "number",
+                          "description": "基础修为速率（每秒）",
+                          "example": 1
+                        },
+                        "exp_gained": {
+                          "type": "integer",
+                          "description": "已获修为（闭关中实时计算）",
+                          "example": 0
+                        },
+                        "current_duration": {
+                          "type": "integer",
+                          "description": "已闭关时长（秒）",
+                          "example": 0
+                        },
+                        "remaining_time": {
+                          "type": "integer",
+                          "description": "剩余时间（秒）",
+                          "example": 0
+                        },
+                        "progress": {
+                          "type": "integer",
+                          "description": "进度百分比（0-100）",
+                          "example": 0
+                        },
+                        "daily_seclusion_count": {
+                          "type": "integer",
+                          "description": "今日常规闭关已用次数",
+                          "example": 0
+                        },
+                        "daily_deep_seclusion_count": {
+                          "type": "integer",
+                          "description": "今日深度闭关已用次数",
+                          "example": 0
+                        },
+                        "normal_remaining": {
+                          "type": "integer",
+                          "description": "今日常规闭关剩余次数",
+                          "example": 3
+                        },
+                        "deep_remaining": {
+                          "type": "integer",
+                          "description": "今日深度闭关剩余次数",
+                          "example": 1
+                        },
+                        "normal_config": {
+                          "type": "object",
+                          "description": "常规闭关配置",
+                          "properties": {
+                            "max_duration": {
+                              "type": "integer",
+                              "example": 1800
+                            },
+                            "daily_limit": {
+                              "type": "integer",
+                              "example": 3
+                            },
+                            "cooldown": {
+                              "type": "integer",
+                              "example": 300
+                            },
+                            "exp_rate": {
+                              "type": "number",
+                              "example": 1
+                            }
+                          }
+                        },
+                        "deep_config": {
+                          "type": "object",
+                          "description": "深度闭关配置",
+                          "properties": {
+                            "min_duration": {
+                              "type": "integer",
+                              "example": 14400
+                            },
+                            "max_duration": {
+                              "type": "integer",
+                              "example": 28800
+                            },
+                            "daily_limit": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "cooldown": {
+                              "type": "integer",
+                              "example": 3600
+                            },
+                            "exp_rate": {
+                              "type": "number",
+                              "example": 2
+                            },
+                            "min_realm": {
+                              "type": "string",
+                              "example": "筑基期"
+                            },
+                            "forced_penalty": {
+                              "type": "number",
+                              "example": 0.5
+                            }
+                          }
+                        }
+                      }
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
                 }
               }
             }
@@ -1307,10 +2059,10 @@
     },
     "/api/seclusion/end": {
       "post": {
-        "summary": "提前结束闭关",
-        "description": "提前结束闭关修炼",
+        "summary": "结束闭关（正常结算）",
+        "description": "结束当前闭关并结算修为收益。\n\n- 常规闭关：可随时结束，按实际时长 × 基础收益 × 境界加成结算。\n- 深度闭关：未达最短时长时按强行出关处理，损失 forced_penalty（默认 50%）比例收益；达到最短时长后正常结算。",
         "tags": [
-          "Seclusion"
+          "闭关修炼"
         ],
         "security": [
           {
@@ -1319,7 +2071,7 @@
         ],
         "responses": {
           "200": {
-            "description": "结束成功",
+            "description": "闭关结算成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -1331,18 +2083,87 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "出关了，收获颇丰！"
+                      "example": "常规闭关结束，本次获得修为 1800 点。下次闭关需间隔 5 分钟。"
                     },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "exp_gained": {
+                        "exp_gain": {
+                          "type": "integer",
+                          "description": "本次获得修为",
+                          "example": 1800
+                        },
+                        "actual_duration": {
+                          "type": "integer",
+                          "description": "实际闭关时长（秒）",
+                          "example": 1800
+                        },
+                        "seclusion_mode": {
                           "type": "string",
-                          "description": "获得修为"
+                          "enum": [
+                            "normal",
+                            "deep"
+                          ],
+                          "example": "normal"
+                        },
+                        "forced_end": {
+                          "type": "boolean",
+                          "description": "是否属于强行出关（深度闭关未达最短时长）",
+                          "example": false
+                        },
+                        "penalty_rate": {
+                          "type": "number",
+                          "description": "收益系数（强行出关时为 0.5，正常为 1.0）",
+                          "example": 1
+                        },
+                        "cooldown_seconds": {
+                          "type": "integer",
+                          "description": "下次闭关冷却时间（秒）",
+                          "example": 300
+                        },
+                        "player": {
+                          "type": "object",
+                          "properties": {
+                            "exp": {
+                              "type": "string",
+                              "description": "玩家当前修为（字符串避免大数溢出）"
+                            },
+                            "is_secluded": {
+                              "type": "boolean",
+                              "example": false
+                            },
+                            "last_seclusion_time": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          }
                         }
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（未在闭关中）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "BUSINESS_LOGIC_ERROR",
+                  "message": "玩家未在闭关中"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
                 }
               }
             }
@@ -4868,11 +5689,10 @@
     },
     "/api/map/explore/start": {
       "post": {
-        "summary": "开始历练探索",
-        "description": "在当前地图开始历练探索，生成随机事件（支持AI大模型生成）\n\n**事件类型**：\n- 平静事件(peaceful): 修炼感悟、心境平和 - 获得修为\n- 战斗事件(combat): 妖兽袭击、拦路劫修 - 进入战斗\n- 宝藏事件(treasure): 发现灵草、前人遗府 - 获得物品\n- 偶遇事件(encounter): 神秘散修、高人指点 - 获得信息\n- 发现事件(discovery): 奇景、古迹 - 获得感悟",
+        "summary": "开始历练（支持时长分级 short/medium/long）",
+        "description": "在当前地图开始历练，生成随机事件。\n\n时长分级：\n- short（短时历练）：30 秒，0.6x 奖励，0% 受伤概率\n- medium（中时历练，默认）：90 秒，1.0x 奖励，5% 受伤概率\n- long（长时历练）：300 秒，1.8x 奖励，10% 受伤概率\n\n提前结束惩罚：奖励 = 基础奖励 × (已时长/总时长) × (1 - early_finish_penalty)，early_finish_penalty 默认 0.5，不设保底，防止玩家反复\"开始→立即结束\"刷保底。",
         "tags": [
-          "Explore",
-          "AI"
+          "历练探索"
         ],
         "security": [
           {
@@ -4886,17 +5706,20 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "durationType": {
+                    "type": "string",
+                    "enum": [
+                      "short",
+                      "medium",
+                      "long"
+                    ],
+                    "default": "medium",
+                    "description": "时长类型：short=短时(30s,0.6x)，medium=中时(90s,1.0x)，long=长时(300s,1.8x)"
+                  },
                   "duration": {
                     "type": "integer",
-                    "description": "历练持续时间（秒），可选，不指定则随机60-120秒",
-                    "default": 90
-                  }
-                }
-              },
-              "examples": {
-                "normal": {
-                  "value": {
-                    "duration": 120
+                    "description": "（兼容旧参数）直接指定时长（秒），durationType 优先",
+                    "nullable": true
                   }
                 }
               }
@@ -4905,7 +5728,7 @@
         },
         "responses": {
           "200": {
-            "description": "历练开始成功",
+            "description": "历练已开始",
             "content": {
               "application/json": {
                 "schema": {
@@ -4923,59 +5746,39 @@
                       "type": "object",
                       "properties": {
                         "adventure_id": {
-                          "type": "string",
-                          "description": "历练ID"
+                          "type": "integer",
+                          "example": 62
                         },
                         "event": {
                           "type": "object",
-                          "description": "事件详情",
                           "properties": {
                             "type": {
                               "type": "string",
                               "enum": [
                                 "peaceful",
                                 "combat",
-                                "treasure",
-                                "encounter",
-                                "discovery"
+                                "encounter"
                               ],
-                              "description": "事件类型"
+                              "example": "peaceful"
                             },
                             "title": {
                               "type": "string",
-                              "description": "事件标题"
+                              "example": "修炼感悟"
                             },
                             "description": {
                               "type": "string",
-                              "description": "事件描述（AI生成或模板）"
+                              "example": "正午的越国显得格外宁静，你漫步其中，心中感悟颇多"
                             },
                             "duration": {
                               "type": "integer",
-                              "description": "历练持续时间（秒）"
+                              "description": "历练时长（秒）",
+                              "example": 30
                             },
                             "aiGenerated": {
                               "type": "boolean",
-                              "description": "是否由AI生成"
+                              "example": true
                             }
                           }
-                        }
-                      }
-                    }
-                  }
-                },
-                "examples": {
-                  "normal": {
-                    "value": {
-                      "code": 200,
-                      "message": "历练已开始",
-                      "data": {
-                        "adventure_id": "adv_123456",
-                        "event": {
-                          "type": "peaceful",
-                          "title": "灵气充盈",
-                          "description": "此地的灵气颇为充盈，你寻得一处僻静之地，静坐吐纳，吸纳天地灵气",
-                          "duration": 90,
-                          "aiGenerated": true
                         }
                       }
                     }
@@ -4985,12 +5788,23 @@
             }
           },
           "400": {
-            "description": "无法开始历练",
+            "description": "业务错误（已在历练中、闭关中、移动中等）",
             "content": {
               "application/json": {
                 "example": {
                   "code": 400,
-                  "error": "移动中无法开始历练"
+                  "message": "您正在闭关中，无法开始历练"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
                 }
               }
             }
@@ -5001,8 +5815,7 @@
               "application/json": {
                 "example": {
                   "code": 503,
-                  "error": "历练服务暂不可用",
-                  "message": "请稍后再试或联系管理员"
+                  "message": "历练服务暂不可用"
                 }
               }
             }
@@ -5070,12 +5883,150 @@
         }
       }
     },
-    "/api/map/explore/complete": {
-      "post": {
-        "summary": "完成历练",
-        "description": "结束当前历练并领取奖励",
+    "/api/map/explore/status": {
+      "get": {
+        "summary": "获取当前历练状态（用于前端面板重开时恢复历练中状态）",
+        "description": "查询玩家是否有进行中的历练，返回后端权威的剩余时间、总时长、是否过期等数据。\n\n业务计算下沉后端的核心体现：\n- 前端面板关闭后本地状态会丢失，重新打开时调用此接口恢复\n- 剩余时间、总时长、是否过期均由后端权威计算\n- 防止前端伪造历练状态\n\n典型场景：玩家在历练进行中关闭面板，重新打开时调用此接口恢复 isExploring、currentEvent、autoCompleteTimer 等状态。",
         "tags": [
           "Explore"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "is_adventuring": {
+                          "type": "boolean",
+                          "description": "是否正在历练"
+                        },
+                        "adventure": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "进行中的历练详情（无则为 null）",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "player_id": {
+                              "type": "integer"
+                            },
+                            "map_id": {
+                              "type": "integer"
+                            },
+                            "map_name": {
+                              "type": "string"
+                            },
+                            "event_id": {
+                              "type": "string"
+                            },
+                            "event_type": {
+                              "type": "string",
+                              "enum": [
+                                "peaceful",
+                                "combat",
+                                "treasure",
+                                "encounter",
+                                "discovery"
+                              ]
+                            },
+                            "event_data": {
+                              "type": "object",
+                              "description": "事件完整数据（含 type/title/description/duration/rewards）"
+                            },
+                            "start_time": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "end_time": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "in_progress",
+                                "completed",
+                                "cancelled"
+                              ]
+                            },
+                            "combat_battle_id": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          }
+                        },
+                        "remaining_seconds": {
+                          "type": "integer",
+                          "description": "后端权威剩余秒数",
+                          "example": 45
+                        },
+                        "total_seconds": {
+                          "type": "integer",
+                          "description": "后端权威总时长（秒）",
+                          "example": 90
+                        },
+                        "is_expired": {
+                          "type": "boolean",
+                          "description": "是否已到结束时间（玩家应点击完成领取奖励）"
+                        },
+                        "server_time": {
+                          "type": "integer",
+                          "description": "服务器当前时间戳（毫秒，用于前端时钟对齐）",
+                          "example": 1751548800000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "历练服务暂不可用",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 503,
+                  "message": "历练服务暂不可用"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/map/explore/complete": {
+      "post": {
+        "summary": "完成历练（结算奖励，含提前结束惩罚与受伤风险）",
+        "description": "结束当前历练并领取奖励。\n\n奖励计算：\n- 正常完成：奖励 = 基础奖励 × 时长倍率\n- 提前结束：奖励 = 基础奖励 × (已时长/总时长) × (1 - early_finish_penalty) × 时长倍率，不设保底\n\n风险机制：历练结束时按 injury_chance 概率受伤，损失当前气血的 injury_hp_loss_rate 比例。",
+        "tags": [
+          "历练探索"
         ],
         "security": [
           {
@@ -5100,50 +6051,59 @@
                     },
                     "data": {
                       "type": "object",
-                      "description": "获得的奖励",
                       "properties": {
                         "rewards": {
                           "type": "object",
                           "properties": {
-                            "exp": {
-                              "type": "integer",
-                              "description": "获得的修为"
+                            "success": {
+                              "type": "boolean",
+                              "example": true
                             },
-                            "items": {
-                              "type": "array",
-                              "description": "获得的物品列表",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "item_key": {
-                                    "type": "string"
+                            "granted": {
+                              "type": "object",
+                              "properties": {
+                                "exp": {
+                                  "type": "integer",
+                                  "description": "获得修为",
+                                  "example": 54
+                                },
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
                                   },
-                                  "quantity": {
-                                    "type": "integer"
-                                  }
+                                  "description": "获得物品列表"
+                                },
+                                "spirit_stones": {
+                                  "type": "integer",
+                                  "description": "获得灵石",
+                                  "example": 10
                                 }
                               }
                             },
-                            "spirit_stones": {
-                              "type": "integer",
-                              "description": "获得的灵石"
+                            "early_finish": {
+                              "type": "boolean",
+                              "description": "是否提前结束",
+                              "example": true
+                            },
+                            "reward_scale": {
+                              "type": "string",
+                              "description": "奖励缩放比例（提前结束时返回，如 \"25%\"）",
+                              "example": "25%"
+                            },
+                            "injury": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "受伤信息（按概率触发，可为 null）",
+                              "properties": {
+                                "hp_loss": {
+                                  "type": "integer",
+                                  "description": "损失的气血",
+                                  "example": 24
+                                }
+                              }
                             }
                           }
-                        }
-                      }
-                    }
-                  }
-                },
-                "examples": {
-                  "normal": {
-                    "value": {
-                      "code": 200,
-                      "message": "历练完成",
-                      "data": {
-                        "rewards": {
-                          "exp": 50,
-                          "items": [],
-                          "spirit_stones": 0
                         }
                       }
                     }
@@ -5153,12 +6113,23 @@
             }
           },
           "400": {
-            "description": "没有进行中的历练",
+            "description": "业务错误（未在历练中、历练尚未结束等）",
             "content": {
               "application/json": {
                 "example": {
-                  "code": 400,
-                  "error": "没有进行中的历练"
+                  "code": "ADVENTURE_NOT_COMPLETED",
+                  "message": "历练尚未结束，请等待 0分40秒"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
                 }
               }
             }
@@ -5539,8 +6510,15 @@
       "get": {
         "summary": "获取 AI 配置列表",
         "description": "获取所有 AI 配置，API Key 脱敏返回（仅显示后4位）。需要管理员权限。",
-        "tags": ["AI", "Admin"],
-        "security": [{"bearerAuth": []}],
+        "tags": [
+          "AI",
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "成功返回配置列表",
@@ -5549,51 +6527,112 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {"type": "integer", "example": 200},
-                    "message": {"type": "string", "example": "success"},
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
                     "data": {
                       "type": "array",
-                      "items": {"$ref": "#/components/schemas/AiConfig"}
+                      "items": {
+                        "$ref": "#/components/schemas/AiConfig"
+                      }
                     }
                   }
                 }
               }
             }
           },
-          "403": {"description": "权限不足"}
+          "403": {
+            "description": "权限不足"
+          }
         }
       },
       "post": {
         "summary": "新增 AI 配置",
         "description": "新增 AI 配置，API Key 使用 AES-256-CBC 加密存储。若设为启用，其他配置将自动停用。需要管理员权限。",
-        "tags": ["AI", "Admin"],
-        "security": [{"bearerAuth": []}],
+        "tags": [
+          "AI",
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["provider", "display_name", "base_url", "model"],
+                "required": [
+                  "provider",
+                  "display_name",
+                  "base_url",
+                  "model"
+                ],
                 "properties": {
-                  "provider": {"type": "string", "example": "deepseek", "description": "提供商标识"},
-                  "display_name": {"type": "string", "example": "DeepSeek 测试"},
-                  "base_url": {"type": "string", "example": "https://api.deepseek.com/v1"},
-                  "model": {"type": "string", "example": "deepseek-chat"},
-                  "api_key": {"type": "string", "description": "API Key（明文传入，加密存储）"},
-                  "protocol": {"type": "string", "enum": ["openai", "anthropic"], "default": "openai"},
-                  "temperature": {"type": "number", "default": 0.7},
-                  "max_tokens": {"type": "integer", "default": 1000},
-                  "timeout": {"type": "integer", "default": 30000},
-                  "is_active": {"type": "boolean", "default": false}
+                  "provider": {
+                    "type": "string",
+                    "example": "deepseek",
+                    "description": "提供商标识"
+                  },
+                  "display_name": {
+                    "type": "string",
+                    "example": "DeepSeek 测试"
+                  },
+                  "base_url": {
+                    "type": "string",
+                    "example": "https://api.deepseek.com/v1"
+                  },
+                  "model": {
+                    "type": "string",
+                    "example": "deepseek-chat"
+                  },
+                  "api_key": {
+                    "type": "string",
+                    "description": "API Key（明文传入，加密存储）"
+                  },
+                  "protocol": {
+                    "type": "string",
+                    "enum": [
+                      "openai",
+                      "anthropic"
+                    ],
+                    "default": "openai"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "default": 0.7
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "default": 1000
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "default": 30000
+                  },
+                  "is_active": {
+                    "type": "boolean",
+                    "default": false
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": {"description": "创建成功"},
-          "400": {"description": "参数错误或提供商已存在"}
+          "200": {
+            "description": "创建成功"
+          },
+          "400": {
+            "description": "参数错误或提供商已存在"
+          }
         }
       }
     },
@@ -5601,8 +6640,15 @@
       "get": {
         "summary": "获取可选 AI 提供商列表",
         "description": "从 ai_config.json 读取可选提供商列表，供前端下拉选择。需要管理员权限。",
-        "tags": ["AI", "Admin"],
-        "security": [{"bearerAuth": []}],
+        "tags": [
+          "AI",
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "成功返回提供商列表",
@@ -5611,18 +6657,44 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {"type": "integer", "example": 200},
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
                     "data": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "provider": {"type": "string", "example": "deepseek"},
-                          "name": {"type": "string", "example": "DeepSeek 深度求索"},
-                          "models": {"type": "array", "items": {"type": "string"}, "example": ["deepseek-chat", "deepseek-reasoner"]},
-                          "default_endpoint": {"type": "string", "example": "https://api.deepseek.com/v1"},
-                          "compatible_with": {"type": "string", "example": "openai"},
-                          "description": {"type": "string"}
+                          "provider": {
+                            "type": "string",
+                            "example": "deepseek"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "DeepSeek 深度求索"
+                          },
+                          "models": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "deepseek-chat",
+                              "deepseek-reasoner"
+                            ]
+                          },
+                          "default_endpoint": {
+                            "type": "string",
+                            "example": "https://api.deepseek.com/v1"
+                          },
+                          "compatible_with": {
+                            "type": "string",
+                            "example": "openai"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
                         }
                       }
                     }
@@ -5638,10 +6710,24 @@
       "put": {
         "summary": "更新 AI 配置",
         "description": "更新指定 AI 配置（支持部分更新）。API Key 留空表示不修改。需要管理员权限。",
-        "tags": ["AI", "Admin"],
-        "security": [{"bearerAuth": []}],
+        "tags": [
+          "AI",
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -5650,36 +6736,81 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "display_name": {"type": "string"},
-                  "base_url": {"type": "string"},
-                  "model": {"type": "string"},
-                  "api_key": {"type": "string", "description": "留空表示不修改"},
-                  "protocol": {"type": "string", "enum": ["openai", "anthropic"]},
-                  "temperature": {"type": "number"},
-                  "max_tokens": {"type": "integer"},
-                  "timeout": {"type": "integer"}
+                  "display_name": {
+                    "type": "string"
+                  },
+                  "base_url": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "api_key": {
+                    "type": "string",
+                    "description": "留空表示不修改"
+                  },
+                  "protocol": {
+                    "type": "string",
+                    "enum": [
+                      "openai",
+                      "anthropic"
+                    ]
+                  },
+                  "temperature": {
+                    "type": "number"
+                  },
+                  "max_tokens": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": {"description": "更新成功"},
-          "404": {"description": "配置不存在"}
+          "200": {
+            "description": "更新成功"
+          },
+          "404": {
+            "description": "配置不存在"
+          }
         }
       },
       "delete": {
         "summary": "删除 AI 配置",
         "description": "删除指定 AI 配置。不允许删除当前启用的配置。需要管理员权限。",
-        "tags": ["AI", "Admin"],
-        "security": [{"bearerAuth": []}],
+        "tags": [
+          "AI",
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": {"description": "删除成功"},
-          "400": {"description": "不允许删除当前启用的配置"},
-          "404": {"description": "配置不存在"}
+          "200": {
+            "description": "删除成功"
+          },
+          "400": {
+            "description": "不允许删除当前启用的配置"
+          },
+          "404": {
+            "description": "配置不存在"
+          }
         }
       }
     },
@@ -5687,14 +6818,32 @@
       "post": {
         "summary": "激活 AI 配置",
         "description": "激活指定 AI 配置，其他配置自动停用。激活后触发 AIService 热重载，立即生效。需要管理员权限。",
-        "tags": ["AI", "Admin"],
-        "security": [{"bearerAuth": []}],
+        "tags": [
+          "AI",
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": {"description": "激活成功"},
-          "404": {"description": "配置不存在"}
+          "200": {
+            "description": "激活成功"
+          },
+          "404": {
+            "description": "配置不存在"
+          }
         }
       }
     },
@@ -5702,10 +6851,24 @@
       "post": {
         "summary": "测试 AI 配置连接性",
         "description": "向目标 AI API 发送简短测试请求，验证配置（URL、Key、模型）是否可用。测试请求在后端组装，不下发 API Key 到前端。需要管理员权限。",
-        "tags": ["AI", "Admin"],
-        "security": [{"bearerAuth": []}],
+        "tags": [
+          "AI",
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -5715,14 +6878,31 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {"type": "integer", "example": 200},
-                    "message": {"type": "string", "example": "连接成功，模型响应正常（HTTP 200）"},
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "连接成功，模型响应正常（HTTP 200）"
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "status": {"type": "string", "enum": ["success", "failed"]},
-                        "message": {"type": "string"},
-                        "tested_at": {"type": "string", "format": "date-time"}
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "success",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "tested_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
                       }
                     }
                   }
@@ -5730,7 +6910,3729 @@
               }
             }
           },
-          "400": {"description": "未配置 API Key 或配置不存在"}
+          "400": {
+            "description": "未配置 API Key 或配置不存在"
+          }
+        }
+      }
+    },
+    "/api/inventory": {
+      "get": {
+        "summary": "获取背包列表",
+        "description": "获取当前玩家储物袋中所有物品（合并静态配置与动态数量），按创建时间倒序返回，包含容量上限与物品种类总数。",
+        "tags": [
+          "背包"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/InventoryItem"
+                          }
+                        },
+                        "total_count": {
+                          "type": "integer",
+                          "description": "物品种类数",
+                          "example": 12
+                        },
+                        "capacity": {
+                          "type": "integer",
+                          "description": "储物袋容量上限",
+                          "example": 100
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inventory/use": {
+      "post": {
+        "summary": "使用物品",
+        "description": "使用消耗品（如丹药、典籍），触发其效果并扣除对应数量。仅 consumable 类型物品可使用；数量不足或物品不可使用时返回 400。",
+        "tags": [
+          "背包"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item_key"
+                ],
+                "properties": {
+                  "item_key": {
+                    "type": "string",
+                    "description": "物品配置键名",
+                    "example": "mid_healing_pill"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "description": "使用数量，默认1",
+                    "example": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "使用成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "使用成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "使用效果明细（属性变化等）"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误、物品不可使用或数量不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "该物品无法使用"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "物品不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "物品不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inventory/discard": {
+      "post": {
+        "summary": "丢弃物品",
+        "description": "从储物袋中丢弃指定物品，扣除对应数量。丢弃操作不可撤销，数量超过持有量时返回 400。",
+        "tags": [
+          "背包"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item_key"
+                ],
+                "properties": {
+                  "item_key": {
+                    "type": "string",
+                    "description": "物品配置键名",
+                    "example": "spirit_seed"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "description": "丢弃数量，默认1",
+                    "example": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "丢弃成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "丢弃成功"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误或数量不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "数量不足，无法丢弃"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "物品不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "物品不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inventory/categories": {
+      "get": {
+        "summary": "获取物品分类",
+        "description": "按物品 type 字段分组统计，返回各分类的物品种类数与总数量，用于前端分类筛选展示。同时返回容量与种类总数。",
+        "tags": [
+          "背包"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "categories": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "description": "物品类型",
+                                "example": "consumable"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "description": "该类型物品种类数",
+                                "example": 5
+                              },
+                              "total_quantity": {
+                                "type": "integer",
+                                "description": "该类型物品总数量",
+                                "example": 23
+                              }
+                            }
+                          }
+                        },
+                        "capacity": {
+                          "type": "integer",
+                          "description": "储物袋容量上限",
+                          "example": 100
+                        },
+                        "total_count": {
+                          "type": "integer",
+                          "description": "物品种类总数",
+                          "example": 12
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/list": {
+      "get": {
+        "summary": "获取宗门列表",
+        "description": "获取所有宗门的基础信息列表（含名称、立场、五行、拜入条件与加成），用于宗门选择界面展示。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "sects": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Sect"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/{sectId}": {
+      "get": {
+        "summary": "获取宗门详情",
+        "description": "获取指定宗门的完整信息，包含基础信息、宝库可兑换物品列表与宗门任务列表。sectId 不存在时返回 404。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "宗门ID",
+            "example": "luoyun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SectDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "宗门不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "宗门不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/join": {
+      "post": {
+        "summary": "拜入宗门",
+        "description": "拜入指定宗门，需满足境界与灵石条件。已有宗门时返回 400。加入成功后初始化成员记录（贡献度、点卯状态等）。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "sect_id"
+                ],
+                "properties": {
+                  "sect_id": {
+                    "type": "string",
+                    "description": "宗门ID",
+                    "example": "luoyun"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "拜入成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "拜入落云宗，踏入仙途正道"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误、条件不满足或已有宗门",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "境界不足，无法拜入此宗门"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "宗门不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "宗门不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/leave": {
+      "post": {
+        "summary": "叛出宗门",
+        "description": "退出当前所在宗门，清除成员记录（贡献度等不予保留）。未加入宗门时返回 400。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "叛出成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已叛出宗门，从此与宗门再无瓜葛"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "尚未加入宗门",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "尚未加入宗门"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/my": {
+      "get": {
+        "summary": "获取我的宗门",
+        "description": "获取当前玩家所在宗门的合并信息（静态配置 + 动态成员数据，含贡献度、点卯状态、传功记录等）。未加入宗门时返回相应提示。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "我的宗门信息（含宗门配置与成员动态数据）",
+                      "properties": {
+                        "sect": {
+                          "$ref": "#/components/schemas/Sect"
+                        },
+                        "contribution": {
+                          "type": "integer",
+                          "description": "当前贡献度",
+                          "example": 120
+                        },
+                        "checked_in_today": {
+                          "type": "boolean",
+                          "description": "今日是否已点卯",
+                          "example": false
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "尚未加入宗门",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "尚未加入宗门"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/check-in": {
+      "post": {
+        "summary": "每日点卯",
+        "description": "每日点卯签到，获取贡献度与修为奖励。每日仅可点卯一次，重复点卯返回 400。未加入宗门时返回 400。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "点卯成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "点卯成功，获得贡献度+10，修为+50"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "contribution_gained": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "exp_gained": {
+                          "type": "integer",
+                          "example": 50
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "尚未加入宗门或今日已点卯",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "今日已点卯，明日再来"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/transfer": {
+      "post": {
+        "summary": "宗门传功",
+        "description": "进行宗门传功，消耗贡献度换取修为或功法加成。贡献度不足或今日已传功时返回 400。未加入宗门时返回 400。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "传功成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "传功成功，修为大涨"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "exp_gained": {
+                          "type": "integer",
+                          "example": 200
+                        },
+                        "contribution_cost": {
+                          "type": "integer",
+                          "example": 30
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "尚未加入宗门、贡献度不足或今日已传功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "贡献度不足，无法传功"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/treasury/{sectId}": {
+      "get": {
+        "summary": "获取宝库",
+        "description": "获取指定宗门宝库中的可兑换物品列表（含名称、兑换物品键名、所需贡献度）。sectId 不存在时返回 404。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "宗门ID",
+            "example": "luoyun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "treasury": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "宝库物品ID",
+                                "example": "luoyun_pill_1"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "宝库物品名称",
+                                "example": "落云培元丹"
+                              },
+                              "item_key": {
+                                "type": "string",
+                                "description": "兑换后入袋的物品键名",
+                                "example": "mid_healing_pill"
+                              },
+                              "cost": {
+                                "type": "integer",
+                                "description": "兑换所需贡献度",
+                                "example": 50
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "宝库物品描述"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "宗门不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "宗门不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/exchange": {
+      "post": {
+        "summary": "兑换宝库",
+        "description": "使用贡献度兑换宗门宝库中的物品，兑换后物品入袋、贡献度扣减。贡献度不足或物品不存在时返回相应错误。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "treasure_id"
+                ],
+                "properties": {
+                  "treasure_id": {
+                    "type": "string",
+                    "description": "宝库物品ID",
+                    "example": "luoyun_pill_1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "兑换成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "兑换成功，获得落云培元丹 x1"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "item_key": {
+                          "type": "string",
+                          "example": "mid_healing_pill"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "contribution_cost": {
+                          "type": "integer",
+                          "example": 50
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "尚未加入宗门或贡献度不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "贡献度不足"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "宝库物品不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "宝库中不存在该物品"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/quests": {
+      "get": {
+        "summary": "获取我的任务",
+        "description": "获取当前玩家所在宗门的任务列表，并标记今日是否已完成。未加入宗门时返回相应提示。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "quests": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "任务ID",
+                                "example": "luoyun_q1"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "任务名称",
+                                "example": "灵树灌溉"
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "任务描述"
+                              },
+                              "contribution": {
+                                "type": "integer",
+                                "description": "贡献度奖励",
+                                "example": 20
+                              },
+                              "exp_reward": {
+                                "type": "integer",
+                                "description": "修为奖励",
+                                "example": 100
+                              },
+                              "daily": {
+                                "type": "boolean",
+                                "description": "是否每日任务",
+                                "example": true
+                              },
+                              "completed_today": {
+                                "type": "boolean",
+                                "description": "今日是否已完成",
+                                "example": false
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "尚未加入宗门",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "尚未加入宗门"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sect/submit-quest": {
+      "post": {
+        "summary": "提交任务",
+        "description": "提交宗门任务，领取贡献度与修为奖励。每日任务每日仅可提交一次，重复提交返回 400。任务不存在时返回 404。",
+        "tags": [
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "quest_id"
+                ],
+                "properties": {
+                  "quest_id": {
+                    "type": "string",
+                    "description": "任务ID",
+                    "example": "luoyun_q1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "提交成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "任务提交成功，获得贡献度+20，修为+100"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "contribution_gained": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "exp_gained": {
+                          "type": "integer",
+                          "example": 100
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误、尚未加入宗门或今日已完成",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "今日已完成该任务"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "任务不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/list": {
+      "get": {
+        "summary": "获取挂单列表",
+        "description": "分页获取坊市所有在售挂单，支持按物品类型与名称关键字筛选。默认每页返回固定条数，按上架时间倒序排列。",
+        "tags": [
+          "坊市"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码，默认1"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "物品类型筛选"
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "物品名称关键字"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "listings": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/MarketListing"
+                          }
+                        },
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "总条数",
+                          "example": 58
+                        },
+                        "total_pages": {
+                          "type": "integer",
+                          "description": "总页数",
+                          "example": 6
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "上架物品",
+        "description": "将储物袋中的物品上架至坊市，设定出售数量与换取的物品及数量。物品不足、换取物品无效或储物袋无该物品时返回 400。",
+        "tags": [
+          "坊市"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item_key",
+                  "want_item_key"
+                ],
+                "properties": {
+                  "item_key": {
+                    "type": "string",
+                    "description": "出售物品键名",
+                    "example": "mid_healing_pill"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "description": "出售数量，默认1",
+                    "example": 5
+                  },
+                  "want_item_key": {
+                    "type": "string",
+                    "description": "换取物品键名",
+                    "example": "exp_book_mid"
+                  },
+                  "want_quantity": {
+                    "type": "integer",
+                    "description": "换取数量，默认1",
+                    "example": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上架成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "上架成功，静候有缘人"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "listing_id": {
+                          "type": "integer",
+                          "example": 102
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误、物品不足或换取物品无效",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "出售物品数量不足"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "物品配置不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "物品配置不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/search": {
+      "get": {
+        "summary": "搜索挂单",
+        "description": "按物品名称模糊搜索坊市在售挂单，分页返回。keyword 为空时返回 400。",
+        "tags": [
+          "坊市"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "搜索关键词（物品名称）",
+            "example": "培元丹"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码，默认1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "listings": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/MarketListing"
+                          }
+                        },
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 8
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "搜索关键词不能为空",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "搜索关键词不能为空"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/my": {
+      "get": {
+        "summary": "获取我的货摊",
+        "description": "分页获取当前玩家在坊市的全部挂单（含已售出、已下架状态）。",
+        "tags": [
+          "坊市"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码，默认1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "listings": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/MarketListing"
+                          }
+                        },
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 3
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/buy": {
+      "post": {
+        "summary": "购买挂单",
+        "description": "购买（换物交易）指定挂单，需持有足够数量的换取物品。购买成功后扣除换取物品、发放出售物品，挂单状态置为 sold。自购自卖、换取物品不足时返回 400。",
+        "tags": [
+          "坊市"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "listing_id"
+                ],
+                "properties": {
+                  "listing_id": {
+                    "type": "integer",
+                    "description": "挂单ID",
+                    "example": 102
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "购买成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "交易成功，获得中品培元丹 x5"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "item_key": {
+                          "type": "string",
+                          "example": "mid_healing_pill"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "example": 5
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "挂单已售出/已下架、自购自卖或换取物品不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "换取物品不足"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "挂单不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "挂单不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/cancel": {
+      "post": {
+        "summary": "下架挂单",
+        "description": "下架自己的挂单，退还出售物品给卖家，挂单状态置为 cancelled。非本人挂单或挂单已结束时返回 400。",
+        "tags": [
+          "坊市"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "listing_id"
+                ],
+                "properties": {
+                  "listing_id": {
+                    "type": "integer",
+                    "description": "挂单ID",
+                    "example": 102
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "下架成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "下架成功，物品已退回储物袋"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "非本人挂单或挂单已结束",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "无法下架他人的挂单"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "挂单不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "挂单不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/sect/list": {
+      "get": {
+        "summary": "获取所有宗门成员列表",
+        "description": "GM 后台分页获取所有宗门成员，支持按宗门ID筛选。返回玩家昵称、宗门ID/名称、贡献度、身份、加入时间、点卯时间、传功时间。需要管理员权限。分页参数从 game_balance.admin 配置读取。",
+        "tags": [
+          "Admin",
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sect_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "宗门ID筛选（可选，如 luoyun）"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码，默认1"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "每页条数，默认从配置读取（20），最大100"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回成员列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "description": "总条数",
+                          "example": 58
+                        },
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "page_size": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "total_pages": {
+                          "type": "integer",
+                          "description": "总页数",
+                          "example": 3
+                        },
+                        "members": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminSectMember"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/sect/stats": {
+      "get": {
+        "summary": "获取宗门统计数据",
+        "description": "GM 后台获取每个宗门的成员数、总贡献度、长老数、弟子数等统计信息。按 sect_id 聚合查询，并合并 sect_data.json 静态配置补充宗门名称。需要管理员权限。",
+        "tags": [
+          "Admin",
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回统计数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "sects": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AdminSectStats"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/sect/{playerId}/contribution": {
+      "put": {
+        "summary": "调整玩家宗门贡献度",
+        "description": "GM 后台直接设置玩家宗门贡献度（覆盖原有值）。贡献度范围从 game_balance.admin 配置读取（默认 0~100000000）。需要管理员权限。",
+        "tags": [
+          "Admin",
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "contribution"
+                ],
+                "properties": {
+                  "contribution": {
+                    "type": "integer",
+                    "description": "新的贡献度值",
+                    "example": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "调整成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "宗门贡献度调整成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "player_id": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "contribution": {
+                          "type": "integer",
+                          "example": 500
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误或贡献度超出范围",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "贡献度超出允许范围 [0, 100000000]"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "玩家未加入宗门",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "该玩家尚未加入任何宗门"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/sect/{playerId}/role": {
+      "put": {
+        "summary": "设置玩家宗门身份",
+        "description": "GM 后台设置玩家宗门身份，仅支持 disciple（弟子）或 elder（长老）。需要管理员权限。",
+        "tags": [
+          "Admin",
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role"
+                ],
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "disciple",
+                      "elder"
+                    ],
+                    "description": "宗门身份",
+                    "example": "elder"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "设置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "宗门身份设置成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "player_id": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "disciple",
+                            "elder"
+                          ],
+                          "example": "elder"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误或身份值非法",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "身份无效，仅支持: disciple, elder"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "玩家未加入宗门",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "该玩家尚未加入任何宗门"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/sect/{playerId}/kick": {
+      "post": {
+        "summary": "踢出宗门",
+        "description": "GM 后台将玩家踢出宗门，删除 PlayerSect 记录（贡献度随之清空，与叛门逻辑一致）。需要管理员权限。",
+        "tags": [
+          "Admin",
+          "宗门"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "踢出成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已将玩家踢出宗门【落云宗】"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "player_id": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "sect_id": {
+                          "type": "string",
+                          "example": "luoyun"
+                        },
+                        "sect_name": {
+                          "type": "string",
+                          "example": "落云宗"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "玩家ID无效",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "玩家ID必须为正整数"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "玩家未加入宗门",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "该玩家尚未加入任何宗门"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/equipment": {
+      "get": {
+        "summary": "获取已装备物品列表",
+        "description": "获取当前玩家所有槽位（武器/护甲/饰品/靴子/法器）已穿戴的装备列表。返回结果合并了物品静态配置（名称、品质、描述、效果）与动态装备记录（穿戴时间），按槽位聚合。",
+        "tags": [
+          "装备"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "description": "已装备物品列表（按槽位返回，未穿戴的槽位不包含在内）",
+                      "items": {
+                        "$ref": "#/components/schemas/EquippedItem"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/equipment/equip": {
+      "post": {
+        "summary": "穿戴装备",
+        "description": "将储物袋中的装备穿戴到对应槽位。系统根据物品的 subtype 自动判定槽位；若该槽位已有装备，会先卸下旧装备再穿戴新装备（旧装备返回储物袋）。物品不存在、非装备类型或数量不足时返回对应错误。",
+        "tags": [
+          "装备"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item_key"
+                ],
+                "properties": {
+                  "item_key": {
+                    "type": "string",
+                    "description": "物品配置键名（对应 item_data.json 的 items[].id）",
+                    "example": "qingfeng_sword"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "穿戴成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "穿戴成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "穿戴结果详情",
+                      "properties": {
+                        "slot": {
+                          "type": "string",
+                          "description": "实际穿戴槽位",
+                          "example": "weapon"
+                        },
+                        "item_key": {
+                          "type": "string",
+                          "description": "穿戴的物品键名",
+                          "example": "qingfeng_sword"
+                        },
+                        "item_name": {
+                          "type": "string",
+                          "description": "装备名称",
+                          "example": "清风剑"
+                        },
+                        "replaced_item_key": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "被替换的原装备键名（无替换时为 null）"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误（item_key 为空）或物品不可穿戴",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "物品 key 不能为空"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "物品不存在或玩家未持有该物品",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "物品不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/equipment/unequip": {
+      "post": {
+        "summary": "卸下装备",
+        "description": "卸下指定槽位上已穿戴的装备，装备物品会返回玩家储物袋。slot 必须为合法槽位（weapon/armor/accessory/boots/dharma）；该槽位未穿戴装备时返回 404。",
+        "tags": [
+          "装备"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "slot"
+                ],
+                "properties": {
+                  "slot": {
+                    "type": "string",
+                    "description": "装备槽位标识",
+                    "enum": [
+                      "weapon",
+                      "armor",
+                      "accessory",
+                      "boots",
+                      "dharma"
+                    ],
+                    "example": "weapon"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "卸下成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "卸下成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "卸下结果详情",
+                      "properties": {
+                        "slot": {
+                          "type": "string",
+                          "description": "卸下装备的槽位",
+                          "example": "weapon"
+                        },
+                        "item_key": {
+                          "type": "string",
+                          "description": "卸下的物品键名",
+                          "example": "qingfeng_sword"
+                        },
+                        "item_name": {
+                          "type": "string",
+                          "description": "卸下的装备名称",
+                          "example": "清风剑"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误（slot 为空或非法槽位）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "槽位不能为空"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "该槽位未穿戴装备",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "该槽位未穿戴装备"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/equipment/bonus": {
+      "get": {
+        "summary": "获取装备总加成",
+        "description": "汇总玩家当前所有已穿戴装备提供的属性加成（攻击、防御、生命/灵力上限、速度、悟性、气运、修炼速度）。返回的加成值已叠加所有槽位装备的效果，用于前端属性面板展示与战斗数值计算。",
+        "tags": [
+          "装备"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EquipmentBonus"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/seclusion/force-end": {
+      "post": {
+        "summary": "强行出关（深度闭关专用快捷接口）",
+        "description": "强行结束深度闭关。逻辑等同 /api/seclusion/end，仅作为语义上的快捷入口。\n\n深度闭关未达最短时长时，损失 forced_penalty（默认 50%）比例收益。",
+        "tags": [
+          "闭关修炼"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "强行出关结算成功（响应格式同 /api/seclusion/end）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "深度闭关结束，本次获得修为 7200 点（强行出关，损失 50% 收益）。下次闭关需间隔 60 分钟。"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "exp_gain": {
+                          "type": "integer",
+                          "example": 7200
+                        },
+                        "actual_duration": {
+                          "type": "integer",
+                          "example": 7200
+                        },
+                        "seclusion_mode": {
+                          "type": "string",
+                          "example": "deep"
+                        },
+                        "forced_end": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "penalty_rate": {
+                          "type": "number",
+                          "example": 0.5
+                        },
+                        "cooldown_seconds": {
+                          "type": "integer",
+                          "example": 3600
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（未在闭关中）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "BUSINESS_LOGIC_ERROR",
+                  "message": "玩家未在闭关中"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/cultivation/config": {
+      "get": {
+        "summary": "获取修炼配置（闭关双模式 + 历练时长分级）",
+        "description": "查询当前闭关（常规/深度）与历练（时长分级 short/medium/long）的所有参数。\n\n返回结构：\n- seclusion.normal：常规闭关参数（max_duration, daily_limit, cooldown, exp_rate）\n- seclusion.deep：深度闭关参数（min_duration, max_duration, daily_limit, cooldown, exp_rate, min_realm, forced_penalty）\n- seclusion.base_exp_rate：闭关基础修为速率\n- adventure.duration_types：三档时长配置（short/medium/long）\n- adventure.default_duration_type：默认时长类型\n- adventure.early_finish_penalty：提前结束惩罚比例",
+        "tags": [
+          "管理员-修炼配置"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "修炼配置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "seclusion": {
+                          "type": "object",
+                          "properties": {
+                            "base_exp_rate": {
+                              "type": "number",
+                              "description": "闭关基础修为速率（每秒）",
+                              "example": 1
+                            },
+                            "normal": {
+                              "type": "object",
+                              "description": "常规闭关配置",
+                              "properties": {
+                                "max_duration": {
+                                  "type": "integer",
+                                  "description": "单次最长时长（秒）",
+                                  "example": 1800
+                                },
+                                "daily_limit": {
+                                  "type": "integer",
+                                  "description": "每日次数上限",
+                                  "example": 3
+                                },
+                                "cooldown": {
+                                  "type": "integer",
+                                  "description": "冷却时间（秒）",
+                                  "example": 300
+                                },
+                                "exp_rate": {
+                                  "type": "number",
+                                  "description": "收益倍率",
+                                  "example": 1
+                                }
+                              }
+                            },
+                            "deep": {
+                              "type": "object",
+                              "description": "深度闭关配置",
+                              "properties": {
+                                "min_duration": {
+                                  "type": "integer",
+                                  "description": "最短时长（秒）",
+                                  "example": 14400
+                                },
+                                "max_duration": {
+                                  "type": "integer",
+                                  "description": "最长时长（秒）",
+                                  "example": 28800
+                                },
+                                "daily_limit": {
+                                  "type": "integer",
+                                  "description": "每日次数上限",
+                                  "example": 1
+                                },
+                                "cooldown": {
+                                  "type": "integer",
+                                  "description": "冷却时间（秒）",
+                                  "example": 3600
+                                },
+                                "exp_rate": {
+                                  "type": "number",
+                                  "description": "收益倍率",
+                                  "example": 2
+                                },
+                                "min_realm": {
+                                  "type": "string",
+                                  "description": "境界要求",
+                                  "example": "筑基期"
+                                },
+                                "forced_penalty": {
+                                  "type": "number",
+                                  "description": "强行出关损失比例（0-1）",
+                                  "example": 0.5
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "adventure": {
+                          "type": "object",
+                          "properties": {
+                            "duration_types": {
+                              "type": "object",
+                              "description": "三档时长配置",
+                              "properties": {
+                                "short": {
+                                  "$ref": "#/components/schemas/DurationTypeConfig"
+                                },
+                                "medium": {
+                                  "$ref": "#/components/schemas/DurationTypeConfig"
+                                },
+                                "long": {
+                                  "$ref": "#/components/schemas/DurationTypeConfig"
+                                }
+                              }
+                            },
+                            "default_duration_type": {
+                              "type": "string",
+                              "enum": [
+                                "short",
+                                "medium",
+                                "long"
+                              ],
+                              "example": "medium"
+                            },
+                            "early_finish_penalty": {
+                              "type": "number",
+                              "description": "提前结束惩罚比例（0-1）",
+                              "example": 0.5
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "error_code": "UNAUTHORIZED",
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/cultivation/seclusion": {
+      "post": {
+        "summary": "更新闭关配置（双模式整体替换，热加载）",
+        "description": "更新闭关（常规/深度）配置参数，写回 seclusion.json 并触发热加载，无需重启服务。\n\n安全设计：\n- 字段白名单：仅允许预定义字段更新\n- 数值范围校验：所有数值参数限定合理区间\n- 配置备份：写文件前自动备份到 server/config/backup/\n- 操作日志：记录到 AdminLog（含修改前后值）",
+        "tags": [
+          "管理员-修炼配置"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "base_exp_rate": {
+                    "type": "number",
+                    "description": "闭关基础修为速率（0.1-100）",
+                    "nullable": true,
+                    "example": 1.5
+                  },
+                  "normal": {
+                    "type": "object",
+                    "description": "常规闭关配置（任意字段可选，仅更新提供的字段）",
+                    "nullable": true,
+                    "properties": {
+                      "max_duration": {
+                        "type": "integer",
+                        "description": "单次最长时长（60-7200秒）",
+                        "example": 1800
+                      },
+                      "daily_limit": {
+                        "type": "integer",
+                        "description": "每日次数上限（1-100）",
+                        "example": 3
+                      },
+                      "cooldown": {
+                        "type": "integer",
+                        "description": "冷却时间（0-86400秒）",
+                        "example": 300
+                      },
+                      "exp_rate": {
+                        "type": "number",
+                        "description": "收益倍率（0.1-100）",
+                        "example": 1
+                      }
+                    }
+                  },
+                  "deep": {
+                    "type": "object",
+                    "description": "深度闭关配置（任意字段可选，仅更新提供的字段）",
+                    "nullable": true,
+                    "properties": {
+                      "min_duration": {
+                        "type": "integer",
+                        "description": "最短时长（600-86400秒）",
+                        "example": 14400
+                      },
+                      "max_duration": {
+                        "type": "integer",
+                        "description": "最长时长（600-172800秒）",
+                        "example": 28800
+                      },
+                      "daily_limit": {
+                        "type": "integer",
+                        "description": "每日次数上限（1-50）",
+                        "example": 1
+                      },
+                      "cooldown": {
+                        "type": "integer",
+                        "description": "冷却时间（0-172800秒）",
+                        "example": 3600
+                      },
+                      "exp_rate": {
+                        "type": "number",
+                        "description": "收益倍率（0.1-100）",
+                        "example": 2
+                      },
+                      "min_realm": {
+                        "type": "string",
+                        "description": "境界要求",
+                        "example": "筑基期"
+                      },
+                      "forced_penalty": {
+                        "type": "number",
+                        "description": "强行出关损失比例（0-1）",
+                        "example": 0.5
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "闭关配置已更新并热加载",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "闭关配置已更新并热加载"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "normal": {
+                          "type": "object",
+                          "description": "更新后的常规闭关配置"
+                        },
+                        "deep": {
+                          "type": "object",
+                          "description": "更新后的深度闭关配置"
+                        },
+                        "base_exp_rate": {
+                          "type": "number",
+                          "example": 1.5
+                        },
+                        "backup": {
+                          "type": "string",
+                          "description": "备份文件路径",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（参数缺失、数值范围校验失败等）",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "参数缺失": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "请至少提供 normal、deep 或 base_exp_rate 中的一个字段"
+                    }
+                  },
+                  "数值范围错误": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "常规闭关单次时长必须在 60-7200 秒之间"
+                    }
+                  },
+                  "逻辑冲突": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "深度闭关最短时长不能大于最长时长"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "error_code": "UNAUTHORIZED",
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/cultivation/adventure": {
+      "post": {
+        "summary": "更新历练配置（时长分级整体替换，热加载）",
+        "description": "更新历练（时长分级 short/medium/long）配置参数，写回 game_balance.json 的 adventure 段并触发热加载。\n\n安全设计：\n- 字段白名单\n- 数值范围校验\n- 配置备份\n- 操作日志",
+        "tags": [
+          "管理员-修炼配置"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "duration_types": {
+                    "type": "object",
+                    "description": "三档时长配置（任意字段可选）",
+                    "nullable": true,
+                    "properties": {
+                      "short": {
+                        "$ref": "#/components/schemas/DurationTypeConfig"
+                      },
+                      "medium": {
+                        "$ref": "#/components/schemas/DurationTypeConfig"
+                      },
+                      "long": {
+                        "$ref": "#/components/schemas/DurationTypeConfig"
+                      }
+                    }
+                  },
+                  "default_duration_type": {
+                    "type": "string",
+                    "enum": [
+                      "short",
+                      "medium",
+                      "long"
+                    ],
+                    "nullable": true,
+                    "example": "medium"
+                  },
+                  "early_finish_penalty": {
+                    "type": "number",
+                    "description": "提前结束惩罚比例（0-1）",
+                    "nullable": true,
+                    "example": 0.5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "历练配置已更新并热加载",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "历练配置已更新并热加载"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "adventure": {
+                          "type": "object",
+                          "description": "更新后的历练配置"
+                        },
+                        "backup": {
+                          "type": "string",
+                          "description": "备份文件路径",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "VALIDATION_ERROR",
+                  "message": "历练 short 时长必须在 10-3600 秒之间"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "error_code": "UNAUTHORIZED",
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/cultivation/backups": {
+      "get": {
+        "summary": "获取配置历史版本列表",
+        "description": "查询 server/config/backup/ 目录下所有 seclusion_*.json 和 game_balance_*.json 备份文件。\n\n安全设计：\n- 仅返回 .json 文件\n- 文件名前缀必须是 seclusion_ 或 game_balance_，防止读取其他配置备份\n- 按修改时间倒序排列（最新在前）",
+        "tags": [
+          "管理员-修炼配置"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "按配置类型筛选（不传则返回全部）",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "seclusion",
+                "game_balance"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "历史版本列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "filename": {
+                            "type": "string",
+                            "description": "备份文件名",
+                            "example": "seclusion_2026-07-03T06-38-07-017Z.json"
+                          },
+                          "configType": {
+                            "type": "string",
+                            "enum": [
+                              "seclusion",
+                              "game_balance"
+                            ]
+                          },
+                          "configLabel": {
+                            "type": "string",
+                            "description": "中文友好名称",
+                            "example": "闭关配置"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "description": "文件字节数",
+                            "example": 2048
+                          },
+                          "sizeText": {
+                            "type": "string",
+                            "description": "文件大小（人类可读）",
+                            "example": "2.0 KB"
+                          },
+                          "mtime": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "修改时间 ISO 字符串"
+                          },
+                          "mtimeMs": {
+                            "type": "number",
+                            "description": "修改时间戳（毫秒）",
+                            "example": 1783063087017
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "error_code": "UNAUTHORIZED",
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/cultivation/rollback": {
+      "post": {
+        "summary": "一键回滚到指定历史版本",
+        "description": "将配置文件回滚到指定的历史备份版本。\n\n安全设计：\n- filename 仅允许字母数字下划线横线点，防止路径穿越攻击\n- 前缀必须是 seclusion_ 或 game_balance_\n- 回滚前自动备份当前版本（形成回滚链，避免误操作不可逆）\n- 回滚后触发热加载\n- 推送全服 Socket.IO 通知告知玩家配置已回滚\n- 记录操作日志（含回滚前后值）",
+        "tags": [
+          "管理员-修炼配置"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "filename"
+                ],
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "description": "备份文件名（不含路径）",
+                    "example": "seclusion_2026-07-03T06-38-07-017Z.json"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "回滚成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已回滚至 seclusion_2026-07-03T06-38-07-017Z.json，配置已热加载"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "configType": {
+                          "type": "string",
+                          "enum": [
+                            "seclusion",
+                            "game_balance"
+                          ]
+                        },
+                        "rollbackFrom": {
+                          "type": "string",
+                          "description": "回滚源文件名"
+                        },
+                        "preRollbackBackup": {
+                          "type": "string",
+                          "description": "回滚前自动创建的备份路径",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "参数缺失": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "请提供要回滚的备份文件名 filename"
+                    }
+                  },
+                  "文件名格式不合法": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "备份文件名格式不合法"
+                    }
+                  },
+                  "JSON格式损坏": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "备份文件 xxx.json JSON 格式损坏，无法回滚"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "error_code": "UNAUTHORIZED",
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "备份文件不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "error_code": "NOT_FOUND",
+                  "message": "备份文件 xxx.json 不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/cultivation/logs/{logId}/diff": {
+      "get": {
+        "summary": "获取操作日志的字段级 diff（后端权威计算）",
+        "description": "查询指定操作日志，提取 before/after 对象，递归计算字段级 diff，返回变化字段列表。\n\n业务计算下沉后端的设计目的：\n- 防止前端伪造 diff 结果（如篡改 before/after 值）\n- 统一 diff 算法实现，避免前端版本漂移\n- 前端只负责渲染返回的 fields 数组\n\n权限：\n- 需要 Bearer Token 认证\n- 需要管理员权限（auth + adminCheck 双层校验）\n\n仅允许修炼配置变更类日志查看 diff：\n- update_cultivation_seclusion\n- update_cultivation_adventure\n- rollback_cultivation_config",
+        "tags": [
+          "管理员-修炼配置"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "logId",
+            "in": "path",
+            "required": true,
+            "description": "AdminLog 主键 ID",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "example": 123
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "diff 计算成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "type": "string",
+                          "description": "修改目标（配置文件名）",
+                          "example": "seclusion.json"
+                        },
+                        "backup": {
+                          "type": "string",
+                          "description": "备份文件路径（可能为空字符串）",
+                          "example": "server/config/backup/seclusion_2026-07-03T06-38-07-017Z.json"
+                        },
+                        "fields": {
+                          "type": "array",
+                          "description": "字段级 diff 列表（后端权威计算）",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string",
+                                "description": "字段路径（嵌套对象用 . 分隔）",
+                                "example": "normal.max_duration"
+                              },
+                              "before": {
+                                "description": "修改前的值（任意类型）"
+                              },
+                              "after": {
+                                "description": "修改后的值（任意类型）"
+                              },
+                              "changeType": {
+                                "type": "string",
+                                "enum": [
+                                  "added",
+                                  "removed",
+                                  "modified",
+                                  "unchanged"
+                                ],
+                                "description": "变化类型：added 新增 / removed 删除 / modified 修改 / unchanged 未变（仅当字段有变化时才返回）",
+                                "example": "modified"
+                              }
+                            }
+                          }
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "日志元数据",
+                          "properties": {
+                            "logId": {
+                              "type": "integer",
+                              "example": 123
+                            },
+                            "action": {
+                              "type": "string",
+                              "example": "update_cultivation_seclusion"
+                            },
+                            "adminId": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "example": "2026-07-03T06:38:07.017Z"
+                            },
+                            "ip": {
+                              "type": "string",
+                              "nullable": true,
+                              "example": "127.0.0.1"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "logId 非正整数": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "日志ID必须为正整数"
+                    }
+                  },
+                  "日志类型不支持 diff": {
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "该日志类型 \"modify_player\" 不支持 diff 查看，仅修炼配置变更日志可查看"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "error_code": "UNAUTHORIZED",
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "日志不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "error_code": "NOT_FOUND",
+                  "message": "日志 123 不存在"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器错误（如 details JSON 解析失败）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "error_code": "INTERNAL_ERROR",
+                  "message": "日志 123 的 details JSON 解析失败：Unexpected token } in JSON at position 42"
+                }
+              }
+            }
+          }
         }
       }
     }
