@@ -31,6 +31,8 @@ const AdminLog = require('../models/admin_log');
 const { infrastructure } = require('../modules');
 const configLoader = infrastructure.ConfigLoader;
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
+// 引入 WebSocket 通知服务，用于配置变更时推送全服广播
+const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 
 // 配置文件路径
 const SECLUSION_CONFIG_FILE = path.join(__dirname, '../config/seclusion.json');
@@ -327,6 +329,18 @@ router.post('/seclusion', auth, adminCheck, async (req, res, next) => {
         // 触发热更新
         await configLoader.hotUpdateConfig('seclusion');
 
+        // 通过 Socket.IO 推送全服通知，告知玩家修炼参数已调整
+        // 避免玩家产生"为何收益变了"的困惑
+        try {
+            WebSocketNotificationService.sendGlobalAnnouncement({
+                title: '修炼系统调整',
+                content: '管理员已调整闭关参数（常规/深度），新配置已即时生效。如闭关冷却、收益倍率等可能发生变化，请留意。',
+                priority: 'info'
+            });
+        } catch (notifyErr) {
+            console.warn('推送修炼配置变更通知失败（不影响主流程）:', notifyErr.message);
+        }
+
         // 记录操作日志（含修改前后值）
         await logAdminAction(req.player.id, 'update_cultivation_seclusion', {
             target: 'seclusion.json',
@@ -443,6 +457,17 @@ router.post('/adventure', auth, adminCheck, async (req, res, next) => {
         // 触发热更新
         await configLoader.hotUpdateConfig('game_balance');
 
+        // 通过 Socket.IO 推送全服通知，告知玩家历练参数已调整
+        try {
+            WebSocketNotificationService.sendGlobalAnnouncement({
+                title: '历练系统调整',
+                content: '管理员已调整历练参数（时长分级/奖励倍率/受伤风险），新配置已即时生效。如历练时长、奖励、风险等可能发生变化，请留意。',
+                priority: 'info'
+            });
+        } catch (notifyErr) {
+            console.warn('推送历练配置变更通知失败（不影响主流程）:', notifyErr.message);
+        }
+
         // 记录操作日志
         await logAdminAction(req.player.id, 'update_cultivation_adventure', {
             target: 'game_balance.json',
@@ -463,5 +488,189 @@ router.post('/adventure', auth, adminCheck, async (req, res, next) => {
         next(error);
     }
 });
+
+/**
+ * GET /api/admin/cultivation/backups
+ * 获取配置历史版本列表
+ *
+ * 查询参数：
+ *   ?type=seclusion|game_balance  不传则返回全部
+ *
+ * 返回结构：
+ *   [{ filename, configType, size, mtime, mtimeMs }]
+ *
+ * 安全设计：
+ *   - 仅列出 backup 目录下的文件，路径不可越权
+ *   - 仅返回 .json 文件，过滤其他类型
+ *   - 文件名前缀必须是 seclusion_ 或 game_balance_，防止读取其他配置备份
+ */
+router.get('/backups', auth, adminCheck, async (req, res, next) => {
+    try {
+        // 确保 backup 目录存在
+        if (!fs.existsSync(BACKUP_DIR)) {
+            return res.json({ code: 200, data: [] });
+        }
+
+        // 读取 backup 目录下所有文件
+        const files = fs.readdirSync(BACKUP_DIR);
+        const { type } = req.query;
+
+        // 过滤：仅 .json 文件 + 前缀匹配（seclusion_ 或 game_balance_）
+        const validPrefixes = ['seclusion_', 'game_balance_'];
+        const backupList = [];
+
+        for (const filename of files) {
+            // 安全校验：仅处理 .json 后缀
+            if (!filename.endsWith('.json')) continue;
+            // 安全校验：前缀必须是允许的两个之一
+            const matchedPrefix = validPrefixes.find(p => filename.startsWith(p));
+            if (!matchedPrefix) continue;
+
+            // 解析配置类型
+            const configType = matchedPrefix === 'seclusion_' ? 'seclusion' : 'game_balance';
+
+            // 按类型筛选（如果指定了 type）
+            if (type && type !== configType) continue;
+
+            // 读取文件元数据
+            const filePath = path.join(BACKUP_DIR, filename);
+            const stat = fs.statSync(filePath);
+
+            backupList.push({
+                filename,
+                configType,
+                // 中文友好名称
+                configLabel: configType === 'seclusion' ? '闭关配置' : '游戏平衡（含历练）',
+                size: stat.size,
+                // 文件大小（人类可读）
+                sizeText: formatFileSize(stat.size),
+                // 修改时间（ISO 字符串，便于前端直接展示）
+                mtime: stat.mtime.toISOString(),
+                // 修改时间戳（毫秒，用于排序）
+                mtimeMs: stat.mtimeMs
+            });
+        }
+
+        // 按修改时间倒序（最新的在前）
+        backupList.sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+        res.json({
+            code: 200,
+            data: backupList
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/admin/cultivation/rollback
+ * 一键回滚到指定历史版本
+ *
+ * 入参：
+ *   { filename: string }  备份文件名（不含路径，安全限制）
+ *
+ * 安全设计：
+ *   - filename 仅允许字母数字下划线横线点，防止路径穿越攻击
+ *   - 回滚前自动备份当前版本（形成回滚链，避免误操作不可逆）
+ *   - 回滚后触发热加载，记录操作日志
+ *   - 推送全服通知告知玩家配置已回滚
+ */
+router.post('/rollback', auth, adminCheck, async (req, res, next) => {
+    try {
+        const { filename } = req.body || {};
+        if (!filename || typeof filename !== 'string') {
+            throw new AppError('请提供要回滚的备份文件名 filename', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        // 安全校验：filename 仅允许字母数字下划线横线点，防止路径穿越攻击
+        if (!/^[a-zA-Z0-9_\-\.]+\.json$/.test(filename)) {
+            throw new AppError('备份文件名格式不合法', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        // 安全校验：前缀必须是 seclusion_ 或 game_balance_
+        const isSeclusion = filename.startsWith('seclusion_');
+        const isGameBalance = filename.startsWith('game_balance_');
+        if (!isSeclusion && !isGameBalance) {
+            throw new AppError('仅支持回滚 seclusion 或 game_balance 的备份', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        // 解析目标配置类型与对应的配置文件路径
+        const configType = isSeclusion ? 'seclusion' : 'game_balance';
+        const targetConfigFile = isSeclusion ? SECLUSION_CONFIG_FILE : GAME_BALANCE_CONFIG_FILE;
+        const backupFilePath = path.join(BACKUP_DIR, filename);
+
+        // 校验备份文件存在
+        if (!fs.existsSync(backupFilePath)) {
+            throw new AppError(`备份文件 ${filename} 不存在`, 404, ErrorCodes.NOT_FOUND);
+        }
+
+        // 读取备份文件内容（作为回滚源）
+        const backupContent = fs.readFileSync(backupFilePath, 'utf-8');
+        let backupConfig;
+        try {
+            backupConfig = JSON.parse(backupContent);
+        } catch (e) {
+            throw new AppError(`备份文件 ${filename} JSON 格式损坏，无法回滚`, 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        // 读取当前配置（作为回滚前的快照）
+        const currentConfigRaw = fs.readFileSync(targetConfigFile, 'utf-8');
+        const currentConfig = JSON.parse(currentConfigRaw);
+
+        // 回滚前先备份当前版本（形成回滚链，避免误操作不可逆）
+        const preRollbackBackupPath = backupConfigFile(targetConfigFile);
+
+        // 用备份文件覆盖当前配置
+        fs.writeFileSync(targetConfigFile, backupContent, 'utf-8');
+
+        // 触发热加载
+        await configLoader.hotUpdateConfig(configType);
+
+        // 通过 Socket.IO 推送全服通知
+        try {
+            WebSocketNotificationService.sendGlobalAnnouncement({
+                title: '修炼系统回滚',
+                content: `管理员已将${configType === 'seclusion' ? '闭关' : '历练'}配置回滚至历史版本，新配置已即时生效。`,
+                priority: 'info'
+            });
+        } catch (notifyErr) {
+            console.warn('推送配置回滚通知失败（不影响主流程）:', notifyErr.message);
+        }
+
+        // 记录操作日志
+        await logAdminAction(req.player.id, 'rollback_cultivation_config', {
+            target: `${configType}.json`,
+            rollbackFrom: filename,
+            rollbackTo: 'current (pre-rollback)',
+            preRollbackBackup: preRollbackBackupPath,
+            before: currentConfig,
+            after: backupConfig
+        }, req);
+
+        res.json({
+            code: 200,
+            message: `已回滚至 ${filename}，配置已热加载`,
+            data: {
+                configType,
+                rollbackFrom: filename,
+                preRollbackBackup: preRollbackBackupPath
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * 格式化文件大小（人类可读）
+ * @param {number} bytes - 字节数
+ * @returns {string} 如 "1.2 KB"
+ */
+function formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 module.exports = router;

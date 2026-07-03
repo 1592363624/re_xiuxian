@@ -215,6 +215,76 @@
       </div>
     </div>
 
+    <!-- 配置历史版本区（一键回滚） -->
+    <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+      <div class="flex justify-between items-center mb-3">
+        <h4 class="text-md font-bold text-rose-400 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+          </svg>
+          配置历史版本
+        </h4>
+        <div class="flex items-center gap-2">
+          <!-- 类型筛选 -->
+          <select v-model="backupFilter" @change="fetchBackups" class="px-2 py-1 bg-gray-900 border border-gray-600 rounded text-white text-xs">
+            <option value="">全部</option>
+            <option value="seclusion">闭关配置</option>
+            <option value="game_balance">游戏平衡（含历练）</option>
+          </select>
+          <button @click="fetchBackups" :disabled="loadingBackups"
+            class="px-3 py-1 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 rounded text-white text-xs flex items-center gap-1">
+            <svg v-if="loadingBackups" class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            刷新
+          </button>
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 mb-3">每次修改配置时会自动备份到 server/config/backup/ 目录，可在此查看历史版本并一键回滚。回滚前会再次备份当前版本，形成回滚链，避免误操作不可逆。</p>
+
+      <!-- 备份列表 -->
+      <div v-if="backups.length === 0 && !loadingBackups" class="text-center text-gray-500 text-sm py-6">
+        暂无历史版本
+      </div>
+      <div v-else class="overflow-x-auto border border-gray-700 rounded">
+        <table class="w-full text-xs">
+          <thead class="bg-gray-900 text-gray-400">
+            <tr>
+              <th class="px-3 py-2 text-left">备份时间</th>
+              <th class="px-3 py-2 text-left">配置类型</th>
+              <th class="px-3 py-2 text-left">文件名</th>
+              <th class="px-3 py-2 text-left">大小</th>
+              <th class="px-3 py-2 text-left">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-700">
+            <tr v-for="backup in backups" :key="backup.filename" class="hover:bg-gray-900/50">
+              <td class="px-3 py-2 text-gray-300 whitespace-nowrap">{{ formatBackupTime(backup.mtime) }}</td>
+              <td class="px-3 py-2">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                  :class="backup.configType === 'seclusion'
+                    ? 'bg-cyan-950/60 border border-cyan-800/60 text-cyan-400'
+                    : 'bg-amber-950/60 border border-amber-800/60 text-amber-400'">
+                  {{ backup.configLabel }}
+                </span>
+              </td>
+              <td class="px-3 py-2 text-gray-500 font-mono text-[10px] max-w-xs truncate" :title="backup.filename">{{ backup.filename }}</td>
+              <td class="px-3 py-2 text-gray-400">{{ backup.sizeText }}</td>
+              <td class="px-3 py-2">
+                <button
+                  @click="confirmRollback(backup)"
+                  :disabled="rollingBack"
+                  class="px-2 py-1 bg-rose-700 hover:bg-rose-600 disabled:opacity-50 text-white rounded text-[11px] font-bold"
+                >回滚至此版本</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- 自定义确认弹窗 -->
     <div v-if="confirmVisible" class="fixed inset-0 z-[70] flex items-center justify-center">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="confirmVisible = false"></div>
@@ -245,7 +315,9 @@ import { useUIStore } from '../../../stores/ui'
 import {
   getCultivationConfig,
   updateSeclusionConfig,
-  updateAdventureConfig
+  updateAdventureConfig,
+  getBackupVersions,
+  rollbackConfig
 } from '../../../api/admin_cultivation'
 
 const uiStore = useUIStore()
@@ -253,6 +325,11 @@ const uiStore = useUIStore()
 const loading = ref(false)
 const savingSeclusion = ref(false)
 const savingAdventure = ref(false)
+// 历史版本相关状态
+const backups = ref([])
+const backupFilter = ref('')
+const loadingBackups = ref(false)
+const rollingBack = ref(false)
 
 // 表单数据（默认值仅在前端兜底，正常应从后端拉取）
 const form = reactive({
@@ -358,6 +435,8 @@ const doSaveSeclusion = async () => {
     })
     const msg = res.data?.message || '闭关配置已保存并热加载'
     uiStore.showToast(msg, 'success')
+    // 保存成功后刷新历史版本列表（新增了一个备份）
+    fetchBackups()
   } catch (error) {
     console.error('保存闭关配置失败:', error)
     const msg = error.response?.data?.message || '保存闭关配置失败'
@@ -395,6 +474,8 @@ const doSaveAdventure = async () => {
     })
     const msg = res.data?.message || '历练配置已保存并热加载'
     uiStore.showToast(msg, 'success')
+    // 保存成功后刷新历史版本列表（新增了一个备份）
+    fetchBackups()
   } catch (error) {
     console.error('保存历练配置失败:', error)
     const msg = error.response?.data?.message || '保存历练配置失败'
@@ -402,6 +483,68 @@ const doSaveAdventure = async () => {
   } finally {
     savingAdventure.value = false
   }
+}
+
+/**
+ * 获取配置历史版本列表
+ */
+const fetchBackups = async () => {
+  loadingBackups.value = true
+  try {
+    const res = await getBackupVersions(backupFilter.value || undefined)
+    backups.value = res.data?.data || []
+  } catch (error) {
+    console.error('获取历史版本失败:', error)
+    uiStore.showToast('获取历史版本失败', 'error')
+  } finally {
+    loadingBackups.value = false
+  }
+}
+
+/**
+ * 确认回滚到指定历史版本（显示自定义确认弹窗）
+ * @param {object} backup - 备份版本项
+ */
+const confirmRollback = (backup) => {
+  showConfirm(
+    '确认回滚配置',
+    `即将把「${backup.configLabel}」回滚至 ${formatBackupTime(backup.mtime)} 的版本。\n\n⚠️ 注意：\n- 回滚前会自动备份当前版本，形成回滚链，可再次回滚回来\n- 回滚后配置将立即热加载生效\n- 全服玩家将收到通知\n\n是否继续？`,
+    () => doRollback(backup)
+  )
+}
+
+/**
+ * 执行回滚（用户确认后调用）
+ * @param {object} backup - 备份版本项
+ */
+const doRollback = async (backup) => {
+  rollingBack.value = true
+  try {
+    const res = await rollbackConfig(backup.filename)
+    const msg = res.data?.message || '已回滚并热加载'
+    uiStore.showToast(msg, 'success')
+    // 回滚成功后刷新配置表单 + 历史版本列表
+    fetchConfig()
+    fetchBackups()
+  } catch (error) {
+    console.error('回滚失败:', error)
+    const msg = error.response?.data?.message || '回滚失败'
+    uiStore.showToast(msg, 'error')
+  } finally {
+    rollingBack.value = false
+  }
+}
+
+/**
+ * 格式化备份时间（ISO → 本地时间字符串）
+ * @param {string} isoTime - ISO 时间字符串
+ */
+const formatBackupTime = (isoTime) => {
+  if (!isoTime) return '-'
+  return new Date(isoTime).toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  })
 }
 
 /**
@@ -445,5 +588,7 @@ const formatDuration = (seconds) => {
 
 onMounted(() => {
   fetchConfig()
+  // 同时加载历史版本列表
+  fetchBackups()
 })
 </script>

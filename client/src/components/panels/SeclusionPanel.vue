@@ -357,26 +357,32 @@ const deepRemaining = computed(() => {
 })
 
 /**
- * 计算指定模式的冷却剩余秒数
- * 基于 player.last_seclusion_time + config.cooldown - now
- * @param {object} cfg - 模式配置对象（含 cooldown 字段）
+ * 计算指定模式的冷却剩余秒数（基于后端权威值 + 本地 tick 递减）
+ *
+ * 设计要点：
+ *   - 后端 status 接口返回 normal_cooldown_remaining / deep_cooldown_remaining 权威值
+ *   - 前端记录拉取时的 server_time，每秒 tick 减去本地流逝时间
+ *   - 避免前端时钟漂移（与服务器时间不同步）导致冷却显示误差
+ *   - 拉取间隔（5-10秒）后会重新同步后端权威值，本地仅做平滑递减
+ *
+ * @param {string} modeKey - 模式字段名 'normal_cooldown_remaining' 或 'deep_cooldown_remaining'
  * @returns {number} 剩余冷却秒数，<=0 表示冷却已结束
  */
-const computeCooldownRemaining = (cfg) => {
-  const cooldownSec = cfg?.cooldown || 0
-  if (cooldownSec <= 0) return 0
-  const lastTime = store.player?.last_seclusion_time
-  if (!lastTime) return 0
-  const lastTs = new Date(lastTime).getTime()
-  if (isNaN(lastTs)) return 0
-  const elapsedSec = Math.floor((now.value - lastTs) / 1000)
-  return Math.max(0, cooldownSec - elapsedSec)
+const computeCooldownFromBackend = (modeKey) => {
+  const secData = store.systemConfig?.seclusion
+  if (!secData) return 0
+  const backendRemaining = secData[modeKey] ?? 0
+  if (backendRemaining <= 0) return 0
+  // 服务端时间戳（拉取时刻）+ 本地流逝时间 = 当前真实剩余
+  const serverTime = secData.server_time || Date.now()
+  const localElapsedSec = Math.floor((now.value - serverTime) / 1000)
+  return Math.max(0, backendRemaining - localElapsedSec)
 }
 
-// 常规闭关冷却剩余秒数
-const normalCooldownRemaining = computed(() => computeCooldownRemaining(normalConfig.value))
+// 常规闭关冷却剩余秒数（基于后端权威值 + 本地 tick）
+const normalCooldownRemaining = computed(() => computeCooldownFromBackend('normal_cooldown_remaining'))
 // 深度闭关冷却剩余秒数
-const deepCooldownRemaining = computed(() => computeCooldownRemaining(deepConfig.value))
+const deepCooldownRemaining = computed(() => computeCooldownFromBackend('deep_cooldown_remaining'))
 
 // 是否处于冷却中
 const isNormalCooldown = computed(() => normalCooldownRemaining.value > 0)

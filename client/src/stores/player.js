@@ -152,6 +152,11 @@ export const usePlayerStore = defineStore('player', {
                 deep: data.deep_config,
                 normal_remaining: data.normal_remaining,
                 deep_remaining: data.deep_remaining,
+                // 冷却剩余秒数（后端权威计算，避免前端时钟漂移误差）
+                normal_cooldown_remaining: data.normal_cooldown_remaining ?? 0,
+                deep_cooldown_remaining: data.deep_cooldown_remaining ?? 0,
+                // 服务端时间戳（用于前端 tick 计算实时剩余，避免时区/时钟漂移）
+                server_time: data.server_time || Date.now(),
                 exp_rate: data.exp_rate,
                 exp_gained: data.exp_gained,
                 current_duration: data.current_duration,

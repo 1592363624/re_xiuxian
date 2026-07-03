@@ -386,6 +386,21 @@ router.get('/status', authenticateToken, async (req, res, next) => {
             }
         }
 
+        // 计算两种模式的冷却剩余秒数（由后端权威计算，避免前端时钟漂移误差）
+        // 公式：cooldown - (now - last_seclusion_time) / 1000，下限 0
+        const nowForCooldown = new Date();
+        const computeCooldownRemaining = (cfg) => {
+            const cooldownSec = cfg?.cooldown || 0;
+            if (cooldownSec <= 0) return 0;
+            if (!player.last_seclusion_time) return 0;
+            const lastTs = new Date(player.last_seclusion_time).getTime();
+            if (isNaN(lastTs)) return 0;
+            const elapsedSec = Math.floor((nowForCooldown.getTime() - lastTs) / 1000);
+            return Math.max(0, cooldownSec - elapsedSec);
+        };
+        const normalCooldownRemaining = computeCooldownRemaining(normalConfig);
+        const deepCooldownRemaining = computeCooldownRemaining(deepConfig);
+
         res.json({
             code: 200,
             data: {
@@ -394,6 +409,8 @@ router.get('/status', authenticateToken, async (req, res, next) => {
                 seclusion_start_time: player.seclusion_start_time,
                 seclusion_end_time: player.seclusion_end_time,
                 seclusion_duration: player.seclusion_duration,
+                // 服务端当前时间戳（毫秒），供前端基于此 tick 计算实时冷却剩余
+                server_time: nowForCooldown.getTime(),
                 // 实时计算字段
                 exp_rate: baseExpRate,
                 exp_gained: expGained,
@@ -405,6 +422,9 @@ router.get('/status', authenticateToken, async (req, res, next) => {
                 daily_deep_seclusion_count: player.daily_deep_seclusion_count,
                 normal_remaining: Math.max(0, normalConfig.daily_limit - player.daily_seclusion_count),
                 deep_remaining: Math.max(0, deepConfig.daily_limit - player.daily_deep_seclusion_count),
+                // 冷却剩余秒数（由后端权威计算，前端直接展示，避免时钟漂移误差）
+                normal_cooldown_remaining: normalCooldownRemaining,
+                deep_cooldown_remaining: deepCooldownRemaining,
                 // 配置信息（供前端展示）
                 normal_config: normalConfig,
                 deep_config: deepConfig,

@@ -116,3 +116,44 @@ export const updateAdventureConfig = (data: {
 }) => {
   return apiClient.post('/admin/cultivation/adventure', data);
 };
+
+/** 历史备份版本项 */
+export interface BackupVersion {
+  /** 备份文件名（含 .json 后缀） */
+  filename: string;
+  /** 配置类型 seclusion | game_balance */
+  configType: 'seclusion' | 'game_balance';
+  /** 中文友好名称 */
+  configLabel: string;
+  /** 文件字节数 */
+  size: number;
+  /** 文件大小（人类可读） */
+  sizeText: string;
+  /** 修改时间 ISO 字符串 */
+  mtime: string;
+  /** 修改时间戳（毫秒） */
+  mtimeMs: number;
+}
+
+/**
+ * 获取配置历史版本列表
+ * GET /api/admin/cultivation/backups
+ *
+ * @param type 可选，按配置类型筛选 'seclusion' | 'game_balance'
+ */
+export const getBackupVersions = (type?: 'seclusion' | 'game_balance') => {
+  const params = type ? { type } : {};
+  return apiClient.get('/admin/cultivation/backups', { params });
+};
+
+/**
+ * 一键回滚到指定历史版本
+ * POST /api/admin/cultivation/rollback
+ *
+ * 安全设计：回滚前会自动备份当前版本，形成回滚链，避免误操作不可逆
+ *
+ * @param filename 备份文件名（不含路径）
+ */
+export const rollbackConfig = (filename: string) => {
+  return apiClient.post('/admin/cultivation/rollback', { filename });
+};
