@@ -231,27 +231,59 @@ function Invoke-NpmInstall {
     param([string]$WorkDir, [string]$Label)
     Set-Location $WorkDir
     $retryCount = 2
-    for ($i = 1; $i -le $retryCount; $i++) {
-        Write-Host "[TRY] $Label install attempt $i/$retryCount"
-        if (Test-Path "node_modules") {
-            npm ci --prefer-offline --no-audit 2>&1 | Out-Host
-        } else {
-            npm install --no-audit 2>&1 | Out-Host
+    # Save and relax error preference: npm/vite may emit stderr warnings (e.g. Browserslist)
+    # that should NOT abort the deployment. Only check $LASTEXITCODE for real failures.
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        for ($i = 1; $i -le $retryCount; $i++) {
+            Write-Host "[TRY] $Label install attempt $i/$retryCount"
+            if (Test-Path "node_modules") {
+                npm ci --prefer-offline --no-audit 2>&1 | Out-Host
+            } else {
+                npm install --no-audit 2>&1 | Out-Host
+            }
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "[OK] $Label dependencies installed"
+                return $true
+            } else {
+                Write-Host "[WARN] $Label install failed (attempt $i), cleaning node_modules..."
+                if (Test-Path "node_modules") {
+                    Remove-Item -Recurse -Force "node_modules" -ErrorAction SilentlyContinue
+                }
+                if (Test-Path "package-lock.json") {
+                    Remove-Item -Force "package-lock.json" -ErrorAction SilentlyContinue
+                }
+            }
         }
+        return $false
+    } finally {
+        $ErrorActionPreference = $oldEAP
+    }
+}
+
+# Helper: run npm build safely (avoid $ErrorActionPreference='Stop' aborting on stderr warnings)
+# Why: Vite/npm may emit Browserslist or deprecation warnings to stderr. These are NOT errors
+#      but PowerShell $ErrorActionPreference='Stop' treats any stderr as terminating error,
+#      causing the whole deploy to abort. We relax it here and rely on $LASTEXITCODE.
+function Invoke-NpmBuild {
+    param([string]$WorkDir, [string]$Label)
+    Set-Location $WorkDir
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        Write-Host "[TRY] $Label build starting..."
+        npm run build 2>&1 | Out-Host
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "[OK] $Label dependencies installed"
+            Write-Host "[OK] $Label build succeeded"
             return $true
         } else {
-            Write-Host "[WARN] $Label install failed (attempt $i), cleaning node_modules..."
-            if (Test-Path "node_modules") {
-                Remove-Item -Recurse -Force "node_modules" -ErrorAction SilentlyContinue
-            }
-            if (Test-Path "package-lock.json") {
-                Remove-Item -Force "package-lock.json" -ErrorAction SilentlyContinue
-            }
+            Write-Host "[ERROR] $Label build failed (exit code: $LASTEXITCODE)"
+            return $false
         }
+    } finally {
+        $ErrorActionPreference = $oldEAP
     }
-    return $false
 }
 
 $clientInstallOk = Invoke-NpmInstall -WorkDir "$projectDir\client" -Label "Client"
@@ -292,8 +324,8 @@ if (Test-Path "dist") {
     }
 }
 
-npm run build 2>&1 | Out-Host
-if ($LASTEXITCODE -ne 0) {
+$buildOk = Invoke-NpmBuild -WorkDir "$projectDir\client" -Label "Client"
+if (-not $buildOk) {
     Write-Host "[ERROR] Client build failed"
     exit 1
 }
@@ -324,7 +356,14 @@ Set-Location $projectDir
 # 6.1 Check if PM2 is installed
 if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
     Write-Host "[INFO] PM2 not found, installing globally..."
-    npm install -g pm2 2>&1 | Out-Host
+    # Relax error preference: npm install may emit deprecation warnings to stderr
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        npm install -g pm2 2>&1 | Out-Host
+    } finally {
+        $ErrorActionPreference = $oldEAP
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ERROR] PM2 install failed"
         Write-Host "[HINT] Try: npm install -g pm2 --force"
@@ -531,14 +570,17 @@ if (-not $isHealthy) {
         if (Test-Path "dist") {
             Remove-Item -Recurse -Force "dist" -ErrorAction SilentlyContinue
         }
-        npm run build 2>&1 | Out-Host
+        # Reuse the safe builder (handles Browserslist-style stderr warnings)
+        $rollbackBuildOk = Invoke-NpmBuild -WorkDir "$projectDir\client" -Label "Rollback-Client"
+        if (-not $rollbackBuildOk) {
+            Write-Host "[ROLLBACK WARN] Client rebuild failed during rollback (service may still be in old state)"
+        }
 
         Write-Host "[ROLLBACK] Reinstalling server dependencies..."
-        Set-Location "$projectDir\server"
-        if (Test-Path "node_modules") {
-            npm ci --prefer-offline --no-audit 2>&1 | Out-Host
-        } else {
-            npm install --no-audit 2>&1 | Out-Host
+        # Reuse the safe installer (handles npm stderr warnings, with retry)
+        $rollbackServerOk = Invoke-NpmInstall -WorkDir "$projectDir\server" -Label "Rollback-Server"
+        if (-not $rollbackServerOk) {
+            Write-Host "[ROLLBACK WARN] Server dependencies reinstall failed during rollback"
         }
 
         Write-Host "[ROLLBACK] Restarting PM2..."
