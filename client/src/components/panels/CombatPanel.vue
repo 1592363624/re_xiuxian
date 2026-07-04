@@ -11,7 +11,8 @@ import {
   encounter,
   attack,
   useSkill,
-  escape
+  escape,
+  abandon
 } from '../../api/combat'
 import { getMapInfo } from '../../api/map'
 import { useUIStore } from '../../stores/ui'
@@ -111,25 +112,31 @@ const handleEncounter = async (monster) => {
 
 /**
  * 普通攻击
+ * 后端返回字段说明：
+ *   - victory=true / battleEnded=true / result='win' → 战斗胜利
+ *   - defeat=true / result='lose' → 战斗失败
+ *   - 否则继续战斗，res.data 含 monster_hp/turn 等
  */
 const handleAttack = async () => {
   if (combatLoading.value || !currentBattle.value) return
-  
+
   combatLoading.value = true
   try {
     const res = await attack()
-    
+
     const result = res.data
-    if (result.victory) {
-      uiStore.showToast(`战斗胜利！获得 ${result.exp_gained} 修为`, 'success')
+    if (result.victory || result.battleEnded) {
+      // 战斗胜利：后端返回 rewards.exp 而非 exp_gained
+      const expGained = result.rewards?.exp || 0
+      uiStore.showToast(`战斗胜利！获得 ${expGained} 修为`, 'success')
       uiStore.addLog({
-        content: `你击败了 ${currentBattle.value.monster.name}，获得 ${result.exp_gained} 修为。`,
+        content: `你击败了 ${currentBattle.value.monster.name}，获得 ${expGained} 修为。`,
         type: 'combat',
         actorId: 'self'
       })
       currentBattle.value = null
     } else if (result.defeat) {
-      uiStore.showToast('战斗失败，您已逃跑', 'info')
+      uiStore.showToast(`战斗失败，扣除 ${result.penalty_exp || 0} 修为`, 'error')
       currentBattle.value = null
     } else {
       uiStore.addLog({
@@ -137,17 +144,21 @@ const handleAttack = async () => {
         type: 'combat',
         actorId: 'self'
       })
-      currentBattle.value = res.data
+      // 更新当前战斗状态：monster_hp 已变化
+      if (currentBattle.value.monster) {
+        currentBattle.value.monster.hp = result.monster_hp
+      }
+      currentBattle.value.turn = result.turn
     }
-    
-    if (result.rewards && result.rewards.length > 0) {
+
+    if (result.rewards?.items && result.rewards.items.length > 0) {
       uiStore.addLog({
-        content: `获得物品: ${result.rewards.map(r => r.name + 'x' + r.quantity).join('、')}`,
+        content: `获得物品: ${result.rewards.items.map(r => r.item_id + 'x' + r.quantity).join('、')}`,
         type: 'loot',
         actorId: 'self'
       })
     }
-    
+
     await refreshStats()
   } catch (error) {
     const msg = error.response?.data?.error || '攻击失败'
@@ -162,28 +173,23 @@ const handleAttack = async () => {
  */
 const handleUseSkill = async (skillIndex) => {
   if (combatLoading.value || !currentBattle.value) return
-  
+
   combatLoading.value = true
   try {
     const res = await useSkill(skillIndex)
-    
+
     const result = res.data
-    if (result.victory) {
-      uiStore.showToast(`战斗胜利！获得 ${result.exp_gained} 修为`, 'success')
+    if (result.victory || result.battleEnded) {
+      const expGained = result.rewards?.exp || 0
+      uiStore.showToast(`战斗胜利！获得 ${expGained} 修为`, 'success')
       uiStore.addLog({
-        content: `你使用技能击败了 ${currentBattle.value.monster.name}，获得 ${result.exp_gained} 修为。`,
+        content: `你使用技能击败了 ${currentBattle.value.monster.name}，获得 ${expGained} 修为。`,
         type: 'combat',
         actorId: 'self'
       })
       currentBattle.value = null
-    } else if (result.mp_insufficient) {
-      uiStore.showToast('灵力不足', 'error')
-      return
-    } else if (result.skill_failed) {
-      uiStore.showToast('技能使用失败', 'error')
-      return
     } else if (result.defeat) {
-      uiStore.showToast('战斗失败，您已逃跑', 'info')
+      uiStore.showToast(`战斗失败，扣除 ${result.penalty_exp || 0} 修为`, 'error')
       currentBattle.value = null
     } else {
       uiStore.addLog({
@@ -191,17 +197,23 @@ const handleUseSkill = async (skillIndex) => {
         type: 'combat',
         actorId: 'self'
       })
-      currentBattle.value = res.data
+      if (currentBattle.value.monster) {
+        currentBattle.value.monster.hp = result.monster_hp
+      }
+      if (currentBattle.value.player) {
+        currentBattle.value.player.mp = result.player_mp
+      }
+      currentBattle.value.turn = result.turn
     }
-    
-    if (result.rewards && result.rewards.length > 0) {
+
+    if (result.rewards?.items && result.rewards.items.length > 0) {
       uiStore.addLog({
-        content: `获得物品: ${result.rewards.map(r => r.name + 'x' + r.quantity).join('、')}`,
+        content: `获得物品: ${result.rewards.items.map(r => r.item_id + 'x' + r.quantity).join('、')}`,
         type: 'loot',
         actorId: 'self'
       })
     }
-    
+
     await refreshStats()
   } catch (error) {
     const msg = error.response?.data?.error || '技能使用失败'
@@ -213,24 +225,62 @@ const handleUseSkill = async (skillIndex) => {
 
 /**
  * 逃跑
+ * 后端返回 fled=true 表示成功逃跑，fled=false 表示逃跑失败（怪物获得回合）
  */
 const handleEscape = async () => {
   if (combatLoading.value || !currentBattle.value) return
-  
+
   combatLoading.value = true
   try {
-    await escape()
-    
-    uiStore.showToast('成功逃跑', 'info')
-    uiStore.addLog({
+    const res = await escape()
+    const result = res.data
+
+    if (result.fled) {
+      uiStore.showToast('成功逃跑', 'info')
+      uiStore.addLog({
         content: `你从 ${currentBattle.value.monster.name} 手中逃脱了。`,
         type: 'combat',
         actorId: 'self'
       })
-    currentBattle.value = null
+      currentBattle.value = null
+    } else {
+      // 逃跑失败，怪物获得回合
+      uiStore.showToast('逃跑失败！', 'warn')
+      uiStore.addLog({
+        content: `你试图从 ${currentBattle.value.monster.name} 手中逃跑，但失败了！`,
+        type: 'combat',
+        actorId: 'self'
+      })
+      currentBattle.value.turn = result.turn || 'monster'
+    }
     await refreshStats()
   } catch (error) {
     const msg = error.response?.data?.error || '逃跑失败'
+    uiStore.showToast(msg, 'error')
+  } finally {
+    combatLoading.value = false
+  }
+}
+
+/**
+ * 放弃战斗（强制脱离，无惩罚，用于清理卡死的遗留战斗）
+ */
+const handleAbandon = async () => {
+  if (combatLoading.value || !currentBattle.value) return
+
+  combatLoading.value = true
+  try {
+    await abandon()
+    uiStore.showToast('已放弃战斗', 'info')
+    uiStore.addLog({
+      content: `你放弃了与 ${currentBattle.value.monster.name} 的战斗。`,
+      type: 'combat',
+      actorId: 'self'
+    })
+    currentBattle.value = null
+    await refreshStats()
+  } catch (error) {
+    const msg = error.response?.data?.error || '放弃战斗失败'
     uiStore.showToast(msg, 'error')
   } finally {
     combatLoading.value = false
@@ -385,7 +435,7 @@ onMounted(() => {
               </div>
 
               <div class="flex gap-2">
-                <button 
+                <button
                   @click="handleAttack"
                   :disabled="combatLoading"
                   class="flex-1 py-3 rounded bg-red-900/30 border border-red-700/50 text-red-400 hover:bg-red-800/50 hover:text-red-300 transition-colors disabled:opacity-50"
@@ -393,19 +443,31 @@ onMounted(() => {
                   <span v-if="combatLoading">战斗中...</span>
                   <span v-else>普通攻击</span>
                 </button>
-                <button 
+                <button
                   @click="handleUseSkill(0)"
                   :disabled="combatLoading || currentBattle.player.mp < skillMpCost"
                   class="flex-1 py-3 rounded bg-purple-900/30 border border-purple-700/50 text-purple-400 hover:bg-purple-800/50 hover:text-purple-300 transition-colors disabled:opacity-50"
                 >
                   <span>技能 ({{ skillMpCost }}灵力)</span>
                 </button>
-                <button 
+                <button
                   @click="handleEscape"
                   :disabled="combatLoading"
                   class="flex-1 py-3 rounded bg-stone-800 border border-stone-700 text-stone-400 hover:bg-stone-700 hover:text-stone-300 transition-colors disabled:opacity-50"
                 >
                   逃跑
+                </button>
+              </div>
+
+              <!-- 放弃战斗按钮：小号灰色，避免误点，用于清理卡死的遗留战斗 -->
+              <div class="mt-2 text-center">
+                <button
+                  @click="handleAbandon"
+                  :disabled="combatLoading"
+                  class="text-xs text-stone-600 hover:text-stone-400 underline transition-colors disabled:opacity-50"
+                  title="放弃战斗会直接结束当前战斗，无惩罚但也不获得奖励"
+                >
+                  放弃战斗
                 </button>
               </div>
             </div>

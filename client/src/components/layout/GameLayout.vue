@@ -79,20 +79,20 @@
           <button @click="handleLogoutClick" class="p-2 ml-2 text-stone-500 hover:text-rose-500 transition-colors rounded-full hover:bg-stone-800/50" title="退出登录">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
-          <!-- 返回战斗按钮：仅当玩家有进行中战斗且战斗面板未打开时显示 -->
-          <button
-            v-if="hasActiveBattle && !isCombatOpen"
-            @click="handleReturnToBattle"
-            class="ml-2 px-3 py-1.5 text-xs font-bold rounded bg-red-700 hover:bg-red-600 text-white animate-pulse"
-            title="您有进行中的战斗，点击返回"
-          >
-            <span class="inline-flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
-              返回战斗
-            </span>
-          </button>
         </div>
       </header>
+
+      <!-- 返回战斗浮动按钮：仅当玩家有进行中战斗且战斗面板未打开时显示
+           位置：屏幕底部中央上方（ActionBar 之上），大号红字+脉动动画，确保玩家不会错过 -->
+      <button
+        v-if="hasActiveBattle && !isCombatOpen"
+        @click="handleReturnToBattle"
+        class="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-full bg-red-700 hover:bg-red-600 text-white font-bold shadow-2xl shadow-red-900/50 animate-pulse flex items-center gap-2 border-2 border-red-400/50"
+        title="您有进行中的战斗，点击返回"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
+        <span>您有未完成的战斗，点击返回</span>
+      </button>
 
       <!-- 闭关修炼浮动状态条（header 下方，不遮挡内容） -->
       <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />

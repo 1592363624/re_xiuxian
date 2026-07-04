@@ -160,6 +160,19 @@ router.post('/login', async (req, res, next) => {
         player.ip_address = getClientIp(req);
         await player.save();
 
+        // 登录时清理过期战斗记录，解决"一进游戏就显示战斗"的遗留问题
+        // 场景：玩家上次战斗未正常结束（关浏览器/服务重启），expires_at 已过期的战斗会被清除
+        try {
+            const CombatService = require('../game/services/CombatService');
+            const cleanedCount = await CombatService.cleanExpiredBattles(player.id);
+            if (cleanedCount > 0) {
+                console.log(`[Auth] 玩家 ${player.username} 登录时清理了 ${cleanedCount} 条过期战斗记录`);
+            }
+        } catch (e) {
+            // 清理失败不阻塞登录，仅打印警告
+            console.warn('[Auth] 清理过期战斗记录失败:', e.message);
+        }
+
         // 生成 JWT（过期时间从配置读取，避免硬编码）
         const payload = {
             id: player.id,

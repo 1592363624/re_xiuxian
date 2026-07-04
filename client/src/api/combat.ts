@@ -47,7 +47,16 @@ export const useSkill = (skillIndex: number) => {
 
 /**
  * 逃跑
+ * 注意：后端路由为 /combat/flee（非 escape），此处保留 escape 函数名以保持调用方代码不变
  */
 export const escape = () => {
-  return apiClient.post('/combat/escape');
+  return apiClient.post('/combat/flee');
+};
+
+/**
+ * 放弃战斗（强制脱离卡死的战斗，无惩罚，不计入历史）
+ * 使用场景：遗留的过期战斗无法通过 flee 清除时，用此接口直接放弃
+ */
+export const abandon = () => {
+  return apiClient.post('/combat/abandon');
 };

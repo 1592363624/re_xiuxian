@@ -111,6 +111,33 @@ router.post('/flee', auth, async (req, res, next) => {
 });
 
 /**
+ * 放弃战斗（强制脱离卡死的战斗，不计入战斗历史）
+ * 使用场景：玩家有遗留的过期战斗记录，flee 又失败时，用此接口直接清除
+ * 与 flee 的区别：abandon 无概率失败、不保存战斗记录、无惩罚
+ */
+router.post('/abandon', auth, async (req, res, next) => {
+    try {
+        const result = await CombatService.abandon(req.user.id);
+
+        // 推送放弃战斗事件，前端据此关闭战斗面板
+        try {
+            WebSocketNotificationService.notifyPlayerUpdate(req.user.id, 'combat_abandon', {
+                battle_ended: true
+            });
+        } catch (e) {
+            console.warn('[Combat] 推送放弃战斗事件失败:', e.message);
+        }
+
+        res.json({
+            code: 200,
+            ...result
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
  * 获取战斗状态
  */
 router.get('/status', auth, async (req, res, next) => {
