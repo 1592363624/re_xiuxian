@@ -9,7 +9,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # 超时保护，避免 SSH 挂死
+    timeout-minutes: 30  # 超时保护（含服务器本地构建时间）
     steps:
       # 仅做一件事：SSH 到服务器执行 deploy.ps1
       # 所有构建（前端 build、后端 npm install）都在 Windows 服务器本地完成
@@ -25,9 +25,14 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           port: 22
-          # 先 git pull 更新 deploy.ps1 自身（解决"脚本自我更新"的鸡生蛋问题）
-          # 再执行新版 deploy.ps1（英文版，无编码问题）
-          # deploy.ps1 会执行：git pull -> npm install -> build -> pm2 reload -> 健康检查
+          # SSH 命令超时设置（避免长时间构建被截断）
+          timeout: 60s           # TCP 连接超时
+          command_timeout: 30m   # 命令执行超时（含 npm install + build + 健康检查）
+          # 部署流程：
+          # 1. cd 到项目目录
+          # 2. git fetch + git reset 更新代码（包括 deploy.ps1 自身，解决鸡生蛋问题）
+          # 3. 执行新版 deploy.ps1（英文版，无编码问题）
+          # deploy.ps1 内部会再次 git fetch（带镜像加速，幂等无害）
           script: |
             cd "C:\Users\Administrator\Desktop\re_xiuxian"
             git fetch --all

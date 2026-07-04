@@ -13,6 +13,21 @@
  * 注意：此配置不硬编码任何敏感信息（数据库密码、JWT_SECRET）
  *       敏感信息统一由 server/.env 文件提供，PM2 启动时会自动加载 .env
  */
+
+// 确保日志目录存在，避免 PM2 启动时因找不到目录而失败
+const path = require('path');
+const fs = require('fs');
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+    try {
+        fs.mkdirSync(logsDir, { recursive: true });
+    } catch (e) {
+        // 目录创建失败时仅打印警告，不阻止 PM2 启动
+        // PM2 会在当前目录下创建日志文件作为降级方案
+        console.warn('[ecosystem.config.js] Warning: Cannot create logs directory:', e.message);
+    }
+}
+
 module.exports = {
   apps: [{
     name: 'xiuxian-server',           // 进程名称（pm2 logs/status 用）
