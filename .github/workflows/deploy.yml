@@ -28,4 +28,4 @@ jobs:
           # 触发服务器上的部署脚本
           # deploy.ps1 会执行：git pull -> npm install -> build -> pm2 reload -> 健康检查
           script: |
-            powershell -ExecutionPolicy Bypass -File "C:\Projects\re_xiuxian\scripts\deploy.ps1"
+            powershell -ExecutionPolicy Bypass -File "C:\Users\Administrator\Desktop\re_xiuxian\scripts\deploy.ps1"
