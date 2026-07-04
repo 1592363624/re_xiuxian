@@ -1,207 +1,31 @@
 name: Deploy to Windows Server
 
+# 触发条件：推送 main/master 分支，或在 Actions 页面手动触发
 on:
   push:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
-  build-and-package:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: |
-          client/package-lock.json
-          server/package-lock.json
-
-    # 1. 构建前端
-    - name: Build Client
-      run: |
-        cd client
-        npm ci
-        npm run build
-        echo "Frontend build complete."
-
-    # 2. 准备发布包目录结构
-    - name: Prepare Release Directory
-      run: |
-        mkdir -p release/client
-        mkdir -p release/server
-        
-        # 复制前端构建产物
-        cp -r client/dist release/client/
-        
-        # 复制后端代码 (排除 node_modules)
-        cp -r server/* release/server/
-        rm -rf release/server/node_modules
-        
-        # 复制启动脚本
-        cp start-prod.bat release/
-        
-        # 创建 PM2 配置 (写入生产环境数据库配置)
-        # 敏感信息通过 GitHub Secrets 注入，避免明文硬编码
-        echo "module.exports = {
-          apps: [{
-            name: 'xiuxian-server',
-            script: './index.js',
-            instances: 1,
-            autorestart: true,
-            watch: false,
-            max_memory_restart: '1G',
-            env: {
-              PORT: 5000,
-              NODE_ENV: 'production',
-              DB_HOST: '${{ secrets.DB_HOST }}',
-              DB_USER: '${{ secrets.DB_USER }}',
-              DB_PASS: '${{ secrets.DB_PASS }}',
-              DB_NAME: '${{ secrets.DB_USER }}',
-              DB_DIALECT: 'mysql',
-              JWT_SECRET: '${{ secrets.JWT_SECRET }}'
-            }
-          }]
-        }" > release/server/ecosystem.config.js
-
-    # 2.5 创建前端生产环境配置
-    - name: Create Client Production Config
-      run: |
-        # 前端生产环境 API 地址 (指向服务器自身，由 Nginx 反向代理)
-        echo "VITE_API_BASE_URL=http://localhost:5000" > client/.env.production
-        echo "VITE_WS_URL=http://localhost:5000" >> client/.env.production
-        cat client/.env.production
-
-    # 3. 生成部署脚本与构建产物
-    - name: Prepare Deployment Artifacts
-      run: |
-        # 创建部署脚本 deploy.ps1 (在 Windows 端执行)
-        # 重要：脚本中只使用 ASCII 字符，避免 PowerShell 5.1 读取 UTF-8 (无 BOM) 文件时出现中文乱码导致语法错误
-        # 注意：heredoc 中的内容不能缩进，否则生成的脚本会有语法错误
-        cat <<'EOF' > deploy.ps1
-        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        $ErrorActionPreference = 'Stop'
-        Start-Transcript -Path "C:\Projects\re_xiuxian_temp\deploy_log.txt" -Force
-
-        Write-Host "Starting deployment process..."
-        $tempDir = "C:\Projects\re_xiuxian_temp"
-        $targetDir = "C:\Projects\re_xiuxian"
-        $zipPath = "$tempDir\deploy_package.zip"
-
-        # 1. Check file existence
-        if (-not (Test-Path $zipPath)) {
-            Throw "Error: Deployment package not found at $zipPath"
-        }
-
-        # 2. Stop existing PM2 process if running
-        Write-Host "Stopping existing service..."
-        if (Get-Command pm2 -ErrorAction SilentlyContinue) {
-            pm2 stop xiuxian-server -ErrorAction SilentlyContinue
-        }
-
-        # 3. Clean and create target directory
-        if (Test-Path $targetDir) {
-            Write-Host "Cleaning target directory..."
-            # Keep node_modules to speed up install
-            Get-ChildItem -Path $targetDir -Recurse -Exclude "node_modules" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        } else {
-            New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
-        }
-
-        # 4. Extract ZIP
-        Write-Host "Extracting package to $targetDir..."
-        Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
-
-        # 5. Install Server Dependencies
-        Write-Host "Installing server dependencies..."
-        Set-Location "$targetDir\server"
-        npm install --production --no-audit
-
-        # 6. Configure PM2
-        Write-Host "Configuring PM2..."
-        if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
-            Write-Host "Installing PM2 globally..."
-            npm install -g pm2
-        }
-
-        Write-Host "Starting application..."
-        pm2 startOrReload ecosystem.config.js --env production
-        pm2 save
-
-        Write-Host "Deployment completed successfully!"
-        Stop-Transcript
-        EOF
-
-        # 验证脚本内容
-        echo "Generated deploy.ps1 content:"
-        cat deploy.ps1
-
-    # 4. 上传构建产物
-    - name: Upload Deployment Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: xiuxian-release
-        path: |
-          release/
-          deploy.ps1
-
-  # 5. 自动部署
   deploy:
-    needs: build-and-package
     runs-on: ubuntu-latest
+    timeout-minutes: 10  # 超时保护，避免 SSH 挂死
     steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: xiuxian-release
-          path: .
-
-      # 打包为 ZIP (兼容性更好)
-      - name: Compress Release Package
-        run: |
-          cd release
-          zip -r ../deploy_package.zip .
-
-      # 步骤1：创建临时目录
-      - name: Create Temp Directory
+      # 仅做一件事：SSH 到服务器执行 deploy.ps1
+      # 所有构建（前端 build、后端 npm install）都在 Windows 服务器本地完成
+      # 优势：
+      #   1. CI 耗时从 5 分钟降到 30 秒（只触发，不构建）
+      #   2. 避免跨平台构建问题（Ubuntu build -> Windows run）
+      #   3. 网络占用极低（git pull 增量传输）
+      #   4. 回滚简单（git reset --hard HEAD~1 即可）
+      - name: Trigger Server-Side Deployment
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           port: 22
+          # 触发服务器上的部署脚本
+          # deploy.ps1 会执行：git pull -> npm install -> build -> pm2 reload -> 健康检查
           script: |
-            powershell -Command "New-Item -Path 'C:\\Projects\\re_xiuxian_temp' -ItemType Directory -Force"
-
-      # 步骤2：上传 ZIP 包和 部署脚本
-      - name: Upload Files via SCP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          password: ${{ secrets.PASSWORD }}
-          port: 22
-          source: "deploy_package.zip,deploy.ps1"
-          target: "C:\\Projects\\re_xiuxian_temp"
-
-      # 步骤3：执行部署脚本
-      - name: Execute Deployment Script
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          password: ${{ secrets.PASSWORD }}
-          port: 22
-          script: |
-            powershell -ExecutionPolicy Bypass -File "C:\\Projects\\re_xiuxian_temp\\deploy.ps1"
-            
-            # 检查脚本执行结果
-            if ($LASTEXITCODE -ne 0) {
-              Write-Error "Deployment script failed. Check C:\\Projects\\re_xiuxian_temp\\deploy_log.txt for details."
-              exit 1
-            }
-            
+            powershell -ExecutionPolicy Bypass -File "C:\Projects\re_xiuxian\scripts\deploy.ps1"

@@ -265,6 +265,19 @@ const startServer = async () => {
     app.use('/api/market', require('./routes/market'));
     app.use('/api/equipment', require('./routes/equipment'));
 
+    // 健康检查接口（供部署脚本验证服务是否启动成功）
+    // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了
+    // 轻量级：不查数据库，只返回进程存活信号 + 基础运行信息
+    app.get('/api/health', (req, res) => {
+        res.json({
+            code: 200,
+            status: 'ok',
+            uptime: process.uptime(),  // 进程运行秒数
+            timestamp: Date.now(),
+            version: process.env.npm_package_version || 'unknown'
+        });
+    });
+
     // 全局404路由处理（API路由之后）
     app.use('/api/*', (req, res) => {
         res.status(404).json({
