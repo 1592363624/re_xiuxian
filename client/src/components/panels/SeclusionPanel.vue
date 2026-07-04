@@ -184,7 +184,7 @@
                 </div>
                 <div>
                   <div class="text-base font-bold text-purple-300">深度闭关</div>
-                  <div class="text-xs text-stone-500">长线挂机，2倍收益</div>
+                  <div class="text-xs text-stone-500">长线挂机，{{ deepConfig.exp_rate }}倍收益</div>
                 </div>
               </div>
               <div v-if="selectedMode === 'deep'" class="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center">
@@ -322,12 +322,12 @@ const deepDuration = ref(14400) // 默认 4 小时
 const now = ref(Date.now())
 let tickTimer = null
 
-// 闭关配置（从后端拉取的状态中读取，降级默认值）
+// 闭关配置（从后端拉取的状态中读取，降级默认值与 seclusion.json 保持一致）
 const normalConfig = computed(() => {
   return store.systemConfig?.seclusion?.normal || {
     max_duration: 1800,
     daily_limit: 3,
-    cooldown: 300,
+    cooldown: 360,  // 修复：与 seclusion.json normal_seclusion.cooldown=360 一致
     exp_rate: 1
   }
 })

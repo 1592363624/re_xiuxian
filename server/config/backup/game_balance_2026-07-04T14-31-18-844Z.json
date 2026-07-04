@@ -22,8 +22,8 @@
     },
     "adventure": {
       "enable": true,
-      "auto_complete": false,
-      "interval_ms": 5000
+      "auto_complete": true,
+      "interval_ms": 3000
     },
     "moving": {
       "enable": true,
@@ -217,5 +217,5 @@
   "inventory": {
     "max_use_quantity": 99
   },
-  "lastUpdated": "2026-07-04T14:31:18.845Z"
+  "lastUpdated": "2026-07-04T14:31:04.097Z"
 }

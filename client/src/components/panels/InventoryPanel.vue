@@ -20,6 +20,7 @@ import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { getInventory, useItem, discardItem } from '../../api/inventory'
 import { getEquipped, equipItem, unequipItem, getEquipmentBonus } from '../../api/equipment'
+import { getGameBalancePublic } from '../../api/config'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
@@ -44,15 +45,21 @@ const equipmentBonus = ref({})
 // 装备栏加载中状态
 const equipmentLoading = ref(false)
 
-// ====== 装备槽位配置（与后端 game_balance.equipment.valid_slots 对应） ======
-// 顺序固定，用于在装备栏区域统一展示 5 个槽位
-const equipmentSlotsConfig = [
-  { slot: 'weapon', label: '武器' },
-  { slot: 'armor', label: '护甲' },
-  { slot: 'accessory', label: '饰品' },
-  { slot: 'boots', label: '靴子' },
-  { slot: 'dharma', label: '法器' }
-]
+// ====== 装备槽位配置（从后端 game_balance.equipment 拉取，未拉取到时降级为空数组） ======
+// 顺序由后端 valid_slots 决定，用于在装备栏区域统一展示槽位
+const equipmentSlotsConfig = ref([])
+// ====== 物品类型中文名映射（从后端 game_balance.item_types 拉取） ======
+const itemTypeMap = ref({})
+// ====== 背包分类 tabs（从后端 game_balance.item_categories 拉取） ======
+const categories = ref([
+  { key: 'all', label: '全部' },
+  { key: 'consumable', label: '丹药' },
+  { key: 'material', label: '材料' },
+  { key: 'equipment', label: '装备' },
+  { key: 'other', label: '其他' }
+])
+// ====== 使用物品单次最大数量（从后端 game_balance.inventory.max_use_quantity 拉取） ======
+const maxUseQuantity = ref(99)
 
 // ====== 穿戴确认弹窗状态 ======
 const equipConfirmModal = ref({
@@ -82,14 +89,9 @@ const confirmModal = ref({
   quantity: 1
 })
 
-// ====== 分类配置（静态映射，与后端 item.type 对应） ======
-const categories = [
-  { key: 'all', label: '全部' },
-  { key: 'consumable', label: '丹药' },
-  { key: 'material', label: '材料' },
-  { key: 'equipment', label: '装备' },
-  { key: 'other', label: '其他' }
-]
+// ====== 分类配置已迁移至上方响应式变量（从后端拉取） ======
+// 此处保留分类下拉选项的 computed 包装，便于模板直接遍历
+// （categories 为 ref，模板中需 .value，此处不再额外包装 computed）
 
 // ====== 品质颜色映射 ======
 // common 白 / uncommon 绿 / rare 蓝 / epic 紫 / legendary 橙
@@ -132,13 +134,7 @@ const qualityColorMap = {
   }
 }
 
-// ====== 类型中文名映射 ======
-const typeNameMap = {
-  consumable: '丹药',
-  material: '材料',
-  equipment: '装备',
-  unknown: '未知'
-}
+// ====== 类型中文名映射已迁移至上方响应式变量 itemTypeMap（从后端拉取） ======
 
 /**
  * 获取品质对应的样式配置
@@ -150,11 +146,18 @@ const getQualityStyle = (quality) => {
 
 /**
  * 获取物品类型中文名
+ * 优先使用后端配置的 itemTypeMap，未匹配时返回"其他"
  * @param type - 物品类型
  */
 const getTypeName = (type) => {
-  return typeNameMap[type] || '其他'
+  return itemTypeMap.value[type] || '其他'
 }
+
+/**
+ * 已知物品类型列表（基于后端 item_types 配置动态生成）
+ * 用于"其他"分类筛选：不属于已知类型的物品归入"其他"
+ */
+const knownItemTypes = computed(() => Object.keys(itemTypeMap.value))
 
 /**
  * 判断物品是否属于当前选中的分类
@@ -165,9 +168,8 @@ const filteredItems = computed(() => {
     return items.value
   }
   if (activeCategory.value === 'other') {
-    // 其他：不属于消耗品/材料/装备的物品
-    const knownTypes = ['consumable', 'material', 'equipment']
-    return items.value.filter(item => !knownTypes.includes(item.type))
+    // 其他：不属于后端已知类型的物品
+    return items.value.filter(item => !knownItemTypes.value.includes(item.type))
   }
   return items.value.filter(item => item.type === activeCategory.value)
 })
@@ -261,8 +263,8 @@ const changeQuantity = (delta) => {
   let next = quantityModal.value.quantity + delta
   if (next < 1) next = 1
   if (next > max) next = max
-  // 使用物品后端限制 1-99
-  if (quantityModal.value.type === 'use' && next > 99) next = 99
+  // 使用物品后端限制 1 ~ maxUseQuantity（从后端 inventory.max_use_quantity 拉取）
+  if (quantityModal.value.type === 'use' && next > maxUseQuantity.value) next = maxUseQuantity.value
   quantityModal.value.quantity = next
 }
 
@@ -422,7 +424,7 @@ const formatEffectText = (effect) => {
  * 每个元素包含 slot/label/item，item 为 null 时表示空槽位
  */
 const slotDisplayList = computed(() => {
-  return equipmentSlotsConfig.map(config => ({
+  return equipmentSlotsConfig.value.map(config => ({
     ...config,
     item: equippedSlots.value[config.slot] || null
   }))
@@ -575,9 +577,48 @@ const handleUnequip = async () => {
   }
 }
 
+/**
+ * 拉取公开游戏配置（装备槽位、物品类型映射、分类 tabs、使用数量上限）
+ * 失败时降级使用响应式变量的默认值，不影响面板基础功能
+ */
+const fetchGameConfig = async () => {
+  try {
+    const res = await getGameBalancePublic()
+    if (res.data?.code === 200 && res.data.data) {
+      const cfg = res.data.data
+      // 装备槽位：合并 valid_slots 顺序与 slot_names 中文名
+      if (cfg.equipment?.valid_slots?.length) {
+        equipmentSlotsConfig.value = cfg.equipment.valid_slots.map(slot => ({
+          slot,
+          label: cfg.equipment.slot_names?.[slot] || slot
+        }))
+      }
+      // 物品类型中文名映射
+      if (cfg.item_types) {
+        itemTypeMap.value = cfg.item_types
+      }
+      // 背包分类 tabs（后端配置优先，缺失时保留默认降级值）
+      if (cfg.item_categories?.length) {
+        categories.value = cfg.item_categories
+      }
+      // 使用物品单次最大数量
+      if (cfg.inventory?.max_use_quantity) {
+        maxUseQuantity.value = cfg.inventory.max_use_quantity
+      }
+    }
+  } catch (error) {
+    console.error('[InventoryPanel] 拉取游戏配置失败，使用降级默认值:', error)
+  }
+}
+
 onMounted(() => {
-  // 并行获取背包、装备栏和装备加成数据，减少首屏等待时间
-  Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus()])
+  // 并行获取背包、装备栏、装备加成、游戏配置，减少首屏等待时间
+  Promise.all([
+    fetchInventory(),
+    fetchEquipped(),
+    fetchEquipmentBonus(),
+    fetchGameConfig()
+  ])
 })
 </script>
 
@@ -810,7 +851,7 @@ onMounted(() => {
             v-model.number="quantityModal.quantity"
             type="number"
             min="1"
-            :max="quantityModal.type === 'use' ? Math.min(99, quantityModal.item.quantity) : quantityModal.item.quantity"
+            :max="quantityModal.type === 'use' ? Math.min(maxUseQuantity, quantityModal.item.quantity) : quantityModal.item.quantity"
             class="w-24 text-center bg-stone-900 border border-stone-700 rounded py-2 text-amber-400 font-bold text-lg focus:outline-none focus:border-amber-600"
           />
           <button
@@ -825,7 +866,7 @@ onMounted(() => {
             class="px-3 py-1 text-xs rounded bg-stone-800 hover:bg-stone-700 text-stone-400 transition-colors"
           >最小</button>
           <button
-            @click="quantityModal.quantity = quantityModal.type === 'use' ? Math.min(99, quantityModal.item.quantity) : quantityModal.item.quantity"
+            @click="quantityModal.quantity = quantityModal.type === 'use' ? Math.min(maxUseQuantity, quantityModal.item.quantity) : quantityModal.item.quantity"
             class="px-3 py-1 text-xs rounded bg-stone-800 hover:bg-stone-700 text-stone-400 transition-colors"
           >最大</button>
         </div>

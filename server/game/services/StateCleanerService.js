@@ -136,7 +136,7 @@ class StateCleanerService {
         // 通过注册中心遍历所有状态处理器，调用 cleanExpired
         // notify 回调用于让各 handler 推送状态变更给在线玩家
         const results = await StateRegistry.mapAll(async (stateType, handler) => {
-            // 读取该状态在配置中的子配置（如 seclusion.enable / battle.enable）
+            // 读取该状态在配置中的子配置（如 seclusion.enable / combat.enable）
             const stateConfig = config[stateType] || {};
             if (stateConfig.enable === false) {
                 return { skipped: true, reason: `${stateType} disabled` };
@@ -248,6 +248,12 @@ class StateCleanerService {
     }
 
     /**
+     * 保存当前调度器定时器句柄，用于热重载时清理旧定时器
+     * @type {NodeJS.Timeout|null}
+     */
+    static _schedulerTimer = null;
+
+    /**
      * 启动定时清理调度器
      * 主调度间隔取所有状态中最小的 interval_ms（如移动 5s），
      * 低频状态（如闭关 60s）通过 lastCleanedAt 跳过未到时间的清理。
@@ -272,6 +278,8 @@ class StateCleanerService {
                 this.metrics.totalErrors += 1;
             }
         }, masterTickMs);
+        // 保存句柄，热重载时用于清理
+        this._schedulerTimer = timer;
 
         // 启动时立即执行一次（不等待第一个 tick），快速清理服务重启遗留的状态
         setTimeout(async () => {
@@ -284,6 +292,95 @@ class StateCleanerService {
         }, 0);
 
         return timer;
+    }
+
+    /**
+     * 热重载调度器（GM 修改 interval_ms 后调用，无需重启服务）
+     *
+     * 实现原理：
+     *   1. 清除旧的 setInterval 定时器
+     *   2. 重置各状态的 lastCleanedAt（让新调度周期立即生效，避免被旧时间戳卡住）
+     *   3. 以新的 masterTickMs 重新启动定时器
+     *   4. 立即触发一次清理（forceAll），让 GM 立即看到效果
+     *
+     * 调用时机：
+     *   - GM 通过 POST /api/admin/state-cleaner/config 修改配置后
+     *   - 配置文件热更新（game_balance.json 的 state_cleaner 段）
+     *
+     * @returns {Object} { success: boolean, masterTickMs: number, message: string }
+     */
+    static async reloadScheduler() {
+        // 清理旧定时器
+        if (this._schedulerTimer) {
+            clearInterval(this._schedulerTimer);
+            this._schedulerTimer = null;
+        }
+
+        // 重置各状态的 lastCleanedAt，避免新调度周期被旧时间戳卡住
+        // 例如：原间隔 60s，已等待 30s；改间隔为 5s 后，不应再等 30s 才执行
+        this.lastCleanedAt = {};
+
+        // 以新间隔重新启动
+        const newMasterTickMs = this.getMasterTickIntervalMs();
+        console.log(`[StateCleaner] 调度器热重载 (新主调度间隔 ${newMasterTickMs / 1000}s)`);
+
+        // 输出各状态新间隔
+        const states = StateRegistry.list();
+        for (const s of states) {
+            const interval = this.getStateIntervalMs(s.stateType);
+            console.log(`[StateCleaner]   - ${s.stateType}: 新间隔 ${interval / 1000}s`);
+        }
+
+        // 启动新定时器
+        this._schedulerTimer = setInterval(async () => {
+            try {
+                await this.runCleanup();
+            } catch (err) {
+                console.error('[StateCleaner] 调度器执行异常:', err.message);
+                this.metrics.totalErrors += 1;
+            }
+        }, newMasterTickMs);
+
+        // 立即触发一次强制清理，让 GM 看到效果
+        try {
+            await this.runCleanup({ forceAll: true });
+        } catch (err) {
+            console.error('[StateCleaner] 热重载触发首次清理失败:', err.message);
+        }
+
+        return {
+            success: true,
+            masterTickMs: newMasterTickMs,
+            message: `调度器已热重载，主调度间隔 ${newMasterTickMs / 1000}s`
+        };
+    }
+
+    /**
+     * 获取当前调度器状态（含各状态间隔配置）
+     * 供 GM 后台展示当前配置用
+     * @returns {Object} { masterTickMs, enabled, states: [{ stateType, intervalMs, enable, autoSettle, autoComplete }] }
+     */
+    static getSchedulerStatus() {
+        const config = getStateCleanerConfig();
+        const states = StateRegistry.list().map(s => {
+            const stateConfig = config[s.stateType] || {};
+            return {
+                stateType: s.stateType,
+                displayName: s.handler.metadata?.displayName || s.stateType,
+                intervalMs: this.getStateIntervalMs(s.stateType),
+                enable: stateConfig.enable !== false,
+                autoSettle: stateConfig.auto_settle !== false,
+                autoComplete: stateConfig.auto_complete === true,
+                logEach: stateConfig.log_each === true,
+                lastCleanedAt: this.lastCleanedAt[s.stateType] || null
+            };
+        });
+        return {
+            masterTickMs: this.getMasterTickIntervalMs(),
+            enabled: config.enable !== false,
+            batchSize: config.batch_size || 100,
+            states
+        };
     }
 }
 

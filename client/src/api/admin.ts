@@ -160,6 +160,94 @@ export const triggerStateCleanerRun = () => {
   return apiClient.post('/admin/state-cleaner/run');
 };
 
+// ========== 状态清理调度器配置（GM 可视化编辑 interval_ms 等） ==========
+
+/** 单个状态的清理配置（前端编辑用） */
+export interface StateCleanerStateConfig {
+  /** 状态类型（如 seclusion/combat/adventure/moving/ban） */
+  stateType: string;
+  /** 显示名称（如"闭关"/"战斗"） */
+  displayName: string;
+  /** 清理间隔（毫秒），GM 可编辑 */
+  intervalMs: number;
+  /** 是否启用该状态清理 */
+  enable: boolean;
+  /** 是否自动结算（如闭关到期自动结算修为） */
+  autoSettle: boolean;
+  /** 是否自动完成（如历练到期自动发奖） */
+  autoComplete: boolean;
+  /** 是否记录每次清理日志 */
+  logEach: boolean;
+  /** 上次清理时间（ISO 字符串，只读） */
+  lastCleanedAt: string | null;
+}
+
+/** GET /state-cleaner/config 返回的调度器状态 */
+export interface StateCleanerConfigData {
+  /** 主调度间隔（取所有状态中最小 interval_ms） */
+  masterTickMs: number;
+  /** 调度器总开关 */
+  enabled: boolean;
+  /** 单次扫描批量大小 */
+  batchSize: number;
+  /** 各状态配置详情 */
+  states: StateCleanerStateConfig[];
+}
+
+/** POST /state-cleaner/config 入参（部分更新，仅传需要修改的字段） */
+export interface StateCleanerConfigUpdate {
+  /** 调度器总开关（可选） */
+  enable?: boolean;
+  /** 单次扫描批量大小（1-1000，可选） */
+  batch_size?: number;
+  /** 各状态配置（可选，key 为状态类型） */
+  states?: {
+    [stateType: string]: {
+      /** 清理间隔（毫秒，1-3600000） */
+      interval_ms?: number;
+      /** 是否启用该状态清理 */
+      enable?: boolean;
+      /** 是否自动结算 */
+      auto_settle?: boolean;
+      /** 是否自动完成 */
+      auto_complete?: boolean;
+      /** 是否记录每次清理日志 */
+      log_each?: boolean;
+    };
+  };
+}
+
+/**
+ * 获取状态清理调度器当前配置
+ * GET /api/admin/state-cleaner/config
+ * 返回主调度间隔、总开关、批量大小、各状态配置详情
+ */
+export const getStateCleanerConfig = () => {
+  return apiClient.get<{ code: number; data: StateCleanerConfigData }>('/admin/state-cleaner/config');
+};
+
+/**
+ * 更新状态清理调度器配置（热重载，无需重启服务）
+ * POST /api/admin/state-cleaner/config
+ *
+ * 修改后立即调用后端 reloadScheduler() 重启定时器，新间隔即时生效。
+ * 所有修改会被记录到 GM 操作日志，原配置会自动备份到 server/config/backup/。
+ *
+ * @param payload - 配置更新（部分更新，仅传需要修改的字段）
+ */
+export const updateStateCleanerConfig = (payload: StateCleanerConfigUpdate) => {
+  return apiClient.post<{
+    code: number;
+    message: string;
+    data: {
+      reloaded: boolean;
+      masterTickMs: number;
+      changes: string[];
+      message: string;
+    };
+  }>('/admin/state-cleaner/config', payload);
+};
+
 // ========== 状态转移日志 ==========
 
 /**

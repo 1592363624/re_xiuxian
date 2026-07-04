@@ -22,6 +22,7 @@ import {
   buyListing,
   cancelListing
 } from '../../api/market'
+import { getGameBalancePublic } from '../../api/config'
 import Modal from '../common/Modal.vue'
 
 const emit = defineEmits(['close'])
@@ -51,26 +52,34 @@ const searchKeyword = ref('')
 const filterType = ref('')
 
 /**
- * 物品类型中文标签映射（展示层文案）
- * 类型来源于 item_data.json 静态配置
+ * 物品类型中文标签映射（从后端 game_balance.item_types 拉取）
+ * 未拉取到时降级为空对象，typeOptions 将仅包含"全部类型"选项
+ * 统一使用后端配置，避免与 InventoryPanel 出现"丹药 vs 消耗品"等文案不一致
  */
-const itemTypeLabels = {
-  consumable: '消耗品',
-  currency: '货币',
-  material: '材料',
-  equipment: '装备',
-  unknown: '未知'
-}
+const itemTypeLabels = ref({})
 
 /**
- * 物品类型下拉选项
+ * 物品类型下拉选项（基于后端配置动态生成）
  */
 const typeOptions = computed(() => [
   { value: '', label: '全部类型' },
-  ...Object.keys(itemTypeLabels)
-    .filter(k => k !== 'unknown')
-    .map(k => ({ value: k, label: itemTypeLabels[k] }))
+  ...Object.keys(itemTypeLabels.value).map(k => ({ value: k, label: itemTypeLabels.value[k] }))
 ])
+
+/**
+ * 拉取公开游戏配置（物品类型中文名映射）
+ * 失败时降级为空映射，不影响面板基础功能
+ */
+const fetchGameConfig = async () => {
+  try {
+    const res = await getGameBalancePublic()
+    if (res.data?.code === 200 && res.data.data?.item_types) {
+      itemTypeLabels.value = res.data.data.item_types
+    }
+  } catch (error) {
+    console.error('[MarketPanel] 拉取物品类型配置失败，使用降级默认值:', error)
+  }
+}
 
 /* ===================== 弹窗状态 ===================== */
 
@@ -372,9 +381,10 @@ const confirmCreate = async () => {
 
 /**
  * 获取物品类型中文标签
+ * 优先使用后端配置的 itemTypeLabels，未匹配时返回"未知"
  */
 const getItemTypeLabel = (type) => {
-  return itemTypeLabels[type] || '未知'
+  return itemTypeLabels.value[type] || '未知'
 }
 
 /**
@@ -423,7 +433,8 @@ const getSelectedItemName = (key, list, keyField) => {
 }
 
 onMounted(() => {
-  fetchListings()
+  // 并行拉取挂单列表与游戏配置，减少首屏等待时间
+  Promise.all([fetchListings(), fetchGameConfig()])
 })
 </script>
 

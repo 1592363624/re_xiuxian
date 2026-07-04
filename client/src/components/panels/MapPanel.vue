@@ -4,6 +4,8 @@ import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import FullMapList from './FullMapList.vue'
 import { getMapInfo, getMapConfig, startMove } from '../../api/map'
+import { getGameBalancePublic } from '../../api/config'
+import { buildMapTypeNameMap, buildSafetyLevelNameMap, getMapTypeStyle as getMapTypeStyleUtil, getSafetyStyle as getSafetyStyleUtil } from '../../utils/mapStyles'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
@@ -16,26 +18,29 @@ const connectedMaps = ref([])
 const mapConfigs = ref({})
 const activeTab = ref('connected') // 'connected' 或 'all'
 
-const mapTypeMap = {
-  NOVICE: { name: '新手区', class: 'text-emerald-400', bg: 'bg-emerald-900/20', border: 'border-emerald-700/50' },
-  LOW: { name: '低阶区', class: 'text-sky-400', bg: 'bg-sky-900/20', border: 'border-sky-700/50' },
-  MID: { name: '中阶区', class: 'text-amber-400', bg: 'bg-amber-900/20', border: 'border-amber-700/50' },
-  HIGH: { name: '高危区', class: 'text-rose-400', bg: 'bg-rose-900/20', border: 'border-rose-700/50' },
-  SPECIAL: { name: '秘境', class: 'text-purple-400', bg: 'bg-purple-900/20', border: 'border-purple-700/50' },
-  country: { name: '凡人国度', class: 'text-emerald-400', bg: 'bg-emerald-900/20', border: 'border-emerald-700/50' },
-  sect: { name: '宗门', class: 'text-sky-400', bg: 'bg-sky-900/20', border: 'border-sky-700/50' },
-  mountain: { name: '灵山', class: 'text-amber-400', bg: 'bg-amber-900/20', border: 'border-amber-700/50' },
-  ocean: { name: '海域', class: 'text-cyan-400', bg: 'bg-cyan-900/20', border: 'border-cyan-700/50' },
-  talent: { name: '秘境', class: 'text-purple-400', bg: 'bg-purple-900/20', border: 'border-purple-700/50' },
-  world: { name: '界域', class: 'text-rose-400', bg: 'bg-rose-900/20', border: 'border-rose-700/50' }
-}
+// ====== 地图类型与危险等级映射（从后端拉取中文名，样式由 utils/mapStyles 提供） ======
+// 后端配置：game_balance.map_types / safety_levels
+const mapTypeNames = ref({})
+const safetyLevelNames = ref({})
 
-const safetyLevelMap = {
-  SAFE: { name: '安全', class: 'text-emerald-500' },
-  LOW_RISK: { name: '低危', class: 'text-yellow-500' },
-  MID_RISK: { name: '中危', class: 'text-orange-500' },
-  HIGH_RISK: { name: '高危', class: 'text-rose-500' },
-  EXTREME_RISK: { name: '极危', class: 'text-purple-500 font-bold' }
+// 合并后的映射（中文名 + Tailwind 样式），供 getMapTypeStyle / getSafetyStyle 使用
+const mapTypeNameMap = computed(() => buildMapTypeNameMap(mapTypeNames.value))
+const safetyLevelNameMap = computed(() => buildSafetyLevelNameMap(safetyLevelNames.value))
+
+/**
+ * 拉取公开游戏配置（地图类型、危险等级中文名）
+ * 失败时降级为空映射，utils/mapStyles 会兜底使用前端样式表
+ */
+const fetchGameConfig = async () => {
+  try {
+    const res = await getGameBalancePublic()
+    if (res.data?.code === 200 && res.data.data) {
+      if (res.data.data.map_types) mapTypeNames.value = res.data.data.map_types
+      if (res.data.data.safety_levels) safetyLevelNames.value = res.data.data.safety_levels
+    }
+  } catch (error) {
+    console.error('[MapPanel] 拉取地图配置失败，使用降级默认值:', error)
+  }
 }
 
 const fetchMapInfo = async () => {
@@ -115,27 +120,25 @@ const handleMove = async (targetMap) => {
   }
 }
 
+/**
+ * 获取地图类型样式（中文名从后端配置，样式从 utils/mapStyles）
+ * @param type - 地图类型 key
+ */
 const getMapTypeStyle = (type) => {
-  return mapTypeMap[type] || { name: type, class: 'text-stone-400', bg: 'bg-stone-800', border: 'border-stone-700' }
+  return getMapTypeStyleUtil(type, mapTypeNameMap.value)
 }
 
+/**
+ * 获取危险等级样式（中文名从后端配置，样式从 utils/mapStyles）
+ * @param level - 危险等级数字
+ */
 const getSafetyStyle = (level) => {
-  const levelMap = {
-    1: { name: '安全', class: 'text-emerald-500' },
-    2: { name: '低危', class: 'text-yellow-500' },
-    3: { name: '中危', class: 'text-orange-500' },
-    6: { name: '高危', class: 'text-rose-500' },
-    8: { name: '极危', class: 'text-purple-500 font-bold' },
-    10: { name: '绝境', class: 'text-red-600 font-bold' },
-    15: { name: '禁区', class: 'text-red-700 font-bold' },
-    20: { name: '死域', class: 'text-gray-600 font-bold' }
-  }
-  return levelMap[level] || { name: level, class: 'text-stone-400' }
+  return getSafetyStyleUtil(level, safetyLevelNameMap.value)
 }
 
 onMounted(async () => {
-  await fetchMapConfigs()
-  await fetchMapInfo()
+  // 并行拉取地图配置、地图信息和游戏配置
+  await Promise.all([fetchMapConfigs(), fetchMapInfo(), fetchGameConfig()])
 })
 </script>
 

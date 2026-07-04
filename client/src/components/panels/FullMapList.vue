@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import apiClient from '../../api'
 import { getMapConfig, getMapInfo, batchCalculateMoveCost } from '../../api/map'
+import { getGameBalancePublic } from '../../api/config'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { buildMapTypeNameMap, buildSafetyLevelNameMap, getMapTypeStyle as getMapTypeStyleUtil, getSafetyStyle as getSafetyStyleUtil } from '../../utils/mapStyles'
 
 const emit = defineEmits(['close', 'mapChanged'])
 const uiStore = useUIStore()
@@ -20,13 +22,25 @@ const filterRealm = ref('all')
 const searchKeyword = ref('')
 const moveCostCache = ref({})
 
-const mapTypeMap = {
-  country: { name: '凡人国度', class: 'text-emerald-400', bg: 'bg-emerald-900/20', border: 'border-emerald-700/50' },
-  sect: { name: '宗门', class: 'text-sky-400', bg: 'bg-sky-900/20', border: 'border-sky-700/50' },
-  mountain: { name: '灵山', class: 'text-amber-400', bg: 'bg-amber-900/20', border: 'border-amber-700/50' },
-  ocean: { name: '海域', class: 'text-cyan-400', bg: 'bg-cyan-900/20', border: 'border-cyan-700/50' },
-  talent: { name: '秘境', class: 'text-purple-400', bg: 'bg-purple-900/20', border: 'border-purple-700/50' },
-  world: { name: '界域', class: 'text-rose-400', bg: 'bg-rose-900/20', border: 'border-rose-700/50' }
+// ====== 地图类型与危险等级映射（从后端拉取中文名，样式由 utils/mapStyles 提供） ======
+const mapTypeNames = ref({})
+const safetyLevelNames = ref({})
+const mapTypeNameMap = computed(() => buildMapTypeNameMap(mapTypeNames.value))
+const safetyLevelNameMap = computed(() => buildSafetyLevelNameMap(safetyLevelNames.value))
+
+/**
+ * 拉取公开游戏配置（地图类型、危险等级中文名）
+ */
+const fetchGameConfig = async () => {
+  try {
+    const res = await getGameBalancePublic()
+    if (res.data?.code === 200 && res.data.data) {
+      if (res.data.data.map_types) mapTypeNames.value = res.data.data.map_types
+      if (res.data.data.safety_levels) safetyLevelNames.value = res.data.data.safety_levels
+    }
+  } catch (error) {
+    console.error('[FullMapList] 拉取地图配置失败，使用降级默认值:', error)
+  }
 }
 
 const fetchData = async () => {
@@ -161,22 +175,18 @@ const handleMove = async (targetMap) => {
   }
 }
 
+/**
+ * 获取地图类型样式（中文名从后端配置，样式从 utils/mapStyles）
+ */
 const getMapTypeStyle = (type) => {
-  return mapTypeMap[type] || { name: type, class: 'text-stone-400', bg: 'bg-stone-800', border: 'border-stone-700' }
+  return getMapTypeStyleUtil(type, mapTypeNameMap.value)
 }
 
+/**
+ * 获取危险等级样式（中文名从后端配置，样式从 utils/mapStyles）
+ */
 const getSafetyStyle = (level) => {
-  const levelMap = {
-    1: { name: '安全', class: 'text-emerald-500' },
-    2: { name: '低危', class: 'text-yellow-500' },
-    3: { name: '中危', class: 'text-orange-500' },
-    6: { name: '高危', class: 'text-rose-500' },
-    8: { name: '极危', class: 'text-purple-500 font-bold' },
-    10: { name: '绝境', class: 'text-red-600 font-bold' },
-    15: { name: '禁区', class: 'text-red-700 font-bold' },
-    20: { name: '死域', class: 'text-gray-600 font-bold' }
-  }
-  return levelMap[level] || { name: level, class: 'text-stone-400' }
+  return getSafetyStyleUtil(level, safetyLevelNameMap.value)
 }
 
 const getAccessibilityStatus = (map) => {
@@ -189,7 +199,8 @@ const getAccessibilityStatus = (map) => {
 }
 
 onMounted(() => {
-  fetchData()
+  // 并行拉取地图数据与游戏配置
+  Promise.all([fetchData(), fetchGameConfig()])
 })
 </script>
 
@@ -224,7 +235,7 @@ onMounted(() => {
           />
           <select v-model="filterType" class="px-3 py-1.5 bg-stone-900 border border-stone-700 rounded text-sm text-stone-200 focus:outline-none focus:border-amber-600">
             <option value="all">全部类型</option>
-            <option v-for="(info, type) in mapTypeMap" :key="type" :value="type">{{ info.name }}</option>
+            <option v-for="(info, type) in mapTypeNameMap" :key="type" :value="type">{{ info.name }}</option>
           </select>
           <select v-model="filterRealm" class="px-3 py-1.5 bg-stone-900 border border-stone-700 rounded text-sm text-stone-200 focus:outline-none focus:border-amber-600">
             <option value="all">全部境界</option>

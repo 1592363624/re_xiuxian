@@ -175,26 +175,11 @@
     "currency": "货币"
   },
   "item_categories": [
-    {
-      "key": "all",
-      "label": "全部"
-    },
-    {
-      "key": "consumable",
-      "label": "丹药"
-    },
-    {
-      "key": "material",
-      "label": "材料"
-    },
-    {
-      "key": "equipment",
-      "label": "装备"
-    },
-    {
-      "key": "other",
-      "label": "其他"
-    }
+    { "key": "all", "label": "全部" },
+    { "key": "consumable", "label": "丹药" },
+    { "key": "material", "label": "材料" },
+    { "key": "equipment", "label": "装备" },
+    { "key": "other", "label": "其他" }
   ],
   "map_types": {
     "country": "凡人国度",
@@ -216,6 +201,5 @@
   },
   "inventory": {
     "max_use_quantity": 99
-  },
-  "lastUpdated": "2026-07-04T14:31:18.845Z"
+  }
 }

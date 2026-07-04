@@ -46,63 +46,27 @@
             <span class="text-emerald-400 font-bold">选择历练时长</span>
             <span class="text-stone-500 text-xs ml-2">时长越长奖励越高，但受伤风险也越大</span>
           </div>
-          <!-- 时长类型选择卡片 -->
+          <!-- 时长类型选择卡片（v-for 渲染，配置来自后端 /api/config/game-balance/public） -->
           <div class="grid grid-cols-3 gap-2">
-            <!-- 短时历练 -->
             <button
-              @click="selectDurationType('short')"
-              class="text-left bg-[#292524] border rounded-lg p-3 transition-all duration-300"
-              :class="selectedDurationType === 'short'
-                ? 'border-emerald-600 ring-1 ring-emerald-600/30'
-                : 'border-stone-700 hover:border-emerald-700'"
-            >
-              <div class="text-sm font-bold text-emerald-300 mb-1">短时历练</div>
-              <div class="text-xs text-stone-400 mb-2">30秒</div>
-              <div class="space-y-0.5">
-                <div class="text-[10px] text-stone-500 flex justify-between">
-                  <span>奖励</span><span class="text-emerald-400">×0.6</span>
-                </div>
-                <div class="text-[10px] text-stone-500 flex justify-between">
-                  <span>受伤</span><span class="text-emerald-400">0%</span>
-                </div>
-              </div>
-            </button>
-            <!-- 中时历练（默认） -->
-            <button
-              @click="selectDurationType('medium')"
+              v-for="item in durationTypeList"
+              :key="item.key"
+              @click="selectDurationType(item.key)"
               class="text-left bg-[#292524] border rounded-lg p-3 transition-all duration-300 relative"
-              :class="selectedDurationType === 'medium'
-                ? 'border-amber-600 ring-1 ring-amber-600/30'
-                : 'border-stone-700 hover:border-amber-700'"
+              :class="selectedDurationType === item.key
+                ? `${item.activeBorder} ring-1 ${item.activeRing}`
+                : 'border-stone-700 hover:' + item.hoverBorder"
             >
-              <div class="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 text-[9px] tracking-wider">推荐</div>
-              <div class="text-sm font-bold text-amber-300 mb-1">中时历练</div>
-              <div class="text-xs text-stone-400 mb-2">1分30秒</div>
+              <!-- 推荐标识（仅默认时长类型显示） -->
+              <div v-if="item.isDefault" class="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 text-[9px] tracking-wider">推荐</div>
+              <div class="text-sm font-bold mb-1" :class="item.titleColor">{{ item.config.label }}</div>
+              <div class="text-xs text-stone-400 mb-2">{{ formatDurationLabel(item.config.duration) }}</div>
               <div class="space-y-0.5">
                 <div class="text-[10px] text-stone-500 flex justify-between">
-                  <span>奖励</span><span class="text-amber-400">×1.0</span>
+                  <span>奖励</span><span :class="item.titleColor">×{{ item.config.reward_multiplier }}</span>
                 </div>
                 <div class="text-[10px] text-stone-500 flex justify-between">
-                  <span>受伤</span><span class="text-amber-400">5%</span>
-                </div>
-              </div>
-            </button>
-            <!-- 长时历练 -->
-            <button
-              @click="selectDurationType('long')"
-              class="text-left bg-[#292524] border rounded-lg p-3 transition-all duration-300"
-              :class="selectedDurationType === 'long'
-                ? 'border-rose-600 ring-1 ring-rose-600/30'
-                : 'border-stone-700 hover:border-rose-700'"
-            >
-              <div class="text-sm font-bold text-rose-300 mb-1">长时历练</div>
-              <div class="text-xs text-stone-400 mb-2">5分钟</div>
-              <div class="space-y-0.5">
-                <div class="text-[10px] text-stone-500 flex justify-between">
-                  <span>奖励</span><span class="text-rose-400">×1.8</span>
-                </div>
-                <div class="text-[10px] text-stone-500 flex justify-between">
-                  <span>受伤</span><span class="text-rose-400">10%</span>
+                  <span>受伤</span><span :class="item.titleColor">{{ formatPercent(item.config.injury_chance) }}</span>
                 </div>
               </div>
             </button>
@@ -118,7 +82,7 @@
               </svg>
               <div>
                 <span class="text-amber-400 font-bold">提前结束惩罚：</span>
-                按已时长比例结算，并扣除 50% 收益，<span class="text-rose-400">不设保底</span>。
+                按已时长比例结算，并扣除 {{ earlyFinishPenaltyPercent }} 收益，<span class="text-rose-400">不设保底</span>。
               </div>
             </div>
             <div class="flex items-start gap-1.5">
@@ -241,6 +205,7 @@ import {
   type DurationType
 } from '../../api/explore'
 import { getMapInfo } from '../../api/map'
+import { getGameBalancePublic, type AdventureConfig, type DurationTypeConfig } from '../../api/config'
 import { useUIStore } from '../../stores/ui'
 
 const emit = defineEmits(['close', 'combat'])
@@ -254,7 +219,7 @@ const aiStatus = ref<any>(null)
 const isExploring = ref(false)
 const currentEvent = ref<any>(null)
 const isLoading = ref(false)
-// 默认中时历练（推荐档位）
+// 默认中时历练（推荐档位）—— 实际默认值从后端配置读取，未拉取到时降级为 medium
 const selectedDurationType = ref<DurationType>('medium')
 // 历练开始时间与总时长（用于进度展示）
 const exploreStartTime = ref<number>(0)
@@ -263,13 +228,69 @@ const nowTick = ref<number>(Date.now())
 let autoCompleteTimer: number | null = null
 let progressTimer: number | null = null
 
+// 历练配置（从后端 /api/config/game-balance/public 拉取，未拉取到时降级为 null）
+const adventureConfig = ref<AdventureConfig | null>(null)
+
 /**
- * 当前选中的时长类型标签
+ * 时长类型列表（供 v-for 渲染）
+ * 顺序固定为 short → medium → long，每项附带样式映射
+ */
+const durationTypeList = computed(() => {
+  if (!adventureConfig.value) return []
+  const types = adventureConfig.value.duration_types
+  const defaultType = adventureConfig.value.default_duration_type || 'medium'
+  // 样式映射表（按 short/medium/long 区分颜色）
+  const styleMap: Record<string, { titleColor: string; activeBorder: string; activeRing: string; hoverBorder: string }> = {
+    short: { titleColor: 'text-emerald-300', activeBorder: 'border-emerald-600', activeRing: 'ring-emerald-600/30', hoverBorder: 'border-emerald-700' },
+    medium: { titleColor: 'text-amber-300', activeBorder: 'border-amber-600', activeRing: 'ring-amber-600/30', hoverBorder: 'border-amber-700' },
+    long: { titleColor: 'text-rose-300', activeBorder: 'border-rose-600', activeRing: 'ring-rose-600/30', hoverBorder: 'border-rose-700' }
+  }
+  return (['short', 'medium', 'long'] as const).map(key => ({
+    key,
+    config: types[key] as DurationTypeConfig,
+    isDefault: key === defaultType,
+    ...styleMap[key]
+  }))
+})
+
+/**
+ * 当前选中的时长类型标签（从后端 label 字段读取，移除硬编码映射）
  */
 const durationTypeLabel = computed(() => {
-  const labels = { short: '短时历练', medium: '中时历练', long: '长时历练' }
-  return labels[selectedDurationType.value]
+  if (!adventureConfig.value) {
+    // 降级文案，仅在配置未加载时使用
+    const fallback = { short: '短时历练', medium: '中时历练', long: '长时历练' }
+    return fallback[selectedDurationType.value]
+  }
+  return adventureConfig.value.duration_types[selectedDurationType.value]?.label || '历练'
 })
+
+/**
+ * 提前结束惩罚百分比文案（如 "50%"），从后端 early_finish_penalty 计算
+ */
+const earlyFinishPenaltyPercent = computed(() => {
+  const penalty = adventureConfig.value?.early_finish_penalty ?? 0.5
+  return `${Math.round(penalty * 100)}%`
+})
+
+/**
+ * 格式化秒数为中文时长标签（如 30秒 / 1分30秒 / 5分钟）
+ */
+const formatDurationLabel = (sec: number) => {
+  if (!sec) return '0秒'
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  if (m === 0) return `${s}秒`
+  if (s === 0) return m >= 60 ? `${Math.floor(m / 60)}分钟` : `${m}分钟`
+  return m >= 60 ? `${Math.floor(m / 60)}分${m % 60}秒` : `${m}分${s}秒`
+}
+
+/**
+ * 格式化概率（0-1 → 百分比文案，如 0.05 → "5%"）
+ */
+const formatPercent = (rate: number) => {
+  return `${Math.round(rate * 100)}%`
+}
 
 /**
  * 历练进度百分比
@@ -500,10 +521,35 @@ onMounted(async () => {
   // 第一步：恢复进行中的历练状态
   await restoreAdventureStatus()
 
-  // 第二步：并行拉取地图与环境信息
+  // 第二步：并行拉取地图、环境与游戏配置
   fetchExploreInfo()
   fetchEnvironment()
+  fetchAdventureConfig()
 })
+
+/**
+ * 拉取历练配置（时长分级、奖励倍率、受伤概率等）
+ * 接口：GET /api/config/game-balance/public
+ *
+ * 设计目的：
+ *   遵循"配置驱动"原则，前端面板不再硬编码时长/倍率/概率，
+ *   统一从后端拉取，确保 GM 修改配置后前端立即同步。
+ */
+const fetchAdventureConfig = async () => {
+  try {
+    const res = await getGameBalancePublic()
+    if (res.data?.code === 200 && res.data.data?.adventure) {
+      adventureConfig.value = res.data.data.adventure
+      // 同步默认时长类型（后端配置的推荐档位）
+      const defaultType = res.data.data.adventure.default_duration_type
+      if (defaultType) {
+        selectedDurationType.value = defaultType
+      }
+    }
+  } catch (error) {
+    console.error('[ExplorePanel] 拉取历练配置失败，将使用降级显示:', error)
+  }
+}
 
 /**
  * 从后端恢复"历练中"状态

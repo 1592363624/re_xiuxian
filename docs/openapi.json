@@ -3182,6 +3182,222 @@
         }
       }
     },
+    "/api/config/game-balance/public": {
+      "get": {
+        "summary": "获取玩家可见的游戏平衡配置（公开接口）",
+        "description": "获取玩家面板需要展示的游戏配置数值（如历练时长、闭关参数、装备槽位、物品类型中文名、地图类型、危险等级等）。\n\n**设计目的**：\n- 遵循\"配置驱动、禁止硬编码\"原则，前端面板不再硬编码时长/倍率/概率/中文名等数值\n- 仅返回玩家可见的配置段，过滤内部调度参数（如 state_cleaner 调度间隔、combat 伤害系数等）\n- 无需鉴权，可被前端面板直接调用\n\n**返回配置段**：\n- `adventure`: 历练时长分级配置（duration_types / default_duration_type / early_finish_penalty）\n- `seclusion`: 闭关配置（基础速率、常规/深度闭关参数）\n- `combat.skill_mp_cost`: 技能灵力消耗\n- `equipment`: 装备槽位配置（valid_slots 顺序 + slot_names 中文名）\n- `item_types`: 物品类型中文名映射（consumable→丹药 等）\n- `item_categories`: 背包分类 tabs\n- `map_types`: 地图类型中文名映射\n- `safety_levels`: 地图危险等级中文名映射\n- `inventory.max_use_quantity`: 使用物品单次最大数量",
+        "tags": [
+          "Config"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "adventure": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "历练时长分级配置",
+                          "properties": {
+                            "duration_types": {
+                              "type": "object",
+                              "description": "时长分级（short/medium/long）",
+                              "properties": {
+                                "short": {
+                                  "type": "object",
+                                  "properties": {
+                                    "duration": { "type": "integer", "description": "时长（秒）", "example": 30 },
+                                    "reward_multiplier": { "type": "number", "description": "奖励倍率", "example": 0.6 },
+                                    "injury_chance": { "type": "number", "description": "受伤概率（0-1）", "example": 0.02 },
+                                    "injury_hp_loss_rate": { "type": "number", "description": "受伤时气血损失比例（0-1）", "example": 0.05 },
+                                    "label": { "type": "string", "description": "显示名称", "example": "短时历练" }
+                                  }
+                                },
+                                "medium": {
+                                  "type": "object",
+                                  "properties": {
+                                    "duration": { "type": "integer", "description": "时长（秒）", "example": 90 },
+                                    "reward_multiplier": { "type": "number", "description": "奖励倍率", "example": 1 },
+                                    "injury_chance": { "type": "number", "description": "受伤概率（0-1）", "example": 0.05 },
+                                    "injury_hp_loss_rate": { "type": "number", "description": "受伤时气血损失比例（0-1）", "example": 0.08 },
+                                    "label": { "type": "string", "description": "显示名称", "example": "中时历练" }
+                                  }
+                                },
+                                "long": {
+                                  "type": "object",
+                                  "properties": {
+                                    "duration": { "type": "integer", "description": "时长（秒）", "example": 300 },
+                                    "reward_multiplier": { "type": "number", "description": "奖励倍率", "example": 1.8 },
+                                    "injury_chance": { "type": "number", "description": "受伤概率（0-1）", "example": 0.1 },
+                                    "injury_hp_loss_rate": { "type": "number", "description": "受伤时气血损失比例（0-1）", "example": 0.12 },
+                                    "label": { "type": "string", "description": "显示名称", "example": "长时历练" }
+                                  }
+                                }
+                              }
+                            },
+                            "default_duration_type": {
+                              "type": "string",
+                              "enum": ["short", "medium", "long"],
+                              "description": "默认时长类型",
+                              "example": "medium"
+                            },
+                            "early_finish_penalty": {
+                              "type": "number",
+                              "description": "提前结束惩罚比例（0-1）",
+                              "example": 0.5
+                            }
+                          }
+                        },
+                        "seclusion": {
+                          "type": "object",
+                          "description": "闭关配置",
+                          "properties": {
+                            "base_exp_rate": {
+                              "type": "number",
+                              "description": "闭关基础修为速率（每秒）",
+                              "example": 1
+                            },
+                            "normal": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "常规闭关配置",
+                              "properties": {
+                                "max_duration": { "type": "integer", "description": "最大时长（秒）", "example": 1800 },
+                                "daily_limit": { "type": "integer", "description": "每日次数上限", "example": 3 },
+                                "cooldown": { "type": "integer", "description": "冷却时间（秒）", "example": 360 },
+                                "exp_rate": { "type": "number", "description": "修为速率倍率", "example": 1 }
+                              }
+                            },
+                            "deep": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "深度闭关配置",
+                              "properties": {
+                                "min_duration": { "type": "integer", "description": "最短时长（秒）", "example": 14400 },
+                                "max_duration": { "type": "integer", "description": "最大时长（秒）", "example": 28800 },
+                                "daily_limit": { "type": "integer", "description": "每日次数上限", "example": 1 },
+                                "cooldown": { "type": "integer", "description": "冷却时间（秒）", "example": 3600 },
+                                "exp_rate": { "type": "number", "description": "修为速率倍率", "example": 2 },
+                                "min_realm": { "type": "string", "description": "最低境界要求", "example": "筑基期" },
+                                "forced_penalty": { "type": "number", "description": "强行出关损失比例（0-1）", "example": 0.5 }
+                              }
+                            }
+                          }
+                        },
+                        "combat": {
+                          "type": "object",
+                          "description": "战斗可见配置",
+                          "properties": {
+                            "skill_mp_cost": {
+                              "type": "integer",
+                              "description": "技能灵力消耗",
+                              "example": 20
+                            }
+                          }
+                        },
+                        "equipment": {
+                          "type": "object",
+                          "description": "装备槽位配置",
+                          "properties": {
+                            "valid_slots": {
+                              "type": "array",
+                              "items": { "type": "string" },
+                              "description": "有效槽位顺序",
+                              "example": ["weapon", "armor", "accessory", "boots", "dharma"]
+                            },
+                            "slot_names": {
+                              "type": "object",
+                              "description": "槽位中文名映射",
+                              "example": { "weapon": "武器", "armor": "护甲", "accessory": "饰品", "boots": "靴子", "dharma": "法器" }
+                            }
+                          }
+                        },
+                        "item_types": {
+                          "type": "object",
+                          "description": "物品类型中文名映射（供 InventoryPanel/MarketPanel 共用，避免前端硬编码不一致）",
+                          "example": { "consumable": "丹药", "material": "材料", "equipment": "装备", "currency": "货币" }
+                        },
+                        "item_categories": {
+                          "type": "array",
+                          "description": "背包分类 tabs",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": { "type": "string", "example": "consumable" },
+                              "label": { "type": "string", "example": "丹药" }
+                            }
+                          }
+                        },
+                        "map_types": {
+                          "type": "object",
+                          "description": "地图类型中文名映射（不含 Tailwind 样式，样式由前端展示层维护）",
+                          "example": { "country": "凡人国度", "sect": "宗门", "mountain": "灵山", "ocean": "海域", "talent": "秘境", "world": "界域" }
+                        },
+                        "safety_levels": {
+                          "type": "object",
+                          "description": "地图危险等级中文名映射（key 为数字字符串）",
+                          "example": { "1": "安全", "2": "低危", "3": "中危", "6": "高危", "8": "极危", "10": "绝境", "15": "禁区", "20": "死域" }
+                        },
+                        "inventory": {
+                          "type": "object",
+                          "description": "背包相关配置",
+                          "properties": {
+                            "max_use_quantity": {
+                              "type": "integer",
+                              "description": "使用物品单次最大数量",
+                              "example": 99
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "游戏配置尚未加载完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 503 },
+                    "message": { "type": "string", "example": "游戏配置尚未加载完成" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 500 },
+                    "message": { "type": "string", "example": "服务器错误" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/config/data/realms": {
       "get": {
         "summary": "获取境界配置",
@@ -10883,6 +11099,136 @@
           "403": {
             "description": "非管理员"
           }
+        }
+      }
+    },
+    "/api/admin/state-cleaner/config": {
+      "get": {
+        "tags": ["Admin-状态管理"],
+        "summary": "获取状态清理调度器配置",
+        "description": "返回 StateCleanerService 当前配置，包括主调度间隔、总开关、批量大小、各状态（seclusion/combat/adventure/moving/ban）的清理间隔/启用/自动结算/自动完成/详细日志等配置。用于 GM 后台展示当前配置用。需要管理员权限。",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "masterTickMs": { "type": "integer", "description": "主调度间隔（取所有状态最小 interval_ms）", "example": 5000 },
+                        "enabled": { "type": "boolean", "description": "调度器总开关", "example": true },
+                        "batchSize": { "type": "integer", "description": "单次扫描批量大小", "example": 100 },
+                        "states": {
+                          "type": "array",
+                          "description": "各状态配置详情",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "stateType": { "type": "string", "example": "seclusion" },
+                              "displayName": { "type": "string", "example": "闭关" },
+                              "intervalMs": { "type": "integer", "description": "清理间隔（毫秒）", "example": 5000 },
+                              "enable": { "type": "boolean" },
+                              "autoSettle": { "type": "boolean", "description": "是否自动结算" },
+                              "autoComplete": { "type": "boolean", "description": "是否自动完成" },
+                              "logEach": { "type": "boolean", "description": "是否记录每次清理日志" },
+                              "lastCleanedAt": { "type": "string", "nullable": true, "format": "date-time" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "未登录" },
+          "403": { "description": "非管理员" }
+        }
+      },
+      "post": {
+        "tags": ["Admin-状态管理"],
+        "summary": "更新状态清理调度器配置（热重载）",
+        "description": "修改 state_cleaner 配置（interval_ms / enable / auto_settle / auto_complete / log_each / batch_size），写回 game_balance.json 后立即热重载定时器，无需重启服务。所有修改会被记录到 GM 操作日志，原配置会自动备份到 server/config/backup/。需要管理员权限。",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enable": { "type": "boolean", "description": "调度器总开关（可选）" },
+                  "batch_size": { "type": "integer", "minimum": 1, "maximum": 1000, "description": "单次扫描批量大小（可选）" },
+                  "states": {
+                    "type": "object",
+                    "description": "各状态配置（部分更新，仅传需要修改的状态）",
+                    "properties": {
+                      "seclusion": {
+                        "type": "object",
+                        "properties": {
+                          "interval_ms": { "type": "integer", "minimum": 1, "maximum": 3600000 },
+                          "enable": { "type": "boolean" },
+                          "auto_settle": { "type": "boolean" },
+                          "auto_complete": { "type": "boolean" },
+                          "log_each": { "type": "boolean" }
+                        }
+                      },
+                      "combat": { "type": "object", "description": "战斗状态配置，字段同 seclusion" },
+                      "adventure": { "type": "object", "description": "历练状态配置，字段同 seclusion" },
+                      "moving": { "type": "object", "description": "移动状态配置，字段同 seclusion" },
+                      "ban": { "type": "object", "description": "封禁状态配置，字段同 seclusion" }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "enable": true,
+                "batch_size": 100,
+                "states": {
+                  "seclusion": { "interval_ms": 5000 },
+                  "adventure": { "interval_ms": 5000, "auto_complete": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功（已热重载）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "message": { "type": "string", "example": "配置已更新并热重载" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "reloaded": { "type": "boolean", "example": true },
+                        "masterTickMs": { "type": "integer", "example": 5000 },
+                        "changes": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "example": ["seclusion.interval_ms=5000", "adventure.interval_ms=5000"]
+                        },
+                        "message": { "type": "string", "example": "调度器已热重载，主调度间隔 5s" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "参数校验失败" },
+          "401": { "description": "未登录" },
+          "403": { "description": "非管理员" }
         }
       }
     },

@@ -42,8 +42,8 @@
             :class="isDeep ? 'text-purple-300' : 'text-cyan-300'">
             {{ isDeep ? '深闭' : '闭关' }}
           </span>
-          <!-- 模式标签（深度闭关显示倍率） -->
-          <span v-if="isDeep" class="text-[10px] text-purple-500/80 tracking-wider">2倍收益</span>
+          <!-- 模式标签（深度闭关显示倍率，倍率从后端配置读取） -->
+          <span v-if="isDeep" class="text-[10px] text-purple-500/80 tracking-wider">{{ deepExpRateLabel }}</span>
         </div>
       </div>
 
@@ -57,8 +57,8 @@
           </svg>
           <span class="text-emerald-400 font-mono font-bold">+{{ expGained }}</span>
         </div>
-        <!-- 闭关时长（桌面端显示） -->
-        <div class="hidden sm:flex items-center gap-1.5 shrink-0">
+        <!-- 闭关时长（所有终端显示，提升 UI 可见性） -->
+        <div class="flex items-center gap-1.5 shrink-0">
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-stone-500">
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 6v6l4 2"/>
@@ -120,7 +120,7 @@
           @click="handleForceEnd"
           :disabled="loading"
           class="px-3 py-1 text-xs rounded border border-amber-800/60 text-amber-400 hover:text-amber-300 hover:border-amber-600 hover:bg-amber-950/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed tracking-wider"
-          :title="'强行出关将损失 50% 收益'"
+          :title="`强行出关将损失 ${forcedPenaltyPercent} 收益`"
         >
           <span v-if="loading">结算中...</span>
           <span v-else>强行出关</span>
@@ -205,7 +205,7 @@
                   <line x1="12" y1="9" x2="12" y2="13"/>
                   <line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
-                尚未达到最短时长，提前结束将损失 50% 收益
+                尚未达到最短时长，提前结束将损失 {{ forcedPenaltyPercent }} 收益
               </div>
             </div>
 
@@ -252,7 +252,7 @@
                 class="flex-1 py-2.5 bg-amber-950/40 border border-amber-800/60 text-amber-400 hover:text-amber-300 hover:border-amber-600/60 hover:bg-amber-900/30 transition-all duration-300 rounded-lg tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span v-if="loading">结算中...</span>
-                <span v-else>强行出关（损失50%）</span>
+                <span v-else>强行出关（损失{{ forcedPenaltyPercent }}）</span>
               </button>
               <!-- 正常结束按钮 -->
               <button
@@ -261,7 +261,7 @@
                 class="flex-1 py-2.5 bg-stone-900/80 border border-stone-700 text-rose-400 hover:text-rose-300 hover:border-rose-500/50 hover:bg-stone-800 transition-all duration-300 rounded-lg tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span v-if="loading">结算中...</span>
-                <span v-else>{{ isDeep && !reachedMinDuration ? '正常结束（损失50%）' : '结束修炼' }}</span>
+                <span v-else>{{ isDeep && !reachedMinDuration ? `正常结束（损失${forcedPenaltyPercent}）` : '结束修炼' }}</span>
               </button>
             </div>
           </div>
@@ -283,7 +283,8 @@ const uiStore = useUIStore()
 const loading = ref(false)
 const now = ref(Date.now())
 const timer = ref(null)
-const expRate = ref(0.1) // 默认修为速率
+// 默认修为速率与后端 seclusion_exp_rate 保持一致（1），避免初次渲染瞬间显示错误速率
+const expRate = ref(1)
 const expanded = ref(false) // 详情面板展开状态
 
 /**
@@ -346,6 +347,24 @@ const reachedMinDuration = computed(() => {
 })
 
 /**
+ * 强行出关损失百分比文案（如 "50%"），从后端 deep.forced_penalty 计算
+ * 移除原硬编码 "50%"，GM 修改配置后前端立即同步
+ */
+const forcedPenaltyPercent = computed(() => {
+  const penalty = store.systemConfig?.seclusion?.deep?.forced_penalty ?? 0.5
+  return `${Math.round(penalty * 100)}%`
+})
+
+/**
+ * 深度闭关倍率文案（如 "2倍收益"），从后端 deep.exp_rate 计算
+ * 移除原硬编码 "2倍收益"
+ */
+const deepExpRateLabel = computed(() => {
+  const rate = store.systemConfig?.seclusion?.deep?.exp_rate ?? 2
+  return `${rate}倍收益`
+})
+
+/**
  * 结束闭关修炼（正常结算）
  */
 const handleEnd = async () => {
@@ -359,7 +378,7 @@ const handleEnd = async () => {
     const modeLabel = isDeep.value ? '深度闭关' : '闭关'
     let logContent = `结束${modeLabel}，本次修炼共获得修为 ${gain} 点。`
     if (isForced) {
-      logContent = `强行出关！${modeLabel}未达最短时长，损失 50% 收益，本次获得修为 ${gain} 点。`
+      logContent = `强行出关！${modeLabel}未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${gain} 点。`
     }
     uiStore.addLog({
       content: logContent,
@@ -386,7 +405,7 @@ const handleForceEnd = async () => {
     const res = await store.forceEndSeclusion()
     const gain = res?.data?.exp_gain || res?.data?.player?.exp || expGained.value || 0
     uiStore.addLog({
-      content: `强行出关！深度闭关未达最短时长，损失 50% 收益，本次获得修为 ${gain} 点。`,
+      content: `强行出关！深度闭关未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${gain} 点。`,
       type: 'warning',
       actorId: 'self'
     })

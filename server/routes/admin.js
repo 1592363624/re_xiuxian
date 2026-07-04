@@ -890,6 +890,244 @@ router.post('/state-cleaner/run', auth, adminCheck, async (req, res) => {
     }
 });
 
+// ============================================================================
+// 状态清理调度器配置管理（GM 可视化编辑 interval_ms / enable / auto_settle 等）
+// ============================================================================
+
+// game_balance.json 文件路径（用于读写 state_cleaner 段）
+const GAME_BALANCE_CONFIG_FILE = path.join(__dirname, '../config/game_balance.json');
+// 配置备份目录
+const CONFIG_BACKUP_DIR = path.join(__dirname, '../config/backup');
+
+/**
+ * 备份 game_balance.json 到 backup 目录（带时间戳）
+ * @param {string} filePath - 原配置文件路径
+ * @returns {string|null} 备份文件路径，失败返回 null
+ */
+function backupGameBalanceConfig(filePath) {
+    try {
+        if (!fs.existsSync(filePath)) return null;
+        if (!fs.existsSync(CONFIG_BACKUP_DIR)) {
+            fs.mkdirSync(CONFIG_BACKUP_DIR, { recursive: true });
+        }
+        const basename = path.basename(filePath, '.json');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = path.join(CONFIG_BACKUP_DIR, `${basename}_${timestamp}.json`);
+        fs.copyFileSync(filePath, backupPath);
+        return backupPath;
+    } catch (err) {
+        console.error(`备份 game_balance.json 失败:`, err);
+        return null;
+    }
+}
+
+/**
+ * 校验单个状态的清理配置
+ * @param {string} stateType - 状态类型（如 seclusion/combat/adventure/moving/ban）
+ * @param {object} stateConfig - 待校验配置
+ * @throws {Error} 校验失败时抛出错误
+ */
+function validateStateCleanerConfig(stateType, stateConfig) {
+    if (!stateConfig || typeof stateConfig !== 'object') {
+        throw new Error(`状态 ${stateType} 配置格式错误：必须为对象`);
+    }
+    // interval_ms: 整数，1-3600000ms（1ms~1小时），低于 1000ms 会被服务端兜底为 1000ms
+    if (stateConfig.interval_ms !== undefined) {
+        const v = Number(stateConfig.interval_ms);
+        if (!Number.isInteger(v) || v < 1 || v > 3600000) {
+            throw new Error(`状态 ${stateType} 的 interval_ms 必须为整数且在 1-3600000 之间`);
+        }
+    }
+    // enable: 布尔
+    if (stateConfig.enable !== undefined && typeof stateConfig.enable !== 'boolean') {
+        throw new Error(`状态 ${stateType} 的 enable 必须为布尔值`);
+    }
+    // auto_settle: 布尔
+    if (stateConfig.auto_settle !== undefined && typeof stateConfig.auto_settle !== 'boolean') {
+        throw new Error(`状态 ${stateType} 的 auto_settle 必须为布尔值`);
+    }
+    // auto_complete: 布尔
+    if (stateConfig.auto_complete !== undefined && typeof stateConfig.auto_complete !== 'boolean') {
+        throw new Error(`状态 ${stateType} 的 auto_complete 必须为布尔值`);
+    }
+    // log_each: 布尔
+    if (stateConfig.log_each !== undefined && typeof stateConfig.log_each !== 'boolean') {
+        throw new Error(`状态 ${stateType} 的 log_each 必须为布尔值`);
+    }
+}
+
+/**
+ * GET /api/admin/state-cleaner/config
+ * 获取状态清理调度器当前配置
+ *
+ * 返回内容：
+ *   - masterTickMs: 主调度间隔（取所有状态中最小 interval_ms）
+ *   - enabled: 调度器总开关
+ *   - batchSize: 单次扫描批量大小
+ *   - states: 各状态配置详情（含 displayName/intervalMs/enable/autoSettle/autoComplete/logEach/lastCleanedAt）
+ */
+router.get('/state-cleaner/config', auth, adminCheck, async (req, res) => {
+    try {
+        const StateCleanerService = require('../game/services/StateCleanerService');
+        const status = StateCleanerService.getSchedulerStatus();
+        res.json({
+            code: 200,
+            data: status
+        });
+    } catch (error) {
+        console.error('获取状态清理配置失败:', error);
+        res.status(500).json({ code: 500, message: '获取配置失败', error: error.message });
+    }
+});
+
+/**
+ * POST /api/admin/state-cleaner/config
+ * 更新状态清理调度器配置（热重载，无需重启服务）
+ *
+ * 入参（部分更新，仅传需要修改的字段）：
+ *   {
+ *     "enable": true,                  // 可选，调度器总开关
+ *     "batch_size": 100,               // 可选，单次扫描批量大小（1-1000）
+ *     "states": {                      // 可选，各状态配置
+ *       "seclusion": {
+ *         "interval_ms": 5000,          // 清理间隔（毫秒）
+ *         "enable": true,               // 是否启用该状态清理
+ *         "auto_settle": true,          // 是否自动结算
+ *         "log_each": false             // 是否记录每次清理日志
+ *       },
+ *       "combat": { "interval_ms": 5000 },
+ *       "adventure": { "interval_ms": 5000, "auto_complete": false },
+ *       "moving": { "interval_ms": 5000 },
+ *       "ban": { "interval_ms": 5000 }
+ *     }
+ *   }
+ *
+ * 响应：
+ *   - code: 200 表示成功
+ *   - data: { masterTickMs, reloaded: true, message }
+ *   - 修改后立即调用 reloadScheduler() 热重载定时器，无需重启服务
+ */
+router.post('/state-cleaner/config', auth, adminCheck, async (req, res) => {
+    try {
+        const { enable, batch_size, states } = req.body || {};
+
+        // 1. 校验顶层参数
+        if (enable !== undefined && typeof enable !== 'boolean') {
+            return res.status(400).json({ code: 400, message: 'enable 必须为布尔值' });
+        }
+        if (batch_size !== undefined) {
+            const v = Number(batch_size);
+            if (!Number.isInteger(v) || v < 1 || v > 1000) {
+                return res.status(400).json({ code: 400, message: 'batch_size 必须为整数且在 1-1000 之间' });
+            }
+        }
+
+        // 2. 校验 states 各子项
+        if (states !== undefined) {
+            if (!states || typeof states !== 'object') {
+                return res.status(400).json({ code: 400, message: 'states 必须为对象' });
+            }
+            // 允许的状态类型白名单（与 StateRegistry 中注册的一致）
+            const allowedStates = ['seclusion', 'combat', 'adventure', 'moving', 'ban'];
+            for (const stateType of Object.keys(states)) {
+                if (!allowedStates.includes(stateType)) {
+                    return res.status(400).json({
+                        code: 400,
+                        message: `未知状态类型: ${stateType}，允许: ${allowedStates.join(', ')}`
+                    });
+                }
+                validateStateCleanerConfig(stateType, states[stateType]);
+            }
+        }
+
+        // 3. 备份原配置
+        backupGameBalanceConfig(GAME_BALANCE_CONFIG_FILE);
+
+        // 4. 读取现有配置
+        const oldConfig = JSON.parse(fs.readFileSync(GAME_BALANCE_CONFIG_FILE, 'utf-8'));
+        if (!oldConfig.state_cleaner || typeof oldConfig.state_cleaner !== 'object') {
+            oldConfig.state_cleaner = {};
+        }
+        const oldStateCleaner = oldConfig.state_cleaner;
+
+        // 5. 应用顶层更新
+        const changes = [];
+        if (enable !== undefined) {
+            oldStateCleaner.enable = enable;
+            changes.push(`enable=${enable}`);
+        }
+        if (batch_size !== undefined) {
+            oldStateCleaner.batch_size = Number(batch_size);
+            changes.push(`batch_size=${batch_size}`);
+        }
+
+        // 6. 应用各状态更新（字段白名单过滤）
+        if (states) {
+            const allowedFields = ['interval_ms', 'enable', 'auto_settle', 'auto_complete', 'log_each'];
+            for (const [stateType, stateConfig] of Object.entries(states)) {
+                if (!oldStateCleaner[stateType] || typeof oldStateCleaner[stateType] !== 'object') {
+                    oldStateCleaner[stateType] = {};
+                }
+                for (const field of allowedFields) {
+                    if (stateConfig[field] !== undefined) {
+                        // 数值字段转 Number，布尔字段保持布尔
+                        const value = (field === 'interval_ms' || field === 'batch_size')
+                            ? Number(stateConfig[field])
+                            : stateConfig[field];
+                        oldStateCleaner[stateType][field] = value;
+                        changes.push(`${stateType}.${field}=${value}`);
+                    }
+                }
+            }
+        }
+
+        // 7. 写回配置文件
+        oldConfig.lastUpdated = new Date().toISOString();
+        fs.writeFileSync(GAME_BALANCE_CONFIG_FILE, JSON.stringify(oldConfig, null, 2), 'utf-8');
+
+        // 8. 热更新配置缓存（ConfigLoader）
+        await configLoader.hotUpdateConfig('game_balance');
+
+        // 9. 热重载调度器（清除旧定时器，以新间隔启动）
+        const StateCleanerService = require('../game/services/StateCleanerService');
+        const reloadResult = await StateCleanerService.reloadScheduler();
+
+        // 10. 记录 GM 操作日志
+        await AdminLog.create({
+            admin_id: req.player.id,
+            admin_name: req.player.nickname,
+            action: 'update_state_cleaner_config',
+            target_type: 'system',
+            target_id: null,
+            details: JSON.stringify({
+                changes,
+                masterTickMs: reloadResult.masterTickMs
+            }),
+            ip_address: req.ip
+        });
+
+        console.log(`[Admin] GM ${req.player.username} 更新状态清理配置: ${changes.join(', ')}`);
+
+        res.json({
+            code: 200,
+            message: '配置已更新并热重载',
+            data: {
+                reloaded: true,
+                masterTickMs: reloadResult.masterTickMs,
+                changes,
+                message: reloadResult.message
+            }
+        });
+    } catch (error) {
+        console.error('更新状态清理配置失败:', error);
+        res.status(500).json({
+            code: 500,
+            message: '更新配置失败: ' + error.message,
+            error: error.message
+        });
+    }
+});
+
 /**
  * 获取玩家状态转移日志
  * GET /api/admin/state-logs
