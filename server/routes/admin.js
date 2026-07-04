@@ -829,4 +829,109 @@ router.delete('/notifications/:id', auth, adminCheck, async (req, res) => {
     }
 });
 
+/**
+ * 获取状态清理调度器监控指标
+ * GET /api/admin/state-cleaner/metrics
+ *
+ * 返回 StateCleanerService 的运行指标，用于运维监控：
+ *   - lastRunAt: 上次执行时间
+ *   - lastRunDurationMs: 上次执行耗时
+ *   - totalRuns: 累计执行次数
+ *   - totalErrors: 累计错误次数
+ *   - errorRate: 错误率
+ *   - totalItemsCleaned: 累计清理项数
+ *   - registeredStates: 已注册的状态处理器列表
+ *
+ * 当 errorRate > 0.1 时建议告警（清理失败率超 10%）
+ */
+router.get('/state-cleaner/metrics', auth, adminCheck, async (req, res) => {
+    try {
+        const StateCleanerService = require('../game/services/StateCleanerService');
+        const metrics = StateCleanerService.getMetrics();
+        res.json({
+            code: 200,
+            data: metrics,
+            // 健康度评估：错误率 < 5% 为 healthy，5%-10% 为 warning，> 10% 为 critical
+            health: metrics.errorRate < 0.05 ? 'healthy' : (metrics.errorRate < 0.1 ? 'warning' : 'critical')
+        });
+    } catch (error) {
+        res.status(500).json({ message: '获取监控指标失败', error: error.message });
+    }
+});
+
+/**
+ * 手动触发一次状态清理扫描
+ * POST /api/admin/state-cleaner/run
+ *
+ * 用于运维手动触发清理（如修复线上遗留状态后立即清理）
+ */
+router.post('/state-cleaner/run', auth, adminCheck, async (req, res) => {
+    try {
+        const StateCleanerService = require('../game/services/StateCleanerService');
+        // GM 手动触发时强制所有状态执行，忽略 per-state interval
+        const stats = await StateCleanerService.runCleanup({ forceAll: true });
+        // 记录 GM 操作日志
+        await AdminLog.create({
+            admin_id: req.player.id,
+            admin_name: req.player.nickname,
+            action: 'manual_state_cleanup',
+            target_type: 'system',
+            target_id: null,
+            details: JSON.stringify({ stats }),
+            ip_address: req.ip
+        });
+        res.json({
+            code: 200,
+            message: '状态清理已触发',
+            data: stats
+        });
+    } catch (error) {
+        res.status(500).json({ message: '触发清理失败', error: error.message });
+    }
+});
+
+/**
+ * 获取玩家状态转移日志
+ * GET /api/admin/state-logs
+ *
+ * 查询参数：
+ *   - player_id: 按玩家ID筛选（可选）
+ *   - action: 按动作类型筛选（enter/exit/transition/auto_clean/error）
+ *   - state_type: 按状态类型筛选（seclusion/combat/adventure/moving/ban）
+ *   - page: 页码（默认1）
+ *   - limit: 每页条数（默认20，最大100）
+ *
+ * 用于运维追溯玩家状态变更历史，排查异常状态问题
+ */
+router.get('/state-logs', auth, adminCheck, async (req, res) => {
+    try {
+        const StateLogService = require('../game/services/StateLogService');
+        const playerId = req.query.player_id ? parseInt(req.query.player_id) : undefined;
+        const action = req.query.action || undefined;
+        const stateType = req.query.state_type || undefined;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+
+        const result = await StateLogService.queryLogs({
+            playerId,
+            action,
+            stateType,
+            page,
+            limit
+        });
+
+        res.json({
+            code: 200,
+            data: {
+                logs: result.logs.map(log => log.toJSON()),
+                total: result.total,
+                currentPage: result.currentPage,
+                totalPages: result.totalPages
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: '获取状态日志失败', error: error.message });
+    }
+});
+
 module.exports = router;

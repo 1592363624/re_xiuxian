@@ -233,6 +233,17 @@ router.post('/start-move', auth, async (req, res) => {
             return res.status(400).json({ code: 400, message: '您正在移动中，请等待到达目的地' });
         }
 
+        // 状态机互斥校验：移动与其他 exclusive 状态互斥（闭关/战斗/历练/封禁）
+        const PlayerStateMachine = require('../game/state/PlayerStateMachine');
+        const stateCheck = await PlayerStateMachine.canStart(
+            req.user.id,
+            PlayerStateMachine.PlayerState.MOVING,
+            { source: 'route', stateType: 'moving' }
+        );
+        if (!stateCheck.allowed) {
+            return res.status(400).json({ code: 400, message: stateCheck.reason });
+        }
+
         const currentMapId = player.current_map_id;
         if (currentMapId == targetMapId) {
             return res.status(400).json({ code: 400, message: '您已经在目标地图' });
@@ -289,6 +300,12 @@ router.post('/start-move', auth, async (req, res) => {
             }, { transaction: t });
 
             await t.commit();
+
+            // 记录状态转移日志（事务提交后异步记录）
+            PlayerStateMachine.logEnter(req.user.id, 'moving', PlayerStateMachine.PlayerState.MOVING, {
+                source: 'route',
+                details: { from: currentMapConfig.name, to: targetMapConfig.name, duration: travelCostInfo.time }
+            }).catch(() => { /* 日志失败不阻断 */ });
 
             res.json({
                 code: 200,
@@ -561,6 +578,13 @@ router.post('/explore/start', auth, async (req, res) => {
                 message: '历练服务暂不可用',
                 detail: '请稍后再试或联系管理员'
             });
+        }
+
+        // 状态机互斥校验：历练与其他 exclusive 状态互斥（闭关/战斗/移动/封禁）
+        const PlayerStateMachine = require('../game/state/PlayerStateMachine');
+        const stateCheck = await PlayerStateMachine.canStart(req.user.id, PlayerStateMachine.PlayerState.ADVENTURING);
+        if (!stateCheck.allowed) {
+            return res.status(400).json({ code: 400, message: stateCheck.reason });
         }
 
         const result = await adventureService.startAdventure(req.user.id, { duration, durationType });

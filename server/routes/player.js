@@ -237,10 +237,52 @@ router.post('/breakthrough', authMiddleware, async (req, res) => {
         }
     } catch (error) {
         console.error('境界突破失败:', error);
-        res.status(500).json({ 
-            code: 500, 
-            message: '服务器错误' 
+        res.status(500).json({
+            code: 500,
+            message: '服务器错误'
         });
+    }
+});
+
+/**
+ * 获取玩家进行中状态聚合快照
+ * GET /api/player/state
+ *
+ * 一次性返回玩家所有进行中状态（闭关/战斗/历练/移动/封禁），
+ * 替代前端分别调用 3 个 fetch 接口，消除中间态不一致窗口。
+ *
+ * 适用场景：
+ *   - 页面刷新后恢复 UI 状态
+ *   - Socket 重连后主动拉取（作为 state:snapshot 推送的兜底）
+ *   - GM 后台查询玩家当前状态
+ *
+ * 响应示例：
+ *   {
+ *     "code": 200,
+ *     "data": {
+ *       "player_id": 9,
+ *       "server_time": "2026-07-04T...",
+ *       "states": {
+ *         "seclusion": { "is_secluded": true, "mode": "deep", ... },
+ *         "combat": { "in_battle": false },
+ *         "adventure": { "is_adventuring": false },
+ *         "moving": { "is_moving": false },
+ *         "ban": { "is_banned": false }
+ *       },
+ *       "active_enums": ["SECLUDED"]
+ *     }
+ *   }
+ */
+router.get('/state', authMiddleware, async (req, res, next) => {
+    try {
+        const PlayerStateService = require('../game/services/PlayerStateService');
+        const snapshot = await PlayerStateService.getStateSnapshot(req.player.id);
+        res.json({
+            code: 200,
+            data: snapshot
+        });
+    } catch (error) {
+        next(error);
     }
 });
 

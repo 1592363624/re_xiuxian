@@ -14,6 +14,7 @@ const express = require('express');
 const router = express.Router();
 const Player = require('../models/player');
 const Realm = require('../models/realm');
+const sequelize = require('../config/database');
 const authenticateToken = require('../middleware/auth');
 const { infrastructure } = require('../modules');
 const configLoader = infrastructure.ConfigLoader;
@@ -121,11 +122,31 @@ async function resetDailyCountIfNeeded(player) {
  * @body {number} duration - 期望闭关时长（秒），深度闭关 4-8 小时，常规闭关最长 30 分钟
  */
 router.post('/start', authenticateToken, async (req, res, next) => {
+    // 事务包裹：开始闭关涉及状态变更 + 每日次数累加，必须原子性
+    // 行级锁：防止双开 tab 并发开始闭关导致状态错乱
+    const t = await sequelize.transaction();
     try {
         const playerId = req.user.id;
         const { mode = 'normal', duration } = req.body;
 
-        const player = await Player.findByPk(playerId);
+        // 状态机互斥校验：闭关与其他 exclusive 状态互斥（战斗/移动/历练/封禁）
+        // 通过 StateRegistry 收集所有激活状态统一校验，避免散落判断
+        // 传入 logCtx 以记录被拦截的转移尝试到 player_state_log 表
+        const PlayerStateMachine = require('../game/state/PlayerStateMachine');
+        const stateCheck = await PlayerStateMachine.canStart(
+            playerId,
+            PlayerStateMachine.PlayerState.SECLUDED,
+            { source: 'route', stateType: 'seclusion' }
+        );
+        if (!stateCheck.allowed) {
+            throw new AppError(stateCheck.reason, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+        }
+
+        // 行级锁：事务内查询并锁定玩家行，防止并发修改
+        const player = await Player.findByPk(playerId, {
+            lock: t.LOCK.UPDATE,
+            transaction: t
+        });
         if (!player) {
             throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
@@ -136,8 +157,15 @@ router.post('/start', authenticateToken, async (req, res, next) => {
             throw new AppError('移动中无法开始闭关', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
-        // 跨日重置每日次数
-        await resetDailyCountIfNeeded(player);
+        // 跨日重置每日次数（事务内）
+        const today = new Date().toISOString().split('T')[0];
+        if (player.last_seclusion_date !== today) {
+            if (player.daily_seclusion_count !== 0 || player.daily_deep_seclusion_count !== 0) {
+                player.daily_seclusion_count = 0;
+                player.daily_deep_seclusion_count = 0;
+                player.last_seclusion_date = today;
+            }
+        }
 
         const isDeep = mode === 'deep';
         const config = isDeep ? getDeepSeclusionConfig() : getNormalSeclusionConfig();
@@ -209,17 +237,24 @@ router.post('/start', authenticateToken, async (req, res, next) => {
         } else {
             player.daily_seclusion_count += 1;
         }
-        const today = now.toISOString().split('T')[0];
         player.last_seclusion_date = today;
-        await player.save();
+        await player.save({ transaction: t });
 
-        // 推送状态变更给前端
+        await t.commit();
+
+        // 推送状态变更给前端（事务提交后再推送，避免回滚后误推）
         WebSocketNotificationService.notifyPlayerUpdate(playerId, 'seclusion_start', {
             is_secluded: true,
             seclusion_mode: player.seclusion_mode,
             seclusion_start_time: player.seclusion_start_time,
             seclusion_end_time: player.seclusion_end_time
         });
+
+        // 记录状态转移日志（事务提交后异步记录，不影响主流程）
+        PlayerStateMachine.logEnter(playerId, 'seclusion', PlayerStateMachine.PlayerState.SECLUDED, {
+            source: 'route',
+            details: { mode: player.seclusion_mode, duration: seclusionDuration }
+        }).catch(() => { /* 日志失败不阻断 */ });
 
         res.json({
             code: 200,
@@ -233,6 +268,8 @@ router.post('/start', authenticateToken, async (req, res, next) => {
             }
         });
     } catch (error) {
+        // 事务回滚前检查是否已结束，避免重复 rollback 抛错
+        if (!t.finished) await t.rollback();
         next(error);
     }
 });
@@ -246,9 +283,16 @@ router.post('/start', authenticateToken, async (req, res, next) => {
  * @param {Function} next - 下一个中间件
  */
 async function handleEndSeclusion(req, res, next) {
+    // 事务包裹：结束闭关涉及修为增加 + 状态重置 + 冷却时间记录，必须原子性
+    // 防止崩溃导致 exp 加了但 is_secluded 没清零（已发生过线上 bug）
+    const t = await sequelize.transaction();
     try {
         const playerId = req.user.id;
-        const player = await Player.findByPk(playerId);
+        // 行级锁：防止与状态清理调度器（StateCleanerService）并发结算
+        const player = await Player.findByPk(playerId, {
+            lock: t.LOCK.UPDATE,
+            transaction: t
+        });
         if (!player) {
             throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
@@ -278,7 +322,7 @@ async function handleEndSeclusion(req, res, next) {
         // 计算收益：基础收益 × 境界加成 × 模式倍率 × 惩罚系数 × 实际时长
         const expGain = Math.floor(actualDuration * baseExpRate * realmMultiplier * modeRate * penaltyRate);
 
-        // 更新玩家状态
+        // 更新玩家状态（事务内）
         player.exp = (BigInt(player.exp) + BigInt(expGain)).toString();
         player.is_secluded = false;
         player.seclusion_mode = 'normal';
@@ -286,9 +330,11 @@ async function handleEndSeclusion(req, res, next) {
         player.seclusion_duration = 0;
         player.seclusion_end_time = null;
         player.last_seclusion_time = now;
-        await player.save();
+        await player.save({ transaction: t });
 
-        // 推送状态变更给前端
+        await t.commit();
+
+        // 推送状态变更给前端（事务提交后再推送）
         WebSocketNotificationService.notifyPlayerUpdate(playerId, 'seclusion_end', {
             is_secluded: false,
             exp_gain: expGain,
@@ -296,6 +342,13 @@ async function handleEndSeclusion(req, res, next) {
             last_seclusion_time: player.last_seclusion_time,
             forced_end: forcedEnd
         });
+
+        // 记录状态转移日志（事务提交后异步记录）
+        const PlayerStateMachine = require('../game/state/PlayerStateMachine');
+        PlayerStateMachine.logExit(playerId, 'seclusion', PlayerStateMachine.PlayerState.SECLUDED, {
+            source: 'route',
+            details: { mode: isDeep ? 'deep' : 'normal', exp_gain: expGain, forced_end: forcedEnd, duration: actualDuration }
+        }).catch(() => { /* 日志失败不阻断 */ });
 
         // 拼装提示消息
         let message = `${isDeep ? '深度' : '常规'}闭关结束，本次获得修为 ${expGain} 点`;
@@ -322,6 +375,8 @@ async function handleEndSeclusion(req, res, next) {
             }
         });
     } catch (error) {
+        // 事务回滚前检查是否已结束，避免重复 rollback 抛错
+        if (!t.finished) await t.rollback();
         next(error);
     }
 }

@@ -3,7 +3,36 @@
     "lifespan_update_interval_ms": 600000,
     "lifespan_update_interval_sec": 600,
     "move_check_interval_ms": 5000,
-    "last_online_update_interval_ms": 60000
+    "last_online_update_interval_ms": 60000,
+    "state_cleaner_interval_ms": 60000
+  },
+  "state_cleaner": {
+    "enable": true,
+    "batch_size": 100,
+    "seclusion": {
+      "enable": true,
+      "auto_settle": true,
+      "log_each": false,
+      "interval_ms": 60000
+    },
+    "battle": {
+      "enable": true,
+      "auto_settle": false,
+      "interval_ms": 60000
+    },
+    "adventure": {
+      "enable": true,
+      "auto_complete": false,
+      "interval_ms": 60000
+    },
+    "moving": {
+      "enable": true,
+      "interval_ms": 5000
+    },
+    "ban": {
+      "enable": true,
+      "interval_ms": 60000
+    }
   },
   "auth": {
     "username_regex": "^[a-zA-Z0-9]{6,12}$",

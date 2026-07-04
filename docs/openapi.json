@@ -10635,6 +10635,348 @@
           }
         }
       }
+    },
+    "/api/player/state": {
+      "get": {
+        "tags": [
+          "玩家"
+        ],
+        "summary": "获取玩家进行中状态聚合快照",
+        "description": "一次性返回玩家所有进行中状态（闭关/战斗/历练/移动/封禁），替代前端分别调用 3 个 fetch 接口，消除中间态不一致窗口。适用场景：页面刷新后恢复 UI 状态、Socket 重连后主动拉取、GM 后台查询玩家当前状态。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "状态快照",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "player_id": {
+                          "type": "integer",
+                          "example": 9
+                        },
+                        "server_time": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "states": {
+                          "type": "object",
+                          "description": "各状态类型的快照，键为状态类型（seclusion/combat/adventure/moving/ban）",
+                          "additionalProperties": {
+                            "type": "object"
+                          }
+                        },
+                        "active_enums": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "当前激活的状态枚举列表（如 SECLUDED/IN_BATTLE/MOVING/ADVENTURING/BANNED）",
+                          "example": [
+                            "SECLUDED"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          }
+        }
+      }
+    },
+    "/api/admin/state-cleaner/metrics": {
+      "get": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "获取状态清理调度器监控指标",
+        "description": "返回 StateCleanerService 的运行指标，用于运维监控。当 errorRate > 0.1 时建议告警（清理失败率超 10%）。健康度评估：errorRate < 5% 为 healthy，5%-10% 为 warning，> 10% 为 critical。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "监控指标",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "health": {
+                      "type": "string",
+                      "enum": [
+                        "healthy",
+                        "warning",
+                        "critical"
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lastRunAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "lastRunDurationMs": {
+                          "type": "integer",
+                          "example": 110
+                        },
+                        "lastRunStats": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object"
+                          }
+                        },
+                        "totalRuns": {
+                          "type": "integer",
+                          "example": 5
+                        },
+                        "totalErrors": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "errorRate": {
+                          "type": "number",
+                          "format": "float",
+                          "example": 0
+                        },
+                        "totalItemsCleaned": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "intervalMs": {
+                          "type": "integer",
+                          "example": 60000,
+                          "description": "默认清理间隔（毫秒），各状态可通过 interval_ms 覆盖"
+                        },
+                        "masterTickMs": {
+                          "type": "integer",
+                          "example": 5000,
+                          "description": "主调度间隔（毫秒），取所有状态中最小的 interval_ms，如移动 5s"
+                        },
+                        "enabled": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "registeredStates": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "stateType": {
+                                "type": "string",
+                                "example": "seclusion"
+                              },
+                              "displayName": {
+                                "type": "string",
+                                "example": "闭关"
+                              },
+                              "stateEnum": {
+                                "type": "string",
+                                "example": "SECLUDED"
+                              },
+                              "exclusive": {
+                                "type": "boolean",
+                                "example": true
+                              },
+                              "intervalMs": {
+                                "type": "integer",
+                                "example": 60000,
+                                "description": "该状态的独立清理间隔（毫秒）"
+                              },
+                              "lastCleanedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true,
+                                "description": "该状态上次清理时间"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "非管理员"
+          }
+        }
+      }
+    },
+    "/api/admin/state-cleaner/run": {
+      "post": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "手动触发一次状态清理扫描",
+        "description": "用于运维手动触发清理（如修复线上遗留状态后立即清理）。会记录 GM 操作日志。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "清理已触发",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "状态清理已触发"
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object"
+                      },
+                      "description": "各状态类型的清理统计"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "非管理员"
+          }
+        }
+      }
+    },
+    "/api/admin/state-logs": {
+      "get": {
+        "tags": ["Admin-状态管理"],
+        "summary": "获取玩家状态转移日志",
+        "description": "查询 player_state_log 表，记录玩家每次状态变更（进入/退出/转移/自动清理/异常）。用于运维追溯玩家状态变更历史，排查异常状态问题。需要管理员权限。",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "query",
+            "description": "按玩家ID筛选（可选）",
+            "required": false,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "按动作类型筛选：enter(进入)/exit(退出)/transition(转移)/auto_clean(自动清理)/error(异常)",
+            "required": false,
+            "schema": { "type": "string", "enum": ["enter", "exit", "transition", "auto_clean", "error"] }
+          },
+          {
+            "name": "state_type",
+            "in": "query",
+            "description": "按状态类型筛选：seclusion(闭关)/combat(战斗)/adventure(历练)/moving(移动)/ban(封禁)",
+            "required": false,
+            "schema": { "type": "string", "enum": ["seclusion", "combat", "adventure", "moving", "ban"] }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码（默认1）",
+            "required": false,
+            "schema": { "type": "integer", "default": 1, "minimum": 1 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "每页条数（默认20，最大100）",
+            "required": false,
+            "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "logs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "integer", "description": "日志ID" },
+                              "player_id": { "type": "integer", "description": "玩家ID" },
+                              "player_nickname": { "type": "string", "description": "玩家昵称（冗余存储）" },
+                              "state_type": { "type": "string", "description": "状态类型: seclusion/combat/adventure/moving/ban" },
+                              "action": { "type": "string", "description": "动作类型: enter/exit/transition/auto_clean/error" },
+                              "from_state": { "type": "string", "nullable": true, "description": "变更前状态枚举" },
+                              "to_state": { "type": "string", "nullable": true, "description": "变更后状态枚举" },
+                              "source": { "type": "string", "description": "触发来源: route/cleaner/gm/system" },
+                              "details": { "type": "string", "nullable": true, "description": "详情JSON字符串" },
+                              "createdAt": { "type": "string", "format": "date-time", "description": "记录时间" }
+                            }
+                          }
+                        },
+                        "total": { "type": "integer", "description": "总记录数" },
+                        "currentPage": { "type": "integer", "description": "当前页码" },
+                        "totalPages": { "type": "integer", "description": "总页数" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "非管理员"
+          }
+        }
+      }
     }
   }
 }

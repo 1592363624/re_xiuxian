@@ -63,6 +63,12 @@
 
         <!-- 操作日志 -->
         <OperationLogs v-if="currentTab === 'logs'" ref="operationLogsRef" />
+
+        <!-- 状态清理监控 -->
+        <StateCleanerMonitor v-if="currentTab === 'state_cleaner'" />
+
+        <!-- 状态转移日志 -->
+        <StateLogViewer v-if="currentTab === 'state_logs'" />
       </div>
     </div>
 
@@ -221,6 +227,10 @@ import AIConfig from './sub/AIConfig.vue'
 import SectManagement from './sub/SectManagement.vue'
 // 修炼配置（闭关 + 历练）子组件：提供 GM 后台对参数的可视化编辑与热加载
 import CultivationConfig from './sub/CultivationConfig.vue'
+// 状态清理监控面板：可视化展示 StateCleanerService 的运行指标
+import StateCleanerMonitor from './sub/StateCleanerMonitor.vue'
+// 状态转移日志查看器：展示 player_state_log 表数据
+import StateLogViewer from './sub/StateLogViewer.vue'
 import {
   updatePlayer,
   banPlayer,
@@ -243,7 +253,9 @@ const tabs = [
   { id: 'sect', name: '宗门管理' },
   { id: 'notifications', name: '通知管理' },
   { id: 'stats', name: '服务器统计' },
-  { id: 'logs', name: '操作日志' }
+  { id: 'logs', name: '操作日志' },
+  { id: 'state_cleaner', name: '状态清理' },
+  { id: 'state_logs', name: '状态日志' }
 ]
 const currentTab = ref('players')
 

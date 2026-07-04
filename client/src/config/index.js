@@ -76,5 +76,7 @@ export const SOCKET_EVENTS = [
   'notification',
   'notification:global',
   'new_message',
-  'auth_error'
+  'auth_error',
+  // 状态快照：Socket 重连时后端主动推送，前端据此恢复闭关/移动/战斗/历练 UI
+  'state:snapshot'
 ]

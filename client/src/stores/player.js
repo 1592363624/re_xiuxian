@@ -115,6 +115,102 @@ export const usePlayerStore = defineStore('player', {
         console.warn('[PlayerStore] 收到鉴权失败事件:', data)
         this.logout(data?.message || 'WebSocket 鉴权失败，请重新登录')
       })
+
+      // 监听状态快照：Socket 重连时后端主动推送，前端据此恢复进行中状态
+      // 解决"纯 Socket 重连不刷新页面无法恢复闭关/移动/战斗/历练 UI"的问题
+      // 触发场景：网络抖动重连、服务重启后重连、Tab 切回触发重连
+      socketService.on('state:snapshot', async (data) => {
+        console.log('[PlayerStore] 收到状态快照:', data)
+        if (!data?.snapshot) return
+        await this.applyStateSnapshot(data.snapshot)
+      })
+    },
+
+    /**
+     * 应用后端推送的状态快照到本地 store
+     * 用于 Socket 重连后快速恢复 UI 状态，避免空白闪烁
+     * @param {Object} snapshot - 后端 PlayerStateService.getStateSnapshot 返回的快照
+     */
+    async applyStateSnapshot(snapshot) {
+      if (!snapshot || !this.player) return
+
+      let needFetchPlayer = false
+
+      // 1. 闭关状态恢复
+      const secluded = snapshot.seclusion?.is_secluded === true
+      if (this.player.is_secluded !== secluded) {
+        // 闭关状态不一致：可能是后端自动结算了过期闭关，需要刷新玩家数据获取最新 exp
+        needFetchPlayer = true
+      }
+      if (secluded && this.player) {
+        this.player.is_secluded = true
+        this.player.seclusion_mode = snapshot.seclusion.mode || 'normal'
+        this.player.seclusion_start_time = snapshot.seclusion.start_time
+        this.player.seclusion_end_time = snapshot.seclusion.end_time
+        this.player.seclusion_duration = snapshot.seclusion.duration || 0
+        localStorage.setItem('player', JSON.stringify(this.player))
+      } else if (this.player) {
+        this.player.is_secluded = false
+        this.player.seclusion_mode = 'normal'
+        this.player.seclusion_start_time = null
+        this.player.seclusion_end_time = null
+        localStorage.setItem('player', JSON.stringify(this.player))
+      }
+
+      // 2. 移动状态恢复
+      const moving = snapshot.moving?.is_moving === true
+      if (moving) {
+        // 直接设置 movingState，MovingOverlay 会据此渲染
+        this.movingState = {
+          isMoving: true,
+          fromMapId: snapshot.moving.from_map_id,
+          toMapId: snapshot.moving.to_map_id,
+          fromMapName: '',
+          toMapName: '',
+          startTime: snapshot.moving.move_start_time,
+          endTime: snapshot.moving.move_end_time,
+          totalSeconds: 0,
+          remainingSeconds: snapshot.moving.remaining_seconds || 0
+        }
+      } else {
+        this.clearMovingState()
+      }
+
+      // 3. 历练状态恢复
+      const adventuring = snapshot.adventure?.is_adventuring === true
+      if (adventuring) {
+        this.adventureStatus = {
+          is_adventuring: true,
+          adventure: {
+            id: snapshot.adventure.adventure_id,
+            event_type: snapshot.adventure.event_type,
+            map_id: snapshot.adventure.map_id,
+            map_name: snapshot.adventure.map_name
+          },
+          remaining_seconds: snapshot.adventure.remaining_seconds || 0,
+          total_seconds: 0,
+          is_expired: snapshot.adventure.is_expired || false,
+          server_time: Date.now()
+        }
+      } else {
+        this.adventureStatus = {
+          is_adventuring: false,
+          adventure: null,
+          remaining_seconds: 0,
+          total_seconds: 0,
+          is_expired: false,
+          server_time: 0
+        }
+      }
+
+      // 4. 战斗状态：不在此处直接处理，由 GameLayout 通过 checkActiveBattle 拉取
+      //    快照中的 battle.in_battle 可作为快速判断，但战斗详情需调用 /combat/status 获取
+      //    这样设计是为了避免战斗面板状态在 store 中冗余存储
+
+      // 5. 如果状态有变化（如闭关被自动结算），刷新玩家数据获取最新 exp/hp
+      if (needFetchPlayer) {
+        await this.fetchPlayer()
+      }
     },
 
     /**

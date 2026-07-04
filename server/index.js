@@ -36,6 +36,8 @@ require('./models/playerEquipment');
 require('./models/realm');
 require('./models/admin_log');
 require('./models/map');
+// 玩家状态转移日志模型（优化3：状态变更追溯）
+require('./models/playerStateLog');
 
 const http = require('http');
 const socketIo = require('socket.io');
@@ -69,7 +71,8 @@ function getTimeIntervals() {
 // 提供配置访问函数，而非立即获取配置值
 const UPDATE_INTERVAL_MS = () => getTimeIntervals().lifespan_update_interval_ms || 600000;
 const UPDATE_INTERVAL_SEC = () => getTimeIntervals().lifespan_update_interval_sec || 600;
-const MOVE_CHECK_INTERVAL_MS = () => getTimeIntervals().move_check_interval_ms || 5000;
+// 移动完成检查已迁移到 StateCleanerService（per-state interval 5s），无需独立定时任务
+// 保留 move_check_interval_ms 配置项用于兼容，但本文件不再使用
 
 // CORS 配置 - 生产环境应配置白名单域名
 const corsOptions = {
@@ -194,52 +197,21 @@ const startServer = async () => {
     }, UPDATE_INTERVAL_MS());
     console.log('寿命更新定时任务已启动');
 
-    // 移动完成检查定时任务
-    setInterval(async () => {
-        try {
-            const Player = require('./models/player');
-            const MapConfigLoader = require('./game/services/MapConfigLoader');
-            
-            const movingPlayers = await Player.findAll({
-                where: {
-                    is_moving: true
-                }
-            });
-            
-            const now = new Date();
-            
-            for (const player of movingPlayers) {
-                if (player.move_end_time && new Date(player.move_end_time) <= now) {
-                    console.log(`玩家 ${player.id} 移动完成，自动到达目的地`);
-                    
-                    const targetMapId = player.moving_to_map_id;
-                    const targetMap = MapConfigLoader.getMap(targetMapId);
-                    
-                    player.current_map_id = targetMapId;
-                    player.last_map_move_time = now;
-                    player.is_moving = false;
-                    player.moving_from_map_id = null;
-                    player.moving_to_map_id = null;
-                    player.move_start_time = null;
-                    player.move_end_time = null;
-                    await player.save();
-                    
-                    // 通过 WebSocket 通知前端
-                    const playerSocketId = onlineUsers.get(String(player.id));
-                    if (playerSocketId?.socketId) {
-                        io.to(playerSocketId.socketId).emit('move:completed', {
-                            player_id: player.id,
-                            map_id: targetMapId,
-                            map_name: targetMap?.name || '未知'
-                        });
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('移动检查失败:', error.message);
-        }
-    }, MOVE_CHECK_INTERVAL_MS());
-    console.log('移动完成检查定时任务已启动 (每5秒检查一次)');
+    // 统一状态清理调度器：定期清理过期闭关/战斗/历练/移动/封禁
+    // 解决玩家非正常退出（关浏览器/断网/服务重启）导致状态卡死的问题
+    // 架构：通过 StateRegistry 注册中心调度，新增玩法只需在 game/state/registrations/ 下新增注册文件
+    // 说明：原 index.js 中的移动完成检查定时任务已迁移到 moving.js 的 cleanExpired，
+    //       由 StateCleanerService 通过 per-state interval（5s）统一调度，保持架构一致
+    try {
+        // 1. 注册所有玩法状态处理器（闭关/战斗/历练/移动/封禁）
+        const { registerAllStates } = require('./game/state');
+        registerAllStates();
+        // 2. 启动清理调度器（主调度间隔取所有状态中最小的 interval_ms，如移动 5s）
+        const StateCleanerService = require('./game/services/StateCleanerService');
+        StateCleanerService.start();
+    } catch (err) {
+        console.error('状态清理调度器启动失败:', err.message);
+    }
 
     // 路由
     app.use('/api/auth', require('./routes/auth'));

@@ -139,3 +139,34 @@ export const sendAnnouncement = (title: string, content: string, priority: strin
 export const getAdminNotifications = (params: { page?: number; limit?: number; includeGlobal?: string } = {}) => {
   return apiClient.get('/notifications', { params });
 };
+
+// ========== 状态清理调度器监控 ==========
+
+/**
+ * 获取状态清理调度器监控指标
+ * GET /api/admin/state-cleaner/metrics
+ * 返回：lastRunAt/lastRunDurationMs/totalRuns/totalErrors/errorRate/registeredStates 等
+ */
+export const getStateCleanerMetrics = () => {
+  return apiClient.get('/admin/state-cleaner/metrics');
+};
+
+/**
+ * 手动触发一次状态清理扫描
+ * POST /api/admin/state-cleaner/run
+ * 用于运维手动清理线上遗留状态
+ */
+export const triggerStateCleanerRun = () => {
+  return apiClient.post('/admin/state-cleaner/run');
+};
+
+// ========== 状态转移日志 ==========
+
+/**
+ * 获取玩家状态转移日志
+ * GET /api/admin/state-logs
+ * @param params - 查询参数 { player_id?, action?, state_type?, page?, limit? }
+ */
+export const getStateLogs = (params: { player_id?: number; action?: string; state_type?: string; page?: number; limit?: number } = {}) => {
+  return apiClient.get('/admin/state-logs', { params });
+};

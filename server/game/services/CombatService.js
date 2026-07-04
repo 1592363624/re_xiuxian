@@ -60,106 +60,132 @@ function appendBattleLog(battle, entry) {
 class CombatService {
     /**
      * 遭遇怪物
+     * 事务包裹：创建 ActiveBattle + 恢复 HP 必须原子性
+     * 行级锁：防止并发 encounter 创建多条 ActiveBattle（player_id 唯一约束会冲突）
      */
     static async encounter(playerId, monsterId = null) {
-        const player = await Player.findByPk(playerId);
-        if (!player) {
-            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+        // 状态机互斥校验：战斗与其他 exclusive 状态互斥（闭关/移动/历练/封禁）
+        // 在事务外执行，避免长时间持锁
+        const PlayerStateMachine = require('../state/PlayerStateMachine');
+        const stateCheck = await PlayerStateMachine.canStart(playerId, PlayerStateMachine.PlayerState.IN_BATTLE);
+        if (!stateCheck.allowed) {
+            throw new AppError(stateCheck.reason, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
-        // 兜底：如果玩家 HP <= 0（之前战斗死亡未恢复），先恢复到安全值再开始战斗
-        // 避免一进入战斗就立即被判失败
-        const currentHp = safeBigInt(player.hp_current);
-        if (currentHp <= 0n) {
-            const playerHpMax = this.getPlayerStat(player, 'hp_max', 100);
-            const deathMinHp = getGameBalanceConfig().combat?.death_min_hp ?? 10;
-            const deathRecoveryRate = getGameBalanceConfig().combat?.death_hp_recovery_rate ?? 0.3;
-            player.hp_current = BigInt(Math.max(deathMinHp, Math.floor(playerHpMax * deathRecoveryRate)));
-            await player.save();
-            console.log(`[Combat] 玩家 ${playerId} HP 为 0，遭遇前恢复至 ${player.hp_current}`);
-        }
+        const t = await sequelize.transaction();
+        try {
+            // 行级锁玩家行，防止并发 encounter/attack/flee 导致状态错乱
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
 
-        const activeBattle = await ActiveBattle.findOne({
-            where: { player_id: playerId }
-        });
+            // 兜底：如果玩家 HP <= 0（之前战斗死亡未恢复），先恢复到安全值再开始战斗
+            // 避免一进入战斗就立即被判失败
+            const currentHp = safeBigInt(player.hp_current);
+            if (currentHp <= 0n) {
+                const playerHpMax = this.getPlayerStat(player, 'hp_max', 100);
+                const deathMinHp = getGameBalanceConfig().combat?.death_min_hp ?? 10;
+                const deathRecoveryRate = getGameBalanceConfig().combat?.death_hp_recovery_rate ?? 0.3;
+                player.hp_current = BigInt(Math.max(deathMinHp, Math.floor(playerHpMax * deathRecoveryRate)));
+                await player.save({ transaction: t });
+                console.log(`[Combat] 玩家 ${playerId} HP 为 0，遭遇前恢复至 ${player.hp_current}`);
+            }
 
-        if (activeBattle) {
+            // 行级锁查询 ActiveBattle，防止并发创建
+            const activeBattle = await ActiveBattle.findOne({
+                where: { player_id: playerId },
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+
+            if (activeBattle) {
+                await t.commit();
+                return {
+                    in_battle: true,
+                    battle_id: activeBattle.battle_uuid,
+                    monster: {
+                        id: activeBattle.monster_id,
+                        name: activeBattle.monster_name,
+                        hp: safeBigInt(activeBattle.monster_hp).toString(),
+                        max_hp: safeBigInt(activeBattle.monster_max_hp).toString()
+                    },
+                    player: {
+                        hp: safeBigInt(activeBattle.player_hp).toString(),
+                        mp: safeBigInt(activeBattle.player_mp).toString()
+                    },
+                    round: activeBattle.round,
+                    turn: activeBattle.turn,
+                    battle_log: (activeBattle.battle_log || []).slice(-5)
+                };
+            }
+
+            const mapConfig = MapConfigLoader.getMap(player.current_map_id);
+            if (!mapConfig || !mapConfig.monsters || mapConfig.monsters.length === 0) {
+                throw new AppError('当前地图没有怪物', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            let selectedMonster;
+            if (monsterId) {
+                selectedMonster = mapConfig.monsters.find(m => m.id === monsterId);
+                if (!selectedMonster) {
+                    throw new AppError('该怪物在当前地图中不存在', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+                }
+            } else {
+                const randomIndex = Math.floor(Math.random() * mapConfig.monsters.length);
+                selectedMonster = mapConfig.monsters[randomIndex];
+            }
+
+            const monsterData = this.generateMonsterData(selectedMonster, player);
+
+            const battle = await ActiveBattle.create({
+                player_id: playerId,
+                monster_id: selectedMonster.id,
+                monster_name: selectedMonster.name,
+                monster_data: monsterData,
+                map_id: player.current_map_id,
+                battle_type: 'normal',
+                round: 1,
+                turn: 'player',
+                player_hp: safeBigInt(player.hp_current),
+                player_mp: safeBigInt(player.mp_current),
+                monster_hp: monsterData.max_hp,
+                monster_max_hp: monsterData.max_hp,
+                is_player_turn: true,
+                // 战斗过期时间从配置读取，避免硬编码
+                expires_at: new Date(Date.now() + (getGameBalanceConfig().combat?.battle_expire_minutes ?? 30) * 60 * 1000)
+            }, { transaction: t });
+
+            await t.commit();
+
             return {
                 in_battle: true,
-                battle_id: activeBattle.battle_uuid,
+                battle_id: battle.battle_uuid,
                 monster: {
-                    id: activeBattle.monster_id,
-                    name: activeBattle.monster_name,
-                    hp: safeBigInt(activeBattle.monster_hp).toString(),
-                    max_hp: safeBigInt(activeBattle.monster_max_hp).toString()
+                    id: selectedMonster.id,
+                    name: selectedMonster.name,
+                    realm: selectedMonster.realm,
+                    hp: monsterData.max_hp.toString(),
+                    max_hp: monsterData.max_hp.toString(),
+                    atk: monsterData.atk.toString(),
+                    def: monsterData.def.toString(),
+                    speed: monsterData.speed.toString()
                 },
                 player: {
-                    hp: safeBigInt(activeBattle.player_hp).toString(),
-                    mp: safeBigInt(activeBattle.player_mp).toString()
+                    hp: safeBigInt(player.hp_current).toString(),
+                    mp: safeBigInt(player.mp_current).toString()
                 },
-                round: activeBattle.round,
-                turn: activeBattle.turn,
-                battle_log: (activeBattle.battle_log || []).slice(-5)
+                round: 1,
+                turn: 'player',
+                message: `遭遇 ${selectedMonster.name}！`
             };
+        } catch (error) {
+            if (!t.finished) await t.rollback();
+            throw error;
         }
-
-        const mapConfig = MapConfigLoader.getMap(player.current_map_id);
-        if (!mapConfig || !mapConfig.monsters || mapConfig.monsters.length === 0) {
-            throw new AppError('当前地图没有怪物', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
-
-        let selectedMonster;
-        if (monsterId) {
-            selectedMonster = mapConfig.monsters.find(m => m.id === monsterId);
-            if (!selectedMonster) {
-                throw new AppError('该怪物在当前地图中不存在', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-            }
-        } else {
-            const randomIndex = Math.floor(Math.random() * mapConfig.monsters.length);
-            selectedMonster = mapConfig.monsters[randomIndex];
-        }
-
-        const monsterData = this.generateMonsterData(selectedMonster, player);
-
-        const battle = await ActiveBattle.create({
-            player_id: playerId,
-            monster_id: selectedMonster.id,
-            monster_name: selectedMonster.name,
-            monster_data: monsterData,
-            map_id: player.current_map_id,
-            battle_type: 'normal',
-            round: 1,
-            turn: 'player',
-            player_hp: safeBigInt(player.hp_current),
-            player_mp: safeBigInt(player.mp_current),
-            monster_hp: monsterData.max_hp,
-            monster_max_hp: monsterData.max_hp,
-            is_player_turn: true,
-            // 战斗过期时间从配置读取，避免硬编码
-            expires_at: new Date(Date.now() + (getGameBalanceConfig().combat?.battle_expire_minutes ?? 30) * 60 * 1000)
-        });
-
-        return {
-            in_battle: true,
-            battle_id: battle.battle_uuid,
-            monster: {
-                id: selectedMonster.id,
-                name: selectedMonster.name,
-                realm: selectedMonster.realm,
-                hp: monsterData.max_hp.toString(),
-                max_hp: monsterData.max_hp.toString(),
-                atk: monsterData.atk.toString(),
-                def: monsterData.def.toString(),
-                speed: monsterData.speed.toString()
-            },
-            player: {
-                hp: safeBigInt(player.hp_current).toString(),
-                mp: safeBigInt(player.mp_current).toString()
-            },
-            round: 1,
-            turn: 'player',
-            message: `遭遇 ${selectedMonster.name}！`
-        };
     }
 
     /**
@@ -211,185 +237,235 @@ class CombatService {
 
     /**
      * 玩家攻击
+     * 事务包裹：扣血/扣蓝/写日志/回合切换必须原子性
+     * 行级锁：防止 attack 与 monsterTurn 并发执行导致回合错乱
      */
     static async attack(playerId, action = 'attack') {
-        const battle = await ActiveBattle.findOne({
-            where: { player_id: playerId }
-        });
+        const t = await sequelize.transaction();
+        try {
+            // 行级锁战斗记录，防止与 monsterTurn/flee 并发
+            const battle = await ActiveBattle.findOne({
+                where: { player_id: playerId },
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
 
-        if (!battle) {
-            throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            if (!battle) {
+                throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            if (!battle.is_player_turn) {
+                throw new AppError('还未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 行级锁玩家行，防止与 encounter/flee 并发
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+            const playerAtk = this.getPlayerStat(player, 'atk', 10);
+            const monsterDef = battle.monster_data?.def || 5;
+
+            const combatConfig = getGameBalanceConfig().combat || {};
+            const dmgRange = combatConfig.damage_random_range ?? 15;
+            const dmgOffset = combatConfig.damage_random_offset ?? 7;
+
+            let damage = Math.max(1, playerAtk - monsterDef + Math.floor(Math.random() * dmgRange) - dmgOffset);
+
+            // 技能加成：仅当 action=skill 且灵力足够时生效（attack 路由的 skill 分支）
+            if (action === 'skill' && safeBigInt(player.mp_current) >= (combatConfig.skill_mp_cost ?? 20)) {
+                damage = Math.floor(damage * (combatConfig.skill_damage_multiplier ?? 1.5));
+                battle.player_mp = safeBigInt(battle.player_mp) - BigInt(combatConfig.skill_mp_cost ?? 20);
+            }
+
+            // 使用 safeBigInt 防御 null/undefined 导致 500
+            battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(damage);
+            battle.damage_dealt = safeBigInt(battle.damage_dealt) + BigInt(damage);
+
+            // 修复：使用 appendBattleLog 替代直接 push，确保 save 时写入数据库
+            appendBattleLog(battle, {
+                round: battle.round,
+                attacker: 'player',
+                action: action,
+                damage: damage,
+                target_hp: safeBigInt(battle.monster_hp).toString(),
+                timestamp: new Date().toISOString()
+            });
+
+            // checkBattleEnd 在事务内执行，胜利/失败时修改 player 和 battle
+            const battleResult = await this.checkBattleEnd(battle, player, t);
+            if (battleResult) {
+                await t.commit();
+                return battleResult;
+            }
+
+            battle.is_player_turn = false;
+            battle.turn = 'monster';
+            battle.last_action_time = new Date();
+            await battle.save({ transaction: t });
+
+            await t.commit();
+
+            return {
+                in_battle: true,
+                battle_id: battle.battle_uuid,
+                action: action,
+                damage: damage,
+                monster_hp: safeBigInt(battle.monster_hp).toString(),
+                turn: 'monster',
+                message: `你对 ${battle.monster_name} 造成了 ${damage} 点伤害！`
+            };
+        } catch (error) {
+            if (!t.finished) await t.rollback();
+            throw error;
         }
-
-        if (!battle.is_player_turn) {
-            throw new AppError('还未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
-
-        const player = await Player.findByPk(playerId);
-        if (!player) {
-            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-        }
-        const playerAtk = this.getPlayerStat(player, 'atk', 10);
-        const monsterDef = battle.monster_data?.def || 5;
-
-        const combatConfig = getGameBalanceConfig().combat || {};
-        const dmgRange = combatConfig.damage_random_range ?? 15;
-        const dmgOffset = combatConfig.damage_random_offset ?? 7;
-
-        let damage = Math.max(1, playerAtk - monsterDef + Math.floor(Math.random() * dmgRange) - dmgOffset);
-
-        // 技能加成：仅当 action=skill 且灵力足够时生效（attack 路由的 skill 分支）
-        if (action === 'skill' && safeBigInt(player.mp_current) >= (combatConfig.skill_mp_cost ?? 20)) {
-            damage = Math.floor(damage * (combatConfig.skill_damage_multiplier ?? 1.5));
-            battle.player_mp = safeBigInt(battle.player_mp) - BigInt(combatConfig.skill_mp_cost ?? 20);
-        }
-
-        // 使用 safeBigInt 防御 null/undefined 导致 500
-        battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(damage);
-        battle.damage_dealt = safeBigInt(battle.damage_dealt) + BigInt(damage);
-
-        // 修复：使用 appendBattleLog 替代直接 push，确保 save 时写入数据库
-        appendBattleLog(battle, {
-            round: battle.round,
-            attacker: 'player',
-            action: action,
-            damage: damage,
-            target_hp: safeBigInt(battle.monster_hp).toString(),
-            timestamp: new Date().toISOString()
-        });
-
-        const battleResult = await this.checkBattleEnd(battle, player);
-        if (battleResult) {
-            return battleResult;
-        }
-
-        battle.is_player_turn = false;
-        battle.turn = 'monster';
-        battle.last_action_time = new Date();
-        await battle.save();
-
-        return {
-            in_battle: true,
-            battle_id: battle.battle_uuid,
-            action: action,
-            damage: damage,
-            monster_hp: safeBigInt(battle.monster_hp).toString(),
-            turn: 'monster',
-            message: `你对 ${battle.monster_name} 造成了 ${damage} 点伤害！`
-        };
     }
 
     /**
      * 怪物行动
+     * 事务包裹：扣血/写日志/回合切换必须原子性
+     * 行级锁：防止与 attack/flee 并发
      */
     static async monsterTurn(playerId) {
-        const battle = await ActiveBattle.findOne({
-            where: { player_id: playerId }
-        });
+        const t = await sequelize.transaction();
+        try {
+            const battle = await ActiveBattle.findOne({
+                where: { player_id: playerId },
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
 
-        if (!battle || battle.is_player_turn) {
-            return null;
+            if (!battle || battle.is_player_turn) {
+                await t.commit();
+                return null;
+            }
+
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+            const playerDef = this.getPlayerStat(player, 'def', 5);
+
+            const monsterData = battle.monster_data || {};
+            // 怪物伤害随机范围从配置读取，与玩家伤害公式保持一致
+            const monsterDmgConfig = getGameBalanceConfig().combat || {};
+            const monsterDmgRange = monsterDmgConfig.monster_damage_random_range ?? 6;
+            const monsterDmgOffset = monsterDmgConfig.monster_damage_random_offset ?? 3;
+            let damage = Math.max(1, (monsterData.atk || 8) - playerDef + Math.floor(Math.random() * monsterDmgRange) - monsterDmgOffset);
+
+            battle.player_hp = safeBigInt(battle.player_hp) - BigInt(damage);
+            battle.damage_received = safeBigInt(battle.damage_received) + BigInt(damage);
+
+            appendBattleLog(battle, {
+                round: battle.round,
+                attacker: 'monster',
+                action: 'attack',
+                damage: damage,
+                target_hp: safeBigInt(battle.player_hp).toString(),
+                timestamp: new Date().toISOString()
+            });
+
+            const battleResult = await this.checkBattleEnd(battle, player, t);
+            if (battleResult) {
+                await t.commit();
+                return battleResult;
+            }
+
+            battle.round += 1;
+            battle.is_player_turn = true;
+            battle.turn = 'player';
+            battle.last_action_time = new Date();
+            await battle.save({ transaction: t });
+
+            await t.commit();
+
+            return {
+                in_battle: true,
+                battle_id: battle.battle_uuid,
+                action: 'monster_attack',
+                damage: damage,
+                player_hp: safeBigInt(battle.player_hp).toString(),
+                turn: 'player',
+                round: battle.round,
+                message: `${battle.monster_name} 对你造成了 ${damage} 点伤害！`
+            };
+        } catch (error) {
+            if (!t.finished) await t.rollback();
+            throw error;
         }
-
-        const player = await Player.findByPk(playerId);
-        if (!player) {
-            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-        }
-        const playerDef = this.getPlayerStat(player, 'def', 5);
-
-        const monsterData = battle.monster_data || {};
-        // 怪物伤害随机范围从配置读取，与玩家伤害公式保持一致
-        const monsterDmgConfig = getGameBalanceConfig().combat || {};
-        const monsterDmgRange = monsterDmgConfig.monster_damage_random_range ?? 6;
-        const monsterDmgOffset = monsterDmgConfig.monster_damage_random_offset ?? 3;
-        let damage = Math.max(1, (monsterData.atk || 8) - playerDef + Math.floor(Math.random() * monsterDmgRange) - monsterDmgOffset);
-
-        battle.player_hp = safeBigInt(battle.player_hp) - BigInt(damage);
-        battle.damage_received = safeBigInt(battle.damage_received) + BigInt(damage);
-
-        appendBattleLog(battle, {
-            round: battle.round,
-            attacker: 'monster',
-            action: 'attack',
-            damage: damage,
-            target_hp: safeBigInt(battle.player_hp).toString(),
-            timestamp: new Date().toISOString()
-        });
-
-        const battleResult = await this.checkBattleEnd(battle, player);
-        if (battleResult) {
-            return battleResult;
-        }
-
-        battle.round += 1;
-        battle.is_player_turn = true;
-        battle.turn = 'player';
-        battle.last_action_time = new Date();
-        await battle.save();
-
-        return {
-            in_battle: true,
-            battle_id: battle.battle_uuid,
-            action: 'monster_attack',
-            damage: damage,
-            player_hp: safeBigInt(battle.player_hp).toString(),
-            turn: 'player',
-            round: battle.round,
-            message: `${battle.monster_name} 对你造成了 ${damage} 点伤害！`
-        };
     }
 
     /**
      * 逃跑
+     * 事务包裹：保存战斗记录 + 删除 ActiveBattle 必须原子性
+     * 行级锁：防止与 attack/monsterTurn 并发
      */
     static async flee(playerId) {
-        const battle = await ActiveBattle.findOne({
-            where: { player_id: playerId }
-        });
-
-        if (!battle) {
-            throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
-
-        const escapeChance = getGameBalanceConfig().combat?.escape_chance ?? 0.5;
-        const success = Math.random() < escapeChance;
-
-        if (success) {
-            const player = await Player.findByPk(playerId);
-            appendBattleLog(battle, {
-                round: battle.round,
-                attacker: 'player',
-                action: 'flee',
-                success: true,
-                timestamp: new Date().toISOString()
+        const t = await sequelize.transaction();
+        try {
+            const battle = await ActiveBattle.findOne({
+                where: { player_id: playerId },
+                lock: t.LOCK.UPDATE,
+                transaction: t
             });
 
-            await this.saveBattleRecord(battle, player, 'flee', null);
-            await battle.destroy();
+            if (!battle) {
+                throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
 
-            return {
-                success: true,
-                fled: true,
-                message: '成功逃跑！'
-            };
-        } else {
-            appendBattleLog(battle, {
-                round: battle.round,
-                attacker: 'player',
-                action: 'flee',
-                success: false,
-                timestamp: new Date().toISOString()
-            });
-            battle.is_player_turn = false;
-            battle.turn = 'monster';
-            battle.last_action_time = new Date();
-            await battle.save();
+            const escapeChance = getGameBalanceConfig().combat?.escape_chance ?? 0.5;
+            const success = Math.random() < escapeChance;
 
-            return {
-                success: false,
-                fled: false,
-                message: '逃跑失败！'
-            };
+            if (success) {
+                const player = await Player.findByPk(playerId, { transaction: t });
+                appendBattleLog(battle, {
+                    round: battle.round,
+                    attacker: 'player',
+                    action: 'flee',
+                    success: true,
+                    timestamp: new Date().toISOString()
+                });
+
+                await this.saveBattleRecord(battle, player, 'flee', null, t);
+                await battle.destroy({ transaction: t });
+
+                await t.commit();
+
+                return {
+                    success: true,
+                    fled: true,
+                    message: '成功逃跑！'
+                };
+            } else {
+                appendBattleLog(battle, {
+                    round: battle.round,
+                    attacker: 'player',
+                    action: 'flee',
+                    success: false,
+                    timestamp: new Date().toISOString()
+                });
+                battle.is_player_turn = false;
+                battle.turn = 'monster';
+                battle.last_action_time = new Date();
+                await battle.save({ transaction: t });
+
+                await t.commit();
+
+                return {
+                    success: false,
+                    fled: false,
+                    message: '逃跑失败！'
+                };
+            }
+        } catch (error) {
+            if (!t.finished) await t.rollback();
+            throw error;
         }
     }
 
@@ -397,28 +473,44 @@ class CombatService {
      * 放弃战斗（玩家主动脱离卡死的战斗，不保存战斗记录）
      * 使用场景：玩家有遗留的过期战斗记录，无法通过正常途径清除
      * 与 flee 的区别：flee 有概率失败且记录到战斗历史，abandon 直接清除不计入历史
+     * 事务包裹：防止并发请求导致 destroy 失败
      */
     static async abandon(playerId) {
-        const battle = await ActiveBattle.findOne({
-            where: { player_id: playerId }
-        });
+        const t = await sequelize.transaction();
+        try {
+            const battle = await ActiveBattle.findOne({
+                where: { player_id: playerId },
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
 
-        if (!battle) {
-            throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            if (!battle) {
+                throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            await battle.destroy({ transaction: t });
+            await t.commit();
+
+            return {
+                success: true,
+                message: '已放弃战斗'
+            };
+        } catch (error) {
+            if (!t.finished) await t.rollback();
+            throw error;
         }
-
-        await battle.destroy();
-
-        return {
-            success: true,
-            message: '已放弃战斗'
-        };
     }
 
     /**
      * 检查战斗是否结束
+     * 接受 transaction 参数，在调用方事务内执行，保证原子性
+     * @param {object} battle - 战斗实例（已加锁）
+     * @param {object} player - 玩家实例（已加锁）
+     * @param {object} t - sequelize 事务实例
      */
-    static async checkBattleEnd(battle, player) {
+    static async checkBattleEnd(battle, player, t = null) {
+        const transactionOptions = t ? { transaction: t } : {};
+
         if (safeBigInt(battle.monster_hp) <= 0n) {
             const dropResult = DropLoader.rollDrop(battle.monster_id);
 
@@ -431,14 +523,14 @@ class CombatService {
                     player_id: player.id,
                     item_key: item.item_id,
                     quantity: item.quantity
-                });
+                }, transactionOptions);
                 gainedItems.push({
                     item_id: item.item_id,
                     quantity: item.quantity
                 });
             }
 
-            await player.save();
+            await player.save(transactionOptions);
 
             appendBattleLog(battle, {
                 round: battle.round,
@@ -449,8 +541,8 @@ class CombatService {
                 timestamp: new Date().toISOString()
             });
 
-            await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems });
-            await battle.destroy();
+            await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems }, t);
+            await battle.destroy(transactionOptions);
 
             return {
                 in_battle: false,
@@ -475,7 +567,7 @@ class CombatService {
             const deathMinHp = getGameBalanceConfig().combat?.death_min_hp ?? 10;
             const deathRecoveryRate = getGameBalanceConfig().combat?.death_hp_recovery_rate ?? 0.3;
             player.hp_current = BigInt(Math.max(deathMinHp, Math.floor(playerHpMax * deathRecoveryRate)));
-            await player.save();
+            await player.save(transactionOptions);
 
             appendBattleLog(battle, {
                 round: battle.round,
@@ -485,8 +577,8 @@ class CombatService {
                 timestamp: new Date().toISOString()
             });
 
-            await this.saveBattleRecord(battle, player, 'lose', { penalty_exp: penaltyExp.toString() });
-            await battle.destroy();
+            await this.saveBattleRecord(battle, player, 'lose', { penalty_exp: penaltyExp.toString() }, t);
+            await battle.destroy(transactionOptions);
 
             return {
                 in_battle: false,
@@ -503,8 +595,15 @@ class CombatService {
 
     /**
      * 保存战斗记录
+     * 接受 transaction 参数，在调用方事务内执行，保证原子性
+     * @param {object} battle - 战斗实例
+     * @param {object} player - 玩家实例
+     * @param {string} result - 战斗结果 win/lose/flee
+     * @param {object} rewards - 奖励
+     * @param {object|null} t - sequelize 事务实例
      */
-    static async saveBattleRecord(battle, player, result, rewards) {
+    static async saveBattleRecord(battle, player, result, rewards, t = null) {
+        const transactionOptions = t ? { transaction: t } : {};
         await PlayerCombat.create({
             player_id: player.id,
             monster_id: battle.monster_id,
@@ -519,7 +618,7 @@ class CombatService {
             rewards_exp: rewards?.exp || 0,
             rewards_items: JSON.stringify(rewards?.items || []),
             battle_duration: Math.floor((Date.now() - battle.battle_start_time.getTime()) / 1000)
-        });
+        }, transactionOptions);
     }
 
     /**
@@ -599,76 +698,92 @@ class CombatService {
 
     /**
      * 使用技能
+     * 事务包裹：扣蓝/扣血/写日志/回合切换必须原子性
+     * 行级锁：防止与 attack/monsterTurn 并发
      */
     static async useSkill(playerId, skillIndex = 0) {
-        const battle = await ActiveBattle.findOne({
-            where: { player_id: playerId }
-        });
+        const t = await sequelize.transaction();
+        try {
+            const battle = await ActiveBattle.findOne({
+                where: { player_id: playerId },
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
 
-        if (!battle) {
-            throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            if (!battle) {
+                throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            if (!battle.is_player_turn) {
+                throw new AppError('还未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
+            const combatConfig = getGameBalanceConfig().combat || {};
+            const skillMpCost = combatConfig.skill_mp_cost ?? 20;
+
+            if (safeBigInt(player.mp_current) < skillMpCost) {
+                throw new AppError(`灵力不足，需要 ${skillMpCost} 点灵力`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            const playerAtk = this.getPlayerStat(player, 'atk', 10);
+            const monsterDef = battle.monster_data?.def || 5;
+
+            // 技能伤害随机范围从配置读取（与 damage_random_range/offset 复用，避免新增配置项）
+            const skillDmgRange = combatConfig.damage_random_range ?? 15;
+            const skillDmgOffset = combatConfig.damage_random_offset ?? 7;
+            let damage = Math.floor(playerAtk * (combatConfig.skill_damage_multiplier ?? 1.5) - monsterDef + Math.floor(Math.random() * skillDmgRange) - skillDmgOffset);
+            damage = Math.max(1, damage);
+
+            battle.player_mp = safeBigInt(battle.player_mp) - BigInt(skillMpCost);
+            battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(damage);
+            battle.damage_dealt = safeBigInt(battle.damage_dealt) + BigInt(damage);
+
+            appendBattleLog(battle, {
+                round: battle.round,
+                attacker: 'player',
+                action: 'skill',
+                skill_index: skillIndex,
+                damage: damage,
+                target_hp: safeBigInt(battle.monster_hp).toString(),
+                timestamp: new Date().toISOString()
+            });
+
+            const battleResult = await this.checkBattleEnd(battle, player, t);
+            if (battleResult) {
+                await t.commit();
+                return battleResult;
+            }
+
+            battle.is_player_turn = false;
+            battle.turn = 'monster';
+            battle.last_action_time = new Date();
+            await battle.save({ transaction: t });
+
+            await t.commit();
+
+            return {
+                in_battle: true,
+                battle_id: battle.battle_uuid,
+                action: 'skill',
+                damage: damage,
+                mp_used: skillMpCost,
+                monster_hp: safeBigInt(battle.monster_hp).toString(),
+                player_mp: safeBigInt(battle.player_mp).toString(),
+                turn: 'monster',
+                message: `你对 ${battle.monster_name} 使用了技能，造成 ${damage} 点伤害！`
+            };
+        } catch (error) {
+            if (!t.finished) await t.rollback();
+            throw error;
         }
-
-        if (!battle.is_player_turn) {
-            throw new AppError('还未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
-
-        const player = await Player.findByPk(playerId);
-        if (!player) {
-            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-        }
-
-        const combatConfig = getGameBalanceConfig().combat || {};
-        const skillMpCost = combatConfig.skill_mp_cost ?? 20;
-
-        if (safeBigInt(player.mp_current) < skillMpCost) {
-            throw new AppError(`灵力不足，需要 ${skillMpCost} 点灵力`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
-
-        const playerAtk = this.getPlayerStat(player, 'atk', 10);
-        const monsterDef = battle.monster_data?.def || 5;
-
-        // 技能伤害随机范围从配置读取（与 damage_random_range/offset 复用，避免新增配置项）
-        const skillDmgRange = combatConfig.damage_random_range ?? 15;
-        const skillDmgOffset = combatConfig.damage_random_offset ?? 7;
-        let damage = Math.floor(playerAtk * (combatConfig.skill_damage_multiplier ?? 1.5) - monsterDef + Math.floor(Math.random() * skillDmgRange) - skillDmgOffset);
-        damage = Math.max(1, damage);
-
-        battle.player_mp = safeBigInt(battle.player_mp) - BigInt(skillMpCost);
-        battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(damage);
-        battle.damage_dealt = safeBigInt(battle.damage_dealt) + BigInt(damage);
-
-        appendBattleLog(battle, {
-            round: battle.round,
-            attacker: 'player',
-            action: 'skill',
-            skill_index: skillIndex,
-            damage: damage,
-            target_hp: safeBigInt(battle.monster_hp).toString(),
-            timestamp: new Date().toISOString()
-        });
-
-        const battleResult = await this.checkBattleEnd(battle, player);
-        if (battleResult) {
-            return battleResult;
-        }
-
-        battle.is_player_turn = false;
-        battle.turn = 'monster';
-        battle.last_action_time = new Date();
-        await battle.save();
-
-        return {
-            in_battle: true,
-            battle_id: battle.battle_uuid,
-            action: 'skill',
-            damage: damage,
-            mp_used: skillMpCost,
-            monster_hp: safeBigInt(battle.monster_hp).toString(),
-            player_mp: safeBigInt(battle.player_mp).toString(),
-            turn: 'monster',
-            message: `你对 ${battle.monster_name} 使用了技能，造成 ${damage} 点伤害！`
-        };
     }
 
     /**

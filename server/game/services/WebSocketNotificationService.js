@@ -60,6 +60,24 @@ class WebSocketNotificationService {
             console.log(`[WebSocket] 玩家 ${playerId} 已连接，SocketID: ${socket.id}`);
             socket.join(`player:${playerId}`);
 
+            // 状态恢复：连接建立后主动推送玩家进行中状态快照
+            // 解决"纯 Socket 重连不刷新页面无法恢复状态"的问题
+            // 前端收到 state:snapshot 后可据此恢复闭关/移动/战斗/历练的 UI 状态
+            try {
+                const PlayerStateService = require('./PlayerStateService');
+                const snapshot = await PlayerStateService.getStateSnapshot(playerId);
+                socket.emit('state:snapshot', {
+                    type: 'state_snapshot',
+                    snapshot,
+                    timestamp: new Date().toISOString()
+                });
+                console.log(`[WebSocket] 已推送状态快照给玩家 ${playerId} ` +
+                    `(闭关:${snapshot.seclusion.is_secluded} 移动:${snapshot.moving.is_moving} ` +
+                    `战斗:${snapshot.battle.in_battle} 历练:${snapshot.adventure.is_adventuring})`);
+            } catch (err) {
+                console.warn(`[WebSocket] 推送状态快照失败 玩家 ${playerId}:`, err.message);
+            }
+
             socket.on('disconnect', () => {
                 const userInfo = this.onlineUsers.get(playerId.toString());
                 if (userInfo && userInfo.socketId === socket.id) {
@@ -139,6 +157,33 @@ class WebSocketNotificationService {
         this.io.to(`player:${playerId}`).emit('player:updated', payload);
         console.log(`[WebSocket] 玩家 ${playerId} 收到数据更新通知: ${updateType}`);
         return true;
+    }
+
+    /**
+     * 向指定玩家推送任意自定义事件
+     * 用于状态清理等场景需要直接 emit 特定事件名（如 move:completed），
+     * 而非通过统一的 player:updated 通道。
+     * @param {number|string} playerId - 玩家ID
+     * @param {string} event - 事件名（如 'move:completed'）
+     * @param {Object} data - 推送数据
+     * @returns {boolean} 是否推送成功（玩家不在线时返回 false 但不报错）
+     */
+    emitToPlayer(playerId, event, data = {}) {
+        if (!this.io) {
+            console.warn('[WebSocket] io 实例未初始化');
+            return false;
+        }
+        // 玩家不在线时静默返回，不视为错误（清理任务可正常完成）
+        if (!this.isPlayerOnline(playerId)) {
+            return false;
+        }
+        try {
+            this.io.to(`player:${playerId}`).emit(event, data);
+            return true;
+        } catch (err) {
+            console.warn(`[WebSocket] 推送自定义事件 ${event} 给玩家 ${playerId} 失败:`, err.message);
+            return false;
+        }
     }
 
     /**
