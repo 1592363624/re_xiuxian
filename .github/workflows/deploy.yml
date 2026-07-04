@@ -25,7 +25,11 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           port: 22
-          # 触发服务器上的部署脚本
+          # 先 git pull 更新 deploy.ps1 自身（解决"脚本自我更新"的鸡生蛋问题）
+          # 再执行新版 deploy.ps1（英文版，无编码问题）
           # deploy.ps1 会执行：git pull -> npm install -> build -> pm2 reload -> 健康检查
           script: |
+            cd "C:\Users\Administrator\Desktop\re_xiuxian"
+            git fetch --all
+            git reset --hard origin/main
             powershell -ExecutionPolicy Bypass -File "C:\Users\Administrator\Desktop\re_xiuxian\scripts\deploy.ps1"

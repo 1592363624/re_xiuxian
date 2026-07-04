@@ -24,7 +24,9 @@
 $ErrorActionPreference = 'Stop'
 
 # ========== Configuration ==========
-$projectDir = "C:\Projects\re_xiuxian"
+# Auto-detect project directory from script location
+# This makes the script portable - no hardcoded path
+$projectDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $healthCheckUrl = "http://localhost:5000/api/health"
 $healthCheckTimeout = 15
 $healthCheckRetryCount = 3
