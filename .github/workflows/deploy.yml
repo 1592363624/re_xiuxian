@@ -25,6 +25,10 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           port: 22
+          # 关键：script_stop=true 确保脚本失败时 Action 报红色（默认 false 会假绿）
+          script_stop: true
+          # debug=true 输出完整 SSH 会话日志（排查问题用）
+          debug: true
           # SSH 命令超时设置（避免长时间构建被截断）
           timeout: 60s           # TCP 连接超时
           command_timeout: 30m   # 命令执行超时（含 npm install + build + 健康检查）
