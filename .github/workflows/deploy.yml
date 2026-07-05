@@ -32,26 +32,24 @@ jobs:
           # SSH 命令超时设置（避免长时间构建被截断）
           timeout: 60s           # TCP 连接超时
           command_timeout: 30m   # 命令执行超时（含 npm install + build + 健康检查）
-          # 部署流程（PowerShell 版）：
+          # 部署流程（极简触发版）：
+          # workflow 只负责 cd + 触发 deploy.ps1，所有逻辑（git fetch/npm/build/pm2）都在 deploy.ps1 内
+          # 为什么不在 workflow 里做 git fetch:
+          #   1. deploy.ps1 有完整的重试 + 镜像兜底逻辑，workflow 重复实现没意义
+          #   2. workflow 的 git fetch 失败会让 deploy.ps1 都没机会运行（无法更新自己）
+          #   3. deploy.ps1 内部 git fetch 会更新 deploy.ps1 自身（下次部署用新版），解决鸡生蛋问题
+          #
           # 为什么必须用 PowerShell 而不是 cmd:
-          #   1. git 不在 cmd 的 PATH 里（drone-ssh 走 cmd.exe 时 PATH 不完整），
-          #      导致 'git' 不是内部或外部命令
-          #   2. cmd /c "cmd1 && cmd2" 的引号规则有坑：& 是 cmd 的 special character，
-          #      导致引号被剥离，&& 被拆成多行执行，cd 失败后后续命令仍执行（假绿）
-          #   PowerShell 合并了用户 PATH + 系统 PATH，能找到 git，且 $LASTEXITCODE 检查可靠
+          #   1. git 不在 cmd 的 PATH 里（drone-ssh 走 cmd.exe 时 PATH 不完整）
+          #   2. cmd /c "a && b" 的 & 是 special char，引号被剥离，&& 被拆成多行执行（假绿）
+          #   PowerShell 合并用户 PATH + 系统 PATH，能找到 git，且 $LASTEXITCODE 检查可靠
           #
           # 引号策略：
           #   - 外层双引号（cmd 传给 powershell -Command 的参数）
           #   - 内层路径用单引号（PowerShell 单引号字符串，不需要转义）
-          #   - cmd 不解释双引号内的 $ ( ) 等字符，会原样传给 PowerShell
           #
           # 失败传播：
           #   - $ErrorActionPreference='Stop' 让 Set-Location 失败时抛异常终止
-          #   - 每个外部命令后检查 $LASTEXITCODE，非 0 则 exit 1
-          #
-          # 部署流程：
-          # 1. Set-Location 切换到项目目录（失败则抛异常终止）
-          # 2. git fetch + git reset 更新代码（包括 deploy.ps1 自身）
-          # 3. 执行 deploy.ps1（内部有完整流程：杀端口/npm install/build/pm2 start/健康检查）
+          #   - deploy.ps1 退出码非 0 时，PowerShell 透传给 cmd，ssh-action 报红
           script: |
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Set-Location 'C:\Users\Administrator\Desktop\re_xiuxian'; Write-Host '[INFO] PWD:'(Get-Location); Write-Host '[INFO] User:'$env:USERNAME; git fetch --all; if($LASTEXITCODE -ne 0){Write-Host '[FATAL] git fetch failed'; exit 1}; git reset --hard origin/main; if($LASTEXITCODE -ne 0){Write-Host '[FATAL] git reset failed'; exit 1}; Write-Host '[INFO] HEAD:'(git rev-parse --short HEAD); & '.\scripts\deploy.ps1'; if($LASTEXITCODE -ne 0){Write-Host '[FATAL] deploy.ps1 failed'; exit 1}"
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Set-Location 'C:\Users\Administrator\Desktop\re_xiuxian'; & '.\scripts\deploy.ps1'"

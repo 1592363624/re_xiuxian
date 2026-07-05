@@ -37,20 +37,93 @@ Write-Host "  Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 Write-Host "  Dir: $projectDir"
 Write-Host "=================================================="
 
-# ========== 1. 拉取最新代码 ==========
+# ========== 1. 拉取最新代码（带重试 + 镜像兜底） ==========
 Write-Host ""
 Write-Host "[1/6] Pulling latest code..."
 # 禁止 git 弹出凭证提示（避免挂起，凭证失败应直接报错而非等待输入）
 $env:GIT_TERMINAL_PROMPT = 0
 
-# 直接用原 remote fetch，不用 mirror
-# 为什么不用 mirror: ghfast.top 等镜像可能返回缓存旧数据但退出码 0，
-#   导致 fetch 假成功，reset 到旧版本（这正是 v1 服务器停在旧 commit 的根因）
-git fetch --all --prune
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[FATAL] git fetch failed"
-    Write-Host "[HINT] Check network, or configure SSH key/PAT for GitHub access"
+# 记录 fetch 前的 origin/main commit（用于验证 fetch 是否真的拉到新数据）
+# 为什么需要: 镜像可能返回缓存旧数据但 exit 0，导致"假成功"（v1 的根因之一）
+$preFetchCommit = git rev-parse "origin/$branch" 2>$null
+if (-not $preFetchCommit) { $preFetchCommit = "none" }
+Write-Host "[INFO] Pre-fetch origin/$branch: $($preFetchCommit.Substring(0,7))"
+
+# GitHub 镜像列表（按优先级，第一个可用的就用）
+# 为什么需要镜像: 中国服务器直连 GitHub 偶发连接重置（Recv failure: Connection was reset）
+# 为什么把直连放第一: 直连无缓存问题，最可靠；只有直连失败才用镜像兜底
+$mirrors = @(
+    "https://github.com",
+    "https://ghfast.top/https://github.com",
+    "https://ghproxy.net/https://github.com",
+    "https://mirror.ghproxy.com/https://github.com"
+)
+
+$originalRemote = git remote get-url origin
+if (-not $originalRemote) {
+    Write-Host "[FATAL] No git remote configured"
     exit 1
+}
+Write-Host "[INFO] Original remote: $originalRemote"
+
+$fetchOk = $false
+$usedMirror = $null
+
+foreach ($mirror in $mirrors) {
+    # 跳过 SSH remote（无法用镜像替换）
+    if ($originalRemote -match "^git@|ssh://") {
+        $mirrorUrl = $originalRemote
+        $mirror = "ssh-direct"
+    } else {
+        $mirrorUrl = $originalRemote -replace "https://github\.com", $mirror
+        if ($mirrorUrl -eq $originalRemote -and $mirror -ne "https://github.com") {
+            continue
+        }
+    }
+
+    Write-Host "[TRY] Fetching via: $mirror"
+    # 每个源重试 2 次（网络偶发失败，重试通常能成功）
+    for ($i = 1; $i -le 2; $i++) {
+        try {
+            if ($mirror -ne "https://github.com" -and $mirror -ne "ssh-direct") {
+                git remote set-url origin $mirrorUrl
+            }
+            git fetch --all --prune 2>&1 | Out-Host
+            if ($LASTEXITCODE -eq 0) {
+                $fetchOk = $true
+                $usedMirror = $mirror
+                break
+            }
+        } finally {
+            # 始终恢复原 remote URL（避免污染 git config）
+            if ($mirror -ne "https://github.com" -and $mirror -ne "ssh-direct") {
+                git remote set-url origin $originalRemote 2>$null
+            }
+        }
+        if ($i -lt 2) {
+            Write-Host "[WARN] Fetch attempt $i failed, retrying in 5s..."
+            Start-Sleep -Seconds 5
+        }
+    }
+    if ($fetchOk) { break }
+}
+
+if (-not $fetchOk) {
+    Write-Host "[FATAL] All fetch attempts failed (direct + mirrors)"
+    Write-Host "[HINT] Configure SSH key: git remote set-url origin git@github.com:user/repo.git"
+    exit 1
+}
+
+# 验证 fetch 是否真的拉到新数据（防止镜像缓存返回旧数据但 exit 0 的假成功）
+$postFetchCommit = git rev-parse "origin/$branch" 2>$null
+if (-not $postFetchCommit) {
+    Write-Host "[FATAL] Cannot resolve origin/$branch after fetch"
+    exit 1
+}
+Write-Host "[OK] Fetched via $usedMirror, origin/$branch: $($postFetchCommit.Substring(0,7))"
+if ($preFetchCommit -eq $postFetchCommit) {
+    Write-Host "[INFO] origin/$branch unchanged (no new commits, or mirror cache hit)"
+    # 不 fail：可能确实没新提交。如果是镜像缓存，下一步 reset 后 HEAD 不变也无害
 }
 
 git reset --hard "origin/$branch"
