@@ -32,13 +32,19 @@ jobs:
           # SSH 命令超时设置（避免长时间构建被截断）
           timeout: 60s           # TCP 连接超时
           command_timeout: 30m   # 命令执行超时（含 npm install + build + 健康检查）
+          # 部署流程（cmd && 链式失败传播版）：
+          # 关键修复：原来用 cd + 多行命令，cmd 下 cd 失败后后续命令仍在错误目录执行，
+          #           且 Windows OpenSSH 的 script_stop 对 cmd 多行命令不严格生效，导致"假绿"。
+          # 现在改为：用 && 链式连接，任何一步失败立即停止，cmd 整体退出码非 0，ssh-action 报红。
+          # 为什么不用 PowerShell -Command 单行：双引号嵌套转义在 cmd -> PowerShell 传递时易出错。
+          # 为什么不用多行 + script_stop：drone-ssh 把整个 script 作为 here-doc 发送，
+          #   script_stop 在 Windows cmd 多行命令下不严格生效，无法可靠捕获每行退出码。
           # 部署流程：
-          # 1. cd 到项目目录
-          # 2. git fetch + git reset 更新代码（包括 deploy.ps1 自身，解决鸡生蛋问题）
-          # 3. 执行新版 deploy.ps1（英文版，无编码问题）
-          # deploy.ps1 内部会再次 git fetch（带镜像加速，幂等无害）
+          # 1. cd /d 切换到项目目录（/d 同时切换驱动器，路径不存在则 cd 失败，&& 阻止后续）
+          # 2. 输出诊断信息（PWD / USERNAME，方便排查环境问题）
+          # 3. git fetch + git reset 更新代码（包括 deploy.ps1 自身）
+          # 4. 输出当前 HEAD commit（确认代码已更新）
+          # 5. 执行 deploy.ps1（内部有完整兜底检查 + 健康检查 + 回滚）
+          # 路径无空格，不需要双引号，避免 YAML/cmd 双引号转义问题
           script: |
-            cd "C:\Users\Administrator\Desktop\re_xiuxian"
-            git fetch --all
-            git reset --hard origin/main
-            powershell -ExecutionPolicy Bypass -File "C:\Users\Administrator\Desktop\re_xiuxian\scripts\deploy.ps1"
+            cmd /c "cd /d C:\Users\Administrator\Desktop\re_xiuxian && echo [INFO] PWD: %CD% && echo [INFO] User: %USERNAME% && git fetch --all && git reset --hard origin/main && echo [INFO] HEAD: && git rev-parse --short HEAD && powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy.ps1"
