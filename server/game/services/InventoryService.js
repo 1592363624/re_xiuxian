@@ -281,11 +281,14 @@ class InventoryService {
      * @param {number} playerId - 玩家 ID
      * @param {string} itemKey - 物品键名
      * @param {number} quantity - 需要的数量
+     * @param {Object} [transaction=null] - 可选事务实例（事务内查询需传入以保证加锁一致性）
      * @returns {Promise<boolean>} 是否拥有
      */
-    async hasItem(playerId, itemKey, quantity = 1) {
+    async hasItem(playerId, itemKey, quantity = 1, transaction = null) {
+        const options = transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {};
         const record = await Item.findOne({
-            where: { player_id: playerId, item_key: itemKey }
+            where: { player_id: playerId, item_key: itemKey },
+            ...options
         });
         return record && record.quantity >= quantity;
     }

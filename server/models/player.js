@@ -337,6 +337,136 @@ const Player = sequelize.define('Player', {
         type: DataTypes.DATEONLY,
         allowNull: true,
         comment: '最后闭关日期（DATEONLY，用于跨日重置每日次数）'
+    },
+    // ===== 静思悟道系统字段（第三阶段新增） =====
+    is_meditating: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否正在静思悟道中'
+    },
+    meditation_start_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '悟道开始时间'
+    },
+    meditation_end_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '悟道预计结束时间'
+    },
+    meditation_duration: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '计划悟道时长(秒)'
+    },
+    meditation_mode: {
+        type: DataTypes.STRING,
+        defaultValue: 'normal',
+        comment: '悟道模式：normal=静思悟道，deep=深度悟道'
+    },
+    meditation_insight: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+        comment: '本命感悟值（悟道结束时结算，用于突破瓶颈）'
+    },
+    daily_meditation_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日悟道已用次数（跨日重置）'
+    },
+    daily_deep_meditation_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日深度悟道已用次数（跨日重置）'
+    },
+    last_meditation_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '最后悟道日期（用于跨日重置每日次数）'
+    },
+    last_meditation_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后悟道结束时间（用于冷却计算）'
+    },
+    // ===== 突破瓶颈系统字段（第三阶段新增） =====
+    bottleneck_state: {
+        type: DataTypes.STRING,
+        defaultValue: 'none',
+        comment: '瓶颈状态：none=无瓶颈，active=处于瓶颈期，broken=已破瓶颈（可突破），failed=突破失败待重试'
+    },
+    bottleneck_realm_rank: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: '处于瓶颈期的境界排名（用于校验当前境界与瓶颈匹配）'
+    },
+    bottleneck_insight: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+        comment: '当前瓶颈已积累的感悟值（达到阈值后状态转为 broken）'
+    },
+    bottleneck_threshold: {
+        type: DataTypes.FLOAT,
+        defaultValue: 100,
+        comment: '当前瓶颈感悟阈值（达到此值后破除瓶颈）'
+    },
+    bottleneck_started_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '瓶颈开始时间（用于计算瓶颈持续时长）'
+    },
+    breakthrough_failure_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '当前境界连续突破失败次数（成功后归零）'
+    },
+    // ===== PVP 斗法系统字段（第四阶段新增） =====
+    pvp_score: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: 'PVP段位积分（冗余字段，便于列表查询）'
+    },
+    pvp_rank: {
+        type: DataTypes.STRING(20),
+        defaultValue: '散修',
+        comment: 'PVP段位名称（散修/道子/真传/长老/宗主/大能）'
+    },
+    honor: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+        comment: '荣誉值（PVP专用货币，可兑换稀有物品）'
+    },
+    karma: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '因果值（跨境界欺凌累积，达到阈值影响心魔触发概率）'
+    },
+    weakness_end_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '虚弱状态结束时间（PVP失败惩罚：修炼/突破效率下降）'
+    },
+    // ===== 当铺系统字段（第四阶段新增） =====
+    pawnshop_credit: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '当铺信用额度（影响典当折扣率，每次按时赎回+1）'
+    },
+    // ===== 股市系统字段（第四阶段新增） =====
+    stock_account_balance: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+        comment: '股市账户余额（与 spirit_stones 分账，避免污染主货币）'
+    },
+    stock_margin_debt: {
+        type: DataTypes.BIGINT,
+        defaultValue: 0,
+        comment: '融资负债金额（融资买入累积的负债）'
+    },
+    is_stock_trading_locked: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否禁止股市交易（GM 可锁定，违规账号处理）'
     }
 }, {
     tableName: 'players',

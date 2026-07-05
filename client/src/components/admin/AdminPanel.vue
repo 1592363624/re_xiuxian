@@ -51,6 +51,24 @@
         <!-- 宗门管理 -->
         <SectManagement v-if="currentTab === 'sect'" @showConfirm="showConfirm" />
 
+        <!-- 洞府管理 -->
+        <CaveManagement v-if="currentTab === 'cave'" />
+
+        <!-- 装备管理（法宝深度系统：祭炼/本命/修理） -->
+        <EquipmentManagement v-if="currentTab === 'equipment'" />
+
+        <!-- 悟道与瓶颈管理（第三阶段新增：静思悟道系统 + 瓶颈状态管理） -->
+        <MeditationManagement v-if="currentTab === 'meditation'" />
+
+        <!-- PVP 斗法管理（第四阶段新增：玩家段位、积分调整、战斗记录、强制取消） -->
+        <PvpManagement v-if="currentTab === 'pvp'" />
+
+        <!-- 聚宝当铺管理（第四阶段新增：当票查询、强制赎回、取消当票、信用调整） -->
+        <PawnshopManagement v-if="currentTab === 'pawnshop'" />
+
+        <!-- 聚宝股市管理（第四阶段新增：股票管理、调价/暂停/恢复、触发事件、交易流水、融资管理、强制平仓、手动分红） -->
+        <StockManagement v-if="currentTab === 'stock'" />
+
         <!-- 通知管理 -->
         <NotificationManagement
           v-if="currentTab === 'notifications'"
@@ -225,6 +243,17 @@ import ServerStats from './sub/ServerStats.vue'
 import OperationLogs from './sub/OperationLogs.vue'
 import AIConfig from './sub/AIConfig.vue'
 import SectManagement from './sub/SectManagement.vue'
+// 洞府管理（GM 后台）：玩家洞府列表查询、设施等级调整、洞府重置、药园地块数调整
+import CaveManagement from './sub/CaveManagement.vue'
+import EquipmentManagement from './sub/EquipmentManagement.vue'
+// 悟道与瓶颈管理（第三阶段新增）：玩家悟道状态查询、强制结算/中断、瓶颈修改
+import MeditationManagement from './sub/MeditationManagement.vue'
+// PVP 斗法管理（第四阶段新增）：玩家段位、积分调整、战斗记录、强制取消
+import PvpManagement from './sub/PvpManagement.vue'
+// 聚宝当铺管理（第四阶段新增：当票查询、强制赎回、取消当票、信用调整）
+import PawnshopManagement from './sub/PawnshopManagement.vue'
+// 聚宝股市管理（第四阶段新增：股票管理、调价/暂停/恢复、触发事件、交易流水、融资管理、强制平仓、手动分红）
+import StockManagement from './sub/StockManagement.vue'
 // 修炼配置（闭关 + 历练）子组件：提供 GM 后台对参数的可视化编辑与热加载
 import CultivationConfig from './sub/CultivationConfig.vue'
 // 状态清理监控面板：可视化展示 StateCleanerService 的运行指标
@@ -251,6 +280,12 @@ const tabs = [
   { id: 'cultivation', name: '修炼配置' },
   { id: 'ai_config', name: 'AI 配置' },
   { id: 'sect', name: '宗门管理' },
+  { id: 'cave', name: '洞府管理' },
+  { id: 'equipment', name: '装备管理' },
+  { id: 'meditation', name: '悟道瓶颈' },
+  { id: 'pvp', name: 'PVP斗法' },
+  { id: 'pawnshop', name: '当铺管理' },
+  { id: 'stock', name: '股市管理' },
   { id: 'notifications', name: '通知管理' },
   { id: 'stats', name: '服务器统计' },
   { id: 'logs', name: '操作日志' },

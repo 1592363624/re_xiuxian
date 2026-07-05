@@ -231,11 +231,43 @@
         },
         {
             "id": "spirit_seed",
-            "name": "灵眼树种子",
+            "name": "灵草种子",
             "type": "material",
             "subtype": "seed",
-            "description": "落云宗灵眼之树的种子，可于洞府药园培育",
-            "price": 500
+            "description": "可在洞府药园种植，成熟后产出灵草",
+            "price": 20
+        },
+        {
+            "id": "condensing_seed",
+            "name": "凝气花种子",
+            "type": "material",
+            "subtype": "seed",
+            "description": "可在洞府药园种植，成熟后产出凝气花",
+            "price": 80
+        },
+        {
+            "id": "blood_grass_seed",
+            "name": "血灵草种子",
+            "type": "material",
+            "subtype": "seed",
+            "description": "可在洞府药园种植，成熟后产出血灵草",
+            "price": 300
+        },
+        {
+            "id": "infant_fruit_seed",
+            "name": "元婴果种子",
+            "type": "material",
+            "subtype": "seed",
+            "description": "高级种子，成熟后产出元婴果",
+            "price": 2000
+        },
+        {
+            "id": "spirit_coral",
+            "name": "灵珊瑚",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "蕴含灵气的珊瑚，高级炼器材料",
+            "price": 300
         },
         {
             "id": "star_sand",

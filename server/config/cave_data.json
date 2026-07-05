@@ -1,0 +1,164 @@
+{
+  "cave": {
+    "description": "洞府系统配置：灵脉产灵石、静室增闭关、丹房炼丹、器室炼器、大阵防御、药园种药",
+    "open_requirement": {
+      "realm": "炼气期",
+      "min_realm_rank": 1,
+      "spirit_stone_cost": 1000,
+      "description": "开辟洞府需炼气期+1000灵石"
+    },
+    "facilities": {
+      "spirit_vein": {
+        "name": "灵脉",
+        "description": "产出灵石，等级越高产出越快",
+        "max_level": 10,
+        "base_produce_rate": 10,
+        "rate_per_level": 5,
+        "upgrade_costs": [
+          { "level": 1, "spirit_stone": 0, "material": null },
+          { "level": 2, "spirit_stone": 500, "material": "golden_ore", "material_count": 5 },
+          { "level": 3, "spirit_stone": 1500, "material": "golden_ore", "material_count": 15 },
+          { "level": 4, "spirit_stone": 3000, "material": "jade_core", "material_count": 10 },
+          { "level": 5, "spirit_stone": 6000, "material": "jade_core", "material_count": 20 },
+          { "level": 6, "spirit_stone": 12000, "material": "pearl", "material_count": 15 },
+          { "level": 7, "spirit_stone": 24000, "material": "pearl", "material_count": 30 },
+          { "level": 8, "spirit_stone": 48000, "material": "star_sand", "material_count": 25 },
+          { "level": 9, "spirit_stone": 96000, "material": "star_sand", "material_count": 50 },
+          { "level": 10, "spirit_stone": 192000, "material": "spirit_coral", "material_count": 40 }
+        ]
+      },
+      "quiet_room": {
+        "name": "静室",
+        "description": "提升闭关修炼收益",
+        "max_level": 10,
+        "bonus_per_level": 0.05,
+        "upgrade_costs": [
+          { "level": 1, "spirit_stone": 0, "material": null },
+          { "level": 2, "spirit_stone": 400, "material": "firewood", "material_count": 10 },
+          { "level": 3, "spirit_stone": 1200, "material": "firewood", "material_count": 30 },
+          { "level": 4, "spirit_stone": 2400, "material": "spirit_herb", "material_count": 20 },
+          { "level": 5, "spirit_stone": 4800, "material": "spirit_herb", "material_count": 40 },
+          { "level": 6, "spirit_stone": 9600, "material": "condensing_flower", "material_count": 30 },
+          { "level": 7, "spirit_stone": 19200, "material": "condensing_flower", "material_count": 60 },
+          { "level": 8, "spirit_stone": 38400, "material": "infant_fruit", "material_count": 25 },
+          { "level": 9, "spirit_stone": 76800, "material": "infant_fruit", "material_count": 50 },
+          { "level": 10, "spirit_stone": 153600, "material": "blood_ginseng", "material_count": 30 }
+        ]
+      },
+      "pill_room": {
+        "name": "丹房",
+        "description": "炼制丹药，等级越高成功率越高",
+        "max_level": 10,
+        "success_bonus_per_level": 0.03,
+        "upgrade_costs": [
+          { "level": 1, "spirit_stone": 0, "material": null },
+          { "level": 2, "spirit_stone": 600, "material": "firewood", "material_count": 8 },
+          { "level": 3, "spirit_stone": 1800, "material": "firewood", "material_count": 24 },
+          { "level": 4, "spirit_stone": 3600, "material": "spirit_herb", "material_count": 16 },
+          { "level": 5, "spirit_stone": 7200, "material": "spirit_herb", "material_count": 32 },
+          { "level": 6, "spirit_stone": 14400, "material": "condensing_flower", "material_count": 24 },
+          { "level": 7, "spirit_stone": 28800, "material": "condensing_flower", "material_count": 48 },
+          { "level": 8, "spirit_stone": 57600, "material": "infant_fruit", "material_count": 20 },
+          { "level": 9, "spirit_stone": 115200, "material": "infant_fruit", "material_count": 40 },
+          { "level": 10, "spirit_stone": 230400, "material": "blood_ginseng", "material_count": 25 }
+        ]
+      },
+      "tool_room": {
+        "name": "器室",
+        "description": "炼制法器，等级越高成功率越高",
+        "max_level": 10,
+        "success_bonus_per_level": 0.03,
+        "upgrade_costs": [
+          { "level": 1, "spirit_stone": 0, "material": null },
+          { "level": 2, "spirit_stone": 500, "material": "golden_ore", "material_count": 4 },
+          { "level": 3, "spirit_stone": 1500, "material": "golden_ore", "material_count": 12 },
+          { "level": 4, "spirit_stone": 3000, "material": "jade_core", "material_count": 8 },
+          { "level": 5, "spirit_stone": 6000, "material": "jade_core", "material_count": 16 },
+          { "level": 6, "spirit_stone": 12000, "material": "pearl", "material_count": 12 },
+          { "level": 7, "spirit_stone": 24000, "material": "pearl", "material_count": 24 },
+          { "level": 8, "spirit_stone": 48000, "material": "star_sand", "material_count": 20 },
+          { "level": 9, "spirit_stone": 96000, "material": "star_sand", "material_count": 40 },
+          { "level": 10, "spirit_stone": 192000, "material": "spirit_coral", "material_count": 32 }
+        ]
+      },
+      "grand_formation": {
+        "name": "护山大阵",
+        "description": "防御洞府，防止他人袭扰",
+        "max_level": 10,
+        "defense_per_level": 100,
+        "upgrade_costs": [
+          { "level": 1, "spirit_stone": 0, "material": null },
+          { "level": 2, "spirit_stone": 800, "material": "golden_ore", "material_count": 6 },
+          { "level": 3, "spirit_stone": 2400, "material": "golden_ore", "material_count": 18 },
+          { "level": 4, "spirit_stone": 4800, "material": "jade_core", "material_count": 12 },
+          { "level": 5, "spirit_stone": 9600, "material": "jade_core", "material_count": 24 },
+          { "level": 6, "spirit_stone": 19200, "material": "pearl", "material_count": 18 },
+          { "level": 7, "spirit_stone": 38400, "material": "pearl", "material_count": 36 },
+          { "level": 8, "spirit_stone": 76800, "material": "star_sand", "material_count": 30 },
+          { "level": 9, "spirit_stone": 153600, "material": "star_sand", "material_count": 60 },
+          { "level": 10, "spirit_stone": 307200, "material": "spirit_coral", "material_count": 48 }
+        ]
+      }
+    },
+    "garden": {
+      "name": "小药园",
+      "description": "种植灵草，成熟后可采收",
+      "initial_plots": 3,
+      "max_plots": 9,
+      "plot_unlock_costs": [
+        { "plot_index": 4, "spirit_stone": 2000 },
+        { "plot_index": 5, "spirit_stone": 5000 },
+        { "plot_index": 6, "spirit_stone": 12000 },
+        { "plot_index": 7, "spirit_stone": 30000 },
+        { "plot_index": 8, "spirit_stone": 75000 },
+        { "plot_index": 9, "spirit_stone": 180000 }
+      ],
+      "seeds": [
+        {
+          "seed_id": "spirit_seed",
+          "name": "灵草种子",
+          "produce_item_id": "wild_herb",
+          "produce_name": "灵草",
+          "grow_time_seconds": 1800,
+          "base_yield": 3,
+          "yield_per_level": 0.5,
+          "quality_rates": { "common": 0.6, "fine": 0.3, "rare": 0.1 },
+          "min_cave_level": 1
+        },
+        {
+          "seed_id": "condensing_seed",
+          "name": "凝气花种子",
+          "produce_item_id": "condensing_flower",
+          "produce_name": "凝气花",
+          "grow_time_seconds": 3600,
+          "base_yield": 2,
+          "yield_per_level": 0.3,
+          "quality_rates": { "common": 0.5, "fine": 0.35, "rare": 0.15 },
+          "min_cave_level": 2
+        },
+        {
+          "seed_id": "blood_grass_seed",
+          "name": "血灵草种子",
+          "produce_item_id": "blood_grass",
+          "produce_name": "血灵草",
+          "grow_time_seconds": 7200,
+          "base_yield": 2,
+          "yield_per_level": 0.3,
+          "quality_rates": { "common": 0.4, "fine": 0.4, "rare": 0.2 },
+          "min_cave_level": 3
+        },
+        {
+          "seed_id": "infant_fruit_seed",
+          "name": "元婴果种子",
+          "produce_item_id": "infant_fruit",
+          "produce_name": "元婴果",
+          "grow_time_seconds": 14400,
+          "base_yield": 1,
+          "yield_per_level": 0.2,
+          "quality_rates": { "common": 0.3, "fine": 0.45, "rare": 0.25 },
+          "min_cave_level": 5
+        }
+      ]
+    }
+  }
+}

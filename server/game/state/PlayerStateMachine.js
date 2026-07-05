@@ -22,6 +22,8 @@
  *   ADVENTURING - 历练中
  *   MOVING - 移动中
  *   BANNED - 封禁中（特殊状态，禁止一切操作）
+ *   MEDITATING - 静思悟道中（与闭关互斥）
+ *   IN_PVP_BATTLE - PVP斗法中（与一切状态互斥）
  *   新增玩法可注册自定义枚举值
  *
  * 互斥规则（默认）：
@@ -46,7 +48,9 @@ const PlayerState = Object.freeze({
     IN_BATTLE: 'IN_BATTLE',
     ADVENTURING: 'ADVENTURING',
     MOVING: 'MOVING',
-    BANNED: 'BANNED'
+    BANNED: 'BANNED',
+    MEDITATING: 'MEDITATING',  // 静思悟道中（与闭关互斥）
+    IN_PVP_BATTLE: 'IN_PVP_BATTLE'  // PVP斗法中（与一切状态互斥）
 });
 
 class PlayerStateMachine {

@@ -52,6 +52,16 @@ router.get('/me', authMiddleware, async (req, res) => {
                     value: player.spirit_roots.value || 0
                 } : null,
                 spirit_stones: player.spirit_stones?.toString() || '0',
+                // 第四阶段新增字段同步暴露给前端（保证前后端数据一致）
+                pawnshop_credit: player.pawnshop_credit || 0,        // 当铺信用额度
+                pvp_score: player.pvp_score || 0,                    // PVP 段位积分
+                pvp_rank: player.pvp_rank || '散修',                 // PVP 段位名称
+                honor: player.honor?.toString() || '0',             // 荣誉值（BIGINT 转字符串）
+                karma: player.karma || 0,                            // 因果值
+                weakness_end_time: player.weakness_end_time,        // 虚弱状态结束时间
+                stock_account_balance: player.stock_account_balance?.toString() || '0', // 股市账户余额
+                stock_margin_debt: player.stock_margin_debt?.toString() || '0',       // 融资负债金额
+                is_stock_trading_locked: player.is_stock_trading_locked || false,     // 股市交易锁定
                 age: player.lifespan_current,
                 lifespan: lifespanStatus,
                 attributes: fullAttributes.final,

@@ -38,6 +38,9 @@ require('./models/admin_log');
 require('./models/map');
 // 玩家状态转移日志模型（优化3：状态变更追溯）
 require('./models/playerStateLog');
+// 洞府与药园模型（第一阶段新增玩法）
+require('./models/playerCave');
+require('./models/playerGarden');
 
 const http = require('http');
 const socketIo = require('socket.io');
@@ -213,6 +216,18 @@ const startServer = async () => {
         console.error('状态清理调度器启动失败:', err.message);
     }
 
+    // 股市定时任务调度器：价格更新、强平检查、利息计算、分红派息
+    // 由 StockSchedulerService 内部根据 game_balance.stock_market 配置调度周期
+    try {
+        const StockSchedulerService = require('./game/services/StockSchedulerService');
+        // start() 是 async 方法但不阻塞主流程
+        StockSchedulerService.start().catch(err => {
+            console.error('股市调度器启动失败:', err.message);
+        });
+    } catch (err) {
+        console.error('股市调度器加载失败:', err.message);
+    }
+
     // 路由
     app.use('/api/auth', require('./routes/auth'));
     app.use('/api/player', require('./routes/player'));
@@ -220,11 +235,17 @@ const startServer = async () => {
     app.use('/api/admin', require('./routes/admin'));
     app.use('/api/admin/ai-config', require('./routes/admin_ai'));
     app.use('/api/admin/sect', require('./routes/admin_sect'));
+    // 洞府管理（GM 后台）：玩家洞府列表查询、设施等级调整、洞府重置、药园地块数调整
+    app.use('/api/admin/cave', require('./routes/admin_cave'));
+    // 装备管理（GM 后台）：装备列表查询、记录修改、重置、强制卸下、GM 一键修理
+    app.use('/api/admin/equipment', require('./routes/admin_equipment'));
+    app.use('/api/admin/meditation', require('./routes/admin_meditation'));
     // 修炼配置管理（闭关 + 历练，支持热加载）
     app.use('/api/admin/cultivation', require('./routes/admin_cultivation'));
     app.use('/api/system', require('./routes/system'));
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));
+    app.use('/api/meditation', require('./routes/meditation'));
     app.use('/api/map', require('./routes/map').router);
     app.use('/api/gather', require('./routes/gather'));
     app.use('/api/combat', require('./routes/combat'));
@@ -235,7 +256,23 @@ const startServer = async () => {
     app.use('/api/inventory', require('./routes/inventory'));
     app.use('/api/sect', require('./routes/sect'));
     app.use('/api/market', require('./routes/market'));
+    // PVP 斗法系统（第四阶段新增：玩家对战、段位排名、荣誉值）
+    app.use('/api/pvp', require('./routes/pvp'));
+    // PVP 管理（GM 后台）：段位调整、强制取消战斗、战斗记录查询
+    app.use('/api/admin/pvp', require('./routes/admin_pvp'));
+    // 当铺系统（第四阶段新增：典当、赎回、信用额度）
+    app.use('/api/pawnshop', require('./routes/pawnshop'));
+    // 当铺管理（GM 后台）：强制赎回、取消当票、调整信用
+    app.use('/api/admin/pawnshop', require('./routes/admin_pawnshop'));
+    // 股市系统（第四阶段新增：行情查询、买卖交易、融资融券、分红派息）
+    app.use('/api/stock', require('./routes/stock'));
+    // 股市管理（GM 后台）：调整股价、暂停交易、触发事件、强制平仓、手动分红
+    app.use('/api/admin/stock', require('./routes/admin_stock'));
     app.use('/api/equipment', require('./routes/equipment'));
+    // 洞府系统（开辟洞府、升级灵脉/静室/丹房/器室/大阵、领取灵石）
+    app.use('/api/cave', require('./routes/cave'));
+    // 药园系统（播种、采收、一键采收）
+    app.use('/api/garden', require('./routes/garden'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

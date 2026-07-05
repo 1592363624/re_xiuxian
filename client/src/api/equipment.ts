@@ -163,3 +163,165 @@ export const unequipItem = (slot: string) => {
 export const getEquipmentBonus = () => {
     return apiClient.get('/equipment/bonus');
 };
+
+// ========================================
+// 法宝深度系统 API（v1.2 新增）
+// ========================================
+
+/**
+ * 法宝深度系统扩展字段
+ * 对应后端 player_equipment 表新增字段
+ */
+export interface TreasureFields {
+    /** 当前耐久度（0 时装备破碎） */
+    durability: number;
+    /** 最大耐久度（每次修理扣减上限） */
+    max_durability: number;
+    /** 祭炼等级 0~15 */
+    refine_level: number;
+    /** 是否本命法器 */
+    is_benming: boolean;
+    /** 本命槽位编号 1~max_slots（仅 is_benming=true 时有效） */
+    benming_slot: number | null;
+    /** 本命法器法力值 */
+    spirit_power: number;
+    /** 装备排序顺序 */
+    sort_order: number;
+    /** 本命法器是否已祭出 */
+    is_summoned: boolean;
+    /** 派生字段：是否已破碎 */
+    is_broken: boolean;
+}
+
+/**
+ * 祭炼结果
+ */
+export interface RefineResult {
+    success: boolean;
+    message: string;
+    slot: string;
+    refine_level: number;
+    is_success: boolean;
+    cost: {
+        spirit_stones: number;
+        material: { id: string; quantity: number };
+    };
+}
+
+/**
+ * 设置本命法器结果
+ */
+export interface BenmingResult {
+    success: boolean;
+    message: string;
+    slot: string;
+    benming_slot: number;
+    spirit_power: number;
+    cost: {
+        spirit_stones: number;
+        material: { id: string; quantity: number };
+    };
+}
+
+/**
+ * 修理结果
+ */
+export interface RepairResult {
+    success: boolean;
+    message: string;
+    slot: string;
+    durability: number;
+    max_durability: number;
+    cost: { spirit_stones: number; max_durability_loss: number };
+}
+
+/**
+ * 一键修理结果汇总
+ */
+export interface RepairAllResult {
+    success: boolean;
+    message: string;
+    total_repaired: number;
+    total_cost: number;
+    details: Array<{
+        slot: string;
+        success?: boolean;
+        skipped?: boolean;
+        message?: string;
+        durability?: number;
+        max_durability?: number;
+        cost?: number;
+    }>;
+}
+
+/**
+ * 祭炼装备
+ * POST /equipment/refine
+ * 消耗灵石+材料，按成功率随机成功/失败，成功则 refine_level +1
+ */
+export const refineItem = (slot: string) => {
+    return apiClient.post('/equipment/refine', { slot });
+};
+
+/**
+ * 设置本命法器
+ * POST /equipment/benming
+ * 消耗灵石+材料，将装备绑定为本命
+ */
+export const setBenming = (slot: string) => {
+    return apiClient.post('/equipment/benming', { slot });
+};
+
+/**
+ * 祭出本命法器
+ * POST /equipment/summon
+ * 标记 is_summoned=true，受场景限制
+ */
+export const summonTreasure = (slot: string) => {
+    return apiClient.post('/equipment/summon', { slot });
+};
+
+/**
+ * 收回本命法器
+ * POST /equipment/recall
+ * 标记 is_summoned=false
+ */
+export const recallTreasure = (slot: string) => {
+    return apiClient.post('/equipment/recall', { slot });
+};
+
+/**
+ * 调整装备排序
+ * POST /equipment/order
+ * 更新 sort_order 字段，影响面板显示顺序
+ */
+export const adjustOrder = (slot: string, newOrder: number) => {
+    return apiClient.post('/equipment/order', { slot, new_order: newOrder });
+};
+
+/**
+ * 散念（解除本命法器）
+ * POST /equipment/disperse
+ * 清除本命标记，回收部分材料
+ */
+export const disperseSpirit = (slot: string) => {
+    return apiClient.post('/equipment/disperse', { slot });
+};
+
+/**
+ * 修理单件装备
+ * POST /equipment/repair
+ * 恢复耐久至 max_durability，扣减 max_durability 上限
+ */
+export const repairItem = (slot: string) => {
+    return apiClient.post('/equipment/repair', { slot });
+};
+
+/**
+ * 一键修理所有装备
+ * POST /equipment/repair-all
+ * 遍历所有装备，对需要修理的逐个调用 repair
+ */
+export const repairAll = () => {
+    return apiClient.post('/equipment/repair-all', {});
+};

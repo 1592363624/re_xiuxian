@@ -78,5 +78,15 @@ export const SOCKET_EVENTS = [
   'new_message',
   'auth_error',
   // 状态快照：Socket 重连时后端主动推送，前端据此恢复闭关/移动/战斗/历练 UI
-  'state:snapshot'
+  'state:snapshot',
+  // 股市系统事件（第四阶段新增：买卖/转账/价格更新/分红/强平/熔断/追加保证金）
+  'stock:buy',
+  'stock:sell',
+  'stock:deposit',
+  'stock:withdraw',
+  'stock:price_update',
+  'stock:dividend',
+  'stock:liquidation',
+  'stock:halt',
+  'stock:margin_call'
 ]

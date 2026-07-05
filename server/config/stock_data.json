@@ -1,0 +1,16 @@
+{
+  "stocks": [
+    { "code": "ZM01", "name": "黄枫谷", "category": "sect", "base_price": 200, "total_shares": 1000000, "description": "黄枫谷宗门股，稳健型，分红稳定" },
+    { "code": "ZM02", "name": "掩月宗", "category": "sect", "base_price": 250, "total_shares": 1000000, "description": "掩月宗宗门股，绑定掩月抢亲副本" },
+    { "code": "ZM03", "name": "落云宗", "category": "sect", "base_price": 300, "total_shares": 800000, "description": "落云宗宗门股，高成长" },
+    { "code": "ZM04", "name": "星宫", "category": "sect", "base_price": 500, "total_shares": 600000, "description": "星宫宗门股，高价股" },
+    { "code": "ZM05", "name": "天星宗", "category": "sect", "base_price": 280, "total_shares": 900000, "description": "天星宗宗门股" },
+    { "code": "ZM06", "name": "阴罗宗", "category": "sect", "base_price": 200, "total_shares": 800000, "description": "魔道宗门股，高波动高风险" },
+    { "code": "ZM07", "name": "合欢宗", "category": "sect", "base_price": 220, "total_shares": 800000, "description": "魔道宗门股，高波动" },
+    { "code": "LK01", "name": "太岳矿脉", "category": "mine", "base_price": 100, "total_shares": 1500000, "description": "太岳矿脉灵矿股，低价稳健" },
+    { "code": "LK02", "name": "昆吾山脉", "category": "mine", "base_price": 180, "total_shares": 1000000, "description": "昆吾山脉灵矿股" },
+    { "code": "LK03", "name": "坠魔谷矿", "category": "mine", "base_price": 150, "total_shares": 1200000, "description": "坠魔谷灵矿股" },
+    { "code": "SC01", "name": "虚天殿投资", "category": "dungeon", "base_price": 300, "total_shares": 500000, "description": "虚天殿副本股，绑定通关率" },
+    { "code": "YZ01", "name": "慕兰战线军需", "category": "event", "base_price": 200, "total_shares": 800000, "description": "慕兰战线事件股，绑定战况" }
+  ]
+}

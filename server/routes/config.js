@@ -143,10 +143,16 @@ router.get('/game-balance/public', async (req, res) => {
             combat: {
                 skill_mp_cost: gameBalance.combat?.skill_mp_cost ?? 20
             },
-            // 装备槽位配置（valid_slots 顺序 + slot_names 中文名）
+            // 装备槽位配置 + 法宝深度系统配置（耐久/祭炼/修理/本命/祭出）
+            // 注意：过滤内部 comment 字段，仅返回玩家可见的纯数据
             equipment: {
                 valid_slots: gameBalance.equipment?.valid_slots || [],
-                slot_names: gameBalance.equipment?.slot_names || {}
+                slot_names: gameBalance.equipment?.slot_names || {},
+                durability: gameBalance.equipment?.durability || null,
+                refine: gameBalance.equipment?.refine || null,
+                repair: gameBalance.equipment?.repair || null,
+                benming: gameBalance.equipment?.benming || null,
+                summon: gameBalance.equipment?.summon || null
             },
             // 物品类型中文名映射（供 InventoryPanel/MarketPanel 共用，避免前端硬编码不一致）
             item_types: gameBalance.item_types || {},

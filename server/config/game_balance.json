@@ -29,6 +29,17 @@
       "enable": true,
       "interval_ms": 5000
     },
+    "meditation": {
+      "enable": true,
+      "auto_settle": true,
+      "log_each": false,
+      "interval_ms": 5000
+    },
+    "pvp": {
+      "enable": true,
+      "auto_settle": true,
+      "interval_ms": 5000
+    },
     "ban": {
       "enable": true,
       "interval_ms": 5000
@@ -45,7 +56,15 @@
   },
   "breakthrough": {
     "failure_exp_loss_rate": 0.1,
-    "failure_age_multiplier": 2
+    "failure_age_multiplier": 2,
+    "bottleneck_enabled": true,
+    "bottleneck_realms": [10, 13, 17, 21],
+    "bottleneck_threshold_base": 100,
+    "bottleneck_threshold_per_rank": 50,
+    "bottleneck_failure_insight_gain": 10,
+    "bottleneck_max_failure_count": 3,
+    "broken_breakthrough_bonus": 30,
+    "failed_breakthrough_penalty_exp_rate": 0.05
   },
   "combat": {
     "skill_mp_cost": 20,
@@ -123,7 +142,14 @@
     "sect_members_page_size": 20,
     "sect_members_max_page_size": 100,
     "sect_contribution_min": 0,
-    "sect_contribution_max": 100000000
+    "sect_contribution_max": 100000000,
+    "cave_list_page_size": 20,
+    "cave_list_max_page_size": 100,
+    "cave_facility_min_level": 0,
+    "cave_facility_max_level": 10,
+    "cave_garden_plots_min": 0,
+    "cave_garden_plots_max": 9,
+    "cave_facility_whitelist": ["spirit_vein", "quiet_room", "pill_room", "tool_room", "grand_formation"]
   },
   "equipment": {
     "valid_slots": [
@@ -139,6 +165,60 @@
       "accessory": "饰品",
       "boots": "靴子",
       "dharma": "法器"
+    },
+    "durability": {
+      "comment": "耐久度配置：装备初始最大耐久、战斗损耗、死亡损耗、破碎阈值",
+      "initial_max": 100,
+      "degrade_per_combat": 1,
+      "degrade_per_death": 20,
+      "break_threshold": 0,
+      "repair_required_realm_rank": 1
+    },
+    "refine": {
+      "comment": "祭炼（精炼）配置：提升装备属性百分比，消耗灵石+材料，失败降级",
+      "max_level": 15,
+      "base_success_rate": 0.9,
+      "rate_per_level_decrease": 0.05,
+      "min_success_rate": 0.1,
+      "spirit_stone_cost_base": 100,
+      "spirit_stone_cost_per_level": 50,
+      "material_id": "spirit_coral",
+      "material_cost_base": 1,
+      "material_cost_per_level": 1,
+      "fail_break_rate": 0,
+      "fail_downgrade_rate": 0.3,
+      "bonus_per_level": {
+        "atk": 0.05,
+        "def": 0.05,
+        "hp_max": 0.05,
+        "mp_max": 0.05,
+        "speed": 0.03,
+        "sense": 0.03
+      }
+    },
+    "repair": {
+      "comment": "修理配置：每点耐久消耗灵石，每次修理会扣减最大耐久上限",
+      "spirit_stone_cost_per_point": 1,
+      "max_durability_loss_per_repair": 1,
+      "max_durability_threshold": 10
+    },
+    "benming": {
+      "comment": "本命法器配置：炼制本命法器需消耗大量灵石+灵魂材料，绑定后提供法力加成",
+      "min_realm_rank": 3,
+      "max_slots": 3,
+      "spirit_stone_cost": 5000,
+      "material_id": "soul_banner_fragment",
+      "material_cost": 5,
+      "spirit_power_max": 1000,
+      "spirit_power_regen_per_hour": 10,
+      "bonus_multiplier_per_100_power": 0.1
+    },
+    "summon": {
+      "comment": "祭出/收宝配置：本命法器祭出后用于战斗，受场景限制",
+      "allowed_in_combat": true,
+      "allowed_in_seclusion": false,
+      "allowed_in_moving": false,
+      "max_active_treasures": 1
     }
   },
   "adventure": {
@@ -167,6 +247,51 @@
     },
     "default_duration_type": "medium",
     "early_finish_penalty": 0.5
+  },
+  "meditation": {
+    "duration_types": {
+      "short": {
+        "duration": 60,
+        "insight_base": 5,
+        "insight_random": 3,
+        "exp_reward_rate": 0.01,
+        "label": "静思一刻"
+      },
+      "medium": {
+        "duration": 300,
+        "insight_base": 20,
+        "insight_random": 8,
+        "exp_reward_rate": 0.02,
+        "label": "凝神悟道"
+      },
+      "long": {
+        "duration": 1800,
+        "insight_base": 80,
+        "insight_random": 20,
+        "exp_reward_rate": 0.03,
+        "label": "闭关参悟"
+      }
+    },
+    "deep": {
+      "enabled": true,
+      "duration": 3600,
+      "insight_base": 200,
+      "insight_random": 50,
+      "exp_reward_rate": 0.05,
+      "min_realm_rank": 11,
+      "label": "深度悟道"
+    },
+    "default_duration_type": "medium",
+    "daily_normal_limit": 10,
+    "daily_deep_limit": 2,
+    "cooldown_seconds": 30,
+    "insight_threshold_multiplier": 1.0,
+    "bottleneck_insight_rate": 1.5,
+    "deep_bottleneck_insight_rate": 3.0,
+    "interrupt_penalty_rate": 0.3,
+    "deep_interrupt_penalty_rate": 0.5,
+    "exp_reward_rate": 0.01,
+    "max_exp_reward_per_session": 100000
   },
   "item_types": {
     "consumable": "丹药",
@@ -217,5 +342,107 @@
   "inventory": {
     "max_use_quantity": 99
   },
-  "lastUpdated": "2026-07-04T14:31:18.845Z"
+  "lastUpdated": "2026-07-04T14:31:18.845Z",
+  "pvp": {
+    "enabled": true,
+    "cost_per_battle_base": 100,
+    "cost_multiplier_per_realm": 100,
+    "daily_challenge_limit": 10,
+    "daily_defend_limit": 5,
+    "cooldown_seconds": 300,
+    "weakness_duration_minutes": 30,
+    "weakness_cultivation_penalty": 0.3,
+    "weakness_breakthrough_penalty": 0.1,
+    "max_rounds": 30,
+    "round_timeout_seconds": 60,
+    "power_gap_normal_threshold": 0.3,
+    "power_gap_bullying_threshold": 0.5,
+    "karma_penalty_per_bullying": 20,
+    "karma_event_threshold": 100,
+    "win_exp_reward_ratio": 0.05,
+    "win_stone_ratio": 10,
+    "drop_rate_normal_item": 0.05,
+    "rank_score_win_same": 15,
+    "rank_score_win_cross": 25,
+    "rank_score_win_defender": 5,
+    "rank_score_lose_same": 10,
+    "rank_score_lose_cross": 15,
+    "rank_score_lose_defender": 3,
+    "rank_score_draw": 0,
+    "honor_reward_win": 50,
+    "honor_reward_lose": 10,
+    "ranks": [
+      { "name": "散修", "min_score": 0, "max_score": 499 },
+      { "name": "道子", "min_score": 500, "max_score": 1499 },
+      { "name": "真传", "min_score": 1500, "max_score": 3499 },
+      { "name": "长老", "min_score": 3500, "max_score": 6999 },
+      { "name": "宗主", "min_score": 7000, "max_score": 11999 },
+      { "name": "大能", "min_score": 12000, "max_score": 999999 }
+    ],
+    "match_score_range": 200,
+    "match_timeout_seconds": 300,
+    "state_cleaner_interval_ms": 5000
+  },
+  "pawnshop": {
+    "enabled": true,
+    "max_pawn_quantity_per_transaction": 99,
+    "daily_pawn_limit": 20,
+    "max_active_listings": 50,
+    "redeem_period_days": 7,
+    "redeem_daily_interest_rate": 0.02,
+    "overdue_grace_hours": 24,
+    "auction_duration_hours": 48,
+    "auction_start_price_ratio": 0.8,
+    "auction_bid_increment_ratio": 0.05,
+    "max_valuation_per_item": 100000,
+    "pawn_fee_rate": 0.05,
+    "credit_bonus_per_redeem": 1,
+    "credit_max": 100,
+    "credit_discount_bonus_per_point": 0.001,
+    "valuation_ratios": {
+      "common": 0.6,
+      "uncommon": 0.55,
+      "rare": 0.5,
+      "epic": 0.4,
+      "legendary": 0.3
+    },
+    "non_pawnable_categories": ["quest_item", "badge", "bound", "artifact_with_spirit", "sect_contribution", "cultivation_xp", "stock"],
+    "overdue_check_interval_ms": 3600000
+  },
+  "stock_market": {
+    "enabled": true,
+    "price_update_interval_minutes": 60,
+    "base_volatility_range": [-0.03, 0.03],
+    "daily_price_limit_up": 0.15,
+    "daily_price_limit_down": -0.15,
+    "single_update_limit": 0.05,
+    "circuit_breaker_threshold": 0.10,
+    "circuit_breaker_pause_minutes": 60,
+    "trading_fee_buy": 0.003,
+    "trading_fee_sell": 0.003,
+    "margin_trading_fee": 0.005,
+    "margin_daily_interest_rate": 0.001,
+    "stamp_tax_sell": 0.001,
+    "min_fee_per_trade": 5,
+    "min_margin_fee": 10,
+    "max_holding_ratio_per_stock": 0.20,
+    "max_total_holding_value": 1000000,
+    "max_leverage": 2,
+    "initial_margin_rate": 0.5,
+    "maintenance_margin_rate": 0.3,
+    "force_liquidation_threshold": 0.3,
+    "min_trade_quantity": 1,
+    "max_trade_quantity": 1000,
+    "daily_trade_limit": 50,
+    "t_plus_1_settlement": true,
+    "force_liquidation_check_interval_ms": 60000,
+    "margin_interest_check_interval_ms": 86400000,
+    "dividend_schedules": {
+      "sect_stock": { "period_days": 90, "ratio": 0.10 },
+      "mine_stock": { "period_days": 30, "ratio": 0.15 },
+      "dungeon_stock": { "trigger": "dungeon_clear", "ratio": 0.05 },
+      "event_stock": { "trigger": "war_end", "ratio": 0.08 }
+    },
+    "state_cleaner_interval_ms": 5000
+  }
 }

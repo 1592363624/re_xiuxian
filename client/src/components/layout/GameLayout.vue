@@ -97,6 +97,9 @@
       <!-- 闭关修炼浮动状态条（header 下方，不遮挡内容） -->
       <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
 
+      <!-- 静思悟道浮动状态条（第三阶段新增：悟道中显示进度与中断按钮） -->
+      <MeditationOverlay v-if="isStateSynced && playerStore.player?.is_meditating" />
+
       <!-- 历练进行中浮动状态条（参考闭关设计，后端权威数据驱动） -->
       <ExploreOverlay v-if="isStateSynced && playerStore.adventureStatus?.is_adventuring" />
 
@@ -150,6 +153,22 @@
 
     <!-- 坊市（万宝楼）面板 -->
     <MarketPanel v-if="isMarketOpen" @close="isMarketOpen = false" />
+    <!-- 洞府面板（开辟洞府、升级设施、药园种植） -->
+    <CavePanel v-if="isCaveOpen" @close="isCaveOpen = false" />
+    <!-- 法宝管理面板（祭炼/本命/祭出/收宝/调序/散念/修理） -->
+    <EquipmentPanel v-if="isTreasureOpen" @close="isTreasureOpen = false" />
+
+    <!-- 静思悟道面板（第三阶段新增：选择时长、查看瓶颈进度） -->
+    <MeditationPanel v-if="isMeditationOpen" @close="isMeditationOpen = false" />
+
+    <!-- PVP 斗法面板（第四阶段新增：段位卡、战斗、排行榜、段位信息） -->
+    <PvpPanel v-if="isPvpOpen" @close="isPvpOpen = false" />
+
+    <!-- 聚宝当铺面板（第四阶段新增：典当、赎回、信用额度） -->
+    <PawnshopPanel v-if="isPawnshopOpen" @close="isPawnshopOpen = false" />
+
+    <!-- 聚宝股市面板（第四阶段新增：行情、持仓、交易、融资） -->
+    <StockPanel v-if="isStockOpen" @close="isStockOpen = false" />
     
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
@@ -200,6 +219,17 @@ import CharacterModal from '../modals/CharacterModal.vue';
 import InventoryPanel from '../panels/InventoryPanel.vue';
 import SectPanel from '../panels/SectPanel.vue';
 import MarketPanel from '../panels/MarketPanel.vue';
+import CavePanel from '../panels/CavePanel.vue';
+import EquipmentPanel from '../panels/EquipmentPanel.vue';
+// 静思悟道面板与浮动状态条（第三阶段新增：悟道玩法 + 瓶颈系统）
+import MeditationPanel from '../panels/MeditationPanel.vue';
+import MeditationOverlay from '../panels/MeditationOverlay.vue';
+// PVP 斗法面板（第四阶段新增：玩家段位 + 排行榜 + 进行中战斗）
+import PvpPanel from '../panels/PvpPanel.vue';
+// 聚宝当铺面板（第四阶段新增：典当、赎回、信用额度）
+import PawnshopPanel from '../panels/PawnshopPanel.vue';
+// 聚宝股市面板（第四阶段新增：行情、持仓、交易、融资）
+import StockPanel from '../panels/StockPanel.vue';
 
 const props = defineProps<{
   player: any
@@ -226,6 +256,17 @@ const isSeclusionOpen = ref(false)
 const isInventoryOpen = ref(false);
 const isSectOpen = ref(false);
 const isMarketOpen = ref(false);
+const isCaveOpen = ref(false);
+// 法宝管理面板状态（祭炼/本命/祭出/收宝/调序/散念/修理）
+const isTreasureOpen = ref(false);
+// 静思悟道面板状态（第三阶段新增）
+const isMeditationOpen = ref(false);
+// PVP 斗法面板状态（第四阶段新增）
+const isPvpOpen = ref(false);
+// 聚宝当铺面板状态（第四阶段新增）
+const isPawnshopOpen = ref(false);
+// 聚宝股市面板状态（第四阶段新增：行情、持仓、交易、融资）
+const isStockOpen = ref(false);
 const currentBattleId = ref<string | null>(null);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
@@ -304,7 +345,43 @@ const handleAction = async (actionId: string) => {
     isMarketOpen.value = true;
     return;
   }
-  
+
+  // 洞府按钮：打开洞府面板（含药园种植）
+  if (actionId === 'cave') {
+    isCaveOpen.value = true;
+    return;
+  }
+
+  // 法宝按钮：打开法宝管理面板（祭炼/本命/祭出/收宝/调序/散念/修理）
+  if (actionId === 'treasure') {
+    isTreasureOpen.value = true;
+    return;
+  }
+
+  // 悟道按钮：打开静思悟道面板（第三阶段新增）
+  if (actionId === 'meditation') {
+    isMeditationOpen.value = true;
+    return;
+  }
+
+  // 斗法按钮：打开 PVP 斗法面板（第四阶段新增）
+  if (actionId === 'arena') {
+    isPvpOpen.value = true;
+    return;
+  }
+
+  // 当铺按钮：打开聚宝当铺面板（第四阶段新增：典当、赎回、信用额度）
+  if (actionId === 'pawnshop') {
+    isPawnshopOpen.value = true;
+    return;
+  }
+
+  // 股市按钮：打开聚宝股市面板（第四阶段新增：行情、持仓、交易、融资）
+  if (actionId === 'stock') {
+    isStockOpen.value = true;
+    return;
+  }
+
   emit('action', actionId);
 };
 
