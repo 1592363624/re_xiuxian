@@ -32,12 +32,15 @@ jobs:
           # SSH 命令超时设置（避免长时间构建被截断）
           timeout: 60s           # TCP 连接超时
           command_timeout: 30m   # 命令执行超时（含 npm install + build + 健康检查）
-          # 部署流程（极简触发版）：
-          # workflow 只负责 cd + 触发 deploy.ps1，所有逻辑（git fetch/npm/build/pm2）都在 deploy.ps1 内
-          # 为什么不在 workflow 里做 git fetch:
-          #   1. deploy.ps1 有完整的重试 + 镜像兜底逻辑，workflow 重复实现没意义
-          #   2. workflow 的 git fetch 失败会让 deploy.ps1 都没机会运行（无法更新自己）
-          #   3. deploy.ps1 内部 git fetch 会更新 deploy.ps1 自身（下次部署用新版），解决鸡生蛋问题
+          # 部署流程（自更新版）：
+          # workflow 自己先拉最新代码（带重试+镜像），确保 deploy.ps1 是最新版，再执行它
+          # 这样 deploy.ps1 有 bug 时，下次 push 后 workflow 会先拉到新版 deploy.ps1 再执行
+          # 彻底消除"deploy.ps1 有 bug 需要手动到服务器拉代码"的痛点
+          #
+          # 为什么 workflow 也要做 git fetch（和 deploy.ps1 里的逻辑重复）:
+          #   - 可靠性 > DRY 原则：workflow 的 fetch 确保 deploy.ps1 是最新版，
+          #     deploy.ps1 的 fetch 作为本地手动部署时的兜底，两者互为补充
+          #   - fetch 是幂等的，重复执行无害
           #
           # 为什么必须用 PowerShell 而不是 cmd:
           #   1. git 不在 cmd 的 PATH 里（drone-ssh 走 cmd.exe 时 PATH 不完整）
@@ -50,6 +53,12 @@ jobs:
           #
           # 失败传播：
           #   - $ErrorActionPreference='Stop' 让 Set-Location 失败时抛异常终止
-          #   - deploy.ps1 退出码非 0 时，PowerShell 透传给 cmd，ssh-action 报红
+          #   - 每个外部命令后检查 $LASTEXITCODE，非 0 则 exit 1
+          #
+          # 部署流程：
+          # 1. Set-Location 切换到项目目录
+          # 2. git fetch（带重试+镜像兜底，最多 6 次尝试）拉取最新代码
+          # 3. git reset --hard origin/main 同步代码（包括最新的 deploy.ps1）
+          # 4. 执行 deploy.ps1（内部会再次 fetch，幂等无害；然后做 npm/build/pm2/健康检查）
           script: |
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Set-Location 'C:\Users\Administrator\Desktop\re_xiuxian'; & '.\scripts\deploy.ps1'"
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; Set-Location 'C:\Users\Administrator\Desktop\re_xiuxian'; Write-Host '[INFO] PWD:'(Get-Location); $env:GIT_TERMINAL_PROMPT=0; $o=git remote get-url origin; if(-not $o){Write-Host '[FATAL] No git remote';exit 1}; $m=@('https://github.com','https://ghfast.top/https://github.com','https://ghproxy.net/https://github.com'); $f=$false; foreach($x in $m){ $u=$o -replace 'https://github\.com',$x; if($u -eq $o -and $x -ne 'https://github.com'){continue}; Write-Host '[TRY] Fetch via:'$x; for($i=1;$i -le 2;$i++){ try{ if($x -ne 'https://github.com'){git remote set-url origin $u}; git fetch --all --prune 2>&1|Out-Host; if($LASTEXITCODE -eq 0){$f=$true;break} } finally{ if($x -ne 'https://github.com'){git remote set-url origin $o 2>$null} }; if($i -lt 2){Write-Host '[WARN] Fetch attempt '$i' failed, retry in 5s';Start-Sleep -Seconds 5} }; if($f){break} }; if(-not $f){Write-Host '[FATAL] All fetch attempts failed';exit 1}; git reset --hard origin/main; if($LASTEXITCODE -ne 0){Write-Host '[FATAL] git reset failed';exit 1}; Write-Host '[INFO] HEAD:'(git rev-parse --short HEAD); & '.\scripts\deploy.ps1'; if($LASTEXITCODE -ne 0){Write-Host '[FATAL] deploy.ps1 failed';exit 1}"
