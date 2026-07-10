@@ -47,7 +47,8 @@ $env:GIT_TERMINAL_PROMPT = 0
 # 为什么需要: 镜像可能返回缓存旧数据但 exit 0，导致"假成功"（v1 的根因之一）
 $preFetchCommit = git rev-parse "origin/$branch" 2>$null
 if (-not $preFetchCommit) { $preFetchCommit = "none" }
-Write-Host "[INFO] Pre-fetch origin/$branch: $($preFetchCommit.Substring(0,7))"
+# 注意：${branch} 必须用 {} 包裹，否则 PowerShell 把 "$branch:" 当成 drive 引用报错
+Write-Host "[INFO] Pre-fetch origin/${branch}: $($preFetchCommit.Substring(0,7))"
 
 # GitHub 镜像列表（按优先级，第一个可用的就用）
 # 为什么需要镜像: 中国服务器直连 GitHub 偶发连接重置（Recv failure: Connection was reset）
@@ -117,18 +118,19 @@ if (-not $fetchOk) {
 # 验证 fetch 是否真的拉到新数据（防止镜像缓存返回旧数据但 exit 0 的假成功）
 $postFetchCommit = git rev-parse "origin/$branch" 2>$null
 if (-not $postFetchCommit) {
-    Write-Host "[FATAL] Cannot resolve origin/$branch after fetch"
+    Write-Host "[FATAL] Cannot resolve origin/${branch} after fetch"
     exit 1
 }
-Write-Host "[OK] Fetched via $usedMirror, origin/$branch: $($postFetchCommit.Substring(0,7))"
+# 注意：${branch} 必须用 {} 包裹，否则 "$branch:" 被当成 drive 引用导致语法错误
+Write-Host "[OK] Fetched via $usedMirror, origin/${branch}: $($postFetchCommit.Substring(0,7))"
 if ($preFetchCommit -eq $postFetchCommit) {
-    Write-Host "[INFO] origin/$branch unchanged (no new commits, or mirror cache hit)"
+    Write-Host "[INFO] origin/${branch} unchanged (no new commits, or mirror cache hit)"
     # 不 fail：可能确实没新提交。如果是镜像缓存，下一步 reset 后 HEAD 不变也无害
 }
 
 git reset --hard "origin/$branch"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[FATAL] git reset failed (branch $branch may not exist)"
+    Write-Host "[FATAL] git reset failed (branch ${branch} may not exist)"
     exit 1
 }
 Write-Host "[OK] Code updated to $(git rev-parse --short HEAD)"
