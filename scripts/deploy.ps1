@@ -16,7 +16,12 @@
 
 # 强制 UTF-8 输出（仅控制台显示用，不影响脚本解析）
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$ErrorActionPreference = 'Stop'
+# 关键：必须用 'Continue'，不能用 'Stop'
+# 原因: git/npm 等 native command 把进度/警告写到 stderr（不是错误），
+#        'Stop' 模式下 PowerShell 会把这些 stderr 当成 NativeCommandError 终止错误抛出，
+#        导致 git fetch "Connection reset" 时脚本直接崩溃，无法重试或尝试镜像
+# 失败传播改用显式 $LASTEXITCODE 检查（比 Stop 更可靠）
+$ErrorActionPreference = 'Continue'
 
 # ========== 配置 ==========
 # 自动检测项目目录（scripts/deploy.ps1 的父目录的父目录，可移植不硬编码路径）
@@ -87,14 +92,21 @@ foreach ($mirror in $mirrors) {
     for ($i = 1; $i -le 2; $i++) {
         try {
             if ($mirror -ne "https://github.com" -and $mirror -ne "ssh-direct") {
-                git remote set-url origin $mirrorUrl
+                git remote set-url origin $mirrorUrl 2>$null
             }
-            git fetch --all --prune 2>&1 | Out-Host
+            # 关键：用 & git ... 2>&1 捕获输出，不能用 | Out-Host
+            # 原因: | Out-Host 模式在 PowerShell 5.1 下会把 stderr 转成 ErrorRecord
+            #        即使 ErrorActionPreference=Continue 也可能触发 NativeCommandError
+            $fetchOutput = & git fetch --all --prune 2>&1
+            $fetchOutput | ForEach-Object { Write-Host $_ }
             if ($LASTEXITCODE -eq 0) {
                 $fetchOk = $true
                 $usedMirror = $mirror
                 break
             }
+        } catch {
+            # 捕获 NativeCommandError 等异常，不终止脚本，继续重试
+            Write-Host "[WARN] Exception during fetch: $($_.Exception.Message)"
         } finally {
             # 始终恢复原 remote URL（避免污染 git config）
             if ($mirror -ne "https://github.com" -and $mirror -ne "ssh-direct") {
