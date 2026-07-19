@@ -41,6 +41,16 @@ require('./models/playerStateLog');
 // 洞府与药园模型（第一阶段新增玩法）
 require('./models/playerCave');
 require('./models/playerGarden');
+// 炼制系统模型（玩家已学配方及技能信息）
+require('./models/playerRecipe');
+// PVP 扩展系统模型（悬赏追杀、封神台排名）
+require('./models/playerBounty');
+require('./models/fengshenRanking');
+// 洞府社交系统模型（留言、访客记录）
+require('./models/caveMessage');
+require('./models/caveVisitor');
+// 宗门专属玩法模型（灵眼之树/观星台/命盘/天阶/魔道/炉鼎）
+require('./models/playerSectSpecial');
 
 const http = require('http');
 const socketIo = require('socket.io');
@@ -273,6 +283,16 @@ const startServer = async () => {
     app.use('/api/cave', require('./routes/cave'));
     // 药园系统（播种、采收、一键采收）
     app.use('/api/garden', require('./routes/garden'));
+    // 炼制系统（炼丹/炼器、学习配方、技能成长）
+    app.use('/api/crafting', require('./routes/crafting'));
+    // PVP 扩展系统（决斗/悬赏/封神台，避世入世/切磋木人/战力查询已整合到 pvp 路由）
+    app.use('/api/duel', require('./routes/duel'));
+    app.use('/api/bounty', require('./routes/bounty'));
+    app.use('/api/fengshen', require('./routes/fengshen'));
+    // 洞府社交系统（拜访/留言/访客/景观/商人）
+    app.use('/api/cave-social', require('./routes/cave_social'));
+    // 宗门专属玩法系统（灵眼之树/观星台/命盘/天阶/魔道/炉鼎）
+    app.use('/api/sect-special', require('./routes/sect_special'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

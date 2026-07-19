@@ -3,19 +3,23 @@
  *
  * 提供玩家间斗法的核心业务逻辑：
  * 1. getStatus：获取 PVP 状态快照（段位/次数/冷却/虚弱/进行中战斗）
- * 2. challenge：发起 PVP 挑战（含状态互斥、每日次数、冷却、虚弱、灵石消耗校验）
+ * 2. challenge：发起 PVP 挑战（含状态互斥、每日次数、冷却、虚弱、灵石消耗、避世校验）
  * 3. executeAction：执行一回合战斗（攻击/技能/防御）
  * 4. flee：逃跑（判负）
  * 5. _settleBattle：内部结算方法（段位分/荣誉值/灵石/经验/因果值/掉落）
  * 6. cleanExpiredBattles：清理过期 PVP 战斗（供 StateCleanerService 调用）
  * 7. getLeaderboard：获取段位排行榜
  * 8. getBattleHistory：获取战斗历史
+ * 9. setPvpMode/getPvpMode：切换/查询避世入世模式（避世时免疫 PVP 挑战）
+ * 10. getCombatPower/compareCombatPower：战力查询与对比（基于 pvp_extended.combat_power 权重）
+ * 11. sparringWithDummy：切磋木人（零惩罚训练，获得经验奖励，复用战斗逻辑模拟）
  *
  * 设计原则：
- * - 所有可变参数从 game_balance.json pvp 段读取，禁止硬编码
+ * - 所有可变参数从 game_balance.json pvp / pvp_extended 段读取，禁止硬编码
  * - 多表/多字段变更使用事务 + 行级锁（player + pvp_battle_records + pvp_rankings）
  * - 战斗记录使用 pvp_battle_records 表（status: ongoing/finished/cancelled）
  * - 段位积分冗余存储于 players.pvp_score，便于排行榜查询
+ * - 切磋木人为零惩罚训练，不写入 pvp_battle_records，仅记录于 player.stats JSON
  * - WebSocket 推送通过 WebSocketNotificationService.notifyPlayerUpdate
  * - 不直接操作 HTTP 响应，由路由层处理
  */
@@ -364,6 +368,12 @@ class PvpService {
                 throw new AppError('账号已封禁，无法挑战', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
+            // 避世状态校验：避世清修中不可发起挑战，需先入世方可斗法
+            if (attacker.pvp_mode === 'recluse') {
+                await t.commit();
+                throw new AppError('避世清修中，无法发起挑战，请先入世', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
             // 虚弱状态校验：虚弱期不可发起挑战（防止虚弱期间滥用 PVP 获取荣誉）
             const now = new Date();
             if (attacker.weakness_end_time && new Date(attacker.weakness_end_time) > now) {
@@ -387,6 +397,12 @@ class PvpService {
             if (defender.is_banned) {
                 await t.commit();
                 throw new AppError('目标已封禁，不可挑战', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 避世状态校验：避世清修中的玩家免疫 PVP 挑战
+            if (defender.pvp_mode === 'recluse') {
+                await t.commit();
+                throw new AppError('目标已避世清修，不可挑战', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
             // 二次校验：防止发起方进行中的 PVP 战斗（并发场景）
@@ -1457,6 +1473,521 @@ class PvpService {
             total: count,
             page: safePage,
             page_size: safeLimit
+        };
+    }
+
+    // ==================== PVP 扩展功能 ====================
+
+    /**
+     * 切换 PVP 模式（避世/入世）
+     * - active=入世：可正常发起和接受 PVP 挑战
+     * - recluse=避世：免疫 PVP 挑战，但自身也无法发起挑战
+     * 校验：玩家存在、未死亡、无进行中战斗
+     * @param {number} playerId - 玩家ID
+     * @param {string} mode - PVP 模式：active/recluse
+     * @returns {Promise<Object>} 更新后的模式信息
+     */
+    static async setPvpMode(playerId, mode) {
+        // 参数校验：仅允许 active / recluse
+        const allowedModes = ['active', 'recluse'];
+        if (!allowedModes.includes(mode)) {
+            throw new AppError(
+                `无效的 PVP 模式：${mode}，可选值：${allowedModes.join('/')}`,
+                400,
+                ErrorCodes.VALIDATION_ERROR
+            );
+        }
+
+        const t = await sequelize.transaction();
+        try {
+            // 行级锁查询玩家
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                await t.commit();
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
+            // 死亡玩家不可切换模式
+            if (player.is_dead) {
+                await t.commit();
+                throw new AppError('已身死道消，无法切换 PVP 模式', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 进行中的 PVP 战斗不可切换模式（避免战斗中途变为避世）
+            const ongoingBattle = await PvpBattleRecord.findOne({
+                where: {
+                    [Op.and]: [
+                        { status: 'ongoing' },
+                        {
+                            [Op.or]: [
+                                { attacker_id: playerId },
+                                { defender_id: playerId }
+                            ]
+                        }
+                    ]
+                },
+                transaction: t
+            });
+            if (ongoingBattle) {
+                await t.commit();
+                throw new AppError('斗法进行中，无法切换 PVP 模式', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 更新 PVP 模式
+            player.pvp_mode = mode;
+            await player.save({ transaction: t });
+            await t.commit();
+
+            return {
+                player_id: player.id,
+                pvp_mode: mode,
+                mode_name: mode === 'active' ? '入世' : '避世'
+            };
+        } catch (err) {
+            if (!t.finished) await t.rollback();
+            throw err;
+        }
+    }
+
+    /**
+     * 获取玩家当前 PVP 模式
+     * @param {number} playerId - 玩家ID
+     * @returns {Promise<Object>} PVP 模式信息
+     */
+    static async getPvpMode(playerId) {
+        const player = await Player.findByPk(playerId, {
+            attributes: ['id', 'nickname', 'pvp_mode', 'realm', 'realm_rank']
+        });
+        if (!player) {
+            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+        }
+
+        const mode = player.pvp_mode || 'active';
+        return {
+            player_id: player.id,
+            nickname: player.nickname,
+            realm: player.realm,
+            realm_rank: player.realm_rank,
+            pvp_mode: mode,
+            mode_name: mode === 'active' ? '入世' : '避世'
+        };
+    }
+
+    /**
+     * 查询玩家战力
+     * 战力公式（权重来自 game_balance.json -> pvp_extended.combat_power）：
+     *   战力 = hp_max * hp_weight + atk * atk_weight + def * def_weight
+     *          + speed * speed_weight + sense * sense_weight
+     *          + realm_rank * realm_rank_multiplier
+     * @param {number} playerId - 玩家ID
+     * @returns {Promise<Object>} 战力数值与属性明细
+     */
+    static async getCombatPower(playerId) {
+        const player = await Player.findByPk(playerId, {
+            attributes: ['id', 'nickname', 'realm', 'realm_rank', 'attributes']
+        });
+        if (!player) {
+            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+        }
+
+        // 读取战力计算配置
+        const fullConfig = configLoader.getConfig('game_balance');
+        const cpCfg = fullConfig?.pvp_extended?.combat_power || {};
+
+        // 读取玩家基础属性
+        const attrs = player.attributes || {};
+        const atk = Number(attrs.atk) || 0;
+        const def = Number(attrs.def) || 0;
+        const hpMax = Number(attrs.hp_max) || 0;
+        const speed = Number(attrs.speed) || 0;
+        const sense = Number(attrs.sense) || 0;
+        const realmRank = Number(player.realm_rank) || 0;
+
+        // 读取权重（带兜底默认值）
+        const hpWeight = cpCfg.base_hp_weight ?? 1.0;
+        const atkWeight = cpCfg.base_atk_weight ?? 5.0;
+        const defWeight = cpCfg.base_def_weight ?? 3.0;
+        const speedWeight = cpCfg.base_speed_weight ?? 2.0;
+        const senseWeight = cpCfg.base_sense_weight ?? 1.5;
+        const realmMul = cpCfg.realm_rank_multiplier ?? 100;
+        const maxDecimals = cpCfg.max_display_decimals ?? 0;
+
+        // 计算战力
+        const rawPower = (hpMax * hpWeight)
+            + (atk * atkWeight)
+            + (def * defWeight)
+            + (speed * speedWeight)
+            + (sense * senseWeight)
+            + (realmRank * realmMul);
+
+        // 按配置精度截断
+        const factor = Math.pow(10, maxDecimals);
+        const combatPower = Math.floor(rawPower * factor) / factor;
+
+        return {
+            player_id: player.id,
+            nickname: player.nickname,
+            realm: player.realm,
+            realm_rank: realmRank,
+            combat_power: combatPower,
+            details: {
+                atk,
+                def,
+                hp_max: hpMax,
+                speed,
+                sense,
+                realm_rank: realmRank,
+                weights: {
+                    hp_weight: hpWeight,
+                    atk_weight: atkWeight,
+                    def_weight: defWeight,
+                    speed_weight: speedWeight,
+                    sense_weight: senseWeight,
+                    realm_rank_multiplier: realmMul
+                }
+            }
+        };
+    }
+
+    /**
+     * 对比两个玩家的战力
+     * @param {number} playerIdA - 玩家A的ID
+     * @param {number} playerIdB - 玩家B的ID
+     * @returns {Promise<Object>} 双方战力对比结果
+     */
+    static async compareCombatPower(playerIdA, playerIdB) {
+        // 并行查询双方战力
+        const [powerA, powerB] = await Promise.all([
+            this.getCombatPower(playerIdA),
+            this.getCombatPower(playerIdB)
+        ]);
+
+        const diff = powerA.combat_power - powerB.combat_power;
+
+        // 判断战力优势方
+        let advantage;
+        if (diff > 0) {
+            advantage = 'player_a';
+        } else if (diff < 0) {
+            advantage = 'player_b';
+        } else {
+            advantage = 'equal';
+        }
+
+        return {
+            player_a: powerA,
+            player_b: powerB,
+            power_difference: Math.abs(diff),
+            advantage
+        };
+    }
+
+    /**
+     * 切磋木人（零惩罚训练）
+     * 生成一个木人对手，属性按 pvp_extended.sparring 基础值 + 境界加成
+     * 木人属性 = base * (1 + targetRealmRank * 0.5)（每个境界递增50%）
+     * 复用 executeAction 的战斗逻辑进行模拟战斗，但零惩罚：
+     *   - 不扣灵石、不加虚弱、不掉物品、不影响段位分
+     *   - 仅获得经验奖励
+     * 限制：每日次数（daily_limit）、冷却时间（cooldown_seconds）
+     * 记录：player.stats JSON 中的 sparring_count / last_sparring_date / last_sparring_time
+     *
+     * @param {number} playerId - 玩家ID
+     * @param {number} targetRealmRank - 目标境界排名（决定木人强度）
+     * @returns {Promise<Object>} 切磋结果（含战斗日志、经验奖励、次数信息）
+     */
+    static async sparringWithDummy(playerId, targetRealmRank) {
+        // 读取配置
+        const fullConfig = configLoader.getConfig('game_balance');
+        const sparringCfg = fullConfig?.pvp_extended?.sparring || {};
+        const combatCfg = fullConfig?.combat || {};
+        const pvpCfg = fullConfig?.pvp || {};
+
+        // 全局开关
+        if (sparringCfg.enabled === false) {
+            throw new AppError('切磋木人功能未开启', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+        }
+
+        // 参数校验：目标境界排名必须为有效数字
+        const targetRank = Number(targetRealmRank);
+        if (!Number.isFinite(targetRank)) {
+            throw new AppError('target_realm_rank 参数无效', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        const minRank = sparringCfg.min_realm_rank ?? 1;
+        const maxRank = sparringCfg.max_realm_rank ?? 10;
+        if (targetRank < minRank || targetRank > maxRank) {
+            throw new AppError(
+                `目标境界排名超出范围，允许 ${minRank}-${maxRank}`,
+                400,
+                ErrorCodes.VALIDATION_ERROR
+            );
+        }
+
+        const t = await sequelize.transaction();
+        try {
+            // 行级锁查询玩家
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                await t.commit();
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+            if (player.is_dead) {
+                await t.commit();
+                throw new AppError('已身死道消，无法切磋', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            if (player.is_banned) {
+                await t.commit();
+                throw new AppError('账号已封禁，无法切磋', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 读取玩家 stats 中的切磋记录
+            const stats = { ...(player.stats || {}) };
+            const today = new Date().toISOString().slice(0, 10);  // YYYY-MM-DD
+            let sparringCount = Number(stats.sparring_count) || 0;
+            const lastSparringDate = stats.last_sparring_date || null;
+
+            // 跨日重置每日次数
+            if (lastSparringDate !== today) {
+                sparringCount = 0;
+            }
+
+            // 每日次数校验
+            const dailyLimit = sparringCfg.daily_limit ?? 20;
+            if (sparringCount >= dailyLimit) {
+                await t.commit();
+                throw new AppError(
+                    `今日切磋次数已达上限（${dailyLimit} 次）`,
+                    400,
+                    ErrorCodes.BUSINESS_LOGIC_ERROR
+                );
+            }
+
+            // 冷却校验：基于 last_sparring_time
+            const cooldown = sparringCfg.cooldown_seconds ?? 10;
+            const lastSparringTimeMs = stats.last_sparring_time
+                ? new Date(stats.last_sparring_time).getTime()
+                : 0;
+            if (lastSparringTimeMs > 0) {
+                const elapsed = (Date.now() - lastSparringTimeMs) / 1000;
+                if (elapsed < cooldown) {
+                    await t.commit();
+                    const remain = Math.ceil(cooldown - elapsed);
+                    throw new AppError(
+                        `切磋冷却中，请 ${remain} 秒后再试`,
+                        400,
+                        ErrorCodes.BUSINESS_LOGIC_ERROR
+                    );
+                }
+            }
+
+            // 生成木人属性：base * (1 + targetRealmRank * 0.5)
+            // 每个境界排名递增 50% 基础属性
+            const baseHp = sparringCfg.wooden_dummy_base_hp ?? 500;
+            const baseAtk = sparringCfg.wooden_dummy_base_atk ?? 20;
+            const baseDef = sparringCfg.wooden_dummy_base_def ?? 10;
+            const baseSpeed = sparringCfg.wooden_dummy_base_speed ?? 10;
+            const dummyMultiplier = 1 + targetRank * 0.5;
+            const dummyAttrs = {
+                hp_max: Math.floor(baseHp * dummyMultiplier),
+                atk: Math.floor(baseAtk * dummyMultiplier),
+                def: Math.floor(baseDef * dummyMultiplier),
+                speed: Math.floor(baseSpeed * dummyMultiplier)
+            };
+
+            // 读取玩家属性（使用副本，零惩罚不持久化 HP/MP 变化）
+            const playerAttrsRaw = player.attributes || {};
+            const playerAtk = Number(playerAttrsRaw.atk) || 10;
+            const playerDef = Number(playerAttrsRaw.def) || 5;
+            const playerHpMax = Number(playerAttrsRaw.hp_max) || 100;
+            const playerSpeed = Number(playerAttrsRaw.speed) || 10;
+            const playerMpMax = Number(playerAttrsRaw.mp_max) || 0;
+
+            // 模拟战斗（复用 executeAction 的伤害公式，全程内存计算不落库）
+            const maxRounds = pvpCfg.max_rounds || 30;
+            const battleResult = this._simulateSparringBattle(
+                {
+                    atk: playerAtk,
+                    def: playerDef,
+                    hp_max: playerHpMax,
+                    speed: playerSpeed,
+                    mp_max: playerMpMax
+                },
+                dummyAttrs,
+                maxRounds,
+                combatCfg
+            );
+
+            // 计算经验奖励 = exp_reward_base + |targetRealmRank - playerRealmRank| * exp_reward_per_realm_gap
+            const playerRealmRank = Number(player.realm_rank) || 0;
+            const expBase = sparringCfg.exp_reward_base ?? 50;
+            const expPerGap = sparringCfg.exp_reward_per_realm_gap ?? 20;
+            const realmGap = Math.abs(targetRank - playerRealmRank);
+            const expReward = expBase + realmGap * expPerGap;
+
+            // 更新玩家 stats（切磋次数和冷却记录）
+            stats.sparring_count = sparringCount + 1;
+            stats.last_sparring_date = today;
+            stats.last_sparring_time = new Date().toISOString();
+            player.stats = stats;
+
+            // 累加经验（BIGINT 安全运算）
+            if (expReward > 0) {
+                player.exp = safeBigInt(player.exp) + BigInt(expReward);
+            }
+
+            await player.save({ transaction: t });
+            await t.commit();
+
+            return {
+                player_id: player.id,
+                target_realm_rank: targetRank,
+                dummy_attributes: dummyAttrs,
+                battle: {
+                    winner: battleResult.winner,
+                    is_draw: battleResult.isDraw,
+                    rounds: battleResult.rounds,
+                    final_player_hp: battleResult.finalPlayerHp,
+                    final_dummy_hp: battleResult.finalDummyHp,
+                    battle_log: battleResult.battleLog
+                },
+                exp_reward: expReward,
+                sparring_count_today: stats.sparring_count,
+                daily_limit: dailyLimit,
+                daily_remaining: Math.max(0, dailyLimit - stats.sparring_count),
+                cooldown_seconds: cooldown,
+                zero_penalty: true  // 零惩罚标记：无灵石/虚弱/掉落/段位分变动
+            };
+        } catch (err) {
+            if (!t.finished) await t.rollback();
+            throw err;
+        }
+    }
+
+    /**
+     * 内部方法：模拟切磋木人战斗
+     * 复用 executeAction 的伤害公式（attack/skill），在内存中完成整场战斗
+     * 木人仅使用普通攻击（无法术），玩家自动决策：MP 足够时用技能，否则普通攻击
+     * 先手判定基于速度，速度快者先攻；速度相同则随机
+     *
+     * @param {Object} playerAttrs - 玩家战斗属性 { atk, def, hp_max, speed, mp_max }
+     * @param {Object} dummyAttrs - 木人战斗属性 { atk, def, hp_max, speed }
+     * @param {number} maxRounds - 最大回合数
+     * @param {Object} combatConfig - 战斗配置（伤害随机范围等）
+     * @returns {Object} 战斗结果 { winner, isDraw, rounds, battleLog, finalPlayerHp, finalDummyHp }
+     */
+    static _simulateSparringBattle(playerAttrs, dummyAttrs, maxRounds, combatConfig) {
+        // 先手判定：基于速度
+        const playerSpeed = Number(playerAttrs.speed) || 0;
+        const dummySpeed = Number(dummyAttrs.speed) || 0;
+        let firstAttacker;
+        if (playerSpeed > dummySpeed) {
+            firstAttacker = 'player';
+        } else if (dummySpeed > playerSpeed) {
+            firstAttacker = 'dummy';
+        } else {
+            firstAttacker = Math.random() < 0.5 ? 'player' : 'dummy';
+        }
+
+        // 初始化双方 HP/MP（使用副本，零惩罚不回写玩家数据）
+        let playerHp = Number(playerAttrs.hp_max) || 100;
+        let playerMp = Number(playerAttrs.mp_max) || 0;
+        let dummyHp = Number(dummyAttrs.hp_max) || 500;
+
+        // 读取伤害相关配置
+        const dmgRange = combatConfig.damage_random_range ?? 15;
+        const dmgOffset = combatConfig.damage_random_offset ?? 7;
+        const skillDamageMul = combatConfig.skill_damage_multiplier ?? 1.5;
+        const skillMpCost = combatConfig.skill_mp_cost ?? 20;
+
+        const battleLog = [];
+        let round = 0;
+        let winner = null;
+        let isDraw = false;
+
+        // 回合循环：双方交替行动
+        while (round < maxRounds) {
+            // 当前回合的 actor：偶数回合由 first_attacker 行动
+            const isPlayerTurn = (firstAttacker === 'player')
+                ? (round % 2 === 0)
+                : (round % 2 === 1);
+
+            if (isPlayerTurn) {
+                // 玩家行动：MP 足够时使用技能（伤害 × skill_damage_multiplier），否则普通攻击
+                let action = 'attack';
+                let damage;
+                if (playerMp >= skillMpCost) {
+                    action = 'skill';
+                    playerMp -= skillMpCost;
+                    damage = Math.max(1, Math.floor(
+                        (playerAttrs.atk - dummyAttrs.def + Math.floor(Math.random() * dmgRange) - dmgOffset)
+                        * skillDamageMul
+                    ));
+                } else {
+                    damage = Math.max(1, playerAttrs.atk - dummyAttrs.def
+                        + Math.floor(Math.random() * dmgRange) - dmgOffset);
+                }
+                dummyHp = Math.max(0, dummyHp - damage);
+                battleLog.push({
+                    round: round + 1,
+                    actor: 'player',
+                    action,
+                    damage,
+                    player_hp: playerHp,
+                    dummy_hp: dummyHp
+                });
+
+                // 木人 HP 归零，玩家胜
+                if (dummyHp <= 0) {
+                    winner = 'player';
+                    break;
+                }
+            } else {
+                // 木人行动：仅普通攻击（木人无法术）
+                const damage = Math.max(1, dummyAttrs.atk - playerAttrs.def
+                    + Math.floor(Math.random() * dmgRange) - dmgOffset);
+                playerHp = Math.max(0, playerHp - damage);
+                battleLog.push({
+                    round: round + 1,
+                    actor: 'dummy',
+                    action: 'attack',
+                    damage,
+                    player_hp: playerHp,
+                    dummy_hp: dummyHp
+                });
+
+                // 玩家 HP 归零，木人胜
+                if (playerHp <= 0) {
+                    winner = 'dummy';
+                    break;
+                }
+            }
+            round++;
+        }
+
+        // 达到最大回合数仍未分出胜负：HP 高者胜，相等则平局
+        if (!winner) {
+            if (playerHp > dummyHp) {
+                winner = 'player';
+            } else if (dummyHp > playerHp) {
+                winner = 'dummy';
+            } else {
+                isDraw = true;
+            }
+        }
+
+        return {
+            winner,
+            isDraw,
+            rounds: round + 1,
+            battleLog,
+            finalPlayerHp: playerHp,
+            finalDummyHp: dummyHp
         };
     }
 }

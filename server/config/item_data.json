@@ -439,6 +439,98 @@
             "effect": { "atk": 30, "def": 30, "mp_max": 150 },
             "price": 15000,
             "required_realm_rank": 5
+        },
+        {
+            "id": "spirit_charcoal",
+            "name": "灵炭",
+            "type": "material",
+            "subtype": "fuel",
+            "description": "以灵木烧制的炭火，炼丹炉的燃料",
+            "price": 8
+        },
+        {
+            "id": "cinnabar",
+            "name": "朱砂",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "天然朱砂矿，炼丹辅材，可祛邪镇煞",
+            "price": 25
+        },
+        {
+            "id": "spirit_iron_ore",
+            "name": "灵铁矿石",
+            "type": "material",
+            "subtype": "ore",
+            "description": "蕴含灵气的铁矿石，炼器主材",
+            "price": 30
+        },
+        {
+            "id": "cold_crystal",
+            "name": "寒晶",
+            "type": "material",
+            "subtype": "mineral",
+            "description": "极寒之地凝结的灵晶，炼器辅材",
+            "price": 60
+        },
+        {
+            "id": "recipe_mid_healing_pill",
+            "name": "小还丹丹方",
+            "type": "recipe_scroll",
+            "subtype": "alchemy",
+            "quality": "uncommon",
+            "description": "记载小还丹炼制方法的丹方，阅读后可学会炼制小还丹",
+            "effect": { "learn_recipe": "craft_mid_healing_pill" },
+            "price": 200
+        },
+        {
+            "id": "recipe_mid_mana_pill",
+            "name": "聚灵丹丹方",
+            "type": "recipe_scroll",
+            "subtype": "alchemy",
+            "quality": "uncommon",
+            "description": "记载聚灵丹炼制方法的丹方，阅读后可学会炼制聚灵丹",
+            "effect": { "learn_recipe": "craft_mid_mana_pill" },
+            "price": 250
+        },
+        {
+            "id": "recipe_foundation_pill",
+            "name": "筑基丹丹方",
+            "type": "recipe_scroll",
+            "subtype": "alchemy",
+            "quality": "rare",
+            "description": "记载筑基丹炼制方法的丹方，阅读后可学会炼制筑基丹",
+            "effect": { "learn_recipe": "craft_foundation_pill" },
+            "price": 2000
+        },
+        {
+            "id": "recipe_spirit_robe",
+            "name": "灵丝法袍图谱",
+            "type": "recipe_scroll",
+            "subtype": "refining",
+            "quality": "uncommon",
+            "description": "记载灵丝法袍炼制方法的图谱，阅读后可学会炼制灵丝法袍",
+            "effect": { "learn_recipe": "craft_spirit_robe" },
+            "price": 500
+        },
+        {
+            "id": "recipe_jade_pendant",
+            "name": "护身玉佩图谱",
+            "type": "recipe_scroll",
+            "subtype": "refining",
+            "quality": "common",
+            "description": "记载护身玉佩炼制方法的图谱，阅读后可学会炼制护身玉佩",
+            "effect": { "learn_recipe": "craft_jade_pendant" },
+            "price": 150
+        },
+        {
+            "id": "recipe_cloud_boots",
+            "name": "踏云靴图谱",
+            "type": "recipe_scroll",
+            "subtype": "refining",
+            "quality": "uncommon",
+            "description": "记载踏云靴炼制方法的图谱，阅读后可学会炼制踏云靴",
+            "effect": { "learn_recipe": "craft_cloud_stepping_boots" },
+            "price": 600
         }
     ]
 }

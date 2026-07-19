@@ -1,0 +1,144 @@
+{
+  "description": "宗门专属玩法配置：灵眼之树(落云宗)/观星台(星宫)/命盘(天星宗)/天阶(凌霄宫)/魔道炉鼎(阴罗宗+合欢宗)",
+  "spirit_eye_tree": {
+    "sect_id": "luoyun",
+    "name": "灵眼之树",
+    "description": "落云宗独有灵眼之树，每日浇灌灵液培育，成熟后产出灵眼果提升悟性",
+    "growth_stages": [
+      { "stage": 0, "name": "树苗", "growth_needed": 100, "description": "刚种下的灵眼树苗" },
+      { "stage": 1, "name": "幼树", "growth_needed": 300, "description": "茁壮成长的幼树" },
+      { "stage": 2, "name": "成树", "growth_needed": 600, "description": "枝繁叶茂的灵眼树" },
+      { "stage": 3, "name": "灵眼树", "growth_needed": 0, "description": "已开灵眼，可产出灵眼果" }
+    ],
+    "watering": {
+      "daily_limit": 3,
+      "spirit_stone_cost": 100,
+      "growth_per_watering": 50,
+      "exp_reward": 20
+    },
+    "harvest": {
+      "daily_limit": 1,
+      "produce_item_key": "spirit_eye_fruit",
+      "produce_item_name": "灵眼果",
+      "produce_count": 1,
+      "effect": { "sense_bonus": 0.1, "duration_hours": 2 }
+    },
+    "seed_item_key": "spirit_eye_seed",
+    "seed_item_name": "灵眼树苗"
+  },
+  "star_platform": {
+    "sect_id": "xinggong",
+    "name": "观星台",
+    "description": "星宫独有观星台，每日观星获取星象指引，消耗引星盘获得临时加成",
+    "observe": {
+      "daily_free_limit": 1,
+      "extra_cost_spirit_stones": 500,
+      "extra_daily_limit": 2
+    },
+    "star_chart_item_key": "star_chart",
+    "star_chart_item_name": "引星盘",
+    "star_forms": [
+      { "id": "wenqu", "name": "文曲星照", "description": "文曲星临，悟性大增", "bonus": { "sense_bonus": 0.2 }, "duration_hours": 2, "weight": 25 },
+      { "id": "wuqu", "name": "武曲星照", "description": "武曲星临，战意高昂", "bonus": { "atk_bonus": 0.15 }, "duration_hours": 2, "weight": 20 },
+      { "id": "tianji", "name": "天机星照", "description": "天机星临，气运亨通", "bonus": { "luck_bonus": 0.2 }, "duration_hours": 2, "weight": 20 },
+      { "id": "tongyue", "name": "通月星照", "description": "通月星临，灵力充沛", "bonus": { "mp_bonus": 0.15 }, "duration_hours": 2, "weight": 20 },
+      { "id": "pojun", "name": "破军星照", "description": "破军星临，突破在望", "bonus": { "breakthrough_bonus": 0.1 }, "duration_hours": 4, "weight": 15 }
+    ]
+  },
+  "fate_disk": {
+    "sect_id": "tianxing",
+    "name": "命盘推演",
+    "description": "天星宗独有命盘，每日推演命途，获取命运修正 buff",
+    "divination": {
+      "daily_free_limit": 1,
+      "extra_cost_spirit_stones": 300,
+      "extra_daily_limit": 3
+    },
+    "fates": [
+      { "id": "great_fortune", "name": "大吉", "description": "命盘推演大吉，万事亨通", "bonus": { "exp_multiplier": 1.2, "luck_bonus": 0.15 }, "duration_hours": 4, "weight": 10 },
+      { "id": "fortune", "name": "吉", "description": "命盘推演为吉，运势上扬", "bonus": { "exp_multiplier": 1.1, "luck_bonus": 0.1 }, "duration_hours": 4, "weight": 25 },
+      { "id": "neutral", "name": "平", "description": "命盘推演为平，波澜不惊", "bonus": { "exp_multiplier": 1.05 }, "duration_hours": 4, "weight": 40 },
+      { "id": "misfortune", "name": "凶", "description": "命盘推演为凶，需谨慎行事", "bonus": { "exp_multiplier": 0.95 }, "duration_hours": 2, "weight": 20 },
+      { "id": "great_misfortune", "name": "大凶", "description": "命盘推演大凶，诸事不宜", "bonus": { "exp_multiplier": 0.9 }, "duration_hours": 2, "weight": 5 }
+    ]
+  },
+  "heaven_stairs": {
+    "sect_id": "lingxiao",
+    "name": "天阶",
+    "description": "凌霄宫独有天阶试炼，每日攀登获取心力加成，层数越高加成越大",
+    "challenge": {
+      "daily_challenge_limit": 3,
+      "spirit_stone_cost_per_floor": 200,
+      "exp_reward_base": 100,
+      "exp_reward_per_floor": 50
+    },
+    "floors": [
+      { "floor": 1, "name": "凡心阶", "description": "第一阶，凡心磨砺", "mental_strength_bonus": 0.02, "exp_reward": 100 },
+      { "floor": 2, "name": "道心阶", "description": "第二阶，道心坚定", "mental_strength_bonus": 0.03, "exp_reward": 150 },
+      { "floor": 3, "name": "天心阶", "description": "第三阶，天心通明", "mental_strength_bonus": 0.05, "exp_reward": 250 },
+      { "floor": 4, "name": "凌霄阶", "description": "第四阶，凌霄之志", "mental_strength_bonus": 0.08, "exp_reward": 400 },
+      { "floor": 5, "name": "九天阶", "description": "第五阶，九天揽月", "mental_strength_bonus": 0.12, "exp_reward": 600 },
+      { "floor": 6, "name": "太虚阶", "description": "第六阶，太虚通玄", "mental_strength_bonus": 0.15, "exp_reward": 900 },
+      { "floor": 7, "name": "造化阶", "description": "第七阶，造化登仙", "mental_strength_bonus": 0.2, "exp_reward": 1300 }
+    ],
+    "max_floor_reached_field": "heaven_stairs_max_floor"
+  },
+  "dark_arts": {
+    "sect_id": "yinluo",
+    "name": "魔道功法",
+    "description": "阴罗宗独有魔道修炼，以邪术提升攻击，但魔气过高会反噬",
+    "practice": {
+      "daily_limit": 3,
+      "spirit_stone_cost": 200,
+      "atk_gain_per_practice": 0.02,
+      "dark_corruption_per_practice": 10,
+      "exp_reward": 80
+    },
+    "purify": {
+      "spirit_stone_cost": 1000,
+      "corruption_reduction": 30,
+      "daily_limit": 1
+    },
+    "corruption_thresholds": {
+      "warn": 50,
+      "danger": 80,
+      "backlash": 100
+    },
+    "backlash_penalty": {
+      "hp_loss_rate": 0.2,
+      "exp_loss_rate": 0.05
+    },
+    "max_corruption": 100
+  },
+  "furnace": {
+    "sect_id": "hehuan",
+    "name": "炉鼎侍妾",
+    "description": "合欢宗独有侍妾系统，每日问安/灵力反哺/远航获取收益",
+    "greet": {
+      "daily_limit": 1,
+      "contribution_reward": 5,
+      "exp_reward": 30,
+      "mp_restore": 20
+    },
+    "feedback": {
+      "daily_limit": 1,
+      "spirit_stone_cost": 0,
+      "exp_gain": 100,
+      "mp_cost": 50
+    },
+    "voyage": {
+      "routes": [
+        { "id": "safe", "name": "稳妥", "description": "稳妥远航，收益较低但安全", "duration_hours": 4, "exp_min": 50, "exp_max": 150, "spirit_stone_min": 100, "spirit_stone_max": 300, "risk_rate": 0.05 },
+        { "id": "balanced", "name": "均衡", "description": "均衡远航，风险与收益并存", "duration_hours": 8, "exp_min": 100, "exp_max": 300, "spirit_stone_min": 200, "spirit_stone_max": 600, "risk_rate": 0.15 },
+        { "id": "adventure", "name": "冒险", "description": "冒险远航，高收益高风险", "duration_hours": 12, "exp_min": 200, "exp_max": 600, "spirit_stone_min": 400, "spirit_stone_max": 1200, "risk_rate": 0.3 },
+        { "id": "moon_palace", "name": "月殿寻痕", "description": "月殿寻痕，极高风险极高收益", "duration_hours": 24, "exp_min": 500, "exp_max": 1500, "spirit_stone_min": 1000, "spirit_stone_max": 3000, "risk_rate": 0.5, "rare_drop_rate": 0.1, "rare_drop_item": "moon_palace_fragment" }
+      ],
+      "daily_limit": 1
+    },
+    "protect": {
+      "daily_limit": 1,
+      "breakthrough_bonus": 0.05,
+      "duration_hours": 2
+    }
+  }
+}

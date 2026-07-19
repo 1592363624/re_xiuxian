@@ -122,6 +122,11 @@ class InventoryService {
             const EquipmentService = require('./EquipmentService');
             return await EquipmentService.equip(playerId, itemKey);
         }
+        // 丹方/图谱走学习配方流程（延迟 require 避免与 CraftingService 循环依赖）
+        if (config.type === 'recipe_scroll') {
+            const CraftingService = require('./CraftingService');
+            return await CraftingService.learnRecipe(playerId, itemKey);
+        }
         if (config.type !== 'consumable') {
             throw new AppError('该物品不可使用', 400, ErrorCodes.VALIDATION_ERROR);
         }
@@ -243,14 +248,17 @@ class InventoryService {
             throw new AppError(`物品配置不存在: ${itemKey}`, 400, ErrorCodes.VALIDATION_ERROR);
         }
 
-        // 容量检查
+        // 容量检查（必须在同一事务内查询，否则会读到旧数据导致误判容量不足）
+        const options = transaction ? { transaction } : {};
         const capacity = this.getInventoryConfig().capacity || 100;
-        const totalOwned = await Item.sum('quantity', { where: { player_id: playerId } }) || 0;
+        const totalOwned = await Item.sum('quantity', {
+            where: { player_id: playerId },
+            ...options
+        }) || 0;
         if (totalOwned + quantity > capacity) {
             throw new AppError(`储物袋容量不足（上限 ${capacity}）`, 400, ErrorCodes.VALIDATION_ERROR);
         }
 
-        const options = transaction ? { transaction } : {};
         // 查找已有记录，存在则累加
         const existing = await Item.findOne({
             where: { player_id: playerId, item_key: itemKey },
@@ -291,6 +299,19 @@ class InventoryService {
             ...options
         });
         return record && record.quantity >= quantity;
+    }
+
+    /**
+     * 查询玩家某物品的持有数量
+     * @param {number} playerId - 玩家 ID
+     * @param {string} itemKey - 物品键名
+     * @returns {Promise<number>} 持有数量（不存在返回0）
+     */
+    async getItemQuantity(playerId, itemKey) {
+        const record = await Item.findOne({
+            where: { player_id: playerId, item_key: itemKey }
+        });
+        return record ? record.quantity : 0;
     }
 
     /**

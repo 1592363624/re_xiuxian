@@ -157,6 +157,8 @@
     <CavePanel v-if="isCaveOpen" @close="isCaveOpen = false" />
     <!-- 法宝管理面板（祭炼/本命/祭出/收宝/调序/散念/修理） -->
     <EquipmentPanel v-if="isTreasureOpen" @close="isTreasureOpen = false" />
+    <!-- 炼制系统面板（炼丹/炼器、学习配方、技能成长） -->
+    <CraftingPanel v-if="isCraftingOpen" @close="isCraftingOpen = false" />
 
     <!-- 静思悟道面板（第三阶段新增：选择时长、查看瓶颈进度） -->
     <MeditationPanel v-if="isMeditationOpen" @close="isMeditationOpen = false" />
@@ -221,6 +223,8 @@ import SectPanel from '../panels/SectPanel.vue';
 import MarketPanel from '../panels/MarketPanel.vue';
 import CavePanel from '../panels/CavePanel.vue';
 import EquipmentPanel from '../panels/EquipmentPanel.vue';
+// 炼制系统面板（炼丹/炼器、学习配方、技能成长）
+import CraftingPanel from '../panels/CraftingPanel.vue';
 // 静思悟道面板与浮动状态条（第三阶段新增：悟道玩法 + 瓶颈系统）
 import MeditationPanel from '../panels/MeditationPanel.vue';
 import MeditationOverlay from '../panels/MeditationOverlay.vue';
@@ -259,6 +263,8 @@ const isMarketOpen = ref(false);
 const isCaveOpen = ref(false);
 // 法宝管理面板状态（祭炼/本命/祭出/收宝/调序/散念/修理）
 const isTreasureOpen = ref(false);
+// 炼制系统面板状态（炼丹/炼器）
+const isCraftingOpen = ref(false);
 // 静思悟道面板状态（第三阶段新增）
 const isMeditationOpen = ref(false);
 // PVP 斗法面板状态（第四阶段新增）
@@ -355,6 +361,12 @@ const handleAction = async (actionId: string) => {
   // 法宝按钮：打开法宝管理面板（祭炼/本命/祭出/收宝/调序/散念/修理）
   if (actionId === 'treasure') {
     isTreasureOpen.value = true;
+    return;
+  }
+
+  // 炼制按钮：打开炼制面板（炼丹/炼器）
+  if (actionId === 'crafting') {
+    isCraftingOpen.value = true;
     return;
   }
 

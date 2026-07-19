@@ -159,6 +159,77 @@
           "min_cave_level": 5
         }
       ]
+    },
+    "social": {
+      "description": "洞府社交系统配置：拜访/留言/访客/景观/商人",
+      "visit": {
+        "daily_limit": 10,
+        "cooldown_seconds": 0,
+        "max_recent_visitors": 50,
+        "max_messages": 100,
+        "message_max_length": 200,
+        "message_delete_after_days": 30
+      },
+      "landscapes": [
+        {
+          "id": "pine_bamboo",
+          "name": "松竹梅韵",
+          "description": "松竹梅三友布于洞府，雅致清幽",
+          "cost": 2000,
+          "bonus": { "meditation_exp_bonus": 0.05 },
+          "required_realm_rank": 1
+        },
+        {
+          "id": "spirit_lake",
+          "name": "灵泉莲池",
+          "description": "引灵泉入洞府，凿池种莲，灵气盎然",
+          "cost": 5000,
+          "bonus": { "spirit_vein_bonus": 0.1 },
+          "required_realm_rank": 3
+        },
+        {
+          "id": "cloud_pavilion",
+          "name": "云海仙阁",
+          "description": "于洞府高处建仙阁，可观云海星象",
+          "cost": 10000,
+          "bonus": { "breakthrough_bonus": 0.03 },
+          "required_realm_rank": 5
+        },
+        {
+          "id": "dragon_fountain",
+          "name": "龙脉灵泉",
+          "description": "引龙脉灵泉入府，万物生机勃发",
+          "cost": 30000,
+          "bonus": { "meditation_exp_bonus": 0.1, "spirit_vein_bonus": 0.15 },
+          "required_realm_rank": 7
+        },
+        {
+          "id": "celestial_garden",
+          "name": "天庭仙苑",
+          "description": "仿天庭仙苑所建，灵花异草争奇斗艳",
+          "cost": 80000,
+          "bonus": { "meditation_exp_bonus": 0.15, "breakthrough_bonus": 0.05, "spirit_vein_bonus": 0.2 },
+          "required_realm_rank": 9
+        }
+      ],
+      "merchant": {
+        "refresh_interval_hours": 6,
+        "item_count_per_refresh": 6,
+        "max_buy_per_item": 10,
+        "price_discount_range": [0.8, 1.2],
+        "items": [
+          { "item_key": "wild_herb", "base_price": 20, "weight": 30 },
+          { "item_key": "condensing_flower", "base_price": 50, "weight": 20 },
+          { "item_key": "spirit_charcoal", "base_price": 30, "weight": 25 },
+          { "item_key": "cinnabar", "base_price": 40, "weight": 20 },
+          { "item_key": "firewood", "base_price": 10, "weight": 35 },
+          { "item_key": "low_healing_pill", "base_price": 80, "weight": 15 },
+          { "item_key": "low_mana_pill", "base_price": 80, "weight": 15 },
+          { "item_key": "golden_ore", "base_price": 100, "weight": 10 },
+          { "item_key": "spirit_iron_ore", "base_price": 120, "weight": 8 },
+          { "item_key": "cold_crystal", "base_price": 150, "weight": 5 }
+        ]
+      }
     }
   }
 }

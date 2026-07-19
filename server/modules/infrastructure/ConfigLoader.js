@@ -50,8 +50,10 @@ class ConfigLoader extends EventEmitter {
             'game_balance',   // 游戏平衡配置
             'ai_config',      // AI 大模型配置（支持多厂商 OpenAI 兼容协议）
             'sect_data',      // 宗门静态配置（6 大宗门信息、宝库、任务）
+            'sect_special_data', // 宗门专属玩法配置（灵眼之树/观星台/命盘/天阶/魔道/炉鼎）
             'cave_data',       // 洞府静态配置（设施升级消耗、药园地块、种子数据）
-            'stock_data'      // 股市静态配置（股票定义、总股本、基础价格）
+            'stock_data',      // 股市静态配置（股票定义、总股本、基础价格）
+            'crafting_data',   // 炼制系统配置（炼丹/炼器配方、技能等级表）
         ];
         const results = {};
 

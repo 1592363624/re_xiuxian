@@ -1,0 +1,197 @@
+{
+    "alchemy_recipes": [
+        {
+            "id": "craft_low_healing_pill",
+            "name": "炼制回春丹",
+            "type": "alchemy",
+            "description": "以普通灵草和灵炭为材，炼制回春丹3枚",
+            "product": { "item_key": "low_healing_pill", "quantity": 3 },
+            "materials": [
+                { "item_key": "wild_herb", "quantity": 5 },
+                { "item_key": "spirit_charcoal", "quantity": 2 }
+            ],
+            "required_realm_rank": 1,
+            "required_skill_level": 1,
+            "base_success_rate": 0.90,
+            "skill_exp": 10,
+            "cooldown_sec": 30,
+            "learn_source": "default"
+        },
+        {
+            "id": "craft_mid_healing_pill",
+            "name": "炼制小还丹",
+            "type": "alchemy",
+            "description": "以血灵草和朱砂为材，炼制小还丹2枚",
+            "product": { "item_key": "mid_healing_pill", "quantity": 2 },
+            "materials": [
+                { "item_key": "blood_grass", "quantity": 3 },
+                { "item_key": "cinnabar", "quantity": 2 },
+                { "item_key": "spirit_charcoal", "quantity": 3 }
+            ],
+            "required_realm_rank": 3,
+            "required_skill_level": 3,
+            "base_success_rate": 0.75,
+            "skill_exp": 25,
+            "cooldown_sec": 60,
+            "learn_source": "scroll:recipe_mid_healing_pill"
+        },
+        {
+            "id": "craft_low_mana_pill",
+            "name": "炼制凝气丹",
+            "type": "alchemy",
+            "description": "以凝气花和灵炭为材，炼制凝气丹3枚",
+            "product": { "item_key": "low_mana_pill", "quantity": 3 },
+            "materials": [
+                { "item_key": "condensing_flower", "quantity": 4 },
+                { "item_key": "spirit_charcoal", "quantity": 2 }
+            ],
+            "required_realm_rank": 1,
+            "required_skill_level": 1,
+            "base_success_rate": 0.88,
+            "skill_exp": 12,
+            "cooldown_sec": 30,
+            "learn_source": "default"
+        },
+        {
+            "id": "craft_mid_mana_pill",
+            "name": "炼制聚灵丹",
+            "type": "alchemy",
+            "description": "以凝气花和朱砂炼制聚灵丹2枚",
+            "product": { "item_key": "mid_mana_pill", "quantity": 2 },
+            "materials": [
+                { "item_key": "condensing_flower", "quantity": 6 },
+                { "item_key": "cinnabar", "quantity": 3 },
+                { "item_key": "spirit_charcoal", "quantity": 3 }
+            ],
+            "required_realm_rank": 3,
+            "required_skill_level": 3,
+            "base_success_rate": 0.72,
+            "skill_exp": 28,
+            "cooldown_sec": 60,
+            "learn_source": "scroll:recipe_mid_mana_pill"
+        },
+        {
+            "id": "craft_foundation_pill",
+            "name": "炼制筑基丹",
+            "type": "alchemy",
+            "description": "以血灵草、凝气花和金精石炼制筑基丹1枚",
+            "product": { "item_key": "foundation_pill", "quantity": 1 },
+            "materials": [
+                { "item_key": "blood_grass", "quantity": 5 },
+                { "item_key": "condensing_flower", "quantity": 5 },
+                { "item_key": "golden_ore", "quantity": 2 },
+                { "item_key": "cinnabar", "quantity": 5 },
+                { "item_key": "spirit_charcoal", "quantity": 5 }
+            ],
+            "required_realm_rank": 2,
+            "required_skill_level": 5,
+            "base_success_rate": 0.55,
+            "skill_exp": 100,
+            "cooldown_sec": 120,
+            "learn_source": "scroll:recipe_foundation_pill"
+        },
+        {
+            "id": "craft_low_toxicity_clear",
+            "name": "炼制清心丹",
+            "type": "alchemy",
+            "description": "以普通灵草和朱砂炼制清心丹3枚",
+            "product": { "item_key": "low_toxicity_clear", "quantity": 3 },
+            "materials": [
+                { "item_key": "wild_herb", "quantity": 6 },
+                { "item_key": "cinnabar", "quantity": 1 },
+                { "item_key": "spirit_charcoal", "quantity": 2 }
+            ],
+            "required_realm_rank": 1,
+            "required_skill_level": 2,
+            "base_success_rate": 0.85,
+            "skill_exp": 15,
+            "cooldown_sec": 30,
+            "learn_source": "default"
+        }
+    ],
+    "refining_recipes": [
+        {
+            "id": "craft_wooden_sword",
+            "name": "炼制桃木剑",
+            "type": "refining",
+            "description": "以灵铁矿石和干柴炼制桃木剑1把",
+            "product": { "item_key": "wooden_sword", "quantity": 1 },
+            "materials": [
+                { "item_key": "spirit_iron_ore", "quantity": 3 },
+                { "item_key": "firewood", "quantity": 5 }
+            ],
+            "required_realm_rank": 1,
+            "required_skill_level": 1,
+            "base_success_rate": 0.85,
+            "skill_exp": 15,
+            "cooldown_sec": 60,
+            "learn_source": "default"
+        },
+        {
+            "id": "craft_spirit_robe",
+            "name": "炼制灵丝法袍",
+            "type": "refining",
+            "description": "以灵铁矿石和寒晶炼制灵丝法袍1件",
+            "product": { "item_key": "spirit_robe", "quantity": 1 },
+            "materials": [
+                { "item_key": "spirit_iron_ore", "quantity": 5 },
+                { "item_key": "cold_crystal", "quantity": 2 },
+                { "item_key": "firewood", "quantity": 3 }
+            ],
+            "required_realm_rank": 2,
+            "required_skill_level": 4,
+            "base_success_rate": 0.65,
+            "skill_exp": 40,
+            "cooldown_sec": 90,
+            "learn_source": "scroll:recipe_spirit_robe"
+        },
+        {
+            "id": "craft_jade_pendant",
+            "name": "炼制护身玉佩",
+            "type": "refining",
+            "description": "以珍珠和寒晶炼制护身玉佩1枚",
+            "product": { "item_key": "jade_pendant", "quantity": 1 },
+            "materials": [
+                { "item_key": "pearl", "quantity": 3 },
+                { "item_key": "cold_crystal", "quantity": 1 },
+                { "item_key": "spirit_iron_ore", "quantity": 2 }
+            ],
+            "required_realm_rank": 1,
+            "required_skill_level": 3,
+            "base_success_rate": 0.75,
+            "skill_exp": 25,
+            "cooldown_sec": 60,
+            "learn_source": "scroll:recipe_jade_pendant"
+        },
+        {
+            "id": "craft_cloud_stepping_boots",
+            "name": "炼制踏云靴",
+            "type": "refining",
+            "description": "以灵铁矿石和寒晶炼制踏云靴1双",
+            "product": { "item_key": "cloud_stepping_boots", "quantity": 1 },
+            "materials": [
+                { "item_key": "spirit_iron_ore", "quantity": 4 },
+                { "item_key": "cold_crystal", "quantity": 3 },
+                { "item_key": "firewood", "quantity": 4 }
+            ],
+            "required_realm_rank": 2,
+            "required_skill_level": 4,
+            "base_success_rate": 0.62,
+            "skill_exp": 45,
+            "cooldown_sec": 90,
+            "learn_source": "scroll:recipe_cloud_boots"
+        }
+    ],
+    "skill_levels": [
+        { "level": 1, "exp_required": 0, "success_bonus": 0.00, "title": "炼制学徒" },
+        { "level": 2, "exp_required": 50, "success_bonus": 0.02, "title": "炼制入门" },
+        { "level": 3, "exp_required": 150, "success_bonus": 0.04, "title": "炼制熟手" },
+        { "level": 4, "exp_required": 350, "success_bonus": 0.06, "title": "炼制匠师" },
+        { "level": 5, "exp_required": 700, "success_bonus": 0.08, "title": "炼制宗师" },
+        { "level": 6, "exp_required": 1200, "success_bonus": 0.10, "title": "炼制大宗师" },
+        { "level": 7, "exp_required": 2000, "success_bonus": 0.12, "title": "炼制泰斗" },
+        { "level": 8, "exp_required": 3500, "success_bonus": 0.15, "title": "仙炼师" },
+        { "level": 9, "exp_required": 6000, "success_bonus": 0.18, "title": "神炼师" },
+        { "level": 10, "exp_required": 10000, "success_bonus": 0.20, "title": "天炼圣师" }
+    ]
+}

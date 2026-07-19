@@ -446,6 +446,12 @@ const Player = sequelize.define('Player', {
         allowNull: true,
         comment: '虚弱状态结束时间（PVP失败惩罚：修炼/突破效率下降）'
     },
+    // ===== PVP 扩展系统字段（避世入世/决斗/切磋木人） =====
+    pvp_mode: {
+        type: DataTypes.STRING(20),
+        defaultValue: 'active',
+        comment: 'PVP模式：active=入世（可参与PVP），recluse=避世（免疫PVP攻击但无法获得PVP奖励）'
+    },
     // ===== 当铺系统字段（第四阶段新增） =====
     pawnshop_credit: {
         type: DataTypes.INTEGER,

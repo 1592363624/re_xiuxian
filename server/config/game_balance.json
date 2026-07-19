@@ -342,6 +342,12 @@
   "inventory": {
     "max_use_quantity": 99
   },
+  "crafting": {
+    "max_craft_quantity": 10,
+    "fail_exp_ratio": 0.2,
+    "skill_level_cap": 10,
+    "default_recipes_auto_learn": true
+  },
   "lastUpdated": "2026-07-04T14:31:18.845Z",
   "pvp": {
     "enabled": true,
@@ -382,6 +388,76 @@
     "match_score_range": 200,
     "match_timeout_seconds": 300,
     "state_cleaner_interval_ms": 5000
+  },
+  "pvp_extended": {
+    "sparring": {
+      "enabled": true,
+      "daily_limit": 20,
+      "cooldown_seconds": 10,
+      "exp_reward_base": 50,
+      "exp_reward_per_realm_gap": 20,
+      "min_realm_rank": 1,
+      "max_realm_rank": 10,
+      "wooden_dummy_base_hp": 500,
+      "wooden_dummy_base_atk": 20,
+      "wooden_dummy_base_def": 10,
+      "wooden_dummy_base_speed": 10
+    },
+    "bounty": {
+      "enabled": true,
+      "min_bounty_amount": 100,
+      "max_bounty_amount": 100000,
+      "max_active_bounties_per_player": 5,
+      "bounty_expire_hours": 72,
+      "accept_cooldown_seconds": 300,
+      "platform_fee_rate": 0.05,
+      "min_realm_rank_to_publish": 3,
+      "min_realm_rank_to_accept": 3,
+      "bounty_kill_reward_ratio": 0.9,
+      "cleaner_interval_ms": 5000
+    },
+    "fengshen": {
+      "enabled": true,
+      "daily_challenge_limit": 5,
+      "daily_defend_limit": 10,
+      "cooldown_seconds": 180,
+      "base_score": 1000,
+      "score_win_attacker": 30,
+      "score_lose_attacker": 20,
+      "score_win_defender": 10,
+      "score_lose_defender": 30,
+      "season_duration_days": 30,
+      "top_rank_reward_enabled": true,
+      "top_ranks": [1, 2, 3],
+      "rank_reward_honor": [500, 300, 150],
+      "rank_reward_stones": [5000, 3000, 1500],
+      "challenge_rank_range": 5,
+      "defense_snapshot_interval_hours": 24,
+      "cleaner_interval_ms": 5000
+    },
+    "duel": {
+      "enabled": true,
+      "min_bet_amount": 50,
+      "max_bet_amount": 50000,
+      "max_rounds": 20,
+      "round_timeout_seconds": 120,
+      "cooldown_seconds": 600,
+      "daily_duel_limit": 3,
+      "min_realm_rank": 3,
+      "flee_penalty_ratio": 0.5,
+      "honor_reward_win": 30,
+      "honor_reward_lose": 5
+    },
+    "combat_power": {
+      "base_hp_weight": 1.0,
+      "base_atk_weight": 5.0,
+      "base_def_weight": 3.0,
+      "base_speed_weight": 2.0,
+      "base_sense_weight": 1.5,
+      "realm_rank_multiplier": 100,
+      "equipment_weight": 0.3,
+      "max_display_decimals": 0
+    }
   },
   "pawnshop": {
     "enabled": true,

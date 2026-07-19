@@ -182,6 +182,13 @@ const refinedActions = [
     desc: '祭炼本命 法宝管理'
   },
   {
+    id: 'crafting',
+    name: '炼制',
+    // Orange for alchemy/crafting fire
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-orange-400"><path d="M12 2c0 0-4 4-4 8a4 4 0 0 0 8 0c0-4-4-8-4-8z"/><path d="M8 14a4 4 0 1 0 8 0"/><path d="M5 18h14"/><path d="M7 22h10"/></svg>`,
+    desc: '炼丹炼器 学习配方'
+  },
+  {
     id: 'meditation',
     name: '悟道',
     // Amber/yellow for meditation/insight

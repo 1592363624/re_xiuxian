@@ -76,6 +76,19 @@ const PlayerCave = sequelize.define('PlayerCave', {
         defaultValue: 3,
         comment: '药园已开垦地块数（初始3，最多9）'
     },
+    // 洞府社交扩展字段
+    landscape_id: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        defaultValue: null,
+        comment: '已布置的景观ID（NULL=未布置）'
+    },
+    merchant_refresh_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        defaultValue: null,
+        comment: '商人货品上次刷新时间'
+    },
     created_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

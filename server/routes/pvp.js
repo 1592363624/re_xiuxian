@@ -8,9 +8,15 @@
  * 4. POST /api/pvp/challenge：发起挑战（body: target_player_id, battle_type='normal'）
  * 5. POST /api/pvp/action：执行回合（body: action='attack'/'skill'/'defend', skill_index）
  * 6. POST /api/pvp/flee：逃跑
+ * 7. POST /api/pvp/mode：切换避世/入世模式（body: mode='active'|'recluse'）
+ * 8. GET  /api/pvp/combat-power：查询自己战力
+ * 9. GET  /api/pvp/combat-power/:playerId：查询指定玩家战力
+ * 10. GET /api/pvp/combat-power/compare/:playerA/:playerB：对比两个玩家战力
+ * 11. POST /api/pvp/sparring：切磋木人（body: target_realm_rank）
  *
  * 设计原则：路由层仅做参数校验与调用 Service，业务逻辑在 PvpService 中
  * 统一响应格式：{ code: 200, message, data }
+ * 路由顺序注意：/combat-power/compare/... 必须在 /combat-power/:playerId 之前定义
  */
 'use strict';
 
@@ -236,6 +242,195 @@ router.post('/flee', auth, async (req, res, next) => {
         res.json({
             code: 200,
             message: '斗法已逃跑',
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
+ * POST /api/pvp/mode
+ * 切换避世/入世模式（body: { mode: 'active'|'recluse' }）
+ * - active=入世：可正常参与 PVP
+ * - recluse=避世：免疫 PVP 挑战，但自身也无法发起挑战
+ */
+router.post('/mode', auth, async (req, res, next) => {
+    try {
+        const { mode } = req.body;
+
+        // 参数校验
+        if (!mode) {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: 'mode 参数不能为空'
+            });
+        }
+
+        const allowedModes = ['active', 'recluse'];
+        if (!allowedModes.includes(mode)) {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: `无效的 mode：${mode}，可选值：${allowedModes.join('/')}`
+            });
+        }
+
+        const result = await PvpService.setPvpMode(req.player.id, mode);
+
+        res.json({
+            code: 200,
+            message: `已切换为${result.mode_name}模式`,
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
+ * GET /api/pvp/combat-power/compare/:playerA/:playerB
+ * 对比两个玩家战力
+ * 注意：此路由必须在 /combat-power/:playerId 之前定义，避免 "compare" 被匹配为 playerId
+ */
+router.get('/combat-power/compare/:playerA/:playerB', auth, async (req, res, next) => {
+    try {
+        const playerA = parseInt(req.params.playerA);
+        const playerB = parseInt(req.params.playerB);
+
+        // 参数校验
+        if (!Number.isFinite(playerA) || playerA <= 0 || !Number.isFinite(playerB) || playerB <= 0) {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: '玩家ID参数无效'
+            });
+        }
+
+        const result = await PvpService.compareCombatPower(playerA, playerB);
+
+        res.json({
+            code: 200,
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
+ * GET /api/pvp/combat-power
+ * 查询自己战力（基于 pvp_extended.combat_power 权重计算）
+ */
+router.get('/combat-power', auth, async (req, res, next) => {
+    try {
+        const result = await PvpService.getCombatPower(req.player.id);
+
+        res.json({
+            code: 200,
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
+ * GET /api/pvp/combat-power/:playerId
+ * 查询指定玩家战力
+ */
+router.get('/combat-power/:playerId', auth, async (req, res, next) => {
+    try {
+        const playerId = parseInt(req.params.playerId);
+
+        // 参数校验
+        if (!Number.isFinite(playerId) || playerId <= 0) {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: 'playerId 参数无效'
+            });
+        }
+
+        const result = await PvpService.getCombatPower(playerId);
+
+        res.json({
+            code: 200,
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
+ * POST /api/pvp/sparring
+ * 切磋木人（零惩罚训练，body: { target_realm_rank: number }）
+ * 木人属性按境界排名递增，战斗复用 PVP 伤害公式，仅获得经验奖励
+ */
+router.post('/sparring', auth, async (req, res, next) => {
+    try {
+        const { target_realm_rank } = req.body;
+
+        // 参数校验
+        if (target_realm_rank === undefined || target_realm_rank === null) {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: 'target_realm_rank 参数不能为空'
+            });
+        }
+
+        const targetRank = Number(target_realm_rank);
+        if (!Number.isFinite(targetRank)) {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: 'target_realm_rank 参数无效'
+            });
+        }
+
+        const result = await PvpService.sparringWithDummy(req.player.id, targetRank);
+
+        res.json({
+            code: 200,
+            message: '切磋木人完成',
             data: result
         });
     } catch (err) {

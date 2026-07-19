@@ -28,6 +28,12 @@ const InventoryService = require('./services/InventoryService');
 const SectService = require('./services/SectService');
 const MarketService = require('./services/MarketService');
 const EquipmentService = require('./services/EquipmentService');
+const CraftingService = require('./services/CraftingService');
+const DuelService = require('./services/DuelService');
+const BountyService = require('./services/BountyService');
+const FengshenService = require('./services/FengshenService');
+const CaveSocialService = require('./services/CaveSocialService');
+const SectSpecialService = require('./services/SectSpecialService');
 
 // 基础设施模块（从 modules 重新导出）
 const { infrastructure } = require('../modules');
@@ -50,7 +56,16 @@ async function initializeGameServices(configLoader) {
     SectService.initialize(configLoader);
     MarketService.initialize(configLoader);
     EquipmentService.initialize(configLoader);
-    
+    CraftingService.initialize(configLoader);
+    // PVP 扩展系统服务初始化
+    DuelService.initialize(configLoader);
+    BountyService.initialize(configLoader);
+    FengshenService.initialize(configLoader);
+    // 洞府社交系统服务初始化
+    CaveSocialService.initialize(configLoader);
+    // 宗门专属玩法服务初始化（灵眼树/观星台/命盘/天阶/魔道/炉鼎）
+    SectSpecialService.initialize(configLoader);
+
     console.log('游戏核心服务模块初始化完成');
 }
 
@@ -80,7 +95,13 @@ module.exports = {
     SectService,
     MarketService,
     EquipmentService,
-    
+    CraftingService,
+    DuelService,
+    BountyService,
+    FengshenService,
+    CaveSocialService,
+    SectSpecialService,
+
     // 基础设施
     ConfigLoader: infrastructure?.ConfigLoader,
     
