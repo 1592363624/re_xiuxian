@@ -43,6 +43,12 @@
     "ban": {
       "enable": true,
       "interval_ms": 5000
+    },
+    "dungeon": {
+      "enable": true,
+      "auto_settle": true,
+      "log_each": false,
+      "interval_ms": 5000
     }
   },
   "auth": {

@@ -24,6 +24,8 @@
  *   BANNED - 封禁中（特殊状态，禁止一切操作）
  *   MEDITATING - 静思悟道中（与闭关互斥）
  *   IN_PVP_BATTLE - PVP斗法中（与一切状态互斥）
+ *   SOUL_OUT - 元婴出窍中（与一切状态互斥，肉身静止）
+ *   IN_DUNGEON - 副本挑战中（与一切状态互斥，玩家被锁定在副本场景内）
  *   新增玩法可注册自定义枚举值
  *
  * 互斥规则（默认）：
@@ -50,7 +52,9 @@ const PlayerState = Object.freeze({
     MOVING: 'MOVING',
     BANNED: 'BANNED',
     MEDITATING: 'MEDITATING',  // 静思悟道中（与闭关互斥）
-    IN_PVP_BATTLE: 'IN_PVP_BATTLE'  // PVP斗法中（与一切状态互斥）
+    IN_PVP_BATTLE: 'IN_PVP_BATTLE',  // PVP斗法中（与一切状态互斥）
+    SOUL_OUT: 'SOUL_OUT',  // 元婴出窍中（与一切状态互斥，肉身静止）
+    IN_DUNGEON: 'IN_DUNGEON'  // 副本挑战中（与一切状态互斥，玩家被锁定在副本场景内）
 });
 
 class PlayerStateMachine {

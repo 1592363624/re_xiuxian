@@ -1,0 +1,738 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "副本系统静态配置 - 5章节×5-7关，含剧情/战斗/解谜/BOSS/奖励5种关卡类型",
+    "design_notes": [
+      "章节难度递进：ch1 炼气后期 → ch5 化神期",
+      "每章含剧情关（推进故事）、战斗关（普通怪）、解谜关（选项分支）、BOSS关（章节终结）、奖励关（宝箱）",
+      "三星条件：HP剩余率≥80%为3星；≥50%为2星；>0%为1星",
+      "AI 剧情为可选增强：AI不可用时使用静态 narrative 字段"
+    ]
+  },
+
+  "global": {
+    "daily_challenge_limit": 3,
+    "cooldown_seconds": 1800,
+    "expire_seconds": 3600,
+    "min_realm_rank": 8,
+    "sweep_min_stars": 3,
+    "sweep_reward_ratio": 0.6,
+    "star_thresholds": {
+      "three_star_hp_ratio": 0.8,
+      "two_star_hp_ratio": 0.5,
+      "one_star_hp_ratio": 0.01
+    },
+    "difficulty_multipliers": {
+      "normal":    { "hp": 1.0,  "atk": 1.0,  "exp": 1.0,  "spirit_stones": 1.0, "drop_rate": 1.0 },
+      "hard":      { "hp": 1.6,  "atk": 1.4,  "exp": 1.8,  "spirit_stones": 1.6, "drop_rate": 1.5 },
+      "nightmare": { "hp": 2.5,  "atk": 2.0,  "exp": 3.0,  "spirit_stones": 2.5, "drop_rate": 2.2 }
+    }
+  },
+
+  "chapters": [
+    {
+      "id": "ch1",
+      "name": "黄枫谷秘闻",
+      "description": "传闻黄枫谷深处藏有上古修士遗府，初出茅庐的散修闻讯而来，却发现谷中暗流涌动...",
+      "min_realm_rank": 8,
+      "recommended_realm": "炼气八层",
+      "duration_sec": 1800,
+      "boss": {
+        "name": "谷中魔兽",
+        "description": "守护遗府的奇异妖兽，浑身漆黑如墨，双眼泛着幽绿光焰",
+        "hp": 800,
+        "attack": 80,
+        "defense": 30,
+        "skills": ["毒雾喷吐", "利爪突袭"]
+      },
+      "nodes": [
+        {
+          "id": "ch1_node1",
+          "type": "story",
+          "title": "入谷探秘",
+          "narrative": "你循着坊市间流传的线索来到黄枫谷入口，谷口立着一块斑驳石碑，上书『黄枫谷』三字，墨迹已淡。谷内深处的灵气波动时隐时现，似乎真有上古遗府现世。你略一沉吟，迈步入谷...",
+          "ai_prompt": "玩家作为初出茅庐的散修，进入黄枫谷探索上古修士遗府的传闻。请用修仙小说风格描述玩家入谷的场景，渲染神秘氛围，200字以内。",
+          "next_node": "ch1_node2"
+        },
+        {
+          "id": "ch1_node2",
+          "type": "battle",
+          "title": "谷口妖蛇",
+          "description": "一条黄纹妖蛇盘踞小径，吐着信子阻拦去路",
+          "monster": {
+            "name": "黄纹妖蛇",
+            "hp": 200,
+            "attack": 30,
+            "defense": 10
+          },
+          "rewards": { "exp": 100, "spirit_stones": 20 },
+          "next_node": "ch1_node3"
+        },
+        {
+          "id": "ch1_node3",
+          "type": "puzzle",
+          "title": "三岔路口",
+          "narrative": "来到一处三岔路口，三条小径分别通向：左侧幽暗洞窟（灵气浓郁但阴森）、中央石板古道（看似平坦却布满苔藓）、右侧溪流小径（水声潺潺却隐隐有兽吼）。",
+          "options": [
+            {
+              "id": "left",
+              "text": "左侧幽暗洞窟（灵气浓郁）",
+              "result_text": "洞中藏有一株百年灵药『黄精』，却被毒蛛守护，激战得手，但损失部分HP。",
+              "hp_cost_ratio": 0.15,
+              "rewards": { "exp": 50, "spirit_stones": 10, "items": [{ "item_key": "huang_jing", "quantity": 1 }] },
+              "next_node": "ch1_node4"
+            },
+            {
+              "id": "center",
+              "text": "中央石板古道（看似安全）",
+              "result_text": "苔藓下暗藏机关，触发陷阱损失HP，但发现前人遗留的灵石。",
+              "hp_cost_ratio": 0.2,
+              "rewards": { "exp": 30, "spirit_stones": 50 },
+              "next_node": "ch1_node4"
+            },
+            {
+              "id": "right",
+              "text": "右侧溪流小径（水声潺潺）",
+              "result_text": "溪水滋养灵脉，途中静坐调息，恢复HP，并获得少量修为。",
+              "hp_recover_ratio": 0.2,
+              "rewards": { "exp": 80 },
+              "next_node": "ch1_node4"
+            }
+          ]
+        },
+        {
+          "id": "ch1_node4",
+          "type": "reward",
+          "title": "前人遗府",
+          "narrative": "穿过小径来到一处石室，室内陈设简陋，但石案上摆放着一个储物袋，内有前人遗留之物。",
+          "rewards": {
+            "exp": 150,
+            "spirit_stones": 80,
+            "items": [
+              { "item_key": "qi_condensation_pill", "quantity": 2 },
+              { "item_key": "low_grade_spirit_stone", "quantity": 5 }
+            ]
+          },
+          "next_node": "ch1_node5"
+        },
+        {
+          "id": "ch1_node5",
+          "type": "boss",
+          "title": "谷中魔兽",
+          "description": "石室深处传来低沉咆哮，一头浑身漆黑的魔兽踏步而出，幽绿双瞳紧盯着你。谷中传闻的『上古遗府』竟是它的巢穴！",
+          "monster_ref": "boss",
+          "rewards": {
+            "exp": 500,
+            "spirit_stones": 200,
+            "items": [
+              { "item_key": "dungeon_token_ch1", "quantity": 1 },
+              { "item_key": "monster_core_low", "quantity": 2 }
+            ]
+          },
+          "victory_text": "魔兽倒下，化为黑烟散去。它的巢穴中竟然真的藏有上古修士的传承玉简！",
+          "is_final_node": true
+        }
+      ]
+    },
+
+    {
+      "id": "ch2",
+      "name": "血色禁地",
+      "description": "传闻每年开启一次的血色禁地，其中灵药遍地却杀机四伏。散修们蜂拥而入，能否活着出来全凭本事...",
+      "min_realm_rank": 11,
+      "recommended_realm": "筑基初期",
+      "duration_sec": 1800,
+      "boss": {
+        "name": "血蛛老祖",
+        "description": "盘踞禁地深处的千年血蛛，通体血红，吐出的蛛丝能腐蚀灵气",
+        "hp": 2500,
+        "attack": 180,
+        "defense": 80,
+        "skills": ["血蛛丝", "剧毒喷射", "幻影分身"]
+      },
+      "nodes": [
+        {
+          "id": "ch2_node1",
+          "type": "story",
+          "title": "禁地开启",
+          "narrative": "血色禁地的封印再次松动，红雾弥漫的入口处聚集了数十名散修。你混在人群中观察，发现其中不乏筑基期修士。禁地开启的瞬间，所有人化作流光冲入，你也不甘落后...",
+          "ai_prompt": "玩家作为筑基期散修，进入血色禁地寻宝。请描述禁地开启的混乱场景，渲染紧张氛围，200字以内。",
+          "next_node": "ch2_node2"
+        },
+        {
+          "id": "ch2_node2",
+          "type": "battle",
+          "title": "同行散修",
+          "description": "一名蒙面散修拦住去路，意图杀人夺宝",
+          "monster": {
+            "name": "蒙面散修",
+            "hp": 600,
+            "attack": 90,
+            "defense": 40
+          },
+          "rewards": { "exp": 250, "spirit_stones": 60 },
+          "next_node": "ch2_node3"
+        },
+        {
+          "id": "ch2_node3",
+          "type": "puzzle",
+          "title": "药田抉择",
+          "narrative": "前方发现一片血色药田，生长着数株罕见灵药。然而药田中央盘踞着一头二阶妖兽血蟒，旁边则有一条狭窄暗道通往未知。",
+          "options": [
+            {
+              "id": "fight",
+              "text": "正面迎战血蟒，夺取灵药",
+              "result_text": "血蟒剧毒难缠，激战后夺取『血参』『朱果』各一株，损失大量HP。",
+              "hp_cost_ratio": 0.35,
+              "rewards": {
+                "exp": 400,
+                "spirit_stones": 100,
+                "items": [
+                  { "item_key": "blood_ginseng", "quantity": 1 },
+                  { "item_key": "vermilion_fruit", "quantity": 1 }
+                ]
+              },
+              "next_node": "ch2_node4"
+            },
+            {
+              "id": "sneak",
+              "text": "走暗道绕行，避免冲突",
+              "result_text": "暗道曲折，错过了药田却意外发现一处前人洞府，内有藏宝。",
+              "hp_cost_ratio": 0.05,
+              "rewards": {
+                "exp": 200,
+                "spirit_stones": 150,
+                "items": [{ "item_key": "foundation_pill", "quantity": 1 }]
+              },
+              "next_node": "ch2_node4"
+            }
+          ]
+        },
+        {
+          "id": "ch2_node4",
+          "type": "battle",
+          "title": "妖兽群",
+          "description": "误入血蛛巢穴外围，数只血色幼蛛包围而来",
+          "monster": {
+            "name": "血色幼蛛群",
+            "hp": 1200,
+            "attack": 130,
+            "defense": 50
+          },
+          "rewards": { "exp": 350, "spirit_stones": 80 },
+          "next_node": "ch2_node5"
+        },
+        {
+          "id": "ch2_node5",
+          "type": "reward",
+          "title": "前人遗骨",
+          "narrative": "在巢穴角落发现一具修士遗骨，遗骨手中紧握着一柄古朴长剑，身旁还有一个储物袋。",
+          "rewards": {
+            "exp": 400,
+            "spirit_stones": 200,
+            "items": [
+              { "item_key": "ancient_sword_fragment", "quantity": 1 },
+              { "item_key": "qi_condensation_pill", "quantity": 5 }
+            ]
+          },
+          "next_node": "ch2_node6"
+        },
+        {
+          "id": "ch2_node6",
+          "type": "boss",
+          "title": "血蛛老祖",
+          "description": "巢穴深处，一头通体血红的巨型蜘蛛缓缓爬出。它便是这禁地的真正主人——血蛛老祖！它冷冷看着你，吐出腐蚀灵气的血红蛛丝...",
+          "monster_ref": "boss",
+          "rewards": {
+            "exp": 1500,
+            "spirit_stones": 600,
+            "items": [
+              { "item_key": "dungeon_token_ch2", "quantity": 1 },
+              { "item_key": "blood_silk_silk", "quantity": 3 },
+              { "item_key": "monster_core_mid", "quantity": 2 }
+            ]
+          },
+          "victory_text": "血蛛老祖发出凄厉嘶鸣，庞大的身躯轰然倒塌。它的内丹悬浮半空，散发出惊人灵气——这便是禁地的最大机缘！",
+          "is_final_node": true
+        }
+      ]
+    },
+
+    {
+      "id": "ch3",
+      "name": "上古洞府",
+      "description": "一处上古大能留下的洞府现世，洞中藏有传承，更有无数试炼。唯有心智坚定者方能得其真传...",
+      "min_realm_rank": 14,
+      "recommended_realm": "筑基大圆满",
+      "duration_sec": 2400,
+      "boss": {
+        "name": "洞府护道者",
+        "description": "上古修士留下的护道之灵，化身金甲武将，威势滔天",
+        "hp": 8000,
+        "attack": 400,
+        "defense": 200,
+        "skills": ["金甲护体", "破空剑斩", "雷火符阵"]
+      },
+      "nodes": [
+        {
+          "id": "ch3_node1",
+          "type": "story",
+          "title": "洞府现世",
+          "narrative": "天际异象突现，一道金光划破云层，一座古朴洞府自虚空浮现。洞门上书『玄机洞府』四字，金光流转。无数修士闻讯而来，洞门却只对持有『机缘令』者开启。你取出在血色禁地所得的令牌，洞门应声而开...",
+          "ai_prompt": "玩家作为筑基大圆满散修，进入上古大能留下的玄机洞府。请描述洞府的宏伟与神秘，渲染上古气息，250字以内。",
+          "next_node": "ch3_node2"
+        },
+        {
+          "id": "ch3_node2",
+          "type": "puzzle",
+          "title": "心境试炼",
+          "narrative": "踏入洞门，眼前景象突变——你置身于一座幽静竹林，一位白衣老者盘坐在竹林中央，缓缓睁眼问道：『修仙为何？』",
+          "options": [
+            {
+              "id": "longevity",
+              "text": "『为求长生』",
+              "result_text": "老者摇头：『执念长生，终成虚妄。』你被罚站一刻钟，损失少量HP，但获得『道心稳固』buff。",
+              "hp_cost_ratio": 0.1,
+              "rewards": { "exp": 300 },
+              "next_node": "ch3_node3"
+            },
+            {
+              "id": "freedom",
+              "text": "『为求自在』",
+              "result_text": "老者颔首：『心向自在，方得真我。』赐你一枚『玄机丹』。",
+              "hp_cost_ratio": 0,
+              "rewards": {
+                "exp": 500,
+                "items": [{ "item_key": "xuanji_pill", "quantity": 1 }]
+              },
+              "next_node": "ch3_node3"
+            },
+            {
+              "id": "power",
+              "text": "『为求力量』",
+              "result_text": "老者叹息：『力量若失控制，反噬其主。』一阵威压袭来，损失大量HP，但获得『破而后立』之力。",
+              "hp_cost_ratio": 0.3,
+              "rewards": {
+                "exp": 800,
+                "spirit_stones": 200
+              },
+              "next_node": "ch3_node3"
+            }
+          ]
+        },
+        {
+          "id": "ch3_node3",
+          "type": "battle",
+          "title": "石像守卫",
+          "description": "竹林深处，两尊石像突然睁眼，化作金甲武将拦住去路",
+          "monster": {
+            "name": "石像守卫",
+            "hp": 3000,
+            "attack": 250,
+            "defense": 150
+          },
+          "rewards": { "exp": 800, "spirit_stones": 200 },
+          "next_node": "ch3_node4"
+        },
+        {
+          "id": "ch3_node4",
+          "type": "puzzle",
+          "title": "阵法选择",
+          "narrative": "通过石像后，前方出现三条岔路，分别标有『力』『智』『德』三字。每条路通往不同的考验。",
+          "options": [
+            {
+              "id": "strength",
+              "text": "走『力』之路（考验战力）",
+              "result_text": "一连战胜三头石兽，体力透支但收获颇丰。",
+              "hp_cost_ratio": 0.4,
+              "rewards": {
+                "exp": 1200,
+                "spirit_stones": 300,
+                "items": [{ "item_key": "monster_core_high", "quantity": 2 }]
+              },
+              "next_node": "ch3_node5"
+            },
+            {
+              "id": "wisdom",
+              "text": "走『智』之路（考验悟性）",
+              "result_text": "解开三道古阵，损耗神识但获得传承玉简。",
+              "hp_cost_ratio": 0.15,
+              "mp_cost_ratio": 0.5,
+              "rewards": {
+                "exp": 1500,
+                "items": [{ "item_key": "ancient_inheritance_jade", "quantity": 1 }]
+              },
+              "next_node": "ch3_node5"
+            },
+            {
+              "id": "virtue",
+              "text": "走『德』之路（考验心性）",
+              "result_text": "救助一只受伤灵兽，灵兽感恩赠予灵药。",
+              "hp_recover_ratio": 0.3,
+              "rewards": {
+                "exp": 1000,
+                "items": [{ "item_key": "spirit_beast_blood", "quantity": 1 }]
+              },
+              "next_node": "ch3_node5"
+            }
+          ]
+        },
+        {
+          "id": "ch3_node5",
+          "type": "reward",
+          "title": "传承殿",
+          "narrative": "三路汇合处是一座宏伟的传承殿，殿中央悬浮着一枚金光流转的传承珠。",
+          "rewards": {
+            "exp": 2000,
+            "spirit_stones": 500,
+            "items": [
+              { "item_key": "inheritance_pearl", "quantity": 1 },
+              { "item_key": "foundation_pill", "quantity": 3 }
+            ]
+          },
+          "next_node": "ch3_node6"
+        },
+        {
+          "id": "ch3_node6",
+          "type": "battle",
+          "title": "傀儡守卫",
+          "description": "传承殿外，一具铜人傀儡启动，挡住去路",
+          "monster": {
+            "name": "铜人傀儡",
+            "hp": 5000,
+            "attack": 350,
+            "defense": 280
+          },
+          "rewards": { "exp": 1200, "spirit_stones": 300 },
+          "next_node": "ch3_node7"
+        },
+        {
+          "id": "ch3_node7",
+          "type": "boss",
+          "title": "洞府护道者",
+          "description": "洞府最深处，金光一闪，一名金甲武将凭空出现。他单手一招，一柄金光长剑落入掌中，冷冷道：『能至此处，汝当有几分本事。然欲得吾主传承，先过吾这一关！』",
+          "monster_ref": "boss",
+          "rewards": {
+            "exp": 5000,
+            "spirit_stones": 2000,
+            "items": [
+              { "item_key": "dungeon_token_ch3", "quantity": 1 },
+              { "item_key": "core_formation_pill", "quantity": 2 },
+              { "item_key": "ancient_sword_fragment", "quantity": 2 }
+            ]
+          },
+          "victory_text": "金甲武将化为光点消散，临去前留下一句：『主公传承，就交予你了...』洞府深处金光大盛，一枚金色玉简缓缓飞来——这便是上古大能的全部传承！",
+          "is_final_node": true
+        }
+      ]
+    },
+
+    {
+      "id": "ch4",
+      "name": "乱星海魔灾",
+      "description": "乱星海突现魔气，魔修肆虐。修仙联盟广招同道平乱，是建功立业之时，也是命陨之刻...",
+      "min_realm_rank": 18,
+      "recommended_realm": "金丹中期",
+      "duration_sec": 2400,
+      "boss": {
+        "name": "血煞魔尊",
+        "description": "魔灾的源头，一名修炼血煞之道的元婴期魔修，杀气滔天",
+        "hp": 25000,
+        "attack": 1200,
+        "defense": 500,
+        "skills": ["血煞大阵", "噬魂魔功", "万魂幡", "血遁术"]
+      },
+      "nodes": [
+        {
+          "id": "ch4_node1",
+          "type": "story",
+          "title": "联盟召集",
+          "narrative": "修仙联盟紧急召集令传遍四方，乱星海突现魔气，数座岛屿沦陷。你来到联盟临时驻地，只见各路修士云集，联盟长老面色凝重地宣布：『此番魔灾非同小可，需诸位同进同退，方有胜算。』",
+          "ai_prompt": "玩家作为金丹期修士，响应修仙联盟召集令前往乱星海平定魔灾。请描述联盟驻地的紧张氛围，300字以内。",
+          "next_node": "ch4_node2"
+        },
+        {
+          "id": "ch4_node2",
+          "type": "battle",
+          "title": "魔修前锋",
+          "description": "刚登岛便遭遇一队魔修前锋，他们驾驭煞气，杀气腾腾",
+          "monster": {
+            "name": "魔修前锋",
+            "hp": 8000,
+            "attack": 700,
+            "defense": 300
+          },
+          "rewards": { "exp": 2000, "spirit_stones": 500 },
+          "next_node": "ch4_node3"
+        },
+        {
+          "id": "ch4_node3",
+          "type": "puzzle",
+          "title": "解救同道",
+          "narrative": "激战过后，前方传来求救声。一名正道修士被困于魔阵之中，奄奄一息。然而破阵需要时间，期间可能有魔修增援。",
+          "options": [
+            {
+              "id": "rescue",
+              "text": "破阵救人（侠义之举）",
+              "result_text": "破阵耗费大量神识，但救出的同道赠予你一枚『九转还魂丹』残片，并告知魔尊弱点。",
+              "hp_cost_ratio": 0.2,
+              "mp_cost_ratio": 0.4,
+              "rewards": {
+                "exp": 3000,
+                "items": [
+                  { "item_key": "nine_turn_soul_pill_fragment", "quantity": 1 },
+                  { "item_key": "magic_breaking_talisman", "quantity": 1 }
+                ]
+              },
+              "next_node": "ch4_node4"
+            },
+            {
+              "id": "ignore",
+              "text": "继续推进（避免风险）",
+              "result_text": "选择绕行，避开了可能的魔修增援，但错失重要情报。",
+              "hp_cost_ratio": 0.05,
+              "rewards": {
+                "exp": 1500,
+                "spirit_stones": 400
+              },
+              "next_node": "ch4_node4"
+            }
+          ]
+        },
+        {
+          "id": "ch4_node4",
+          "type": "battle",
+          "title": "血煞傀儡",
+          "description": "魔阵深处，一具巨大的血煞傀儡挡住去路",
+          "monster": {
+            "name": "血煞傀儡",
+            "hp": 15000,
+            "attack": 1000,
+            "defense": 500
+          },
+          "rewards": { "exp": 3500, "spirit_stones": 800 },
+          "next_node": "ch4_node5"
+        },
+        {
+          "id": "ch4_node5",
+          "type": "puzzle",
+          "title": "魔尊心魔",
+          "narrative": "傀儡倒下，一股诡异魔气侵入识海。你的心魔浮现，化作你内心最深处的恐惧与执念...",
+          "options": [
+            {
+              "id": "resist",
+              "text": "以道心强抗心魔",
+              "result_text": "道心坚定，心魔消散。神识受损但道心更加稳固，获得『道心通明』状态。",
+              "hp_cost_ratio": 0.25,
+              "mp_cost_ratio": 0.3,
+              "rewards": {
+                "exp": 5000,
+                "items": [{ "item_key": "dao_heart_crystal", "quantity": 1 }]
+              },
+              "next_node": "ch4_node6"
+            },
+            {
+              "id": "compromise",
+              "text": "暂时妥协以求速胜",
+              "result_text": "借魔气之力突破瓶颈，但道心有瑕，HP永久降低10%（本次副本）。",
+              "hp_cost_ratio": 0.4,
+              "hp_max_penalty_ratio": 0.1,
+              "rewards": {
+                "exp": 6000,
+                "spirit_stones": 1000,
+                "items": [{ "item_key": "demon_blood_essence", "quantity": 1 }]
+              },
+              "next_node": "ch4_node6"
+            }
+          ]
+        },
+        {
+          "id": "ch4_node6",
+          "type": "reward",
+          "title": "魔修储物",
+          "narrative": "击败心魔后，发现一处魔修储物室，内有大量灵石与魔修法器。",
+          "rewards": {
+            "exp": 4000,
+            "spirit_stones": 2000,
+            "items": [
+              { "item_key": "demon_sealing_talisman", "quantity": 2 },
+              { "item_key": "magic_breaking_talisman", "quantity": 1 }
+            ]
+          },
+          "next_node": "ch4_node7"
+        },
+        {
+          "id": "ch4_node7",
+          "type": "boss",
+          "title": "血煞魔尊",
+          "description": "魔阵核心，血煞魔尊盘坐于血池之上，周身血气翻涌。他睁开血红双眸，狞笑道：『正道鼠辈，竟敢闯吾血煞大阵！今日便让尔等葬身于此！』万魂幡招展，无数冤魂咆哮而出！",
+          "monster_ref": "boss",
+          "rewards": {
+            "exp": 15000,
+            "spirit_stones": 6000,
+            "items": [
+              { "item_key": "dungeon_token_ch4", "quantity": 1 },
+              { "item_key": "nascent_soul_pill", "quantity": 1 },
+              { "item_key": "blood_soul_crystal", "quantity": 3 }
+            ]
+          },
+          "victory_text": "血煞魔尊惨叫一声，肉身炸裂，元婴欲逃却被你一剑斩灭。万魂幡中的冤魂得以解脱，向你深深一拜后散去。修仙联盟长老赶到，将一枚『平魔印』交予你手——此战，你名震修仙界！",
+          "is_final_node": true
+        }
+      ]
+    },
+
+    {
+      "id": "ch5",
+      "name": "天劫渡劫",
+      "description": "化神天劫降临，唯有渡过方能踏入更高境界。然天劫之中暗藏玄机，更有劫魔阻路...",
+      "min_realm_rank": 23,
+      "recommended_realm": "化神初期",
+      "duration_sec": 3600,
+      "boss": {
+        "name": "天劫劫魔",
+        "description": "天劫中诞生的劫魔，凝聚了修仙界无数劫难的意志，实力恐怖至极",
+        "hp": 100000,
+        "attack": 4000,
+        "defense": 1500,
+        "skills": ["九霄神雷", "灭世劫火", "时空裂痕", "天道压制"]
+      },
+      "nodes": [
+        {
+          "id": "ch5_node1",
+          "type": "story",
+          "title": "天劫降临",
+          "narrative": "修炼多年，你终于触及化神之境的瓶颈。九霄云上，劫云密布，紫电雷龙在云中翻腾。这不仅是修为的考验，更是对道心的洗礼。你深吸一口气，腾空而起，迎向天劫...",
+          "ai_prompt": "玩家作为化神期修士，正在渡化神天劫。请描述劫云密布、雷霆万钧的宏大场面，渲染渡劫的庄严与危机感，300字以内。",
+          "next_node": "ch5_node2"
+        },
+        {
+          "id": "ch5_node2",
+          "type": "battle",
+          "title": "第一重雷劫",
+          "description": "九霄神雷劈下，化作一条紫电雷龙扑来",
+          "monster": {
+            "name": "紫电雷龙",
+            "hp": 30000,
+            "attack": 2500,
+            "defense": 1000
+          },
+          "rewards": { "exp": 10000, "spirit_stones": 3000 },
+          "next_node": "ch5_node3"
+        },
+        {
+          "id": "ch5_node3",
+          "type": "puzzle",
+          "title": "道心抉择",
+          "narrative": "雷劫暂歇，识海中却浮现一道身影——那是你前世今生所有执念的化身。『放弃渡劫，可保元神不灭。继续前进，必死无疑。』它低语道。",
+          "options": [
+            {
+              "id": "persist",
+              "text": "坚守道心，继续渡劫",
+              "result_text": "执念消散，道心通明。你的元神得到淬炼，HP上限临时提升。",
+              "hp_recover_ratio": 0.5,
+              "hp_max_bonus_ratio": 0.2,
+              "rewards": {
+                "exp": 15000,
+                "items": [{ "item_key": "thunder_essence", "quantity": 2 }]
+              },
+              "next_node": "ch5_node4"
+            },
+            {
+              "id": "compromise",
+              "text": "暂避锋芒，伺机再渡",
+              "result_text": "选择躲避，劫云却越发狂暴。损失大量HP，且错过天劫机缘。",
+              "hp_cost_ratio": 0.5,
+              "rewards": {
+                "exp": 8000,
+                "spirit_stones": 2000
+              },
+              "next_node": "ch5_node4"
+            }
+          ]
+        },
+        {
+          "id": "ch5_node4",
+          "type": "battle",
+          "title": "第二重火劫",
+          "description": "天劫再起，这次是灭世劫火，焚尽万物",
+          "monster": {
+            "name": "灭世劫火",
+            "hp": 50000,
+            "attack": 3500,
+            "defense": 1200
+          },
+          "rewards": { "exp": 20000, "spirit_stones": 5000 },
+          "next_node": "ch5_node5"
+        },
+        {
+          "id": "ch5_node5",
+          "type": "puzzle",
+          "title": "虚空裂缝",
+          "narrative": "渡过火劫，虚空突然裂开一道缝隙，缝隙中传来神秘召唤。是天道启示，还是劫魔陷阱？",
+          "options": [
+            {
+              "id": "enter",
+              "text": "进入裂缝探索",
+              "result_text": "裂缝中藏有上古雷灵精华，但时空乱流造成伤害。",
+              "hp_cost_ratio": 0.35,
+              "rewards": {
+                "exp": 25000,
+                "items": [
+                  { "item_key": "ancient_thunder_essence", "quantity": 1 },
+                  { "item_key": "void_crystal", "quantity": 2 }
+                ]
+              },
+              "next_node": "ch5_node6"
+            },
+            {
+              "id": "bypass",
+              "text": "绕行避开裂缝",
+              "result_text": "选择稳扎稳打，避开未知风险。",
+              "hp_cost_ratio": 0.1,
+              "rewards": {
+                "exp": 15000,
+                "spirit_stones": 3000
+              },
+              "next_node": "ch5_node6"
+            }
+          ]
+        },
+        {
+          "id": "ch5_node6",
+          "type": "reward",
+          "title": "天道馈赠",
+          "narrative": "渡过两重天劫，劫云中降下一道金光，化作一枚『天道玉液』。这是天道对坚定道心者的馈赠。",
+          "rewards": {
+            "exp": 30000,
+            "spirit_stones": 8000,
+            "items": [
+              { "item_key": "heaven_dao_jade_liquid", "quantity": 1 },
+              { "item_key": "thunder_essence", "quantity": 3 }
+            ]
+          },
+          "next_node": "ch5_node7"
+        },
+        {
+          "id": "ch5_node7",
+          "type": "boss",
+          "title": "天劫劫魔",
+          "description": "最后一道劫云中，一个由纯粹劫气凝聚的身影缓缓走出——那是劫魔！它代表着天道对渡劫者的最终考验，凝聚了修仙界无数劫难的意志。『能至此处，汝当为旷世奇才。然天劫岂是凡人可渡？』劫魔抬手，九霄神雷、灭世劫火、时空裂痕同时降临！",
+          "monster_ref": "boss",
+          "rewards": {
+            "exp": 80000,
+            "spirit_stones": 30000,
+            "items": [
+              { "item_key": "dungeon_token_ch5", "quantity": 1 },
+              { "item_key": "heaven_dao_jade_liquid", "quantity": 2 },
+              { "item_key": "void_crystal", "quantity": 5 },
+              { "item_key": "ancient_thunder_essence", "quantity": 2 }
+            ]
+          },
+          "victory_text": "劫魔在最后一击中化为漫天金光散去，你的元神得到空前淬炼。劫云散尽，金光照耀四方，你的修为突破了！这一刻，你终于踏入了更高的境界，俯瞰芸芸众生，仙途无量！",
+          "is_final_node": true
+        }
+      ]
+    }
+  ]
+}

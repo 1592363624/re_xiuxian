@@ -1,6 +1,6 @@
 <template>
   <div class="shrink-0 flex flex-col p-4 bg-[#0c0a09] border-t border-stone-800 select-none z-20">
-    <div class="grid grid-cols-3 md:grid-cols-11 gap-4">
+    <div class="grid grid-cols-3 md:grid-cols-7 lg:grid-cols-13 gap-4">
       <div 
         class="relative"
         @mouseenter="showCultivateMenu = true"
@@ -215,6 +215,27 @@ const refinedActions = [
     // Cyan for stock market - matches 聚宝股市 cyan theme
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`,
     desc: '聚宝股市 买卖股票'
+  },
+  {
+    id: 'dungeon',
+    name: '副本',
+    // Amber for dungeon/secret realm - matches 秘境副本 amber theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/><path d="M9 11h6"/></svg>`,
+    desc: '秘境副本 三星扫荡'
+  },
+  {
+    id: 'formation',
+    name: '阵法',
+    // Purple for formation system - matches 阵法堂 purple/cyan theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-purple-400"><circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="4"/></svg>`,
+    desc: '阵法堂 布阵加持'
+  },
+  {
+    id: 'nascent_soul',
+    name: '元婴',
+    // Purple for nascent soul / high realm features
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-purple-400"><path d="M12 2a3 3 0 0 0-3 3c0 1.6.8 3 2 4-1.2 1-2 2.4-2 4a3 3 0 0 0 6 0c0-1.6-.8-3-2-4 1.2-1 2-2.4 2-4a3 3 0 0 0-3-3z"/><path d="M5 22h14"/><path d="M12 16v6"/></svg>`,
+    desc: '元婴出窍 高阶境界'
   },
 ]
 

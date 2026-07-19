@@ -171,6 +171,15 @@
 
     <!-- 聚宝股市面板（第四阶段新增：行情、持仓、交易、融资） -->
     <StockPanel v-if="isStockOpen" @close="isStockOpen = false" />
+
+    <!-- 元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生） -->
+    <NascentSoulPanel v-if="isNascentSoulOpen" @close="isNascentSoulOpen = false" />
+
+    <!-- 秘境副本面板（5章节 / 三档难度 / 三星评级 / 扫荡） -->
+    <DungeonPanel v-if="isDungeonOpen" @close="isDungeonOpen = false" />
+
+    <!-- 阵法系统面板（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成） -->
+    <FormationPanel v-if="isFormationOpen" @close="isFormationOpen = false" />
     
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
@@ -228,6 +237,12 @@ import CraftingPanel from '../panels/CraftingPanel.vue';
 // 静思悟道面板与浮动状态条（第三阶段新增：悟道玩法 + 瓶颈系统）
 import MeditationPanel from '../panels/MeditationPanel.vue';
 import MeditationOverlay from '../panels/MeditationOverlay.vue';
+// 元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生）
+import NascentSoulPanel from '../panels/NascentSoulPanel.vue';
+// 秘境副本面板（5章节×5-7关 / 三档难度 / 三星评级 / 扫荡）
+import DungeonPanel from '../panels/DungeonPanel.vue';
+// 阵法系统面板（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成）
+import FormationPanel from '../panels/FormationPanel.vue';
 // PVP 斗法面板（第四阶段新增：玩家段位 + 排行榜 + 进行中战斗）
 import PvpPanel from '../panels/PvpPanel.vue';
 // 聚宝当铺面板（第四阶段新增：典当、赎回、信用额度）
@@ -273,6 +288,12 @@ const isPvpOpen = ref(false);
 const isPawnshopOpen = ref(false);
 // 聚宝股市面板状态（第四阶段新增：行情、持仓、交易、融资）
 const isStockOpen = ref(false);
+// 元婴出窍面板状态（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生）
+const isNascentSoulOpen = ref(false);
+// 秘境副本面板状态（5章节 / 三档难度 / 三星评级 / 扫荡）
+const isDungeonOpen = ref(false);
+// 阵法系统面板状态（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成）
+const isFormationOpen = ref(false);
 const currentBattleId = ref<string | null>(null);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
@@ -391,6 +412,24 @@ const handleAction = async (actionId: string) => {
   // 股市按钮：打开聚宝股市面板（第四阶段新增：行情、持仓、交易、融资）
   if (actionId === 'stock') {
     isStockOpen.value = true;
+    return;
+  }
+
+  // 元婴按钮：打开元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相/裂缝/夺舍）
+  if (actionId === 'nascent_soul') {
+    isNascentSoulOpen.value = true;
+    return;
+  }
+
+  // 副本按钮：打开秘境副本面板（5章节 / 三档难度 / 三星评级 / 扫荡）
+  if (actionId === 'dungeon') {
+    isDungeonOpen.value = true;
+    return;
+  }
+
+  // 阵法按钮：打开阵法系统面板（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成）
+  if (actionId === 'formation') {
+    isFormationOpen.value = true;
     return;
   }
 

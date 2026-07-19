@@ -34,6 +34,8 @@ const { Op } = require('sequelize');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
 const { infrastructure } = require('../../modules');
+// 阵法系统服务（懒加载，避免循环依赖）
+const FormationService = require('./FormationService');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -1587,7 +1589,7 @@ class PvpService {
      */
     static async getCombatPower(playerId) {
         const player = await Player.findByPk(playerId, {
-            attributes: ['id', 'nickname', 'realm', 'realm_rank', 'attributes']
+            attributes: ['id', 'nickname', 'realm', 'realm_rank', 'attributes', 'active_formation_id']
         });
         if (!player) {
             throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -1623,9 +1625,30 @@ class PvpService {
             + (sense * senseWeight)
             + (realmRank * realmMul);
 
+        // 阵法战力加成（从 FormationService 获取当前激活阵法效果）
+        let formationBonus = 0;
+        let formationInfo = null;
+        try {
+            formationBonus = await FormationService.calculateCombatPowerBonus(player, { atk, def, hp_max: hpMax, speed, sense });
+            if (formationBonus > 0) {
+                const formationEffect = await FormationService.getActiveFormationEffect(player);
+                formationInfo = {
+                    formation_id: formationEffect.formation_id,
+                    formation_name: formationEffect.formation_name,
+                    category: formationEffect.category,
+                    proficiency: formationEffect.proficiency,
+                    effects: formationEffect.effects,
+                    bonus_power: formationBonus
+                };
+            }
+        } catch (e) {
+            // 阵法系统异常不应影响战力计算主流程
+            console.error('[PvpService.getCombatPower] 阵法加成计算失败:', e.message);
+        }
+
         // 按配置精度截断
         const factor = Math.pow(10, maxDecimals);
-        const combatPower = Math.floor(rawPower * factor) / factor;
+        const combatPower = Math.floor((rawPower + formationBonus) * factor) / factor;
 
         return {
             player_id: player.id,
@@ -1647,7 +1670,10 @@ class PvpService {
                     speed_weight: speedWeight,
                     sense_weight: senseWeight,
                     realm_rank_multiplier: realmMul
-                }
+                },
+                base_power: Math.floor(rawPower * factor) / factor,
+                formation_bonus: formationBonus,
+                formation: formationInfo
             }
         };
     }

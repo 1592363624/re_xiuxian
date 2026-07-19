@@ -1,0 +1,269 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "阵法系统静态配置 - 10大阵法，4类（攻击/防御/辅助/特殊）×4品阶（凡/灵/仙/圣）",
+    "design_notes": [
+      "阵法分类：attack（攻击） / defense（防御） / support（辅助） / special（特殊）",
+      "品阶递进：mortal（凡品）→ spirit（灵品）→ immortal（仙品）→ saint（圣品）",
+      "学习条件：境界达标 + 灵石消耗 + 前置阵法（部分高阶阵法需先学低阶）",
+      "熟练度系统：每次成功布阵 +1 熟练度，影响最终效果（每100点 +5% 效果）",
+      "阵法相克：attack > defense > support > special > attack（PVP时相克方效果 -20%）",
+      "阵法为被动效果，不进入状态机互斥，但布阵后4小时内不可切换，撤阵后30分钟冷却",
+      "战力加成：阵法效果直接作用于玩家属性计算（atk/def/hp_max/mp_max/speed/sense）",
+      "GM 可在后台编辑学习消耗、持续时间、冷却等全局参数"
+    ]
+  },
+  "global": {
+    "min_realm_rank": 1,
+    "active_duration_seconds": 14400,
+    "deactivate_cooldown_seconds": 1800,
+    "proficiency_per_activate": 1,
+    "proficiency_effect_step": 100,
+    "proficiency_effect_bonus_ratio": 0.05,
+    "proficiency_max": 1000,
+    "counter_penalty_ratio": 0.2,
+    "combat_power_weight": 0.5,
+    "counter_relationships": {
+      "attack": "defense",
+      "defense": "support",
+      "support": "special",
+      "special": "attack"
+    },
+    "grade_display_names": {
+      "mortal": "凡品",
+      "spirit": "灵品",
+      "immortal": "仙品",
+      "saint": "圣品"
+    },
+    "category_display_names": {
+      "attack": "攻杀阵",
+      "defense": "护身阵",
+      "support": "辅助阵",
+      "special": "奇门阵"
+    },
+    "grade_min_realm_rank": {
+      "mortal": 1,
+      "spirit": 9,
+      "immortal": 18,
+      "saint": 26
+    },
+    "grade_learn_cost": {
+      "mortal": 100,
+      "spirit": 500,
+      "immortal": 2000,
+      "saint": 10000
+    }
+  },
+  "formations": [
+    {
+      "id": "f_swordsman_basic",
+      "name": "小剑罡阵",
+      "category": "attack",
+      "grade": "mortal",
+      "description": "以灵力凝聚剑罡布成的基础攻杀阵，剑气纵横三尺，新晋修士常用。",
+      "min_realm_rank": 1,
+      "recommended_realm": "炼气一层",
+      "learn_cost_spirit_stones": 100,
+      "prerequisite_formation_id": null,
+      "activate_cost_spirit_stones": 5,
+      "effects": {
+        "atk_ratio": 0.08
+      },
+      "lore": "坊市间流传最广的入门阵法，三枚灵石即可布成，剑修起步必备。"
+    },
+    {
+      "id": "f_jiugong_meteor",
+      "name": "九宫流星阵",
+      "category": "attack",
+      "grade": "spirit",
+      "description": "按九宫方位布置灵石，激发流星剑雨，覆盖范围广且杀伤可观。",
+      "min_realm_rank": 9,
+      "recommended_realm": "筑基初期",
+      "learn_cost_spirit_stones": 500,
+      "prerequisite_formation_id": "f_swordsman_basic",
+      "activate_cost_spirit_stones": 20,
+      "effects": {
+        "atk_ratio": 0.15,
+        "speed_ratio": 0.05
+      },
+      "lore": "上古剑修依九宫之理推演而成，传闻可引九天流星之力灌注剑身。"
+    },
+    {
+      "id": "f_tiangan_sword",
+      "name": "天罡剑阵",
+      "category": "attack",
+      "grade": "immortal",
+      "description": "三十六天罡剑气齐聚，剑光冲霄，仙品杀阵威震一方。",
+      "min_realm_rank": 18,
+      "recommended_realm": "结丹初期",
+      "learn_cost_spirit_stones": 2000,
+      "prerequisite_formation_id": "f_jiugong_meteor",
+      "activate_cost_spirit_stones": 80,
+      "effects": {
+        "atk_ratio": 0.22,
+        "speed_ratio": 0.08
+      },
+      "lore": "传闻天罡宗开山祖师所创，三十六道剑气对应三十六天罡星，斩妖除魔无数。"
+    },
+    {
+      "id": "f_wanjian_guizong",
+      "name": "万剑归宗阵",
+      "category": "attack",
+      "grade": "saint",
+      "description": "剑修至高阵法，万剑齐发归于一道，所到之处草木皆剑。",
+      "min_realm_rank": 26,
+      "recommended_realm": "元婴中期",
+      "learn_cost_spirit_stones": 10000,
+      "prerequisite_formation_id": "f_tiangan_sword",
+      "activate_cost_spirit_stones": 300,
+      "effects": {
+        "atk_ratio": 0.3,
+        "speed_ratio": 0.1,
+        "sense_ratio": 0.05
+      },
+      "lore": "上古剑仙遗留的玉简所载，需以剑意布阵，非剑修大能不可习得。"
+    },
+    {
+      "id": "f_xuangui_basic",
+      "name": "小玄龟阵",
+      "category": "defense",
+      "grade": "mortal",
+      "description": "取玄龟吐纳之意布成的基础护身阵，灵力化为龟甲护体。",
+      "min_realm_rank": 1,
+      "recommended_realm": "炼气一层",
+      "learn_cost_spirit_stones": 100,
+      "prerequisite_formation_id": null,
+      "activate_cost_spirit_stones": 5,
+      "effects": {
+        "def_ratio": 0.1
+      },
+      "lore": "散修间流传的护身小阵，虽效果有限，却救过不少人性命。"
+    },
+    {
+      "id": "f_wuxing_shield",
+      "name": "五行护身阵",
+      "category": "defense",
+      "grade": "spirit",
+      "description": "以五行相生之理布置，金木水火土五色灵光环绕，攻守兼备。",
+      "min_realm_rank": 9,
+      "recommended_realm": "筑基初期",
+      "learn_cost_spirit_stones": 500,
+      "prerequisite_formation_id": "f_xuangui_basic",
+      "activate_cost_spirit_stones": 20,
+      "effects": {
+        "def_ratio": 0.18,
+        "hp_max_ratio": 0.05
+      },
+      "lore": "五行宗秘传，金木水火土五行相生相克，循环不息。"
+    },
+    {
+      "id": "f_xuangui_yuan",
+      "name": "玄龟护元阵",
+      "category": "defense",
+      "grade": "immortal",
+      "description": "上古玄龟遗甲所化大阵，护住元神不散，仙品防御阵。",
+      "min_realm_rank": 18,
+      "recommended_realm": "结丹初期",
+      "learn_cost_spirit_stones": 2000,
+      "prerequisite_formation_id": "f_wuxing_shield",
+      "activate_cost_spirit_stones": 80,
+      "effects": {
+        "def_ratio": 0.28,
+        "hp_max_ratio": 0.1,
+        "mp_max_ratio": 0.05
+      },
+      "lore": "传闻以真玄龟遗甲为阵眼，可挡元婴期修士全力一击。"
+    },
+    {
+      "id": "f_juling",
+      "name": "聚灵阵",
+      "category": "support",
+      "grade": "spirit",
+      "description": "聚拢天地灵气于阵中，加速修炼恢复，灵品辅助阵。",
+      "min_realm_rank": 9,
+      "recommended_realm": "筑基初期",
+      "learn_cost_spirit_stones": 500,
+      "prerequisite_formation_id": null,
+      "activate_cost_spirit_stones": 15,
+      "effects": {
+        "hp_max_ratio": 0.1,
+        "mp_max_ratio": 0.15,
+        "sense_ratio": 0.05
+      },
+      "lore": "散修洞府常见布置，虽无攻防之效，却是修炼辅助良品。"
+    },
+    {
+      "id": "f_huichun",
+      "name": "回春阵",
+      "category": "support",
+      "grade": "immortal",
+      "description": "以草木灵力布成，生机盎然，HP恢复速度倍增，仙品辅助阵。",
+      "min_realm_rank": 18,
+      "recommended_realm": "结丹初期",
+      "learn_cost_spirit_stones": 2000,
+      "prerequisite_formation_id": "f_juling",
+      "activate_cost_spirit_stones": 60,
+      "effects": {
+        "hp_max_ratio": 0.2,
+        "mp_max_ratio": 0.2,
+        "sense_ratio": 0.08
+      },
+      "lore": "药王谷秘传，以千年灵木为阵眼，生机流转不息。"
+    },
+    {
+      "id": "f_mizong",
+      "name": "迷踪阵",
+      "category": "special",
+      "grade": "spirit",
+      "description": "身法诡异的奇门阵，令敌方难以锁定，速度大幅提升。",
+      "min_realm_rank": 9,
+      "recommended_realm": "筑基初期",
+      "learn_cost_spirit_stones": 500,
+      "prerequisite_formation_id": null,
+      "activate_cost_spirit_stones": 18,
+      "effects": {
+        "speed_ratio": 0.18,
+        "sense_ratio": 0.08
+      },
+      "lore": "传闻出自上古奇门宗，阵中虚实难辨，令敌方攻击落空。"
+    },
+    {
+      "id": "f_fengmo",
+      "name": "封魔阵",
+      "category": "special",
+      "grade": "immortal",
+      "description": "神识压制之阵，可封印敌方神识感知，仙品奇门阵。",
+      "min_realm_rank": 18,
+      "recommended_realm": "结丹初期",
+      "learn_cost_spirit_stones": 2000,
+      "prerequisite_formation_id": "f_mizong",
+      "activate_cost_spirit_stones": 70,
+      "effects": {
+        "speed_ratio": 0.15,
+        "sense_ratio": 0.22,
+        "atk_ratio": 0.05
+      },
+      "lore": "上古封魔宗所创，传闻曾封印过大妖，神识压制效果显著。"
+    },
+    {
+      "id": "f_liangyi_weichen",
+      "name": "两仪微尘阵",
+      "category": "attack",
+      "grade": "saint",
+      "description": "道门至高阵法，两仪生四象，微尘藏乾坤，攻防兼备的圣品大阵。",
+      "min_realm_rank": 26,
+      "recommended_realm": "元婴中期",
+      "learn_cost_spirit_stones": 10000,
+      "prerequisite_formation_id": "f_wanjian_guizong",
+      "activate_cost_spirit_stones": 350,
+      "effects": {
+        "atk_ratio": 0.25,
+        "def_ratio": 0.15,
+        "hp_max_ratio": 0.1,
+        "speed_ratio": 0.08,
+        "sense_ratio": 0.1
+      },
+      "lore": "道门三十六大阵之首，传闻一念之间可化微尘为乾坤，非大能不可布成。"
+    }
+  ]
+}

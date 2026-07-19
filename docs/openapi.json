@@ -151,6 +151,22 @@
     {
       "name": "宗门专属玩法系统",
       "description": "宗门专属玩法系统 - 灵眼之树(落云宗)/观星台(星宫)/命盘(天星宗)/天阶(凌霄宫)/魔道(阴罗宗)/炉鼎侍妾(合欢宗)"
+    },
+    {
+      "name": "元婴出窍与高阶境界",
+      "description": "元婴出窍与高阶境界系统 - 化神及以上修士的元婴出窍、问道、法相天地、虚空裂缝、夺舍重生玩法"
+    },
+    {
+      "name": "秘境副本",
+      "description": "秘境副本系统 - 5章节×5-7关 / 三档难度（普通/困难/噩梦）/ 5种节点类型（剧情/战斗/解谜/BOSS/奖励）/ 三星评级 / 扫荡 / AI剧情增强（可选）"
+    },
+    {
+      "name": "阵法系统",
+      "description": "阵法系统 - 10大阵法 / 4类（攻杀/护身/辅助/奇门）×4品阶（凡/灵/仙/圣） / 熟练度加成 / 阵法相克 / 战力加成 / 学习/布阵/撤阵"
+    },
+    {
+      "name": "阵法系统GM管理",
+      "description": "阵法系统 GM 后台管理 - 统计/发放/剥夺/强制激活/配置热更新"
     }
   ],
   "security": [
@@ -24463,6 +24479,1981 @@
                 "example": {
                   "code": 500,
                   "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nascent-soul/status": {
+      "get": {
+        "summary": "查询元婴系统状态总览",
+        "description": "查询玩家元婴出窍、问道、法相天地、虚空裂缝、虚弱、残魂、夺舍等所有高阶境界相关状态。该接口为只读操作，不需要状态机互斥校验。化神(rank≥23)及以上修士才有元婴出窍权限。",
+        "tags": [
+          "元婴出窍与高阶境界"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "realm_rank": 23,
+                    "realm_name": "化神初期",
+                    "is_high_realm": true,
+                    "soul_out": {
+                      "is_out": false,
+                      "target": null,
+                      "start_at": null,
+                      "end_at": null,
+                      "remaining_sec": 0,
+                      "progress": 0
+                    },
+                    "ask_dao": {
+                      "insight": 0,
+                      "insight_max": 100,
+                      "breakthrough_bonus": 0,
+                      "last_ask_at": null,
+                      "today_count": 0,
+                      "daily_limit": 3
+                    },
+                    "dharma_form": {
+                      "level": 0,
+                      "max_level": 9,
+                      "bonus_percent": 0,
+                      "next_level_cost": { "exp": 500000, "spirit_stones": 100000 }
+                    },
+                    "fracture": {
+                      "explored_total": 0,
+                      "last_explore_at": null,
+                      "today_count": 0,
+                      "daily_limit": 5
+                    },
+                    "weakness": {
+                      "is_weak": false,
+                      "end_at": null,
+                      "exp_rate_penalty": 0,
+                      "breakthrough_penalty": 0
+                    },
+                    "remnant_soul": {
+                      "value": 100,
+                      "max": 100,
+                      "natural_recover_at": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nascent-soul/soul-out/start": {
+      "post": {
+        "summary": "开始元婴出窍",
+        "description": "化神及以上修士将元婴离体出游，肉身静止。出窍期间与一切状态互斥，可选择出游目标（探索/侦察/修炼）和时长（300-7200秒）。出窍结束后自动结算收益。出窍期间有虚弱惩罚风险，需谨慎操作。",
+        "tags": [
+          "元婴出窍与高阶境界"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "enum": ["explore", "scout", "cultivate"],
+                    "description": "出窍目标：explore=探索虚空（获材料）、scout=侦察（获情报）、cultivate=修炼（获修为）",
+                    "default": "explore"
+                  },
+                  "duration_sec": {
+                    "type": "integer",
+                    "minimum": 300,
+                    "maximum": 7200,
+                    "description": "出窍时长（秒），范围 300-7200，不传则使用配置默认值",
+                    "example": 3600
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "出窍开始成功或失败（业务失败返回 success:false）",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "success": {
+                    "summary": "出窍开始成功",
+                    "value": {
+                      "code": 200,
+                      "message": "元婴出窍成功",
+                      "data": {
+                        "success": true,
+                        "message": "元婴出窍成功",
+                        "soul_out": {
+                          "is_out": true,
+                          "target": "explore",
+                          "start_at": "2026-07-19T10:00:00.000Z",
+                          "end_at": "2026-07-19T11:00:00.000Z",
+                          "duration_sec": 3600
+                        }
+                      }
+                    }
+                  },
+                  "blocked": {
+                    "summary": "状态互斥失败",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "元婴出窍中，肉身静止，无法开始此操作",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  },
+                  "low_realm": {
+                    "summary": "境界不足",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "化神及以上境界方可元婴出窍",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数校验失败",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "VALIDATION_ERROR",
+                  "message": "duration_sec 必须为 300-7200 之间的整数（秒）"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nascent-soul/soul-out/end": {
+      "post": {
+        "summary": "主动召回元婴",
+        "description": "提前结束元婴出窍状态，按完成率折减收益。若出窍时长未达到 10% 则不结算收益；达到 10% 及以上按完成比例发放奖励。该操作不需要状态机 canStart 校验，因为是结束当前 SOUL_OUT 状态。",
+        "tags": [
+          "元婴出窍与高阶境界"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "召回成功或失败",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "success": {
+                    "summary": "召回成功并结算收益",
+                    "value": {
+                      "code": 200,
+                      "message": "元婴已召回，按完成率结算收益",
+                      "data": {
+                        "success": true,
+                        "message": "元婴已召回，按完成率结算收益",
+                        "completion_rate": 0.5,
+                        "rewards": {
+                          "exp": 5000,
+                          "spirit_stones": 100,
+                          "items": []
+                        }
+                      }
+                    }
+                  },
+                  "not_out": {
+                    "summary": "未处于出窍状态",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "当前未处于元婴出窍状态",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nascent-soul/ask-dao": {
+      "post": {
+        "summary": "向天道问道",
+        "description": "向天道问道，积累感悟值（insight）。每日 3 次，每次随机获得 10-30 感悟值，累积满 100 后下次突破可获得 5-15% 加成。突破成功后感悟值清零。问道操作不进入状态机持续状态，但需校验当前未处于出窍等互斥状态。化神及以上可用。",
+        "tags": [
+          "元婴出窍与高阶境界"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "问道成功或失败",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "success": {
+                    "summary": "问道成功",
+                    "value": {
+                      "code": 200,
+                      "message": "感悟天道，已积累 25 感悟值",
+                      "data": {
+                        "success": true,
+                        "message": "感悟天道，已积累 25 感悟值",
+                        "insight_gained": 25,
+                        "insight_total": 50,
+                        "insight_max": 100,
+                        "breakthrough_bonus": 0,
+                        "today_count": 1,
+                        "daily_limit": 3
+                      }
+                    }
+                  },
+                  "limit_exceeded": {
+                    "summary": "今日次数已用完",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "今日问道次数已用完，明日再来",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nascent-soul/dharma-form/cultivate": {
+      "post": {
+        "summary": "凝聚法相天地",
+        "description": "消耗修为与灵石提升法相等级，最高 9 级，每级提供 5% 全属性加成。等级越高消耗越大。凝聚操作不进入状态机持续状态，但需校验当前未处于出窍状态。化神及以上可用。",
+        "tags": [
+          "元婴出窍与高阶境界"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "凝聚成功或失败",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "success": {
+                    "summary": "凝聚成功",
+                    "value": {
+                      "code": 200,
+                      "message": "法相天地晋升至 2 级",
+                      "data": {
+                        "success": true,
+                        "message": "法相天地晋升至 2 级",
+                        "dharma_form_level": 2,
+                        "bonus_percent": 0.1,
+                        "consumed": { "exp": 500000, "spirit_stones": 100000 }
+                      }
+                    }
+                  },
+                  "max_level": {
+                    "summary": "已达最高级",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "法相天地已达最高级",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  },
+                  "insufficient": {
+                    "summary": "资源不足",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "修为不足，还需 100000 修为",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nascent-soul/fracture/explore": {
+      "post": {
+        "summary": "探寻虚空裂缝",
+        "description": "消耗神识与残魂探寻虚空裂缝，有几率获得稀有材料（如虚空砂、混沌灵矿、上古残片等）。每日 5 次。每次消耗 10 点残魂。失败有几率触发虚弱惩罚。化神及以上可用。",
+        "tags": [
+          "元婴出窍与高阶境界"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "探寻结果",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "success": {
+                    "summary": "探寻成功",
+                    "value": {
+                      "code": 200,
+                      "message": "在裂缝中发现稀有材料",
+                      "data": {
+                        "success": true,
+                        "message": "在裂缝中发现稀有材料",
+                        "rewards": {
+                          "items": [
+                            { "item_id": 9001, "name": "虚空砂", "quantity": 2, "rarity": "epic" }
+                          ],
+                          "exp": 2000
+                        },
+                        "remnant_soul_consumed": 10,
+                        "remnant_soul_remaining": 90,
+                        "today_count": 1,
+                        "daily_limit": 5
+                      }
+                    }
+                  },
+                  "empty": {
+                    "summary": "探寻无获",
+                    "value": {
+                      "code": 200,
+                      "success": true,
+                      "message": "裂缝空无一物",
+                      "data": { "rewards": { "items": [], "exp": 500 } }
+                    }
+                  },
+                  "weakness": {
+                    "summary": "触发虚弱",
+                    "value": {
+                      "code": 200,
+                      "success": true,
+                      "message": "遭遇虚空异兽，元婴受创陷入虚弱",
+                      "data": { "weakness_triggered": true, "weakness_duration_sec": 3600 }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/nascent-soul/reincarnate": {
+      "post": {
+        "summary": "夺舍重生",
+        "description": "化神及以上修士主动重生的最高风险操作。要求残魂≥50（min_remnant_soul）方可尝试，成功率 40%（success_rate），冷却 24 小时。成功：境界降为元婴初期、保留 30% 修为、残魂恢复满值、清空法相/感悟/瓶颈；失败：残魂-30、触发 2 小时虚弱、不改变境界。前端应进行二次确认。",
+        "tags": [
+          "元婴出窍与高阶境界"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "夺舍结果",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "success": {
+                    "summary": "夺舍成功",
+                    "value": {
+                      "code": 200,
+                      "message": "夺舍成功！从 化神初期 重生为 元婴初期，保留 30% 修为",
+                      "data": {
+                        "success": true,
+                        "old_realm": "化神初期",
+                        "new_realm": "元婴初期",
+                        "old_exp": 1000000,
+                        "new_exp": 300000,
+                        "remnant_soul": 100
+                      }
+                    }
+                  },
+                  "failed": {
+                    "summary": "夺舍失败（残魂下降+虚弱）",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "夺舍失败！残魂大幅下降，进入2小时虚弱状态",
+                      "data": {
+                        "remnant_soul": 70,
+                        "weakness_end_time": "2026-07-19T12:00:00.000Z"
+                      },
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  },
+                  "low_remnant": {
+                    "summary": "残魂不足无法夺舍",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "残魂值过低，无法夺舍，需要至少 50 残魂值",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  },
+                  "cooldown": {
+                    "summary": "夺舍冷却中",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "夺舍冷却中，剩余 86304 秒",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/config": {
+      "get": {
+        "summary": "获取副本全局配置与章节列表",
+        "description": "返回副本系统的全局配置（每日次数上限、冷却、星级阈值、难度倍率）与所有章节简要信息（章节名/推荐境界/节点数/BOSS名/时长）。该接口为只读操作，未登录也可访问，用于前端展示规则。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "副本全局配置与章节列表",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "global": {
+                      "daily_challenge_limit": 3,
+                      "cooldown_seconds": 1800,
+                      "expire_seconds": 3600,
+                      "min_realm_rank": 8,
+                      "sweep_min_stars": 3,
+                      "sweep_reward_ratio": 0.6,
+                      "star_thresholds": {
+                        "three_star_hp_ratio": 0.8,
+                        "two_star_hp_ratio": 0.5,
+                        "one_star_hp_ratio": 0.01
+                      },
+                      "difficulty_multipliers": {
+                        "normal": { "hp": 1.0, "atk": 1.0, "exp": 1.0, "spirit_stones": 1.0, "drop_rate": 1.0 },
+                        "hard": { "hp": 1.6, "atk": 1.4, "exp": 1.8, "spirit_stones": 1.6, "drop_rate": 1.5 },
+                        "nightmare": { "hp": 2.5, "atk": 2.0, "exp": 3.0, "spirit_stones": 2.5, "drop_rate": 2.2 }
+                      }
+                    },
+                    "chapters": [
+                      {
+                        "id": "ch1",
+                        "name": "黄枫谷秘闻",
+                        "description": "传闻黄枫谷深处藏有上古修士遗府...",
+                        "min_realm_rank": 8,
+                        "recommended_realm": "炼气八层",
+                        "duration_sec": 1800,
+                        "node_count": 5,
+                        "boss_name": "谷中魔兽"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/status": {
+      "get": {
+        "summary": "查询玩家副本状态总览",
+        "description": "返回玩家当前副本状态总览：境界排名、是否解锁、是否在副本中、进行中进度（含HP/MP/积累奖励/剩余时间）、今日挑战次数、冷却状态、已通关章节列表（含星级）。该接口为只读操作，不需要状态机互斥校验。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "玩家副本状态总览",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "realm_rank": 11,
+                    "realm_name": "筑基初期",
+                    "min_realm_rank": 8,
+                    "unlocked": true,
+                    "in_dungeon": false,
+                    "in_progress": null,
+                    "daily_challenge_count": 1,
+                    "daily_challenge_limit": 3,
+                    "cooldown_ready": true,
+                    "cooldown_remaining_sec": 0,
+                    "completed_chapters": [
+                      {
+                        "chapter_id": "ch1",
+                        "chapter_name": "黄枫谷秘闻",
+                        "difficulty": "normal",
+                        "stars": 3,
+                        "completed_at": "2026-07-19T10:00:00.000Z"
+                      }
+                    ],
+                    "sweep_min_stars": 3,
+                    "sweep_reward_ratio": 0.6
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/start": {
+      "post": {
+        "summary": "开始副本挑战",
+        "description": "玩家选择章节与难度后进入副本。要求：境界≥章节 min_realm_rank、冷却已就绪、今日次数未用尽、未在其他互斥状态（闭关/战斗/历练/移动/悟道/PVP/元婴出窍）。返回首个节点内容与初始HP/MP。状态机互斥校验在 Service 内部通过 PlayerStateMachine.canStart(IN_DUNGEON) 完成。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["chapter_id", "difficulty"],
+                "properties": {
+                  "chapter_id": {
+                    "type": "string",
+                    "description": "章节ID，如 ch1 / ch2 / ch3 / ch4 / ch5",
+                    "example": "ch1"
+                  },
+                  "difficulty": {
+                    "type": "string",
+                    "enum": ["normal", "hard", "nightmare"],
+                    "description": "难度：normal=普通 / hard=困难 / nightmare=噩梦",
+                    "example": "normal"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "进入副本成功，返回首个节点内容",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "success": {
+                    "summary": "成功进入副本",
+                    "value": {
+                      "code": 200,
+                      "message": "进入副本成功",
+                      "data": {
+                        "progress_id": 1,
+                        "chapter_id": "ch1",
+                        "chapter_name": "黄枫谷秘闻",
+                        "difficulty": "normal",
+                        "current_node": {
+                          "id": "ch1_node1",
+                          "type": "story",
+                          "title": "入谷探秘",
+                          "chapter_name": "黄枫谷秘闻",
+                          "difficulty": "normal",
+                          "is_final_node": false,
+                          "narrative": "你循着坊市间流传的线索来到黄枫谷入口...",
+                          "ai_generated": false,
+                          "next_node_id": "ch1_node2"
+                        },
+                        "hp_remaining": "1000",
+                        "mp_remaining": "500",
+                        "expires_at": "2026-07-19T11:00:00.000Z",
+                        "nodes_total": 5
+                      }
+                    }
+                  },
+                  "locked": {
+                    "summary": "境界不足未解锁",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "境界不足，需要炼气八层以上",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  },
+                  "cooldown": {
+                    "summary": "冷却中",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "副本冷却中，剩余 1234 秒",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "VALIDATION_ERROR",
+                  "message": "chapter_id 必填且必须为字符串"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/current-node": {
+      "get": {
+        "summary": "获取当前关卡节点内容",
+        "description": "玩家在副本中时调用，返回当前节点的完整渲染内容。根据节点类型（story/battle/puzzle/boss/reward）返回不同字段：story 返回 narrative；battle/boss 返回 monster 信息；puzzle 返回 options 选项列表；reward 返回 rewards 奖励列表。同时返回当前 HP/MP/积累修为灵石/已收集物品/剩余时间。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "当前节点内容",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "chapter_id": "ch1",
+                    "chapter_name": "黄枫谷秘闻",
+                    "difficulty": "normal",
+                    "current_node": {
+                      "id": "ch1_node2",
+                      "type": "battle",
+                      "title": "谷口妖蛇",
+                      "description": "一条黄纹妖蛇盘踞小径",
+                      "is_final_node": false,
+                      "monster": {
+                        "name": "黄纹妖蛇",
+                        "hp": 200,
+                        "attack": 30,
+                        "defense": 10
+                      },
+                      "rewards": {
+                        "exp": 100,
+                        "spirit_stones": 20
+                      }
+                    },
+                    "hp_remaining": "950",
+                    "mp_remaining": "480",
+                    "exp_accumulated": "0",
+                    "spirit_stones_accumulated": "0",
+                    "items_collected": [],
+                    "nodes_completed_count": 1,
+                    "nodes_total": 5,
+                    "expires_at": "2026-07-19T11:00:00.000Z",
+                    "remaining_seconds": 3300
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/choose-option": {
+      "post": {
+        "summary": "解谜节点选项选择",
+        "description": "puzzle 节点中玩家选择某个选项后调用。根据选项配置应用 HP/MP 变化（hp_cost_ratio 或 hp_recover_ratio）与奖励（exp/spirit_stones/items），并推进到下一节点。返回选择结果文案、HP 变化、奖励、下一节点内容。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["option_id"],
+                "properties": {
+                  "option_id": {
+                    "type": "string",
+                    "description": "选项ID，对应 puzzle 节点 options 数组中的 id 字段",
+                    "example": "left"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "选择结果与下一节点",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "选择成功",
+                  "data": {
+                    "choice_result": "洞中藏有一株百年灵药『黄精』，却被毒蛛守护，激战得手，但损失部分HP。",
+                    "hp_change": "-150",
+                    "rewards": {
+                      "exp": "50",
+                      "spirit_stones": "10",
+                      "items": [
+                        { "item_key": "huang_jing", "quantity": 1 }
+                      ]
+                    },
+                    "current_node": {
+                      "id": "ch1_node4",
+                      "type": "reward",
+                      "title": "前人遗府",
+                      "is_final_node": false,
+                      "narrative": "穿过小径来到一处石室...",
+                      "rewards": {
+                        "exp": 150,
+                        "spirit_stones": 80,
+                        "items": [
+                          { "item_key": "qi_condensation_pill", "quantity": 2 }
+                        ]
+                      }
+                    },
+                    "hp_remaining": "800",
+                    "mp_remaining": "480"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "VALIDATION_ERROR",
+                  "message": "option_id 必填且必须为字符串"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/advance": {
+      "post": {
+        "summary": "推进 story/reward 节点",
+        "description": "用于 story（剧情）和 reward（奖励）节点的推进。story 节点阅读剧情后推进到下一节点；reward 节点领取奖励后推进到下一节点。battle/boss/puzzle 节点不可用此接口（需先调用对应接口完成节点）。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "推进成功，返回下一节点内容",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "推进成功",
+                  "data": {
+                    "current_node": {
+                      "id": "ch1_node2",
+                      "type": "battle",
+                      "title": "谷口妖蛇",
+                      "is_final_node": false,
+                      "monster": {
+                        "name": "黄纹妖蛇",
+                        "hp": 200,
+                        "attack": 30,
+                        "defense": 10
+                      }
+                    },
+                    "hp_remaining": "1000",
+                    "mp_remaining": "500",
+                    "exp_accumulated": "0",
+                    "spirit_stones_accumulated": "0"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/battle": {
+      "post": {
+        "summary": "执行 battle/boss 节点战斗",
+        "description": "对 battle（普通战斗）或 boss（章节BOSS）节点执行战斗。简化回合制：玩家与怪物交替攻击，根据攻防差计算伤害。胜利则推进到下一节点（boss 终结节点则结算整个副本）；失败则副本失败结算。返回战斗日志、最终HP、奖励、下一节点（或结算信息）。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "战斗结果",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "victory": {
+                    "summary": "战斗胜利，推进到下一节点",
+                    "value": {
+                      "code": 200,
+                      "message": "战斗胜利",
+                      "data": {
+                        "battle_result": "victory",
+                        "battle_log": [
+                          { "round": 1, "side": "player", "damage": "85", "player_hp": "1000", "monster_hp": "115" },
+                          { "round": 1, "side": "monster", "damage": "20", "player_hp": "980", "monster_hp": "115" },
+                          { "round": 2, "side": "player", "damage": "90", "player_hp": "980", "monster_hp": "25" },
+                          { "round": 2, "side": "monster", "damage": "18", "player_hp": "962", "monster_hp": "25" },
+                          { "round": 3, "side": "player", "damage": "30", "player_hp": "962", "monster_hp": "0" }
+                        ],
+                        "final_player_hp": "962",
+                        "final_monster_hp": "0",
+                        "rewards": {
+                          "exp": "100",
+                          "spirit_stones": "20",
+                          "items": []
+                        },
+                        "current_node": {
+                          "id": "ch1_node3",
+                          "type": "puzzle",
+                          "title": "三岔路口",
+                          "is_final_node": false,
+                          "narrative": "来到一处三岔路口...",
+                          "options": [
+                            { "id": "left", "text": "左侧幽暗洞窟", "hint": "灵气浓郁但阴森" }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "boss_victory_settlement": {
+                    "summary": "BOSS战胜利，副本通关结算",
+                    "value": {
+                      "code": 200,
+                      "message": "挑战成功！副本通关",
+                      "data": {
+                        "battle_result": "victory",
+                        "battle_log": [],
+                        "final_player_hp": "850",
+                        "final_monster_hp": "0",
+                        "victory_text": "魔兽倒下，化为黑烟散去...",
+                        "settlement": {
+                          "settle_reason": "章节通关",
+                          "chapter_id": "ch1",
+                          "chapter_name": "黄枫谷秘闻",
+                          "difficulty": "normal",
+                          "is_success": true,
+                          "is_interrupt": false,
+                          "is_expired": false,
+                          "stars": 3,
+                          "completion_time_sec": 480,
+                          "rewards": {
+                            "exp": "850",
+                            "spirit_stones": "350",
+                            "items": [
+                              { "item_key": "dungeon_token_ch1", "quantity": 1 }
+                            ]
+                          },
+                          "record_updated": true,
+                          "player_exp": "10250",
+                          "player_spirit_stones": "3350"
+                        }
+                      }
+                    }
+                  },
+                  "defeat": {
+                    "summary": "战斗失败，副本失败结算",
+                    "value": {
+                      "code": 200,
+                      "message": "战斗失败，副本挑战失败",
+                      "data": {
+                        "battle_result": "defeat",
+                        "battle_log": [],
+                        "final_player_hp": "0",
+                        "final_monster_hp": "180",
+                        "defeat_text": "你倒在了血泊中...",
+                        "settlement": {
+                          "settle_reason": "战斗失败",
+                          "is_success": false,
+                          "is_interrupt": false,
+                          "is_expired": false,
+                          "stars": 0,
+                          "completion_time_sec": 120,
+                          "rewards": {
+                            "exp": "50",
+                            "spirit_stones": "0",
+                            "items": []
+                          },
+                          "record_updated": false
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/interrupt": {
+      "post": {
+        "summary": "主动中断副本",
+        "description": "玩家放弃挑战时调用，按失败结算。补偿50%已积累修为，不发放物品与灵石（避免刷奖励）。会消耗一次今日挑战次数与冷却时间。前端应进行二次确认。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "中断结果",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "副本已中断，补偿50%积累修为",
+                  "data": {
+                    "settle_reason": "玩家主动中断",
+                    "chapter_id": "ch1",
+                    "chapter_name": "黄枫谷秘闻",
+                    "difficulty": "normal",
+                    "is_success": false,
+                    "is_interrupt": true,
+                    "is_expired": false,
+                    "stars": 0,
+                    "completion_time_sec": 300,
+                    "rewards": {
+                      "exp": "125",
+                      "spirit_stones": "0",
+                      "items": []
+                    },
+                    "record_updated": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/sweep": {
+      "post": {
+        "summary": "扫荡已三星通关的副本",
+        "description": "对已三星通关的章节难度组合进行扫荡，无需进入副本直接按 sweep_reward_ratio（默认0.6）比例发放奖励。要求：该章节该难度已三星通关、冷却就绪、今日次数未用尽、未在副本中。扫荡同样消耗一次今日挑战次数。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["chapter_id", "difficulty"],
+                "properties": {
+                  "chapter_id": {
+                    "type": "string",
+                    "description": "章节ID",
+                    "example": "ch1"
+                  },
+                  "difficulty": {
+                    "type": "string",
+                    "enum": ["normal", "hard", "nightmare"],
+                    "description": "难度",
+                    "example": "normal"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "扫荡结果",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "success": {
+                    "summary": "扫荡成功",
+                    "value": {
+                      "code": 200,
+                      "message": "扫荡成功，奖励已发放",
+                      "data": {
+                        "chapter_id": "ch1",
+                        "chapter_name": "黄枫谷秘闻",
+                        "difficulty": "normal",
+                        "rewards": {
+                          "exp": "510",
+                          "spirit_stones": "210",
+                          "items": [
+                            { "item_key": "dungeon_token_ch1", "quantity": 1 }
+                          ]
+                        },
+                        "daily_challenge_count": 2,
+                        "daily_challenge_limit": 3
+                      }
+                    }
+                  },
+                  "not_qualified": {
+                    "summary": "未达成三星通关条件",
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "未三星通关该章节难度，无法扫荡",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "VALIDATION_ERROR",
+                  "message": "chapter_id 必填且必须为字符串"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dungeon/history": {
+      "get": {
+        "summary": "查询通关历史记录",
+        "description": "返回玩家最近的副本通关历史记录列表，包含章节名、难度、星级、用时、获得的修为/灵石/物品、通关时间。按通关时间倒序排列。",
+        "tags": [
+          "秘境副本"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "返回条数，最多50条，默认20",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "通关历史列表",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": [
+                    {
+                      "id": 1,
+                      "chapter_id": "ch1",
+                      "chapter_name": "黄枫谷秘闻",
+                      "difficulty": "normal",
+                      "stars": 3,
+                      "completion_time_sec": 480,
+                      "exp_gained": "850",
+                      "spirit_stones_gained": "350",
+                      "items_gained": [
+                        { "item_key": "dungeon_token_ch1", "quantity": 1 }
+                      ],
+                      "completed_at": "2026-07-19T10:00:00.000Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/formation/config": {
+      "get": {
+        "summary": "获取阵法全局配置与全阵法列表",
+        "description": "返回阵法系统的全局参数（持续时间/冷却/熟练度等）和所有阵法列表（10大阵法）。该接口为只读操作，未登录也可调用，用于前端展示规则与阵法图鉴。",
+        "tags": ["阵法系统"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "global": {
+                      "min_realm_rank": 1,
+                      "active_duration_seconds": 14400,
+                      "deactivate_cooldown_seconds": 1800,
+                      "proficiency_per_activate": 1,
+                      "proficiency_effect_step": 100,
+                      "proficiency_effect_bonus_ratio": 0.05,
+                      "proficiency_max": 1000,
+                      "counter_penalty_ratio": 0.2,
+                      "combat_power_weight": 0.5
+                    },
+                    "formations": [
+                      {
+                        "id": "f_tiangan_sword",
+                        "name": "天罡剑阵",
+                        "category": "attack",
+                        "category_display": "攻杀阵",
+                        "grade": "immortal",
+                        "grade_display": "仙品",
+                        "description": "三十六天罡剑气齐聚，剑光冲霄，仙品杀阵威震一方。",
+                        "min_realm_rank": 18,
+                        "recommended_realm": "结丹初期",
+                        "learn_cost_spirit_stones": 2000,
+                        "prerequisite_formation_id": "f_jiugong_meteor",
+                        "activate_cost_spirit_stones": 80,
+                        "effects": { "atk_ratio": 0.22, "speed_ratio": 0.08 }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/formation/status": {
+      "get": {
+        "summary": "查询玩家阵法状态总览",
+        "description": "返回玩家当前阵法状态：已解锁境界、已学阵法列表（含熟练度）、当前激活阵法详情（含剩余时间、实际效果）、撤阵冷却状态。",
+        "tags": ["阵法系统"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "realm_rank": 22,
+                    "realm_name": "化神初期",
+                    "unlocked": true,
+                    "active_formation": {
+                      "formation_id": "f_tiangan_sword",
+                      "name": "天罡剑阵",
+                      "category": "attack",
+                      "category_display": "攻杀阵",
+                      "grade": "immortal",
+                      "grade_display": "仙品",
+                      "proficiency": 150,
+                      "remaining_seconds": 12000,
+                      "duration_seconds": 14400,
+                      "effects": { "atk_ratio": 0.231, "speed_ratio": 0.084, "_proficiency_multiplier": 1.05 }
+                    },
+                    "learned_count": 3,
+                    "learned_formations": [],
+                    "deactivate_cooldown_ready": true,
+                    "deactivate_cooldown_remaining_sec": 0
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": { "code": 401, "message": "未授权，请先登录" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/formation/learn": {
+      "post": {
+        "summary": "学习阵法",
+        "description": "学习指定阵法。校验：境界达标、前置阵法已学、灵石充足、未重复学习。学习后扣灵石并创建学习记录（熟练度0）。",
+        "tags": ["阵法系统"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["formation_id"],
+                "properties": {
+                  "formation_id": { "type": "string", "description": "阵法ID，如 f_tiangan_sword" }
+                }
+              },
+              "example": { "formation_id": "f_tiangan_sword" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "成功": {
+                    "value": {
+                      "code": 200,
+                      "message": "成功学习阵法：天罡剑阵",
+                      "data": {
+                        "formation_id": "f_tiangan_sword",
+                        "formation_name": "天罡剑阵",
+                        "proficiency": 0,
+                        "spirit_stones_remaining": "8000"
+                      }
+                    }
+                  },
+                  "境界不足": {
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "境界不足，需达到 结丹初期 或以上",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  },
+                  "前置未学": {
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "需先学习前置阵法：九宫流星阵",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/formation/activate": {
+      "post": {
+        "summary": "布阵激活",
+        "description": "激活指定阵法。校验：已学习、无其他激活阵法（或已超时）、撤阵冷却已过、灵石充足。激活后扣灵石、熟练度+1、设置4小时持续时间。",
+        "tags": ["阵法系统"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["formation_id"],
+                "properties": {
+                  "formation_id": { "type": "string", "description": "阵法ID" }
+                }
+              },
+              "example": { "formation_id": "f_tiangan_sword" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "成功": {
+                    "value": {
+                      "code": 200,
+                      "message": "成功布阵：天罡剑阵（熟练度 151）",
+                      "data": {
+                        "formation_id": "f_tiangan_sword",
+                        "formation_name": "天罡剑阵",
+                        "proficiency": 151,
+                        "activated_at": "2026-07-19T12:00:00.000Z",
+                        "remaining_seconds": 14400,
+                        "duration_seconds": 14400,
+                        "effects": { "atk_ratio": 0.231, "speed_ratio": 0.084 },
+                        "spirit_stones_remaining": "7920"
+                      }
+                    }
+                  },
+                  "已有激活": {
+                    "value": {
+                      "code": 200,
+                      "success": false,
+                      "message": "已有激活阵法，需等待 12000 秒后方可切换（或先撤阵）",
+                      "error_code": "BUSINESS_LOGIC_ERROR"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/formation/deactivate": {
+      "post": {
+        "summary": "撤阵",
+        "description": "撤回当前激活阵法。撤阵后进入30分钟冷却期，期间无法再次布阵。",
+        "tags": ["阵法系统"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "已撤阵：天罡剑阵（冷却 1800 秒）",
+                  "data": {
+                    "deactivated_formation_id": "f_tiangan_sword",
+                    "deactivated_formation_name": "天罡剑阵",
+                    "cooldown_seconds": 1800,
+                    "can_reactivate_at": "2026-07-19T12:30:00.000Z"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/formation/active-effect": {
+      "get": {
+        "summary": "获取当前激活阵法效果",
+        "description": "返回玩家当前激活阵法的实际效果（含熟练度加成）。可选查询参数 opponent_category 用于PVP相克判定预览。",
+        "tags": ["阵法系统"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "opponent_category",
+            "in": "query",
+            "description": "对手阵法类型（用于PVP相克判定预览）",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["attack", "defense", "support", "special"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "active": true,
+                    "formation_id": "f_tiangan_sword",
+                    "formation_name": "天罡剑阵",
+                    "category": "attack",
+                    "grade": "immortal",
+                    "proficiency": 150,
+                    "effects": { "atk_ratio": 0.231, "speed_ratio": 0.084 },
+                    "counter_penalty": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/formation/stats": {
+      "get": {
+        "summary": "[GM] 获取阵法全局统计",
+        "description": "返回阵法系统的全局统计：总学习记录数、每个阵法的学习人数与激活人数、最近学习记录列表。需要管理员权限。",
+        "tags": ["阵法系统GM管理"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "最近学习记录条数（最多500）",
+            "required": false,
+            "schema": { "type": "integer", "default": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "total_learned_records": 42,
+                    "formation_stats": [
+                      {
+                        "formation_id": "f_tiangan_sword",
+                        "name": "天罡剑阵",
+                        "category": "attack",
+                        "grade": "immortal",
+                        "learned_count": 5,
+                        "active_count": 2
+                      }
+                    ],
+                    "recent_learned": [
+                      {
+                        "player_id": 1,
+                        "player_nickname": "韩天尊",
+                        "formation_id": "f_tiangan_sword",
+                        "formation_name": "天罡剑阵",
+                        "proficiency": 0,
+                        "learned_at": "2026-07-19T12:00:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": { "code": 403, "message": "权限不足：需要管理员权限" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/formation/grant": {
+      "post": {
+        "summary": "[GM] 给玩家发放阵法",
+        "description": "GM特权：直接给玩家发放阵法，不消耗灵石。幂等：已学习则直接返回成功。需要管理员权限，操作记录到admin_logs。",
+        "tags": ["阵法系统GM管理"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["player_id", "formation_id"],
+                "properties": {
+                  "player_id": { "type": "integer", "description": "玩家ID" },
+                  "formation_id": { "type": "string", "description": "阵法ID" }
+                }
+              },
+              "example": { "player_id": 1, "formation_id": "f_tiangan_sword" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "已给玩家 韩天尊 发放阵法：天罡剑阵",
+                  "data": { "formation_id": "f_tiangan_sword", "formation_name": "天罡剑阵", "proficiency": 0 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/formation/player/{playerId}/activate": {
+      "post": {
+        "summary": "[GM] 强制激活玩家阵法",
+        "description": "GM特权：强制激活玩家阵法，不消耗灵石、无冷却。需要管理员权限。",
+        "tags": ["阵法系统GM管理"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["formation_id"],
+                "properties": {
+                  "formation_id": { "type": "string" }
+                }
+              },
+              "example": { "formation_id": "f_tiangan_sword" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "已强制激活玩家 韩天尊 的阵法：f_tiangan_sword",
+                  "data": { "player_id": 1, "formation_id": "f_tiangan_sword", "activated_at": "2026-07-19T12:00:00.000Z" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/formation/player/{playerId}/deactivate": {
+      "post": {
+        "summary": "[GM] 强制撤阵",
+        "description": "GM特权：强制撤回玩家激活的阵法，无冷却。需要管理员权限。",
+        "tags": ["阵法系统GM管理"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "已强制撤阵玩家 韩天尊 的阵法：f_tiangan_sword",
+                  "data": { "player_id": 1, "formation_id": "f_tiangan_sword" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/formation/player/{playerId}/{formationId}": {
+      "delete": {
+        "summary": "[GM] 剥夺玩家阵法",
+        "description": "GM特权：剥夺玩家已学的阵法（强制遗忘）。若该阵法正在激活，会先自动撤阵。需要管理员权限。",
+        "tags": ["阵法系统GM管理"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "formationId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "已剥夺玩家 韩天尊 的阵法：f_tiangan_sword",
+                  "data": { "player_id": 1, "formation_id": "f_tiangan_sword" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/formation/config": {
+      "put": {
+        "summary": "[GM] 热更新阵法全局配置",
+        "description": "GM特权：热更新阵法全局配置（持续时间/冷却/熟练度参数等）。直接修改 formation_data.json 文件并触发热重载，无需重启服务。需要管理员权限。",
+        "tags": ["阵法系统GM管理"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["global"],
+                "properties": {
+                  "global": {
+                    "type": "object",
+                    "description": "全局配置（仅允许更新global字段）",
+                    "properties": {
+                      "active_duration_seconds": { "type": "integer", "description": "阵法持续时间（秒）" },
+                      "deactivate_cooldown_seconds": { "type": "integer", "description": "撤阵冷却（秒）" },
+                      "proficiency_per_activate": { "type": "integer", "description": "每次布阵熟练度+1" },
+                      "proficiency_effect_step": { "type": "integer", "description": "熟练度效果步长" },
+                      "proficiency_effect_bonus_ratio": { "type": "number", "description": "熟练度效果加成比例" },
+                      "counter_penalty_ratio": { "type": "number", "description": "相克惩罚比例" },
+                      "combat_power_weight": { "type": "number", "description": "阵法战力权重" }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "global": {
+                  "active_duration_seconds": 21600,
+                  "deactivate_cooldown_seconds": 900
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "阵法全局配置已更新并热重载",
+                  "data": { "global": { "active_duration_seconds": 21600, "deactivate_cooldown_seconds": 900 } }
                 }
               }
             }

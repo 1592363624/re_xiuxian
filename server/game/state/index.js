@@ -38,6 +38,12 @@ function registerAllStates() {
     // PVP 斗法状态（第四阶段新增：与一切状态互斥，过期自动判平结算）
     require('./registrations/pvp')();
 
+    // 元婴出窍状态（高阶境界扩展：与一切状态互斥，过期自动结算修为收益）
+    require('./registrations/nascent_soul')();
+
+    // 副本挑战状态（第五阶段新增：与一切状态互斥，过期自动结算失败并清理进度）
+    require('./registrations/dungeon')();
+
     // 封禁状态
     require('./registrations/ban')();
 

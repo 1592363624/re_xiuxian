@@ -18,6 +18,8 @@ const WebSocketNotificationService = require('../game/services/WebSocketNotifica
 // 引入宗门服务（导出单例实例），用于获取突破成功率加成
 const SectService = require('../game/services/SectService');
 const MeditationService = require('../game/services/MeditationService');
+// 引入元婴服务（用于高阶境界突破的虚弱惩罚、问道加成、突破成功后清零感悟）
+const NascentSoulService = require('../game/services/NascentSoulService');
 const authenticateToken = require('../middleware/auth');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const ConfigHelper = require('../utils/configHelper');
@@ -130,6 +132,18 @@ router.post('/try', authenticateToken, async (req, res, next) => {
             finalProbability = probability;
         }
 
+        // 高阶境界系统：问道感悟值加成（每10点感悟提供1%加成，最高20%）
+        const askDaoBonus = NascentSoulService.getAskDaoBreakthroughBonus(player);
+        if (askDaoBonus > 0) {
+            finalProbability = Math.min(100, finalProbability + askDaoBonus);
+        }
+
+        // 高阶境界系统：虚弱状态惩罚（默认-20%突破成功率）
+        const weaknessPenalty = NascentSoulService.getWeaknessBreakthroughPenalty(player);
+        if (weaknessPenalty > 0) {
+            finalProbability = Math.max(0, finalProbability - weaknessPenalty);
+        }
+
         const roll = Math.random() * 100;
         const success = roll < finalProbability;
 
@@ -137,12 +151,23 @@ router.post('/try', authenticateToken, async (req, res, next) => {
             // 突破失败：处理修为损失和年龄增加
             const expLoss = BigInt(Math.floor(Number(player.exp) * FAILURE_EXP_LOSS_RATE));
             player.exp = BigInt(player.exp) - expLoss;
-            
+
             const ageIncrease = currentRealm.rank * FAILURE_AGE_MULTIPLIER;
             player.lifespan_current = (player.lifespan_current || 0) + ageIncrease;
 
             // 瓶颈失败处理：累加失败次数，提供感悟补偿
             const failureResult = await MeditationService.handleBreakthroughFailure(player, t);
+
+            // 高阶境界系统：突破失败触发虚弱状态（持续1小时）
+            // 仅对化神及以上境界生效（rank >= 23），低境界保持原有惩罚逻辑
+            const currentRealmRank = currentRealm.rank || 0;
+            if (currentRealmRank >= 23) {
+                try {
+                    await NascentSoulService.triggerWeakness(player, null, t);
+                } catch (weakErr) {
+                    console.warn('[Breakthrough] 触发虚弱状态失败:', weakErr.message);
+                }
+            }
 
             await player.save({ transaction: t });
             await t.commit();
@@ -209,6 +234,15 @@ router.post('/try', authenticateToken, async (req, res, next) => {
 
         // 瓶颈成功处理：清理瓶颈状态
         await MeditationService.handleBreakthroughSuccess(player, t);
+
+        // 高阶境界系统：突破成功后清零问道感悟值（感悟已用于本次突破）
+        if (player.ask_dao_insight && player.ask_dao_insight > 0) {
+            try {
+                await NascentSoulService.clearAskDaoInsightOnBreakthrough(player, t);
+            } catch (clearErr) {
+                console.warn('[Breakthrough] 清零问道感悟失败:', clearErr.message);
+            }
+        }
 
         await player.save({ transaction: t });
         await t.commit();
@@ -301,6 +335,12 @@ router.get('/info', authenticateToken, async (req, res, next) => {
         const bottleneckRealms = btCfg.bottleneck_realms || [];
         const inBottleneckRealm = bottleneckRealms.includes(player.realm_rank || 0);
 
+        // 高阶境界系统信息：问道感悟加成 + 虚弱状态惩罚
+        const askDaoBonus = NascentSoulService.getAskDaoBreakthroughBonus(player);
+        const weaknessPenalty = NascentSoulService.getWeaknessBreakthroughPenalty(player);
+        const isWeak = NascentSoulService.isWeak(player);
+        const dharmaFormBonus = NascentSoulService.getDharmaFormBonus(player);
+
         res.json({
             code: 200,
             data: {
@@ -310,7 +350,7 @@ router.get('/info', authenticateToken, async (req, res, next) => {
                 exp_cap: expCap.toString(),
                 can_breakthrough: canBreakthrough.canBreak,
                 breakthrough_probability: probability,
-                attribute_gain: nextRealm && currentRealm 
+                attribute_gain: nextRealm && currentRealm
                     ? game.ExperienceService.getBreakthroughAttributeGain(currentRealm.name, nextRealm.name)
                     : null,
                 // 瓶颈系统信息
@@ -324,6 +364,17 @@ router.get('/info', authenticateToken, async (req, res, next) => {
                     max_failure_count: btCfg.bottleneck_max_failure_count || 3,
                     broken_bonus: bottleneckBonus,
                     started_at: player.bottleneck_started_at
+                },
+                // 高阶境界系统信息（化神及以上境界展示）
+                high_realm: {
+                    ask_dao_bonus: askDaoBonus,                       // 问道感悟提供的突破加成（百分比）
+                    ask_dao_insight: player.ask_dao_insight || 0,     // 当前问道感悟值
+                    is_weak: isWeak,                                  // 是否处于虚弱状态
+                    weakness_penalty: weaknessPenalty,                // 虚弱提供的突破惩罚（百分比）
+                    weakness_end_time: player.weakness_end_time || null,
+                    dharma_form_level: player.dharma_form_level || 0, // 法相天地等级
+                    dharma_form_bonus: dharmaFormBonus,               // 法相天地属性加成系数
+                    remnant_soul: player.remnant_soul ?? 100          // 残魂值
                 }
             }
         });

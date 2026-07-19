@@ -54,6 +54,8 @@ class ConfigLoader extends EventEmitter {
             'cave_data',       // 洞府静态配置（设施升级消耗、药园地块、种子数据）
             'stock_data',      // 股市静态配置（股票定义、总股本、基础价格）
             'crafting_data',   // 炼制系统配置（炼丹/炼器配方、技能等级表）
+            'dungeon_data',    // 副本系统静态配置（章节、关卡、奖励、难度系数）
+            'formation_data',  // 阵法系统静态配置（10大阵法、4类×4品阶、熟练度、相克关系）
         ];
         const results = {};
 

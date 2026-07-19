@@ -51,6 +51,8 @@ require('./models/caveMessage');
 require('./models/caveVisitor');
 // 宗门专属玩法模型（灵眼之树/观星台/命盘/天阶/魔道/炉鼎）
 require('./models/playerSectSpecial');
+// 阵法系统模型（玩家已学阵法及熟练度）
+require('./models/playerFormation');
 
 const http = require('http');
 const socketIo = require('socket.io');
@@ -293,6 +295,14 @@ const startServer = async () => {
     app.use('/api/cave-social', require('./routes/cave_social'));
     // 宗门专属玩法系统（灵眼之树/观星台/命盘/天阶/魔道/炉鼎）
     app.use('/api/sect-special', require('./routes/sect_special'));
+    // 元婴出窍与高阶境界系统（出窍/归来/问道/法相天地/探寻裂缝/夺舍重生）
+    app.use('/api/nascent-soul', require('./routes/nascent_soul'));
+    // 副本系统（5章节×5-7关，含剧情/战斗/解谜/BOSS/奖励5种关卡类型，三档难度，AI剧情增强）
+    app.use('/api/dungeon', require('./routes/dungeon'));
+    // 阵法系统（10大阵法，4类×4品阶，熟练度，相克关系，战力加成）
+    app.use('/api/formation', require('./routes/formation'));
+    // 阵法系统 GM 后台（统计/发放/剥夺/强制激活/配置热更新）
+    app.use('/api/admin/formation', require('./routes/admin_formation'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

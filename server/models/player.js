@@ -473,6 +473,144 @@ const Player = sequelize.define('Player', {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
         comment: '是否禁止股市交易（GM 可锁定，违规账号处理）'
+    },
+    // ===== 高阶境界系统字段（第五阶段新增：元婴出窍/问道/法相天地/探寻裂缝/虚弱/残魂/夺舍） =====
+    soul_state: {
+        type: DataTypes.STRING(20),
+        defaultValue: 'none',
+        comment: '元神状态：none=在体，out=出窍中，recalling=召回中'
+    },
+    soul_out_start_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '出窍开始时间'
+    },
+    soul_out_end_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '出窍预计结束时间'
+    },
+    soul_out_duration: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '本次出窍计划时长(秒)'
+    },
+    soul_out_target: {
+        type: DataTypes.STRING(20),
+        defaultValue: 'explore',
+        comment: '出窍目标：explore=探索，scout=窥探，cultivate=远方修炼'
+    },
+    daily_soul_out_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日出窍次数（跨日重置）'
+    },
+    last_soul_out_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '最后出窍日期（跨日重置）'
+    },
+    last_soul_out_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后出窍结束时间（冷却计算）'
+    },
+    ask_dao_insight: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+        comment: '问道感悟值（用于突破加成）'
+    },
+    daily_ask_dao_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日问道次数（跨日重置）'
+    },
+    last_ask_dao_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '最后问道日期（跨日重置）'
+    },
+    dharma_form_level: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '法相天地等级（0-9，每级提供5%属性加成）'
+    },
+    daily_fracture_explore_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日裂缝探索次数（跨日重置）'
+    },
+    last_fracture_explore_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后裂缝探索时间（冷却计算）'
+    },
+    remnant_soul: {
+        type: DataTypes.FLOAT,
+        defaultValue: 100,
+        comment: '残魂值（0-100，低于30触发不稳定）'
+    },
+    last_reincarnation_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后夺舍时间（冷却用）'
+    },
+    // ===== 副本系统字段（v0024迁移添加） =====
+    in_dungeon: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否在副本挑战中（0=否，1=是）'
+    },
+    dungeon_chapter_id: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        comment: '当前副本章节ID（如 ch1）'
+    },
+    dungeon_node_id: {
+        type: DataTypes.STRING(40),
+        allowNull: true,
+        comment: '当前副本关卡节点ID（如 ch1_node3）'
+    },
+    dungeon_difficulty: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        comment: '当前副本难度（normal/hard/nightmare）'
+    },
+    dungeon_start_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '本次副本开始时间'
+    },
+    daily_dungeon_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日副本挑战次数（跨日重置）'
+    },
+    last_dungeon_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '最后副本挑战日期（跨日重置）'
+    },
+    last_dungeon_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后副本挑战结束时间（冷却计算）'
+    },
+    // ===== 阵法系统字段（v0025迁移添加） =====
+    active_formation_id: {
+        type: DataTypes.STRING(40),
+        allowNull: true,
+        comment: '当前激活阵法ID（如 f_tiangan_sword）'
+    },
+    formation_activated_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '阵法激活时间（持续时间计算）'
+    },
+    last_formation_deactivate_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后撤阵时间（冷却计算）'
     }
 }, {
     tableName: 'players',
