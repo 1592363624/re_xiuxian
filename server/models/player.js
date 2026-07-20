@@ -298,6 +298,16 @@ const Player = sequelize.define('Player', {
         defaultValue: false,
         comment: '是否已死亡'
     },
+    death_reason: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: '死亡原因（寿元耗尽/被击杀/突破失败等），复活时清空'
+    },
+    death_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '死亡时间戳，用于计算死亡时长与冷却'
+    },
     is_banned: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
@@ -611,6 +621,83 @@ const Player = sequelize.define('Player', {
         type: DataTypes.DATE,
         allowNull: true,
         comment: '最后撤阵时间（冷却计算）'
+    },
+    // ===== 批次2多人玩法字段（v0029迁移添加：世界BOSS+宗门战通用荣誉/战绩） =====
+    // 说明：honor_value 与已有 honor 字段不同——honor 为 PVP 专用 BIGINT，
+    //       honor_value 为多人玩法通用 INT 货币（PVP/世界BOSS/宗门战共享），
+    //       用于荣誉商店兑换，索引 idx_players_honor 支持排行榜查询
+    honor_value: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '荣誉值（PVP/世界BOSS/宗门战通用货币，可兑换稀有物品）'
+    },
+    war_kills_total: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '历史总击杀数（PVP+宗门战累计）'
+    },
+    war_deaths_total: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '历史总死亡数（PVP+宗门战累计）'
+    },
+    boss_kill_count_total: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '历史BOSS击杀参与数（参与过世界BOSS击杀的次数）'
+    },
+    boss_first_kill_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '历史BOSS首杀次数（达成致命一击的次数）'
+    },
+    // ===== 批次3 玩家扩展字段（v0031迁移添加） =====
+    // 说明：飞升+夺舍+第二元神+小世界+道侣+侍妾+香火+神识+法则 9 个子系统共用字段
+    // 冗余字段 ascension_eligible 加速 GM 后台飞升资格筛选，避免每次都 JOIN player_ascension 表
+    reincarnation_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '历史夺舍次数（每次+1）'
+    },
+    ascension_eligible: {
+        type: DataTypes.TINYINT,
+        defaultValue: 0,
+        comment: '是否满足飞升前置（0否1是，冗余字段加速查询）'
+    },
+    second_soul_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '已凝练第二元神数量（0-3）'
+    },
+    small_world_id: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: '所属小世界ID'
+    },
+    dao_companion_id: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: '道侣关系ID'
+    },
+    concubine_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '当前侍妾数量'
+    },
+    incense_balance: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '当前香火余额'
+    },
+    divine_sense_balance: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '当前神识余额（飞升/探寻裂缝/定星消耗）'
+    },
+    law_points: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '法则点数（用于法则转换）'
     }
 }, {
     tableName: 'players',

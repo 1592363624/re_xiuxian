@@ -54,6 +54,36 @@ require('./models/playerSectSpecial');
 // 阵法系统模型（玩家已学阵法及熟练度）
 require('./models/playerFormation');
 
+// 世界BOSS系统模型（批次2多人玩法：3个BOSS实例、伤害记录、赛季配置、赛季排行）
+require('./models/worldBoss');
+require('./models/worldBossDamageRecord');
+require('./models/worldBossSeason');
+require('./models/worldBossSeasonRanking');
+
+// 宗门战/领地争夺系统模型（批次2多人玩法：战役、资源点、参战记录、赛季配置、赛季排行、宗门资金）
+require('./models/sectWar');
+require('./models/sectWarTerritory');
+require('./models/sectWarParticipant');
+require('./models/sectWarSeason');
+require('./models/sectWarSeasonRanking');
+require('./models/sectFund');
+
+// 飞升+夺舍重生系统模型（批次3：玩家飞升进度、空间节点、夺舍目标配置、夺舍记录）
+require('./models/playerAscension');
+require('./models/playerAscensionNode');
+require('./models/reincarnationTarget');
+require('./models/playerReincarnation');
+
+// 后期系统模型（批次3：第二元神/元神残篇/小世界/神庙/香火流水/神识/法则/法则碎片流水）
+require('./models/playerSecondSoul');
+require('./models/playerSoulFragment');
+require('./models/playerSmallWorld');
+require('./models/playerDivineTemple');
+require('./models/playerIncenseLog');
+require('./models/playerDivineSense');
+require('./models/playerLaw');
+require('./models/playerLawFragment');
+
 const http = require('http');
 const socketIo = require('socket.io');
 const { infrastructure } = require('./modules');
@@ -240,6 +270,28 @@ const startServer = async () => {
         console.error('股市调度器加载失败:', err.message);
     }
 
+    // 世界BOSS调度器（批次2）：BOSS自动刷新/过期/阶段切换/赛季结算
+    // 由 WorldBossSchedulerService 内部根据 game_balance.world_boss.scheduler_interval_ms 配置调度周期
+    try {
+        const WorldBossSchedulerService = require('./game/services/WorldBossSchedulerService');
+        WorldBossSchedulerService.start().catch(err => {
+            console.error('世界BOSS调度器启动失败:', err.message);
+        });
+    } catch (err) {
+        console.error('世界BOSS调度器加载失败:', err.message);
+    }
+
+    // 宗门战调度器（批次2）：战役状态推进/占领超时补偿/资源点产出结算/赛季结算
+    // 由 SectWarSchedulerService 内部根据 game_balance.sect_war.scheduler_interval_ms 配置调度周期
+    try {
+        const SectWarSchedulerService = require('./game/services/SectWarSchedulerService');
+        SectWarSchedulerService.start().catch(err => {
+            console.error('宗门战调度器启动失败:', err.message);
+        });
+    } catch (err) {
+        console.error('宗门战调度器加载失败:', err.message);
+    }
+
     // 路由
     app.use('/api/auth', require('./routes/auth'));
     app.use('/api/player', require('./routes/player'));
@@ -303,6 +355,36 @@ const startServer = async () => {
     app.use('/api/formation', require('./routes/formation'));
     // 阵法系统 GM 后台（统计/发放/剥夺/强制激活/配置热更新）
     app.use('/api/admin/formation', require('./routes/admin_formation'));
+    // 世界BOSS系统（批次2多人玩法：3个BOSS、阶段切换、伤害排行、赛季结算）
+    app.use('/api/world-boss', require('./routes/world_boss'));
+    // 世界BOSS管理（GM 后台：手动刷新/过期/创建赛季/强制结算）
+    app.use('/api/admin/world-boss', require('./routes/admin_world_boss'));
+    // 宗门战系统（批次2多人玩法：领地争夺、宣战、攻防、占领、赛季结算）
+    app.use('/api/sect-war', require('./routes/sect_war'));
+    // 宗门战管理（GM 后台：统计/赛季管理/资源点初始化/手动推进状态）
+    app.use('/api/admin/sect-war', require('./routes/admin_sect_war'));
+
+    // 批次3 飞升+夺舍重生系统（玩家：问道/法相天地/探寻裂缝/搜寻节点/定星/飞升/回溯 + 夺舍触发/选定/记录）
+    // 注意：routes/ascension.js 内部已带 /ascension/ 与 /reincarnation/ 前缀，故挂载到 /api 即可
+    app.use('/api', require('./routes/ascension'));
+    // 批次3 飞升+夺舍重生系统 GM 后台（统计/玩家进度/调整大衍诀/发放法则碎片/发放坐标/重置冷却/夺舍目标CRUD）
+    app.use('/api/admin/ascension', require('./routes/admin_ascension'));
+
+    // 批次3 后期系统玩家路由（6 大子系统：第二元神/小世界/神庙/香火/神识淬炼/法则转换）
+    // 第二元神系统（凝练/分化/调度/独立修炼）
+    app.use('/api/second-soul', require('./routes/second-soul'));
+    // 小世界系统（开辟/显灵/神迹干预）
+    app.use('/api/small-world', require('./routes/small-world'));
+    // 神庙系统（升级/修复禁制/兑换供奉）
+    app.use('/api/divine-temple', require('./routes/divine-temple'));
+    // 香火系统（收割/流水分页查询）
+    app.use('/api/incense', require('./routes/incense'));
+    // 神识淬炼系统（查询面板/淬炼）
+    app.use('/api/divine-sense', require('./routes/divine-sense'));
+    // 法则转换系统（查询面板/神识→法则点/碎片→法则点/法则转换）
+    app.use('/api/law', require('./routes/law'));
+    // 批次3 后期系统 GM 后台（调整副元神属性/重置小世界/调整小世界&神庙等级/发放香火/神识/法则点/法则碎片）
+    app.use('/api/admin/late-stage', require('./routes/admin_late_stage'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

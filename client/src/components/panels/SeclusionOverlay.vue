@@ -276,7 +276,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 // 使用统一的 utils 替代组件内 formatTime 重复实现
-import { formatTime } from '../../utils/format'
+import { formatTime, formatNumber } from '../../utils/format'
 
 const store = usePlayerStore()
 const uiStore = useUIStore()
@@ -372,13 +372,16 @@ const handleEnd = async () => {
   loading.value = true
   try {
     const res = await store.endSeclusion()
-    // 添加日志
-    const gain = res?.data?.exp_gain || res?.data?.player?.exp || expGained.value || 0
+    // 修复 B13：旧逻辑 `res?.data?.exp_gain || res?.data?.player?.exp || expGained.value || 0`
+    // 在 exp_gain=0（如立即结束）时会短路到 player.exp（玩家总修为 BigInt 字符串），
+    // 导致日志显示"获得 99999999999 修为"。
+    // 新逻辑：明确只用 exp_gain，未返回或为 0 时显示 0，不再 fallback 到总修为。
+    const gain = Number(res?.data?.exp_gain ?? 0)
     const isForced = res?.data?.forced_end
     const modeLabel = isDeep.value ? '深度闭关' : '闭关'
-    let logContent = `结束${modeLabel}，本次修炼共获得修为 ${gain} 点。`
+    let logContent = `结束${modeLabel}，本次修炼共获得修为 ${formatNumber(gain)} 点。`
     if (isForced) {
-      logContent = `强行出关！${modeLabel}未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${gain} 点。`
+      logContent = `强行出关！${modeLabel}未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${formatNumber(gain)} 点。`
     }
     uiStore.addLog({
       content: logContent,

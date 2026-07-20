@@ -16,6 +16,46 @@ const AIService = require('./AIService');
 // 配置加载器，用于读取 game_balance.json 中的历练时长分级配置
 const { infrastructure } = require('../../modules');
 const configLoader = infrastructure.ConfigLoader;
+// 修复 B24：怪物属性需基于境界配置计算，避免硬编码 hp:100/atk:15/def:5
+const RealmService = require('../core/RealmService');
+
+/**
+ * 工具函数：根据怪物境界名计算怪物战斗属性
+ *
+ * 修复 B24：原 fallback 怪物属性硬编码为 hp:100/atk:15/def:5，
+ * 导致高境界地图的怪物（如化神期地图的怪）也是 100 HP，玩家一击必杀毫无挑战；
+ * 低境界地图的怪物反而 15 攻击可能击杀凡人玩家。
+ *
+ * 现在根据怪物配置的 realm 字段查询 realm_breakthrough.json，
+ * 取对应境界的 base_hp / base_atk / base_def 作为怪物属性，
+ * 保证怪物强度与境界一致。
+ *
+ * @param {string} monsterRealm - 怪物境界名（如 "炼气1层"、"凡人"）
+ * @param {number} fallbackExp - 兜底经验值
+ * @returns {{hp: number, atk: number, def: number, exp_reward: number}}
+ */
+function computeMonsterStatsByRealm(monsterRealm, fallbackExp = 10) {
+    // 默认值（境界查询失败时兜底）
+    const defaultStats = { hp: 100, atk: 10, def: 5, exp_reward: fallbackExp };
+    if (!monsterRealm) return defaultStats;
+
+    try {
+        const realmConfig = RealmService.getRealmByName(monsterRealm);
+        if (!realmConfig) {
+            console.warn(`[AdventureEventService] 怪物境界配置不存在: ${monsterRealm}，使用默认属性`);
+            return defaultStats;
+        }
+        return {
+            hp: realmConfig.base_hp || 100,
+            atk: realmConfig.base_atk || 10,
+            def: realmConfig.base_def || 5,
+            exp_reward: fallbackExp
+        };
+    } catch (e) {
+        console.warn('[AdventureEventService] 计算怪物属性失败:', e.message);
+        return defaultStats;
+    }
+}
 
 class AdventureEventService {
     /**
@@ -722,16 +762,19 @@ class AdventureEventService {
 
             if (!monsterResult?.success) {
                 const randomMonster = currentMap.monsters[Math.floor(Math.random() * currentMap.monsters.length)];
+                // 修复 B24：怪物属性基于其境界计算，避免硬编码 hp:100/atk:15/def:5
+                // 这样高境界地图的怪物强度与境界一致，玩家无法一击秒杀高境界怪
+                const monsterStats = computeMonsterStatsByRealm(randomMonster.realm, randomMonster.exp || 10);
                 monsterResult = {
                     success: true,
                     monster: {
                         id: randomMonster.id,
                         name: randomMonster.name,
                         realm: randomMonster.realm,
-                        hp: 100,
-                        atk: 15,
-                        def: 5,
-                        exp_reward: randomMonster.exp || 10
+                        hp: monsterStats.hp,
+                        atk: monsterStats.atk,
+                        def: monsterStats.def,
+                        exp_reward: monsterStats.exp_reward
                     },
                     fromAI: false
                 };
@@ -817,12 +860,16 @@ class AdventureEventService {
 
     /**
      * 获取玩家等级
+     *
+     * 修复 B1 bug：用 RealmService.getRealmRank 替代 REALM_ORDER.indexOf。
+     * 旧逻辑 indexOf 在化神期及以上境界返回 -1，+1 后变成 0，等级计算错误。
+     * 新逻辑直接返回 rank，与 realm_breakthrough.json 完全对齐。
      * @param {Object} player - 玩家对象
-     * @returns {number} 等级
+     * @returns {number} 等级（即境界 rank）
      */
     getPlayerLevel(player) {
-        const { REALM_ORDER } = require('../../utils/gameConstants');
-        return REALM_ORDER.indexOf(player.realm) + 1;
+        const RealmService = require('../core/RealmService');
+        return RealmService.getRealmRank(player.realm);
     }
 
     /**

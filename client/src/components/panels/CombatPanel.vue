@@ -325,9 +325,39 @@ const getPlayerMpPercent = (battle) => {
 }
 
 const formatNumber = (num) => {
-  if (num >= 10000) return (num / 10000).toFixed(1) + '万'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'k'
-  return num.toString()
+  // 修复 B12：复用 utils/format 中的字符串千分位实现，避免大数精度丢失
+  // 旧实现 `num >= 10000` 隐式 Number 转换 BigInt 字符串时精度丢失
+  // 同时保留"万/k"简写显示，便于战斗日志快速读数
+  if (num === null || num === undefined || num === '') return '0'
+  let str = typeof num === 'bigint' ? num.toString() : String(num).trim()
+  if (!/^-?\d+(\.\d+)?$/.test(str)) return '0'
+
+  // 拆分符号、整数、小数
+  let sign = ''
+  if (str.startsWith('-')) { sign = '-'; str = str.slice(1) }
+  const dotIdx = str.indexOf('.')
+  let intPart = dotIdx >= 0 ? str.slice(0, dotIdx) : str
+  const fracPart = dotIdx >= 0 ? str.slice(dotIdx) : ''
+
+  // 大数简写（仅整数部分超过 1万 时启用，便于战斗日志快速读数）
+  // 用 BigInt 比较避免大数精度丢失
+  try {
+    const bi = BigInt(intPart)
+    if (bi >= 100000000n) {
+      // 1亿以上：以"亿"为单位，保留 1 位小数
+      const yi = Number(bi / 10000000n) / 10
+      return sign + yi.toFixed(1) + '亿'
+    }
+    if (bi >= 10000n) {
+      // 1万以上：以"万"为单位，保留 1 位小数
+      const wan = Number(bi / 1000n) / 10
+      return sign + wan.toFixed(1) + '万'
+    }
+  } catch (e) { /* fallthrough */ }
+
+  // 小于 1万：千分位分隔
+  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return sign + intPart + fracPart
 }
 
 onMounted(() => {

@@ -213,10 +213,14 @@ class CombatService {
 
     /**
      * 获取玩家等级（基于境界）
+     *
+     * 修复 B1 bug：用 RealmService.getRealmRank 替代 REALM_ORDER.indexOf。
+     * 旧逻辑 indexOf 在化神期及以上境界返回 -1，+1 后变成 0，等级计算错误。
+     * 新逻辑直接返回 rank，与 realm_breakthrough.json 完全对齐。
      */
     static getPlayerLevel(player) {
-        const { REALM_ORDER } = require('../../utils/gameConstants');
-        return REALM_ORDER.indexOf(player.realm) + 1;
+        const RealmService = require('../core/RealmService');
+        return RealmService.getRealmRank(player.realm);
     }
 
     /**
@@ -512,13 +516,15 @@ class CombatService {
         const transactionOptions = t ? { transaction: t } : {};
 
         if (safeBigInt(battle.monster_hp) <= 0n) {
-            const dropResult = DropLoader.rollDrop(battle.monster_id);
+            // 修复 B7：DropLoader.rollDrop 在怪物无掉落配置时返回 null，需要 null 防御
+            // 否则下方 dropResult.exp 会抛 TypeError，导致战斗无法结束、玩家卡死在战斗状态
+            const dropResult = DropLoader.rollDrop(battle.monster_id) || { exp: 0, items: [] };
 
-            const gainedExp = dropResult.exp;
+            const gainedExp = dropResult.exp || 0;
             player.exp = safeBigInt(player.exp) + BigInt(gainedExp);
 
             const gainedItems = [];
-            for (const item of dropResult.items) {
+            for (const item of (dropResult.items || [])) {
                 await Item.upsert({
                     player_id: player.id,
                     item_key: item.item_id,

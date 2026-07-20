@@ -27,8 +27,42 @@ const DungeonProgress = require('../../models/dungeonProgress');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const RealmService = require('../core/RealmService');
+const AttributeService = require('../core/AttributeService');
 const AIService = require('./AIService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
+
+/**
+ * 工具函数：计算玩家副本战斗属性（HP/MP/ATK/DEF 上限）
+ *
+ * 修复 B14：原代码直接读取 lockedPlayer.hp_max / lockedPlayer.mp_max / lockedPlayer.attack / lockedPlayer.defense，
+ * 但这些字段在 Player 模型上并不存在（hp_max 等是 AttributeService.calculateFullAttributes
+ * 计算出来的派生属性）。导致 safeBigInt(undefined) 返回 0n，副本开始时 HP/MP 全部初始化为 0，
+ * 战斗计算也使用 0 攻防，玩家进入副本即"秒败"。
+ *
+ * 正确做法：通过 AttributeService 计算最终属性，取 final.hp_max / final.mp_max / final.atk / final.def。
+ * 注意：此处为同步方法，未包含装备加成（_equipmentBonus 未填充）。
+ * 对于副本场景这是可接受的——副本开始时玩家应使用"基础+天赋+灵根+称号"的属性快照，
+ * 避免副本进行中更换装备导致属性突变。
+ *
+ * @param {Object} player - 玩家对象（Sequelize 实例）
+ * @returns {{hp_max: bigint, mp_max: bigint, atk: bigint, def: bigint}}
+ */
+function computePlayerBattleAttributes(player) {
+    if (!player) return { hp_max: 0n, mp_max: 0n, atk: 0n, def: 0n };
+    try {
+        const result = AttributeService.calculateFullAttributes(player);
+        const final = result?.final || {};
+        return {
+            hp_max: safeBigInt(final.hp_max || 0),
+            mp_max: safeBigInt(final.mp_max || 0),
+            atk: safeBigInt(final.atk || 0),
+            def: safeBigInt(final.def || 0)
+        };
+    } catch (e) {
+        console.warn('[DungeonService.computePlayerBattleAttributes] 计算玩家属性失败:', e.message);
+        return { hp_max: 0n, mp_max: 0n, atk: 0n, def: 0n };
+    }
+}
 
 /**
  * 工具函数：跨日重置每日次数
@@ -166,6 +200,9 @@ class DungeonService {
                 const chapter = getChapterById(progress.chapter_id);
                 const node = chapter ? getNodeById(chapter, progress.current_node_id) : null;
                 const remainingSec = Math.max(0, Math.floor((new Date(progress.expires_at) - Date.now()) / 1000));
+                // 修复 B14：返回 hp_max / mp_max 供前端进度条正确显示
+                // 否则前端只能用硬编码 1000/500 估算，与实际玩家属性差距大
+                const statusBattleAttr = computePlayerBattleAttributes(player);
                 inProgress = {
                     chapter_id: progress.chapter_id,
                     chapter_name: chapter?.name || progress.chapter_id,
@@ -174,7 +211,9 @@ class DungeonService {
                     current_node_type: progress.current_node_type,
                     current_node_title: node?.title || '',
                     hp_remaining: progress.hp_remaining?.toString() || '0',
+                    hp_max: statusBattleAttr.hp_max.toString(),
                     mp_remaining: progress.mp_remaining?.toString() || '0',
+                    mp_max: statusBattleAttr.mp_max.toString(),
                     exp_accumulated: progress.exp_accumulated?.toString() || '0',
                     spirit_stones_accumulated: progress.spirit_stones_accumulated?.toString() || '0',
                     items_collected: progress.items_collected || [],
@@ -294,8 +333,11 @@ class DungeonService {
             const expiresAt = new Date(now.getTime() + chapter.duration_sec * 1000);
 
             // 玩家原始HP/MP（副本内独立计算）
-            const playerHpMax = safeBigInt(lockedPlayer.hp_max);
-            const playerMpMax = safeBigInt(lockedPlayer.mp_max);
+            // 修复 B14：lockedPlayer.hp_max 等字段不存在于 Player 模型，
+            // 必须通过 AttributeService 计算派生属性，否则 safeBigInt(undefined)=0n
+            const battleAttr = computePlayerBattleAttributes(lockedPlayer);
+            const playerHpMax = battleAttr.hp_max;
+            const playerMpMax = battleAttr.mp_max;
 
             // 创建进度
             const progress = await DungeonProgress.create({
@@ -451,8 +493,10 @@ class DungeonService {
             }
 
             // 应用 HP/MP 变化
+            // 修复 B14：通过 AttributeService 计算 max HP/MP
             const currentHp = safeBigInt(progress.hp_remaining);
-            const playerHpMax = safeBigInt(lockedPlayer.hp_max);
+            const puzzleBattleAttr = computePlayerBattleAttributes(lockedPlayer);
+            const playerHpMax = puzzleBattleAttr.hp_max;
             let newHp = currentHp;
             if (option.hp_cost_ratio) {
                 const cost = BigInt(Math.floor(Number(playerHpMax) * option.hp_cost_ratio));
@@ -466,7 +510,7 @@ class DungeonService {
             if (newHp < 0n) newHp = 0n;
 
             const currentMp = safeBigInt(progress.mp_remaining);
-            const playerMpMax = safeBigInt(lockedPlayer.mp_max);
+            const playerMpMax = puzzleBattleAttr.mp_max;
             let newMp = currentMp;
             if (option.mp_cost_ratio) {
                 const cost = BigInt(Math.floor(Number(playerMpMax) * option.mp_cost_ratio));
@@ -684,11 +728,14 @@ class DungeonService {
             monster.attack = Math.floor(monster.attack * atkMult);
 
             // 玩家属性
+            // 修复 B14：lockedPlayer.attack/defense/hp_max 都不是 Player 模型字段，
+            // 必须通过 AttributeService 计算派生属性
+            const battleAttr = computePlayerBattleAttributes(lockedPlayer);
             const playerHp = safeBigInt(progress.hp_remaining);
             const playerMp = safeBigInt(progress.mp_remaining);
-            const playerAtk = safeBigInt(lockedPlayer.attack);
-            const playerDef = safeBigInt(lockedPlayer.defense);
-            const playerHpMax = safeBigInt(lockedPlayer.hp_max);
+            const playerAtk = battleAttr.atk;
+            const playerDef = battleAttr.def;
+            const playerHpMax = battleAttr.hp_max;
 
             // 简化回合制战斗
             let currentHp = playerHp;
@@ -1153,7 +1200,9 @@ class DungeonService {
             // 计算星级（仅成功时）
             let stars = 0;
             if (success) {
-                const playerHpMax = safeBigInt(lockedPlayer.hp_max);
+                // 修复 B14：通过 AttributeService 计算 max HP，避免 safeBigInt(undefined)=0n
+                const settleBattleAttr = computePlayerBattleAttributes(lockedPlayer);
+                const playerHpMax = settleBattleAttr.hp_max;
                 const hpRemaining = safeBigInt(progress.hp_remaining);
                 const hpRatio = playerHpMax > 0n ? Number(hpRemaining) / Number(playerHpMax) : 0;
                 if (hpRatio >= cfg.global.star_thresholds.three_star_hp_ratio) stars = 3;

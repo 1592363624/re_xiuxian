@@ -421,29 +421,35 @@ const nodesTotal = computed(() => {
 })
 
 /**
- * HP 比例（基于玩家基础 HP_MAX 估算，仅用于进度条显示）
- * 后端不返回 max HP（避免暴露精确数值），前端用累积估算
- * 这里以 progress.hp_remaining 与首关 HP 的比值近似展示
- * 兜底：HP>0 时至少展示 5%，避免出现空进度条
+ * HP 比例（基于后端权威返回的 hp_max 计算）
+ *
+ * 修复 B14：原代码硬编码 1000 作为 max HP 估算值，与玩家实际属性差距大，
+ * 导致高境界玩家 HP 进度条永远显示满格，低境界玩家永远显示 5% 兜底值。
+ * 现已通过后端 DungeonService.getStatus 返回真实 hp_max / mp_max，
+ * 前端直接使用即可。兜底：HP>0 时至少展示 5%，避免出现空进度条。
  */
 const hpRatio = computed(() => {
   if (!props.progress) return 0
   const hp = Number(props.progress.hp_remaining || 0)
   if (hp <= 0) return 0
-  // 假设初始 HP 为 1000（仅用于展示，实际由后端权威管理）
-  // 若超过 1000 则按 100% 展示
-  const ratio = Math.min(100, (hp / 1000) * 100)
+  const hpMax = Number(props.progress.hp_max || 0)
+  // 后端未返回 max 时兜底为 1000（极端情况，不应发生）
+  const safeMax = hpMax > 0 ? hpMax : 1000
+  const ratio = Math.min(100, (hp / safeMax) * 100)
   return Math.max(5, ratio)
 })
 
 /**
- * MP 比例（同 HP，仅展示用）
+ * MP 比例（同 HP，使用后端返回的 mp_max 计算）
  */
 const mpRatio = computed(() => {
   if (!props.progress) return 0
   const mp = Number(props.progress.mp_remaining || 0)
   if (mp <= 0) return 0
-  const ratio = Math.min(100, (mp / 500) * 100)
+  const mpMax = Number(props.progress.mp_max || 0)
+  // 后端未返回 max 时兜底为 500（极端情况，不应发生）
+  const safeMax = mpMax > 0 ? mpMax : 500
+  const ratio = Math.min(100, (mp / safeMax) * 100)
   return Math.max(5, ratio)
 })
 

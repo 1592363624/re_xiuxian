@@ -123,7 +123,11 @@
     <GlobalChat />
 
     <BreakthroughPortal v-if="playerStore.player" />
-    
+
+    <!-- 死亡遮罩：玩家 is_dead=true 时全屏覆盖，提供轮回重生入口
+         修复 B4：之前死亡无 UI 反馈，玩家完全无感知 -->
+    <DeathOverlay v-if="playerStore.player?.is_dead" />
+
     <!-- 设置弹窗 -->
     <SettingsModal v-if="isSettingsOpen" @close="isSettingsOpen = false" />
     
@@ -174,6 +178,21 @@
 
     <!-- 元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生） -->
     <NascentSoulPanel v-if="isNascentSoulOpen" @close="isNascentSoulOpen = false" />
+
+    <!-- 飞升灵界面板（批次3新增：问道/法相天地/探寻裂缝/空间节点/飞升/天机回溯/夺舍重生） -->
+    <AscensionPanel v-if="isAscensionOpen" @close="isAscensionOpen = false" />
+
+    <!-- 第二元神面板（批次3新增：凝练/分化/调度/独立修炼） -->
+    <SecondSoulPanel v-if="isSecondSoulOpen" @close="isSecondSoulOpen = false" />
+
+    <!-- 小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab） -->
+    <SmallWorldPanel v-if="isSmallWorldOpen" @close="isSmallWorldOpen = false" />
+
+    <!-- 世界BOSS面板（批次2多人玩法：3档BOSS、3阶段切换、伤害排行、赛季结算） -->
+    <WorldBossPanel v-if="isWorldBossOpen" @close="isWorldBossOpen = false" />
+
+    <!-- 宗门战面板（批次2多人玩法：领地争夺、宣战、攻防、占领、赛季结算） -->
+    <SectWarPanel v-if="isSectWarOpen" @close="isSectWarOpen = false" />
 
     <!-- 秘境副本面板（5章节 / 三档难度 / 三星评级 / 扫荡） -->
     <DungeonPanel v-if="isDungeonOpen" @close="isDungeonOpen = false" />
@@ -237,8 +256,20 @@ import CraftingPanel from '../panels/CraftingPanel.vue';
 // 静思悟道面板与浮动状态条（第三阶段新增：悟道玩法 + 瓶颈系统）
 import MeditationPanel from '../panels/MeditationPanel.vue';
 import MeditationOverlay from '../panels/MeditationOverlay.vue';
+// 死亡遮罩：玩家寿元耗尽/被击杀时全屏显示死亡画面，提供轮回重生入口
+import DeathOverlay from '../overlays/DeathOverlay.vue';
 // 元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生）
 import NascentSoulPanel from '../panels/NascentSoulPanel.vue';
+// 飞升灵界面板（批次3新增：问道/法相天地/探寻裂缝/空间节点/飞升/天机回溯/夺舍重生）
+import AscensionPanel from '../panels/AscensionPanel.vue';
+// 第二元神面板（批次3新增：凝练/分化/调度/独立修炼）
+import SecondSoulPanel from '../panels/SecondSoulPanel.vue';
+// 小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
+import SmallWorldPanel from '../panels/SmallWorldPanel.vue';
+  // 世界BOSS面板（批次2多人玩法：3档BOSS、3阶段切换、伤害排行、赛季结算）
+  import WorldBossPanel from '../panels/WorldBossPanel.vue';
+  // 宗门战面板（批次2多人玩法：领地争夺、宣战、攻防、占领、赛季结算）
+  import SectWarPanel from '../panels/SectWarPanel.vue';
 // 秘境副本面板（5章节×5-7关 / 三档难度 / 三星评级 / 扫荡）
 import DungeonPanel from '../panels/DungeonPanel.vue';
 // 阵法系统面板（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成）
@@ -290,6 +321,16 @@ const isPawnshopOpen = ref(false);
 const isStockOpen = ref(false);
 // 元婴出窍面板状态（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生）
 const isNascentSoulOpen = ref(false);
+// 飞升灵界面板状态（批次3新增：飞升/夺舍重生系统）
+const isAscensionOpen = ref(false);
+// 第二元神面板状态（批次3新增：凝练/分化/调度/独立修炼）
+const isSecondSoulOpen = ref(false);
+// 小世界综合面板状态（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
+const isSmallWorldOpen = ref(false);
+  // 世界BOSS面板状态（批次2多人玩法）
+  const isWorldBossOpen = ref(false);
+  // 宗门战面板状态（批次2多人玩法）
+  const isSectWarOpen = ref(false);
 // 秘境副本面板状态（5章节 / 三档难度 / 三星评级 / 扫荡）
 const isDungeonOpen = ref(false);
 // 阵法系统面板状态（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成）
@@ -418,8 +459,38 @@ const handleAction = async (actionId: string) => {
   // 元婴按钮：打开元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相/裂缝/夺舍）
   if (actionId === 'nascent_soul') {
     isNascentSoulOpen.value = true;
+      return;
+    }
+
+  // 飞升按钮：打开飞升灵界面板（批次3新增：飞升/夺舍重生系统）
+  if (actionId === 'ascension') {
+    isAscensionOpen.value = true;
     return;
   }
+
+  // 第二元神按钮：打开第二元神面板（批次3新增：凝练/分化/调度/独立修炼）
+  if (actionId === 'second_soul') {
+    isSecondSoulOpen.value = true;
+    return;
+  }
+
+  // 小世界按钮：打开小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
+  if (actionId === 'small_world') {
+    isSmallWorldOpen.value = true;
+    return;
+  }
+
+    // 世界BOSS按钮：打开世界BOSS讨伐面板（批次2新增）
+    if (actionId === 'world_boss') {
+      isWorldBossOpen.value = true;
+      return;
+    }
+
+    // 宗门战按钮：打开宗门战面板（批次2新增）
+    if (actionId === 'sect_war') {
+      isSectWarOpen.value = true;
+      return;
+    }
 
   // 副本按钮：打开秘境副本面板（5章节 / 三档难度 / 三星评级 / 扫荡）
   if (actionId === 'dungeon') {

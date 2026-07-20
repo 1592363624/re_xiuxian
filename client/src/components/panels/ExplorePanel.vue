@@ -151,7 +151,7 @@
             </div>
 
             <div v-if="currentEvent.rewards && currentEvent.rewards.exp" class="text-sm text-emerald-400">
-              预计获得: {{ currentEvent.rewards.exp }} 修为
+              预计获得: {{ formatNumber(currentEvent.rewards.exp) }} 修为
             </div>
           </div>
 
@@ -207,6 +207,8 @@ import {
 import { getMapInfo } from '../../api/map'
 import { getGameBalancePublic, type AdventureConfig, type DurationTypeConfig } from '../../api/config'
 import { useUIStore } from '../../stores/ui'
+// 修复 B27：奖励数值未走 formatNumber，大数显示为科学计数法或精度丢失
+import { formatNumber } from '../../utils/format'
 
 const emit = defineEmits(['close', 'combat'])
 
@@ -422,12 +424,13 @@ const completeExploreAction = async () => {
 
     if (res.data?.data?.rewards) {
       const rewards = res.data.data.rewards
-      let rewardText = `获得 ${rewards.exp || 0} 修为`
+      // 修复 B27：奖励数值统一走 formatNumber，避免大数显示为科学计数法或精度丢失
+      let rewardText = `获得 ${formatNumber(rewards.exp || 0)} 修为`
       if (rewards.items?.length) {
         rewardText += `，${rewards.items.map((i: any) => i.item_key).join('、')}`
       }
       if (rewards.spirit_stones) {
-        rewardText += `，${rewards.spirit_stones} 灵石`
+        rewardText += `，${formatNumber(rewards.spirit_stones)} 灵石`
       }
 
       // 提前结束时提示奖励缩放比例（后端返回字符串如 "1%"，直接显示）
@@ -442,7 +445,7 @@ const completeExploreAction = async () => {
 
       // 受伤提示
       if (rewards.injury) {
-        rewardText += `，并因战斗受伤损失 ${rewards.injury.hp_loss || 0} 气血`
+        rewardText += `，并因战斗受伤损失 ${formatNumber(rewards.injury.hp_loss || 0)} 气血`
       }
 
       uiStore.addLog({

@@ -83,6 +83,24 @@ export const usePlayerStore = defineStore('player', {
           return
         }
 
+        // 死亡事件：寿元耗尽/被击杀等导致玩家 is_dead=true
+        // 后端 LifespanService.handleLifespanEnd 推送，payload 包含 death_reason/death_time
+        // 前端只需 fetchPlayer 刷新 is_dead 字段，DeathOverlay 自动渲染
+        // 死亡后不再刷新闭关/历练状态（玩家已无法操作），避免无意义请求
+        if (data.updateType === 'player_death') {
+          console.warn('[PlayerStore] 玩家死亡事件:', data.changes)
+          await this.fetchPlayer()
+          return
+        }
+
+        // 轮回重生事件：后端 /api/player/reincarnate 成功后推送
+        // 前端 fetchPlayer 刷新 is_dead=false，DeathOverlay 自动隐藏
+        if (data.updateType === 'player_reincarnate') {
+          console.log('[PlayerStore] 玩家轮回重生事件:', data.changes)
+          await this.fetchPlayer()
+          return
+        }
+
         // 重新获取玩家数据（含 HP/修为/灵石/突破状态等）
         await this.fetchPlayer()
 

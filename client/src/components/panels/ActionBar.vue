@@ -237,6 +237,41 @@ const refinedActions = [
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-purple-400"><path d="M12 2a3 3 0 0 0-3 3c0 1.6.8 3 2 4-1.2 1-2 2.4-2 4a3 3 0 0 0 6 0c0-1.6-.8-3-2-4 1.2-1 2-2.4 2-4a3 3 0 0 0-3-3z"/><path d="M5 22h14"/><path d="M12 16v6"/></svg>`,
     desc: '元婴出窍 高阶境界'
   },
+  {
+    id: 'ascension',
+    name: '飞升',
+    // Amber/gold for ascension - matches 飞升灵界 gold theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-300"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/></svg>`,
+    desc: '飞升灵界 夺舍重生'
+  },
+  {
+    id: 'second_soul',
+    name: '元神',
+    // Indigo for second soul / duality - matches 第二元神 mystic theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-300"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/><path d="M3 12h18"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>`,
+    desc: '第二元神 元神出窍'
+  },
+  {
+    id: 'small_world',
+    name: '小世界',
+    // Cyan for small world / domain - matches 小世界 realm theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-300"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a9 9 0 0 1 0 18"/><path d="M12 3a9 9 0 0 0 0 18"/><path d="M7 8h10"/><path d="M7 16h10"/></svg>`,
+    desc: '开辟小世界 香火神庙'
+  },
+  {
+    id: 'world_boss',
+    name: '讨伐',
+    // Red for world boss / raid battle - matches 世界BOSS red theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-red-500"><path d="M5 3v4l3 3"/><path d="M19 3v4l-3 3"/><path d="M3 5h4l3 3"/><path d="M21 5h-4l-3 3"/><path d="M12 12v9"/><path d="M8 17h8"/><circle cx="12" cy="9" r="3"/></svg>`,
+    desc: '世界BOSS 全服讨伐'
+  },
+  {
+    id: 'sect_war',
+    name: '宗战',
+    // Amber for sect war / guild battle - matches 宗门战 gold theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M4 22V4l4-2 4 2 4-2 4 2v18"/><path d="M4 14h16"/><path d="M9 9h2"/><path d="M13 9h2"/><path d="M9 17h2"/><path d="M13 17h2"/></svg>`,
+    desc: '宗门战 领地争夺'
+  },
 ]
 
 const emit = defineEmits(['action'])

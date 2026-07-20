@@ -36,12 +36,13 @@ async function testDeath() {
         
         if (deadPlayers.length > 0) {
             console.log('Query works correctly.');
-            // Manually trigger handleDeath to verify logic
-            await LifespanService.handleDeath(player);
-            
+            // 修复 B22：原代码调用 LifespanService.handleDeath，但该方法不存在
+            // 实际方法名为 handleLifespanEnd（寿元耗尽处理：设置 is_dead、记录死亡原因与时间、推送通知）
+            await LifespanService.handleLifespanEnd(player);
+
             // Reload player to check changes
             await player.reload();
-            console.log(`Player after death: Realm: ${player.realm}, Lifespan: ${player.lifespan_current}/${player.lifespan_max}`);
+            console.log(`Player after death: Realm: ${player.realm}, Lifespan: ${player.lifespan_current}/${player.lifespan_max}, is_dead: ${player.is_dead}, death_reason: ${player.death_reason}`);
         } else {
             console.error('Query FAILED to find the dead player!');
         }

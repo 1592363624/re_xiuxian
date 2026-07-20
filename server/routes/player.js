@@ -37,6 +37,10 @@ router.get('/me', authMiddleware, async (req, res) => {
                 nickname: player.nickname,
                 realm: player.realm,
                 role: player.role,
+                // 新增：暴露 is_dead 字段供前端渲染 DeathOverlay
+                // 修复 B3/B4：之前 is_dead 字段从未暴露给前端，前端无法判断玩家是否死亡
+                is_dead: player.is_dead || false,
+                death_reason: player.death_reason || null,
                 realmInfo: realmConfig ? {
                     name: realmConfig.name,
                     rank: realmConfig.rank,
@@ -62,13 +66,25 @@ router.get('/me', authMiddleware, async (req, res) => {
                 stock_account_balance: player.stock_account_balance?.toString() || '0', // 股市账户余额
                 stock_margin_debt: player.stock_margin_debt?.toString() || '0',       // 融资负债金额
                 is_stock_trading_locked: player.is_stock_trading_locked || false,     // 股市交易锁定
+                // 批次3 飞升+夺舍+后期系统字段（v0031迁移新增，前端用于显示飞升资格/神识/法则等）
+                reincarnation_count: player.reincarnation_count || 0,                  // 历史夺舍次数
+                ascension_eligible: player.ascension_eligible || 0,                    // 是否满足飞升前置（0否1是）
+                second_soul_count: player.second_soul_count || 0,                      // 第二元神数量
+                small_world_id: player.small_world_id || null,                        // 所属小世界ID
+                dao_companion_id: player.dao_companion_id || null,                    // 道侣关系ID
+                concubine_count: player.concubine_count || 0,                         // 侍妾数量
+                incense_balance: player.incense_balance || 0,                         // 香火余额
+                divine_sense_balance: player.divine_sense_balance || 0,               // 神识余额
+                law_points: player.law_points || 0,                                   // 法则点数
                 age: player.lifespan_current,
                 lifespan: lifespanStatus,
                 attributes: fullAttributes.final,
-                hp_current: player.hp_current,
-                hp_max: fullAttributes.final.hp_max,
-                mp_current: player.mp_current,
-                mp_max: fullAttributes.final.mp_max,
+                // 修复 B15：hp_current 是 BIGINT 序列化为 string，hp_max 是 Number，
+                // 前端做除法时类型混乱。统一为字符串，前端用 Number/BigInt 显式转换。
+                hp_current: player.hp_current?.toString() || '0',
+                hp_max: String(fullAttributes.final.hp_max || 0),
+                mp_current: player.mp_current?.toString() || '0',
+                mp_max: String(fullAttributes.final.mp_max || 0),
                 is_secluded: player.is_secluded || false,
                 seclusion_end_time: player.seclusion_end_time,
                 last_seclusion_time: player.last_seclusion_time,
@@ -85,6 +101,99 @@ router.get('/me', authMiddleware, async (req, res) => {
             code: 500, 
             message: '服务器错误', 
             error: error.message 
+        });
+    }
+});
+
+/**
+ * 轮回重生
+ * POST /api/player/reincarnate
+ *
+ * 玩家寿元耗尽死亡后，可通过此接口轮回重生：
+ * 1. 重置 is_dead=false / death_reason=null / death_time=null
+ * 2. 重置境界为"凡人"，lifespan_current 重置为初始值，lifespan_max 重置为凡人上限
+ * 3. 修为保留 10%（"前世记忆"加成），其余清零
+ * 4. 保留 username / nickname / spirit_roots（灵根是天生的）
+ * 5. 通过 WebSocket 推送 player_reincarnate 事件，前端刷新数据并隐藏 DeathOverlay
+ *
+ * 设计依据：玩法简介文档第3节"境界与突破"提到死亡后可通过 .夺舍重生 等流程处理，
+ *          本接口为最基础的轮回入口，完整夺舍/重生系统将在后续批次实现。
+ */
+router.post('/reincarnate', authMiddleware, async (req, res) => {
+    const t = await require('../config/database').transaction();
+    try {
+        const player = req.player;
+
+        if (!player) {
+            await t.commit();
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
+        }
+
+        if (!player.is_dead) {
+            await t.commit();
+            return res.status(400).json({ code: 400, message: '玩家未死亡，无需轮回' });
+        }
+
+        // 读取配置：轮回保留修为比例、初始寿元
+        const roleInitConfig = require('../modules').infrastructure.ConfigLoader.getConfig('role_init');
+        const initialAge = roleInitConfig?.initialAge ?? 16;
+        const initialLifespan = roleInitConfig?.initialLifespan ?? 60;
+        const reincarnateExpKeepRate = roleInitConfig?.reincarnateExpKeepRate ?? 0.1;
+
+        // 计算保留修为（10%）
+        const oldExp = BigInt(player.exp || 0);
+        const keptExp = oldExp * BigInt(Math.round(reincarnateExpKeepRate * 100)) / 100n;
+
+        // 重置玩家状态
+        player.is_dead = false;
+        player.death_reason = null;
+        player.death_time = null;
+        player.realm = '凡人';
+        player.exp = keptExp;
+        player.lifespan_current = initialAge;
+        player.lifespan_max = initialLifespan;
+        player.hp_current = BigInt(100);   // 凡人基础 HP
+        player.mp_current = BigInt(100);   // 凡人基础 MP
+        // 重置闭关/悟道/瓶颈等状态，避免残留
+        player.is_secluded = false;
+        player.is_meditating = false;
+        player.bottleneck_state = 'none';
+        player.bottleneck_insight = 0;
+        player.weakness_end_time = null;
+
+        await player.save({ transaction: t });
+        await t.commit();
+
+        // 推送轮回事件给前端
+        try {
+            const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
+            WebSocketNotificationService.notifyPlayerUpdate(player.id, 'player_reincarnate', {
+                message: '轮回成功，重入修仙之道',
+                new_realm: '凡人',
+                kept_exp: keptExp.toString()
+            });
+        } catch (e) {
+            console.warn('[Player] 推送轮回事件失败:', e.message);
+        }
+
+        return res.json({
+            code: 200,
+            message: '轮回成功，重入轮回道',
+            data: {
+                is_dead: false,
+                realm: '凡人',
+                exp: keptExp.toString(),
+                lifespan_current: initialAge,
+                lifespan_max: initialLifespan
+            }
+        });
+    } catch (error) {
+        if (!t.finished) await t.rollback();
+        console.error('轮回失败:', error);
+        return res.status(500).json({
+            code: 500,
+            message: '轮回失败',
+            error: error.message
         });
     }
 });

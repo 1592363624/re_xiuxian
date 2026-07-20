@@ -159,12 +159,22 @@ const executeTimeTravel = async () => {
   try {
     const res = await timeTravel(parseFloat(timeTravelYears.value))
 
-    if (res.data && res.data.userDied) {
-      emit('timeTravelComplete', { died: true, message: res.data.deathLog || '寿元耗尽，身死道消。' })
+    // 修复 B21：后端返回结构是 { code, message, data: { userDied, dead_count } }
+    // 旧代码 `res.data.userDied` 读不到（userDied 在 data.data 中），导致死亡永远不提示
+    // 新代码正确读取 res.data.data.userDied，并使用 res.data.message 作为死亡提示
+    const payload = res.data?.data || {}
+    const serverMsg = res.data?.message || ''
+
+    if (payload.userDied) {
+      // 当前 GM 账号在时间加速中寿元耗尽：触发死亡弹窗
+      emit('timeTravelComplete', {
+        died: true,
+        message: serverMsg || '寿元耗尽，身死道消。'
+      })
     } else {
-      const msg = res.data?.message || '操作成功'
+      const msg = serverMsg || '操作成功'
       uiStore.showToast(msg, 'success')
-      emit('timeTravelComplete', { died: false })
+      emit('timeTravelComplete', { died: false, deadCount: payload.dead_count || 0 })
     }
   } catch (error) {
     console.error('Time travel error:', error)

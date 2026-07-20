@@ -1,0 +1,396 @@
+{
+  "meta": {
+    "description": "后期系统静态配置文件：第二元神/小世界/神庙/香火/神识/法则六大子系统全量数值。所有数值源自 docs/批次3_设计文档.md 第四章后期系统设计。",
+    "version": "1.0.0",
+    "last_updated": "2026-07-20",
+    "modules": ["second_soul", "small_world", "divine_temple", "incense", "divine_sense", "law"]
+  },
+  "second_soul": {
+    "comment": "第二元神配置：化神期可凝练第二元神，独立修炼+调度模式+元神分化",
+    "min_realm_name": "化神期",
+    "min_realm_rank": 23,
+    "condense_cost_spirit_stones": 1000000,
+    "condense_cost_divine_sense": 500,
+    "condense_cost_remnant_soul": 10,
+    "inherit_ratio_second": 0.6,
+    "inherit_ratio_third": 0.4,
+    "random_bonus_range": 0.1,
+    "max_soul_count": 3,
+    "cultivate_base_rate_per_second": 0.5,
+    "cultivate_max_duration_seconds": 43200,
+    "cultivate_daily_limit": 2,
+    "cultivate_speed_ratio_to_main": 0.5,
+    "dispatch_modes": {
+      "combat": {
+        "display_name": "出战",
+        "description": "第二元神顶替主元神战斗，主元神休养恢复",
+        "duration_seconds": 3600,
+        "cooldown_seconds": 7200
+      },
+      "cultivate": {
+        "display_name": "修炼",
+        "description": "独立挂机成长，加速修为获取",
+        "duration_seconds": 43200,
+        "cooldown_seconds": 86400
+      },
+      "scout": {
+        "display_name": "探查",
+        "description": "元神出窍探查地图/玩家，降低被发现概率",
+        "duration_seconds": 1800,
+        "cooldown_seconds": 3600
+      },
+      "defend": {
+        "display_name": "护法",
+        "description": "为主元神护法，闭关时减少被打断概率 30%",
+        "duration_seconds": 0,
+        "cooldown_seconds": 3600,
+        "seclusion_interrupt_reduction": 0.3
+      }
+    },
+    "fragment_types": {
+      "ning_shi": {
+        "name": "凝识残篇",
+        "source": "ldc_shop",
+        "source_name": "LDC 商店购买",
+        "cost_ldc": 500,
+        "required_count": 1
+      },
+      "fen_nian": {
+        "name": "分念残篇",
+        "source": "ldc_shop",
+        "source_name": "LDC 商店购买",
+        "cost_ldc": 500,
+        "required_count": 1
+      },
+      "kong_gui": {
+        "name": "控傀残篇",
+        "source": "kunwu_mountain",
+        "source_name": "昆吾山副本掉落",
+        "required_count": 1
+      },
+      "qian_ji": {
+        "name": "千机残篇",
+        "source": "cangkun_dungeon",
+        "source_name": "苍坤洞府掉落",
+        "required_count": 1
+      },
+      "yan_shen": {
+        "name": "衍神残篇",
+        "source": "qingyuanzi_boss",
+        "source_name": "青元子世界 Boss 掉落",
+        "required_count": 1
+      }
+    },
+    "success_messages": [
+      "天地法则共鸣，第二元神凝练成功！",
+      "神识分裂成两道，元神双修之道始成！",
+      "残篇之力化作元神根基，第二元神诞生！"
+    ],
+    "divide_success_messages": [
+      "元神再分一念，第三元神凝练成功！",
+      "三魂合一，元神分化之道大成！"
+    ]
+  },
+  "small_world": {
+    "comment": "小世界配置：化神期可开辟，人口/信仰/稳定度/香火产出",
+    "min_realm_name": "化神期",
+    "min_realm_rank": 23,
+    "create_cost_spirit_stones": 500000,
+    "init_population": 100,
+    "population_max_multiplier": 1000,
+    "population_max_hard_limit": 100000,
+    "population_growth_rate_per_hour": 0.01,
+    "population_decline_stability_threshold": 30,
+    "faith_max": 10000,
+    "stability_max": 100,
+    "stability_min": 0,
+    "stability_decline_threshold": 30,
+    "stability_decline_rate_per_hour": 5,
+    "init_stability": 100,
+    "faith_growth_rate_per_hour": 0.001,
+    "incense_production_base_multiplier": 0.1,
+    "incense_production_temple_multiplier_per_level": 0.1,
+    "init_incense_production_rate": 10,
+    "init_world_level": 1,
+    "max_world_level": 10,
+    "population_max_formula_base": 1000,
+    "manifest": {
+      "comment": "显灵回应祈愿配置",
+      "cost_incense": 100,
+      "faith_gain": 5,
+      "stability_gain": 3,
+      "spirit_stone_reward_min": 50,
+      "spirit_stone_reward_max": 200,
+      "cooldown_seconds": 0
+    },
+    "miracle": {
+      "comment": "神迹干预配置（赈灾/布道）",
+      "relieve_disaster": {
+        "display_name": "赈灾",
+        "cost_spirit_stones_per_unit": 100,
+        "stability_gain_per_unit": 5,
+        "daily_limit": 5,
+        "cooldown_seconds": 0
+      },
+      "preach": {
+        "display_name": "布道",
+        "cost_exp_per_unit": 1000,
+        "faith_gain_per_unit": 10,
+        "daily_limit": 3,
+        "cooldown_seconds": 0
+      }
+    },
+    "create_success_messages": [
+      "虚空震荡，一方小世界在你掌心诞生！",
+      "开辟洞天福地，小世界成型！",
+      "以神识为引，开辟小世界成功！"
+    ]
+  },
+  "divine_temple": {
+    "comment": "神庙配置：10级升级表，香火+灵石消耗，解锁功能",
+    "max_level": 10,
+    "init_level": 1,
+    "init_defense_power": 100,
+    "defense_max_base": 1000,
+    "repair_defense_cost_per_point": 100,
+    "repair_defense_batch_points": 100,
+    "repair_defense_cooldown_seconds": 3600,
+    "upgrade_table": [
+      {
+        "from_level": 1,
+        "to_level": 2,
+        "cost_incense": 1000,
+        "cost_spirit_stones": 10000,
+        "unlock_feature": "基础供奉池",
+        "temple_bonus": 0.0
+      },
+      {
+        "from_level": 2,
+        "to_level": 3,
+        "cost_incense": 3000,
+        "cost_spirit_stones": 30000,
+        "unlock_feature": "中级供奉",
+        "temple_bonus": 0.0
+      },
+      {
+        "from_level": 3,
+        "to_level": 4,
+        "cost_incense": 10000,
+        "cost_spirit_stones": 100000,
+        "unlock_feature": "高级供奉",
+        "temple_bonus": 0.0
+      },
+      {
+        "from_level": 4,
+        "to_level": 5,
+        "cost_incense": 30000,
+        "cost_spirit_stones": 300000,
+        "unlock_feature": "神庙加成 +20%",
+        "temple_bonus": 0.2
+      },
+      {
+        "from_level": 5,
+        "to_level": 6,
+        "cost_incense": 100000,
+        "cost_spirit_stones": 1000000,
+        "unlock_feature": "护界禁制",
+        "temple_bonus": 0.2
+      },
+      {
+        "from_level": 6,
+        "to_level": 7,
+        "cost_incense": 300000,
+        "cost_spirit_stones": 3000000,
+        "unlock_feature": "神庙加成 +50%",
+        "temple_bonus": 0.5
+      },
+      {
+        "from_level": 7,
+        "to_level": 8,
+        "cost_incense": 1000000,
+        "cost_spirit_stones": 10000000,
+        "unlock_feature": "稀有供奉",
+        "temple_bonus": 0.5
+      },
+      {
+        "from_level": 8,
+        "to_level": 9,
+        "cost_incense": 3000000,
+        "cost_spirit_stones": 30000000,
+        "unlock_feature": "神庙加成 +100%",
+        "temple_bonus": 1.0
+      },
+      {
+        "from_level": 9,
+        "to_level": 10,
+        "cost_incense": 10000000,
+        "cost_spirit_stones": 100000000,
+        "unlock_feature": "满级，香火产出翻倍",
+        "temple_bonus": 2.0
+      }
+    ],
+    "offerings": [
+      {
+        "offering_id": "basic_spirit_stone_pack",
+        "name": "基础灵石包",
+        "cost_incense": 100,
+        "reward_type": "spirit_stones",
+        "reward_amount": 1000,
+        "min_temple_level": 2,
+        "rarity": "普通"
+      },
+      {
+        "offering_id": "mid_spirit_stone_pack",
+        "name": "中级灵石包",
+        "cost_incense": 500,
+        "reward_type": "spirit_stones",
+        "reward_amount": 6000,
+        "min_temple_level": 3,
+        "rarity": "普通"
+      },
+      {
+        "offering_id": "high_spirit_stone_pack",
+        "name": "高级灵石包",
+        "cost_incense": 2000,
+        "reward_type": "spirit_stones",
+        "reward_amount": 30000,
+        "min_temple_level": 4,
+        "rarity": "稀有"
+      },
+      {
+        "offering_id": "divine_sense_pill",
+        "name": "神识丹",
+        "cost_incense": 1000,
+        "reward_type": "divine_sense",
+        "reward_amount": 50,
+        "min_temple_level": 5,
+        "rarity": "稀有"
+      },
+      {
+        "offering_id": "rare_law_fragment",
+        "name": "法则碎片箱",
+        "cost_incense": 5000,
+        "reward_type": "law_fragment",
+        "reward_amount": 1,
+        "min_temple_level": 8,
+        "rarity": "史诗"
+      }
+    ]
+  },
+  "incense": {
+    "comment": "香火配置：收割间隔、神迹消耗",
+    "harvest_cooldown_seconds": 3600,
+    "harvest_max_accumulation_hours": 24,
+    "log_max_page_size": 100,
+    "log_default_page_size": 10,
+    "change_types": {
+      "harvest": "收割",
+      "temple_upgrade": "神庙升级",
+      "divine_miracle": "神迹干预",
+      "quench": "神识淬炼",
+      "manifest": "显灵消耗",
+      "offering_exchange": "供奉兑换",
+      "gm_grant": "GM 发放"
+    }
+  },
+  "divine_sense": {
+    "comment": "神识淬炼配置：100 香火 = 1 神识",
+    "quench_ratio_incense_to_sense": 100,
+    "quench_max_amount_per_time": 100,
+    "quench_daily_limit": 3,
+    "quench_cooldown_seconds": 3600,
+    "base_max": 100,
+    "max_formula_realm_rank_base": 14,
+    "max_formula_per_rank_bonus": 50,
+    "max_formula_dayan_per_level_bonus": 100,
+    "regen_rate_per_hour": 10,
+    "usage_table": [
+      { "purpose": "探查玩家", "cost": 20 },
+      { "purpose": "神识对决", "cost": 50 },
+      { "purpose": "探寻裂缝", "cost": 50 },
+      { "purpose": "凝练第二元神", "cost": 500 },
+      { "purpose": "法宝祭炼", "cost": 100 },
+      { "purpose": "飞升灵界", "cost": 1000 },
+      { "purpose": "节点稳固（定星）", "cost": 200 }
+    ]
+  },
+  "law": {
+    "comment": "法则转换配置：神识/碎片 → 法则点 → 转换效果",
+    "convert_divine_sense_to_points_ratio": 100,
+    "convert_space_fragment_to_points": 5,
+    "convert_other_fragment_to_points": 3,
+    "daily_earn_limit": 50,
+    "convert_options": [
+      {
+        "convert_id": "ask_dao_insight",
+        "name": "问道感悟 +10",
+        "cost_law_points": 5,
+        "effect_type": "ask_dao_insight",
+        "effect_amount": 10,
+        "description": "加速飞升前置，提升飞升成功率加成"
+      },
+      {
+        "convert_id": "dharma_form_exp",
+        "name": "法相天地经验 +100",
+        "cost_law_points": 10,
+        "effect_type": "dharma_form_exp",
+        "effect_amount": 100,
+        "description": "加速法相天地修炼（暂存到玩家属性）"
+      },
+      {
+        "convert_id": "divine_sense_max",
+        "name": "神识上限 +50",
+        "cost_law_points": 15,
+        "effect_type": "divine_sense_max",
+        "effect_amount": 50,
+        "description": "永久提升神识上限"
+      },
+      {
+        "convert_id": "remnant_soul_recover",
+        "name": "残魂恢复 +20",
+        "cost_law_points": 8,
+        "effect_type": "remnant_soul",
+        "effect_amount": 20,
+        "description": "紧急恢复残魂值"
+      },
+      {
+        "convert_id": "breakthrough_success_rate",
+        "name": "突破成功率 +5%",
+        "cost_law_points": 20,
+        "effect_type": "breakthrough_bonus",
+        "effect_amount": 0.05,
+        "description": "下次突破临时加成"
+      },
+      {
+        "convert_id": "ascension_success_rate",
+        "name": "飞升成功率 +3%",
+        "cost_law_points": 30,
+        "effect_type": "ascension_bonus",
+        "effect_amount": 0.03,
+        "description": "下次飞升临时加成"
+      },
+      {
+        "convert_id": "space_law_fragment",
+        "name": "空间法则碎片 ×1",
+        "cost_law_points": 25,
+        "effect_type": "space_law_fragment",
+        "effect_amount": 1,
+        "description": "兑换飞升核心材料"
+      }
+    ],
+    "fragment_types": {
+      "space": { "name": "空间法则碎片" },
+      "time": { "name": "时间法则碎片" },
+      "five_elements": { "name": "五行法则碎片" },
+      "soul": { "name": "魂之法则碎片" },
+      "karma": { "name": "因果法则碎片" }
+    },
+    "fragment_change_sources": {
+      "fracture_explore": "裂缝探索获得",
+      "world_boss": "世界 Boss 掉落",
+      "dungeon": "副本奖励",
+      "law_convert": "法则转换消耗",
+      "gm_grant": "GM 发放"
+    }
+  }
+}

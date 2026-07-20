@@ -1,0 +1,153 @@
+{
+  "meta": {
+    "description": "飞升与夺舍重生系统静态配置文件：问道/法相天地/探寻裂缝/飞升/空间节点/夺舍目标全量数值。所有数值源自 docs/批次3_设计文档.md 第三章飞升+夺舍重生系统设计。",
+    "version": "1.0.0",
+    "last_updated": "2026-07-19",
+    "modules": ["ask_dao", "dharma_form", "fracture_explore", "ascension", "space_node", "reincarnation"]
+  },
+  "ask_dao": {
+    "comment": "问道配置：元婴后期可向天道叩问，积累感悟值，飞升成功率加成",
+    "min_realm_rank": 16,
+    "min_realm_name": "元婴后期",
+    "daily_limit": 3,
+    "cooldown_seconds": 1800,
+    "insight_gain_base": 5,
+    "insight_gain_random": 3,
+    "cost_spirit_stones": 1000,
+    "max_insight": 100,
+    "critical_chance": 0.1,
+    "critical_multiplier": 2.0,
+    "event_texts": [
+      "忽觉天地法则流转，对大道有了新的感悟",
+      "神识感应到一丝天道气息，感悟值提升",
+      "冥冥中似有指引，对突破有了新的理解",
+      "顿悟一丝法则之力，感悟值提升",
+      "元神与天地共鸣，对大道有了更深认识"
+    ]
+  },
+  "dharma_form": {
+    "comment": "法相天地配置：9级数值表，每级提供5%全属性加成与2%飞升成功率加成",
+    "min_realm_rank": 16,
+    "min_realm_name": "元婴后期",
+    "max_level": 9,
+    "fail_spirit_stone_refund_rate": 0.3,
+    "levels": [
+      { "level": 1, "attribute_bonus": 0.05, "ascension_bonus": 0.02, "cost_insight": 10, "cost_spirit_stones": 5000, "success_rate": 0.90 },
+      { "level": 2, "attribute_bonus": 0.10, "ascension_bonus": 0.04, "cost_insight": 15, "cost_spirit_stones": 10000, "success_rate": 0.85 },
+      { "level": 3, "attribute_bonus": 0.15, "ascension_bonus": 0.06, "cost_insight": 20, "cost_spirit_stones": 20000, "success_rate": 0.80 },
+      { "level": 4, "attribute_bonus": 0.20, "ascension_bonus": 0.08, "cost_insight": 25, "cost_spirit_stones": 40000, "success_rate": 0.75 },
+      { "level": 5, "attribute_bonus": 0.25, "ascension_bonus": 0.10, "cost_insight": 30, "cost_spirit_stones": 80000, "success_rate": 0.70 },
+      { "level": 6, "attribute_bonus": 0.30, "ascension_bonus": 0.12, "cost_insight": 35, "cost_spirit_stones": 160000, "success_rate": 0.65 },
+      { "level": 7, "attribute_bonus": 0.35, "ascension_bonus": 0.14, "cost_insight": 40, "cost_spirit_stones": 320000, "success_rate": 0.60 },
+      { "level": 8, "attribute_bonus": 0.40, "ascension_bonus": 0.16, "cost_insight": 45, "cost_spirit_stones": 640000, "success_rate": 0.55 },
+      { "level": 9, "attribute_bonus": 0.45, "ascension_bonus": 0.18, "cost_insight": 50, "cost_spirit_stones": 1280000, "success_rate": 0.50 }
+    ]
+  },
+  "fracture_explore": {
+    "comment": "探寻裂缝配置：元婴初期可探寻虚空裂缝，有概率获得法则碎片/神识提升/灵石/丹方材料",
+    "min_realm_rank": 14,
+    "min_realm_name": "元婴初期",
+    "daily_limit": 5,
+    "cooldown_seconds": 600,
+    "cost_divine_sense": 50,
+    "cost_spirit_stones": 500,
+    "backlash_chance": 0.15,
+    "backlash_remnant_loss": 5,
+    "backlash_exp_loss_rate": 0.02,
+    "rewards": [
+      { "type": "law_fragment", "name": "空间法则碎片", "chance": 0.10, "quantity_min": 1, "quantity_max": 2, "rarity": "传说" },
+      { "type": "divine_sense", "name": "神识提升", "chance": 0.30, "quantity_min": 20, "quantity_max": 50, "rarity": "稀有" },
+      { "type": "spirit_stones", "name": "灵石", "chance": 0.40, "quantity_min": 1000, "quantity_max": 5000, "rarity": "普通" },
+      { "type": "spirit_milk", "name": "万年灵乳", "chance": 0.05, "quantity_min": 1, "quantity_max": 1, "rarity": "史诗" },
+      { "type": "dan_recipe", "name": "虚灵丹丹方", "chance": 0.03, "quantity_min": 1, "quantity_max": 1, "rarity": "史诗" },
+      { "type": "nothing", "name": "无奖励", "chance": 0.12, "quantity_min": 0, "quantity_max": 0, "rarity": "无" }
+    ]
+  },
+  "ascension": {
+    "comment": "飞升灵界核心配置：化神巅峰 + 大衍诀五层 + 法则碎片5块 + 逆灵通道坐标，成功率上限95%",
+    "min_realm_rank": 20,
+    "min_realm_name": "化神巅峰",
+    "required_dayan_level": 5,
+    "required_law_fragments": 5,
+    "min_remnant_soul": 80,
+    "base_success_rate": 0.30,
+    "max_success_rate": 0.95,
+    "cost_divine_sense": 1000,
+    "exp_loss_rate_on_fail": 0.10,
+    "remnant_loss_on_fail": 30,
+    "weakness_duration_seconds": 7200,
+    "cooldown_seconds": 86400,
+    "revert_daily_limit": 1,
+    "bonus_caps": {
+      "ask_dao_insight": 0.10,
+      "dharma_form": 0.18,
+      "dayan_level_5": 0.10,
+      "remnant_soul": 0.10,
+      "law_fragments": 0.05,
+      "total_max": 0.50
+    },
+    "success_messages": [
+      "天门大开，灵气如潮涌入，元神化为长虹直冲灵界！",
+      "九天雷劫降临，你以大衍诀御之，飞升灵界成功！",
+      "虚空震荡，逆灵通道贯通，你踏碎虚空飞升灵界！"
+    ],
+    "fail_messages": [
+      "神识反噬剧烈，飞升失败，残魂受创！",
+      "逆灵通道崩溃，你被虚空乱流卷回，飞升失败！",
+      "天劫威力超出预期，你未能扛过最后一道雷劫，飞升失败！"
+    ]
+  },
+  "space_node": {
+    "comment": "空间节点配置：搜寻+定星+稳固三阶段，定星成功获得逆灵通道坐标或其他奖励",
+    "min_realm_rank": 14,
+    "min_realm_name": "元婴初期",
+    "discovery_cooldown_seconds": 3600,
+    "stabilize_duration_seconds": 1800,
+    "stabilize_cost_divine_sense": 200,
+    "stabilize_cost_spirit_stones": 2000,
+    "node_expire_seconds": 86400,
+    "stability_threshold": 80,
+    "max_active_nodes_per_player": 3,
+    "node_pool": [
+      { "node_key": "unstable_void_01", "node_name": "虚空中裂痕", "discovery_weight": 30, "reward_type": "law_fragment", "reward_quantity": 1 },
+      { "node_key": "unstable_void_02", "node_name": "时空涟漪", "discovery_weight": 25, "reward_type": "spirit_milk", "reward_quantity": 1 },
+      { "node_key": "unstable_void_03", "node_name": "灵界残痕", "discovery_weight": 20, "reward_type": "dan_recipe", "reward_quantity": 1 },
+      { "node_key": "unstable_void_04", "node_name": "法则波动点", "discovery_weight": 15, "reward_type": "coord", "reward_quantity": 1 },
+      { "node_key": "unstable_void_05", "node_name": "混沌裂缝", "discovery_weight": 10, "reward_type": "law_fragment", "reward_quantity": 2 }
+    ],
+    "reward_messages": {
+      "coord": "定星成功！你获得了「逆灵通道坐标」，可前往飞升灵界！",
+      "dan_recipe": "定星成功！你获得了「虚灵丹丹方」，可炼制飞升辅助丹药！",
+      "spirit_milk": "定星成功！你获得了「万年灵乳」，可用于突破瓶颈！",
+      "law_fragment": "定星成功！你获得了「空间法则碎片」，飞升必备材料！"
+    }
+  },
+  "reincarnation": {
+    "comment": "夺舍重生配置：飞升失败/死亡后触发，按权重推送3个目标，72小时冷却",
+    "cooldown_hours": 72,
+    "cooldown_seconds": 259200,
+    "inherit_ratio_default": 0.5,
+    "remnant_after_reincarnation": 50,
+    "target_count": 3,
+    "min_realm_rank_to_trigger": 1,
+    "success_rate_by_risk_level": {
+      "1": 0.90,
+      "2": 0.70,
+      "3": 0.50
+    },
+    "rare_target_extra_chance": 0.10,
+    "reincarnation_messages": {
+      "trigger": "你的肉身已毁，残魂飘荡于虚空，可尝试夺舍重生！系统已推送 3 个可夺舍目标。",
+      "success": "夺舍成功！你占据了{target_name}的肉身，境界跌落至{new_realm}。",
+      "fail": "夺舍失败！残魂再次受创，进入72小时虚弱期。",
+      "cooldown": "夺舍冷却中，剩余 {hours} 小时 {minutes} 分钟，无法再次夺舍。",
+      "timeout": "30 分钟未选定夺舍目标，系统已自动为你随机选定一个目标。",
+      "no_targets": "无可夺舍目标，请联系管理员配置。"
+    },
+    "revert_messages": {
+      "success": "天机回溯成功！你回到了飞升前的状态，可重新尝试。",
+      "no_count": "今日天机回溯次数已用完，无法再次回溯。",
+      "not_failed": "当前状态无法天机回溯（仅飞升失败可回溯）。"
+    }
+  }
+}

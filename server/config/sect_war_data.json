@@ -1,0 +1,112 @@
+{
+  "meta": {
+    "description": "宗门战资源点静态配置文件：存储9个资源点的基础属性、地图坐标、产出参数。所有数值源自 docs/批次2_多人玩法设计方案.md 第三章宗门战/领地争夺系统设计。",
+    "version": "1.0.0",
+    "last_updated": "2026-07-19",
+    "territory_count": 9,
+    "map_size": "3x3 九宫格"
+  },
+  "territories": [
+    {
+      "territory_key": "qingyun_spirit_vein",
+      "territory_name": "青云灵脉",
+      "territory_type": "spirit_vein",
+      "map_x": 0,
+      "map_y": 0,
+      "base_daily_production": 500,
+      "production_type": "spirit_stones",
+      "defense_level_max": 10,
+      "description": "位于青云山巅的灵脉，灵气氤氲常年不散，乃炼气修士梦寐以求的修炼圣地。占领后每日为宗门产出灵石资金。"
+    },
+    {
+      "territory_key": "xuantie_mine",
+      "territory_name": "玄铁矿脉",
+      "territory_type": "mine",
+      "map_x": 1,
+      "map_y": 0,
+      "base_daily_production": 5,
+      "production_type": "materials",
+      "defense_level_max": 10,
+      "description": "深藏于玄铁山的古老矿脉，盛产炼器所需的玄铁精矿。占领后每日产出高级炼器材料。"
+    },
+    {
+      "territory_key": "luori_secret_realm",
+      "territory_name": "落日秘境入口",
+      "territory_type": "secret_realm",
+      "map_x": 2,
+      "map_y": 0,
+      "base_daily_production": 100,
+      "production_type": "contribution",
+      "defense_level_max": 10,
+      "description": "落日荒原深处的秘境入口，传闻藏有上古遗宝。占领后宗门成员每日可获取贡献度。"
+    },
+    {
+      "territory_key": "yuhua_spirit_vein",
+      "territory_name": "玉华灵脉",
+      "territory_type": "spirit_vein",
+      "map_x": 0,
+      "map_y": 1,
+      "base_daily_production": 500,
+      "production_type": "spirit_stones",
+      "defense_level_max": 10,
+      "description": "玉华峰下涌出的灵脉，灵液化雾终年缭绕。占领后每日为宗门产出灵石资金。"
+    },
+    {
+      "territory_key": "taiji_strategic_point",
+      "territory_name": "太极战略要冲",
+      "territory_type": "strategic",
+      "map_x": 1,
+      "map_y": 1,
+      "base_daily_production": 0,
+      "production_type": "spirit_stones",
+      "defense_level_max": 10,
+      "strategic_win_bonus": 0.1,
+      "description": "位于九州中央的太极祭坛，扼守四方要道。占领后宗门战役胜率提升10%，无日常产出。"
+    },
+    {
+      "territory_key": "youming_secret_realm",
+      "territory_name": "幽冥秘境入口",
+      "territory_type": "secret_realm",
+      "map_x": 2,
+      "map_y": 1,
+      "base_daily_production": 100,
+      "production_type": "contribution",
+      "defense_level_max": 10,
+      "description": "通往幽冥界的入口，阴气森森却蕴含幽冥真意。占领后宗门成员每日可获取贡献度。"
+    },
+    {
+      "territory_key": "zishui_mine",
+      "territory_name": "紫水晶矿",
+      "territory_type": "mine",
+      "map_x": 0,
+      "map_y": 2,
+      "base_daily_production": 5,
+      "production_type": "materials",
+      "defense_level_max": 10,
+      "description": "紫霞山腹地的水晶矿脉，紫水晶乃炼制法宝的上等材料。占领后每日产出高级炼器材料。"
+    },
+    {
+      "territory_key": "cuiwei_spirit_vein",
+      "territory_name": "翠微灵脉",
+      "territory_type": "spirit_vein",
+      "map_x": 1,
+      "map_y": 2,
+      "base_daily_production": 500,
+      "production_type": "spirit_stones",
+      "defense_level_max": 10,
+      "description": "翠微谷深处的灵脉，四周灵植环绕生机盎然。占领后每日为宗门产出灵石资金。"
+    },
+    {
+      "territory_key": "wangyue_strategic_peak",
+      "territory_name": "望月战略峰",
+      "territory_type": "strategic",
+      "map_x": 2,
+      "map_y": 2,
+      "base_daily_production": 0,
+      "production_type": "spirit_stones",
+      "defense_level_max": 10,
+      "strategic_win_bonus": 0.1,
+      "description": "望月山主峰高耸入云，登顶可俯瞰整个战场。占领后宗门战役胜率提升10%，无日常产出。"
+    }
+  ]
+}

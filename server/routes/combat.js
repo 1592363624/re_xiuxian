@@ -208,20 +208,20 @@ router.post('/use-item', auth, async (req, res, next) => {
 
 /**
  * 计算怪物相对玩家的难度标签
- * 境界顺序统一从 gameConstants.REALM_ORDER 读取，避免重复定义和不一致
+ *
+ * 修复 B1 bug：用 RealmService.getRealmRank 替代 REALM_ORDER.indexOf 比较。
+ * 旧逻辑下，化神期及以上境界在 REALM_ORDER 中返回 -1，难度判断错误。
+ * 新逻辑直接用 rank 数值比较，正确支持所有境界。
  * @param {string} monsterRealm 怪物境界
  * @param {string} playerRealm 玩家境界
  * @returns {object} 难度信息 { class, name, safe }
  */
 function _getMonsterDifficulty(monsterRealm, playerRealm) {
-    const playerIdx = REALM_ORDER.indexOf(playerRealm || '凡人');
-    const monsterIdx = REALM_ORDER.indexOf(monsterRealm);
+    const RealmService = require('../game/core/RealmService');
+    const playerRank = RealmService.getRealmRank(playerRealm || '凡人');
+    const monsterRank = RealmService.getRealmRank(monsterRealm);
 
-    // 未在境界表中的境界视为最低
-    const pIdx = playerIdx < 0 ? 0 : playerIdx;
-    const mIdx = monsterIdx < 0 ? 0 : monsterIdx;
-
-    const diff = mIdx - pIdx;
+    const diff = monsterRank - playerRank;
     if (diff <= -2) return { class: 'text-emerald-400', name: '弱小的怪物', safe: true };
     if (diff <= 0) return { class: 'text-yellow-400', name: '同级怪物', safe: true };
     if (diff <= 2) return { class: 'text-orange-400', name: '较强的怪物', safe: false };

@@ -1,11 +1,23 @@
 /**
  * 境界服务
  * 核心逻辑层 - 处理境界相关的核心玩法逻辑
+ *
+ * 提供：
+ * 1. 基础查询：getAllRealms / getRealmByName / getRealmById / getRealmByRank / getNextRealm
+ * 2. 境界比较：getRealmRank / resolveMinRealmRank / meetsRealmRequirement
+ * 3. 突破逻辑：canBreakthrough / breakthrough / calculateBreakthroughProbability
+ *
+ * 关键设计（2026-07-19 修复 B1 bug）：
+ *   历史代码用 REALM_ORDER.indexOf 做境界比较，但"筑基期/化神期"等大境界名
+ *   不在 REALM_ORDER 中（玩家实际境界是"筑基初期/化神中期"等子境界名），
+ *   导致化神期及以上玩家被深度闭关等系统错误拦截。
+ *   现在统一通过 getRealmRank + resolveMinRealmRank 完成"大境界名→rank"解析。
  */
 // 修复：统一通过 modules/index.js 导出引用 ConfigLoader
 const { infrastructure } = require('../../modules');
 const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
+const { REALM_TIER_MIN_RANK } = require('../../utils/gameConstants');
 
 class RealmService {
     /**
@@ -57,6 +69,64 @@ class RealmService {
     getRealmRank(realmName) {
         const realm = this.getRealmByName(realmName);
         return realm?.rank || 0;
+    }
+
+    /**
+     * 解析境界要求为最低 rank
+     *
+     * 支持两种输入：
+     *   1. 大境界名（如"筑基期"）→ 该境界最低子境界 rank（即"筑基初期"的 rank=11）
+     *   2. 具体境界名（如"筑基初期"、"化神中期"）→ 直接返回该境界的 rank
+     *
+     * 用途：配置文件中的 min_realm 字段（如 seclusion.json 的 "min_realm": "筑基期"）
+     *      统一通过此函数转换为数值 rank，再与玩家境界 rank 比较。
+     *
+     * @param {string} minRealmName - 境界要求名称（大境界名或具体境界名）
+     * @returns {number} 最低 rank；未匹配返回 0
+     */
+    resolveMinRealmRank(minRealmName) {
+        if (!minRealmName || typeof minRealmName !== 'string') return 0;
+
+        // 1. 优先精确匹配具体境界名（覆盖"筑基初期/化神中期"等所有子境界）
+        const exactRealm = this.getRealmByName(minRealmName);
+        if (exactRealm) return exactRealm.rank;
+
+        // 2. 兜底：匹配大境界名映射表（"筑基期"→11、"化神期"→23 等）
+        if (Object.prototype.hasOwnProperty.call(REALM_TIER_MIN_RANK, minRealmName)) {
+            return REALM_TIER_MIN_RANK[minRealmName];
+        }
+
+        // 3. 都不匹配：返回 0（调用方应判断 <=0 表示配置错误）
+        return 0;
+    }
+
+    /**
+     * 判断玩家是否满足境界要求
+     *
+     * 统一封装"玩家境界 rank vs 配置要求 rank"的比较逻辑，
+     * 避免 server 中各处再写一遍 getRealmRank + resolveMinRealmRank 的样板代码。
+     *
+     * @param {Object|string} playerOrRealm - 玩家对象 或 玩家境界名称
+     * @param {string} minRealmName - 配置中的境界要求（大境界名或具体境界名）
+     * @returns {{ met: boolean, playerRank: number, requiredRank: number, reason?: string }}
+     */
+    meetsRealmRequirement(playerOrRealm, minRealmName) {
+        const playerRealmName = typeof playerOrRealm === 'string'
+            ? playerOrRealm
+            : playerOrRealm?.realm;
+        const playerRank = this.getRealmRank(playerRealmName);
+        const requiredRank = this.resolveMinRealmRank(minRealmName);
+
+        if (playerRank <= 0) {
+            return { met: false, playerRank, requiredRank, reason: `玩家境界【${playerRealmName}】未在配置中找到` };
+        }
+        if (requiredRank <= 0) {
+            return { met: false, playerRank, requiredRank, reason: `境界要求【${minRealmName}】无法解析为 rank` };
+        }
+        if (playerRank < requiredRank) {
+            return { met: false, playerRank, requiredRank, reason: `需要达到 ${minRealmName}（rank ${requiredRank}），当前 ${playerRealmName}（rank ${playerRank}）` };
+        }
+        return { met: true, playerRank, requiredRank };
     }
 
     /**

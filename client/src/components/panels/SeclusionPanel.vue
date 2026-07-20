@@ -164,9 +164,10 @@
               ? 'border-purple-600 ring-1 ring-purple-600/30'
               : 'border-stone-700 hover:border-purple-700'"
           >
-            <!-- 次数已用尽锁标 -->
-            <div v-if="deepRemaining <= 0" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold">
+            <!-- 次数已用尽锁标（明确标注重置时间，避免玩家误以为永久禁用） -->
+            <div v-if="deepRemaining <= 0" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold leading-tight text-right">
               今日已用尽
+              <div class="text-[9px] text-rose-500/80 font-normal">明日0点重置</div>
             </div>
             <!-- 境界不足锁标 -->
             <div v-else-if="!canDeep" class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-800/50 text-amber-500 text-[10px]">
@@ -246,6 +247,30 @@
           </button>
         </div>
 
+        <!-- 深度闭关状态说明横幅（明确告知禁用原因，避免玩家误以为境界不足） -->
+        <div v-if="selectedMode === 'deep' && !canDeep" class="bg-rose-950/30 border border-rose-800/50 rounded-lg p-3 text-xs text-rose-300 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/>
+            <line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          <span>境界未达成：需达到 {{ deepConfig.min_realm }} 方可进行深度闭关，当前境界不足。</span>
+        </div>
+        <div v-else-if="selectedMode === 'deep' && deepRemaining <= 0" class="bg-amber-950/30 border border-amber-800/50 rounded-lg p-3 text-xs text-amber-300 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>✓ 境界已达成，但今日深度闭关次数已用尽（每日 {{ deepConfig.daily_limit }} 次），明日 0:00 重置。</span>
+        </div>
+        <div v-else-if="selectedMode === 'deep' && isDeepCooldown" class="bg-amber-950/30 border border-amber-800/50 rounded-lg p-3 text-xs text-amber-300 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>✓ 境界已达成，深度闭关冷却中，还需 {{ formatDuration(deepCooldownRemaining) }}。</span>
+        </div>
+
         <!-- 风险提示 -->
         <div v-if="selectedMode === 'deep'" class="bg-amber-950/20 border border-amber-900/40 rounded-lg p-3 text-xs text-amber-400">
           <svg xmlns="http://www.w3.org/2000/svg" class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -292,10 +317,11 @@
             : 'bg-cyan-950/40 border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-500'"
         >
           <span v-if="loading">正在进入...</span>
-          <span v-else-if="selectedMode === 'deep' && deepRemaining <= 0">今日深度闭关已用尽</span>
-          <span v-else-if="selectedMode === 'normal' && normalRemaining <= 0">今日常规闭关已用尽</span>
-          <span v-else-if="selectedMode === 'deep' && isDeepCooldown">深度闭关冷却中</span>
-          <span v-else-if="selectedMode === 'normal' && isNormalCooldown">常规闭关冷却中</span>
+          <span v-else-if="selectedMode === 'deep' && !canDeep">境界不足·需{{ deepConfig.min_realm }}</span>
+          <span v-else-if="selectedMode === 'deep' && deepRemaining <= 0">今日深度闭关已用尽·明日0点重置</span>
+          <span v-else-if="selectedMode === 'normal' && normalRemaining <= 0">今日常规闭关已用尽·明日0点重置</span>
+          <span v-else-if="selectedMode === 'deep' && isDeepCooldown">深度闭关冷却中·还需{{ formatDuration(deepCooldownRemaining) }}</span>
+          <span v-else-if="selectedMode === 'normal' && isNormalCooldown">常规闭关冷却中·还需{{ formatDuration(normalCooldownRemaining) }}</span>
           <span v-else>开始{{ selectedMode === 'deep' ? '深度' : '常规' }}闭关</span>
         </button>
       </div>

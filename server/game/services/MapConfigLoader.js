@@ -130,19 +130,19 @@ class MapConfigLoader {
 
     /**
      * 检查玩家是否能进入指定地图
+     *
+     * 修复 B1 bug：用 RealmService.meetsRealmRequirement 替代 REALM_ORDER.indexOf 比较。
+     * 旧逻辑下，化神期及以上玩家境界不在 REALM_ORDER 中，导致 indexOf 返回 -1，
+     * 即使满足境界要求也会被错误拒绝进入。
      * @param {Object} map 地图配置
      * @param {string} playerRealm 玩家境界名称
      * @returns {boolean} 能否进入
      */
     canEnter(map, playerRealm) {
         const requiredRealm = map.requiredRealm || '凡人';
-        // 境界判断逻辑，使用公共常量
-        const { REALM_ORDER } = require('../../utils/gameConstants');
-        
-        const requiredIdx = REALM_ORDER.indexOf(requiredRealm);
-        const playerIdx = REALM_ORDER.indexOf(playerRealm);
-        
-        return playerIdx >= requiredIdx;
+        const RealmService = require('../core/RealmService');
+        const check = RealmService.meetsRealmRequirement(playerRealm, requiredRealm);
+        return check.met;
     }
 
     /**

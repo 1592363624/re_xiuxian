@@ -20,8 +20,10 @@ const { infrastructure } = require('../modules');
 const configLoader = infrastructure.ConfigLoader;
 const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
-// 境界顺序统一从 gameConstants 读取，避免重复定义
-const { REALM_ORDER } = require('../utils/gameConstants');
+// 境界服务：统一封装"大境界名→rank"解析与境界比较，替代历史 REALM_ORDER.indexOf 字符串比较
+// 修复 B1 bug：化神期及以上玩家境界（如"化神中期"）不在旧版 REALM_ORDER 中，
+//            导致 indexOf 返回 -1，被深度闭关错误拦截。
+const RealmService = require('../game/core/RealmService');
 
 /**
  * 读取常规闭关配置
@@ -171,12 +173,14 @@ router.post('/start', authenticateToken, async (req, res, next) => {
         const config = isDeep ? getDeepSeclusionConfig() : getNormalSeclusionConfig();
 
         // 境界检查（深度闭关需达到筑基期以上）
+        // 修复 B1 bug：用 RealmService.meetsRealmRequirement 替代 REALM_ORDER.indexOf 比较
+        // 旧逻辑用字符串 indexOf 比较，"化神中期"等子境界名不在旧版 REALM_ORDER 中，
+        // 导致化神期玩家被错误拦截。新逻辑通过 rank 数值比较，正确支持所有境界。
         if (isDeep) {
-            const playerRealmIdx = REALM_ORDER.indexOf(player.realm);
-            const minRealmIdx = REALM_ORDER.indexOf(config.min_realm);
-            if (playerRealmIdx < 0 || playerRealmIdx < minRealmIdx) {
+            const realmCheck = RealmService.meetsRealmRequirement(player, config.min_realm);
+            if (!realmCheck.met) {
                 throw new AppError(
-                    `深度闭关需达到 ${config.min_realm} 境界`,
+                    `深度闭关需达到 ${config.min_realm} 境界（${realmCheck.reason || '境界不达标'}）`,
                     400,
                     ErrorCodes.BUSINESS_LOGIC_ERROR
                 );
@@ -428,7 +432,15 @@ router.get('/status', authenticateToken, async (req, res, next) => {
             const now = new Date();
             currentDuration = Math.floor((now - startTime) / 1000);
             const realmMultiplier = await getRealmMultiplier(player.realm);
-            expGained = Math.floor(currentDuration * baseExpRate * realmMultiplier * config.exp_rate);
+
+            // 修复 B14：深度闭关未达最短时长时，/status 显示的 expGained 未按强行出关惩罚打折，
+            // 导致玩家看到的"已获修为"比 /end 实际结算的更多，产生"奖励数值不正确"的误解。
+            // 现在与 /end 接口保持一致：未达最短时长时按 (1 - forced_penalty) 显示实时修为。
+            let penaltyRate = 1.0;
+            if (isDeep && currentDuration < config.min_duration) {
+                penaltyRate = 1 - (config.forced_penalty ?? 0.5);
+            }
+            expGained = Math.floor(currentDuration * baseExpRate * realmMultiplier * config.exp_rate * penaltyRate);
 
             if (player.seclusion_end_time) {
                 const endTime = new Date(player.seclusion_end_time);
@@ -459,11 +471,11 @@ router.get('/status', authenticateToken, async (req, res, next) => {
         // 后端权威判断当前玩家是否达到深度闭关境界要求
         // 与 /start 接口的校验逻辑保持一致，避免前端重复实现境界判断
         // 前端仅依据此布尔值渲染按钮禁用状态，最终校验仍由后端 /start 完成
+        // 修复 B1 bug：用 RealmService.meetsRealmRequirement 替代 REALM_ORDER.indexOf 比较
         let canDeep = false;
         try {
-            const playerRealmIdx = REALM_ORDER.indexOf(player.realm);
-            const minRealmIdx = REALM_ORDER.indexOf(deepConfig.min_realm);
-            canDeep = playerRealmIdx >= 0 && playerRealmIdx >= minRealmIdx;
+            const realmCheck = RealmService.meetsRealmRequirement(player, deepConfig.min_realm);
+            canDeep = realmCheck.met;
         } catch (e) {
             console.warn('计算 can_deep 失败:', e.message);
             canDeep = false;

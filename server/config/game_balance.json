@@ -49,7 +49,35 @@
       "auto_settle": true,
       "log_each": false,
       "interval_ms": 5000
+    },
+    "nascent_soul": {
+      "enable": true,
+      "auto_settle": true,
+      "log_each": false,
+      "interval_ms": 5000
+    },
+    "ascension": {
+      "comment": "飞升状态清理：飞升尝试超时10分钟未结算则自动判定失败",
+      "enable": true,
+      "auto_settle": true,
+      "log_each": false,
+      "interval_ms": 5000
+    },
+    "reincarnation": {
+      "comment": "夺舍状态清理：夺舍目标选择超时30分钟则强制随机选定",
+      "enable": true,
+      "auto_settle": true,
+      "log_each": false,
+      "interval_ms": 5000
     }
+  },
+  "ascension_balance": {
+    "comment": "飞升系统平衡配置（与 ascension_data.json 互补，此处存放运行时调度的阈值）",
+    "ascension_timeout_seconds": 600,
+    "reincarnation_timeout_seconds": 1800,
+    "node_expire_check_interval_ms": 60000,
+    "weakness_state_duration_seconds": 7200,
+    "reincarnation_cooldown_seconds": 259200
   },
   "auth": {
     "username_regex": "^[a-zA-Z0-9]{6,12}$",
@@ -76,6 +104,7 @@
     "skill_mp_cost": 20,
     "base_damage_multiplier": 1,
     "escape_success_rate": 0.5,
+    "escape_chance": 0.5,
     "damage_random_range": 15,
     "damage_random_offset": 7,
     "skill_damage_multiplier": 1.5,
@@ -87,8 +116,21 @@
     "base_monster_def": 3,
     "base_monster_speed": 8,
     "death_exp_penalty_rate": 0.1,
+    "death_min_hp": 10,
+    "death_hp_recovery_rate": 0.3,
     "monster_damage_random_range": 6,
     "monster_damage_random_offset": 3
+  },
+  "lifespan": {
+    "seconds_per_day": 60,
+    "days_per_year": 365,
+    "seclusion_aging_rate": 0,
+    "death_exp_loss_rate": 0.1,
+    "death_hp_current": 0,
+    "seconds_per_year": 31536000,
+    "breakthrough_failure_age_multiplier": 2,
+    "update_batch_size": 200,
+    "enable_seclusion_immune": true
   },
   "map": {
     "travel": {
@@ -373,6 +415,9 @@
     "karma_event_threshold": 100,
     "win_exp_reward_ratio": 0.05,
     "win_stone_ratio": 10,
+    "lose_consolation_stone_ratio": 2,
+    "lose_consolation_exp_ratio": 0.01,
+    "lose_consolation_honor_min": 10,
     "drop_rate_normal_item": 0.05,
     "rank_score_win_same": 15,
     "rank_score_win_cross": 25,
@@ -416,7 +461,7 @@
       "max_active_bounties_per_player": 5,
       "bounty_expire_hours": 72,
       "accept_cooldown_seconds": 300,
-      "platform_fee_rate": 0.05,
+      "platform_fee_rate": 0.03,
       "min_realm_rank_to_publish": 3,
       "min_realm_rank_to_accept": 3,
       "bounty_kill_reward_ratio": 0.9,
@@ -526,5 +571,85 @@
       "event_stock": { "trigger": "war_end", "ratio": 0.08 }
     },
     "state_cleaner_interval_ms": 5000
+  },
+  "world_boss": {
+    "enabled": true,
+    "single_player_damage_ratio": 0.3,
+    "team_bonus_ratio": 1.1,
+    "min_team_size": 3,
+    "attack_cooldown_seconds": 5,
+    "revive_cost_spirit_stones": 1000,
+    "revive_cooldown_seconds": 60,
+    "death_exp_penalty_rate": 0.05,
+    "phase_thresholds": [1.0, 0.6, 0.3],
+    "phase_multipliers": [1.0, 1.3, 1.8],
+    "crit_rate": 0.05,
+    "crit_multiplier": 1.5,
+    "damage_random_range": 0.15,
+    "damage_share_thresholds": {
+      "top": 0.15,
+      "mid": 0.05,
+      "participant": 0.01
+    },
+    "rewards": {
+      "top": { "materials": 3, "spirit_stones": 5000, "honor": 200 },
+      "mid": { "materials": 2, "spirit_stones": 2000, "honor": 100 },
+      "participant": { "materials": 1, "spirit_stones": 500, "honor": 30 },
+      "edge": { "spirit_stones": 100, "honor": 10 }
+    },
+    "first_kill_server_reward": { "spirit_stones": 50000, "title": "首杀功臣" },
+    "first_kill_daily_reward": { "spirit_stones": 10000, "materials": 5 },
+    "killer_reward": { "spirit_stones": 5000, "title": "终结者" },
+    "scheduler_interval_ms": {
+      "spawn_check": 60000,
+      "expire_check": 60000,
+      "phase_check": 5000,
+      "season_check": "daily_00_05"
+    }
+  },
+  "sect_war": {
+    "enabled": true,
+    "season_duration_days": 28,
+    "war_days_of_week": [3, 6],
+    "war_start_hour": 20,
+    "declare_cost_spirit_stones": 5000,
+    "prepare_duration_hours": 24,
+    "announce_duration_hours": 2,
+    "active_duration_minutes": 30,
+    "max_attackers": 20,
+    "max_defenders": 30,
+    "respawn_seconds": 45,
+    "territory_capture_seconds": 30,
+    "attacker_score_per_territory": 100,
+    "attacker_score_per_kill": 5,
+    "defender_score_per_territory": 100,
+    "defender_score_per_kill": 5,
+    "max_territories_per_sect": 3,
+    "strategic_point_win_bonus": 0.1,
+    "production_settlement_time": "00:05",
+    "production_rates": {
+      "spirit_vein": 500,
+      "mine": 5,
+      "secret_realm": 100,
+      "strategic": 0
+    },
+    "rewards": {
+      "season_rank_1": { "fund": 50000, "artifact": "宗门至宝" },
+      "season_rank_2_3": { "fund": 30000 },
+      "season_rank_4_10": { "fund": 10000 }
+    },
+    "honor_per_kill": 10,
+    "honor_per_win": 50,
+    "honor_per_loss": 15,
+    "scheduler_interval_ms": {
+      "war_state_check": 30000,
+      "capture_timeout_check": 5000,
+      "production_check": "daily_00_05",
+      "season_check": "daily_00_10"
+    }
+  },
+  "honor": {
+    "shop_enabled": true,
+    "exchange_rate": { "honor_to_spirit_stone": 10, "spirit_stone_to_honor": 0.1 }
   }
 }

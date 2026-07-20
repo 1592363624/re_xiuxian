@@ -44,6 +44,18 @@ function registerAllStates() {
     // 副本挑战状态（第五阶段新增：与一切状态互斥，过期自动结算失败并清理进度）
     require('./registrations/dungeon')();
 
+    // 世界BOSS讨伐状态（批次2多人玩法：与一切状态互斥，玩家需先撤退才能开始其他操作）
+    require('./registrations/worldBoss')();
+
+    // 宗门战参战状态（批次2多人玩法：与一切状态互斥，玩家需先离开战役才能开始其他操作）
+    require('./registrations/sectWar')();
+
+    // 飞升状态（批次3：与一切状态互斥，飞升尝试超时10分钟自动失败）
+    require('./registrations/ascension')();
+
+    // 夺舍状态（批次3：与一切状态互斥，超时30分钟强制随机选定目标）
+    require('./registrations/reincarnation')();
+
     // 封禁状态
     require('./registrations/ban')();
 

@@ -1,0 +1,337 @@
+{
+  "meta": {
+    "description": "世界BOSS静态配置文件：存储3个世界BOSS的基础属性、阶段技能、刷新计划与掉落表。所有数值源自 docs/批次2_多人玩法设计方案.md 第二章世界BOSS系统设计。",
+    "version": "1.0.0",
+    "last_updated": "2026-07-19",
+    "boss_count": 3
+  },
+  "bosses": [
+    {
+      "boss_key": "qingyuanzi",
+      "boss_name": "青元子",
+      "realm_rank_min": 11,
+      "base_hp": 5000000,
+      "base_atk": 2000,
+      "base_def": 800,
+      "base_speed": 100,
+      "spawn_schedule": "0 20 * * 2,5,0",
+      "expire_hours": 4,
+      "phase_thresholds": [1.0, 0.6, 0.3],
+      "phase_multipliers": [1.0, 1.3, 1.8],
+      "skills": [
+        {
+          "phase": 1,
+          "skills": [
+            {
+              "name": "飞剑斩",
+              "description": "青元子御剑施放的常规单体攻击，剑光凌厉直指要害",
+              "type": "single_target_basic",
+              "damage_multiplier": 1.0,
+              "cooldown_seconds": 0,
+              "effect": "none"
+            },
+            {
+              "name": "青元剑诀",
+              "description": "青元子本门剑诀，剑气可穿透护体真元造成持续流血",
+              "type": "single_target_skill",
+              "damage_multiplier": 1.5,
+              "cooldown_seconds": 8,
+              "effect": "bleed"
+            }
+          ]
+        },
+        {
+          "phase": 2,
+          "skills": [
+            {
+              "name": "万剑归宗",
+              "description": "青元子召唤万千飞剑齐发，对所有参战玩家造成范围伤害",
+              "type": "aoe_all",
+              "damage_multiplier": 1.2,
+              "cooldown_seconds": 15,
+              "effect": "aoe_all"
+            },
+            {
+              "name": "召唤剑灵",
+              "description": "青元子以剑气凝聚出剑灵分身协助作战，分担玩家火力",
+              "type": "summon",
+              "damage_multiplier": 0.0,
+              "cooldown_seconds": 30,
+              "effect": "summon_minions"
+            }
+          ]
+        },
+        {
+          "phase": 3,
+          "skills": [
+            {
+              "name": "剑意狂暴",
+              "description": "青元子陷入剑意狂暴状态，攻击力与速度大幅提升",
+              "type": "self_buff",
+              "damage_multiplier": 0.0,
+              "cooldown_seconds": 0,
+              "effect": "self_buff_atk_up_50_percent"
+            },
+            {
+              "name": "青元剑阵",
+              "description": "青元子布下青元剑阵，剑气覆盖全场对所有人造成毁灭性伤害",
+              "type": "ultimate_screen_wide",
+              "damage_multiplier": 2.5,
+              "cooldown_seconds": 45,
+              "effect": "screen_wide_damage"
+            }
+          ]
+        }
+      ],
+      "drops": [
+        {
+          "rarity": "common",
+          "item_key": "spirit_stone",
+          "quantity_min": 500,
+          "quantity_max": 1000,
+          "drop_chance": 1.0
+        },
+        {
+          "rarity": "rare",
+          "item_key": "qingyuan_sword_fragment",
+          "quantity_min": 1,
+          "quantity_max": 3,
+          "drop_chance": 0.5
+        },
+        {
+          "rarity": "epic",
+          "item_key": "nascent_soul_pill",
+          "quantity_min": 1,
+          "quantity_max": 2,
+          "drop_chance": 0.2
+        },
+        {
+          "rarity": "legendary",
+          "item_key": "ancient_sword_manual_fragment",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.05
+        }
+      ],
+      "description": "上古元婴期剑修大能，因修炼走火入魔堕入魔道。手持青元古剑，剑意凛然，曾一剑斩灭三大宗门。如今重出江湖，意图血洗修仙界，唯有同道合力方可将其镇压。"
+    },
+    {
+      "boss_key": "yaoshou",
+      "boss_name": "上古妖兽",
+      "realm_rank_min": 23,
+      "base_hp": 50000000,
+      "base_atk": 20000,
+      "base_def": 5000,
+      "base_speed": 200,
+      "spawn_schedule": "0 20 * * 1,4",
+      "expire_hours": 4,
+      "phase_thresholds": [1.0, 0.6, 0.3],
+      "phase_multipliers": [1.0, 1.3, 1.8],
+      "skills": [
+        {
+          "phase": 1,
+          "skills": [
+            {
+              "name": "利爪撕咬",
+              "description": "上古妖兽以利爪撕咬目标，凶残异常难以闪避",
+              "type": "single_target_basic",
+              "damage_multiplier": 1.0,
+              "cooldown_seconds": 0,
+              "effect": "none"
+            },
+            {
+              "name": "妖气冲撞",
+              "description": "上古妖兽以妖气凝形冲撞单体目标，有几率造成眩晕",
+              "type": "single_target_skill",
+              "damage_multiplier": 1.4,
+              "cooldown_seconds": 10,
+              "effect": "stun_chance"
+            }
+          ]
+        },
+        {
+          "phase": 2,
+          "skills": [
+            {
+              "name": "妖风席卷",
+              "description": "上古妖兽振翅掀起妖风，对所有参战玩家造成范围伤害",
+              "type": "aoe_all",
+              "damage_multiplier": 1.3,
+              "cooldown_seconds": 18,
+              "effect": "aoe_all"
+            },
+            {
+              "name": "召唤妖兽幼崽",
+              "description": "上古妖兽召唤幼崽协助作战，幼崽虽弱却数量众多",
+              "type": "summon",
+              "damage_multiplier": 0.0,
+              "cooldown_seconds": 35,
+              "effect": "summon_minions"
+            }
+          ]
+        },
+        {
+          "phase": 3,
+          "skills": [
+            {
+              "name": "嗜血狂暴",
+              "description": "上古妖兽进入嗜血狂暴状态，攻击力暴涨且每次攻击附带吸血",
+              "type": "self_buff",
+              "damage_multiplier": 0.0,
+              "cooldown_seconds": 0,
+              "effect": "self_buff_atk_up_60_percent_lifesteal"
+            },
+            {
+              "name": "毁灭咆哮",
+              "description": "上古妖兽发出震天咆哮，音波覆盖全场对所有人造成毁灭性伤害",
+              "type": "ultimate_screen_wide",
+              "damage_multiplier": 2.8,
+              "cooldown_seconds": 50,
+              "effect": "screen_wide_damage"
+            }
+          ]
+        }
+      ],
+      "drops": [
+        {
+          "rarity": "common",
+          "item_key": "spirit_stone",
+          "quantity_min": 5000,
+          "quantity_max": 10000,
+          "drop_chance": 1.0
+        },
+        {
+          "rarity": "rare",
+          "item_key": "monster_core",
+          "quantity_min": 1,
+          "quantity_max": 3,
+          "drop_chance": 0.5
+        },
+        {
+          "rarity": "epic",
+          "item_key": "spirit_transformation_pill",
+          "quantity_min": 1,
+          "quantity_max": 2,
+          "drop_chance": 0.2
+        },
+        {
+          "rarity": "legendary",
+          "item_key": "ancient_monster_blood",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.05
+        }
+      ],
+      "description": "上古时期封印于幽冥深处的洪荒妖兽，凶残嗜血，力大无穷。传闻其一声咆哮便可震碎山脉，所过之处生灵涂炭，唯有合力围攻方能将其镇压于九幽之下。"
+    },
+    {
+      "boss_key": "mulan",
+      "boss_name": "慕兰神将",
+      "realm_rank_min": 33,
+      "base_hp": 500000000,
+      "base_atk": 200000,
+      "base_def": 30000,
+      "base_speed": 400,
+      "spawn_schedule": "0 20 * * 3,6",
+      "expire_hours": 4,
+      "phase_thresholds": [1.0, 0.6, 0.3],
+      "phase_multipliers": [1.0, 1.3, 1.8],
+      "skills": [
+        {
+          "phase": 1,
+          "skills": [
+            {
+              "name": "长枪突刺",
+              "description": "慕兰神将以玄天长枪突刺目标，枪势凌厉无匹",
+              "type": "single_target_basic",
+              "damage_multiplier": 1.0,
+              "cooldown_seconds": 0,
+              "effect": "none"
+            },
+            {
+              "name": "神将斩",
+              "description": "慕兰神将凝聚神力劈出一斩，可破除目标护体罡气",
+              "type": "single_target_skill",
+              "damage_multiplier": 1.5,
+              "cooldown_seconds": 8,
+              "effect": "armor_break"
+            }
+          ]
+        },
+        {
+          "phase": 2,
+          "skills": [
+            {
+              "name": "天雷阵",
+              "description": "慕兰神将召唤天雷降下，对所有参战玩家造成范围雷劫伤害",
+              "type": "aoe_all",
+              "damage_multiplier": 1.4,
+              "cooldown_seconds": 15,
+              "effect": "aoe_all"
+            },
+            {
+              "name": "召唤神兵",
+              "description": "慕兰神将召唤天庭神兵下凡协助作战，神兵个个法力高强",
+              "type": "summon",
+              "damage_multiplier": 0.0,
+              "cooldown_seconds": 30,
+              "effect": "summon_minions"
+            }
+          ]
+        },
+        {
+          "phase": 3,
+          "skills": [
+            {
+              "name": "战神附体",
+              "description": "慕兰神将陷入战神附体状态，攻击力暴涨且免疫控制",
+              "type": "self_buff",
+              "damage_multiplier": 0.0,
+              "cooldown_seconds": 0,
+              "effect": "self_buff_atk_up_70_percent_immune_control"
+            },
+            {
+              "name": "灭世神罚",
+              "description": "慕兰神将引动天罚降下，神威覆盖全场对所有玩家造成毁灭性打击",
+              "type": "ultimate_screen_wide",
+              "damage_multiplier": 3.0,
+              "cooldown_seconds": 60,
+              "effect": "screen_wide_damage"
+            }
+          ]
+        }
+      ],
+      "drops": [
+        {
+          "rarity": "common",
+          "item_key": "spirit_stone",
+          "quantity_min": 50000,
+          "quantity_max": 100000,
+          "drop_chance": 1.0
+        },
+        {
+          "rarity": "rare",
+          "item_key": "general_token",
+          "quantity_min": 1,
+          "quantity_max": 3,
+          "drop_chance": 0.5
+        },
+        {
+          "rarity": "epic",
+          "item_key": "void_refining_pill",
+          "quantity_min": 1,
+          "quantity_max": 2,
+          "drop_chance": 0.2
+        },
+        {
+          "rarity": "legendary",
+          "item_key": "mulan_armor_fragment",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.05
+        }
+      ],
+      "description": "慕兰神将乃上古天庭战将，因违逆天帝被贬下凡间。手持玄天长枪，法力通天，曾一人破百万魔军。如今因怨念深重化为魔神，无人能挡其锋芒，赛季制开启时方现人间。"
+    }
+  ]
+}

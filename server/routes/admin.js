@@ -505,24 +505,33 @@ router.post('/reset-player', auth, adminCheck, async (req, res) => {
             await Item.destroy({ where: { player_id: playerId } });
         }
 
+        // 修复 B23：所有初始数值从 role_init 配置读取，禁止硬编码
+        // 这样调整凡人初始属性/寿元/年龄只需改 config/role_init.json，无需改代码
+        const roleInitConfig = configLoader.getConfig('role_init') || {};
+        const initialAge = roleInitConfig.initialAge ?? 16;
+        const initialLifespan = roleInitConfig.initialLifespan ?? 60;
+        const initialSpiritStones = roleInitConfig.initialSpiritStones ?? 0;
+        const initialAttrs = roleInitConfig.initialAttributes || {
+            hp_max: 100, mp_max: 0, atk: 10, def: 5, speed: 10, sense: 10
+        };
+
         player.realm = '凡人';
         player.exp = '0';
-        player.spirit_stones = '0';
-        player.hp_current = 100n;
-        player.mp_current = 0n;
-        player.lifespan_current = 16;
-        player.lifespan_max = 60;
+        player.spirit_stones = String(initialSpiritStones);
+        player.hp_current = BigInt(initialAttrs.hp_max || 100);
+        player.mp_current = BigInt(initialAttrs.mp_max || 0);
+        player.lifespan_current = initialAge;
+        player.lifespan_max = initialLifespan;
         player.toxicity = 0;
-        player.attributes = JSON.stringify({
-            hp_max: 100,
-            mp_max: 0,
-            atk: 10,
-            def: 5,
-            speed: 10,
-            sense: 10
-        });
+        player.attributes = JSON.stringify(initialAttrs);
+        // 同步重置死亡相关字段（避免重置后仍处于死亡状态）
+        player.is_dead = false;
+        player.death_reason = null;
+        player.death_time = null;
         player.is_secluded = false;
         player.seclusion_start_time = null;
+        player.seclusion_end_time = null;
+        player.seclusion_mode = 'normal';
         player.current_map_id = 1;
         await player.save();
 

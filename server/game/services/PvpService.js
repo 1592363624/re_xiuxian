@@ -1018,6 +1018,25 @@ class PvpService {
             }
         }
 
+        // 败方保底奖励（b2-6 新增）：避免玩家因失败而退出 PVP，提供少量灵石和经验作为参与奖
+        // 逃跑判负的败方不享受保底（逃跑是主动放弃，不应奖励）
+        // 平局双方都不算败方，不享受保底
+        let loserConsolationStone = 0;
+        let loserConsolationExp = 0;
+        if (!isDraw && !options.is_flee) {
+            const consolationStoneRatio = cfg.lose_consolation_stone_ratio || 0;
+            const consolationExpRatio = cfg.lose_consolation_exp_ratio || 0;
+            if (consolationStoneRatio > 0 || consolationExpRatio > 0) {
+                // 败方战力作为保底基数（败方越强，保底越多，鼓励挑战强者）
+                const loserPower = isAttackerWin ? defenderPower : attackerPower;
+                // 胜方修为作为经验基数（胜方越强，败方学到的越多）
+                const winnerExp = isAttackerWin ? Number(attacker.exp) : Number(defender.exp);
+                const avgPower = Math.floor((attackerPower + defenderPower) / 2);
+                loserConsolationStone = Math.floor(consolationStoneRatio * loserPower);
+                loserConsolationExp = Math.floor(avgPower * consolationExpRatio * Math.max(1, Math.log10(winnerExp + 10)));
+            }
+        }
+
         // 虚弱状态：失败方设置 weakness_end_time（now + weakness_duration_minutes）
         const weaknessMinutes = cfg.weakness_duration_minutes || 30;
         const weaknessEnd = new Date(now.getTime() + weaknessMinutes * 60 * 1000);
@@ -1113,6 +1132,27 @@ class PvpService {
             }
         }
 
+        // 败方保底奖励应用（b2-6 新增）：败方获得少量灵石和经验作为参与奖
+        if (loserConsolationStone > 0 || loserConsolationExp > 0) {
+            if (isAttackerWin) {
+                // 防守方败：保底发给防守方
+                if (loserConsolationStone > 0) {
+                    defender.spirit_stones = safeBigInt(defender.spirit_stones) + BigInt(loserConsolationStone);
+                }
+                if (loserConsolationExp > 0) {
+                    defender.exp = safeBigInt(defender.exp) + BigInt(loserConsolationExp);
+                }
+            } else if (isDefenderWin) {
+                // 攻击方败：保底发给攻击方
+                if (loserConsolationStone > 0) {
+                    attacker.spirit_stones = safeBigInt(attacker.spirit_stones) + BigInt(loserConsolationStone);
+                }
+                if (loserConsolationExp > 0) {
+                    attacker.exp = safeBigInt(attacker.exp) + BigInt(loserConsolationExp);
+                }
+            }
+        }
+
         // 更新战斗记录
         battle.status = 'finished';
         battle.winner_id = winnerId;
@@ -1142,7 +1182,13 @@ class PvpService {
             defender_score_change: defenderScoreChange,
             attacker_honor_gain: attackerHonorGain,
             defender_honor_gain: defenderHonorGain,
+            attacker_exp_gain: attackerExpGain,
+            defender_exp_gain: defenderExpGain,
             spirit_stone_reward: spiritStoneReward,
+            // 败方保底奖励（b2-6 新增）：败方获得的少量灵石和经验，前端可展示为"参与奖"
+            loser_consolation_stone: loserConsolationStone,
+            loser_consolation_exp: loserConsolationExp,
+            loser_id: (!isDraw && !options.is_flee) ? (isAttackerWin ? defender.id : attacker.id) : null,
             drop_item_key: dropItemKey,
             drop_item_quantity: dropItemQuantity,
             karma_change: karmaChange,

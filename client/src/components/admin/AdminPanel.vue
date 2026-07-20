@@ -87,6 +87,16 @@
 
         <!-- 状态转移日志 -->
         <StateLogViewer v-if="currentTab === 'state_logs'" />
+
+        <!-- 世界BOSS管理（批次2新增：BOSS刷新/过期/赛季管理） -->
+        <WorldBossManagement v-if="currentTab === 'world_boss'" @showConfirm="showConfirm" />
+
+        <!-- 宗门战管理（批次2新增：赛季管理/资源点初始化/战役推进） -->
+        <SectWarManagement v-if="currentTab === 'sect_war'" @showConfirm="showConfirm" />
+
+        <!-- 飞升+夺舍重生系统管理（批次3新增：统计/玩家进度/大衍诀调整/法则碎片/坐标/重置冷却/夺舍目标CRUD） -->
+        <AscensionManagement v-if="currentTab === 'ascension'" @showConfirm="showConfirm" />
+        <LateStageManagement v-if="currentTab === 'late_stage'" @showConfirm="showConfirm" />
       </div>
     </div>
 
@@ -260,6 +270,13 @@ import CultivationConfig from './sub/CultivationConfig.vue'
 import StateCleanerMonitor from './sub/StateCleanerMonitor.vue'
 // 状态转移日志查看器：展示 player_state_log 表数据
 import StateLogViewer from './sub/StateLogViewer.vue'
+// 世界BOSS管理（批次2新增）：GM 后台 BOSS刷新/过期、赛季创建/结算、统计指标查看
+import WorldBossManagement from './sub/WorldBossManagement.vue'
+// 宗门战/领地争夺管理（批次2新增）：GM 后台 赛季管理、资源点初始化、战役推进、产出结算
+import SectWarManagement from './sub/SectWarManagement.vue'
+// 飞升+夺舍重生系统管理（批次3新增）：GM 后台 统计/玩家进度/大衍诀调整/法则碎片/坐标/重置冷却/夺舍目标CRUD
+import AscensionManagement from './sub/AscensionManagement.vue'
+import LateStageManagement from './sub/LateStageManagement.vue'
 import {
   updatePlayer,
   banPlayer,
@@ -290,7 +307,14 @@ const tabs = [
   { id: 'stats', name: '服务器统计' },
   { id: 'logs', name: '操作日志' },
   { id: 'state_cleaner', name: '状态清理' },
-  { id: 'state_logs', name: '状态日志' }
+  { id: 'state_logs', name: '状态日志' },
+  // 批次2新增：世界BOSS + 宗门战 GM 管理
+  { id: 'world_boss', name: '世界BOSS' },
+  { id: 'sect_war', name: '宗门战' },
+  // 批次3新增：飞升+夺舍重生系统 GM 管理
+  { id: 'ascension', name: '飞升系统' },
+  // 批次3新增：后期系统 GM 管理（第二元神/小世界/神庙/香火/神识/法则 6 大子系统）
+  { id: 'late_stage', name: '后期系统' }
 ]
 const currentTab = ref('players')
 
