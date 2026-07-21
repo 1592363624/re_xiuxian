@@ -76,14 +76,18 @@
           <!-- 常规闭关卡片 -->
           <button
             @click="selectMode('normal')"
-            :disabled="loading || normalRemaining <= 0 || isNormalCooldown"
+            :disabled="loading || !statusLoaded || normalRemaining <= 0 || isNormalCooldown"
             class="text-left bg-[#292524] hover:bg-[#332b27] border rounded-lg p-5 transition-all duration-300 group relative disabled:opacity-60 disabled:cursor-not-allowed"
             :class="selectedMode === 'normal'
               ? 'border-cyan-600 ring-1 ring-cyan-600/30'
               : 'border-stone-700 hover:border-cyan-700'"
           >
+            <!-- 加载中锁标：与深度闭关保持一致 -->
+            <div v-if="!statusLoaded" class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-stone-950/40 border border-stone-700/50 text-stone-500 text-[10px]">
+              加载中
+            </div>
             <!-- 次数已用尽锁标 -->
-            <div v-if="normalRemaining <= 0" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold">
+            <div v-else-if="normalRemaining <= 0" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold">
               今日已用尽
             </div>
             <!-- 图标 + 名称 -->
@@ -158,14 +162,18 @@
           <!-- 深度闭关卡片 -->
           <button
             @click="selectMode('deep')"
-            :disabled="loading || !canDeep || deepRemaining <= 0 || isDeepCooldown"
+            :disabled="loading || !statusLoaded || !canDeep || deepRemaining <= 0 || isDeepCooldown"
             class="text-left bg-[#292524] hover:bg-[#332b27] border rounded-lg p-5 transition-all duration-300 group relative disabled:opacity-60 disabled:cursor-not-allowed"
             :class="selectedMode === 'deep'
               ? 'border-purple-600 ring-1 ring-purple-600/30'
               : 'border-stone-700 hover:border-purple-700'"
           >
+            <!-- 加载中锁标：避免首次打开时误显示"境界不足" -->
+            <div v-if="!statusLoaded" class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-stone-950/40 border border-stone-700/50 text-stone-500 text-[10px]">
+              加载中
+            </div>
             <!-- 次数已用尽锁标（明确标注重置时间，避免玩家误以为永久禁用） -->
-            <div v-if="deepRemaining <= 0" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold leading-tight text-right">
+            <div v-else-if="deepRemaining <= 0" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold leading-tight text-right">
               今日已用尽
               <div class="text-[9px] text-rose-500/80 font-normal">明日0点重置</div>
             </div>
@@ -214,7 +222,9 @@
               <li class="flex items-center gap-2">
                 <span class="text-stone-500">境界要求：</span>
                 <span class="text-stone-200">{{ deepConfig.min_realm }}</span>
-                <span :class="canDeep ? 'text-emerald-400' : 'text-rose-400'">{{ canDeep ? '✓ 已达成' : '× 未达成' }}</span>
+                <!-- 加载中时显示"加载中"，避免误显示"× 未达成" -->
+                <span v-if="!statusLoaded" class="text-stone-500">加载中</span>
+                <span v-else :class="canDeep ? 'text-emerald-400' : 'text-rose-400'">{{ canDeep ? '✓ 已达成' : '× 未达成' }}</span>
               </li>
               <li class="flex items-center gap-2">
                 <span class="text-stone-500">收益倍率：</span>
@@ -310,13 +320,15 @@
         </button>
         <button
           @click="handleStart"
-          :disabled="loading || (selectedMode === 'deep' ? (!canDeep || deepRemaining <= 0 || isDeepCooldown) : (normalRemaining <= 0 || isNormalCooldown))"
+          :disabled="loading || !statusLoaded || (selectedMode === 'deep' ? (!canDeep || deepRemaining <= 0 || isDeepCooldown) : (normalRemaining <= 0 || isNormalCooldown))"
           class="flex-1 py-2.5 rounded-lg font-bold tracking-widest text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           :class="selectedMode === 'deep'
             ? 'bg-purple-950/40 border border-purple-700 text-purple-300 hover:bg-purple-900/40 hover:border-purple-500'
             : 'bg-cyan-950/40 border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-500'"
         >
           <span v-if="loading">正在进入...</span>
+          <!-- 状态加载中：避免 canDeep 默认 false 导致误显示"境界不足" -->
+          <span v-else-if="!statusLoaded">加载闭关状态中...</span>
           <span v-else-if="selectedMode === 'deep' && !canDeep">境界不足·需{{ deepConfig.min_realm }}</span>
           <span v-else-if="selectedMode === 'deep' && deepRemaining <= 0">今日深度闭关已用尽·明日0点重置</span>
           <span v-else-if="selectedMode === 'normal' && normalRemaining <= 0">今日常规闭关已用尽·明日0点重置</span>
@@ -340,6 +352,10 @@ const store = usePlayerStore()
 const uiStore = useUIStore()
 
 const loading = ref(false)
+// 闭关状态加载标记：避免首次打开面板时 canDeep 默认 false 导致按钮误显示"境界不足"
+// 修复用户报告的 bug：化神期玩家首次打开面板看到"境界不足·需筑基期"提示
+// 实际是 fetchSeclusionStatus 异步未完成，can_deep 字段还未加载到 store
+const statusLoaded = ref(false)
 const selectedMode = ref('normal') // 默认常规闭关
 const normalDuration = ref(1800) // 默认 30 分钟
 const deepDuration = ref(14400) // 默认 4 小时
@@ -372,6 +388,14 @@ const deepConfig = computed(() => {
 // 基础修为速率
 const baseExpRate = computed(() => {
   return store.systemConfig?.seclusion?.exp_rate || 1
+})
+
+// 境界加成倍率
+// 修复（2026-07-21）：原预估公式缺少境界加成，导致化神期玩家预估收益比实际少 3.2 倍
+// 后端 /api/seclusion/status 返回此字段，公式：1.0 + (realm.rank - 1) * 0.1
+// 化神初期 rank=23 → 倍率 3.2，凡人 rank=0 → 倍率 1.0
+const realmMultiplier = computed(() => {
+  return store.systemConfig?.seclusion?.realm_multiplier ?? 1.0
 })
 
 // 每日剩余次数
@@ -446,11 +470,14 @@ const canDeep = computed(() => {
 
 /**
  * 预计获得修为
+ * 修复（2026-07-21）：补加 realm_multiplier 境界加成倍率
+ * 公式：duration * baseExpRate * modeRate * realmMultiplier
+ * 与后端 /end 实际结算公式保持一致，避免预估与实际不符
  */
 const estimatedExp = computed(() => {
   const duration = selectedMode.value === 'deep' ? deepDuration.value : normalDuration.value
   const modeRate = selectedMode.value === 'deep' ? deepConfig.value.exp_rate : normalConfig.value.exp_rate
-  return Math.floor(duration * baseExpRate.value * modeRate)
+  return Math.floor(duration * baseExpRate.value * modeRate * realmMultiplier.value)
 })
 
 /**
@@ -541,6 +568,8 @@ const handleStart = async () => {
 onMounted(async () => {
   // 拉取最新闭关状态与配置（含每日剩余次数）
   await store.fetchSeclusionStatus()
+  // 标记状态加载完成，避免按钮误显示"境界不足"
+  statusLoaded.value = true
   // 启动每秒 tick，驱动冷却倒计时显示
   // 注意：关闭面板时需清理，避免内存泄漏
   tickTimer = setInterval(() => {

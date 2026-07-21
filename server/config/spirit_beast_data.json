@@ -1,0 +1,130 @@
+{
+    "_meta": {
+        "version": "1.0.0",
+        "description": "灵兽系统静态配置：灵兽种类、元素相克、培养参数",
+        "create_time": "2026-07-20",
+        "design_doc": "灵兽系统设计规格 - 青云狼/火焰狮/冰魄狐/腾蛇四阶灵兽，含捕获/喂养/互动/出战/放生"
+    },
+
+    "elements": {
+        "metal": { "name": "金", "strong_against": "wood", "weak_against": "fire", "color": "#f59e0b" },
+        "wood":  { "name": "木", "strong_against": "earth", "weak_against": "metal", "color": "#22c55e" },
+        "water": { "name": "水", "strong_against": "fire", "weak_against": "earth", "color": "#3b82f6" },
+        "fire":  { "name": "火", "strong_against": "metal", "weak_against": "water", "color": "#ef4444" },
+        "earth": { "name": "土", "strong_against": "water", "weak_against": "wood", "color": "#a16207" }
+    },
+
+    "element_multiplier": {
+        "strong": 1.5,
+        "weak": 0.75,
+        "normal": 1.0
+    },
+
+    "beast_types": [
+        {
+            "beast_key": "qingyun_wolf",
+            "name": "青云狼",
+            "element": "metal",
+            "rarity": "common",
+            "base_hp": 500,
+            "base_atk": 80,
+            "base_def": 50,
+            "base_speed": 90,
+            "min_realm_rank": 1,
+            "catch_chance": 0.6,
+            "catch_cost_mp": 50,
+            "feed_exp": 10,
+            "description": "青云山常见的灵兽，性情温顺易于驯服"
+        },
+        {
+            "beast_key": "huoyan_lion",
+            "name": "火焰狮",
+            "element": "fire",
+            "rarity": "rare",
+            "base_hp": 800,
+            "base_atk": 150,
+            "base_def": 80,
+            "base_speed": 110,
+            "min_realm_rank": 11,
+            "catch_chance": 0.3,
+            "catch_cost_mp": 200,
+            "feed_exp": 30,
+            "description": "栖息于火山口的稀有灵兽，攻击力惊人"
+        },
+        {
+            "beast_key": "bingpo_fox",
+            "name": "冰魄狐",
+            "element": "water",
+            "rarity": "epic",
+            "base_hp": 600,
+            "base_atk": 120,
+            "base_def": 100,
+            "base_speed": 130,
+            "min_realm_rank": 19,
+            "catch_chance": 0.15,
+            "catch_cost_mp": 500,
+            "feed_exp": 80,
+            "description": "极寒之地的传说灵兽，速度极快且灵性极高"
+        },
+        {
+            "beast_key": "tenglong_snake",
+            "name": "腾蛇",
+            "element": "wood",
+            "rarity": "legendary",
+            "base_hp": 1200,
+            "base_atk": 200,
+            "base_def": 150,
+            "base_speed": 100,
+            "min_realm_rank": 23,
+            "catch_chance": 0.05,
+            "catch_cost_mp": 1000,
+            "feed_exp": 200,
+            "description": "上古神兽后裔，拥有腾云驾雾之力，极难驯服"
+        }
+    ],
+
+    "rarity_config": {
+        "common":    { "name": "凡品", "color": "#9ca3af", "star_up_cost_spirit_stones": 1000,  "release_return_ratio": 0.2 },
+        "rare":      { "name": "灵品", "color": "#3b82f6", "star_up_cost_spirit_stones": 5000,  "release_return_ratio": 0.3 },
+        "epic":      { "name": "宝品", "color": "#a855f7", "star_up_cost_spirit_stones": 20000, "release_return_ratio": 0.4 },
+        "legendary": { "name": "仙品", "color": "#f59e0b", "star_up_cost_spirit_stones": 80000, "release_return_ratio": 0.5 }
+    },
+
+    "settings": {
+        "max_beasts_per_player": 10,
+        "feed_cooldown_seconds": 3600,
+        "interact_cooldown_seconds": 600,
+        "interact_exp_gain": 5,
+        "interact_loyalty_gain": 2,
+        "feed_loyalty_gain": 5,
+        "feed_cost_per_level": 100,
+        "star_up_same_beast_count": 3,
+        "battle_win_exp": 50,
+        "battle_lose_exp": 10,
+        "catch_daily_limit": 20,
+        "catch_fail_mp_return_ratio": 0.3,
+        "max_loyalty": 100,
+        "min_loyalty": 0,
+        "max_star_level": 10,
+        "max_level": 100,
+        "level_up_exp_base": 100,
+        "level_up_exp_growth": 1.5,
+        "combat_power_weight": {
+            "hp": 0.1,
+            "atk": 2.0,
+            "def": 1.5,
+            "speed": 1.0
+        },
+        "combat_bonus": {
+            "description": "出战灵兽对玩家属性的加成配置：加成比例 = base_rate + star_level * star_rate + level * level_rate（上限 max_rate）",
+            "base_rate": 0.1,
+            "star_rate": 0.05,
+            "level_rate": 0.005,
+            "max_rate": 0.5,
+            "hp_factor": 0.5,
+            "speed_factor": 0.3,
+            "mp_factor": 0.0,
+            "sense_factor": 0.2
+        }
+    }
+}

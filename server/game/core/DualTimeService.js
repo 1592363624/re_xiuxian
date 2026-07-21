@@ -218,41 +218,91 @@ class DualTimeService {
 
     /**
      * 处理离线时间
+     *
+     * 修复（2026-07-20）：
+     *   1. 原代码调用 processAttributeRecovery 后未保存返回值到 player 对象，
+     *      导致离线 HP/MP 恢复完全失效（玩家 MP 耗尽后永远为 0）。
+     *      现在将恢复结果写回 player.hp_current / player.mp_current。
+     *   2. 原代码错误地更新 player.attributes.lifespan_current（JSON 内嵌字段），
+     *      但实际年龄字段是 player.lifespan_current（独立列），导致年龄也不增长。
+     *      现在直接更新 player.lifespan_current。
+     *   3. 限制单次最大恢复时长为 24 小时，避免长期未登录玩家恢复过量。
+     *
      * @param {Object} player - 玩家对象
-     * @param {number} offlineDuration - 离线时长（秒）
+     * @param {number} offlineDuration - 离线时长（秒），上限 86400 秒（24小时）
+     * @returns {Object} 恢复结果 { hp_recovered, mp_recovered, age_increased }
      */
     processOfflineTime(player, offlineDuration) {
-        if (!player.attributes) return;
+        if (!player) return { hp_recovered: 0, mp_recovered: 0, age_increased: 0 };
 
-        const hoursOffline = offlineDuration / 3600;
+        // 限制单次最大恢复时长为 24 小时，避免长期未登录玩家恢复过量
+        const cappedDuration = Math.min(offlineDuration, 86400);
+        const hoursOffline = cappedDuration / 3600;
         const gameDaysPassed = hoursOffline; // 1现实小时=1游戏天（离线时）
-        
-        // 更新玩家年龄
-        player.attributes.lifespan_current += gameDaysPassed / 365; // 转换为年
-        
-        // 应用属性恢复
+        const ageIncreased = gameDaysPassed / 365; // 转换为年
+
+        // 更新玩家年龄（直接更新独立列，而非 attributes JSON 内嵌字段）
+        if (typeof player.lifespan_current === 'number') {
+            player.lifespan_current += ageIncreased;
+        }
+
+        // 应用属性恢复（HP/MP）
         const attributeService = require('./AttributeMaxService');
         const maxValues = attributeService.calculateAttributeMaxValues(player, {});
-        attributeService.processAttributeRecovery(player, maxValues, 'natural', offlineDuration / 60);
+        const recoveryResult = attributeService.processAttributeRecovery(
+            player, maxValues, 'natural', cappedDuration / 60
+        );
+
+        // 关键修复：将恢复结果写回 player 对象
+        player.hp_current = BigInt(recoveryResult.hp_current);
+        player.mp_current = BigInt(recoveryResult.mp_current);
+
+        return {
+            hp_recovered: recoveryResult.recovered.hp,
+            mp_recovered: recoveryResult.recovered.mp,
+            age_increased: ageIncreased
+        };
     }
 
     /**
      * 处理在线时间
+     *
+     * 修复（2026-07-20）：
+     *   同 processOfflineTime，修复返回值未保存和年龄字段路径错误的 bug。
+     *
      * @param {Object} player - 玩家对象
-     * @param {number} onlineDuration - 在线时长（秒）
+     * @param {number} onlineDuration - 在线时长（秒），上限 3600 秒（1小时）
+     * @returns {Object} 恢复结果 { hp_recovered, mp_recovered, age_increased }
      */
     processOnlineTime(player, onlineDuration) {
-        if (!player.attributes) return;
+        if (!player) return { hp_recovered: 0, mp_recovered: 0, age_increased: 0 };
 
-        const gameDaysPassed = onlineDuration / (60 * 60); // 1现实分钟=1游戏天（在线时）
-        
-        // 更新玩家年龄
-        player.attributes.lifespan_current += gameDaysPassed / 365; // 转换为年
-        
-        // 应用属性恢复
+        // 限制单次最大恢复时长为 1 小时，避免定时任务累积过量恢复
+        const cappedDuration = Math.min(onlineDuration, 3600);
+        const gameDaysPassed = cappedDuration / (60 * 60); // 1现实小时=1游戏天（在线时）
+        const ageIncreased = gameDaysPassed / 365; // 转换为年
+
+        // 更新玩家年龄（直接更新独立列）
+        if (typeof player.lifespan_current === 'number') {
+            player.lifespan_current += ageIncreased;
+        }
+
+        // 应用属性恢复（HP/MP）
         const attributeService = require('./AttributeMaxService');
         const maxValues = attributeService.calculateAttributeMaxValues(player, {});
-        attributeService.processAttributeRecovery(player, maxValues, 'natural', onlineDuration / 60);
+        const recoveryResult = attributeService.processAttributeRecovery(
+            player, maxValues, 'natural', cappedDuration / 60
+        );
+
+        // 关键修复：将恢复结果写回 player 对象
+        player.hp_current = BigInt(recoveryResult.hp_current);
+        player.mp_current = BigInt(recoveryResult.mp_current);
+
+        return {
+            hp_recovered: recoveryResult.recovered.hp,
+            mp_recovered: recoveryResult.recovered.mp,
+            age_increased: ageIncreased
+        };
     }
 }
 

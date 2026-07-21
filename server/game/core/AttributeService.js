@@ -6,8 +6,15 @@
  *   - calculateFullAttributes 保持同步，通过 player._equipmentBonus 读取装备加成
  *   - calculateFullAttributesAsync 为异步版本，内部获取装备加成后调用同步方法
  *   - 需要装备加成的调用方应使用 calculateFullAttributesAsync
+ *
+ * 灵兽加成集成说明（2026-07-20 新增）：
+ *   - 出战灵兽会按比例加成玩家属性（atk/def/hp_max/speed）
+ *   - 加成比例 = base_rate + star_level * star_rate + level * level_rate（上限 max_rate）
+ *   - 通过 player._spiritBeastBonus 传入（异步版本自动填充）
+ *   - 加成来源记录在 breakdown.spirit_beast 中，便于前端展示
  */
 const EquipmentService = require('../services/EquipmentService');
+const SpiritBeastService = require('../services/SpiritBeastService');
 
 class AttributeService {
     constructor() {
@@ -66,22 +73,33 @@ class AttributeService {
 
     /**
      * 计算玩家完整属性
+     *
+     * 修复（2026-07-20）：
+     *   原代码 base.mp_max = realm?.base_mp || 0，使用 realm_breakthrough.json 的 base_mp，
+     *   但 AttributeMaxService.calculateMPMax 使用 spirit_system.json 的 spirit_power_max，
+     *   两套 MP 上限系统数值不一致（化神初期 base_mp=3200 vs spirit_power_max=100000），
+     *   导致 mp_current 可恢复到 100000，但前端显示 mp_max=3200，出现 mp_current > mp_max 的混乱。
+     *   现在统一使用 spirit_system.json 的 spirit_power_max 作为 MP 上限，与 AttributeMaxService 保持一致。
+     *
      * @param {Object} player - 玩家对象
      * @returns {Object} 完整属性对象 { final, breakdown, info }
      */
     calculateFullAttributes(player) {
-        const attributes = typeof player.attributes === 'string' 
-            ? JSON.parse(player.attributes) 
+        const attributes = typeof player.attributes === 'string'
+            ? JSON.parse(player.attributes)
             : (player.attributes || {});
-        
+
         const realm = this.getRealmConfig(player.realm);
         const roleConfig = this.getRoleInitConfig();
 
         // 1. 基础属性 (Realm Base)
         // 如果没有境界配置，使用默认值
+        // 修复：mp_max 统一使用 spirit_system.json 的 spirit_power_max，与 AttributeMaxService 保持一致
+        const spiritSystemConfig = this.configLoader?.getConfig('spirit_system');
+        const spiritPowerMax = spiritSystemConfig?.realm_settings?.[player.realm]?.spirit_power_max;
         const base = {
             hp_max: realm?.base_hp || 100,
-            mp_max: realm?.base_mp || 0,
+            mp_max: (typeof spiritPowerMax === 'number') ? spiritPowerMax : (realm?.base_mp || 0),
             atk: realm?.base_atk || 10,
             def: realm?.base_def || 5,
             speed: realm?.base_speed || 10,
@@ -118,6 +136,18 @@ class AttributeService {
         // 6. 装备加成（由调用方通过 player._equipmentBonus 传入，异步版本会自动填充）
         const equipmentBonus = player._equipmentBonus || {};
 
+        // 7. 灵兽加成（由调用方通过 player._spiritBeastBonus 传入，异步版本会自动填充）
+        // 出战灵兽按比例加成 atk/def/hp_max/speed 等
+        const spiritBeastBonus = player._spiritBeastBonus || {};
+        const spiritBeastInfo = spiritBeastBonus.beast_info || null;
+        // 剔除 beast_info 字段后剩下的就是纯属性加成
+        const spiritBeastAttrBonus = {};
+        for (const [k, v] of Object.entries(spiritBeastBonus)) {
+            if (k !== 'beast_info' && typeof v === 'number') {
+                spiritBeastAttrBonus[k] = v;
+            }
+        }
+
         // 汇总计算
         const final = { ...base };
         
@@ -136,6 +166,7 @@ class AttributeService {
         addAttr(final, talentBonus);
         addAttr(final, titleBonus);
         addAttr(final, equipmentBonus);
+        addAttr(final, spiritBeastAttrBonus);
 
         // 重新计算依赖最终属性的衍生属性
         // 修炼速度 = 基础 + 智慧*0.5 + 神识*0.3
@@ -160,6 +191,7 @@ class AttributeService {
                 talent: talentBonus,
                 title: titleBonus,
                 equipment: equipmentBonus,
+                spirit_beast: spiritBeastAttrBonus, // 灵兽属性加成
                 cultivation: { // 功法加成 (Placeholder)
                    hp_max: 0, mp_max: 0, atk: 0, def: 0
                 }
@@ -167,26 +199,32 @@ class AttributeService {
             info: {
                 talent,
                 title,
-                spirit_root: spiritRoot
+                spirit_root: spiritRoot,
+                spirit_beast: spiritBeastInfo // 灵兽简要信息（beast_id/beast_name/element/star_level/level/bonus_rate/combat_power）
             }
         };
     }
 
     /**
-     * 计算玩家完整属性（异步版本，包含装备加成）
-     * 内部获取装备加成后临时挂载到 player 对象，再调用同步方法计算
+     * 计算玩家完整属性（异步版本，包含装备加成 + 灵兽加成）
+     * 内部获取装备加成和灵兽加成后临时挂载到 player 对象，再调用同步方法计算
      * 调用后自动清理临时属性，不影响 player 原始数据
      * @param {Object} player - 玩家对象
      * @returns {Promise<Object>} 完整属性对象 { final, breakdown, info }
      */
     async calculateFullAttributesAsync(player) {
-        // 异步获取装备总加成
-        const equipmentBonus = await EquipmentService.getEquipmentBonus(player.id);
+        // 并行获取装备总加成和灵兽加成（提升性能）
+        const [equipmentBonus, spiritBeastBonus] = await Promise.all([
+            EquipmentService.getEquipmentBonus(player.id),
+            SpiritBeastService.getActiveBeastBonus(player.id)
+        ]);
         // 临时挂载到 player 对象，供同步方法读取
         player._equipmentBonus = equipmentBonus;
+        player._spiritBeastBonus = spiritBeastBonus;
         const result = this.calculateFullAttributes(player);
         // 清理临时属性，避免污染 player 原始数据
         delete player._equipmentBonus;
+        delete player._spiritBeastBonus;
         return result;
     }
 

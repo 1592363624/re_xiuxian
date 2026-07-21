@@ -1,0 +1,96 @@
+{
+  "meta": {
+    "description": "妖兽入侵静态配置文件：存储3只妖兽的基础属性、捐献需求、奖励池、技能表。所有数值源自 xiuxian_game_guide.md 第16节 妖兽入侵玩法。",
+    "version": "1.0.0",
+    "last_updated": "2026-07-21",
+    "beast_count": 3
+  },
+  "beasts": [
+    {
+      "beast_key": "xuelang_yaoshou",
+      "name": "血狼妖兽",
+      "description": "血狼妖兽乃北域荒原狼王吞噬血煞之气所化，善血遁突袭，皮糙肉厚。其性嗜血，逢人便撕咬，常于月圆之夜破阵而出，袭扰边陲修仙村落。三阶妖兽中实力最弱，但群狼之势不可小觑，需以锁灵大阵困其身形，再图斩杀。",
+      "element": "beast",
+      "realm_rank_min": 8,
+      "base_hp": 2000000,
+      "base_atk": 1500,
+      "base_def": 500,
+      "base_speed": 100,
+      "donation_target": 5000,
+      "donation_items": [
+        { "item_key": "spirit_stone", "item_name": "灵石", "contribution_per_unit": 1 },
+        { "item_key": "spirit_herb", "item_name": "灵草", "contribution_per_unit": 5 },
+        { "item_key": "monster_core", "item_name": "妖丹", "contribution_per_unit": 50 }
+      ],
+      "rewards": {
+        "participation": { "exp": 100, "spirit_stones": 50 },
+        "top_3": { "exp": 5000, "spirit_stones": 2000, "items": ["beast_token_silver"] },
+        "top_10": { "exp": 2000, "spirit_stones": 800, "items": ["beast_token_bronze"] },
+        "killer": { "exp": 10000, "spirit_stones": 5000, "items": ["beast_token_gold"] }
+      },
+      "counter_rate": 0.4,
+      "counter_damage_multiplier": 0.6,
+      "skills": [
+        { "name": "血狼撕咬", "type": "single_target", "damage_multiplier": 1.2, "cooldown": 0 }
+      ]
+    },
+    {
+      "beast_key": "tianhu_yaoshou",
+      "name": "天狐妖兽",
+      "description": "天狐妖兽本是九尾天狐后裔，修炼千年化形未竟，因情劫堕落妖道。善幻术魅惑，能以妖丹震慑神魂，令修士心神失守。其皮毛如雪，眼若星辰，然一颦一笑皆是杀机。须以锁灵大阵隔其妖气，否则参战者易堕幻境，自相残杀。",
+      "element": "beast",
+      "realm_rank_min": 15,
+      "base_hp": 5000000,
+      "base_atk": 2500,
+      "base_def": 800,
+      "base_speed": 100,
+      "donation_target": 15000,
+      "donation_items": [
+        { "item_key": "spirit_stone", "item_name": "灵石", "contribution_per_unit": 1 },
+        { "item_key": "spirit_herb", "item_name": "灵草", "contribution_per_unit": 5 },
+        { "item_key": "monster_core", "item_name": "妖丹", "contribution_per_unit": 50 }
+      ],
+      "rewards": {
+        "participation": { "exp": 300, "spirit_stones": 150 },
+        "top_3": { "exp": 15000, "spirit_stones": 6000, "items": ["beast_token_silver"] },
+        "top_10": { "exp": 6000, "spirit_stones": 2400, "items": ["beast_token_bronze"] },
+        "killer": { "exp": 30000, "spirit_stones": 15000, "items": ["beast_token_gold"] }
+      },
+      "counter_rate": 0.45,
+      "counter_damage_multiplier": 0.65,
+      "skills": [
+        { "name": "天狐幻舞", "type": "single_target", "damage_multiplier": 1.3, "cooldown": 0 },
+        { "name": "妖丹震慑", "type": "single_target", "damage_multiplier": 1.6, "cooldown": 12 }
+      ]
+    },
+    {
+      "beast_key": "kuimu_yaoshou",
+      "name": "魁木妖兽",
+      "description": "魁木妖兽乃上古神木枯死后怨气凝聚所化，根须入地千丈，枝干坚硬如铁。其势若山岳，一击可裂地百里，所过之处寸草不生。三阶妖兽中实力最强，唯有结丹以上修士方可勉强一战。锁灵大阵需以大量灵物祭炼方能困其分毫，斩之可获妖丹炼制上品法宝。",
+      "element": "beast",
+      "realm_rank_min": 22,
+      "base_hp": 10000000,
+      "base_atk": 4000,
+      "base_def": 1200,
+      "base_speed": 100,
+      "donation_target": 30000,
+      "donation_items": [
+        { "item_key": "spirit_stone", "item_name": "灵石", "contribution_per_unit": 1 },
+        { "item_key": "spirit_herb", "item_name": "灵草", "contribution_per_unit": 5 },
+        { "item_key": "monster_core", "item_name": "妖丹", "contribution_per_unit": 50 }
+      ],
+      "rewards": {
+        "participation": { "exp": 600, "spirit_stones": 300 },
+        "top_3": { "exp": 30000, "spirit_stones": 12000, "items": ["beast_token_silver"] },
+        "top_10": { "exp": 12000, "spirit_stones": 4800, "items": ["beast_token_bronze"] },
+        "killer": { "exp": 60000, "spirit_stones": 30000, "items": ["beast_token_gold"] }
+      },
+      "counter_rate": 0.5,
+      "counter_damage_multiplier": 0.7,
+      "skills": [
+        { "name": "魁木裂地", "type": "single_target", "damage_multiplier": 1.4, "cooldown": 0 },
+        { "name": "枯木逢春", "type": "single_target", "damage_multiplier": 1.8, "cooldown": 15 }
+      ]
+    }
+  ]
+}

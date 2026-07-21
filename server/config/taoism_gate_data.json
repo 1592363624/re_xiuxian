@@ -1,0 +1,170 @@
+{
+  "_comment": "太一门引道系统配置（玩法文档第25节：太一门引道，五行道途+神识联动+多人共鸣）",
+  "version": "1.0.0",
+  "updated_at": "2026-07-21",
+
+  "taoism_gate": {
+    "min_realm_rank": 18,
+    "min_divine_sense_to_choose": 200,
+    "switch_free_per_month": 1,
+    "switch_fragment_cost": 100,
+    "switch_fragment_type": "five_elements",
+    "switch_cooldown_hours": 168,
+    "max_dao_level": 10,
+    "daily_cultivate_limit": 5,
+    "cultivate_divine_sense_cost": 50,
+    "cultivate_exp_base": 100,
+    "cultivate_exp_divine_sense_bonus_ratio": 0.5,
+    "daily_task_count": 3,
+    "daily_task_reset_hour": 0,
+    "resonance_min_players": 2,
+    "resonance_max_bonus": 0.5,
+    "resonance_per_player": 0.1,
+    "restraint_bonus": 0.2,
+    "scheduler": {
+      "check_interval_ms": 60000,
+      "batch_size": 50
+    }
+  },
+
+  "dao_paths": {
+    "metal": {
+      "key": "metal",
+      "name": "金道·锐金",
+      "description": "金主杀伐，锐利无匹。修炼金道可提升神识攻击力，技能'金锋裂魂'能以神识化刃攻击他人灵兽。",
+      "color": "#FFD700",
+      "passive_bonus_per_level": 0.05,
+      "passive_bonus_type": "attack_percent",
+      "passive_bonus_desc": "每级+5%神识攻击力",
+      "skill_id": "metal_blade",
+      "skill_name": "金锋裂魂",
+      "skill_description": "消耗神识攻击目标玩家灵兽，造成HP损失（伤害=神识量×道途等级×0.5）",
+      "skill_divine_sense_cost": 200,
+      "skill_cooldown_hours": 12,
+      "skill_min_level": 5,
+      "restraint_targets": ["wood"]
+    },
+    "wood": {
+      "key": "wood",
+      "name": "木道·长生",
+      "description": "木主生机，绵延不绝。修炼木道可提升灵兽HP恢复速度，技能'木灵回春'能以神识恢复自己灵兽HP。",
+      "color": "#228B22",
+      "passive_bonus_per_level": 0.04,
+      "passive_bonus_type": "hp_recover_percent",
+      "passive_bonus_desc": "每级+4%灵兽HP恢复速度",
+      "skill_id": "wood_heal",
+      "skill_name": "木灵回春",
+      "skill_description": "消耗神识恢复自己灵兽HP（恢复量=神识量×道途等级×0.8）",
+      "skill_divine_sense_cost": 150,
+      "skill_cooldown_hours": 8,
+      "skill_min_level": 5,
+      "restraint_targets": ["earth"]
+    },
+    "water": {
+      "key": "water",
+      "name": "水道·玄水",
+      "description": "水主防御，以柔克刚。修炼水道可提升神识防御力，技能'水镜映心'能设置反弹盾，反弹下次探查。",
+      "color": "#1E90FF",
+      "passive_bonus_per_level": 0.05,
+      "passive_bonus_type": "defense_percent",
+      "passive_bonus_desc": "每级+5%神识防御力",
+      "skill_id": "water_mirror",
+      "skill_name": "水镜映心",
+      "skill_description": "设置反弹盾，下次被探查时反弹50%神识消耗给探查者，持续24小时",
+      "skill_divine_sense_cost": 100,
+      "skill_cooldown_hours": 24,
+      "skill_min_level": 5,
+      "restraint_targets": ["fire"]
+    },
+    "fire": {
+      "key": "fire",
+      "name": "火道·焚天",
+      "description": "火主洞察，焚尽虚妄。修炼火道可提升炼化效率，技能'火眼金睛'能以神识探查他人储物袋。",
+      "color": "#FF4500",
+      "passive_bonus_per_level": 0.03,
+      "passive_bonus_type": "craft_efficiency_percent",
+      "passive_bonus_desc": "每级+3%炼化效率",
+      "skill_id": "fire_eye",
+      "skill_name": "火眼金睛",
+      "skill_description": "消耗神识探查目标玩家储物袋（成功率=基础30%+道途等级×5%+神识差×0.1%）",
+      "skill_divine_sense_cost": 180,
+      "skill_cooldown_hours": 6,
+      "skill_min_level": 5,
+      "restraint_targets": ["metal"]
+    },
+    "earth": {
+      "key": "earth",
+      "name": "土道·厚土",
+      "description": "土主稳固，厚德载物。修炼土道可提升法则转换效率，技能'土牢定身'能定身他人灵兽。",
+      "color": "#8B4513",
+      "passive_bonus_per_level": 0.04,
+      "passive_bonus_type": "law_convert_percent",
+      "passive_bonus_desc": "每级+4%法则转换效率",
+      "skill_id": "earth_prison",
+      "skill_name": "土牢定身",
+      "skill_description": "消耗神识定身目标玩家灵兽，使其2小时内无法出战/放养/探渊",
+      "skill_divine_sense_cost": 250,
+      "skill_cooldown_hours": 24,
+      "skill_min_level": 5,
+      "restraint_targets": ["water"]
+    }
+  },
+
+  "level_table": {
+    "1": { "exp_required": 0, "bonus_value": 0.05, "title": "初窥门径" },
+    "2": { "exp_required": 200, "bonus_value": 0.10, "title": "道心初显" },
+    "3": { "exp_required": 500, "bonus_value": 0.15, "title": "道意渐生" },
+    "4": { "exp_required": 1000, "bonus_value": 0.20, "title": "道行有成" },
+    "5": { "exp_required": 2000, "bonus_value": 0.25, "title": "道途已明（可学技能）" },
+    "6": { "exp_required": 3500, "bonus_value": 0.30, "title": "道心通明" },
+    "7": { "exp_required": 5500, "bonus_value": 0.35, "title": "道意凝形" },
+    "8": { "exp_required": 8000, "bonus_value": 0.40, "title": "道行深远" },
+    "9": { "exp_required": 12000, "bonus_value": 0.45, "title": "道境将圆" },
+    "10": { "exp_required": 20000, "bonus_value": 0.50, "title": "道成圆满" }
+  },
+
+  "daily_tasks": {
+    "task_types": {
+      "cultivate": {
+        "name": "引道修炼",
+        "description": "完成3次引道修炼",
+        "target_count": 3,
+        "rewards": { "dao_exp": 50, "divine_sense": 30, "law_fragment_five_elements": 2 }
+      },
+      "use_skill": {
+        "name": "道途显能",
+        "description": "使用1次道途技能",
+        "target_count": 1,
+        "rewards": { "dao_exp": 80, "divine_sense": 50, "law_fragment_five_elements": 3 }
+      },
+      "resonance": {
+        "name": "道途共鸣",
+        "description": "与至少1名同道途玩家组队（需在线且同道途）",
+        "target_count": 1,
+        "rewards": { "dao_exp": 100, "divine_sense": 80, "law_fragment_five_elements": 5 }
+      }
+    },
+    "task_weights": {
+      "cultivate": 50,
+      "use_skill": 30,
+      "resonance": 20
+    }
+  },
+
+  "restraint_matrix": {
+    "metal_beats_wood": 0.2,
+    "wood_beats_earth": 0.2,
+    "earth_beats_water": 0.2,
+    "water_beats_fire": 0.2,
+    "fire_beats_metal": 0.2,
+    "_comment": "五行相克：金克木、木克土、土克水、水克火、火克金；相克时探查/攻击成功率+20%"
+  },
+
+  "resonance_config": {
+    "min_players": 2,
+    "bonus_per_player": 0.1,
+    "max_bonus": 0.5,
+    "check_radius_online": true,
+    "_comment": "道途共鸣：同道途玩家组队时获得被动加成叠加；2人+10%、3人+20%、4人+30%、5人+50%（封顶）"
+  }
+}

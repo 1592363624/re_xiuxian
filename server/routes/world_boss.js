@@ -5,11 +5,13 @@
  *   1. GET    /available            - 获取可挑战的BOSS列表（含状态/HP/阶段/参与人数）
  *   2. GET    /:bossId              - 获取BOSS详情（含技能/排行前10/玩家战绩）
  *   3. POST   /:bossId/attack       - 攻击BOSS（body: skill_id 可选，默认 basic）
- *   4. POST   /:bossId/revive       - 原地复活（消耗灵石，60秒CD）
- *   5. POST   /:bossId/retreat      - 撤退（5分钟内禁入）
- *   6. GET    /:bossId/ranking      - 获取伤害排行（query: type=personal|sect, limit）
- *   7. GET    /season/ranking       - 获取赛季排行（query: season_id, limit）
- *   8. GET    /seasons              - 获取赛季列表
+ *   4. POST   /:bossId/action       - 多行动机制（body: action_type 必填，skill_id 可选）
+ *      4 种行动：assault=强攻 / break_banner=破幡 / suppress_soul=镇魂 / protect_array=护阵
+ *   5. POST   /:bossId/revive       - 原地复活（消耗灵石，60秒CD）
+ *   6. POST   /:bossId/retreat      - 撤退（5分钟内禁入）
+ *   7. GET    /:bossId/ranking      - 获取伤害排行（query: type=personal|sect, limit）
+ *   8. GET    /season/ranking       - 获取赛季排行（query: season_id, limit）
+ *   9. GET    /seasons              - 获取赛季列表
  *
  * 权限：所有接口需要 auth 中间件验证 JWT
  * 设计：路由层只做参数提取与响应包装，业务逻辑全部在 WorldBossService 中
@@ -165,6 +167,60 @@ router.post('/:bossId/attack', auth, async (req, res, next) => {
 
         const result = await WorldBossService.attackBoss(playerId, bossId, skillId);
         res.json({ code: 200, data: result });
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
+ * POST /api/world-boss/:bossId/action
+ * 世界BOSS 多行动机制（玩法文档第16节）
+ *
+ * 4 种行动类型：
+ *   - assault       : 强攻（主伤害，但提升魔压、削弱阵势）
+ *   - break_banner  : 破幡（削弱幡魂减伤，自身伤害降低）
+ *   - suppress_soul : 镇魂（降低魔压，避免压力失控）
+ *   - protect_array : 护阵（恢复阵势，避免阵势崩溃）
+ *
+ * body: {
+ *   action_type: 'assault|break_banner|suppress_soul|protect_array',  // 必填
+ *   skill_id?: string  // 可选，默认 'basic'（同 /attack 的 skill_id）
+ * }
+ *
+ * 返回：行动结果（含 boss.banner_soul/magic_pressure/array_integrity 三大状态变化）
+ *
+ * 路由位置说明：
+ *   - 此路由放在 /:bossId/attack 之后，与具体子路由 /revive /retreat 同级
+ *   - 不会被 /:bossId 主路由捕获（因 Express 优先匹配更具体路径）
+ */
+router.post('/:bossId/action', auth, async (req, res, next) => {
+    try {
+        const bossId = parseInt(req.params.bossId);
+        if (!bossId || bossId <= 0) {
+            throw new AppError('BOSS ID格式错误', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        const playerId = req.player.id;
+        const { action_type, skill_id } = req.body || {};
+
+        // action_type 参数校验：必须是 4 种合法行动之一
+        const validActions = ['assault', 'break_banner', 'suppress_soul', 'protect_array'];
+        if (!validActions.includes(action_type)) {
+            throw new AppError(
+                `action_type 必须是 ${validActions.join('/')} 之一`,
+                400,
+                ErrorCodes.VALIDATION_ERROR
+            );
+        }
+
+        // skill_id 安全校验：可选，默认 basic，仅允许字母数字下划线
+        const skillId = skill_id || 'basic';
+        if (!/^[a-zA-Z0-9_]+$/.test(skillId)) {
+            throw new AppError('技能ID格式错误', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        const result = await WorldBossService.performAction(playerId, bossId, action_type, skillId);
+        res.json({ code: 200, data: result, message: '行动成功' });
     } catch (err) {
         next(err);
     }

@@ -28,19 +28,62 @@ class AttributeMaxService {
 
     /**
      * 计算玩家属性最大值
+     *
+     * 修复（2026-07-20）：
+     *   原代码 `realmConfig?.[realm]` 把 realmConfig 当作 map 用（按境界名索引），
+     *   但所有调用者传的都是 `RealmService.getRealmByName(player.realm)` 返回的
+     *   单个境界对象（含 name 字段），导致 realmData 永远为 {}，最终所有境界
+     *   的属性上限都退化为默认值（HP=100, MP=0）。
+     *   现在智能识别 realmConfig 参数类型：
+     *     - 数组（realms 列表）：按 player.realm 查找
+     *     - 单个境界对象（含 name 字段）：直接使用
+     *     - map（按境界名索引）：用 realmConfig[player.realm]
+     *     - 空值：从 RealmService 实时查询
+     *
      * @param {Object} player - 玩家对象
-     * @param {Object} realmConfig - 境界配置
+     * @param {Object|Array} realmConfig - 境界配置（单个境界对象 / realms 数组 / 按境界名索引的 map）
      * @returns {Object} 属性最大值对象
      */
     calculateAttributeMaxValues(player, realmConfig) {
         const attributes = player.attributes || {};
         const realm = player.realm || '凡人';
-        const realmData = realmConfig?.[realm] || {};
-        
+
+        // 智能识别 realmConfig 参数类型，提取当前境界的数据
+        let realmData = {};
+        if (Array.isArray(realmConfig)) {
+            // 数组形式：按 name 字段查找
+            realmData = realmConfig.find(r => r.name === realm) || {};
+        } else if (realmConfig && typeof realmConfig === 'object') {
+            if (realmConfig.name === realm) {
+                // 单个境界对象：直接使用
+                realmData = realmConfig;
+            } else if (realmConfig[realm]) {
+                // map 形式：按境界名索引
+                realmData = realmConfig[realm];
+            } else if (realmConfig.realms && Array.isArray(realmConfig.realms)) {
+                // 包装对象：{ realms: [...] }
+                realmData = realmConfig.realms.find(r => r.name === realm) || {};
+            } else {
+                // 兜底：尝试从 RealmService 实时查询
+                try {
+                    const RealmService = require('./RealmService');
+                    const r = RealmService.getRealmByName(realm);
+                    if (r) realmData = r;
+                } catch (e) { /* 忽略，使用默认 {} */ }
+            }
+        } else if (!realmConfig) {
+            // 未传：从 RealmService 实时查询
+            try {
+                const RealmService = require('./RealmService');
+                const r = RealmService.getRealmByName(realm);
+                if (r) realmData = r;
+            } catch (e) { /* 忽略 */ }
+        }
+
         // 根据境界计算最大值
         const maxValues = {
             hp_max: this.calculateHPMax(attributes, realmData),
-            mp_max: this.calculateMPMax(attributes, realmData),
+            mp_max: this.calculateMPMax(attributes, realmData, realm),
             lifespan_max: this.calculateLifespanMax(attributes, realmData)
         };
 
@@ -53,19 +96,26 @@ class AttributeMaxService {
     calculateHPMax(attributes, realmData) {
         const baseHP = realmData.base_hp || 100;
         const realmMultiplier = realmData.hp_multiplier || 1;
-        
+
         return Math.floor(baseHP * realmMultiplier);
     }
 
     /**
      * 计算灵力最大值
+     *
+     * 修复（2026-07-20）：
+     *   原代码 `realmData.realm || '凡人'` 读取的是境界对象的 realm 字段，
+     *   但 realm_breakthrough.json 中境界对象的字段名是 name（不是 realm），
+     *   导致 realm 永远为 '凡人'，非凡人境界的 MP 上限全部错误退化为 0。
+     *   现在从 player.realm 直接传入，避免字段名不匹配。
      */
-    calculateMPMax(attributes, realmData) {
-        const realm = realmData.realm || '凡人';
-        
+    calculateMPMax(attributes, realmData, realm) {
+        // 优先使用传入的 realm，否则尝试从 realmData.name 读取，最后兜底 '凡人'
+        const actualRealm = realm || realmData?.name || '凡人';
+
         // 使用灵力系统配置
-        if (this.spiritConfig && this.spiritConfig.realm_settings && this.spiritConfig.realm_settings[realm]) {
-            return this.spiritConfig.realm_settings[realm].spirit_power_max || 0;
+        if (this.spiritConfig && this.spiritConfig.realm_settings && this.spiritConfig.realm_settings[actualRealm]) {
+            return this.spiritConfig.realm_settings[actualRealm].spirit_power_max || 0;
         }
         
         // 备用计算逻辑：按小境界自动计算
@@ -146,38 +196,54 @@ class AttributeMaxService {
 
     /**
      * 处理属性恢复逻辑
+     *
+     * 修复（2026-07-20）：
+     *   原代码优先用 spirit_system.json 的 recovery 配置，但该配置字段名是
+     *   `rate_per_minute` / `rate_per_second`，而非 `hp_recovery_per_minute`，
+     *   导致 recoveryRates.hp_recovery_per_minute 为 undefined，调用时报错。
+     *   且 spirit_system.json 只管 MP（灵力）的恢复速率，不管 HP（气血）。
+     *   现在统一使用 attribute_system.json 的 attribute_recovery 配置，
+     *   它同时包含 HP 和 MP 的恢复速率，字段名也一致。
+     *   如果 attribute_system 配置缺失，使用硬编码默认值（自然恢复：HP/MP 各 1/分钟）。
+     *
      * @param {Object} player - 玩家对象
      * @param {Object} maxValues - 属性最大值
      * @param {string} recoveryType - 恢复类型（natural/meditation）
      * @param {number} duration - 持续时间（分钟）
-     * @returns {Object} 恢复后的属性值
+     * @returns {Object} 恢复后的属性值 { hp_current, mp_current, recovered: { hp, mp } }
      */
     processAttributeRecovery(player, maxValues, recoveryType, duration) {
-        // 优先使用灵力系统配置
-        let recoveryRates = {};
-        if (this.spiritConfig && this.spiritConfig.spirit_power && this.spiritConfig.spirit_power.recovery) {
-            recoveryRates = this.spiritConfig.spirit_power.recovery[recoveryType] || this.spiritConfig.spirit_power.recovery.natural;
-        } else {
-            // 备用配置
-            const recoveryConfig = this.attributeConfig?.attribute_recovery || {};
-            recoveryRates = recoveryConfig[`${recoveryType}_recovery`] || recoveryConfig.natural_recovery;
-        }
-        
-        const currentHp = player.hp_current || 0;
-        const currentMp = player.mp_current || 0;
+        // 统一使用 attribute_system.json 的恢复速率配置
+        // 字段结构：attribute_recovery.{recoveryType}_recovery.{hp,mp}_recovery_per_minute
+        const recoveryConfig = this.attributeConfig?.attribute_recovery || {};
+        const typeKey = `${recoveryType}_recovery`; // natural_recovery / meditation_recovery
+        const recoveryRates = recoveryConfig[typeKey] || recoveryConfig.natural_recovery || {
+            // 兜底默认值：自然恢复 HP/MP 各 1/分钟
+            hp_recovery_per_minute: 1,
+            mp_recovery_per_minute: 1,
+            hp_recovery_multiplier: 1,
+            mp_recovery_multiplier: 1
+        };
+
+        const currentHp = Number(player.hp_current || 0);
+        const currentMp = Number(player.mp_current || 0);
         const maxHp = maxValues.hp_max || 100;
         const maxMp = maxValues.mp_max || 0;
 
-        // 计算恢复量
-        const hpRecovery = Math.min(
-            Math.floor(recoveryRates.hp_recovery_per_minute * duration * (recoveryRates.hp_recovery_multiplier || 1)),
-            maxHp - currentHp
-        );
+        // 计算恢复量（不超过上限，且不超过剩余空间）
+        const hpRate = recoveryRates.hp_recovery_per_minute || 0;
+        const mpRate = recoveryRates.mp_recovery_per_minute || 0;
+        const hpMult = recoveryRates.hp_recovery_multiplier || 1;
+        const mpMult = recoveryRates.mp_recovery_multiplier || 1;
 
-        const mpRecovery = Math.min(
-            Math.floor(recoveryRates.mp_recovery_per_minute * duration * (recoveryRates.mp_recovery_multiplier || 1)),
-            maxMp - currentMp
-        );
+        const hpRecovery = Math.max(0, Math.min(
+            Math.floor(hpRate * duration * hpMult),
+            Math.max(0, maxHp - currentHp)
+        ));
+        const mpRecovery = Math.max(0, Math.min(
+            Math.floor(mpRate * duration * mpMult),
+            Math.max(0, maxMp - currentMp)
+        ));
 
         return {
             hp_current: Math.min(currentHp + hpRecovery, maxHp),

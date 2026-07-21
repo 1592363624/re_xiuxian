@@ -1,0 +1,204 @@
+{
+  "dao_companion": {
+    "min_realm_name": "筑基期",
+    "min_realm_rank": 4,
+    "seek_cost_spirit_stones": 10000,
+    "break_cooldown_days": 3,
+    "vow_expire_days": 30,
+    "daily_dual_cultivation_limit": 3,
+    "daily_warm_nourish_limit": 2,
+    "daily_pluck_supplement_limit": 1,
+    "dual_cultivation_bonus_rate": 0.05,
+    "warm_nourish_bonus_rate": 0.03,
+    "pluck_supplement_main_rate": 0.10,
+    "pluck_supplement_sub_rate": -0.03,
+    "heart_contract_exp_per_dual": 10,
+    "heart_contract_level_thresholds": [10, 30, 60, 100, 150],
+    "min_intimacy_for_dual": 30,
+    "min_intimacy_for_pluck": 80,
+    "min_remnant_soul": 50,
+    "ask_after_intimacy_gain": 2,
+    "ask_after_charm_gain": 1,
+    "ask_after_loyalty_gain": 1
+  },
+  "heart_tribulation": {
+    "options": {
+      "steady": { "success_rate": 0.7, "intimacy_gain": 10, "remnant_soul_cost": 5 },
+      "ruthless": { "success_rate": 0.5, "intimacy_gain": 20, "remnant_soul_cost": 15 },
+      "deceive": { "success_rate": 0.3, "intimacy_gain": 30, "remnant_soul_cost": 0 }
+    },
+    "success_reward": { "heart_contract_exp": 100, "remnant_soul_recover": 10 },
+    "failure_penalty": { "heart_contract_level_loss": 1, "remnant_soul_loss": 20, "weakness_hours": 24 },
+    "expire_hours": 48
+  },
+  "concubines": [
+    {
+      "concubine_key": "nangong_wan",
+      "concubine_name": "南宫婉",
+      "rarity": "legendary",
+      "concubine_type": "normal",
+      "init_realm_rank": 3,
+      "init_charm": 85,
+      "init_intimacy": 20,
+      "init_loyalty": 90,
+      "talent_id": "moon_shadow",
+      "can_awaken": true,
+      "awakened_form": "nangong_wan_moon_shadow",
+      "awakened_name": "南宫婉·月影",
+      "awakened_charm": 95,
+      "awakened_talent": "moon_heart",
+      "attributes": { "atk": 50, "def": 30, "hp_max": 500, "support_bonus": 0.15 },
+      "desc": "掩月宗天之骄女，月华灵根，可觉醒为月影形态"
+    },
+    {
+      "concubine_key": "ziling",
+      "concubine_name": "紫灵",
+      "rarity": "legendary",
+      "concubine_type": "normal",
+      "init_realm_rank": 4,
+      "init_charm": 90,
+      "init_intimacy": 15,
+      "init_loyalty": 85,
+      "talent_id": "spirit_eye",
+      "can_awaken": false,
+      "attributes": { "atk": 40, "def": 40, "hp_max": 600, "support_bonus": 0.20 },
+      "desc": "乱星海第一美人，灵目天赋，可洞察先机"
+    },
+    {
+      "concubine_key": "wen_qing",
+      "concubine_name": "温清",
+      "rarity": "rare",
+      "concubine_type": "normal",
+      "init_realm_rank": 2,
+      "init_charm": 70,
+      "init_intimacy": 30,
+      "init_loyalty": 80,
+      "talent_id": "warm_heal",
+      "can_awaken": false,
+      "attributes": { "atk": 20, "def": 30, "hp_max": 400, "support_bonus": 0.10 },
+      "desc": "药谷传人，精通温养之术"
+    },
+    {
+      "concubine_key": "mu_pei",
+      "concubine_name": "慕沛",
+      "rarity": "rare",
+      "concubine_type": "normal",
+      "init_realm_rank": 2,
+      "init_charm": 65,
+      "init_intimacy": 35,
+      "init_loyalty": 75,
+      "talent_id": "gathering",
+      "can_awaken": false,
+      "attributes": { "atk": 30, "def": 20, "hp_max": 350, "support_bonus": 0.08 },
+      "desc": "散修之女，善于聚灵"
+    },
+    {
+      "concubine_key": "liu_yu",
+      "concubine_name": "柳雨",
+      "rarity": "normal",
+      "concubine_type": "normal",
+      "init_realm_rank": 1,
+      "init_charm": 55,
+      "init_intimacy": 40,
+      "init_loyalty": 70,
+      "talent_id": null,
+      "can_awaken": false,
+      "attributes": { "atk": 15, "def": 15, "hp_max": 300, "support_bonus": 0.05 },
+      "desc": "江南渔家女，温婉贤淑"
+    },
+    {
+      "concubine_key": "han_xue",
+      "concubine_name": "寒雪",
+      "rarity": "normal",
+      "concubine_type": "normal",
+      "init_realm_rank": 1,
+      "init_charm": 60,
+      "init_intimacy": 25,
+      "init_loyalty": 85,
+      "talent_id": null,
+      "can_awaken": false,
+      "attributes": { "atk": 25, "def": 25, "hp_max": 350, "support_bonus": 0.06 },
+      "desc": "北地冰原孤儿，性情冷傲"
+    },
+    {
+      "concubine_key": "xue_ji",
+      "concubine_name": "血姬",
+      "rarity": "epic",
+      "concubine_type": "normal",
+      "init_realm_rank": 5,
+      "init_charm": 88,
+      "init_intimacy": 10,
+      "init_loyalty": 60,
+      "talent_id": "blood_fury",
+      "can_awaken": true,
+      "awakened_form": "xue_ji_blood_demon",
+      "awakened_name": "血姬·血魔",
+      "awakened_charm": 92,
+      "awakened_talent": "blood_domain",
+      "attributes": { "atk": 80, "def": 50, "hp_max": 800, "support_bonus": 0.25 },
+      "desc": "血魔之女，可觉醒为血魔形态，极为危险"
+    }
+  ],
+  "seek_fate": {
+    "daily_free_count": 1,
+    "extra_seek_max_count": 3,
+    "extra_seek_base_cost": 5000,
+    "extra_seek_cost_increment": 2000,
+    "base_drop_rate": 0.05,
+    "spirit_stone_bonus_max": 0.15,
+    "rare_drop_rate": 0.005,
+    "rare_keys": ["nangong_wan", "ziling", "xue_ji"]
+  },
+  "voyage": {
+    "modes": {
+      "safe": { "duration_hours": 4, "risk_modifier": 0.5, "reward_multiplier": 0.6, "min_charm": 0 },
+      "balanced": { "duration_hours": 8, "risk_modifier": 1.0, "reward_multiplier": 1.0, "min_charm": 30 },
+      "risky": { "duration_hours": 12, "risk_modifier": 1.5, "reward_multiplier": 1.8, "min_charm": 50 },
+      "moon_palace": { "duration_hours": 24, "risk_modifier": 2.0, "reward_multiplier": 3.0, "min_charm": 80 }
+    },
+    "success_rate_formula": {
+      "base": 0.5,
+      "charm_weight": 0.2,
+      "intimacy_weight": 0.15,
+      "loyalty_weight": 0.15,
+      "risk_penalty": 0.1,
+      "max_rate": 0.95,
+      "min_rate": 0.05
+    },
+    "max_rare_items": 3,
+    "failure_spirit_stone_retain": 0.3,
+    "collect_expire_hours": 24,
+    "collect_expire_loyalty_penalty": 5,
+    "reward_pools": {
+      "safe": [
+        { "type": "spirit_stones", "min": 1000, "max": 3000, "weight": 100 },
+        { "type": "item", "item_keys": ["qi_condensing_pill", "spirit_grass"], "weight": 30 }
+      ],
+      "balanced": [
+        { "type": "spirit_stones", "min": 3000, "max": 8000, "weight": 100 },
+        { "type": "item", "item_keys": ["foundation_pill", "spirit_gathering_pill"], "weight": 40 }
+      ],
+      "risky": [
+        { "type": "spirit_stones", "min": 8000, "max": 20000, "weight": 100 },
+        { "type": "item", "item_keys": ["nascent_soul_pill", "rare_treasure_fragment"], "weight": 20 }
+      ],
+      "moon_palace": [
+        { "type": "spirit_stones", "min": 20000, "max": 50000, "weight": 100 },
+        { "type": "item", "item_keys": ["law_fragment_space", "moon_jade_dew"], "weight": 15 }
+      ]
+    }
+  },
+  "backfeed": {
+    "daily_limit_per_concubine": 3,
+    "concubine_exp_gain": 1000,
+    "player_exp_cost": 500
+  },
+  "gift": {
+    "intimacy_per_value_100": 5,
+    "charm_per_value_100": 2
+  },
+  "protect": {
+    "interrupt_reduction": 0.30,
+    "duration_hours": 8
+  }
+}

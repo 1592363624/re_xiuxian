@@ -305,7 +305,10 @@ export const usePlayerStore = defineStore('player', {
                 exp_gained: data.exp_gained,
                 current_duration: data.current_duration,
                 remaining_time: data.remaining_time,
-                progress: data.progress
+                progress: data.progress,
+                // 修复（2026-07-21）：补存境界加成倍率，供 SeclusionPanel 预估公式使用
+                // 公式：1.0 + (realm.rank - 1) * 0.1（每提升 1 个 rank +10%）
+                realm_multiplier: data.realm_multiplier ?? 1.0
              }
              // 兼容旧字段
              this.systemConfig.cultivate_interval = data.cultivate_interval

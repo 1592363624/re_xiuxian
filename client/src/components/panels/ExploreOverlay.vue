@@ -92,6 +92,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import { completeExplore } from '../../api/explore'
+// 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
+import { formatNumber } from '../../utils/format'
 
 const store = usePlayerStore()
 const uiStore = useUIStore()
@@ -170,12 +172,13 @@ const handleComplete = async () => {
   try {
     const res = await completeExplore()
     const rewards = res.data?.data?.rewards || {}
-    let rewardText = `获得 ${rewards.exp || 0} 修为`
+    // 修复 4-3-P1-2：使用 formatNumber 处理 BigInt 字符串
+    let rewardText = `获得 ${formatNumber(rewards.exp || 0)} 修为`
     if (rewards.items?.length) {
       rewardText += `，${rewards.items.map(i => i.item_key).join('、')}`
     }
     if (rewards.spirit_stones) {
-      rewardText += `，${rewards.spirit_stones} 灵石`
+      rewardText += `，${formatNumber(rewards.spirit_stones)} 灵石`
     }
     if (rewards.early_finish) {
       rewardText += `（提前结束，仅获得 ${rewards.reward_scale} 奖励）`

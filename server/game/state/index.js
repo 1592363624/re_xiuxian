@@ -56,6 +56,12 @@ function registerAllStates() {
     // 夺舍状态（批次3：与一切状态互斥，超时30分钟强制随机选定目标）
     require('./registrations/reincarnation')();
 
+    // 闭关双修状态（玩家间道侣 1v1 长期社交：与一切状态互斥，时间戳自然过期）
+    require('./registrations/dualCultivation')();
+
+    // 妖兽入侵斩妖状态（多人公共事件：与一切状态互斥，玩家需先撤退才能开始其他操作）
+    require('./registrations/beastInvasion')();
+
     // 封禁状态
     require('./registrations/ban')();
 

@@ -97,6 +97,10 @@
         <!-- 飞升+夺舍重生系统管理（批次3新增：统计/玩家进度/大衍诀调整/法则碎片/坐标/重置冷却/夺舍目标CRUD） -->
         <AscensionManagement v-if="currentTab === 'ascension'" @showConfirm="showConfirm" />
         <LateStageManagement v-if="currentTab === 'late_stage'" @showConfirm="showConfirm" />
+        <CompanionConcubineManagement v-if="currentTab === 'companion_concubine'" @showConfirm="showConfirm" />
+        <MultiDungeonManagement v-if="currentTab === 'multi_dungeon'" @showConfirm="showConfirm" />
+        <!-- 灵兽系统管理（批次2新增：统计/查询/发放/编辑/删除/强制出战/重置冷却） -->
+        <SpiritBeastManagement v-if="currentTab === 'spirit_beast'" @showConfirm="showConfirm" />
       </div>
     </div>
 
@@ -277,6 +281,12 @@ import SectWarManagement from './sub/SectWarManagement.vue'
 // 飞升+夺舍重生系统管理（批次3新增）：GM 后台 统计/玩家进度/大衍诀调整/法则碎片/坐标/重置冷却/夺舍目标CRUD
 import AscensionManagement from './sub/AscensionManagement.vue'
 import LateStageManagement from './sub/LateStageManagement.vue'
+// 道侣/双修/侍妾系统管理（批次3新增：强制解除道侣、心契调整、触发心劫、发放侍妾、属性调整、完成远航）
+import CompanionConcubineManagement from './sub/CompanionConcubineManagement.vue'
+// 多人副本系统管理（批次3新增：强制解散副本、调整副本变量、发放副本奖励、重置玩家冷却）
+import MultiDungeonManagement from './sub/MultiDungeonManagement.vue'
+// 灵兽系统管理（批次2新增：统计/查询/发放/编辑/删除/强制出战/重置冷却）
+import SpiritBeastManagement from './sub/SpiritBeastManagement.vue'
 import {
   updatePlayer,
   banPlayer,
@@ -314,7 +324,13 @@ const tabs = [
   // 批次3新增：飞升+夺舍重生系统 GM 管理
   { id: 'ascension', name: '飞升系统' },
   // 批次3新增：后期系统 GM 管理（第二元神/小世界/神庙/香火/神识/法则 6 大子系统）
-  { id: 'late_stage', name: '后期系统' }
+  { id: 'late_stage', name: '后期系统' },
+  // 批次3新增：道侣/双修/侍妾系统 GM 管理（强制解除道侣、心契调整、触发心劫、发放侍妾、属性调整、完成远航）
+  { id: 'companion_concubine', name: '道侣侍妾' },
+  // 批次3新增：多人副本系统 GM 管理（强制解散副本、调整副本变量、发放副本奖励、重置玩家冷却）
+  { id: 'multi_dungeon', name: '多人副本' },
+  // 批次2新增：灵兽系统 GM 管理（统计/查询/发放/编辑/删除/强制出战/重置冷却）
+  { id: 'spirit_beast', name: '灵兽系统' }
 ]
 const currentTab = ref('players')
 

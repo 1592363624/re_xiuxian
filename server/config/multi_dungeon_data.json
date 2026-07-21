@@ -1,0 +1,1868 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "多人副本系统静态配置（掩月抢亲 / 端午镇蛟）",
+    "create_time": "2026-07-20",
+    "design_doc": "批次3_设计文档.md 第6章 多人副本系统"
+  },
+
+  "state_machine": {
+    "preparing": {
+      "next_states": ["active", "dissolved"],
+      "description": "准备中：队长创建副本后进入，等待队员加入"
+    },
+    "active": {
+      "next_states": ["cleared", "failed", "dissolved"],
+      "description": "进行中：队长进入开打后进入，按幕推进抉择"
+    },
+    "cleared": {
+      "next_states": [],
+      "description": "已通关：Boss 击败，结算奖励，全员进入冷却"
+    },
+    "failed": {
+      "next_states": [],
+      "description": "已失败：触发失败条件或空舟惩罚，进入冷却"
+    },
+    "dissolved": {
+      "next_states": [],
+      "description": "已解散：队长主动解散或超时自动解散"
+    },
+    "timeout_seconds": 7200,
+    "expire_check_interval_ms": 5000
+  },
+
+  "global": {
+    "boss_hp_threshold_phase2": 0.6,
+    "boss_hp_threshold_phase3": 0.3,
+    "harvest_multiplier_min": 0.5,
+    "harvest_multiplier_max": 3.0,
+    "morale_min": 0,
+    "morale_max": 100,
+    "vigilance_min": 0,
+    "vigilance_max": 100,
+    "demon_corruption_min": 0,
+    "demon_corruption_max": 100,
+    "seal_stability_min": 0,
+    "seal_stability_max": 100,
+    "soul_stability_min": 0,
+    "soul_stability_max": 100
+  },
+
+  "dungeons": {
+    "yanyue": {
+      "name": "掩月抢亲",
+      "desc": "南宫婉被许配掩月宗，韩立集结道友闯婚仪、夺爱人、斩血魔。3-5人剧情副本，6幕抉择考验队长决策。",
+      "member_min": 3,
+      "member_max": 5,
+      "leader_min_realm": "元婴期",
+      "leader_min_realm_rank": 19,
+      "member_min_realm": "结丹期",
+      "member_min_realm_rank": 15,
+      "consume_item_key": "hongling_wedding_invitation",
+      "consume_item_count": 1,
+      "cooldown_hours": 168,
+      "expire_hours": 2,
+      "init_morale": 100,
+      "init_vigilance": 0,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 100,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1.0,
+
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "苍坤归途闻婚讯",
+          "act_key": "stealth",
+          "description": "韩立从苍坤洞府归来途中听闻南宫婉被许配给掩月宗弟子，需潜入掩月宗。队伍需选择潜入方式，避免惊动掩月宗守备。",
+          "choices": [
+            {
+              "key": "stealth_hidden",
+              "text": "隐匿潜行",
+              "desc": "施展隐匿法术潜入，稳健但收获一般",
+              "vigilance_change": 10,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0
+            },
+            {
+              "key": "disguise_infiltrate",
+              "text": "化妆混入",
+              "desc": "化装成掩月宗弟子混入，需要灵石打点但收获更高",
+              "vigilance_change": 5,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.1,
+              "cost_spirit_stones": 500
+            },
+            {
+              "key": "force_breakthrough",
+              "text": "强行突进",
+              "desc": "凭实力强突掩月宗外禁，士气大涨但警戒飙升",
+              "vigilance_change": 30,
+              "morale_change": 10,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.2,
+              "cost_spirit_stones": 0
+            }
+          ],
+          "fail_condition": {
+            "vigilance_gte": 80,
+            "fail_message": "掩月宗警报触发，全员被困外禁阵，副本失败"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "掩月外禁",
+          "act_key": "wedding_ritual",
+          "description": "抵达掩月宗外禁制，需突破禁制方可进入婚仪大殿。",
+          "choices": [
+            {
+              "key": "break_formation",
+              "text": "破禁硬闯",
+              "desc": "消耗神识强破禁制，警戒上升，封印稳定度下降",
+              "vigilance_change": 20,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": -10,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0,
+              "cost_divine_sense": 200
+            },
+            {
+              "key": "find_gap",
+              "text": "寻隙潜入",
+              "desc": "寻找禁制空隙潜入，成功率 80%，失败警戒加倍",
+              "vigilance_change": 10,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0,
+              "success_rate": 0.8
+            },
+            {
+              "key": "puppet_disguise",
+              "text": "借势掩形",
+              "desc": "以傀儡伪装潜入，警戒最低但需消耗傀儡耐久",
+              "vigilance_change": 5,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0,
+              "requires_item": "puppet"
+            }
+          ],
+          "fail_condition": {
+            "seal_stability_lte": 0,
+            "fail_message": "封印稳定度归零，全员被困禁制中，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "大殿抢亲",
+          "act_key": "wan_heart",
+          "description": "进入婚仪大殿，南宫婉心神未定。需安抚其心神，否则婉心破裂失败。",
+          "choices": [
+            {
+              "key": "gentle_persuade",
+              "text": "婉言相劝",
+              "desc": "需有侍妾南宫婉，安抚其心神，士气大涨",
+              "vigilance_change": 0,
+              "morale_change": 10,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.1,
+              "cost_spirit_stones": 0,
+              "requires_concubine": "nangong_wan"
+            },
+            {
+              "key": "force_take_away",
+              "text": "强行带走",
+              "desc": "不顾南宫婉意愿强带离场，警戒飙升",
+              "vigilance_change": 30,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0
+            },
+            {
+              "key": "vow_protect",
+              "text": "立誓护道",
+              "desc": "需道侣在场，立誓护道，神魂稳定度提升",
+              "vigilance_change": 0,
+              "morale_change": 5,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0,
+              "requires_dao_companion": true,
+              "soul_stability_change": 10
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 30,
+            "fail_message": "婉心破裂，南宫婉拒绝离开，副本失败"
+          }
+        },
+        {
+          "act_number": 4,
+          "act_name": "剑气化丝",
+          "act_key": "killing_karma",
+          "description": "掩月宗弟子围攻，需突围。杀业越重魔染越深，可能导致队员残魂受损。",
+          "choices": [
+            {
+              "key": "kill_through",
+              "text": "杀出生路",
+              "desc": "大开杀戒突围，士气大涨但魔染飙升",
+              "vigilance_change": 0,
+              "morale_change": 20,
+              "demon_corruption_change": 20,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.2,
+              "cost_spirit_stones": 0
+            },
+            {
+              "key": "formation_trap",
+              "text": "阵法困敌",
+              "desc": "以阵法困住围攻弟子，魔染略增",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 5,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0,
+              "requires_formation": true
+            },
+            {
+              "key": "illusion_escape",
+              "text": "幻术脱身",
+              "desc": "以幻术迷惑敌人脱身，魔染不增但收获打折",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": -0.1,
+              "cost_spirit_stones": 0,
+              "cost_divine_sense": 100
+            }
+          ],
+          "fail_condition": {
+            "demon_corruption_gte": 80,
+            "fail_message": "魔染值过高，队员残魂受损 -20，副本失败"
+          }
+        },
+        {
+          "act_number": 5,
+          "act_name": "凝光定宝",
+          "act_key": "blood_shaft",
+          "description": "Boss 南宫阙祭出凝光宝镜反制，需破解宝镜。需法宝虚天鼎或硬抗推进。",
+          "choices": [
+            {
+              "key": "break_mirror",
+              "text": "凝光破镜",
+              "desc": "需法宝虚天鼎，破解凝光宝镜，收获大涨",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.3,
+              "cost_spirit_stones": 0,
+              "requires_artifact": "xutian_ding"
+            },
+            {
+              "key": "evade_mirror",
+              "text": "避镜迂回",
+              "desc": "绕开宝镜攻击，稳健但警戒上升",
+              "vigilance_change": 15,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0
+            },
+            {
+              "key": "tank_through",
+              "text": "硬抗推进",
+              "desc": "硬抗宝镜推进，队员 HP -30%，收获略增",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.1,
+              "cost_spirit_stones": 0,
+              "team_hp_loss_percent": 30
+            }
+          ],
+          "fail_condition": {
+            "team_hp_below_percent": 20,
+            "fail_message": "全队 HP 低于 20%，无法继续推进，副本失败"
+          }
+        },
+        {
+          "act_number": 6,
+          "act_name": "血魔剑出鞘",
+          "act_key": "blood_magic_sword",
+          "description": "Boss 南宫阙祭出血魔剑，最终决战。Boss 三阶段：阴阳冰火大剑（HP 100%-60%）→ 凝光宝镜（HP 60%-30%）→ 血魔剑（HP 30%-0%）。",
+          "is_final_act": true,
+          "boss": {
+            "name": "南宫阙",
+            "hp_total": 1000000,
+            "phase_1_hp_percent": [1.0, 0.6],
+            "phase_1_name": "阴阳冰火大剑",
+            "phase_2_hp_percent": [0.6, 0.3],
+            "phase_2_name": "凝光宝镜",
+            "phase_3_hp_percent": [0.3, 0.0],
+            "phase_3_name": "血魔剑"
+          },
+          "choices": [
+            {
+              "key": "focus_fire",
+              "text": "集火速战",
+              "desc": "集火速战速决，魔染飙升但收获最大",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 30,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.5,
+              "cost_spirit_stones": 0,
+              "risk_level": "high"
+            },
+            {
+              "key": "steady_fight",
+              "text": "稳扎稳打",
+              "desc": "稳扎稳打，魔染略增，收获中等",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 10,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.2,
+              "cost_spirit_stones": 0,
+              "risk_level": "medium"
+            },
+            {
+              "key": "suppress_blood_magic",
+              "text": "镇契血魔",
+              "desc": "需素女禁纹×3，镇压血魔剑，魔染下降，收获较高",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": -20,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.3,
+              "cost_spirit_stones": 0,
+              "requires_item": "sunv_jinwen",
+              "requires_item_count": 3
+            }
+          ],
+          "fail_condition": {
+            "demon_corruption_gte": 100,
+            "fail_message": "魔染值满，血魔剑反噬，全队残魂归零，副本失败"
+          },
+          "clear_condition": {
+            "boss_hp_zero": true,
+            "clear_message": "血魔剑被镇压，南宫阙伏诛，南宫婉获救，副本通关！"
+          }
+        }
+      ],
+
+      "rewards": {
+        "normal_drops": [
+          { "item_key": "yuehua_yulu", "name": "月华玉露", "chance": 0.20, "count_min": 1, "count_max": 3, "desc": "高级丹药材料" },
+          { "item_key": "duanhong_ling", "name": "断红绫", "chance": 0.15, "count_min": 1, "count_max": 2, "desc": "血魔剑祭血材料" },
+          { "item_key": "yinyang_jiansi", "name": "阴阳剑丝", "chance": 0.10, "count_min": 1, "count_max": 2, "desc": "法宝祭炼材料" },
+          { "item_key": "yanyue_jingsha", "name": "掩月镜砂", "chance": 0.10, "count_min": 1, "count_max": 2, "desc": "镇契材料" },
+          { "item_key": "sunv_jinwen", "name": "素女禁纹", "chance": 0.08, "count_min": 1, "count_max": 2, "desc": "镇契材料" },
+          { "item_key": "xuejian_tiesui", "name": "血剑铁髓", "chance": 0.05, "count_min": 1, "count_max": 1, "desc": "血魔剑祭血核心材料" },
+          { "item_key": "fabao_tupu", "name": "法宝图谱", "chance": 0.03, "count_min": 1, "count_max": 1, "desc": "随机法宝图谱" },
+          { "item_key": "spirit_stones", "name": "灵石", "chance": 1.0, "count_min": 5000, "count_max": 20000, "desc": "基础保底", "is_spirit_stones": true }
+        ],
+        "first_clear_bonus": [
+          { "type": "title", "title_id": "yanyue_breaker", "title_name": "掩月破阵者", "desc": "首通掩月抢亲的称号" },
+          { "type": "item", "item_key": "yuehua_yulu", "count": 5, "desc": "额外月华玉露×5" },
+          { "type": "spirit_stones", "count": 50000, "desc": "额外灵石 50000" }
+        ],
+        "rare_drop": {
+          "item_key": "blood_magic_sword",
+          "name": "血魔剑",
+          "chance": 0.001,
+          "leader_only": true,
+          "desc": "成品法宝血魔剑，0.1% 概率仅队长获得"
+        }
+      }
+    },
+
+    "duanwu": {
+      "name": "端午镇蛟",
+      "desc": "沧龙江蛟龙为祸，端午时节以粽镇蛟。10人强制协作副本，需满员开打，全员投粽，否则空舟惩罚。",
+      "member_min": 10,
+      "member_max": 10,
+      "leader_min_realm": "结丹期",
+      "leader_min_realm_rank": 15,
+      "member_min_realm": "结丹期",
+      "member_min_realm_rank": 15,
+      "consume_item_key": "delicious_zongzi",
+      "consume_item_count": 1,
+      "zongzi_per_person_max": 5,
+      "zongzi_team_max": 30,
+      "zongzi_seal_stability_bonus_per_unit": 5,
+      "cooldown_hours": 23,
+      "expire_hours": 2,
+      "init_morale": 100,
+      "init_vigilance": 0,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 100,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1.0,
+
+      "empty_boat_penalty": {
+        "spirit_stones_loss": 388,
+        "exp_loss": 500,
+        "cooldown_hours": 23,
+        "desc": "空舟惩罚：未投任何粽子入江，全员扣除 388 灵石 + 500 修为，并进入 23 小时冷却"
+      },
+
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "入江镇蛟",
+          "act_key": "enter_river",
+          "description": "队长进入开打，校验投粽总数。≥1 个粽子成功入江，0 个触发空舟惩罚。",
+          "is_entry_act": true,
+          "choices": [
+            {
+              "key": "auto_enter",
+              "text": "自动入江",
+              "desc": "系统自动判定投粽总数，触发空舟惩罚或入江成功",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0
+            }
+          ],
+          "fail_condition": {
+            "zongzi_total_eq": 0,
+            "fail_message": "空舟入江！全员扣除 388 灵石 + 500 修为，并进入 23 小时冷却"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "稳桨渡瘴 / 破浪抢旗 / 潜行探禁",
+          "act_key": "paddle_strategy",
+          "description": "入江后需选择行船策略，不同策略影响 HP / 收获 / 稀有掉落概率。",
+          "choices": [
+            {
+              "key": "steady_paddle",
+              "text": "稳桨渡瘴",
+              "desc": "稳健渡过毒瘴，HP 损失最小，封印稳定度提升",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 10,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0,
+              "team_hp_loss_percent": 10
+            },
+            {
+              "key": "break_wave_flag",
+              "text": "破浪抢旗",
+              "desc": "破浪抢占五色旗，HP 损失较大，收获倍率提升，五色丝掉率 +20%",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.2,
+              "cost_spirit_stones": 0,
+              "team_hp_loss_percent": 20,
+              "bonus_drop": { "item_key": "wuse_si", "chance_bonus": 0.20 }
+            },
+            {
+              "key": "stealth_explore",
+              "text": "潜行探禁",
+              "desc": "潜行探查江禁，警戒上升，粽叶灵符掉率 +30%",
+              "vigilance_change": 20,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.1,
+              "cost_spirit_stones": 0,
+              "bonus_drop": { "item_key": "zongye_lingfu", "chance_bonus": 0.30 }
+            }
+          ],
+          "fail_condition": {
+            "team_hp_below_percent": 0,
+            "fail_message": "全员陨落江中，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "江底蛟龙",
+          "act_key": "dragon_boss",
+          "description": "Boss战：沧龙江蛟龙。HP 500,000（10人分摊），三阶段需雄黄残晶破毒。",
+          "is_boss_act": true,
+          "boss": {
+            "name": "沧龙江蛟龙",
+            "hp_total": 500000,
+            "phase_1_hp_percent": [1.0, 0.6],
+            "phase_1_name": "水刃斩击",
+            "phase_2_hp_percent": [0.6, 0.3],
+            "phase_2_name": "毒雾喷吐",
+            "phase_2_requires_item": "xionghuang_canjing",
+            "phase_3_hp_percent": [0.3, 0.0],
+            "phase_3_name": "狂暴冲撞"
+          },
+          "choices": [
+            {
+              "key": "all_out_attack",
+              "text": "全力出击",
+              "desc": "全员集火，HP 损失较大但收获倍率最高",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.3,
+              "cost_spirit_stones": 0,
+              "team_hp_loss_percent": 25
+            },
+            {
+              "key": "balanced_assault",
+              "text": "均衡攻守",
+              "desc": "攻守均衡，HP 损失中等，收获倍率中等",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.15,
+              "cost_spirit_stones": 0,
+              "team_hp_loss_percent": 15
+            },
+            {
+              "key": "defensive_stand",
+              "text": "防御坚守",
+              "desc": "以防代攻，HP 损失最小但收获倍率最低",
+              "vigilance_change": 0,
+              "morale_change": 5,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 5,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0,
+              "team_hp_loss_percent": 5
+            }
+          ],
+          "fail_condition": {
+            "team_hp_below_percent": 0,
+            "fail_message": "全员陨落于蛟龙之口，副本失败"
+          }
+        },
+        {
+          "act_number": 4,
+          "act_name": "镇蛟成功",
+          "act_key": "settle",
+          "description": "蛟龙伏诛，沧龙江恢复安宁。结算奖励，全员获得沧龙江灵石红包，按贡献度排序前 3 名优先稀有掉落。",
+          "is_final_act": true,
+          "choices": [
+            {
+              "key": "auto_settle",
+              "text": "自动结算",
+              "desc": "系统自动结算奖励，全员进入 23 小时冷却",
+              "vigilance_change": 0,
+              "morale_change": 0,
+              "demon_corruption_change": 0,
+              "seal_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "cost_spirit_stones": 0
+            }
+          ],
+          "fail_condition": null,
+          "clear_condition": {
+            "boss_hp_zero": true,
+            "clear_message": "沧龙江蛟龙伏诛，全服安宁！全员获得沧龙江灵石红包，进入 23 小时冷却"
+          }
+        }
+      ],
+
+      "rewards": {
+        "base_rewards": [
+          { "type": "item", "item_key": "canglongjiang_hongbao", "name": "沧龙江灵石红包", "count": 1, "desc": "含 2000-5000 灵石，可使用开启" },
+          { "type": "exp", "count": 5000, "desc": "修为 +5000" },
+          { "type": "honor", "count": 50, "desc": "荣誉值 +50" }
+        ],
+        "rare_drops_by_contribution": {
+          "top_count": 3,
+          "desc": "按贡献度排序，前 3 名优先稀有掉落",
+          "drops": [
+            { "item_key": "wuse_si", "name": "五色丝", "chance": 0.30, "count_min": 1, "count_max": 1, "desc": "一次性护身，下次死亡免惩罚" },
+            { "item_key": "xionghuang_canjing", "name": "雄黄残晶", "chance": 0.25, "count_min": 1, "count_max": 2, "desc": "破毒或炼制雄黄解毒丹" },
+            { "item_key": "zongye_lingfu", "name": "粽叶灵符", "chance": 0.20, "count_min": 1, "count_max": 1, "desc": "失败时保留一份灵石红包" },
+            { "item_key": "canglongjiang_zhenjiaozhe", "name": "沧龙江镇蛟者", "chance": 0.05, "count_min": 1, "count_max": 1, "desc": "徽章，端午副本轻微加成" },
+            { "item_key": "faze_suipian", "name": "法则碎片", "chance": 0.10, "count_min": 1, "count_max": 1, "desc": "飞升材料" },
+            { "type": "divine_sense", "name": "神识提升", "chance": 0.15, "count_min": 50, "count_max": 50, "desc": "永久神识 +50" }
+          ]
+        },
+        "first_clear_bonus": [
+          { "type": "title", "title_id": "canglongjiang_zhenjiaozhe_title", "title_name": "沧龙江镇蛟者", "desc": "全服首通称号" },
+          { "type": "item", "item_key": "canglongjiang_hongbao", "count": 3, "desc": "全员额外沧龙江灵石红包×3" },
+          { "type": "global_announce", "desc": "全服公告首通成就" }
+        ]
+      }
+    },
+
+    "kunwu": {
+      "name": "昆吾山·封魔塔",
+      "desc": "昆吾山封魔塔是固定5人剧情副本，按四幕推进：入山策略→遗宫探宝→阵眼抉择→封魔决战。维护6变量（封印/魔气/山禁/宝压/玲珑/士气），队长决策影响全员结局。",
+      "member_min": 5,
+      "member_max": 5,
+      "leader_min_realm": "元婴期",
+      "leader_min_realm_rank": 19,
+      "member_min_realm": "结丹期",
+      "member_min_realm_rank": 15,
+      "consume_item_key": "kunwu_pass_token",
+      "consume_item_count": 1,
+      "cooldown_hours": 72,
+      "expire_hours": 3,
+
+      "init_morale": 100,
+      "init_vigilance": 0,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 50,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1.0,
+      "init_demonic_qi": 0,
+      "init_mountain_seal": 30,
+      "init_treasure_pressure": 0,
+      "init_linglong": 50,
+      "init_tower_shadow_hp": 1000000,
+      "init_seal_progress": 50,
+
+      "final_act_number": 4,
+      "final_seal_progress_target": 80,
+      "final_max_rounds": 5,
+      "tower_shadow_hp_base": 1000000,
+
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "入山策略",
+          "act_key": "enter_mountain",
+          "description": "队长带队进入昆吾山，需选择入山策略。四条路径各有侧重：八灵尺光稳健镇塔，化龙玺激进封印，黑风旗突进夺宝，太阴火高风险高回报。",
+          "is_entry_act": true,
+          "choices": [
+            {
+              "key": "baling_ruler_light",
+              "text": "八灵尺光",
+              "desc": "以八灵尺光开路，稳健镇塔路线：封印+15 玲珑+10 山禁+5",
+              "seal_stability_change": 15,
+              "morale_change": 0,
+              "demonic_qi_change": 0,
+              "mountain_seal_change": 5,
+              "treasure_pressure_change": 0,
+              "linglong_change": 10,
+              "harvest_multiplier_change": 0.0
+            },
+            {
+              "key": "dragon_seal_vein",
+              "text": "化龙玺镇脉",
+              "desc": "以化龙玺镇压山脉冲进：封印+25 魔气+10 山禁+15",
+              "seal_stability_change": 25,
+              "morale_change": 0,
+              "demonic_qi_change": 10,
+              "mountain_seal_change": 15,
+              "treasure_pressure_change": 0,
+              "linglong_change": 0,
+              "harvest_multiplier_change": 0.0
+            },
+            {
+              "key": "black_wind_flag_shadow",
+              "text": "黑风旗裂影",
+              "desc": "以黑风旗裂影突进：山禁-20 宝压+15 玲珑-10",
+              "seal_stability_change": 0,
+              "morale_change": 0,
+              "demonic_qi_change": 0,
+              "mountain_seal_change": -20,
+              "treasure_pressure_change": 15,
+              "linglong_change": -10,
+              "harvest_multiplier_change": 0.15
+            },
+            {
+              "key": "taiyin_fire_tide",
+              "text": "太阴火潮",
+              "desc": "以太阴火潮焚山：魔气+20 宝压+20 士气+10（高风险高回报）",
+              "seal_stability_change": 0,
+              "morale_change": 10,
+              "demonic_qi_change": 20,
+              "mountain_seal_change": 0,
+              "treasure_pressure_change": 20,
+              "linglong_change": 0,
+              "harvest_multiplier_change": 0.25
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "昆吾遗宫",
+          "act_key": "relic_palace",
+          "description": "进入昆吾遗宫，系统从5个遗迹中随机给出3个选项，队长选择一个收益。不同遗迹收益不同：封纹/火种/牌影/残印/黑风旗残幅。",
+          "is_random_choice": true,
+          "random_pool": [
+            {
+              "key": "seal_pattern",
+              "text": "取封纹",
+              "desc": "拾取上古封纹：封印+20 玲珑+5",
+              "seal_stability_change": 20,
+              "morale_change": 0,
+              "demonic_qi_change": 0,
+              "mountain_seal_change": 0,
+              "treasure_pressure_change": 0,
+              "linglong_change": 5,
+              "harvest_multiplier_change": 0.0
+            },
+            {
+              "key": "fire_seed",
+              "text": "取火种",
+              "desc": "拾取太阴火种：魔气+15 宝压+10",
+              "seal_stability_change": 0,
+              "morale_change": 0,
+              "demonic_qi_change": 15,
+              "mountain_seal_change": 0,
+              "treasure_pressure_change": 10,
+              "linglong_change": 0,
+              "harvest_multiplier_change": 0.10
+            },
+            {
+              "key": "tablet_shadow",
+              "text": "取牌影",
+              "desc": "拾取昆吾牌影：玲珑+15 士气+5",
+              "seal_stability_change": 0,
+              "morale_change": 5,
+              "demonic_qi_change": 0,
+              "mountain_seal_change": 0,
+              "treasure_pressure_change": 0,
+              "linglong_change": 15,
+              "harvest_multiplier_change": 0.0
+            },
+            {
+              "key": "remnant_seal",
+              "text": "取残印",
+              "desc": "拾取封魔残印：宝压+15 山禁+10",
+              "seal_stability_change": 0,
+              "morale_change": 0,
+              "demonic_qi_change": 0,
+              "mountain_seal_change": 10,
+              "treasure_pressure_change": 15,
+              "linglong_change": 0,
+              "harvest_multiplier_change": 0.05
+            },
+            {
+              "key": "black_wind_fragment",
+              "text": "取黑风旗残幅",
+              "desc": "拾取黑风旗残幅：山禁-15 魔气+10 收获+15%",
+              "seal_stability_change": 0,
+              "morale_change": 0,
+              "demonic_qi_change": 10,
+              "mountain_seal_change": -15,
+              "treasure_pressure_change": 0,
+              "linglong_change": 0,
+              "harvest_multiplier_change": 0.15
+            }
+          ],
+          "random_choice_count": 3,
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "封魔塔阵眼",
+          "act_key": "seal_tower_eyes",
+          "description": "封魔塔三处阵眼需依次处理：八灵尺阵眼→化龙玺阵眼→黑风旗阵眼。每个阵眼选择镇/夺/断之一，影响6变量。三次抉择完成后进入第四幕。",
+          "is_multi_choice_act": true,
+          "multi_choice_count": 3,
+          "multi_choice_sequence": ["baling_eye", "dragon_eye", "blackwind_eye"],
+          "multi_choice_pool": {
+            "baling_eye": {
+              "eye_name": "八灵尺阵眼",
+              "choices": [
+                {
+                  "key": "suppress",
+                  "text": "镇（补封）",
+                  "desc": "补封八灵尺阵眼：封印+15",
+                  "seal_stability_change": 15,
+                  "morale_change": 0,
+                  "demonic_qi_change": 0,
+                  "mountain_seal_change": 0,
+                  "treasure_pressure_change": 0,
+                  "linglong_change": 0,
+                  "harvest_multiplier_change": 0.0
+                },
+                {
+                  "key": "plunder",
+                  "text": "夺（夺宝）",
+                  "desc": "夺取阵眼宝物：宝压+20 魔气+10",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "demonic_qi_change": 10,
+                  "mountain_seal_change": 0,
+                  "treasure_pressure_change": 20,
+                  "linglong_change": 0,
+                  "harvest_multiplier_change": 0.10
+                },
+                {
+                  "key": "break",
+                  "text": "断（断禁）",
+                  "desc": "断开阵眼禁制：魔气+20 玲珑+10",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "demonic_qi_change": 20,
+                  "mountain_seal_change": 0,
+                  "treasure_pressure_change": 0,
+                  "linglong_change": 10,
+                  "harvest_multiplier_change": 0.0
+                }
+              ]
+            },
+            "dragon_eye": {
+              "eye_name": "化龙玺阵眼",
+              "choices": [
+                {
+                  "key": "suppress",
+                  "text": "镇（补封）",
+                  "desc": "补封化龙玺阵眼：封印+20 士气-10",
+                  "seal_stability_change": 20,
+                  "morale_change": -10,
+                  "demonic_qi_change": 0,
+                  "mountain_seal_change": 0,
+                  "treasure_pressure_change": 0,
+                  "linglong_change": 0,
+                  "harvest_multiplier_change": 0.0
+                },
+                {
+                  "key": "plunder",
+                  "text": "夺（夺宝）",
+                  "desc": "夺取阵眼宝物：宝压+25 魔气+15",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "demonic_qi_change": 15,
+                  "mountain_seal_change": 0,
+                  "treasure_pressure_change": 25,
+                  "linglong_change": 0,
+                  "harvest_multiplier_change": 0.15
+                },
+                {
+                  "key": "break",
+                  "text": "断（断禁）",
+                  "desc": "断开阵眼禁制：魔气+25 封印-10",
+                  "seal_stability_change": -10,
+                  "morale_change": 0,
+                  "demonic_qi_change": 25,
+                  "mountain_seal_change": 0,
+                  "treasure_pressure_change": 0,
+                  "linglong_change": 0,
+                  "harvest_multiplier_change": 0.0
+                }
+              ]
+            },
+            "blackwind_eye": {
+              "eye_name": "黑风旗阵眼",
+              "choices": [
+                {
+                  "key": "suppress",
+                  "text": "镇（补封）",
+                  "desc": "补封黑风旗阵眼：封印+10 山禁+10",
+                  "seal_stability_change": 10,
+                  "morale_change": 0,
+                  "demonic_qi_change": 0,
+                  "mountain_seal_change": 10,
+                  "treasure_pressure_change": 0,
+                  "linglong_change": 0,
+                  "harvest_multiplier_change": 0.0
+                },
+                {
+                  "key": "plunder",
+                  "text": "夺（夺宝）",
+                  "desc": "夺取阵眼宝物：宝压+30 山禁-20",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "demonic_qi_change": 0,
+                  "mountain_seal_change": -20,
+                  "treasure_pressure_change": 30,
+                  "linglong_change": 0,
+                  "harvest_multiplier_change": 0.20
+                },
+                {
+                  "key": "break",
+                  "text": "断（断禁）",
+                  "desc": "断开阵眼禁制：魔气+15 玲珑+15",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "demonic_qi_change": 15,
+                  "mountain_seal_change": 0,
+                  "treasure_pressure_change": 0,
+                  "linglong_change": 15,
+                  "harvest_multiplier_change": 0.0
+                }
+              ]
+            }
+          },
+          "fail_condition": {
+            "morale_lte": 0,
+            "demonic_qi_gte": 100,
+            "fail_message": "士气归零或魔气满值，副本失败"
+          }
+        },
+        {
+          "act_number": 4,
+          "act_name": "玲珑封魔塔决战",
+          "act_key": "final_tower_battle",
+          "description": "自动进入玲珑封魔塔决战。5回合内打掉塔心魔影（HP=1000000），并将封印推进到80+。每回合：玩家攻击削减魔影HP，封印+10 魔气+5。玲珑越高伤害越高，宝压越高掉落越好但魔气增长越快。",
+          "is_final_act": true,
+          "is_auto_advance": true,
+          "rounds_max": 5,
+          "damage_per_round_base": 200000,
+          "damage_linglong_bonus_per_point": 2000,
+          "seal_progress_change_per_round": 10,
+          "demonic_qi_change_per_round": 5,
+          "morale_change_per_round": 0,
+          "fail_condition": {
+            "demonic_qi_gte": 100,
+            "morale_lte": 0,
+            "rounds_exceed": true,
+            "fail_message": "魔气满值或士气归零或5回合未击败魔影，副本失败"
+          },
+          "clear_condition": {
+            "tower_shadow_hp_zero": true,
+            "seal_progress_gte": 80,
+            "clear_message": "塔心魔影被击败，封印推进至80+，玲珑封魔塔通关！"
+          }
+        }
+      ],
+
+      "rewards": {
+        "base_rewards": [
+          { "type": "exp", "count": 50000, "desc": "通关基础修为" },
+          { "type": "spirit_stones", "count": 20000, "desc": "通关基础灵石" },
+          { "type": "divine_sense", "count": 100, "desc": "通关永久神识+100" }
+        ],
+        "normal_drops": [
+          { "item_key": "kunwu_seal_fragment", "name": "昆吾封纹残片", "chance": 0.30, "count_min": 1, "count_max": 3, "desc": "封印材料，可用于祭炼" },
+          { "item_key": "kunwu_tower_shadow_essence", "name": "塔影精华", "chance": 0.20, "count_min": 1, "count_max": 2, "desc": "玲珑提升材料" },
+          { "item_key": "kunwu_dragon_vein_stone", "name": "化龙脉石", "chance": 0.15, "count_min": 1, "count_max": 1, "desc": "突破辅助材料" },
+          { "item_key": "black_wind_flag_fragment", "name": "黑风旗残片", "chance": 0.10, "count_min": 1, "count_max": 2, "desc": "法宝祭炼材料" },
+          { "item_key": "taiyin_fire_crystal", "name": "太阴火晶", "chance": 0.08, "count_min": 1, "count_max": 1, "desc": "炼丹高级材料" },
+          { "item_key": "fabao_tupu", "name": "法宝图谱", "chance": 0.05, "count_min": 1, "count_max": 1, "desc": "随机法宝图谱" },
+          { "item_key": "kunwu_pass_token", "name": "昆吾通行令", "chance": 0.10, "count_min": 1, "count_max": 1, "desc": "再次进入副本的通行令" }
+        ],
+        "first_clear_bonus": [
+          { "type": "title", "title_id": "kunwu_tower_master", "title_name": "封魔塔主", "desc": "首通昆吾山·封魔塔的称号" },
+          { "type": "item", "item_key": "fabao_tupu", "count": 3, "desc": "额外法宝图谱×3" },
+          { "type": "spirit_stones", "count": 50000, "desc": "额外灵石 50000" },
+          { "type": "global_announce", "desc": "全服公告首通成就" }
+        ],
+        "rare_drop": {
+          "item_key": "baling_ruler",
+          "name": "八灵尺",
+          "chance": 0.002,
+          "leader_only": true,
+          "desc": "成品法宝八灵尺，0.2% 概率仅队长获得"
+        },
+        "treasure_pressure_bonus": {
+          "desc": "宝压影响额外掉落：每10点宝压增加5%稀有掉落概率，但同时增加10%魔气反噬风险",
+          "bonus_per_10_pressure": 0.05
+        },
+        "linglong_bonus": {
+          "desc": "玲珑影响额外奖励：每10点玲珑增加1000修为和100灵石",
+          "exp_per_10_linglong": 1000,
+          "spirit_stones_per_10_linglong": 100
+        }
+      }
+    },
+    "xutian": {
+      "name": "虚天殿",
+      "desc": "虚天殿为上古虚天灵尊所造，藏有乾蓝冰焰与无数法宝。4-6人剧情副本，按六幕推进：选择道路→阵策→战术→争鼎→后殿抉择→后殿阵策。维护5变量（士气/封印/神魂/宝压/收获）+3虚天专属变量（道路/阵法强度/虚天主魂HP），队长决策影响全员结局。",
+      "member_min": 4,
+      "member_max": 6,
+      "leader_min_realm": "元婴期",
+      "leader_min_realm_rank": 19,
+      "member_min_realm": "金丹后期",
+      "member_min_realm_rank": 17,
+      "consume_item_key": "xutian_pass_token",
+      "consume_item_count": 1,
+      "cooldown_hours": 48,
+      "expire_hours": 3,
+
+      "init_morale": 100,
+      "init_vigilance": 0,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 50,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1.0,
+      "init_treasure_pressure": 0,
+      "init_path_choice": 0,
+      "init_formation_power": 30,
+      "init_void_soul_hp": 1500000,
+
+      "final_act_number": 6,
+      "final_formation_power_target": 70,
+      "final_max_rounds": 6,
+      "void_soul_hp_base": 1500000,
+
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "选择道路",
+          "act_key": "choose_path",
+          "description": "队长带队进入虚天殿外殿，需选择冰或火两条道路之一。冰道稳健，火道激进，影响后续阵法强度与神魂稳定度。",
+          "is_entry_act": true,
+          "choices": [
+            {
+              "key": "ice_path",
+              "text": "冰道路",
+              "desc": "以玄冰之力开路：神魂稳定+15 封印+10 阵法强度+5（稳健路线，降低决战伤害）",
+              "seal_stability_change": 10,
+              "morale_change": 0,
+              "soul_stability_change": 15,
+              "treasure_pressure_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "path_choice_change": 1,
+              "formation_power_change": 5
+            },
+            {
+              "key": "fire_path",
+              "text": "火道路",
+              "desc": "以乾蓝冰焰开路：阵法强度+10 宝压+10，但神魂稳定-10（激进路线，提升决战伤害）",
+              "seal_stability_change": 0,
+              "morale_change": 0,
+              "soul_stability_change": -10,
+              "treasure_pressure_change": 10,
+              "harvest_multiplier_change": 0.10,
+              "path_choice_change": 2,
+              "formation_power_change": 10
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "阵策",
+          "act_key": "formation_strategy",
+          "description": "外殿突破后，队伍需制定阵法策略以攻破中殿禁制。稳固阵保命，急攻阵抢伤害，诱敌阵取巧。",
+          "choices": [
+            {
+              "key": "steady_formation",
+              "text": "稳固阵",
+              "desc": "稳固阵法：封印+15 士气+10 阵法强度+5（保守稳健）",
+              "seal_stability_change": 15,
+              "morale_change": 10,
+              "soul_stability_change": 0,
+              "treasure_pressure_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "formation_power_change": 5
+            },
+            {
+              "key": "rush_formation",
+              "text": "急攻阵",
+              "desc": "急攻阵法：阵法强度+15 收获+10%，但封印-10（高风险）",
+              "seal_stability_change": -10,
+              "morale_change": 0,
+              "soul_stability_change": 0,
+              "treasure_pressure_change": 0,
+              "harvest_multiplier_change": 0.10,
+              "formation_power_change": 15
+            },
+            {
+              "key": "lure_formation",
+              "text": "诱敌阵",
+              "desc": "诱敌阵法：警戒-20 收获+15%，但士气-5（取巧）",
+              "seal_stability_change": 0,
+              "morale_change": -5,
+              "soul_stability_change": 0,
+              "treasure_pressure_change": 0,
+              "harvest_multiplier_change": 0.15,
+              "vigilance_change": -20,
+              "formation_power_change": 0
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "选择战术",
+          "act_key": "choose_tactic",
+          "description": "中殿禁制破开后，遭遇虚天殿护法灵兽。系统从5种战术中随机给出3种，队长择一应对。",
+          "is_random_choice": true,
+          "random_pool": [
+            {
+              "key": "ice_seal_tactic",
+              "text": "玄冰封印",
+              "desc": "以玄冰封印护法：封印+20 阵法强度+5",
+              "seal_stability_change": 20,
+              "morale_change": 0,
+              "soul_stability_change": 0,
+              "treasure_pressure_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "formation_power_change": 5
+            },
+            {
+              "key": "fire_burst_tactic",
+              "text": "火炎爆发",
+              "desc": "以火炎爆发攻击：阵法强度+15 宝压+10",
+              "seal_stability_change": 0,
+              "morale_change": 0,
+              "soul_stability_change": 0,
+              "treasure_pressure_change": 10,
+              "harvest_multiplier_change": 0.05,
+              "formation_power_change": 15
+            },
+            {
+              "key": "soul_steady_tactic",
+              "text": "神魂稳守",
+              "desc": "以神魂之力稳守：神魂稳定+20 士气+5",
+              "seal_stability_change": 0,
+              "morale_change": 5,
+              "soul_stability_change": 20,
+              "treasure_pressure_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "formation_power_change": 0
+            },
+            {
+              "key": "treasure_seize_tactic",
+              "text": "夺宝奇谋",
+              "desc": "趁机夺取宝物：宝压+20 收获+20%，但神魂稳定-10",
+              "seal_stability_change": 0,
+              "morale_change": 0,
+              "soul_stability_change": -10,
+              "treasure_pressure_change": 20,
+              "harvest_multiplier_change": 0.20,
+              "formation_power_change": 0
+            },
+            {
+              "key": "formation_break_tactic",
+              "text": "破阵直入",
+              "desc": "强行破阵直入：阵法强度+20 封印+10，但士气-5",
+              "seal_stability_change": 10,
+              "morale_change": -5,
+              "soul_stability_change": 0,
+              "treasure_pressure_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "formation_power_change": 20
+            }
+          ],
+          "random_choice_count": 3,
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 4,
+          "act_name": "争鼎",
+          "act_key": "contest_cauldron",
+          "description": "中殿深处发现虚天鼎雏形，队伍需决定争鼎策略。求稳保底奖励，夺鼎高风险高回报。",
+          "choices": [
+            {
+              "key": "steady_cauldron",
+              "text": "求稳",
+              "desc": "求稳争鼎：封印+20 神魂稳定+10 士气+5（保底奖励路线）",
+              "seal_stability_change": 20,
+              "morale_change": 5,
+              "soul_stability_change": 10,
+              "treasure_pressure_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "formation_power_change": 0
+            },
+            {
+              "key": "seize_cauldron",
+              "text": "夺鼎",
+              "desc": "夺鼎激进：宝压+30 收获+30% 阵法强度+10，但神魂稳定-15（高风险高回报）",
+              "seal_stability_change": 0,
+              "morale_change": 0,
+              "soul_stability_change": -15,
+              "treasure_pressure_change": 30,
+              "harvest_multiplier_change": 0.30,
+              "formation_power_change": 10
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "soul_stability_lte": 10,
+            "fail_message": "士气归零或神魂稳定度濒临崩溃，副本失败"
+          }
+        },
+        {
+          "act_number": 5,
+          "act_name": "后殿抉择",
+          "act_key": "back_hall_choice",
+          "description": "进入后殿，三处机关需依次处理：冰焰阵眼→虚天阵眼→魂印阵眼。每个阵眼选择破/守/避之一，影响5变量+阵法强度。",
+          "is_multi_choice_act": true,
+          "multi_choice_count": 3,
+          "multi_choice_sequence": ["ice_flame_eye", "void_eye", "soul_mark_eye"],
+          "multi_choice_pool": {
+            "ice_flame_eye": {
+              "eye_name": "冰焰阵眼",
+              "choices": [
+                {
+                  "key": "break",
+                  "text": "破（强破）",
+                  "desc": "强破冰焰阵眼：阵法强度+15 宝压+10",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "soul_stability_change": 0,
+                  "treasure_pressure_change": 10,
+                  "harvest_multiplier_change": 0.0,
+                  "formation_power_change": 15
+                },
+                {
+                  "key": "guard",
+                  "text": "守（固守）",
+                  "desc": "固守冰焰阵眼：封印+15 神魂稳定+5",
+                  "seal_stability_change": 15,
+                  "morale_change": 0,
+                  "soul_stability_change": 5,
+                  "treasure_pressure_change": 0,
+                  "harvest_multiplier_change": 0.0,
+                  "formation_power_change": 0
+                },
+                {
+                  "key": "evade",
+                  "text": "避（绕行）",
+                  "desc": "绕行冰焰阵眼：收获+10% 士气-5",
+                  "seal_stability_change": 0,
+                  "morale_change": -5,
+                  "soul_stability_change": 0,
+                  "treasure_pressure_change": 0,
+                  "harvest_multiplier_change": 0.10,
+                  "formation_power_change": 0
+                }
+              ]
+            },
+            "void_eye": {
+              "eye_name": "虚天阵眼",
+              "choices": [
+                {
+                  "key": "break",
+                  "text": "破（强破）",
+                  "desc": "强破虚天阵眼：阵法强度+20 宝压+15",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "soul_stability_change": 0,
+                  "treasure_pressure_change": 15,
+                  "harvest_multiplier_change": 0.0,
+                  "formation_power_change": 20
+                },
+                {
+                  "key": "guard",
+                  "text": "守（固守）",
+                  "desc": "固守虚天阵眼：封印+20 神魂稳定+10",
+                  "seal_stability_change": 20,
+                  "morale_change": 0,
+                  "soul_stability_change": 10,
+                  "treasure_pressure_change": 0,
+                  "harvest_multiplier_change": 0.0,
+                  "formation_power_change": 0
+                },
+                {
+                  "key": "evade",
+                  "text": "避（绕行）",
+                  "desc": "绕行虚天阵眼：收获+15% 阵法强度-5",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "soul_stability_change": 0,
+                  "treasure_pressure_change": 0,
+                  "harvest_multiplier_change": 0.15,
+                  "formation_power_change": -5
+                }
+              ]
+            },
+            "soul_mark_eye": {
+              "eye_name": "魂印阵眼",
+              "choices": [
+                {
+                  "key": "break",
+                  "text": "破（强破）",
+                  "desc": "强破魂印阵眼：阵法强度+25 宝压+20，但神魂稳定-10",
+                  "seal_stability_change": 0,
+                  "morale_change": 0,
+                  "soul_stability_change": -10,
+                  "treasure_pressure_change": 20,
+                  "harvest_multiplier_change": 0.0,
+                  "formation_power_change": 25
+                },
+                {
+                  "key": "guard",
+                  "text": "守（固守）",
+                  "desc": "固守魂印阵眼：神魂稳定+20 封印+10",
+                  "seal_stability_change": 10,
+                  "morale_change": 0,
+                  "soul_stability_change": 20,
+                  "treasure_pressure_change": 0,
+                  "harvest_multiplier_change": 0.0,
+                  "formation_power_change": 0
+                },
+                {
+                  "key": "evade",
+                  "text": "避（绕行）",
+                  "desc": "绕行魂印阵眼：收获+20% 士气-10",
+                  "seal_stability_change": 0,
+                  "morale_change": -10,
+                  "soul_stability_change": 0,
+                  "treasure_pressure_change": 0,
+                  "harvest_multiplier_change": 0.20,
+                  "formation_power_change": 0
+                }
+              ]
+            }
+          },
+          "fail_condition": {
+            "morale_lte": 0,
+            "soul_stability_lte": 5,
+            "fail_message": "士气归零或神魂稳定度濒临崩溃，副本失败"
+          }
+        },
+        {
+          "act_number": 6,
+          "act_name": "后殿阵策",
+          "act_key": "back_hall_final",
+          "description": "后殿深处虚天主魂苏醒，自动进行6回合决战。每回合伤害=基础+阵法强度×加成；同时消耗神魂稳定度，提升宝压。通关条件：虚天主魂HP归零且阵法强度≥70。",
+          "is_auto_advance": true,
+          "rounds_max": 6,
+          "damage_per_round_base": 180000,
+          "damage_formation_bonus_per_point": 2500,
+          "soul_stability_change_per_round": -3,
+          "treasure_pressure_change_per_round": 5,
+          "morale_change_per_round": 0,
+          "clear_condition": {
+            "formation_power_gte": 70
+          },
+          "fail_condition": {
+            "morale_lte": 0,
+            "soul_stability_lte": 0
+          }
+        }
+      ],
+
+      "rewards": {
+        "base_rewards": [
+          { "type": "exp", "count": 60000, "desc": "通关基础修为" },
+          { "type": "spirit_stones", "count": 25000, "desc": "通关基础灵石" },
+          { "type": "divine_sense", "count": 120, "desc": "通关永久神识+120" }
+        ],
+        "normal_drops": [
+          { "item_key": "xutian_ice_crystal", "name": "虚天寒晶", "chance": 0.30, "count_min": 1, "count_max": 3, "desc": "冰道材料，可用于炼制虚天鼎" },
+          { "item_key": "xutian_fire_essence", "name": "虚天火精", "chance": 0.25, "count_min": 1, "count_max": 2, "desc": "火道材料，可用于祭炼法宝" },
+          { "item_key": "void_soul_fragment", "name": "虚天魂碎片", "chance": 0.20, "count_min": 1, "count_max": 2, "desc": "虚天主魂残留，可用于神识淬炼" },
+          { "item_key": "xutian_formation_map", "name": "虚天阵图", "chance": 0.12, "count_min": 1, "count_max": 1, "desc": "虚天殿阵法残图，可用于阵法修炼" },
+          { "item_key": "void_palace_seal", "name": "虚天殿印", "chance": 0.08, "count_min": 1, "count_max": 1, "desc": "虚天殿信物，持有者可获得虚天殿加成" },
+          { "item_key": "fabao_tupu", "name": "法宝图谱", "chance": 0.05, "count_min": 1, "count_max": 1, "desc": "随机法宝图谱" },
+          { "item_key": "xutian_pass_token", "name": "虚天令", "chance": 0.10, "count_min": 1, "count_max": 1, "desc": "再次进入副本的通行令" }
+        ],
+        "first_clear_bonus": [
+          { "type": "title", "title_id": "xutian_conqueror", "title_name": "虚天破局者", "desc": "首通虚天殿的称号" },
+          { "type": "item", "item_key": "fabao_tupu", "count": 3, "desc": "额外法宝图谱×3" },
+          { "type": "spirit_stones", "count": 60000, "desc": "额外灵石 60000" },
+          { "type": "global_announce", "desc": "全服公告首通成就" }
+        ],
+        "rare_drop": {
+          "item_key": "xutian_cauldron",
+          "name": "虚天鼎",
+          "chance": 0.001,
+          "leader_only": true,
+          "desc": "成品法宝虚天鼎，0.1% 概率仅队长获得"
+        },
+        "path_choice_bonus": {
+          "desc": "道路选择影响额外掉落：冰道提升封印材料掉率，火道提升火系材料掉率",
+          "ice_path_bonus_drop": "xutian_ice_crystal",
+          "fire_path_bonus_drop": "xutian_fire_essence"
+        },
+        "formation_power_bonus": {
+          "desc": "阵法强度影响额外奖励：每10点阵法强度增加1500修为和150灵石",
+          "exp_per_10_formation_power": 1500,
+          "spirit_stones_per_10_formation_power": 150
+        }
+      }
+    },
+
+    "xiaoji": {
+      "name": "北冥小极宫",
+      "desc": "北冥小极宫乃玄冰封魂之地，藏有玄冰花、万年玄玉等至宝。队伍需 4-5 人，队长需元婴后期并消耗北冥寒令，队员需元婴初期。副本分四幕：玄冰花之行、五焰冲关、寒骊翻脸、冰海妖围。阴罗宗队员在寒骊翻脸阶段可选阴幡镇魂大幅降低咒扰。",
+      "member_min": 4,
+      "member_max": 5,
+      "leader_min_realm": "元婴后期",
+      "leader_min_realm_rank": 21,
+      "member_min_realm": "元婴初期",
+      "member_min_realm_rank": 19,
+      "consume_item_key": "beiming_cold_token",
+      "consume_item_count": 1,
+      "cooldown_hours": 72,
+      "expire_hours": 2,
+
+      "init_morale": 80,
+      "init_vigilance": 30,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 100,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1.0,
+      "init_curse_disorder": 0,
+      "init_ice_seal_power": 50,
+      "init_flame_power": 0,
+      "init_yinluo_banner_qi": 0,
+
+      "final_act_number": 4,
+      "final_ice_seal_target": 100,
+      "final_max_rounds": 8,
+
+      "yinluo_base_banner_qi_per_member": 100,
+      "perfect_clear_curse_disorder_max": 30,
+      "perfect_clear_morale_min": 60,
+
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "玄冰花之行",
+          "act_key": "xuanbing_flower",
+          "description": "队伍进入小极宫外围，需采摘玄冰花。采摘过程中会触发寒气反噬，需选择采摘策略。",
+          "choices": [
+            {
+              "key": "steady",
+              "text": "稳采",
+              "desc": "稳步采摘，安全但效率低。士气-5 咒扰+5 收获+10%，必得玄冰花×1",
+              "morale_change": -5,
+              "curse_disorder_change": 5,
+              "harvest_multiplier_change": 0.10,
+              "items_granted": ["xuanbing_flower"],
+              "success_rate": 0.95
+            },
+            {
+              "key": "rush",
+              "text": "急采",
+              "desc": "急速采摘，效率高但风险大。士气-15 咒扰+15 收获+30%，必得玄冰花×2",
+              "morale_change": -15,
+              "curse_disorder_change": 15,
+              "harvest_multiplier_change": 0.30,
+              "items_granted": ["xuanbing_flower", "xuanbing_flower"],
+              "success_rate": 0.70
+            },
+            {
+              "key": "retreat",
+              "text": "避让",
+              "desc": "避开寒气高峰，择机再采。士气+5 咒扰-5 收获-10%",
+              "morale_change": 5,
+              "curse_disorder_change": -5,
+              "harvest_multiplier_change": -0.10,
+              "items_granted": [],
+              "success_rate": 1.0
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "五焰冲关",
+          "act_key": "five_flames",
+          "description": "小极宫内有五道火焰机关，需选择破关策略。火焰强度与冰封之力相互克制。",
+          "choices": [
+            {
+              "key": "break_through",
+              "text": "强破",
+              "desc": "集中火力强破五焰关。士气-10 火焰+30 冰封-10 收获+20%",
+              "morale_change": -10,
+              "flame_power_change": 30,
+              "ice_seal_power_change": -10,
+              "harvest_multiplier_change": 0.20,
+              "success_rate": 0.75
+            },
+            {
+              "key": "seal",
+              "text": "封焰",
+              "desc": "用冰封之力封印火焰。士气-5 火焰-20 冰封+15 收获+10%",
+              "morale_change": -5,
+              "flame_power_change": -20,
+              "ice_seal_power_change": 15,
+              "harvest_multiplier_change": 0.10,
+              "success_rate": 0.85
+            },
+            {
+              "key": "dodge",
+              "text": "避火",
+              "desc": "灵活避让火焰机关。士气+5 火焰-10 冰封-5 收获-10%",
+              "morale_change": 5,
+              "flame_power_change": -10,
+              "ice_seal_power_change": -5,
+              "harvest_multiplier_change": -0.10,
+              "success_rate": 0.95
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "寒骊翻脸",
+          "act_key": "hanli_betrayal",
+          "description": "寒骊上人突然翻脸发难，队伍需应对。若有阴罗宗队员且煞气充足，可选阴幡镇魂大幅降低咒扰。",
+          "choices": [
+            {
+              "key": "fight",
+              "text": "硬战",
+              "desc": "正面迎战寒骊。士气-20 咒扰+30 冰封-20 收获+30%",
+              "morale_change": -20,
+              "curse_disorder_change": 30,
+              "ice_seal_power_change": -20,
+              "harvest_multiplier_change": 0.30,
+              "requires_yinluo": false,
+              "success_rate": 0.60
+            },
+            {
+              "key": "yinluo_suppress",
+              "text": "阴幡镇魂",
+              "desc": "阴罗宗队员消耗阴罗幡煞气大幅降低咒扰（需阴罗宗队员+煞气>=50）。士气-5 咒扰-30 煞气-50 冰封+10 收获+40%",
+              "morale_change": -5,
+              "curse_disorder_change": -30,
+              "yinluo_banner_qi_change": -50,
+              "ice_seal_power_change": 10,
+              "harvest_multiplier_change": 0.40,
+              "requires_yinluo": true,
+              "min_banner_qi": 50,
+              "success_rate": 0.90
+            },
+            {
+              "key": "negotiate",
+              "text": "周旋",
+              "desc": "与寒骊周旋，损失小但收益低。士气-5 咒扰+10 冰封-5 收获-10%",
+              "morale_change": -5,
+              "curse_disorder_change": 10,
+              "ice_seal_power_change": -5,
+              "harvest_multiplier_change": -0.10,
+              "requires_yinluo": false,
+              "success_rate": 0.85
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 4,
+          "act_name": "冰海妖围",
+          "act_key": "ice_sea_siege",
+          "description": "小极宫外围被冰海妖兽围困，需在有限回合内将冰封之力推到目标值。最终决战。",
+          "is_final_act": true,
+          "choices": [
+            {
+              "key": "seal_all",
+              "text": "全员封妖",
+              "desc": "全员合力封印妖兽。士气-10 冰封+25 咒扰+10 收获+20%",
+              "morale_change": -10,
+              "ice_seal_power_change": 25,
+              "curse_disorder_change": 10,
+              "harvest_multiplier_change": 0.20,
+              "success_rate": 0.80
+            },
+            {
+              "key": "break_ice",
+              "text": "破冰突围",
+              "desc": "集中火力破冰突围。士气-15 冰封+15 咒扰+20 收获+40%",
+              "morale_change": -15,
+              "ice_seal_power_change": 15,
+              "curse_disorder_change": 20,
+              "harvest_multiplier_change": 0.40,
+              "success_rate": 0.65
+            },
+            {
+              "key": "hold_position",
+              "text": "稳守阵地",
+              "desc": "稳守阵地等待妖兽退去。士气+5 冰封+10 咒扰-5 收获-10%",
+              "morale_change": 5,
+              "ice_seal_power_change": 10,
+              "curse_disorder_change": -5,
+              "harvest_multiplier_change": -0.10,
+              "success_rate": 0.90
+            }
+          ],
+          "clear_condition": {
+            "ice_seal_power_gte": 100,
+            "clear_message": "冰封之力圆满，妖兽尽退，小极宫通关！"
+          },
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        }
+      ],
+
+      "rewards": {
+        "base_rewards": [
+          { "type": "exp", "count": 9000, "desc": "通关基础修为" },
+          { "type": "spirit_stones", "count": 1200, "desc": "通关基础灵石" }
+        ],
+        "perfect_bonus": {
+          "desc": "完美破局额外加成：咒扰<30且士气>60时，每人额外获得修为+3000 贡献+150",
+          "exp": 3000,
+          "contribution": 150
+        },
+        "guaranteed_drops": [
+          {
+            "item_key": "xuanbing_flower",
+            "count": 1,
+            "priority": "wanxin",
+            "desc": "玄冰花×1，优先分给婉心封魂线中的队员（简化为分给贡献最高的队员）"
+          }
+        ],
+        "rare_drops": [
+          { "item_key": "wannian_xuanyu", "name": "万年玄玉", "weight": 100, "count_min": 1, "count_max": 1, "desc": "可炼制玄玉护身符" },
+          { "item_key": "qianlan_hansui", "name": "乾蓝寒髓", "weight": 100, "count_min": 1, "count_max": 1, "desc": "可清丹毒并给炼制/小极宫加成" },
+          { "item_key": "huochan_neidan", "name": "火蟾内丹", "weight": 80, "count_min": 1, "count_max": 1, "desc": "火蟾内丹" },
+          { "item_key": "bingfeng_zhiyi", "name": "冰凤之翎", "weight": 60, "count_min": 1, "count_max": 1, "desc": "冰凤之翎" },
+          { "item_key": "wanyao_fansi", "name": "万妖幡残丝", "weight": 50, "count_min": 1, "count_max": 1, "desc": "阴罗宗可补充阴罗幡煞气" },
+          { "item_key": "xutiancantu", "name": "虚灵殿残图", "weight": 40, "count_min": 1, "count_max": 1, "desc": "可降低下次小极宫入宫鼎机并加分" },
+          { "item_key": "xuanbingdan_fangcanpian", "name": "玄冰丹方残篇", "weight": 30, "count_min": 1, "count_max": 1, "desc": "合成北冥寒令的材料" }
+        ],
+        "rare_drop_count_min": 1,
+        "rare_drop_count_max": 3,
+        "title": "beiming_breaker",
+        "title_name": "北冥破局者",
+        "title_desc": "高评分或完美通关小极宫有机会获得的称号",
+        "title_chance": 0.20,
+        "first_clear_bonus": [
+          { "type": "title", "title_id": "beiming_breaker", "title_name": "北冥破局者", "desc": "首通小极宫的称号" },
+          { "type": "item", "item_key": "wannian_xuanyu", "count": 1, "desc": "额外万年玄玉×1" },
+          { "type": "spirit_stones", "count": 30000, "desc": "额外灵石 30000" },
+          { "type": "global_announce", "desc": "全服公告首通成就" }
+        ]
+      }
+    },
+    "luoyun": {
+      "name": "落云秘圃",
+      "desc": "落云秘圃乃上古灵植秘圃，藏有灵眼树胚等稀世灵种。队伍需 3-5 人，队长需化神初期并消耗落云秘匙，队员需元婴后期。副本分三幕：破禁入圃、护根稳压、截枝封灵。第 3 幕的截枝决策将影响最终灵眼树胚的掉落几率。",
+      "member_min": 3,
+      "member_max": 5,
+      "leader_min_realm": "化神初期",
+      "leader_min_realm_rank": 23,
+      "member_min_realm": "元婴后期",
+      "member_min_realm_rank": 21,
+      "consume_item_key": "luoyun_secret_key",
+      "consume_item_count": 1,
+      "cooldown_hours": 48,
+      "expire_hours": 2,
+
+      "init_morale": 70,
+      "init_vigilance": 50,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 100,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1.0,
+      "init_spirit_vein_power": 60,
+      "init_root_stability": 80,
+      "init_branch_vigor": 50,
+      "init_spirit_plant_aura": 30,
+
+      "final_act_number": 3,
+      "final_root_stability_target": 50,
+      "final_max_rounds": 6,
+
+      "perfect_clear_root_stability_min": 70,
+      "perfect_clear_spirit_plant_aura_min": 50,
+
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "破禁入圃",
+          "act_key": "break_seal_enter",
+          "description": "队伍抵达落云秘圃外围，需破除上古禁制才能进入。禁制强度与灵脉之力相互制衡。",
+          "choices": [
+            {
+              "key": "force_break",
+              "text": "强破禁制",
+              "desc": "集中灵力强破禁制，效率高但损伤灵脉。士气-10 灵脉-20 根脉-15 收获+30% 枝桠+10",
+              "morale_change": -10,
+              "spirit_vein_power_change": -20,
+              "root_stability_change": -15,
+              "harvest_multiplier_change": 0.30,
+              "branch_vigor_change": 10,
+              "success_rate": 0.75
+            },
+            {
+              "key": "seek_crack",
+              "text": "寻隙而入",
+              "desc": "寻找禁制薄弱处潜入，稳妥但耗时。士气-5 灵脉-5 根脉-5 收获+10% 枝桠+5",
+              "morale_change": -5,
+              "spirit_vein_power_change": -5,
+              "root_stability_change": -5,
+              "harvest_multiplier_change": 0.10,
+              "branch_vigor_change": 5,
+              "success_rate": 0.90
+            },
+            {
+              "key": "ritual_open",
+              "text": "仪轨开禁",
+              "desc": "以正确仪轨开启禁制，无损但需消耗灵植灵气。士气+5 灵脉+10 根脉+5 灵气-15 收获-10%",
+              "morale_change": 5,
+              "spirit_vein_power_change": 10,
+              "root_stability_change": 5,
+              "spirit_plant_aura_change": -15,
+              "harvest_multiplier_change": -0.10,
+              "success_rate": 0.95
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "护根稳压",
+          "act_key": "protect_root_stabilize",
+          "description": "进入秘圃后，灵植根系不稳，需选择护根策略稳压。灵植灵气与根脉稳定相互影响。",
+          "choices": [
+            {
+              "key": "infuse_aura",
+              "text": "灌注灵气",
+              "desc": "向灵植灌注灵气，强化根脉。士气-5 灵气+30 根脉+15 枝桠+10 收获+20%",
+              "morale_change": -5,
+              "spirit_plant_aura_change": 30,
+              "root_stability_change": 15,
+              "branch_vigor_change": 10,
+              "harvest_multiplier_change": 0.20,
+              "success_rate": 0.80
+            },
+            {
+              "key": "stabilize_vein",
+              "text": "稳灵脉",
+              "desc": "稳固灵脉，避免灵气外泄。士气-5 灵脉+20 根脉+10 灵气+5 收获+10%",
+              "morale_change": -5,
+              "spirit_vein_power_change": 20,
+              "root_stability_change": 10,
+              "spirit_plant_aura_change": 5,
+              "harvest_multiplier_change": 0.10,
+              "success_rate": 0.85
+            },
+            {
+              "key": "wait_calm",
+              "text": "静待平复",
+              "desc": "等待灵植自行平复，无损但耗时。士气+5 根脉+5 枝桠+5 收获-10%",
+              "morale_change": 5,
+              "root_stability_change": 5,
+              "branch_vigor_change": 5,
+              "harvest_multiplier_change": -0.10,
+              "success_rate": 0.95
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "截枝封灵",
+          "act_key": "cut_branch_seal_spirit",
+          "description": "灵植已成熟，需选择截取策略。截枝封灵可立即获得灵眼树胚但损伤秘圃；留枝养灵可获更多灵植材料但灵眼树胚几率低。",
+          "is_final_act": true,
+          "choices": [
+            {
+              "key": "cut_seal",
+              "text": "截枝封灵",
+              "desc": "截取灵枝封灵，必得灵眼树胚但根脉崩塌。士气-15 根脉-40 枝桠-30 灵气-20 收获+50%",
+              "morale_change": -15,
+              "root_stability_change": -40,
+              "branch_vigor_change": -30,
+              "spirit_plant_aura_change": -20,
+              "harvest_multiplier_change": 0.50,
+              "guarantee_sapling": true,
+              "success_rate": 0.70
+            },
+            {
+              "key": "branch_care",
+              "text": "留枝养灵",
+              "desc": "保留灵枝继续养护，灵眼树胚几率低但根脉保持。士气-5 根脉+10 枝桠+15 灵气+20 收获-10%",
+              "morale_change": -5,
+              "root_stability_change": 10,
+              "branch_vigor_change": 15,
+              "spirit_plant_aura_change": 20,
+              "harvest_multiplier_change": -0.10,
+              "sapling_drop_rate": 0.25,
+              "success_rate": 0.90
+            },
+            {
+              "key": "balanced_harvest",
+              "text": "均衡采枝",
+              "desc": "适度采枝，平衡收益与根脉。士气-10 根脉-15 枝桠-10 灵气+10 收获+20%",
+              "morale_change": -10,
+              "root_stability_change": -15,
+              "branch_vigor_change": -10,
+              "spirit_plant_aura_change": 10,
+              "harvest_multiplier_change": 0.20,
+              "sapling_drop_rate": 0.50,
+              "success_rate": 0.80
+            }
+          ],
+          "clear_condition": {
+            "root_stability_gte": 50,
+            "clear_message": "根脉稳定守住阈值，灵植灵气盈然，落云秘圃通关！"
+          },
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        }
+      ],
+
+      "rewards": {
+        "base_rewards": [
+          { "type": "exp", "count": 12000, "desc": "通关基础修为" },
+          { "type": "spirit_stones", "count": 1500, "desc": "通关基础灵石" }
+        ],
+        "perfect_bonus": {
+          "desc": "完美通关加成：根脉稳定>70且灵植灵气>50时，每人额外获得修为+4000 贡献+200",
+          "exp": 4000,
+          "contribution": 200
+        },
+        "normal_drops": [
+          { "item_key": "lingzhi_grass", "chance": 0.80, "count_min": 2, "count_max": 5, "desc": "灵芝草" },
+          { "item_key": "spirit_branch", "chance": 0.60, "count_min": 1, "count_max": 3, "desc": "灵枝" },
+          { "item_key": "spirit_vein_stone", "chance": 0.50, "count_min": 1, "count_max": 2, "desc": "灵脉石" }
+        ],
+        "rare_drops": [
+          { "item_key": "ancient_spirit_seed", "name": "上古灵种", "weight": 50, "count_min": 1, "count_max": 1, "desc": "上古灵种，可培育稀有灵植" },
+          { "item_key": "luoyun_essence", "name": "落云精髓", "weight": 80, "count_min": 1, "count_max": 1, "desc": "落云秘圃的灵脉精髓" },
+          { "item_key": "spirit_plant_manifest", "name": "灵植图鉴", "weight": 30, "count_min": 1, "count_max": 1, "desc": "记载上古灵植的图鉴" }
+        ],
+        "rare_drop_count_min": 1,
+        "rare_drop_count_max": 2,
+        "title": "luoyun_guardian",
+        "title_name": "落云守护者",
+        "title_desc": "完美通关落云秘圃有机会获得的称号",
+        "title_chance": 0.20,
+        "first_clear_bonus": [
+          { "type": "title", "title_id": "luoyun_guardian", "title_name": "落云守护者", "desc": "首通落云秘圃的称号" },
+          { "type": "item", "item_key": "lingyan_sapling", "count": 1, "desc": "额外灵眼树胚×1" },
+          { "type": "spirit_stones", "count": 30000, "desc": "额外灵石 30000" },
+          { "type": "global_announce", "desc": "全服公告首通成就" }
+        ]
+      }
+    }
+  }
+}

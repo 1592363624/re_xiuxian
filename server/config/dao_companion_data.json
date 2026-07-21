@@ -1,0 +1,123 @@
+{
+  "meta": {
+    "description": "道侣/双修系统配置文件（玩家间 1v1 长期社交玩法）",
+    "version": "1.1.0",
+    "last_updated": "2026-07-20",
+    "author": "xiuxian-expert",
+    "changelog": "v1.1.0 新增 heart_contract_protect（护道机制）与 heart_contract_effects（心契特殊效果）配置"
+  },
+  "settings": {
+    "min_realm_rank": 15,
+    "min_realm_name": "结丹期",
+    "max_pending_proposals_per_receiver": 3,
+    "max_outgoing_pending_per_player": 1,
+    "min_intimacy_for_heart_tribulation": 50,
+    "min_intimacy_for_heart_imprint": 80,
+    "heart_tribulation_trigger_rate": 0.1,
+    "heart_tribulation_expire_hours": 24,
+    "daily_interact_cooldown_seconds": 86400,
+    "dual_cultivation_cooldown_seconds": 86400,
+    "dual_cultivation_min_duration_seconds": 60,
+    "dual_cultivation_max_duration_seconds": 300,
+    "dual_cultivation_exp_multiplier": 1.5,
+    "dual_cultivation_intimacy_bonus": 5,
+    "interact_intimacy_bonus": 2,
+    "interact_exp_seconds_equivalent": 30,
+    "propose_initial_intimacy": 10,
+    "break_intimacy_penalty": 20,
+    "break_re_propose_cooldown_days": 7,
+    "heart_imprint_exp_cost": 1000,
+    "heart_imprint_count_per_level": 3,
+    "max_heart_contract_level": 9,
+    "heart_contract_level_bonus_rate": 0.05,
+    "heart_tribulation_options": {
+      "trust": {
+        "name": "信任",
+        "success_rate": 0.8,
+        "intimacy_gain": 5,
+        "heart_contract_exp_gain": 50,
+        "description": "选择相信道侣，亲密度+5；失败则亲密度-5"
+      },
+      "doubt": {
+        "name": "怀疑",
+        "success_rate": 0.5,
+        "intimacy_gain": -3,
+        "heart_contract_exp_gain": 20,
+        "description": "怀疑道侣动机，亲密度-3；成功则心契经验+20"
+      },
+      "trial": {
+        "name": "考验",
+        "success_rate": 0.3,
+        "intimacy_gain": 15,
+        "heart_contract_exp_gain": 100,
+        "description": "设局考验道侣，成功亲密度+15，心契经验+100；失败亲密度-10"
+      }
+    },
+    "heart_tribulation_failure_penalty": {
+      "intimacy_loss": 10,
+      "heart_contract_level_loss": 1
+    }
+  },
+  "heart_contract_protect": {
+    "enabled": true,
+    "min_level": 2,
+    "comment": "心契等级 L2 解锁护道：道侣被攻击时有概率分担伤害，L5 时达 30% 触发率",
+    "level_protect_rate": {
+      "2": 0.10,
+      "3": 0.15,
+      "4": 0.20,
+      "5": 0.25,
+      "6": 0.27,
+      "7": 0.28,
+      "8": 0.29,
+      "9": 0.30
+    },
+    "damage_share_rate": 0.5,
+    "comment_damage_share": "护道触发时，护道方分担的伤害比例（剩余伤害由被攻击方承担）",
+    "counter_attack_rate": 0.3,
+    "comment_counter_attack": "护道触发时，护道方对攻击方进行反击的概率",
+    "counter_attack_multiplier": 0.5,
+    "comment_counter_attack_multiplier": "反击伤害 = 护道方攻击力 × 该倍率（相对原始伤害的折算）",
+    "cooldown_seconds": 3600,
+    "comment_cooldown": "同一对道侣的护道冷却时间（秒），冷却内不重复触发",
+    "min_intimacy": 50,
+    "comment_min_intimacy": "触发护道所需最低亲密度",
+    "intimacy_gain_on_protect": 2,
+    "comment_intimacy_gain": "护道成功后双方亲密度增益",
+    "max_protect_log_per_player": 50
+  },
+  "heart_contract_effects": {
+    "comment": "心契等级特殊效果汇总（设计文档 5.6.1）",
+    "levels": {
+      "1": {
+        "name": "共修 10 次",
+        "effect": "双修加成 +5%",
+        "dual_cultivation_bonus_rate": 0.05
+      },
+      "2": {
+        "name": "共历心劫 1 次",
+        "effect": "护道：道侣被攻击时有 10% 概率分担伤害",
+        "unlock_protect": true
+      },
+      "3": {
+        "name": "共修 30 次",
+        "effect": "双修加成 +15%，心印上限 +1",
+        "dual_cultivation_bonus_rate": 0.15,
+        "heart_imprint_cap_bonus": 1
+      },
+      "4": {
+        "name": "共历心劫 3 次",
+        "effect": "共修：双方闭关时互相 +10% 修为",
+        "unlock_co_cultivation": true,
+        "co_cultivation_bonus_rate": 0.10
+      },
+      "5": {
+        "name": "立誓共修 50 次",
+        "effect": "双修加成 +25%，护道 30%，可种心印 2 个",
+        "dual_cultivation_bonus_rate": 0.25,
+        "protect_rate_max": 0.30,
+        "heart_imprint_cap_bonus": 2
+      }
+    }
+  }
+}

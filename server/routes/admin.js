@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 
 const LifespanService = require('../game/core/LifespanService');
+const RealmService = require('../game/core/RealmService');
 const webSocketNotificationService = require('../game/services/WebSocketNotificationService');
 
 const SECLUSION_CONFIG_FILE = path.join(__dirname, '../config/seclusion.json');
@@ -93,7 +94,12 @@ router.post('/time-travel', auth, adminCheck, async (req, res) => {
             return res.status(400).json({ code: 400, message: '无效的时间参数 (years)' });
         }
 
-        const seconds = years * LifespanService.SECONDS_PER_YEAR;
+        // 修复 B42：LifespanService 是单例实例（module.exports = new LifespanService()），
+        // 实例上没有 SECONDS_PER_YEAR 静态 getter，导致 seconds = NaN，updateLifespan 直接返回不处理
+        // 修复方案：直接从配置读取 seconds_per_year（与 LifespanService.SECONDS_PER_YEAR getter 逻辑一致）
+        const gameBalanceConfig = require('../modules').infrastructure.ConfigLoader.getConfig('game_balance');
+        const secondsPerYear = gameBalanceConfig?.lifespan?.seconds_per_year || 31536000;
+        const seconds = years * secondsPerYear;
         console.log(`[Admin] Triggering time travel: +${years} years (+${seconds}s)`);
         
         const result = await LifespanService.updateLifespan(seconds);
@@ -516,6 +522,10 @@ router.post('/reset-player', auth, adminCheck, async (req, res) => {
         };
 
         player.realm = '凡人';
+        // 修复 B45：同步重置 realm_rank，避免 realm 与 realm_rank 数据不一致
+        // （否则 meetsRealmRequirement 会按 realm="凡人" 当低境界处理，
+        //  但 realm_rank 仍是高境界数值，导致业务判断错乱）
+        player.realm_rank = RealmService.getRealmRank('凡人');
         player.exp = '0';
         player.spirit_stones = String(initialSpiritStones);
         player.hp_current = BigInt(initialAttrs.hp_max || 100);
@@ -567,6 +577,10 @@ router.post('/breakthrough', auth, adminCheck, async (req, res) => {
         }
 
         player.realm = targetRealm;
+        // 修复 B45：同步更新 realm_rank，避免 realm 与 realm_rank 不一致
+        // （admin 强制突破只改 realm 不改 realm_rank，会导致 meetsRealmRequirement
+        //   按新 realm 名解析 rank 时与实际 realm_rank 数值不一致）
+        player.realm_rank = RealmService.getRealmRank(targetRealm);
         await player.save();
 
         await logAdminAction(req.player.id, 'force_breakthrough', {

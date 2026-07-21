@@ -1,0 +1,142 @@
+{
+    "_meta": {
+        "version": "1.0.0",
+        "description": "灵兽放养与偷菜系统配置：放养场所/产物/偷菜概率/护院机制/召回规则",
+        "create_time": "2026-07-21",
+        "design_doc": "玩法文档第8节 - 灵兽放养/偷菜/探渊/升星，异步多人经济PVP玩法"
+    },
+
+    "pasture": {
+        "description": "灵兽放养系统：将灵兽放到野外场所，定期收获资源；放养中的灵兽可偷其他玩家药园的菜",
+        "min_duration_hours": 1,
+        "max_duration_hours": 8,
+        "max_concurrent_beasts": 3,
+        "auto_recall_grace_hours": 2,
+        "auto_recall_yield_discount": 0.8,
+        "early_recall_yield_discount": 0.0,
+        "base_yield_per_hour": 3,
+        "yield_per_star_level": 0.5,
+        "yield_per_level": 0.1,
+        "loyalty_change_per_hour": -2,
+        "loyalty_gain_on_return": 3,
+        "exp_gain_per_hour": 20,
+
+        "locations": [
+            {
+                "location_key": "qingyun_mountain",
+                "name": "青云山",
+                "description": "青云山脉，灵气充沛，适合低阶灵兽放养觅食",
+                "min_realm_rank": 1,
+                "preferred_elements": ["metal", "wood"],
+                "element_bonus_multiplier": 1.2,
+                "yield_items": [
+                    { "item_id": "wild_herb", "name": "灵草", "weight": 50, "min_qty": 1, "max_qty": 3 },
+                    { "item_id": "spirit_stone", "name": "灵石", "weight": 30, "min_qty": 50, "max_qty": 200 },
+                    { "item_id": "spirit_seed", "name": "灵草种子", "weight": 15, "min_qty": 1, "max_qty": 2 },
+                    { "item_id": "condensing_seed", "name": "凝气花种子", "weight": 5, "min_qty": 1, "max_qty": 1 }
+                ]
+            },
+            {
+                "location_key": "volcano_crater",
+                "name": "火山口",
+                "description": "炽热火山口，稀有灵兽出没之地，产出火属性材料",
+                "min_realm_rank": 11,
+                "preferred_elements": ["fire"],
+                "element_bonus_multiplier": 1.3,
+                "yield_items": [
+                    { "item_id": "fire_spirit_stone", "name": "火灵石", "weight": 35, "min_qty": 1, "max_qty": 2 },
+                    { "item_id": "spirit_stone", "name": "灵石", "weight": 30, "min_qty": 100, "max_qty": 300 },
+                    { "item_id": "blood_grass", "name": "血灵草", "weight": 20, "min_qty": 1, "max_qty": 2 },
+                    { "item_id": "monster_core", "name": "妖丹", "weight": 10, "min_qty": 1, "max_qty": 1 },
+                    { "item_id": "blood_grass_seed", "name": "血灵草种子", "weight": 5, "min_qty": 1, "max_qty": 1 }
+                ]
+            },
+            {
+                "location_key": "frozen_tundra",
+                "name": "极寒之地",
+                "description": "极寒冰原，传说灵兽栖息地，产出水属性珍稀材料",
+                "min_realm_rank": 19,
+                "preferred_elements": ["water"],
+                "element_bonus_multiplier": 1.4,
+                "yield_items": [
+                    { "item_id": "ice_crystal", "name": "冰魄晶", "weight": 30, "min_qty": 1, "max_qty": 2 },
+                    { "item_id": "spirit_stone", "name": "灵石", "weight": 25, "min_qty": 200, "max_qty": 500 },
+                    { "item_id": "infant_fruit", "name": "元婴果", "weight": 20, "min_qty": 1, "max_qty": 2 },
+                    { "item_id": "monster_core", "name": "妖丹", "weight": 15, "min_qty": 1, "max_qty": 1 },
+                    { "item_id": "infant_fruit_seed", "name": "元婴果种子", "weight": 10, "min_qty": 1, "max_qty": 1 }
+                ]
+            },
+            {
+                "location_key": "tenglong_ancient_land",
+                "name": "腾蛇故地",
+                "description": "上古神兽遗迹，灵气浓郁，产出高阶珍稀材料",
+                "min_realm_rank": 23,
+                "preferred_elements": ["wood", "earth"],
+                "element_bonus_multiplier": 1.5,
+                "yield_items": [
+                    { "item_id": "ancient_spirit_wood", "name": "万年灵木", "weight": 25, "min_qty": 1, "max_qty": 2 },
+                    { "item_id": "spirit_stone", "name": "灵石", "weight": 25, "min_qty": 300, "max_qty": 800 },
+                    { "item_id": "monster_core", "name": "妖丹", "weight": 20, "min_qty": 1, "max_qty": 2 },
+                    { "item_id": "soul_nourishing_wood", "name": "养魂木", "weight": 15, "min_qty": 1, "max_qty": 1 },
+                    { "item_id": "ancient_fragment", "name": "上古残片", "weight": 15, "min_qty": 1, "max_qty": 1 }
+                ]
+            }
+        ]
+    },
+
+    "steal": {
+        "description": "灵兽偷菜系统：放养中的灵兽可偷其他玩家药园中已成熟的作物",
+        "cooldown_seconds_per_beast": 3600,
+        "daily_steal_limit_per_beast": 5,
+        "daily_steal_limit_total": 10,
+        "target_cooldown_seconds": 86400,
+
+        "success_rate": {
+            "base": 0.35,
+            "speed_bonus_per_point": 0.003,
+            "speed_bonus_max": 0.25,
+            "loyalty_bonus_per_point": 0.002,
+            "loyalty_bonus_max": 0.15,
+            "element_match_bonus": 0.1,
+            "star_level_bonus_per_star": 0.02,
+            "star_level_bonus_max": 0.1
+        },
+
+        "guard": {
+            "description": "护院灵兽拦截机制：被偷玩家的出战灵兽会尝试拦截",
+            "intercept_base_rate": 0.4,
+            "intercept_speed_bonus_per_point": 0.004,
+            "intercept_speed_bonus_max": 0.3,
+            "intercept_loyalty_bonus_per_point": 0.002,
+            "intercept_loyalty_bonus_max": 0.15,
+            "intercept_star_level_bonus_per_star": 0.03,
+            "intercept_star_level_bonus_max": 0.15,
+            "intercept_counter_damage_rate": 0.3,
+            "intercept_loyalty_loss_on_success": 3,
+            "no_guard_success_bonus": 0.3
+        },
+
+        "yield": {
+            "min_crops": 1,
+            "max_crops": 3,
+            "quality_preservation": true,
+            "bonus_exp_on_success": 15,
+            "bonus_loyalty_on_success": 2,
+            "penalty_loyalty_on_intercepted": 5,
+            "penalty_loyalty_on_failed": 1
+        },
+
+        "notification": {
+            "notify_target_on_steal": true,
+            "notify_target_on_intercept": true,
+            "notify_attacker_on_intercepted": true
+        }
+    },
+
+    "scheduler": {
+        "description": "调度器配置：自动结算过期放养",
+        "check_interval_ms": 60000,
+        "auto_recall_after_hours": 2,
+        "batch_size": 50
+    }
+}

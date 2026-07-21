@@ -141,6 +141,14 @@ class CombatService {
 
             const monsterData = this.generateMonsterData(selectedMonster, player);
 
+            // 获取出战灵兽属性加成（灵兽参与战斗的核心集成点）
+            // 加成 HP 会叠加到战斗初始 HP 上，使灵兽成为玩家战力的有机组成
+            // 注意：灵兽加成查询是只读 SELECT，在事务内执行不影响锁语义
+            const SpiritBeastService = require('./SpiritBeastService');
+            const beastBonus = await SpiritBeastService.getActiveBeastBonus(playerId);
+            const beastHpBonus = BigInt(beastBonus.hp_max || 0);
+            const beastMpBonus = BigInt(beastBonus.mp_max || 0);
+
             const battle = await ActiveBattle.create({
                 player_id: playerId,
                 monster_id: selectedMonster.id,
@@ -150,8 +158,9 @@ class CombatService {
                 battle_type: 'normal',
                 round: 1,
                 turn: 'player',
-                player_hp: safeBigInt(player.hp_current),
-                player_mp: safeBigInt(player.mp_current),
+                // 战斗初始 HP/MP = 玩家当前 HP/MP + 灵兽加成（灵兽护主，额外提供生命/法力）
+                player_hp: safeBigInt(player.hp_current) + beastHpBonus,
+                player_mp: safeBigInt(player.mp_current) + beastMpBonus,
                 monster_hp: monsterData.max_hp,
                 monster_max_hp: monsterData.max_hp,
                 is_player_turn: true,
@@ -271,13 +280,17 @@ class CombatService {
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             }
             const playerAtk = this.getPlayerStat(player, 'atk', 10);
+            // 灵兽加成：出战灵兽按比例提供额外攻击力（灵兽助战）
+            const SpiritBeastService = require('./SpiritBeastService');
+            const beastAtkBonus = await SpiritBeastService.getActiveBeastBonus(playerId);
+            const totalPlayerAtk = playerAtk + (beastAtkBonus.atk || 0);
             const monsterDef = battle.monster_data?.def || 5;
 
             const combatConfig = getGameBalanceConfig().combat || {};
             const dmgRange = combatConfig.damage_random_range ?? 15;
             const dmgOffset = combatConfig.damage_random_offset ?? 7;
 
-            let damage = Math.max(1, playerAtk - monsterDef + Math.floor(Math.random() * dmgRange) - dmgOffset);
+            let damage = Math.max(1, totalPlayerAtk - monsterDef + Math.floor(Math.random() * dmgRange) - dmgOffset);
 
             // 技能加成：仅当 action=skill 且灵力足够时生效（attack 路由的 skill 分支）
             if (action === 'skill' && safeBigInt(player.mp_current) >= (combatConfig.skill_mp_cost ?? 20)) {
@@ -363,6 +376,42 @@ class CombatService {
             const monsterDmgOffset = monsterDmgConfig.monster_damage_random_offset ?? 3;
             let damage = Math.max(1, (monsterData.atk || 8) - playerDef + Math.floor(Math.random() * monsterDmgRange) - monsterDmgOffset);
 
+            // ===== 道侣护道判定（与 PvpService 一致的集成模式）=====
+            // 设计文档 5.6.1：心契等级 L2 解锁护道，被攻击时有概率触发道侣远程护持
+            // PVE 场景下护道反击伤害作用于怪物（道侣远程协助攻击怪物），区别于 PVP 反击攻击方玩家
+            // try-catch 兜底：护道判定失败不影响战斗主流程
+            let protectInfo = null;
+            let counterDamageToMonster = 0;
+            try {
+                // 懒加载 DaoCompanionService，避免循环依赖
+                const DaoCompanionService = require('./DaoCompanionService');
+                const protectResult = await DaoCompanionService.tryProtect(
+                    playerId,
+                    damage,
+                    {
+                        battleType: 'combat',               // 野外战斗场景
+                        battleId: battle.battle_uuid,        // 战斗实例ID
+                        battleRound: battle.round,           // 当前回合
+                        attackerId: null,                    // PVE 中攻击方是怪物，无玩家ID
+                        protectorAtk: 0,                     // 道侣不在战场，反击伤害计算时取配置默认
+                        transaction: t                       // 复用当前事务
+                    }
+                );
+                if (protectResult.triggered) {
+                    protectInfo = protectResult;
+                    // 被攻击方实际承受伤害（护道方分担了部分）
+                    damage = Number(protectResult.actual_damage_to_defender);
+                    // 反击伤害（怪物承受）
+                    counterDamageToMonster = Number(protectResult.counter_damage) || 0;
+                    if (counterDamageToMonster > 0) {
+                        battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(counterDamageToMonster);
+                    }
+                }
+            } catch (protectErr) {
+                // 护道判定失败不影响战斗主流程
+                console.warn('[CombatService] 道侣护道判定异常:', protectErr.message);
+            }
+
             battle.player_hp = safeBigInt(battle.player_hp) - BigInt(damage);
             battle.damage_received = safeBigInt(battle.damage_received) + BigInt(damage);
 
@@ -374,6 +423,19 @@ class CombatService {
                 target_hp: safeBigInt(battle.player_hp).toString(),
                 timestamp: new Date().toISOString()
             });
+
+            // 护道触发时追加战斗日志（让玩家看到"道侣远程护持"反馈）
+            if (protectInfo && protectInfo.triggered) {
+                appendBattleLog(battle, {
+                    round: battle.round,
+                    attacker: 'dao_companion',
+                    action: 'protect',
+                    shared_damage: protectInfo.shared_damage,
+                    counter_damage: counterDamageToMonster,
+                    monster_hp_after_counter: safeBigInt(battle.monster_hp).toString(),
+                    timestamp: new Date().toISOString()
+                });
+            }
 
             const battleResult = await this.checkBattleEnd(battle, player, t);
             if (battleResult) {
@@ -389,15 +451,28 @@ class CombatService {
 
             await t.commit();
 
+            // 构建返回消息：护道触发时附带护道反馈
+            let message = `${battle.monster_name} 对你造成了 ${damage} 点伤害！`;
+            if (protectInfo && protectInfo.triggered) {
+                message += ` 道侣远程护持，分担 ${protectInfo.shared_damage} 点伤害`;
+                if (counterDamageToMonster > 0) {
+                    message += `，反击怪物 ${counterDamageToMonster} 点伤害`;
+                }
+                message += '。';
+            }
+
             return {
                 in_battle: true,
                 battle_id: battle.battle_uuid,
                 action: 'monster_attack',
                 damage: damage,
                 player_hp: safeBigInt(battle.player_hp).toString(),
+                monster_hp: safeBigInt(battle.monster_hp).toString(),
                 turn: 'player',
                 round: battle.round,
-                message: `${battle.monster_name} 对你造成了 ${damage} 点伤害！`
+                message,
+                // 护道信息透传给前端（前端可展示"道侣护持"特效）
+                protect_info: protectInfo
             };
         } catch (error) {
             if (!t.finished) await t.rollback();
@@ -740,12 +815,16 @@ class CombatService {
             }
 
             const playerAtk = this.getPlayerStat(player, 'atk', 10);
+            // 灵兽加成：出战灵兽按比例提供额外攻击力（灵兽助战，与普通攻击一致）
+            const SpiritBeastService = require('./SpiritBeastService');
+            const beastAtkBonus = await SpiritBeastService.getActiveBeastBonus(playerId);
+            const totalPlayerAtk = playerAtk + (beastAtkBonus.atk || 0);
             const monsterDef = battle.monster_data?.def || 5;
 
             // 技能伤害随机范围从配置读取（与 damage_random_range/offset 复用，避免新增配置项）
             const skillDmgRange = combatConfig.damage_random_range ?? 15;
             const skillDmgOffset = combatConfig.damage_random_offset ?? 7;
-            let damage = Math.floor(playerAtk * (combatConfig.skill_damage_multiplier ?? 1.5) - monsterDef + Math.floor(Math.random() * skillDmgRange) - skillDmgOffset);
+            let damage = Math.floor(totalPlayerAtk * (combatConfig.skill_damage_multiplier ?? 1.5) - monsterDef + Math.floor(Math.random() * skillDmgRange) - skillDmgOffset);
             damage = Math.max(1, damage);
 
             battle.player_mp = safeBigInt(battle.player_mp) - BigInt(skillMpCost);

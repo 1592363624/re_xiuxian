@@ -19,15 +19,67 @@ const props = defineProps({
   }
 })
 
-// 计算经验条百分比 (已废弃，直接在模板中计算)
+// 计算经验条百分比
+// 修复 4-3-P1-2：player.exp 是 BigInt 字符串（如 "99999999999"），
+// 直接用 Number(player.exp) 在超过 Number.MAX_SAFE_INTEGER (2^53-1 ≈ 9e15) 时会精度丢失
+// 改用 BigInt 计算（先 *100n 再除，避免小数丢精度）
 const expPercentage = computed(() => {
-  return Math.min((props.player.exp / (props.player.exp_next || 1)) * 100, 100) + '%'
+  try {
+    const exp = BigInt(props.player.exp || 0)
+    const expNext = BigInt(props.player.exp_next || 1)
+    if (expNext <= 0n) return '0%'
+    const pct = Number((exp * 100n) / expNext)
+    return Math.min(pct, 100) + '%'
+  } catch {
+    // BigInt 解析失败时降级到 Number 计算（小数场景）
+    return Math.min((Number(props.player.exp) / (Number(props.player.exp_next) || 1)) * 100, 100) + '%'
+  }
 })
 
-// 计算寿命百分比 (已废弃，直接在模板中计算)
+// 计算寿命百分比
+// lifespan_current 是小数（如 17.619），不能用 BigInt，但精度要求低，用 Number 即可
 const lifePercentage = computed(() => {
   return Math.min((props.player.lifespan_current / (props.player.lifespan_max || 1)) * 100, 100) + '%'
 })
+
+// 寿元进度条宽度（剩余寿元 / 最大寿元）
+// 修复：原来用 lifespan.current / lifespan.max（年龄/最大寿元），玩家 100 岁时显示 5% 看似快死
+//      改用 lifespan.remaining / lifespan.max（剩余/最大），进度条直观反映"还能活多久"
+const lifespanBarWidth = computed(() => {
+  const life = props.player.lifespan
+  if (!life?.max || life.max <= 0) return '0%'
+  const remaining = life.remaining ?? 0
+  return Math.min(Math.max((remaining / life.max) * 100, 0), 100) + '%'
+})
+
+// 寿元进度条颜色（根据 lifespan.status 动态切换）
+// 后端 LifespanService.getLifespanStatus 返回 status：
+//   - danger: remaining <= 0（已死亡或濒死）
+//   - warning: remaining < max * 20%（剩余不足 20%，红色预警）
+//   - normal: 其他情况（健康）
+const lifespanBarClass = computed(() => {
+  const status = props.player.lifespan?.status
+  if (status === 'danger') return 'bg-rose-700 animate-pulse'
+  if (status === 'warning') return 'bg-amber-600'
+  return 'bg-cyan-600'
+})
+
+// 寿元数值颜色（与进度条颜色呼应，便于玩家快速识别寿元状态）
+const lifespanColorClass = computed(() => {
+  const status = props.player.lifespan?.status
+  if (status === 'danger') return 'text-rose-400 font-bold'
+  if (status === 'warning') return 'text-amber-400 font-bold'
+  return 'text-stone-200'
+})
+
+// 格式化年龄/寿元数值（保留 1 位小数，避免显示 102.61799999...）
+// 修仙游戏中"年"是粗粒度单位，1 位小数足够（如 102.6 年）
+function formatAge(value) {
+  if (value === null || value === undefined) return '0'
+  const num = Number(value)
+  if (isNaN(num)) return '0'
+  return num.toFixed(1)
+}
 
 // 连接状态判断
 const isConnected = computed(() => {
@@ -217,23 +269,33 @@ onUnmounted(() => {
       <div>
         <div class="flex justify-between text-[10px] text-stone-400 mb-0.5">
           <span>修为 (Exp)</span>
-          <span>{{ player.exp || 0 }} / {{ player.exp_next || 0 }}</span>
+          <!-- 修复 4-3-P1-2：使用 formatNumber 处理 BigInt 字符串，避免大数显示异常 -->
+          <span>{{ formatNumber(player.exp || 0) }} / {{ formatNumber(player.exp_next || 0) }}</span>
         </div>
         <div class="h-1.5 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
           <div class="h-full bg-emerald-600 progress-flow transition-all duration-300" 
                :class="{ 'brightness-150': isExpChanged }"
-               :style="{ width: player.exp_next ? Math.min((player.exp / player.exp_next) * 100, 100) + '%' : '0%' }"></div>
+               :style="{ width: expPercentage }"></div>
         </div>
       </div>
 
-      <!-- 寿命/精力 -->
+      <!-- 寿元（剩余/最大） -->
+      <!-- 修复：原标签"寿命"显示 current/max（年龄/最大寿元），玩家看到 5% 进度条会误以为快死了
+           实际 player.lifespan.current 是"当前年龄"，player.lifespan.remaining 才是"剩余寿元"
+           优化为：显示 剩余/最大，进度条按剩余比例渲染，颜色随 status 变化（normal/warning/danger）
+           单独在右侧角标显示"年龄 X 年"，便于玩家区分"已活年数"和"剩余寿元" -->
       <div>
         <div class="flex justify-between text-[10px] text-stone-400 mb-0.5">
-          <span>寿命 (年)</span>
-          <span>{{ player.lifespan?.current || 0 }} / {{ player.lifespan?.max || 0 }}</span>
+          <span>寿元 (剩余/最大)</span>
+          <span>
+            <span class="text-stone-500 mr-2">年龄 {{ formatAge(player.lifespan?.current) }}</span>
+            <span :class="lifespanColorClass">{{ formatAge(player.lifespan?.remaining) }} / {{ formatAge(player.lifespan?.max) }}</span>
+          </span>
         </div>
         <div class="h-1.5 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
-          <div class="h-full bg-cyan-600 progress-flow transition-all duration-300" :style="{ width: player.lifespan?.max ? Math.min((player.lifespan.current / player.lifespan.max) * 100, 100) + '%' : '0%' }"></div>
+          <div class="h-full progress-flow transition-all duration-300"
+               :class="lifespanBarClass"
+               :style="{ width: lifespanBarWidth }"></div>
         </div>
       </div>
     </div>

@@ -531,6 +531,444 @@
             "description": "记载踏云靴炼制方法的图谱，阅读后可学会炼制踏云靴",
             "effect": { "learn_recipe": "craft_cloud_stepping_boots" },
             "price": 600
+        },
+        {
+            "id": "hongling_wedding_invitation",
+            "name": "红绫婚帖",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "epic",
+            "description": "掩月宗送出的婚仪请柬，持此帖方可闯入婚仪抢亲。每张仅可使用一次。",
+            "effect": { "dungeon_ticket": "yanyue" },
+            "price": 8000
+        },
+        {
+            "id": "kunwu_pass_token",
+            "name": "昆吾通行令",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "legendary",
+            "description": "刻有古昆吾纹路的青铜令牌，持此令方可踏入昆吾山·封魔塔秘境。每张仅可使用一次。",
+            "effect": { "dungeon_ticket": "kunwu" },
+            "price": 20000
+        },
+        {
+            "id": "yuehua_yulu",
+            "name": "月华玉露",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "rare",
+            "description": "吸纳月华而成的玉露，炼制高阶丹药的稀世材料",
+            "price": 800
+        },
+        {
+            "id": "duanhong_ling",
+            "name": "断红绫",
+            "type": "material",
+            "subtype": "silk",
+            "quality": "rare",
+            "description": "掩月抢亲遗留的血染红绫，祭炼血魔剑的引血之材",
+            "price": 1200
+        },
+        {
+            "id": "yinyang_jiansi",
+            "name": "阴阳剑丝",
+            "type": "material",
+            "subtype": "silk",
+            "quality": "rare",
+            "description": "交织阴阳之气的剑丝，可祭炼阴阳双属性法宝",
+            "price": 1500
+        },
+        {
+            "id": "yanyue_jingsha",
+            "name": "掩月镜砂",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "rare",
+            "description": "掩月宗秘藏的镜面灵砂，可作法宝抛光与祭炼辅材",
+            "price": 1000
+        },
+        {
+            "id": "sunv_jinwen",
+            "name": "素女禁纹",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "失传的素女宗禁纹图录，研习后可领悟特殊禁制神通",
+            "price": 3000
+        },
+        {
+            "id": "xuejian_tiesui",
+            "name": "血剑铁髓",
+            "type": "material",
+            "subtype": "ore",
+            "quality": "epic",
+            "description": "上古血魔剑遗骸中淬炼出的铁髓，祭炼血魔剑的主材",
+            "price": 5000
+        },
+        {
+            "id": "fabao_tupu",
+            "name": "法宝图谱",
+            "type": "recipe_scroll",
+            "subtype": "refining",
+            "quality": "epic",
+            "description": "记载多种法宝祭炼要诀的图谱，研习后可解锁高阶法宝祭炼",
+            "effect": { "learn_recipe": "craft_advanced_artifact" },
+            "price": 4000
+        },
+        {
+            "id": "kunwu_seal_fragment",
+            "name": "昆吾封纹残片",
+            "type": "material",
+            "subtype": "seal",
+            "quality": "rare",
+            "description": "刻有古昆吾封印纹路的青铜残片，祭炼封印类法宝的稀世材料",
+            "price": 1500
+        },
+        {
+            "id": "kunwu_tower_shadow_essence",
+            "name": "塔影精华",
+            "type": "material",
+            "subtype": "essence",
+            "quality": "epic",
+            "description": "封魔塔心魔影溃散后凝炼的精华，可用于提升玲珑（神识清明）",
+            "price": 3000
+        },
+        {
+            "id": "kunwu_dragon_vein_stone",
+            "name": "化龙脉石",
+            "type": "material",
+            "subtype": "breakthrough",
+            "quality": "epic",
+            "description": "昆吾山化龙地脉中凝结的奇石，突破时使用可增加成功率",
+            "effect": { "breakthrough_bonus": 0.10 },
+            "price": 5000
+        },
+        {
+            "id": "black_wind_flag_fragment",
+            "name": "黑风旗残片",
+            "type": "material",
+            "subtype": "fabao",
+            "quality": "rare",
+            "description": "黑风旗残存的旗面碎片，祭炼黑风旗类法宝的核心材料",
+            "price": 1800
+        },
+        {
+            "id": "taiyin_fire_crystal",
+            "name": "太阴火晶",
+            "type": "material",
+            "subtype": "alchemy",
+            "quality": "epic",
+            "description": "吸纳太阴之火凝炼的奇晶，炼制高阶丹药的极品辅材",
+            "price": 3500
+        },
+        {
+            "id": "baling_ruler",
+            "name": "八灵尺",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "legendary",
+            "description": "昆吾山古仙遗留的镇塔之宝，尺身刻八灵纹，可镇魔压邪",
+            "effect": { "atk": 180, "seal_bonus": 0.15, "divine_sense_bonus": 50 },
+            "price": 80000,
+            "required_realm_rank": 19
+        },
+        {
+            "id": "xutian_pass_token",
+            "name": "虚天令",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "legendary",
+            "description": "以上古虚天灵尊残纹铸成的令牌，持此令方可开启虚天殿副本。4-6人组队，队长需元婴期，队员需结丹后期。",
+            "effect": { "dungeon_ticket": "xutian" },
+            "price": 25000
+        },
+        {
+            "id": "xutian_ice_crystal",
+            "name": "虚天寒晶",
+            "type": "material",
+            "subtype": "ice",
+            "quality": "rare",
+            "description": "虚天殿冰道凝结的玄冰奇晶，蕴含乾蓝寒气，可用于炼制虚天鼎或冰系法宝",
+            "price": 2800
+        },
+        {
+            "id": "xutian_fire_essence",
+            "name": "虚天火精",
+            "type": "material",
+            "subtype": "fire",
+            "quality": "epic",
+            "description": "虚天殿火道抽离的乾蓝冰焰精粹，火中带寒，可用于祭炼高阶火系法宝",
+            "price": 4200
+        },
+        {
+            "id": "void_soul_fragment",
+            "name": "虚天魂碎片",
+            "type": "material",
+            "subtype": "soul",
+            "quality": "epic",
+            "description": "虚天主魂被击溃后残留的魂片，蕴含上古神识残留，可用于神识淬炼",
+            "price": 3800
+        },
+        {
+            "id": "xutian_formation_map",
+            "name": "虚天阵图",
+            "type": "material",
+            "subtype": "formation",
+            "quality": "rare",
+            "description": "虚天殿阵法残图，记载上古阵法要义，可用于阵法修炼或阵法升级",
+            "price": 3200
+        },
+        {
+            "id": "void_palace_seal",
+            "name": "虚天殿印",
+            "type": "material",
+            "subtype": "seal",
+            "quality": "epic",
+            "description": "虚天殿信物，持有者下次进入虚天殿时获得阵法强度+10加成",
+            "price": 5000
+        },
+        {
+            "id": "xutian_cauldron",
+            "name": "虚天鼎",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "legendary",
+            "description": "上古虚天灵尊所造的顶阶法宝，鼎内蕴含乾蓝冰焰，可炼天地万物",
+            "effect": { "atk": 200, "def": 80, "divine_sense_bonus": 60, "alchemy_bonus": 0.20 },
+            "price": 100000,
+            "required_realm_rank": 19
+        },
+        {
+            "id": "blood_magic_sword",
+            "name": "血魔剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "legendary",
+            "description": "上古血魔以怨血祭炼的魔剑，剑意森寒，嗜血而狂",
+            "effect": { "atk": 220, "hp_steal": 0.08 },
+            "price": 50000,
+            "required_realm_rank": 15
+        },
+        {
+            "id": "delicious_zongzi",
+            "name": "美味粽子",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "rare",
+            "description": "端午时节以灵米、雄黄、粽叶包制的粽子，既是节令美食，也是参与镇蛟的凭信。",
+            "effect": { "dungeon_ticket": "duanwu", "hp_restore": 200 },
+            "price": 1500
+        },
+        {
+            "id": "wuse_si",
+            "name": "五色丝",
+            "type": "material",
+            "subtype": "silk",
+            "quality": "rare",
+            "description": "端午长命缕的灵丝，五行相生，可编结护身法器",
+            "price": 600
+        },
+        {
+            "id": "zongye_lingfu",
+            "name": "粽叶灵符",
+            "type": "consumable",
+            "subtype": "talisman",
+            "quality": "epic",
+            "description": "以沧龙江畔粽叶炼制的护身灵符，飞升失败时可保一份材料不陨。",
+            "effect": { "ascension_protect_material": 1 },
+            "price": 8000
+        },
+        {
+            "id": "canglongjiang_hongbao",
+            "name": "沧龙江红包",
+            "type": "consumable",
+            "subtype": "gift",
+            "quality": "rare",
+            "description": "端午镇蛟后江神馈赠的红包，拆开可获得随机灵石奖励",
+            "effect": { "spirit_stones_random": "500~5000" },
+            "price": 1000
+        },
+        {
+            "id": "xionghuang_canjing",
+            "name": "雄黄残晶",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "epic",
+            "description": "镇蛟时从蛟龙逆鳞剥落的雄黄结晶，炼制辟邪法器的稀世材料",
+            "price": 4500
+        },
+        {
+            "id": "canglongjiang_zhenjiaozhe",
+            "name": "沧龙江镇蛟者·称号",
+            "type": "title",
+            "subtype": "honor",
+            "quality": "legendary",
+            "description": "参与端午镇蛟并立下战功者方可获得，佩戴后全属性+5%",
+            "effect": { "all_stats_bonus": 0.05 },
+            "price": 0
+        },
+        {
+            "id": "faze_suipian",
+            "name": "法则碎片",
+            "type": "material",
+            "subtype": "law_fragment",
+            "quality": "legendary",
+            "description": "蕴含天地法则碎片的灵材，集齐可凝聚空间法则，是飞升灵界的必备材料",
+            "price": 20000
+        },
+        {
+            "id": "beiming_cold_token",
+            "name": "北冥寒令",
+            "type": "material",
+            "subtype": "token",
+            "quality": "epic",
+            "description": "北冥小极宫入宫凭证，由玄冰丹方残篇合成而得，持有者方可率队闯入小极宫",
+            "price": 5000
+        },
+        {
+            "id": "xuanbing_flower",
+            "name": "玄冰花",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "rare",
+            "description": "小极宫外围采摘所得的玄冰之花，蕴含极阴寒气，可入药亦可炼器",
+            "price": 800
+        },
+        {
+            "id": "wannian_xuanyu",
+            "name": "万年玄玉",
+            "type": "material",
+            "subtype": "gem",
+            "quality": "legendary",
+            "description": "北冥深处万年凝结的玄玉，可炼制玄玉护身符，抵御神魂攻击",
+            "price": 15000
+        },
+        {
+            "id": "qianlan_hansui",
+            "name": "乾蓝寒髓",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "legendary",
+            "description": "乾蓝冰海深处的寒髓，可清丹毒并给炼丹/小极宫副本加成",
+            "price": 12000
+        },
+        {
+            "id": "huochan_neidan",
+            "name": "火蟾内丹",
+            "type": "material",
+            "subtype": "neidan",
+            "quality": "epic",
+            "description": "火蟾妖兽内丹，蕴含纯阳火毒，可破冰封之印",
+            "price": 8000
+        },
+        {
+            "id": "bingfeng_zhiyi",
+            "name": "冰凤之翎",
+            "type": "material",
+            "subtype": "feather",
+            "quality": "legendary",
+            "description": "冰凤遗落的翎羽，蕴含太阴之力，可作炼器辅助材料",
+            "price": 10000
+        },
+        {
+            "id": "wanyao_fansi",
+            "name": "万妖幡残丝",
+            "type": "material",
+            "subtype": "soul",
+            "quality": "epic",
+            "description": "万妖幡残留的丝线，阴罗宗弟子可借此补充阴罗幡煞气",
+            "price": 6000
+        },
+        {
+            "id": "xutiancantu",
+            "name": "虚灵殿残图",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "legendary",
+            "description": "虚灵殿遗留的残图，可降低下次小极宫入宫鼎机并增加评分",
+            "price": 9000
+        },
+        {
+            "id": "xuanbingdan_fangcanpian",
+            "name": "玄冰丹方残篇",
+            "type": "material",
+            "subtype": "recipe",
+            "quality": "epic",
+            "description": "记载玄冰丹炼制的残篇，集齐可合成北冥寒令",
+            "price": 3000
+        },
+        {
+            "id": "luoyun_secret_key",
+            "name": "落云秘匙",
+            "type": "material",
+            "subtype": "token",
+            "quality": "epic",
+            "description": "落云秘圃入圃凭证，上古遗留的灵植秘匙，持有者方可率队闯入落云秘圃",
+            "price": 6000
+        },
+        {
+            "id": "lingzhi_grass",
+            "name": "灵芝草",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "uncommon",
+            "description": "落云秘圃培育的灵芝草，蕴含温和灵气，可入药亦可作为灵植养料",
+            "price": 200
+        },
+        {
+            "id": "spirit_branch",
+            "name": "灵枝",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "rare",
+            "description": "落云秘圃灵植的枝条，蕴含灵脉之力，可作炼器辅助材料",
+            "price": 800
+        },
+        {
+            "id": "spirit_vein_stone",
+            "name": "灵脉石",
+            "type": "material",
+            "subtype": "gem",
+            "quality": "rare",
+            "description": "落云秘圃凝结的灵脉原石，可用于强化灵脉或炼制法器",
+            "price": 1500
+        },
+        {
+            "id": "lingyan_sapling",
+            "name": "灵眼树胚",
+            "type": "material",
+            "subtype": "sapling",
+            "quality": "legendary",
+            "description": "落云秘圃灵眼之树的树胚，可用掌天瓶养树培养成一截灵眼之树，流转交易会退化回最初级树胚",
+            "price": 25000
+        },
+        {
+            "id": "ancient_spirit_seed",
+            "name": "上古灵种",
+            "type": "material",
+            "subtype": "seed",
+            "quality": "legendary",
+            "description": "上古遗留的灵植种子，可培育稀有灵植，价值连城",
+            "price": 18000
+        },
+        {
+            "id": "luoyun_essence",
+            "name": "落云精髓",
+            "type": "material",
+            "subtype": "essence",
+            "quality": "legendary",
+            "description": "落云秘圃灵脉凝聚的精髓，可用于突破或炼制高阶丹药",
+            "price": 15000
+        },
+        {
+            "id": "spirit_plant_manifest",
+            "name": "灵植图鉴",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "记载上古灵植的图鉴，研习可提升灵植养护水平，对落云秘圃有额外加成",
+            "price": 8000
         }
     ]
 }

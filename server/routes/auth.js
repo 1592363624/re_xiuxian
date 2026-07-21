@@ -158,6 +158,37 @@ router.post('/login', async (req, res, next) => {
         // 更新 Token 版本号（实现互踢）和 IP 地址
         player.token_version = (player.token_version || 0) + 1;
         player.ip_address = getClientIp(req);
+
+        // 登录时离线 HP/MP 恢复（修复 B16 bug）
+        // 修复（2026-07-20）：
+        //   原系统 DualTimeService.processOfflineTime 方法定义了但从未被调用，
+        //   导致玩家 MP 耗尽后永远为 0（除非突破/决斗/药品）。
+        //   现在在登录时根据 last_online 计算离线时长，调用 processOfflineTime 恢复 HP/MP。
+        //   恢复条件：玩家未死亡、未在闭关中、未在战斗中（这些状态有独立的恢复/结算逻辑）。
+        //   恢复速率：自然恢复 1HP/分钟、1MP/分钟（attribute_system.json 配置）。
+        //   恢复上限：单次最多 24 小时（processOfflineTime 内部限制），避免长期未登录玩家恢复过量。
+        let offlineRecoveryInfo = null;
+        try {
+            if (player.last_online && !player.is_dead && !player.is_secluded) {
+                const lastOnlineTime = new Date(player.last_online).getTime();
+                const nowMs = Date.now();
+                const offlineDurationSec = Math.max(0, Math.floor((nowMs - lastOnlineTime) / 1000));
+                // 仅当离线超过 60 秒才触发恢复，避免频繁登录的玩家产生无意义计算
+                if (offlineDurationSec >= 60) {
+                    const DualTimeService = require('../game/core/DualTimeService');
+                    offlineRecoveryInfo = DualTimeService.processOfflineTime(player, offlineDurationSec);
+                    if (offlineRecoveryInfo.hp_recovered > 0 || offlineRecoveryInfo.mp_recovered > 0) {
+                        console.log(`[Auth] 玩家 ${player.username} 离线 ${Math.floor(offlineDurationSec / 60)} 分钟，恢复 HP +${offlineRecoveryInfo.hp_recovered} / MP +${offlineRecoveryInfo.mp_recovered}`);
+                    }
+                }
+            }
+        } catch (recoveryErr) {
+            // 恢复失败不阻塞登录，仅打印警告
+            console.warn('[Auth] 离线 HP/MP 恢复失败:', recoveryErr.message);
+        }
+
+        // 更新最后在线时间为当前时间
+        player.last_online = new Date();
         await player.save();
 
         // 登录时清理过期战斗记录，解决"一进游戏就显示战斗"的遗留问题

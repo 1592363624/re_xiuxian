@@ -193,18 +193,41 @@ class WorldBossSchedulerService {
     /**
      * 根据刷新计划判断当前是否应该刷新 BOSS
      * 支持的计划格式（参考 world_boss_data.json 的 spawn_schedule 字段）：
-     *   - { type: 'daily', hour: 20 }  每天 20:00 刷新（若已过 20:00 且当日无活跃记录则刷新）
+     *   - cron 字符串：如 "0 20 * * 2,5,0"（分 时 日 月 周，支持 , 列表和 * 通配）
+     *     常用模式：
+     *       "0 20 * * 2,5,0" — 周二、周五、周日 20:00 刷新
+     *       "0 20 * * 1,4"   — 周一、周四 20:00 刷新
+     *       "0 20 * * *"     — 每天 20:00 刷新
+     *   - { type: 'daily', hour: 20 }  每天 20:00 刷新（兼容旧对象格式）
      *   - { type: 'weekly', day_of_week: 3, hour: 20 }  每周三 20:00 刷新
      *   - { type: 'interval_hours', hours: 6 }  每 6 小时刷新一次（自上次击杀时间起算）
      *   - { type: 'manual' }  仅 GM 手动刷新
-     * @param {Object} schedule - 刷新计划配置
+     *
+     * 修复（2026-07-21）：
+     *   原代码只支持对象格式，但 world_boss_data.json 中所有 BOSS 都用 cron 字符串格式
+     *   导致 schedule.type === undefined，所有判断分支都不匹配，返回 false
+     *   最终结果：BOSS 永远不会被自动刷新，玩家查询 /available 总是返回空列表
+     *   现增加对 cron 字符串格式的解析支持
+     *
+     * @param {Object|string} schedule - 刷新计划配置（对象或 cron 字符串）
      * @param {Date|null} lastKilledTime - 上次击杀时间
      * @param {Date} now - 当前时间
      * @returns {boolean} 是否应该刷新
      * @private
      */
     _shouldSpawnBySchedule(schedule, lastKilledTime, now) {
-        if (!schedule || schedule.type === 'manual') return false;
+        if (!schedule) return false;
+
+        // 新增：cron 字符串格式解析
+        // 格式：minute hour day_of_month month day_of_week
+        // 支持：* 通配符、, 列表（如 "2,5,0"）
+        // 不支持：- 范围、/ 步进（当前配置未使用这些高级语法）
+        if (typeof schedule === 'string') {
+            return this._matchCronSchedule(schedule, lastKilledTime, now);
+        }
+
+        // 兼容旧对象格式
+        if (schedule.type === 'manual') return false;
 
         if (schedule.type === 'interval_hours') {
             // 间隔刷新：上次击杀时间 + 间隔小时数 <= 当前时间
@@ -243,6 +266,78 @@ class WorldBossSchedulerService {
         }
 
         return false;
+    }
+
+    /**
+     * 解析 cron 字符串并判断当前时间是否匹配
+     * 简化版 cron 解析器，仅支持当前 world_boss_data.json 使用到的语法
+     *
+     * 支持的 cron 字段：
+     *   - minute: 0-59 或 *
+     *   - hour: 0-23 或 *
+     *   - day_of_month: * 或具体数字（暂不校验，配置中均为 *）
+     *   - month: * 或具体数字（暂不校验，配置中均为 *）
+     *   - day_of_week: 0-6（0=周日）或 *, 支持 , 列表（如 "2,5,0"）
+     *
+     * 判断逻辑：
+     *   1. 当前时间必须匹配 cron 表达式的 hour 和 minute
+     *   2. 当前星期必须匹配 day_of_week（若为 * 则任意）
+     *   3. 若 lastKilledTime 在今日且匹配刷新时段，则不重复刷新
+     *
+     * @param {string} cronExpr - cron 表达式（5 字段）
+     * @param {Date|null} lastKilledTime - 上次击杀时间
+     * @param {Date} now - 当前时间
+     * @returns {boolean} 是否应该刷新
+     * @private
+     */
+    _matchCronSchedule(cronExpr, lastKilledTime, now) {
+        const parts = cronExpr.trim().split(/\s+/);
+        if (parts.length !== 5) {
+            console.warn(`[WorldBossScheduler] 无效 cron 表达式: ${cronExpr}`);
+            return false;
+        }
+
+        const [minuteField, hourField, , , dayOfWeekField] = parts;
+
+        // 检查小时匹配
+        if (!this._cronFieldMatch(hourField, now.getHours())) return false;
+        // 检查分钟匹配
+        if (!this._cronFieldMatch(minuteField, now.getMinutes())) return false;
+        // 检查星期匹配（JS getDay() 周日=0）
+        if (!this._cronFieldMatch(dayOfWeekField, now.getDay())) return false;
+
+        // 同日不重复刷新：若 lastKilledTime 在今日同时段，跳过
+        if (lastKilledTime) {
+            const isSameDay = lastKilledTime.getFullYear() === now.getFullYear()
+                && lastKilledTime.getMonth() === now.getMonth()
+                && lastKilledTime.getDate() === now.getDate();
+            if (isSameDay) {
+                // 同日已击杀过，跳过本时段刷新
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 判断 cron 字段是否匹配当前值
+     * 支持：* 通配符、, 列表（如 "2,5,0"）、单个数字
+     * @param {string} field - cron 字段值
+     * @param {number} value - 当前时间值
+     * @returns {boolean} 是否匹配
+     * @private
+     */
+    _cronFieldMatch(field, value) {
+        if (field === '*') return true;
+        // 逗号分隔列表
+        if (field.includes(',')) {
+            const items = field.split(',').map(s => parseInt(s.trim(), 10));
+            return items.includes(value);
+        }
+        // 单个数字
+        const num = parseInt(field, 10);
+        return !isNaN(num) && num === value;
     }
 
     /**

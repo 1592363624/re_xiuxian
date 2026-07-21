@@ -150,14 +150,18 @@ class PlayerService {
 
     /**
      * 更新玩家气血
+     * @param {number} playerId - 玩家ID
+     * @param {number|bigint} currentHp - 当前气血值
+     * @param {number|bigint} [maxHp] - 可选，最大气血值（用于同步更新 hp_max）
+     * @param {string} [deathReason='战斗陨落'] - 可选，死亡原因（HP<=0 时传入 handlePlayerDeath）
      */
-    async updateHp(playerId, currentHp, maxHp) {
+    async updateHp(playerId, currentHp, maxHp, deathReason = '战斗陨落') {
         const player = await Player.findByPk(playerId);
         if (!player) return null;
 
         // 检查是否死亡
         if (currentHp <= 0) {
-            await this.handlePlayerDeath(playerId);
+            await this.handlePlayerDeath(playerId, deathReason);
             // 死亡处理后，返回更新后的玩家数据（HP已重置）
             return await Player.findByPk(playerId);
         }
@@ -210,33 +214,131 @@ class PlayerService {
     }
 
     /**
-     * 玩家死亡处理
-     * 死亡惩罚比例、寿元增加、复活地点从配置读取
+     * 玩家死亡处理（战斗死亡 / 副本团灭 / 其他非寿命耗尽死亡场景）
+     *
+     * 修复 4-3-P0-2：与 LifespanService.handleLifespanEnd 行为对齐
+     *   1. 事务包裹：扣修为/改 hp/加寿元/标记 is_dead 必须原子性
+     *   2. 设置 is_dead=true：战斗死亡也需要进入死亡状态，等复活流程清除
+     *   3. 推送 WebSocket 通知：让前端 DeathOverlay 立即响应
+     *   4. 持久化系统通知：玩家上线后可在通知中心查看
+     *   5. 记录 death_reason / death_time：与 LifespanService 保持字段一致
+     *
+     * 注意：本方法用于战斗/副本等"非寿元耗尽"的死亡场景。
+     *      寿元耗尽走 LifespanService.handleLifespanEnd，二者字段保持一致以便前端统一处理。
+     *
+     * @param {number} playerId - 玩家ID
+     * @param {string} [reason='战斗陨落'] - 死亡原因（用于通知文案与 death_reason 字段）
+     * @returns {Promise<Object|null>} 死亡结算结果，包含 expLoss/ageIncrease/respawnAt
      */
-    async handlePlayerDeath(playerId) {
-        const player = await Player.findByPk(playerId);
-        if (!player) return null;
+    async handlePlayerDeath(playerId, reason = '战斗陨落') {
+        // 修复 4-3-P0-2-补丁：require 路径应为 ../../config/database（server/models 无 index.js）
+        const sequelize = require('../../config/database');
+        const t = await sequelize.transaction();
+        try {
+            // 行级锁玩家，避免与其他事务并发修改
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                await t.rollback();
+                return null;
+            }
 
-        const gameBalanceConfig = configLoader.getConfig('game_balance');
-        // 死亡惩罚参数从配置读取，避免硬编码
-        const expLossRate = gameBalanceConfig?.combat?.death_exp_penalty_rate ?? 0.1;
-        const ageIncrease = gameBalanceConfig?.death?.age_increase ?? 10;
-        const respawnAt = gameBalanceConfig?.death?.respawn_location ?? '出生地';
+            // 幂等性校验：已死亡的玩家不再重复处理（与 LifespanService 行为一致）
+            if (player.is_dead === true) {
+                await t.rollback();
+                return null;
+            }
 
-        const expLoss = BigInt(Math.floor(Number(player.exp) * expLossRate));
-        player.exp = BigInt(player.exp) - expLoss;
-        if (player.exp < 0n) player.exp = 0n;
+            const gameBalanceConfig = configLoader.getConfig('game_balance');
+            // 死亡惩罚参数从配置读取，避免硬编码
+            // 与 LifespanService 统一使用 lifespan.death_exp_loss_rate（而非 combat.death_exp_penalty_rate）
+            // 修复 4-3-P1-1：两个 service 用不同的损失率字段，导致死亡惩罚不一致
+            const lifespanCfg = gameBalanceConfig?.lifespan || {};
+            const expLossRate = lifespanCfg.death_exp_loss_rate
+                ?? gameBalanceConfig?.combat?.death_exp_penalty_rate
+                ?? 0.1;
+            const ageIncrease = gameBalanceConfig?.death?.age_increase ?? 10;
+            const respawnAt = gameBalanceConfig?.death?.respawn_location ?? '出生地';
+            const deathHp = lifespanCfg.death_hp_current ?? 0;
 
-        player.hp_current = player.attributes?.hp_max || 100;
-        player.lifespan_current = (player.lifespan_current || 0) + ageIncrease;
+            // 修为损失（BIGINT 运算，避免精度丢失）
+            const currentExp = BigInt(player.exp || 0);
+            const expLoss = currentExp * BigInt(Math.round(expLossRate * 100)) / 100n;
+            const newExp = currentExp - expLoss;
+            player.exp = newExp < 0n ? 0n : newExp;
 
-        await player.save();
+            // HP 归零或复活点初始值（与 LifespanService 一致）
+            player.hp_current = BigInt(deathHp);
 
-        return {
-            expLoss: expLoss.toString(),
-            ageIncrease,
-            respawnAt
-        };
+            // 战斗死亡增加寿元消耗（"重伤折寿"设定，与 game_balance.death.age_increase 一致）
+            const currentAge = Number(player.lifespan_current || 0);
+            const maxAge = Number(player.lifespan_max || 0);
+            const newAge = currentAge + ageIncrease;
+            player.lifespan_current = newAge;
+
+            // 标记死亡状态（与 LifespanService 一致）
+            player.is_dead = true;
+            player.death_reason = reason;
+            player.death_time = new Date();
+
+            // 寿元溢出保护：若加寿后超过 max，则寿元定格在 max 并由后续 LifespanService 触发寿元死亡
+            // 但因 is_dead=true 已设置，LifespanService 会跳过该玩家（P0-1 修复）
+            // 真正复活时由复活接口清除 is_dead，若届时 lifespan_current >= lifespan_max 则再次触发寿元死亡
+            if (maxAge > 0 && newAge >= maxAge) {
+                player.lifespan_current = maxAge;
+            }
+
+            await player.save({ transaction: t });
+            await t.commit();
+
+            // 推送通知（事务提交后再推送，避免推送失败回滚业务数据）
+            try {
+                const WebSocketNotificationService = require('../services/WebSocketNotificationService');
+                const deathPayload = {
+                    player_id: player.id,
+                    reason: reason,
+                    exp_loss: expLoss.toString(),
+                    age_increase: ageIncrease,
+                    respawn_at: respawnAt,
+                    timestamp: new Date().toISOString()
+                };
+                // 玩家本人：触发前端 DeathOverlay 显示
+                WebSocketNotificationService.notifyPlayerUpdate(player.id, 'player_death', deathPayload);
+                // 全局广播：让其他在线玩家感知"某位道友陨落"
+                WebSocketNotificationService.broadcastNotification({
+                    type: 'player_death',
+                    title: '道友陨落',
+                    content: `${player.nickname || '某位道友'} ${reason}，已身死道消。`,
+                    level: 'warn',
+                    ...deathPayload
+                });
+            } catch (e) {
+                console.warn(`[PlayerService] 推送玩家 ${player.id} 死亡通知失败:`, e.message);
+            }
+
+            // 持久化系统通知（玩家上线后可在通知中心查看）
+            try {
+                const NotificationService = require('../services/NotificationService');
+                if (typeof NotificationService.sendDeathNotification === 'function') {
+                    await NotificationService.sendDeathNotification(player, reason);
+                }
+            } catch (e) {
+                console.warn(`[PlayerService] 持久化玩家 ${player.id} 死亡通知失败:`, e.message);
+            }
+
+            return {
+                expLoss: expLoss.toString(),
+                ageIncrease,
+                respawnAt,
+                reason
+            };
+        } catch (error) {
+            if (!t.finished) await t.rollback();
+            console.error('[PlayerService] 玩家死亡处理失败:', error);
+            throw error;
+        }
     }
 
     /**

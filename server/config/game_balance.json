@@ -572,11 +572,36 @@
     },
     "state_cleaner_interval_ms": 5000
   },
-  "world_boss": {
+  "beast_invasion": {
     "enabled": true,
-    "single_player_damage_ratio": 0.3,
+    "donation_phase_minutes": 30,
+    "battle_phase_minutes": 60,
+    "attack_cooldown_seconds": 10,
+    "aggregation_window_ms": 30000,
+    "max_attack_count_per_battle": 100,
+    "player_hp_multiplier": 3.0,
+    "single_player_damage_ratio": 1.0,
     "team_bonus_ratio": 1.1,
     "min_team_size": 3,
+    "active_window_ms": 300000,
+    "realm_suppression_per_rank": 0.05,
+    "crit_rate": 0.05,
+    "crit_multiplier": 1.5,
+    "damage_random_range": 0.15,
+    "state_cleaner_interval_ms": 5000,
+    "revive_cost_spirit_stones": 1000,
+    "revive_cooldown_seconds": 60,
+    "death_exp_penalty_rate": 0.05,
+    "realm_reward_multiplier_per_rank": 0.1
+  },
+  "world_boss": {
+    "enabled": true,
+    "single_player_damage_ratio": 1.0,
+    "team_bonus_ratio": 1.1,
+    "min_team_size": 3,
+    "active_window_ms": 300000,
+    "realm_suppression_per_rank": 0.05,
+    "player_hp_multiplier": 5.0,
     "attack_cooldown_seconds": 5,
     "revive_cost_spirit_stones": 1000,
     "revive_cooldown_seconds": 60,
@@ -605,6 +630,123 @@
       "expire_check": 60000,
       "phase_check": 5000,
       "season_check": "daily_00_05"
+    },
+    "elemental_counter": {
+      "description": "五行相克系数（玩家灵兽元素 vs BOSS元素）。玩家攻击BOSS时：相克=1.5x, 被克=0.75x, 同/无=1.0x。BOSS反击时同理（按 BOSS元素 vs 玩家灵兽元素）。",
+      "advantage_multiplier": 1.5,
+      "disadvantage_multiplier": 0.75,
+      "neutral_multiplier": 1.0,
+      "counter_matrix": {
+        "metal": "wood",
+        "wood": "earth",
+        "earth": "water",
+        "water": "fire",
+        "fire": "metal"
+      }
+    },
+    "spirit_beast_assist": {
+      "description": "灵兽助战配置：出战灵兽在BOSS战中独立追加伤害，并参与元素相克判定。无灵兽出战时按 neutral 1.0x 计算。",
+      "enable_assist_damage": true,
+      "assist_damage_ratio": 0.3,
+      "apply_player_atk_bonus": true,
+      "apply_player_hp_bonus": true
+    },
+    "boss_skills": {
+      "description": "BOSS技能系统全局配置。技能表存储在 world_boss_data.json → bosses[].skills，按阶段分组。",
+      "enable_skill_table": true,
+      "enable_summon_minions": true,
+      "enable_aoe_damage": true,
+      "enable_self_buff": true,
+      "enable_ultimate_skill": true,
+      "max_minions_per_boss": 5,
+      "minion_hp_ratio": 0.05,
+      "minion_atk_ratio": 0.3,
+      "minion_def_ratio": 0.5,
+      "minion_expire_seconds": 60,
+      "buff_duration_seconds": 15,
+      "buff_atk_up_ratios": {
+        "self_buff_atk_up_50_percent": 0.5,
+        "self_buff_atk_up_60_percent_lifesteal": 0.6,
+        "self_buff_atk_up_70_percent_immune_control": 0.7
+      },
+      "lifesteal_ratio": 0.3,
+      "skill_selection_strategy": "weighted_random",
+      "basic_skill_weight": 50,
+      "skill_weight": 30,
+      "aoe_weight": 15,
+      "summon_weight": 3,
+      "buff_weight": 1,
+      "ultimate_weight": 1,
+      "aoe_target_all_participants": false,
+      "aoe_damage_broadcast_event": "world_boss_aoe"
+    },
+    "action_system": {
+      "description": "世界BOSS 多行动机制配置（玩法文档第16节）。4 种行动：强攻/破幡/镇魂/护阵，相互协作避免压力失控。重复同一行动会触发惩罚。",
+      "enabled": true,
+      "actions": {
+        "assault": {
+          "name": "强攻",
+          "damage_multiplier": 1.0,
+          "banner_soul_damage": 0,
+          "magic_pressure_increase": 5,
+          "array_integrity_change": -3,
+          "description": "主攻伤害，但会提升魔压、削弱阵势"
+        },
+        "break_banner": {
+          "name": "破幡",
+          "damage_multiplier": 0.4,
+          "banner_soul_damage": 15,
+          "magic_pressure_increase": 2,
+          "array_integrity_change": -1,
+          "description": "削弱幡魂减伤，降低自身伤害"
+        },
+        "suppress_soul": {
+          "name": "镇魂",
+          "damage_multiplier": 0.3,
+          "banner_soul_damage": 0,
+          "magic_pressure_decrease": 15,
+          "array_integrity_change": 0,
+          "description": "降低魔压，避免整体压力失控"
+        },
+        "protect_array": {
+          "name": "护阵",
+          "damage_multiplier": 0.3,
+          "banner_soul_damage": 0,
+          "magic_pressure_increase": 2,
+          "array_integrity_change": 12,
+          "description": "恢复阵势，避免阵势崩溃"
+        }
+      },
+      "banner_soul": {
+        "initial": 100,
+        "damage_reduction_per_point": 0.005,
+        "max_damage_reduction": 0.5
+      },
+      "magic_pressure": {
+        "initial": 0,
+        "max": 100,
+        "per_round_increase": 3,
+        "boss_atk_bonus_per_point": 0.003,
+        "max_boss_atk_bonus": 0.3,
+        "player_damage_penalty_per_point": 0.002,
+        "max_player_damage_penalty": 0.2,
+        "pressure_threshold_critical": 80,
+        "pressure_threshold_warning": 60
+      },
+      "array_integrity": {
+        "initial": 100,
+        "per_round_decrease": 2,
+        "low_threshold": 30,
+        "low_boss_bonus": 0.2,
+        "critical_threshold": 10,
+        "critical_boss_bonus": 0.5
+      },
+      "repetition_penalty": {
+        "enabled": true,
+        "streak_threshold": 3,
+        "penalty_multiplier": 0.5,
+        "reset_on_different_action": true
+      }
     }
   },
   "sect_war": {

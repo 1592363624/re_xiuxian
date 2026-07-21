@@ -1,0 +1,255 @@
+{
+    "_meta": {
+        "version": "1.0.0",
+        "description": "灵兽探渊系统配置：9层深渊 + PVE怪物 + PVP遭遇 + 奖励掉落 + 兽魂凝练",
+        "create_time": "2026-07-21",
+        "design_doc": "玩法文档第24节 - 灵兽探渊：派遣灵兽进入深渊探索，逐层遭遇PVE怪物/PVP遭遇/宝箱/陷阱，满级灵兽凝成兽魂"
+    },
+
+    "abyss": {
+        "description": "灵兽探渊系统：深渊共9层，对应修仙9阶境界。灵兽派遣后自动逐层探索，每层随机遭遇事件。浅层安全收益低，深层高风险高回报。同层探索有概率遭遇其他玩家灵兽发生PVP。",
+        "min_realm_rank": 1,
+        "total_floors": 9,
+        "max_duration_hours": 4,
+        "min_duration_hours": 1,
+        "max_concurrent_beasts": 2,
+        "stamina_per_explore": 100,
+        "stamina_max": 100,
+        "stamina_recover_per_hour": 25,
+        "beast_hp_injury_ratio_threshold": 0.3,
+        "beast_hp_injury_recover_hours": 2,
+        "auto_recall_on_hp_zero": true,
+        "pvp_encounter_base_rate": 0.25,
+        "pvp_encounter_same_floor_bonus": 0.10,
+        "pvp_winner_loot_ratio": 0.10,
+        "pvp_loser_exp_loss_ratio": 0.05,
+        "daily_explore_limit": 3,
+        "scheduler": {
+            "check_interval_ms": 60000,
+            "batch_size": 50
+        }
+    },
+
+    "floors": [
+        {
+            "floor": 1,
+            "name": "浅渊入口",
+            "description": "深渊入口处的微光地带，低阶灵兽安全的探索区域",
+            "min_realm_rank": 1,
+            "min_realm_name": "炼气",
+            "stamina_cost_per_floor": 10,
+            "monster_difficulty": 0.5,
+            "pvp_encounter_rate": 0.10,
+            "reward_multiplier": 1.0,
+            "monsters": [
+                { "key": "abyss_rat", "name": "深渊鼠", "element": "dark", "hp": 200, "atk": 30, "def": 15, "speed": 60, "exp_reward": 20 },
+                { "key": "shadow_bat", "name": "影翼蝠", "element": "dark", "hp": 180, "atk": 40, "def": 10, "speed": 80, "exp_reward": 25 }
+            ],
+            "drops": [
+                { "item_id": "wild_herb", "name": "灵草", "weight": 50, "min_qty": 1, "max_qty": 3 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 30, "min_qty": 10, "max_qty": 30, "is_spirit_stone": true }
+            ]
+        },
+        {
+            "floor": 2,
+            "name": "幽暗回廊",
+            "description": "弯曲幽暗的地下回廊，潜伏着更多深渊生物",
+            "min_realm_rank": 3,
+            "min_realm_name": "筑基",
+            "stamina_cost_per_floor": 12,
+            "monster_difficulty": 0.7,
+            "pvp_encounter_rate": 0.12,
+            "reward_multiplier": 1.2,
+            "monsters": [
+                { "key": "abyss_lizard", "name": "渊蜥", "element": "earth", "hp": 350, "atk": 60, "def": 40, "speed": 50, "exp_reward": 40 },
+                { "key": "cave_spider", "name": "穴蛛", "element": "wood", "hp": 300, "atk": 80, "def": 25, "speed": 70, "exp_reward": 45 }
+            ],
+            "drops": [
+                { "item_id": "wild_herb", "name": "灵草", "weight": 40, "min_qty": 2, "max_qty": 4 },
+                { "item_id": "condensing_flower", "name": "凝气花", "weight": 25, "min_qty": 1, "max_qty": 2 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 35, "min_qty": 15, "max_qty": 40, "is_spirit_stone": true }
+            ]
+        },
+        {
+            "floor": 3,
+            "name": "晶石洞穴",
+            "description": "闪烁着灵晶光芒的洞穴，蕴藏着稀有的灵草和矿石",
+            "min_realm_rank": 6,
+            "min_realm_name": "结丹",
+            "stamina_cost_per_floor": 15,
+            "monster_difficulty": 1.0,
+            "pvp_encounter_rate": 0.15,
+            "reward_multiplier": 1.5,
+            "monsters": [
+                { "key": "crystal_golem", "name": "晶石傀儡", "element": "earth", "hp": 600, "atk": 100, "def": 80, "speed": 30, "exp_reward": 80 },
+                { "key": "flame_imp", "name": "炎魔小鬼", "element": "fire", "hp": 500, "atk": 130, "def": 50, "speed": 90, "exp_reward": 85 }
+            ],
+            "drops": [
+                { "item_id": "condensing_flower", "name": "凝气花", "weight": 30, "min_qty": 1, "max_qty": 3 },
+                { "item_id": "blood_grass", "name": "血精草", "weight": 20, "min_qty": 1, "max_qty": 2 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 50, "min_qty": 20, "max_qty": 60, "is_spirit_stone": true }
+            ]
+        },
+        {
+            "floor": 4,
+            "name": "魔气深渊",
+            "description": "弥漫着浓郁魔气的深渊区域，灵兽需有相当修为方可探索",
+            "min_realm_rank": 11,
+            "min_realm_name": "元婴",
+            "stamina_cost_per_floor": 18,
+            "monster_difficulty": 1.5,
+            "pvp_encounter_rate": 0.18,
+            "reward_multiplier": 2.0,
+            "monsters": [
+                { "key": "magic_serpent", "name": "魔气蛇", "element": "wood", "hp": 900, "atk": 180, "def": 100, "speed": 110, "exp_reward": 150 },
+                { "key": "shadow_wolf", "name": "暗影狼", "element": "dark", "hp": 800, "atk": 220, "def": 80, "speed": 140, "exp_reward": 160 }
+            ],
+            "drops": [
+                { "item_id": "blood_grass", "name": "血精草", "weight": 30, "min_qty": 2, "max_qty": 4 },
+                { "item_id": "infant_fruit", "name": "婴灵果", "weight": 15, "min_qty": 1, "max_qty": 2 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 55, "min_qty": 30, "max_qty": 80, "is_spirit_stone": true }
+            ]
+        },
+        {
+            "floor": 5,
+            "name": "冰焰地带",
+            "description": "冰与火交织的诡异地带，只有化神期灵兽方能承受",
+            "min_realm_rank": 14,
+            "min_realm_name": "化神",
+            "stamina_cost_per_floor": 22,
+            "monster_difficulty": 2.0,
+            "pvp_encounter_rate": 0.20,
+            "reward_multiplier": 2.5,
+            "monsters": [
+                { "key": "ice_flame_beast", "name": "冰焰兽", "element": "water", "hp": 1300, "atk": 280, "def": 150, "speed": 100, "exp_reward": 240 },
+                { "key": "frost_dragon", "name": "霜龙幼崽", "element": "water", "hp": 1500, "atk": 250, "def": 180, "speed": 120, "exp_reward": 260 }
+            ],
+            "drops": [
+                { "item_id": "infant_fruit", "name": "婴灵果", "weight": 25, "min_qty": 1, "max_qty": 3 },
+                { "item_id": "abyss_crystal", "name": "深渊结晶", "weight": 15, "min_qty": 1, "max_qty": 2 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 60, "min_qty": 40, "max_qty": 100, "is_spirit_stone": true }
+            ]
+        },
+        {
+            "floor": 6,
+            "name": "炼虚之境",
+            "description": "空间扭曲的炼虚之境，每一步都充满未知危险",
+            "min_realm_rank": 17,
+            "min_realm_name": "炼虚",
+            "stamina_cost_per_floor": 26,
+            "monster_difficulty": 2.5,
+            "pvp_encounter_rate": 0.22,
+            "reward_multiplier": 3.0,
+            "monsters": [
+                { "key": "void_horror", "name": "虚空恐怖", "element": "dark", "hp": 2000, "atk": 380, "def": 220, "speed": 130, "exp_reward": 380 },
+                { "key": "space_ripper", "name": "空间撕裂者", "element": "metal", "hp": 1800, "atk": 420, "def": 180, "speed": 160, "exp_reward": 400 }
+            ],
+            "drops": [
+                { "item_id": "abyss_crystal", "name": "深渊结晶", "weight": 25, "min_qty": 1, "max_qty": 3 },
+                { "item_id": "void_fragment", "name": "虚空碎片", "weight": 15, "min_qty": 1, "max_qty": 2 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 60, "min_qty": 50, "max_qty": 120, "is_spirit_stone": true }
+            ]
+        },
+        {
+            "floor": 7,
+            "name": "合体深渊",
+            "description": "需要合体期修为方可踏足的深渊核心区域",
+            "min_realm_rank": 20,
+            "min_realm_name": "合体",
+            "stamina_cost_per_floor": 30,
+            "monster_difficulty": 3.0,
+            "pvp_encounter_rate": 0.25,
+            "reward_multiplier": 3.5,
+            "monsters": [
+                { "key": "abyss_overlord", "name": "深渊领主", "element": "dark", "hp": 3000, "atk": 500, "def": 300, "speed": 150, "exp_reward": 560 },
+                { "key": "chaos_elemental", "name": "混沌元素", "element": "earth", "hp": 2800, "atk": 550, "def": 250, "speed": 170, "exp_reward": 580 }
+            ],
+            "drops": [
+                { "item_id": "void_fragment", "name": "虚空碎片", "weight": 25, "min_qty": 1, "max_qty": 3 },
+                { "item_id": "chaos_essence", "name": "混沌精华", "weight": 15, "min_qty": 1, "max_qty": 2 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 60, "min_qty": 60, "max_qty": 150, "is_spirit_stone": true }
+            ]
+        },
+        {
+            "floor": 8,
+            "name": "大乘秘境",
+            "description": "大乘期修士方可触及的秘境深渊，藏有无上机缘",
+            "min_realm_rank": 23,
+            "min_realm_name": "大乘",
+            "stamina_cost_per_floor": 35,
+            "monster_difficulty": 4.0,
+            "pvp_encounter_rate": 0.28,
+            "reward_multiplier": 4.5,
+            "monsters": [
+                { "key": "ancient_devil", "name": "上古魔尊", "element": "dark", "hp": 4500, "atk": 750, "def": 450, "speed": 180, "exp_reward": 820 },
+                { "key": "celestial_beast", "name": "天界遗兽", "element": "metal", "hp": 4200, "atk": 800, "def": 400, "speed": 200, "exp_reward": 850 }
+            ],
+            "drops": [
+                { "item_id": "chaos_essence", "name": "混沌精华", "weight": 25, "min_qty": 1, "max_qty": 3 },
+                { "item_id": "celestial_bone", "name": "天骨", "weight": 15, "min_qty": 1, "max_qty": 2 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 60, "min_qty": 80, "max_qty": 200, "is_spirit_stone": true }
+            ]
+        },
+        {
+            "floor": 9,
+            "name": "渡劫深渊",
+            "description": "深渊最底层，传说藏有渡劫期机缘与上古遗宝",
+            "min_realm_rank": 26,
+            "min_realm_name": "渡劫",
+            "stamina_cost_per_floor": 40,
+            "monster_difficulty": 5.0,
+            "pvp_encounter_rate": 0.30,
+            "reward_multiplier": 6.0,
+            "monsters": [
+                { "key": "tribulation_dragon", "name": "劫龙", "element": "fire", "hp": 6000, "atk": 1000, "def": 600, "speed": 220, "exp_reward": 1200 },
+                { "key": "abyss_demon_lord", "name": "深渊魔君", "element": "dark", "hp": 7000, "atk": 950, "def": 700, "speed": 200, "exp_reward": 1300 }
+            ],
+            "drops": [
+                { "item_id": "celestial_bone", "name": "天骨", "weight": 25, "min_qty": 1, "max_qty": 3 },
+                { "item_id": "tribulation_essence", "name": "劫雷精华", "weight": 15, "min_qty": 1, "max_qty": 2 },
+                { "item_id": "spirit_stone", "name": "灵石", "weight": 60, "min_qty": 100, "max_qty": 300, "is_spirit_stone": true }
+            ]
+        }
+    ],
+
+    "event_types": {
+        "monster": { "name": "怪物战斗", "weight": 45, "description": "遭遇深渊怪物，战斗胜利获得经验和掉落" },
+        "treasure": { "name": "宝箱", "weight": 20, "description": "发现宝箱，直接获得物品奖励" },
+        "trap": { "name": "陷阱", "weight": 15, "description": "触发陷阱，损失部分HP和体力" },
+        "pvp": { "name": "玩家遭遇", "weight": 20, "description": "遭遇其他玩家灵兽，发生PVP战斗" }
+    },
+
+    "treasure_config": {
+        "min_items": 1,
+        "max_items": 2,
+        "spirit_stone_range": [20, 100],
+        "rare_item_chance": 0.15
+    },
+
+    "trap_config": {
+        "hp_loss_ratio": 0.15,
+        "stamina_loss": 15,
+        "exp_loss_ratio": 0.03
+    },
+
+    "beast_soul_config": {
+        "description": "满级灵兽在探渊中获得的经验会凝成兽魂，用于灵兽升星",
+        "exp_to_soul_ratio": 1000,
+        "min_exp_for_soul": 100,
+        "soul_per_floor_bonus": 0.1
+    },
+
+    "ranking_config": {
+        "description": "探渊排行榜：按最深层数 + 累计收益排名",
+        "categories": ["deepest_floor", "total_explore_count", "total_pvp_wins"],
+        "page_size": 20,
+        "max_page": 50
+    },
+
+    "recall_config": {
+        "early_recall_floor_penalty": 0.5,
+        "early_recall_exp_penalty": 0.3,
+        "auto_recall_on_injury": true,
+        "auto_recall_on_stamina_zero": true
+    }
+}

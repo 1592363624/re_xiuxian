@@ -549,17 +549,26 @@ class AdventureEventService {
                 earlyFinish = true;
             }
 
-            const eventObj = typeof eventData.event_data === 'string' 
-                ? JSON.parse(eventData.event_data) 
+            const eventObj = typeof eventData.event_data === 'string'
+                ? JSON.parse(eventData.event_data)
                 : eventData.event_data;
             // 读取时长分级配置的奖励倍率（长时历练 1.8 倍，短时历练 0.6 倍）
             const rewardMultiplier = eventObj?.reward_multiplier || 1.0;
-            // 奖励 = 基础奖励 × 提前结束折扣 × 时长倍率
+            // 奖励 = 基础奖励 × 提前结束折扣 × 时长倍率 × 境界倍率（境界倍率在 grantRewards 中应用）
+            // 修复（2026-07-21）：base_exp / base_spirit_stones 字段透传到 grantRewards，
+            // 让 grantRewards 能在返回结果中记录基础值，便于前端展示「基础 × 境界倍率 = 实际」
             const rawRewards = eventObj?.rewards || {};
+            // 先应用提前结束折扣 × 时长倍率（不应用境界倍率，境界倍率在 grantRewards 中应用）
+            const scaledExp = Math.floor((rawRewards.exp || 0) * rewardScale * rewardMultiplier);
+            const scaledStones = Math.floor((rawRewards.spirit_stones || 0) * rewardScale * rewardMultiplier);
             const rewards = {
-                exp: Math.floor((rawRewards.exp || 0) * rewardScale * rewardMultiplier),
-                spirit_stones: Math.floor((rawRewards.spirit_stones || 0) * rewardScale * rewardMultiplier),
-                items: rawRewards.items || []
+                exp: scaledExp,
+                spirit_stones: scaledStones,
+                items: rawRewards.items || [],
+                // 透传基础值（已含时长折扣和倍率，但未含境界倍率）
+                // grantRewards 会基于此计算 final_exp = base_exp × realm_multiplier
+                base_exp: scaledExp,
+                base_spirit_stones: scaledStones
             };
             const result = await this.grantRewards(playerId, rewards);
 
@@ -676,10 +685,49 @@ class AdventureEventService {
     }
 
     /**
+     * 计算境界加成倍率（境界越高收益越高）
+     *
+     * 修复（2026-07-21）：
+     *   原奖励数值与境界脱钩：化神期玩家也只能拿到凡人级别的几十点修为。
+     *   现在与闭关修炼保持一致：1.0 + (realm.rank - 1) * 0.1
+     *   每提升一个境界 rank，收益增加 10%（化神初期 rank=23 → 3.2x）
+     *
+     * @param {Object} player - 玩家对象
+     * @returns {number} 境界加成倍率
+     */
+    getRealmMultiplier(player) {
+        try {
+            // 优先使用 player.realm_rank 字段（数值更快）
+            const rank = Number(player?.realm_rank);
+            if (rank > 0) {
+                return 1.0 + (rank - 1) * 0.1;
+            }
+            // 兜底：通过 RealmService 查询境界 rank
+            const realmName = player?.realm;
+            if (realmName) {
+                const realmConfig = RealmService.getRealmByName(realmName);
+                if (realmConfig && realmConfig.rank) {
+                    return 1.0 + (realmConfig.rank - 1) * 0.1;
+                }
+            }
+        } catch (e) {
+            console.warn('[AdventureEventService] 获取境界加成失败:', e.message);
+        }
+        return 1.0;
+    }
+
+    /**
      * 授予奖励
+     *
+     * 修复（2026-07-21）：
+     *   1. 奖励数值加入境界加成倍率，与闭关修炼保持一致
+     *   2. 修复 Item.upsert 错误用法：原 upsert 依赖主键 id，但传入数据无 id，
+     *      实际是 INSERT，多次获得同一物品会创建多条 quantity=1 记录，
+     *      改为 findOrCreate + increment 正确累加数量
+     *
      * @param {number} playerId - 玩家 ID
-     * @param {Object} rewards - 奖励
-     * @returns {Object} 授予结果
+     * @param {Object} rewards - 奖励（基础值，未应用境界加成）
+     * @returns {Object} 授予结果（granted 字段记录实际发放数值，已含境界加成）
      */
     async grantRewards(playerId, rewards) {
         const player = await Player.findByPk(playerId);
@@ -687,34 +735,58 @@ class AdventureEventService {
             return { success: false, error: '玩家不存在' };
         }
 
+        // 境界加成倍率：化神期 rank=23 → 3.2x，让奖励与境界匹配
+        const realmMultiplier = this.getRealmMultiplier(player);
+
         const granted = {
             exp: 0,
+            base_exp: 0,
             items: [],
-            spirit_stones: 0
+            spirit_stones: 0,
+            base_spirit_stones: 0,
+            realm_multiplier: Number(realmMultiplier.toFixed(2))
         };
 
-        if (rewards.exp) {
-            player.exp = BigInt(player.exp) + BigInt(rewards.exp);
-            granted.exp = rewards.exp;
+        // 修复（2026-07-21）：始终记录 base_exp（即使为 0），让前端能正确展示计算过程
+        // base_exp = 已含时长折扣 × 时长倍率，但未含境界倍率
+        // final_exp = base_exp × 境界倍率
+        const baseExpValue = rewards.base_exp ?? rewards.exp ?? 0;
+        const finalExp = Math.floor(baseExpValue * realmMultiplier);
+        if (finalExp > 0) {
+            player.exp = BigInt(player.exp) + BigInt(finalExp);
         }
+        granted.exp = finalExp;
+        granted.base_exp = baseExpValue;
 
         if (rewards.mp) {
-            player.mp_current = BigInt(player.mp_current) + BigInt(rewards.mp);
-            granted.mp = rewards.mp;
+            // 灵力同样应用境界加成
+            const finalMp = Math.floor(rewards.mp * realmMultiplier);
+            player.mp_current = BigInt(player.mp_current) + BigInt(finalMp);
+            granted.mp = finalMp;
         }
 
-        if (rewards.spirit_stones) {
-            player.spirit_stones = BigInt(player.spirit_stones) + BigInt(rewards.spirit_stones);
-            granted.spirit_stones = rewards.spirit_stones;
+        // 灵石同样始终记录 base_spirit_stones
+        const baseStonesValue = rewards.base_spirit_stones ?? rewards.spirit_stones ?? 0;
+        const finalStones = Math.floor(baseStonesValue * realmMultiplier);
+        if (finalStones > 0) {
+            player.spirit_stones = BigInt(player.spirit_stones) + BigInt(finalStones);
         }
+        granted.spirit_stones = finalStones;
+        granted.base_spirit_stones = baseStonesValue;
 
         if (rewards.items && Array.isArray(rewards.items)) {
             for (const itemKey of rewards.items) {
-                await Item.upsert({
-                    player_id: playerId,
-                    item_key: itemKey,
-                    quantity: 1
+                // 修复 Item.upsert 错误用法：upsert 依赖主键 id，但传入数据无 id，
+                // 会重复 INSERT 多条 quantity=1 记录，改为 findOrCreate + increment
+                const [itemRecord, created] = await Item.findOrCreate({
+                    where: { player_id: playerId, item_key: itemKey },
+                    defaults: { player_id: playerId, item_key: itemKey, quantity: 1 }
                 });
+                if (!created) {
+                    // 已有记录则累加数量
+                    itemRecord.quantity = Number(itemRecord.quantity) + 1;
+                    await itemRecord.save();
+                }
                 granted.items.push({ item_key: itemKey, quantity: 1 });
             }
         }

@@ -35,6 +35,7 @@ const PlayerSect = require('../../models/playerSect');
 const AttributeService = require('../core/AttributeService');
 const RealmService = require('../core/RealmService');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
+const WorldBossSkillManager = require('./WorldBossSkillManager');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { infrastructure } = require('../../modules');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
@@ -309,27 +310,35 @@ class WorldBossService {
     // =========================================================================
 
     /**
-     * 攻击世界BOSS（核心战斗逻辑）
+     * 执行世界BOSS 行动（多行动机制核心战斗逻辑）
+     *
+     * 4 种行动类型：
+     *   - assault       : 强攻（主伤害，但提升魔压、削弱阵势）
+     *   - break_banner  : 破幡（削弱幡魂减伤，自身伤害降低）
+     *   - suppress_soul : 镇魂（降低魔压，避免压力失控）
+     *   - protect_array : 护阵（恢复阵势，避免阵势崩溃）
      *
      * 流程：
-     *   1. 状态机互斥校验（IN_WORLD_BOSS 与其他 exclusive 状态互斥）
-     *   2. 开启事务，行级锁 BOSS + 玩家
-     *   3. BOSS 状态校验（pending→active 自动激活；defeated/expired 拒绝）
-     *   4. 攻击CD校验（默认5秒，从 damage_record.last_attack_time 推导）
-     *   5. 玩家"BOSS战死亡"状态校验（需先复活才能继续攻击）
-     *   6. 计算单次伤害 = max(1, ATK * 技能倍率 - BOSS DEF * 减伤系数) * 暴击系数 * 随机浮动
-     *   7. BOSS HP 扣减，检查阶段切换（HP 百分比越过阈值时切换）
-     *   8. BOSS 反击：玩家 battleHp 扣减，检查死亡（不真死，仅标记需复活）
-     *   9. UPSERT 伤害记录（boss_id + player_id 唯一键）
-     *  10. 检查 BOSS 是否被击杀（hp_current <= 0），若是触发结算
-     *  11. 推送 WebSocket 通知（玩家数据 + 全服 HP 广播）
+     *   1. actionType 参数校验（必须为 4 种之一）
+     *   2. 状态机互斥校验（IN_WORLD_BOSS 与其他 exclusive 状态互斥）
+     *   3. 开启事务，行级锁 BOSS + 玩家
+     *   4. BOSS 状态校验（pending→active 自动激活；defeated/expired 拒绝）
+     *   5. 攻击CD校验（默认5秒，从 damage_record.last_attack_time 推导）
+     *   6. 读取行动配置（actions[actionType]）+ 重复行动惩罚判定
+     *   7. 计算伤害 = attackBoss 原伤害公式 * 行动倍率 * 幡魂减伤 * 魔压玩家惩罚 * 重复惩罚
+     *   8. BOSS HP 扣减，更新 banner_soul/magic_pressure/array_integrity 三大状态
+     *   9. BOSS 反击：沿用技能系统，BOSS 攻击力乘以魔压/阵势加成
+     *  10. UPSERT 伤害记录，更新 last_action/action_streak
+     *  11. 检查 BOSS 是否被击杀（hp_current <= 0），若是触发结算
+     *  12. 推送 WebSocket 通知（玩家数据 + 全服 HP 广播）
      *
-     * @param {number} playerId - 攻击玩家ID
+     * @param {number} playerId - 行动玩家ID
      * @param {number} bossId - BOSS实例ID
+     * @param {string} actionType - 行动类型（assault/break_banner/suppress_soul/protect_array）
      * @param {string} [skillId='basic'] - 技能ID（basic/skill/ultimate，对应不同倍率）
-     * @returns {Promise<Object>} 攻击结果（伤害/反击/是否击杀/是否死亡）
+     * @returns {Promise<Object>} 行动结果（伤害/状态变化/反击/是否击杀/是否死亡）
      */
-    static async attackBoss(playerId, bossId, skillId = 'basic') {
+    static async performAction(playerId, bossId, actionType, skillId = 'basic') {
         const cfg = this.getWorldBossConfig();
 
         // 全局开关
@@ -340,6 +349,40 @@ class WorldBossService {
         // 参数校验
         if (!playerId || !bossId) {
             throw new AppError('玩家ID与BOSS ID不能为空', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        // 行动类型校验：必须是 4 种合法行动之一
+        // 行动配置来源于 game_balance.json → world_boss.action_system.actions
+        const VALID_ACTIONS = ['assault', 'break_banner', 'suppress_soul', 'protect_array'];
+        if (!VALID_ACTIONS.includes(actionType)) {
+            throw new AppError(
+                `actionType 必须是 ${VALID_ACTIONS.join('/')} 之一`,
+                400,
+                ErrorCodes.VALIDATION_ERROR
+            );
+        }
+
+        // 读取多行动机制配置（action_system.enabled=false 时仅允许 assault 走老逻辑）
+        const actionCfg = cfg.action_system || {};
+        const actionsMap = actionCfg.actions || {};
+        const actionConfig = actionsMap[actionType] || {
+            // 兜底默认值（action_system 未配置时也保证 assault 可走通）
+            name: actionType === 'assault' ? '强攻' : actionType,
+            damage_multiplier: actionType === 'assault' ? 1.0 : 0.3,
+            banner_soul_damage: 0,
+            magic_pressure_increase: 0,
+            magic_pressure_decrease: 0,
+            array_integrity_change: 0,
+            description: '默认行动（action_system 配置缺失）'
+        };
+
+        // 非强攻行动在 action_system 未启用时拒绝（避免行动系统未上线时被误用）
+        if (actionType !== 'assault' && actionCfg.enabled === false) {
+            throw new AppError(
+                '世界BOSS 多行动机制未开启，暂时无法执行该行动',
+                400,
+                ErrorCodes.BUSINESS_LOGIC_ERROR
+            );
         }
 
         // 状态机互斥校验：IN_WORLD_BOSS 与一切 exclusive 状态互斥
@@ -462,15 +505,94 @@ class WorldBossService {
                 }
             }
 
+            // ========== 多行动机制：重复行动惩罚判定（2026-07-21 新增） ==========
+            // 设计目的：避免玩家无脑刷同一个高收益行动（如反复强攻），鼓励行动轮换
+            // 判定逻辑：基于 damageRecord.last_action 与 action_streak
+            //   - 当前 actionType 与上次 last_action 相同：streak = action_streak + 1
+            //   - 不同：streak = 1（reset_on_different_action=true 时重置）
+            // 当 streak >= streak_threshold（默认3）时，本次伤害乘以 penalty_multiplier（默认0.5）
+            // 配置：game_balance.json → world_boss.action_system.repetition_penalty
+            const repetitionPenaltyCfg = actionCfg.repetition_penalty || {};
+            const isRepetitionEnabled = repetitionPenaltyCfg.enabled !== false;
+            const streakThreshold = repetitionPenaltyCfg.streak_threshold || 3;
+            const penaltyMultiplier = repetitionPenaltyCfg.penalty_multiplier || 0.5;
+            // 计算新的连续行动次数（事务内读取，避免并发误判）
+            const previousAction = damageRecord?.last_action || null;
+            const previousStreak = damageRecord?.action_streak || 0;
+            const newActionStreak = (previousAction === actionType)
+                ? previousStreak + 1
+                : 1;
+            // 重复惩罚触发条件：启用 + 达到阈值
+            const repetitionPenaltyTriggered = isRepetitionEnabled && newActionStreak >= streakThreshold;
+            // 实际惩罚系数：触发时为 penalty_multiplier，否则为 1.0
+            const repetitionPenaltyFactor = repetitionPenaltyTriggered ? penaltyMultiplier : 1.0;
+
+            // ========== 多行动机制：三大状态值初始化与读取 ==========
+            // banner_soul     : 幡魂值，高时 BOSS 减伤（每点减伤 0.5%，最高 50%）
+            // magic_pressure  : 魔压值，高时 BOSS 攻击加强 + 玩家伤害下降
+            // array_integrity : 阵势值，低时 BOSS 全属性加强
+            // 三大状态字段在迁移 0053 中已添加到 world_bosses 表
+            // 老数据可能为 null/undefined（迁移默认值已设置），这里做兜底
+            const bannerSoulCfg = actionCfg.banner_soul || {};
+            const magicPressureCfg = actionCfg.magic_pressure || {};
+            const arrayIntegrityCfg = actionCfg.array_integrity || {};
+
+            const currentBannerSoul = Number(boss.banner_soul) ?? bannerSoulCfg.initial ?? 100;
+            const currentMagicPressure = Number(boss.magic_pressure) ?? magicPressureCfg.initial ?? 0;
+            const currentArrayIntegrity = Number(boss.array_integrity) ?? arrayIntegrityCfg.initial ?? 100;
+
+            // 计算幡魂减伤系数（0~0.5）：banner_soul * 0.005，最高 0.5
+            // 玩家最终伤害乘以 (1 - bannerSoulDamageReduction)
+            const bannerSoulDamageReduction = Math.min(
+                currentBannerSoul * (bannerSoulCfg.damage_reduction_per_point || 0.005),
+                bannerSoulCfg.max_damage_reduction || 0.5
+            );
+
+            // 计算魔压玩家伤害惩罚系数（0~0.2）：magic_pressure * 0.002，最高 0.2
+            // 玩家最终伤害乘以 (1 - magicPressurePlayerPenalty)
+            const magicPressurePlayerPenalty = Math.min(
+                currentMagicPressure * (magicPressureCfg.player_damage_penalty_per_point || 0.002),
+                magicPressureCfg.max_player_damage_penalty || 0.2
+            );
+
+            // 计算魔压 BOSS 攻击加成系数（0~0.3）：magic_pressure * 0.003，最高 0.3
+            // BOSS 反击伤害乘以 (1 + magicPressureBossBonus)
+            const magicPressureBossBonus = Math.min(
+                currentMagicPressure * (magicPressureCfg.boss_atk_bonus_per_point || 0.003),
+                magicPressureCfg.max_boss_atk_bonus || 0.3
+            );
+
+            // 计算阵势低 BOSS 加成系数：array_integrity < 30 时 +0.2，< 10 时再 +0.5
+            // 注意：临界阈值 30 时 +0.2，到 10 时再叠加 +0.5，故最低阵势可达 +0.7
+            let arrayIntegrityBossBonus = 0;
+            const lowThreshold = arrayIntegrityCfg.low_threshold || 30;
+            const lowBossBonus = arrayIntegrityCfg.low_boss_bonus || 0.2;
+            const criticalThreshold = arrayIntegrityCfg.critical_threshold || 10;
+            const criticalBossBonus = arrayIntegrityCfg.critical_boss_bonus || 0.5;
+            if (currentArrayIntegrity < criticalThreshold) {
+                arrayIntegrityBossBonus = lowBossBonus + criticalBossBonus;
+            } else if (currentArrayIntegrity < lowThreshold) {
+                arrayIntegrityBossBonus = lowBossBonus;
+            }
+
             // ========== 计算单次伤害 ==========
-            // 玩家属性通过 AttributeService.calculateFullAttributes 获取最终属性
-            // 注意：同步方法不包含装备加成，BOSS战场景使用"基础+天赋+灵根+称号"快照可接受
-            // （避免战斗中换装导致属性突变，与 DungeonService 设计一致）
-            const attrResult = AttributeService.calculateFullAttributes(player);
+            // 玩家属性通过 AttributeService.calculateFullAttributesAsync 获取最终属性
+            // 异步版本包含装备加成 + 灵兽加成（出战灵兽按比例加成 atk/def/hp_max/speed）
+            // 灵兽加成参与 BOSS 战的意义：
+            //   1. 灵兽 ATK 加成提升玩家攻击力 → 直接提升伤害
+            //   2. 灵兽 HP 加成提升 battleHpMax → 提升生存能力
+            //   3. 灵兽元素参与五行相克判定（见下方 elementalCounter）
+            //   4. 灵兽独立追加伤害（assist_damage_ratio）
+            const attrResult = await AttributeService.calculateFullAttributesAsync(player);
             const finalAttrs = attrResult?.final || {};
             const playerAtk = Number(finalAttrs.atk) || 0;
             const playerDef = Number(finalAttrs.def) || 0;
             const playerHpMax = Number(finalAttrs.hp_max) || 100;
+
+            // 读取灵兽助战信息（来自 AttributeService 异步填充）
+            // spiritBeastInfo 含 beast_name/element/star_level/level/bonus_rate/combat_power
+            const spiritBeastInfo = attrResult?.info?.spirit_beast || null;
+            const spiritBeastBreakdown = attrResult?.breakdown?.spirit_beast || {};
 
             // 技能倍率（skillId 映射，默认 basic）
             // basic=1.0, skill=1.5, ultimate=2.5（受 BOSS 当前阶段技能表约束）
@@ -491,13 +613,116 @@ class WorldBossService {
             const randomRange = cfg.damage_random_range || 0.15;
             const randomFactor = 1 + (Math.random() * 2 - 1) * randomRange;
 
-            // 单次伤害 = max(1, ATK * 技能倍率 - BOSS DEF * 减伤系数) * 暴击系数 * 随机浮动
-            // 减伤系数：BOSS防御削减玩家伤害的比例（设计简化为 0.5，即 BOSS DEF 半效）
-            const damageReduceRate = 0.5;
-            const baseDamage = Math.max(1, playerAtk * skillMultiplier - boss.def * damageReduceRate);
-            // 单人挑战伤害衰减（40%）；组队加成（+10%）由调度器在玩家加入组队时另行处理，此处默认单人
-            const soloRatio = cfg.single_player_damage_ratio || 0.4;
-            const finalDamage = Math.floor(baseDamage * critFactor * randomFactor * soloRatio);
+            // ========== 五行相克系统 ==========
+            // 取 BOSS 静态元素（boss_key → world_boss_data.json bosses[].element）
+            // 取玩家灵兽元素（无出战灵兽时为 null，按中性 1.0x 处理）
+            // 相克方向：玩家灵兽元素 → BOSS元素
+            //   - 灵兽克 BOSS：1.5x（如火灵兽 vs 木BOSS）
+            //   - 灵兽被 BOSS 克：0.75x（如木灵兽 vs 金BOSS）
+            //   - 同元素/无灵兽：1.0x
+            const bossStaticData = this.getBossStaticData(boss.boss_key) || {};
+            const bossElement = bossStaticData.element || null;
+            const playerBeastElement = spiritBeastInfo?.element || null;
+            const elementalCounter = this._calculateElementalCounter(playerBeastElement, bossElement, cfg);
+            const playerElementalFactor = elementalCounter.factor; // 玩家攻击 BOSS 的相克系数
+            const elementalTag = elementalCounter.tag; // 'advantage' / 'disadvantage' / 'neutral'
+
+            // ========== 伤害计算（2026-07-21 修复） ==========
+            // 原公式：max(1, atk * skill - boss.def * 0.5) * soloRatio(0.3)
+            //   问题：当玩家ATK与BOSS DEF接近时（如625 vs 800），baseDamage 仅剩 225，
+            //         再乘 soloRatio=0.3 后 finalDamage≈67，化神初期玩家需攻击 74627 次才能击杀，
+            //         完全不可玩。此外 soloRatio=0.3 让单人挑战完全不可行，违背"多人鼓励但不强制"的设计。
+            //
+            // 新公式：max(1, atk * skill * (1 - def_reduction)) * soloRatio * teamFactor * crit * random * elemental
+            //   def_reduction = boss.def / (boss.def + playerAtk * 2 + 1000)
+            //   设计理由：
+            //     1. 使用除法减伤曲线，避免 ATK 与 DEF 接近时伤害断崖式下跌
+            //     2. 当 atk=625, def=800 时：def_reduction = 800/(800+1250+1000) = 0.262
+            //        baseDamage = 625 * 1.0 * 0.738 = 461（原公式为 225）
+            //     3. 当 atk=2000, def=800 时：def_reduction = 800/(800+4000+1000) = 0.138
+            //        baseDamage = 2000 * 1.0 * 0.862 = 1724（高境界玩家有合理压制力）
+            //     4. 当 atk=100, def=800 时：def_reduction = 800/(800+200+1000) = 0.4
+            //        baseDamage = 100 * 1.0 * 0.6 = 60（低境界玩家仍能蹭伤害拿参与奖）
+            //
+            // soloRatio 调整：0.3 → 1.0
+            //   原设计 soloRatio=0.3 是为强制多人组队，但实际效果是单人完全无法挑战，
+            //   组队加成应通过 team_bonus_ratio 体现，而非削弱单人。
+            //   修复后：soloRatio=1.0（单人完整伤害），组队人数>=min_team_size 时额外 +team_bonus_ratio
+            const defReduction = boss.def / (boss.def + playerAtk * 2 + 1000);
+            const baseDamage = Math.max(1, Math.floor(playerAtk * skillMultiplier * (1 - defReduction)));
+
+            // 单人挑战伤害比例（鼓励但不强制组队）
+            const soloRatio = cfg.single_player_damage_ratio ?? 1.0;
+
+            // ========== 组队加成（2026-07-21 新增实现） ==========
+            // 配置项 team_bonus_ratio / min_team_size 之前仅写在 JSON 中，代码未实现
+            // 现在通过查询 BOSS 战中最近 active_window_ms 内的活跃参与者数量判定是否触发加成
+            // 设计目的：鼓励玩家在同一时段集中攻击 Boss（多人合作），但不强制组队系统
+            const minTeamSize = cfg.min_team_size || 3;
+            const teamBonusRatio = cfg.team_bonus_ratio || 1.1;
+            const activeWindowMs = cfg.active_window_ms || 300000; // 默认 5 分钟
+            const activeParticipantCount = await WorldBossDamageRecord.count({
+                where: {
+                    boss_id: bossId,
+                    last_attack_time: { [Op.gte]: new Date(Date.now() - activeWindowMs) }
+                },
+                transaction: t
+            });
+            // 当前玩家也计入活跃人数，故 +1
+            const totalActiveCount = activeParticipantCount + 1;
+            const teamFactor = totalActiveCount >= minTeamSize ? teamBonusRatio : 1.0;
+
+            // ========== 境界压制加成（2026-07-21 新增） ==========
+            // 设计目的：高境界玩家挑战低境界 Boss 时应有压制力，避免高境界玩家被低境界 Boss 卡住
+            // 公式：1 + max(0, (playerRealmRank - bossRealmRankMin) * realm_suppression_per_rank)
+            //   - 玩家境界 == Boss 推荐境界：1.0（无加成）
+            //   - 玩家境界高 10 级：1.5（每级 5% 加成）
+            //   - 玩家境界低：不加成（boss.realm_rank_min 是最低要求，不应有惩罚）
+            const playerRealmRank = player.realm_rank || 1;
+            const bossRealmRankMin = boss.realm_rank_min || 1;
+            const realmSuppressionPerRank = cfg.realm_suppression_per_rank || 0.05;
+            const realmSuppression = 1 + Math.max(0, (playerRealmRank - bossRealmRankMin) * realmSuppressionPerRank);
+
+            // ========== 最终伤害组装 ==========
+            // 原公式：finalDamage = baseDamage * soloRatio * teamFactor * realmSuppression * crit * random * elemental
+            // 多行动机制扩展（2026-07-21）：
+            //   再乘以行动系统系数：
+            //     * actionMultiplier            （行动倍率，assault=1.0, break_banner=0.4, suppress_soul=0.3, protect_array=0.3）
+            //     * (1 - bannerSoulDamageReduction)  （幡魂减伤，最高 50%）
+            //     * (1 - magicPressurePlayerPenalty) （魔压玩家伤害惩罚，最高 20%）
+            //     * repetitionPenaltyFactor     （重复行动惩罚，连续>=3 次同行动触发 0.5 倍）
+            //   设计目的：通过行动类型 + 阶段状态联动，让玩家不能无脑强攻，必须配合破幡/镇魂/护阵
+            const actionMultiplier = Number(actionConfig.damage_multiplier) || 1.0;
+            let finalDamage = Math.floor(
+                baseDamage * soloRatio * teamFactor * realmSuppression
+                * critFactor * randomFactor * playerElementalFactor
+                * actionMultiplier
+                * (1 - bannerSoulDamageReduction)
+                * (1 - magicPressurePlayerPenalty)
+                * repetitionPenaltyFactor
+            );
+            // 防御性兜底：极端减伤情况下伤害至少为 1（保证参与奖可拿）
+            if (finalDamage < 1) finalDamage = 1;
+
+            // ========== 灵兽独立追加伤害 ==========
+            // 设计目的：让灵兽不仅是属性加成，还能在 BOSS 战中独立造成一次伤害（视觉/数值上的"灵兽助战"）
+            // 计算公式：灵兽ATK加成值 * assist_damage_ratio * 五行相克系数 * 技能倍率
+            // 注意：灵兽 ATK 加成已经在 playerAtk 中体现一次，这里按 assist_damage_ratio 二次独立计算
+            //       避免"双倍叠加"，独立伤害仅作为"灵兽额外攻击"的视觉表现
+            // 多行动机制：灵兽助战伤害同样受行动倍率影响（非强攻时灵兽也配合玩家克制输出）
+            const assistCfg = cfg.spirit_beast_assist || {};
+            let beastAssistDamage = 0;
+            if (assistCfg.enable_assist_damage !== false && spiritBeastInfo) {
+                const beastAtkBonus = Number(spiritBeastBreakdown.atk) || 0;
+                const assistRatio = Number(assistCfg.assist_damage_ratio) || 0.3;
+                // 灵兽独立伤害也参与五行相克（与玩家主伤害一致），同时受行动倍率影响
+                beastAssistDamage = Math.floor(
+                    beastAtkBonus * assistRatio * skillMultiplier * playerElementalFactor * actionMultiplier
+                );
+            }
+
+            // 玩家总伤害 = 玩家主伤害 + 灵兽助战伤害
+            finalDamage += beastAssistDamage;
 
             // ========== BOSS HP 扣减 ==========
             const bossHpBefore = safeBigInt(boss.hp_current);
@@ -510,23 +735,148 @@ class WorldBossService {
             // 累计伤害统计
             boss.total_damage_taken = safeBigInt(boss.total_damage_taken) + damageBigInt;
 
+            // ========== 多行动机制：更新 BOSS 三大状态字段（2026-07-21 新增） ==========
+            // 设计目的：玩家行动不仅造成伤害，还会动态改变阶段状态
+            //   - banner_soul     : 受 break_banner 削减（15/次），其他行动不影响
+            //   - magic_pressure   : 受 action.magic_pressure_increase 提升、suppress_soul 削减（15/次）
+            //                         同时每回合自动 +per_round_increase（3，模拟 Boss 主动蓄压）
+            //   - array_integrity  : 受 action.array_integrity_change 变化（护阵+12、强攻-3、破幡-1）
+            //                         同时每回合自动 -per_round_decrease（2，模拟阵势自然消耗）
+            // 三大状态都用 clamp 限制在 [0, 100] 区间，避免越界
+            const clampStateValue = (v) => Math.max(0, Math.min(100, v));
+            // 魔压变化：行动增减 + 每回合自然增长（suppress_soul 的 magic_pressure_decrease 已在 action 配置中）
+            const magicPressureDelta =
+                (Number(actionConfig.magic_pressure_increase) || 0)
+                - (Number(actionConfig.magic_pressure_decrease) || 0)
+                + (Number(magicPressureCfg.per_round_increase) || 0);
+            // 阵势变化：行动变化 - 每回合自然消耗
+            const arrayIntegrityDelta =
+                (Number(actionConfig.array_integrity_change) || 0)
+                - (Number(arrayIntegrityCfg.per_round_decrease) || 0);
+
+            const newBannerSoul = clampStateValue(currentBannerSoul - (Number(actionConfig.banner_soul_damage) || 0));
+            const newMagicPressure = clampStateValue(currentMagicPressure + magicPressureDelta);
+            const newArrayIntegrity = clampStateValue(currentArrayIntegrity + arrayIntegrityDelta);
+
+            // 记录状态变化前值（用于返回结果中展示 diff）
+            const bannerSoulBefore = currentBannerSoul;
+            const magicPressureBefore = currentMagicPressure;
+            const arrayIntegrityBefore = currentArrayIntegrity;
+
+            boss.banner_soul = newBannerSoul;
+            boss.magic_pressure = newMagicPressure;
+            boss.array_integrity = newArrayIntegrity;
+
             // ========== 阶段切换检查 ==========
             const phaseChanged = await this._checkPhaseTransition(boss, t);
 
-            // ========== BOSS 反击 ==========
-            // BOSS 反击伤害 = max(1, BOSS ATK * 阶段倍率 - 玩家 DEF * 减伤系数) * 技能系数
-            const bossAtk = Number(boss.atk) || 0;
-            const bossBaseCounter = Math.max(1, bossAtk * phaseMultiplier - playerDef * damageReduceRate);
-            // 技能系数：随机 0.8 ~ 1.2（BOSS 也走技能倍率浮动）
-            const bossSkillFactor = 0.8 + Math.random() * 0.4;
-            const bossCounterDamage = Math.floor(bossBaseCounter * bossSkillFactor);
+            // ========== BOSS 反击（使用技能表完整实现） ==========
+            // 旧版：固定公式 ATK * phaseMultiplier * randomFactor，简化无策略
+            // 新版（2026-07-20）：调用 WorldBossSkillManager 按权重随机选择技能
+            //   - 单体基础/技能：直接伤害 + 可能附带流血/眩晕/破甲效果
+            //   - AOE / 全屏必杀：高倍率伤害，需广播给所有参战玩家
+            //   - 召唤：生成小怪存入 boss.minions，玩家可优先攻击小怪
+            //   - 自身 Buff：ATK 提升 / 吸血 / 免控，持续 buff_duration_seconds
+            // 技能表来源：world_boss_data.json → bosses[].skills[phase].skills[]
+            // 全局配置：game_balance.json → world_boss.boss_skills
+
+            // 1. 先清理过期 Buff 和小怪
+            const expiredBuffs = WorldBossSkillManager.cleanupExpiredBuffs(boss);
+            const expiredMinions = WorldBossSkillManager.cleanupExpiredMinions(boss);
+
+            // 2. 选择本回合触发的技能（按权重随机 + 冷却检查）
+            const selectedSkill = WorldBossSkillManager.selectSkill(
+                boss.boss_key,
+                boss.phase,
+                boss.skill_cooldowns,
+                boss.active_buffs
+            );
+
+            // 3. 执行技能效果，获得伤害数值和附加效果
+            const skillCtx = {
+                bossKey: boss.boss_key,
+                bossElement: bossElement,
+                cfgBalance: cfg,
+                playerId: playerId
+            };
+            const skillTarget = {
+                battleHp: 0, // executeSkill 不直接扣血，由外层根据 counter_damage 扣减
+                battleHpMax: playerHpMax,
+                playerDef: playerDef,
+                playerBeastElement: playerBeastElement
+            };
+            const skillResult = WorldBossSkillManager.executeSkill(boss, selectedSkill, skillTarget, skillCtx);
+
+            // 4. 更新技能冷却
+            WorldBossSkillManager.updateCooldown(boss, selectedSkill);
+
+            // 5. 应用 Buff 到 BOSS（如果有）
+            if (skillResult.buff_applied) {
+                if (!boss.active_buffs) boss.active_buffs = [];
+                boss.active_buffs.push(skillResult.buff_applied);
+            }
+
+            // 6. 应用召唤小怪到 BOSS（如果有）
+            if (skillResult.minions_summoned && skillResult.minions_summoned.length > 0) {
+                if (!boss.minions) boss.minions = [];
+                boss.minions.push(...skillResult.minions_summoned);
+            }
+
+            // 7. 吸血回复（如果触发了吸血）
+            if (skillResult.lifesteal_amount > 0) {
+                const healAmount = BigInt(skillResult.lifesteal_amount);
+                const newBossHp = safeBigInt(boss.hp_current) + healAmount;
+                // 吸血不超过 max_hp
+                const bossHpMax = safeBigInt(boss.hp_max);
+                boss.hp_current = newBossHp > bossHpMax ? bossHpMax : newBossHp;
+                skillResult.boss_hp_recovered = skillResult.lifesteal_amount;
+            }
+
+            // 8. 取最终反击伤害（单体/AOE/全屏必杀 都通过 counter_damage 体现）
+            // 多行动机制扩展（2026-07-21）：
+            //   BOSS 反击伤害需要乘以魔压加成（+0~30%）和阵势低加成（+0~70%）
+            //   设计目的：让玩家承受"魔压过高 / 阵势崩溃"的代价，强化护阵/镇魂的必要性
+            //   修改位置：在 skillResult 计算之后、写入 damageRecord 之前，避免修改 boss.atk 影响其他模块
+            const rawBossCounterDamage = skillResult.counter_damage;
+            // 阶段加成系数 = 1 + 魔压加成 + 阵势加成
+            const bossCounterBonusFactor = 1 + magicPressureBossBonus + arrayIntegrityBossBonus;
+            // 应用加成并向下取整（最小 0）
+            const bossCounterDamage = Math.max(0, Math.floor(rawBossCounterDamage * bossCounterBonusFactor));
+            // 透传加成详情到 skillResult，便于前端展示"魔压加成 +30%"等提示
+            skillResult.counter_damage = bossCounterDamage;
+            skillResult.counter_bonus_breakdown = {
+                raw_damage: rawBossCounterDamage,
+                magic_pressure_bonus: Number(magicPressureBossBonus.toFixed(4)),
+                array_integrity_bonus: Number(arrayIntegrityBossBonus.toFixed(4)),
+                final_factor: Number(bossCounterBonusFactor.toFixed(4)),
+                final_damage: bossCounterDamage
+            };
+
+            // 9. AOE 伤害广播（仅记录事件，实际广播在外层 commit 后执行，避免事务回滚后误推送）
+            const aoeEvent = skillResult.is_aoe ? {
+                skill_name: skillResult.skill_name,
+                skill_type: skillResult.skill_type,
+                aoe_damage: skillResult.aoe_damage,
+                description: skillResult.description,
+                boss_id: boss.id,
+                boss_name: boss.boss_name,
+                trigger_player_id: playerId
+            } : null;
 
             // 初始化或更新玩家战斗运行时状态
+            // 2026-07-21 修复：增加 BOSS 战玩家 HP 倍率
+            //   原设计 battleHp = playerHpMax，但化神初期玩家 hp_max=3500，
+            //   BOSS 青元子 atk=2000 单次反击约 1800 伤害，玩家 2 次反击就死亡。
+            //   设计上玩家应能承受 5-10 次反击，给玩家足够机会造成伤害。
+            //   现通过 player_hp_multiplier（默认 5.0）放大 BOSS 战中玩家 HP 上限，
+            //   仅影响 BOSS 战虚拟 HP，不影响玩家真实 HP（players.hp_current）。
             let runtimeState = this._battleRuntime.get(runtimeKey);
             if (!runtimeState) {
+                const playerHpMultiplier = cfg.player_hp_multiplier || 5.0;
+                const battleHpMaxValue = Math.floor(playerHpMax * playerHpMultiplier);
                 runtimeState = {
-                    battleHp: BigInt(playerHpMax),
-                    battleHpMax: BigInt(playerHpMax),
+                    battleHp: BigInt(battleHpMaxValue),
+                    battleHpMax: BigInt(battleHpMaxValue),
                     isDead: false,
                     lastReviveTime: 0,
                     lastRetreatTime: 0,
@@ -539,7 +889,46 @@ class WorldBossService {
 
             // 玩家 battleHp 扣减
             const playerHpBefore = runtimeState.battleHp;
-            const counterDamageBigInt = BigInt(bossCounterDamage);
+
+            // ===== 道侣护道判定（与 CombatService/PvpService 一致的集成模式）=====
+            // 世界BOSS战：BOSS反击玩家时，有概率触发道侣远程护持
+            // PVE 场景下护道反击伤害作用于 BOSS（道侣远程协助攻击BOSS）
+            // try-catch 兜底：护道判定失败不影响战斗主流程
+            let protectInfo = null;
+            let counterDamageToBoss = 0;
+            let actualCounterToPlayer = bossCounterDamage;  // 默认值：原始反击伤害
+            try {
+                const DaoCompanionService = require('./DaoCompanionService');
+                const protectResult = await DaoCompanionService.tryProtect(
+                    playerId,
+                    bossCounterDamage,
+                    {
+                        battleType: 'world_boss',            // 世界BOSS战斗场景
+                        battleId: String(bossId),             // BOSS ID
+                        battleRound: runtimeState.attackCount,// 攻击次数作为回合数
+                        attackerId: null,                     // PVE 中攻击方是BOSS，无玩家ID
+                        protectorAtk: 0,                      // 道侣不在战场，反击伤害计算时取配置默认
+                        transaction: t                        // 复用当前事务
+                    }
+                );
+                if (protectResult.triggered) {
+                    protectInfo = protectResult;
+                    // 玩家实际承受伤害（护道方分担了部分）
+                    actualCounterToPlayer = Number(protectResult.actual_damage_to_defender);
+                    // 反击伤害（BOSS承受）
+                    counterDamageToBoss = Number(protectResult.counter_damage) || 0;
+                    if (counterDamageToBoss > 0) {
+                        boss.current_hp = safeBigInt(boss.current_hp) - BigInt(counterDamageToBoss);
+                        // 反击伤害计入玩家对BOSS的总伤害（用于伤害排行）
+                        damageBigInt = damageBigInt + BigInt(counterDamageToBoss);
+                    }
+                }
+            } catch (protectErr) {
+                // 护道判定失败不影响战斗主流程
+                console.warn('[WorldBossService] 道侣护道判定异常:', protectErr.message);
+            }
+
+            const counterDamageBigInt = BigInt(actualCounterToPlayer);
             let playerHpAfter = playerHpBefore - counterDamageBigInt;
             let playerDied = false;
             if (playerHpAfter <= 0n) {
@@ -579,6 +968,10 @@ class WorldBossService {
                 damageRecord.sect_id = sectId;
                 damageRecord.sect_name = sectName;
                 damageRecord.is_participant = 1;
+                // 多行动机制：更新 last_action 与 action_streak（2026-07-21 新增）
+                // 重复同一行动 streak+1，切换行动类型重置为 1（reset_on_different_action=true）
+                damageRecord.last_action = actionType;
+                damageRecord.action_streak = newActionStreak;
                 await damageRecord.save({ transaction: t });
             } else {
                 // 新建伤害记录（首次攻击）
@@ -596,7 +989,10 @@ class WorldBossService {
                     best_single_damage: damageBigInt,
                     first_attack_time: now,
                     last_attack_time: now,
-                    is_participant: 1
+                    is_participant: 1,
+                    // 多行动机制：首次记录初始化（2026-07-21 新增）
+                    last_action: actionType,
+                    action_streak: 1
                 }, { transaction: t });
             }
 
@@ -688,6 +1084,21 @@ class WorldBossService {
             }
 
             return {
+                // ========== 多行动机制：行动信息（2026-07-21 新增） ==========
+                // 当前行动类型/名称/倍率/重复惩罚标记
+                action: {
+                    type: actionType,
+                    name: actionConfig.name || actionType,
+                    description: actionConfig.description || '',
+                    damage_multiplier: Number(actionMultiplier),
+                    repetition_penalty_applied: repetitionPenaltyTriggered,
+                    repetition_penalty_factor: Number(repetitionPenaltyFactor.toFixed(4)),
+                    action_streak: newActionStreak,
+                    streak_threshold: streakThreshold,
+                    // 三大状态对本次伤害的影响（前端展示"幡魂减伤 -50%"等提示）
+                    banner_soul_reduction: Number(bannerSoulDamageReduction.toFixed(4)),
+                    magic_pressure_penalty: Number(magicPressurePlayerPenalty.toFixed(4))
+                },
                 attack: {
                     skill_id: skillId,
                     damage: finalDamage,
@@ -696,31 +1107,111 @@ class WorldBossService {
                         player_atk: playerAtk,
                         skill_multiplier: skillMultiplier,
                         boss_def: boss.def,
-                        damage_reduce_rate: damageReduceRate,
+                        // 新增：除法减伤曲线的减伤比例（0~1，越低表示 BOSS 防御削减越少）
+                        def_reduction: Number(defReduction.toFixed(4)),
+                        // 基础伤害（未乘系数前）
+                        base_damage: Math.floor(baseDamage),
                         crit_factor: critFactor,
                         random_factor: Number(randomFactor.toFixed(4)),
+                        // 单人挑战伤害比例（1.0=完整伤害，配置可调）
                         solo_ratio: soloRatio,
-                        base_damage: Math.floor(baseDamage),
-                        final_damage: finalDamage
+                        // 组队加成系数（多人合作时 >1.0）
+                        team_factor: teamFactor,
+                        active_participant_count: totalActiveCount,
+                        // 境界压制加成（高境界玩家挑战低境界 Boss 时 >1.0）
+                        realm_suppression: Number(realmSuppression.toFixed(4)),
+                        player_realm_rank: playerRealmRank,
+                        boss_realm_rank_min: bossRealmRankMin,
+                        // 五行相克系数
+                        elemental_factor: playerElementalFactor,
+                        // 最终伤害（含灵兽助战）
+                        final_damage: finalDamage,
+                        // 灵兽助战详情（前端用于展示"灵兽助战 +X 伤害"）
+                        beast_assist_damage: beastAssistDamage,
+                        beast_atk_bonus: Number(spiritBeastBreakdown.atk) || 0
                     }
                 },
+                // 五行相克信息（前端用于展示"灵兽克BOSS！伤害+50%"等提示）
+                elemental_counter: {
+                    player_beast_element: playerBeastElement,
+                    boss_element: bossElement,
+                    player_to_boss: {
+                        factor: playerElementalFactor,
+                        tag: elementalTag,
+                        description: elementalCounter.description
+                    },
+                    // BOSS→玩家相克系数（与反击伤害同源）
+                    boss_to_player: {
+                        factor: WorldBossSkillManager._calculateElementalCounter(bossElement, playerBeastElement),
+                        tag: '',
+                        description: ''
+                    }
+                },
+                // 灵兽助战简要信息（beast_name/bonus_rate/element 等）
+                spirit_beast: spiritBeastInfo,
                 boss: {
                     id: boss.id,
                     name: boss.boss_name,
                     hp_before: bigIntToString(bossHpBefore),
+                    // 玩家攻击后的 HP（不含吸血回复）
                     hp_after: bigIntToString(bossHpAfter),
+                    // 当前 HP（含吸血回复，与数据库一致）
+                    hp_current: bigIntToString(boss.hp_current),
                     hp_max: bigIntToString(boss.hp_max),
-                    hp_percentage: Number((bossHpAfter * 100n) / (safeBigInt(boss.hp_max) || 1n)),
+                    hp_percentage: Number((safeBigInt(boss.hp_current) * 100n) / (safeBigInt(boss.hp_max) || 1n)),
                     phase: boss.phase,
                     phase_changed: phaseChanged,
                     status: boss.status,
-                    defeated: bossDefeated
+                    defeated: bossDefeated,
+                    // BOSS 当前激活的 Buff 列表（前端用于展示"剑意狂暴 - ATK+50%"等状态）
+                    active_buffs: boss.active_buffs || [],
+                    // BOSS 当前召唤的小怪列表（前端可展示"剑灵分身 x2"等）
+                    minions: boss.minions || [],
+                    // ========== 多行动机制：三大状态字段（2026-07-21 新增） ==========
+                    // 当前 BOSS 阶段机制状态（0-100）
+                    banner_soul: newBannerSoul,
+                    magic_pressure: newMagicPressure,
+                    array_integrity: newArrayIntegrity,
+                    // 状态变化前后值（前端展示"+15/-5"等差异）
+                    banner_soul_before: bannerSoulBefore,
+                    banner_soul_after: newBannerSoul,
+                    magic_pressure_before: magicPressureBefore,
+                    magic_pressure_after: newMagicPressure,
+                    array_integrity_before: arrayIntegrityBefore,
+                    array_integrity_after: newArrayIntegrity,
+                    // 状态阈值提示（前端用于 UI 警示，如"魔压告警！"）
+                    pressure_warning: newMagicPressure >= (magicPressureCfg.pressure_threshold_warning || 60),
+                    pressure_critical: newMagicPressure >= (magicPressureCfg.pressure_threshold_critical || 80),
+                    array_low: newArrayIntegrity < (arrayIntegrityCfg.low_threshold || 30),
+                    array_critical: newArrayIntegrity < (arrayIntegrityCfg.critical_threshold || 10)
                 },
                 counter: {
-                    damage: bossCounterDamage,
+                    damage: actualCounterToPlayer,
+                    original_damage: bossCounterDamage,
                     phase_multiplier: phaseMultiplier,
-                    boss_skill_factor: Number(bossSkillFactor.toFixed(4))
+                    elemental_factor: skillResult.is_aoe
+                        ? WorldBossSkillManager._calculateElementalCounter(bossElement, playerBeastElement)
+                        : WorldBossSkillManager._calculateElementalCounter(bossElement, playerBeastElement),
+                    // BOSS 技能详情（2026-07-20 新增）
+                    skill: {
+                        name: skillResult.skill_name,
+                        type: skillResult.skill_type,
+                        damage_multiplier: skillResult.damage_multiplier,
+                        description: skillResult.description,
+                        is_aoe: skillResult.is_aoe,
+                        is_summon: skillResult.is_summon,
+                        is_buff: skillResult.is_buff,
+                        effect: skillResult.effect || null,
+                        minions_summoned: skillResult.minions_summoned,
+                        buff_applied: skillResult.buff_applied,
+                        lifesteal_amount: skillResult.lifesteal_amount,
+                        boss_hp_recovered: skillResult.boss_hp_recovered
+                    },
+                    // 多行动机制：BOSS 反击加成详情（2026-07-21 新增）
+                    bonus_breakdown: skillResult.counter_bonus_breakdown || null
                 },
+                // AOE 事件（前端用于全屏特效/广播提示）
+                aoe_event: aoeEvent,
                 player: {
                     battle_hp_before: bigIntToString(playerHpBefore),
                     battle_hp_after: bigIntToString(playerHpAfter),
@@ -729,7 +1220,11 @@ class WorldBossService {
                     death_count: runtimeState.deathCount,
                     attack_count: runtimeState.attackCount
                 },
+                // 道侣护道信息（触发时透传给前端，用于展示"道侣护持"特效）
+                // 包含字段：triggered/shared_damage/counter_damage/protector_id/log_id
+                protect_info: protectInfo,
                 settle: settleResult,
+                phase_changed: phaseChanged,
                 timestamp: now.toISOString()
             };
         } catch (err) {
@@ -737,6 +1232,24 @@ class WorldBossService {
             if (!t.finished) await t.rollback();
             throw err;
         }
+    }
+
+    /**
+     * 攻击世界BOSS（向后兼容接口）
+     *
+     * 多行动机制（2026-07-21）：
+     *   原 attackBoss 现已委托给 performAction(playerId, bossId, 'assault', skillId)
+     *   保持向后兼容：旧调用方无需修改即可使用强攻行动
+     *   新代码应直接调用 performAction 以使用完整的 4 种行动机制
+     *
+     * @param {number} playerId - 攻击玩家ID
+     * @param {number} bossId - BOSS实例ID
+     * @param {string} [skillId='basic'] - 技能ID（basic/skill/ultimate，对应不同倍率）
+     * @returns {Promise<Object>} 攻击结果（与 performAction 返回结构一致）
+     */
+    static async attackBoss(playerId, bossId, skillId = 'basic') {
+        // 委托给 performAction，使用 'assault' 行动类型保持兼容
+        return this.performAction(playerId, bossId, 'assault', skillId);
     }
 
     /**
@@ -862,15 +1375,63 @@ class WorldBossService {
         const runtimeKey = `${bossId}:${playerId}`;
         const runtime = this._battleRuntime.get(runtimeKey);
 
+        // 修复 P0 bug（2026-07-21）：
+        // 服务重启后 _battleRuntime 内存数据丢失，但 WorldBossDamageRecord 表中的
+        // 伤害记录仍然存在，状态机据此判断玩家在BOSS战中，但 retreat 方法却报
+        // "未在BOSS战中"，导致玩家被卡死无法进行任何其他操作。
+        // 修复策略：当 _battleRuntime 不存在时，回查伤害记录，如果有最近的攻击
+        // 记录且 BOSS 仍 active，则视为"仍在BOSS战中"，允许撤退并清理伤害记录
+        // 的 last_attack_time（让状态机不再认为玩家在BOSS战中）
         if (!runtime) {
-            throw new AppError('当前未在BOSS战中，无需撤退', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            const activeWindowMs = cfg.active_window_ms || 300000; // 默认 5 分钟
+            const activeThreshold = new Date(Date.now() - activeWindowMs);
+            const existingRecord = await WorldBossDamageRecord.findOne({
+                where: {
+                    player_id: playerId,
+                    boss_id: bossId,
+                    last_attack_time: { [Op.gte]: activeThreshold }
+                }
+            });
+
+            if (!existingRecord) {
+                throw new AppError('当前未在BOSS战中，无需撤退', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 伤害记录存在但 runtime 丢失：清理 last_attack_time，让状态机释放玩家
+            console.log(`[WorldBossService] 玩家 ${playerId} 检测到遗留 BOSS 战记录（runtime 丢失），清理 last_attack_time 释放状态`);
+            existingRecord.last_attack_time = new Date(Date.now() - (activeWindowMs + 60000)); // 设为窗口外 1 分钟
+            await existingRecord.save();
+        } else {
+            // 撤退禁入CD：5 分钟（attack_cooldown_seconds * 60，简化设计）
+            const retreatCooldownSec = (cfg.attack_cooldown_seconds || 5) * 60;
+            const lastRetreatTime = Date.now();
+
+            // 清除 runtime 状态（保留 lastRetreatTime 用于禁入CD校验）
+            this._battleRuntime.set(runtimeKey, {
+                battleHp: 0n,
+                battleHpMax: 0n,
+                isDead: false,
+                lastReviveTime: 0,
+                lastRetreatTime,
+                attackCount: 0,
+                deathCount: 0
+            });
+
+            // 同时清理伤害记录的 last_attack_time，让状态机立即释放玩家
+            try {
+                await WorldBossDamageRecord.update(
+                    { last_attack_time: new Date(Date.now() - 31 * 60 * 1000) }, // 设为 31 分钟前，确保超出 30 分钟窗口
+                    { where: { player_id: playerId, boss_id: bossId } }
+                );
+            } catch (e) {
+                console.warn('[WorldBossService] 清理伤害记录 last_attack_time 失败:', e.message);
+            }
         }
 
-        // 撤退禁入CD：5 分钟（attack_cooldown_seconds * 60，简化设计）
         const retreatCooldownSec = (cfg.attack_cooldown_seconds || 5) * 60;
         const lastRetreatTime = Date.now();
 
-        // 清除 runtime 状态（保留 lastRetreatTime 用于禁入CD校验）
+        // 确保 runtime 状态被正确重置（覆盖两个分支）
         this._battleRuntime.set(runtimeKey, {
             battleHp: 0n,
             battleHpMax: 0n,
@@ -1620,6 +2181,80 @@ class WorldBossService {
         attrs.exp = Math.max(0, currentExp - penalty);
         // 写回（player.attributes 的 setter 会自动 JSON.stringify）
         player.attributes = attrs;
+    }
+
+    /**
+     * 计算五行相克系数（金克木/木克土/土克水/水克火/火克金）
+     *
+     * 用于世界BOSS战的伤害调整：
+     *   - 攻击方元素克防御方元素 → 1.5x（伤害+50%）
+     *   - 攻击方元素被防御方克制 → 0.75x（伤害-25%）
+     *   - 同元素 / 任一方为 null → 1.0x（中性）
+     *
+     * 配置来源：game_balance.json → world_boss.elemental_counter
+     *
+     * @param {string|null} attackerElement - 攻击方元素（metal/wood/water/fire/earth）
+     * @param {string|null} defenderElement - 防御方元素
+     * @param {Object} cfg - world_boss 配置对象
+     * @returns {Object} { factor, tag, description }
+     *   - factor: 相克系数（1.5 / 0.75 / 1.0）
+     *   - tag: 'advantage' / 'disadvantage' / 'neutral'
+     *   - description: 中文描述（用于前端展示）
+     * @private
+     */
+    static _calculateElementalCounter(attackerElement, defenderElement, cfg) {
+        const elementalCfg = cfg?.elemental_counter || {};
+        const advantageMultiplier = Number(elementalCfg.advantage_multiplier) || 1.5;
+        const disadvantageMultiplier = Number(elementalCfg.disadvantage_multiplier) || 0.75;
+        const neutralMultiplier = Number(elementalCfg.neutral_multiplier) || 1.0;
+        const counterMatrix = elementalCfg.counter_matrix || {
+            metal: 'wood', wood: 'earth', earth: 'water', water: 'fire', fire: 'metal'
+        };
+
+        // 任一方为空（无出战灵兽或BOSS无元素）按中性处理
+        if (!attackerElement || !defenderElement) {
+            return {
+                factor: neutralMultiplier,
+                tag: 'neutral',
+                description: '无相克（中性）'
+            };
+        }
+
+        // 同元素相安无事
+        if (attackerElement === defenderElement) {
+            return {
+                factor: neutralMultiplier,
+                tag: 'neutral',
+                description: '同元素（中性）'
+            };
+        }
+
+        // 攻击方克防御方
+        if (counterMatrix[attackerElement] === defenderElement) {
+            const elementNames = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' };
+            return {
+                factor: advantageMultiplier,
+                tag: 'advantage',
+                description: `${elementNames[attackerElement] || attackerElement}克${elementNames[defenderElement] || defenderElement}（伤害+${Math.round((advantageMultiplier - 1) * 100)}%）`
+            };
+        }
+
+        // 攻击方被防御方克制
+        if (counterMatrix[defenderElement] === attackerElement) {
+            const elementNames = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' };
+            return {
+                factor: disadvantageMultiplier,
+                tag: 'disadvantage',
+                description: `${elementNames[defenderElement] || defenderElement}克${elementNames[attackerElement] || attackerElement}（伤害-${Math.round((1 - disadvantageMultiplier) * 100)}%）`
+            };
+        }
+
+        // 非五行内的元素或无相克关系
+        return {
+            factor: neutralMultiplier,
+            tag: 'neutral',
+            description: '无相克（中性）'
+        };
     }
 
     /**

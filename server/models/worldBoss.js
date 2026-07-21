@@ -141,6 +141,49 @@ const WorldBoss = sequelize.define('WorldBoss', {
         allowNull: false,
         defaultValue: 0,
         comment: '是否全服首杀（0否1是）'
+    },
+    // ========== 技能系统字段（迁移 0039 新增，2026-07-20） ==========
+    // 配置 world_boss_data.json 中每个 BOSS 有 6 种技能（3阶段×2技能）
+    // 这些字段存储 BOSS 在战斗中的实时技能状态，BOSS 死亡后随实例归档
+    skill_cooldowns: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+        comment: '技能冷却结束时间戳映射 { skill_name: expire_timestamp_ms }'
+    },
+    active_buffs: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+        comment: 'BOSS 当前激活的 Buff 列表 [{ name, effect, atk_up_percent, lifesteal_percent, immune_control, expire_at }]'
+    },
+    minions: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+        comment: 'BOSS 召唤的小怪列表 [{ minion_id, name, hp_max, hp_current, atk, def, spawn_time }]'
+    },
+    // ========== 多行动机制字段（迁移 0053 新增，2026-07-21） ==========
+    // 配置 game_balance.json → world_boss.action_system
+    // 三大阶段状态值：幡魂（Boss 减伤）/ 魔压（Boss 加攻、玩家受伤）/ 阵势（Boss 全属性加强）
+    // 这三个字段会随玩家行动（强攻/破幡/镇魂/护阵）动态变化，BOSS 死亡后随实例归档
+    banner_soul: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 100,
+        comment: '幡魂值（0-100，初始100，高时Boss减伤）'
+    },
+    magic_pressure: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '魔压值（0-100，初始0，高时Boss攻击加强、玩家伤害下降）'
+    },
+    array_integrity: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 100,
+        comment: '阵势值（0-100，初始100，低时Boss全属性加强）'
     }
 }, {
     tableName: 'world_bosses',

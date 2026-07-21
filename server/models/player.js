@@ -698,6 +698,63 @@ const Player = sequelize.define('Player', {
         type: DataTypes.INTEGER,
         defaultValue: 0,
         comment: '法则点数（用于法则转换）'
+    },
+    // ===== 慕兰战线系统字段（migration_0041） =====
+    border_military_merit_total: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '累计军功（决定军衔，不可消耗，只能增）'
+    },
+    border_military_merit_available: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '可用军功（兑换消耗，可减）'
+    },
+    border_last_support_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '上次支援日期（用于每日重置判断）'
+    },
+    border_today_support_route: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+        comment: '今日已支援路线（scout/lamp_breaker/array_guard/raid），null=未支援'
+    },
+    border_intel_collected_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '今日已搜集军报日期（每日1次）'
+    },
+    border_intel_public_done: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '今日是否已公开军报'
+    },
+    border_beast_patrol_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '今日灵兽巡边日期（每日1次）'
+    },
+    border_remnant_explore_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '今日残图探禁日期（每日1次）'
+    },
+    border_imprint_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '今日临战刻印日期（每日1次）'
+    },
+    // ===== 神识对决系统字段（migration_0042） =====
+    divine_duel_challenge_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '上次发起神识对决挑战日期（每日重置 3 次）'
+    },
+    divine_duel_accept_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '上次接受神识对决挑战日期（每日重置 5 次）'
     }
 }, {
     tableName: 'players',

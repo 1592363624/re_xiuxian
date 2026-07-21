@@ -217,9 +217,19 @@ router.post('/try', authenticateToken, async (req, res, next) => {
         const oldRealm = player.realm;
         player.realm = nextRealm.name;
 
+        // 修复（2026-07-20）：
+        //   突破成功后必须同步更新 realm_rank 字段，否则会导致：
+        //   1. DaoCompanionService 等依赖 realm_rank 的业务判断错误
+        //   2. 排行榜/统计接口的境界排序失准
+        //   3. 瓶颈境界判断（bottleneck_realm_rank）失效
+        //   原代码只更新 player.realm（字符串），漏更 realm_rank（数值）
+        if (nextRealm.rank) {
+            player.realm_rank = nextRealm.rank;
+        }
+
         if (nextRealm.base_hp) {
-            const attrs = typeof player.attributes === 'string' 
-                ? JSON.parse(player.attributes) 
+            const attrs = typeof player.attributes === 'string'
+                ? JSON.parse(player.attributes)
                 : (player.attributes || {});
             attrs.hp_max = nextRealm.base_hp;
             attrs.mp_max = nextRealm.base_mp;
@@ -228,7 +238,15 @@ router.post('/try', authenticateToken, async (req, res, next) => {
             player.attributes = attrs;
         }
 
-        player.lifespan_max = nextRealm.base_lifespan || player.lifespan_max;
+        // 修复（2026-07-20）：
+        //   配置文件 realm_breakthrough.json 中寿命字段名为 lifespan_max，
+        //   但原代码读 nextRealm.base_lifespan（数据库 Realm 模型字段名），
+        //   导致配置中的寿命值始终取不到，玩家突破后 lifespan_max 不更新。
+        //   现兼容两种字段名：优先 lifespan_max（配置），兜底 base_lifespan（旧数据库）
+        const newLifespanMax = nextRealm.lifespan_max || nextRealm.base_lifespan;
+        if (newLifespanMax) {
+            player.lifespan_max = newLifespanMax;
+        }
         player.hp_current = nextRealm.base_hp || player.hp_current;
         player.mp_current = nextRealm.base_mp || player.mp_current;
 
@@ -283,7 +301,8 @@ router.post('/try', authenticateToken, async (req, res, next) => {
                 attribute_gain: attributeGain,
                 new_hp_max: nextRealm.base_hp,
                 new_mp_max: nextRealm.base_mp,
-                new_lifespan_max: nextRealm.lifespan_max,
+                // 修复：响应中也使用正确的字段名（lifespan_max 优先，base_lifespan 兜底）
+                new_lifespan_max: nextRealm.lifespan_max || nextRealm.base_lifespan,
                 bottleneck_state: player.bottleneck_state
             }
         });

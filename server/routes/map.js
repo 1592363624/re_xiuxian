@@ -522,13 +522,16 @@ router.get('/config', auth, async (req, res) => {
 
 /**
  * 获取境界配置（境界顺序列表）
+ *
+ * 修复（2026-07-20）：
+ *   原代码查询数据库 Realm 表，但该表数据（init_realms.js）与
+ *   realm_breakthrough.json 配置文件不一致。现统一通过 RealmService
+ *   读取配置文件，保证境界数据源唯一。
  */
 router.get('/realm-config', auth, async (req, res) => {
     try {
-        const realms = await Realm.findAll({
-            order: [['rank', 'ASC']]
-        });
-        
+        // 通过 RealmService 读取 realm_breakthrough.json 配置
+        const realms = RealmService.getAllRealms();
         const realmOrder = realms.map(r => ({
             name: r.name,
             rank: r.rank

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 配置加载模块
  * 负责加载、校验、缓存配置文件，支持热更新
  * 数据配置层的核心模块
@@ -60,6 +60,19 @@ class ConfigLoader extends EventEmitter {
             'sect_war_data',   // 宗门战资源点静态配置（批次2：9个资源点坐标/类型/产出）
             'ascension_data',  // 飞升+夺舍重生系统配置（批次3：问道/法相天地/探寻裂缝/飞升/空间节点/夺舍目标）
             'late_stage_data', // 后期系统配置（批次3：第二元神/小世界/神庙/香火/神识/法则）
+            'companion_data',  // 道侣/双修/侍妾系统配置（批次3：道侣关系/侍妾/远航/心劫）
+            'multi_dungeon_data',  // 多人副本系统配置（批次3：掩月抢亲/端午镇蛟）
+            'spirit_beast_data',   // 灵兽系统静态配置（4阶灵兽/五行相克/培养参数）
+            'dao_companion_data',  // 道侣/双修系统配置（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫）
+            'spirit_system',       // 灵力系统配置（各境界灵力上限/恢复速率/消耗/增长曲线）
+            'attribute_system',    // 属性系统配置（HP/MP 自然恢复与冥想恢复速率）
+            'border_military_data', // 慕兰战线配置（批次5：军议/支援/谍影/军功司/灵兽边境/残图匣/临战刻印）
+            'cave_legacy_data',      // 坐化遗府配置（批次5：异步多人 PvP/协作玩法，退坑玩家资产分配）
+            'spirit_beast_pvp_data', // 灵兽PVP竞技场配置（批次5：押注/段位/赛季/战术/自动战斗）
+            'spirit_beast_pasture_data', // 灵兽放养与偷菜配置（批次5：放养场所/产物/偷菜概率/护院机制）
+            'spirit_beast_abyss_data',  // 灵兽探渊配置（批次5：9层深渊/PVE怪物/PVP遭遇/兽魂凝练）
+            'taoism_gate_data',         // 太一门引道配置（批次5：5种道途/等级/技能/任务/共鸣）
+            'beast_invasion_data'       // 妖兽入侵静态配置（多人公共事件：3只妖兽属性/捐献需求/奖励池/技能表）
         ];
         const results = {};
 

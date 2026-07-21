@@ -3,7 +3,7 @@
     "description": "后期系统静态配置文件：第二元神/小世界/神庙/香火/神识/法则六大子系统全量数值。所有数值源自 docs/批次3_设计文档.md 第四章后期系统设计。",
     "version": "1.0.0",
     "last_updated": "2026-07-20",
-    "modules": ["second_soul", "small_world", "divine_temple", "incense", "divine_sense", "law"]
+    "modules": ["second_soul", "small_world", "divine_temple", "incense", "divine_sense", "divine_duel", "law"]
   },
   "second_soul": {
     "comment": "第二元神配置：化神期可凝练第二元神，独立修炼+调度模式+元神分化",
@@ -313,6 +313,30 @@
       { "purpose": "飞升灵界", "cost": 1000 },
       { "purpose": "节点稳固（定星）", "cost": 200 }
     ]
+  },
+  "divine_duel": {
+    "comment": "神识对决配置：1v1 神识小游戏，同时选择博弈（凝神/固元），带赌注机制",
+    "min_realm_name": "化神期",
+    "min_realm_rank": 23,
+    "init_shield": 100,
+    "shield_max": 100,
+    "focus_cost": 15,
+    "focus_damage": 20,
+    "stabilize_recover": 10,
+    "stabilize_reduce_factor": 0.5,
+    "both_stabilize_recover_factor": 0.5,
+    "max_rounds": 20,
+    "challenge_daily_limit": 3,
+    "accept_daily_limit": 5,
+    "bet_types": {
+      "spirit_stone": { "min": 100, "max": 10000 },
+      "divine_sense": { "min": 10, "max": 100 }
+    },
+    "entry_divine_sense_cost": 50,
+    "action_timeout_seconds": 60,
+    "challenge_timeout_seconds": 60,
+    "reward_factor_winner": 1.0,
+    "reward_factor_draw": 0.5
   },
   "law": {
     "comment": "法则转换配置：神识/碎片 → 法则点 → 转换效果",

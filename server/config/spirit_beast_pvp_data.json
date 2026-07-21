@@ -1,0 +1,123 @@
+{
+    "_meta": {
+        "version": "1.0.0",
+        "description": "灵兽PVP竞技场系统配置：押注/段位/赛季/战术/自动战斗",
+        "create_time": "2026-07-21",
+        "design_doc": "玩法文档第8节灵兽PVP对战 + 第9节战斗与风险 - 灵兽自动回合制战斗，玩家选择灵兽+战术，押注灵石，赛季排行"
+    },
+
+    "spirit_beast_pvp": {
+        "description": "灵兽PVP竞技场主配置",
+
+        "eligibility": {
+            "min_realm_rank": 1,
+            "min_beast_level": 5,
+            "min_beast_loyalty": 30,
+            "min_beast_hp_ratio": 0.3,
+            "max_beast_star_level": 10,
+            "description": "参赛资格：境界>=炼气1级 / 灵兽等级>=5 / 忠诚度>=30 / HP比例>=30%"
+        },
+
+        "challenge": {
+            "daily_challenge_limit": 10,
+            "same_opponent_cooldown_sec": 3600,
+            "match_timeout_sec": 300,
+            "description": "每日挑战上限10次 / 同一对手冷却1小时 / 匹配超时5分钟"
+        },
+
+        "bet": {
+            "min_spirit_stones": 100,
+            "max_spirit_stones": 10000,
+            "allow_friendly_match": true,
+            "friendly_match_no_bet": true,
+            "description": "押注范围100-10000灵石 / 允许友谊赛（无押注不计赛季）"
+        },
+
+        "combat": {
+            "max_rounds": 20,
+            "crit_chance": 0.15,
+            "crit_multiplier": 1.8,
+            "dodge_chance_base": 0.05,
+            "dodge_chance_speed_factor": 0.001,
+            "dodge_chance_max": 0.25,
+            "element_strong_multiplier": 1.5,
+            "element_weak_multiplier": 0.75,
+            "hp_regen_per_round": 0.0,
+            "description": "战斗参数：最多20回合 / 暴击15% / 闪避5%+速度系数(上限25%) / 元素克制1.5x或0.75x"
+        },
+
+        "tactics": {
+            "description": "战术策略：玩家选择战术影响灵兽战斗行为",
+            "options": {
+                "all_out": {
+                    "name": "全力一击",
+                    "description": "高伤害低命中，适合攻击远高于防御的灵兽",
+                    "atk_multiplier": 1.5,
+                    "def_multiplier": 0.7,
+                    "hit_penalty": 0.15,
+                    "crit_bonus": 0.10
+                },
+                "balanced": {
+                    "name": "稳健输出",
+                    "description": "中伤害高命中，平衡型战术",
+                    "atk_multiplier": 1.0,
+                    "def_multiplier": 1.0,
+                    "hit_penalty": 0.0,
+                    "crit_bonus": 0.0
+                },
+                "counter": {
+                    "name": "防御反击",
+                    "description": "低伤害但减伤，受击时有概率反击",
+                    "atk_multiplier": 0.7,
+                    "def_multiplier": 1.5,
+                    "hit_penalty": 0.0,
+                    "crit_bonus": 0.0,
+                    "counter_chance": 0.3,
+                    "counter_damage_ratio": 0.5
+                }
+            }
+        },
+
+        "ranking_points": {
+            "win": 10,
+            "lose": -5,
+            "bronce_protect": true,
+            "king_bonus": 15,
+            "description": "胜+10分 / 负-5分（青铜段位保护不扣分）/ 王者段位额外+15"
+        },
+
+        "tiers": [
+            { "key": "bronze",    "name": "青铜", "min_points": 0,    "max_points": 100,  "color": "#cd7f32", "season_reward_spirit_stones": 500 },
+            { "key": "silver",    "name": "白银", "min_points": 100,  "max_points": 300,  "color": "#c0c0c0", "season_reward_spirit_stones": 1500 },
+            { "key": "gold",      "name": "黄金", "min_points": 300,  "max_points": 700,  "color": "#ffd700", "season_reward_spirit_stones": 4000 },
+            { "key": "platinum",  "name": "铂金", "min_points": 700,  "max_points": 1500, "color": "#e5e4e2", "season_reward_spirit_stones": 10000 },
+            { "key": "diamond",   "name": "钻石", "min_points": 1500, "max_points": 3000, "color": "#b9f2ff", "season_reward_spirit_stones": 25000 },
+            { "key": "king",      "name": "王者", "min_points": 3000, "max_points": 999999, "color": "#ff6b6b", "season_reward_spirit_stones": 60000 }
+        ],
+
+        "season": {
+            "duration_days": 28,
+            "settlement_top_n": 100,
+            "top1_reward_spirit_stones": 100000,
+            "top3_reward_spirit_stones": 50000,
+            "top10_reward_spirit_stones": 20000,
+            "top100_reward_spirit_stones": 5000,
+            "description": "赛季28天 / 结算前100名 / 第1名10万灵石 / 前3名5万 / 前10名2万 / 前100名5千"
+        },
+
+        "scheduler": {
+            "check_interval_ms": 60000,
+            "auto_end_season": true,
+            "description": "每60秒检查赛季是否到期，到期自动结算"
+        },
+
+        "rewards": {
+            "win_exp": 50,
+            "lose_exp": 10,
+            "win_loyalty": 3,
+            "lose_loyalty": -2,
+            "daily_first_win_bonus": 200,
+            "description": "胜+50exp+3忠诚 / 负+10exp-2忠诚 / 每日首胜额外200灵石"
+        }
+    }
+}

@@ -734,6 +734,42 @@ class PvpService {
                 actualDamage = Math.floor(damage / 2);
             }
 
+            // ===== 道侣护道判定（设计文档 5.6.1 心契等级 L2 解锁）=====
+            // 在伤害应用前调用，若触发：被攻击方实际承受伤害减少，护道方分担部分伤害，并有概率反击攻击方
+            let protectInfo = null;
+            let counterDamageToActor = 0;
+            if (action !== 'defend' && actualDamage > 0) {
+                try {
+                    // 懒加载 DaoCompanionService，避免循环依赖
+                    const DaoCompanionService = require('./DaoCompanionService');
+                    const protectResult = await DaoCompanionService.tryProtect(
+                        target.id,
+                        actualDamage,
+                        {
+                            battleType: 'pvp',
+                            battleId: battle.id,
+                            battleRound: (battle.total_rounds || 0) + 1,
+                            attackerId: actor.id,
+                            protectorAtk: 0,  // PVP 中暂不传递护道方 ATK（道侣不在战场），反击伤害计算时取配置默认
+                            transaction: t  // 复用当前事务
+                        }
+                    );
+                    if (protectResult.triggered) {
+                        protectInfo = protectResult;
+                        // 被攻击方实际承受伤害（护道方分担了部分）
+                        actualDamage = Number(protectResult.actual_damage_to_defender);
+                        // 反击伤害（攻击方承受）
+                        counterDamageToActor = Number(protectResult.counter_damage) || 0;
+                        if (counterDamageToActor > 0) {
+                            actorHp = Math.max(0, actorHp - counterDamageToActor);
+                        }
+                    }
+                } catch (protectErr) {
+                    // 护道判定失败不影响战斗主流程
+                    console.warn('[PvpService] 道侣护道判定异常:', protectErr.message);
+                }
+            }
+
             // 应用伤害
             targetHp = Math.max(0, targetHp - actualDamage);
             // 同步回写到目标 attributes（注意：attributes 是 getter/setter，必须重新 set 整个对象）
@@ -759,6 +795,17 @@ class PvpService {
                 damage: actualDamage,
                 actor_hp: actorHp,
                 defender_hp: targetHp,
+                // 护道信息（若本回合触发道侣护道）
+                protect: protectInfo ? {
+                    triggered: true,
+                    protector_id: protectInfo.protector_id,
+                    shared_damage: protectInfo.shared_damage,
+                    counter_damage: protectInfo.counter_damage,
+                    counter_triggered: protectInfo.counter_triggered,
+                    heart_contract_level: protectInfo.heart_contract_level,
+                    log_id: protectInfo.log_id
+                } : undefined,
+                counter_damage_to_actor: counterDamageToActor || undefined,
                 timestamp: new Date().toISOString()
             });
             battle.battle_log = JSON.stringify(battleLog);  // 重新 set 整个字符串触发更新
@@ -784,6 +831,11 @@ class PvpService {
                     isDraw = true;
                 }
             }
+            // 反击致死判定：攻击方被反击至 HP<=0，目标胜
+            if (!battleEnded && actorHp <= 0 && counterDamageToActor > 0) {
+                battleEnded = true;
+                winnerId = target.id;
+            }
 
             // 持久化双方玩家与战斗记录
             await actor.save({ transaction: t });
@@ -804,7 +856,9 @@ class PvpService {
                     battle_ended: true,
                     winner_id: winnerId,
                     is_draw: isDraw,
-                    settle: settleResult
+                    settle: settleResult,
+                    // 护道触发信息（前端用于展示动画）
+                    protect_info: protectInfo
                 };
             }
 
@@ -820,7 +874,9 @@ class PvpService {
                 actor_hp: actorHp,
                 defender_hp: targetHp,
                 battle_ended: false,
-                next_actor: actorRole === 'attacker' ? 'defender' : 'attacker'
+                next_actor: actorRole === 'attacker' ? 'defender' : 'attacker',
+                // 护道触发信息（前端用于展示动画）
+                protect_info: protectInfo
             };
         } catch (err) {
             if (!t.finished) await t.rollback();

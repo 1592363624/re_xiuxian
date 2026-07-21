@@ -106,15 +106,28 @@ class RealmService {
      * 统一封装"玩家境界 rank vs 配置要求 rank"的比较逻辑，
      * 避免 server 中各处再写一遍 getRealmRank + resolveMinRealmRank 的样板代码。
      *
+     * 修复 B45：优先使用 player.realm_rank（数值更可靠），fallback 到 getRealmRank(player.realm)
+     * 避免玩家 realm 字段被错误设置（如 admin 强制突破只改 realm 不改 realm_rank）时业务判断错乱
+     *
      * @param {Object|string} playerOrRealm - 玩家对象 或 玩家境界名称
      * @param {string} minRealmName - 配置中的境界要求（大境界名或具体境界名）
      * @returns {{ met: boolean, playerRank: number, requiredRank: number, reason?: string }}
      */
     meetsRealmRequirement(playerOrRealm, minRealmName) {
-        const playerRealmName = typeof playerOrRealm === 'string'
-            ? playerOrRealm
-            : playerOrRealm?.realm;
-        const playerRank = this.getRealmRank(playerRealmName);
+        let playerRank;
+        let playerRealmName;
+        if (typeof playerOrRealm === 'string') {
+            // 传入字符串：按字符串解析
+            playerRealmName = playerOrRealm;
+            playerRank = this.getRealmRank(playerRealmName);
+        } else {
+            // 传入对象：优先用 realm_rank（数值更可靠），fallback 到 realm 字符串解析
+            // 修复 B45：避免 realm 与 realm_rank 不一致时业务判断错乱
+            playerRealmName = playerOrRealm?.realm;
+            playerRank = (playerOrRealm?.realm_rank && playerOrRealm.realm_rank > 0)
+                ? playerOrRealm.realm_rank
+                : this.getRealmRank(playerRealmName);
+        }
         const requiredRank = this.resolveMinRealmRank(minRealmName);
 
         if (playerRank <= 0) {

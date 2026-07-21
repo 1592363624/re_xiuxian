@@ -365,6 +365,48 @@ const deepExpRateLabel = computed(() => {
 })
 
 /**
+ * 拼装闭关结算日志文案（修为 + HP/MP 恢复值）
+ *
+ * 后端 routes/seclusion.js 返回字段：
+ *   - data.exp_gain: number  本次获得修为
+ *   - data.forced_end: boolean  是否强行出关（深度闭关未达最短时长）
+ *   - data.hp_restored: number  HP 恢复值
+ *   - data.mp_restored: number  MP 恢复值
+ *   - data.actual_duration: number  实际闭关时长（秒）
+ *
+ * 修复 B13（保持原修复）：exp_gain 必须用 ?? 0，禁止 fallback 到 player.exp，
+ *   否则立即结束时 gain 会显示玩家总修为 BigInt 字符串。
+ * 修复 B4-Reward（本轮新增）：补充 HP/MP 恢复值展示，避免后端返回字段被前端丢弃。
+ *
+ * @param {Object} res - store.endSeclusion / store.forceEndSeclusion 返回值
+ * @param {boolean} isForceMode - 是否为强行出关按钮触发（用于文案区分）
+ * @returns {string} 日志文案
+ */
+const buildSeclusionSettleLog = (res, isForceMode = false) => {
+  // 严格使用 exp_gain 字段，未返回或为 0 时显示 0（不再 fallback 到总修为）
+  const gain = Number(res?.data?.exp_gain ?? 0)
+  const isForced = res?.data?.forced_end || isForceMode
+  const hpRestored = Number(res?.data?.hp_restored ?? 0)
+  const mpRestored = Number(res?.data?.mp_restored ?? 0)
+  const modeLabel = isDeep.value ? '深度闭关' : '闭关'
+
+  let logContent
+  if (isForced) {
+    logContent = `强行出关！${modeLabel}未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${formatNumber(gain)} 点。`
+  } else {
+    logContent = `结束${modeLabel}，本次修炼共获得修为 ${formatNumber(gain)} 点。`
+  }
+  // 补充 HP/MP 恢复值（仅在确实有恢复时显示，避免无意义的"+0"）
+  if (hpRestored > 0 || mpRestored > 0) {
+    const restoreParts = []
+    if (hpRestored > 0) restoreParts.push(`气血 +${formatNumber(hpRestored)}`)
+    if (mpRestored > 0) restoreParts.push(`灵力 +${formatNumber(mpRestored)}`)
+    logContent += ` 吐纳归元 ${restoreParts.join('、')}。`
+  }
+  return logContent
+}
+
+/**
  * 结束闭关修炼（正常结算）
  */
 const handleEnd = async () => {
@@ -372,17 +414,8 @@ const handleEnd = async () => {
   loading.value = true
   try {
     const res = await store.endSeclusion()
-    // 修复 B13：旧逻辑 `res?.data?.exp_gain || res?.data?.player?.exp || expGained.value || 0`
-    // 在 exp_gain=0（如立即结束）时会短路到 player.exp（玩家总修为 BigInt 字符串），
-    // 导致日志显示"获得 99999999999 修为"。
-    // 新逻辑：明确只用 exp_gain，未返回或为 0 时显示 0，不再 fallback 到总修为。
-    const gain = Number(res?.data?.exp_gain ?? 0)
+    const logContent = buildSeclusionSettleLog(res, false)
     const isForced = res?.data?.forced_end
-    const modeLabel = isDeep.value ? '深度闭关' : '闭关'
-    let logContent = `结束${modeLabel}，本次修炼共获得修为 ${formatNumber(gain)} 点。`
-    if (isForced) {
-      logContent = `强行出关！${modeLabel}未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${formatNumber(gain)} 点。`
-    }
     uiStore.addLog({
       content: logContent,
       type: isForced ? 'warning' : 'success',
@@ -406,9 +439,12 @@ const handleForceEnd = async () => {
   loading.value = true
   try {
     const res = await store.forceEndSeclusion()
-    const gain = res?.data?.exp_gain || res?.data?.player?.exp || expGained.value || 0
+    // 修复 B13：与 handleEnd 保持一致，使用 buildSeclusionSettleLog 统一拼装
+    // 旧逻辑 `res?.data?.exp_gain || res?.data?.player?.exp || ...` 在 exp_gain=0 时
+    // 会 fallback 到 player.exp（总修为 BigInt 字符串），显示"获得 99999999999 修为"
+    const logContent = buildSeclusionSettleLog(res, true)
     uiStore.addLog({
-      content: `强行出关！深度闭关未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${gain} 点。`,
+      content: logContent,
       type: 'warning',
       actorId: 'self'
     })

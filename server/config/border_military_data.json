@@ -1,0 +1,241 @@
+{
+  "_comment": "慕兰战线完整配置（玩法文档第16节）- 包含军议/支援/谍影/军功司/灵兽边境/残图匣/临战刻印 7 大子系统",
+  "_version": "1.0.0",
+  "_lastUpdated": "2026-07-21",
+
+  "settings": {
+    "enabled": true,
+    "min_realm": "结丹期",
+    "min_realm_rank": 15,
+    "daily_reset_hour": 0,
+    "support_daily_limit": 1,
+    "intel_daily_limit": 1,
+    "beast_patrol_daily_limit": 1,
+    "remnant_map_daily_limit": 1,
+    "imprint_daily_limit": 1,
+    "imprint_cooldown_seconds": 86400,
+    "imprint_duration_seconds": 86400,
+    "patrol_duration_seconds": 3600,
+    "remnant_explore_cooldown_seconds": 7200,
+    "season_reset_days": 30
+  },
+
+  "ranks": {
+    "_comment": "军衔系统：按累计军功自动晋升，军衔不可倒退（兑换只消耗可用军功）",
+    "levels": [
+      { "rank": 0, "name": "白丁", "min_merit": 0, "daily_support_bonus": 0, "intel_identify_bonus": 0 },
+      { "rank": 1, "name": "戍卒", "min_merit": 7, "daily_support_bonus": 0.05, "intel_identify_bonus": 0.05 },
+      { "rank": 2, "name": "伍长", "min_merit": 21, "daily_support_bonus": 0.10, "intel_identify_bonus": 0.10 },
+      { "rank": 3, "name": "什长", "min_merit": 49, "daily_support_bonus": 0.15, "intel_identify_bonus": 0.15 },
+      { "rank": 4, "name": "百户", "min_merit": 81, "daily_support_bonus": 0.20, "intel_identify_bonus": 0.20 },
+      { "rank": 5, "name": "千户", "min_merit": 150, "daily_support_bonus": 0.25, "intel_identify_bonus": 0.25 },
+      { "rank": 6, "name": "天南边军", "min_merit": 300, "daily_support_bonus": 0.30, "intel_identify_bonus": 0.30, "is_milestone": true, "milestone_badge": "天南边军徽章" }
+    ]
+  },
+
+  "milestones": {
+    "_comment": "里程碑奖励：累计军功达到阈值自动发放",
+    "thresholds": [
+      { "merit": 7, "rewards": { "spirit_stones": 500, "items": [{ "key": "huanglong_merit_token", "quantity": 1 }] }, "title": "初阵立功" },
+      { "merit": 21, "rewards": { "spirit_stones": 2000, "items": [{ "key": "huanglong_merit_token", "quantity": 3 }] }, "title": "戍边有功" },
+      { "merit": 49, "rewards": { "spirit_stones": 5000, "items": [{ "key": "divine_sense_jade_slip", "quantity": 1 }] }, "title": "百战之士" },
+      { "merit": 81, "rewards": { "spirit_stones": 10000, "items": [{ "key": "tianan_border_badge", "quantity": 1 }] }, "title": "天南边军" }
+    ]
+  },
+
+  "daily_briefing": {
+    "_comment": "每日军议：3 个关键提示（密令路线/险棋路线/粮道路线），各路线当日支援有加成",
+    "routes": ["scout", "lamp_breaker", "array_guard", "raid"],
+    "secret_order_bonus_rate": 0.5,
+    "risky_route_failure_penalty": 0.3,
+    "risky_route_success_bonus_rate": 0.5,
+    "grain_route_spirit_stone_bonus_rate": 0.5
+  },
+
+  "support_routes": {
+    "_comment": "4 种支援路线，各有不同收益和风险",
+    "scout": {
+      "name": "斥候",
+      "description": "稳健探路，偏基础材料",
+      "base_merit": 2,
+      "spirit_stone_range": [50, 150],
+      "item_drops": [
+        { "key": "spirit_grass", "drop_rate": 0.3, "quantity_range": [1, 3] },
+        { "key": "array_flag_fragment", "drop_rate": 0.2, "quantity_range": [1, 2] }
+      ],
+      "failure_rate": 0.05,
+      "failure_penalty": { "spirit_stones": 50, "hp_loss_rate": 0.05 }
+    },
+    "lamp_breaker": {
+      "name": "破灯",
+      "description": "克制慕兰圣灯，低概率获得【慕兰圣灯残焰】",
+      "base_merit": 3,
+      "spirit_stone_range": [80, 200],
+      "item_drops": [
+        { "key": "mulan_lamp_remnant", "drop_rate": 0.05, "quantity_range": [1, 1] },
+        { "key": "array_flag_fragment", "drop_rate": 0.25, "quantity_range": [1, 2] }
+      ],
+      "failure_rate": 0.15,
+      "failure_penalty": { "spirit_stones": 100, "hp_loss_rate": 0.10 }
+    },
+    "array_guard": {
+      "name": "护阵",
+      "description": "风险最低，偏灵石和阵旗残片",
+      "base_merit": 1,
+      "spirit_stone_range": [100, 250],
+      "item_drops": [
+        { "key": "array_flag_fragment", "drop_rate": 0.4, "quantity_range": [1, 3] }
+      ],
+      "failure_rate": 0.02,
+      "failure_penalty": { "spirit_stones": 30, "hp_loss_rate": 0.02 }
+    },
+    "raid": {
+      "name": "奇袭",
+      "description": "收益和风险更高，偏妖丹、蛇胆和稀有战利品",
+      "base_merit": 5,
+      "spirit_stone_range": [150, 400],
+      "item_drops": [
+        { "key": "monster_core", "drop_rate": 0.20, "quantity_range": [1, 2] },
+        { "key": "snake_gall", "drop_rate": 0.15, "quantity_range": [1, 1] },
+        { "key": "mulan_lamp_remnant", "drop_rate": 0.03, "quantity_range": [1, 1] }
+      ],
+      "failure_rate": 0.25,
+      "failure_penalty": { "spirit_stones": 200, "hp_loss_rate": 0.15 }
+    }
+  },
+
+  "intel": {
+    "_comment": "慕兰谍影：每日搜集 3 条真假混杂军报，辨报后公开军报影响当日支援",
+    "reports_per_collect": 3,
+    "true_report_rate": 0.5,
+    "identify_difficulty": {
+      "_comment": "辨报成功率：基础50% + 军衔加成 - 报告混淆度",
+      "base_success_rate": 0.5,
+      "max_success_rate": 0.95
+    },
+    "true_report_reward": {
+      "merit": 3,
+      "support_bonus_rate": 0.20
+    },
+    "false_report_penalty": {
+      "merit_loss": 1,
+      "support_penalty_rate": 0.20
+    },
+    "report_types": [
+      { "type": "troop_movement", "description": "敌军动向报告", "confusion_rate": 0.10 },
+      { "type": "supply_line", "description": "粮道情报报告", "confusion_rate": 0.15 },
+      { "type": "lamp_status", "description": "圣灯状态报告", "confusion_rate": 0.20 },
+      { "type": "array_intel", "description": "阵法情报报告", "confusion_rate": 0.12 },
+      { "type": "elite_movement", "description": "精锐部队动向", "confusion_rate": 0.25 }
+    ]
+  },
+
+  "military_shop": {
+    "_comment": "军功司兑换：消耗可用军功兑换物品",
+    "items": [
+      { "key": "huiling_pill", "name": "回灵丹", "cost_merit": 5, "description": "恢复 500 修为", "daily_limit": 3 },
+      { "key": "huanglong_merit_token", "name": "黄龙军功牌", "cost_merit": 10, "description": "用于高阶装备炼制", "daily_limit": 1 },
+      { "key": "mulan_lamp_remnant", "name": "慕兰圣灯残焰", "cost_merit": 30, "description": "用于虚天鼎/乾蓝冰焰线", "daily_limit": 1 },
+      { "key": "divine_sense_jade_slip", "name": "神识玉简", "cost_merit": 50, "description": "提升神识余额 +100", "daily_limit": 1 },
+      { "key": "tianan_border_badge", "name": "天南边军徽章", "cost_merit": 100, "description": "军衔达到天南边军后可兑换，永久属性加成", "daily_limit": 1, "requires_rank": 6 }
+    ]
+  },
+
+  "beast_patrol": {
+    "_comment": "灵兽边境：派出灵兽巡边，1小时后结算",
+    "routes": {
+      "scout": {
+        "name": "斥候",
+        "description": "偏残图路线",
+        "duration_seconds": 3600,
+        "merit_range": [1, 3],
+        "item_drops": [
+          { "key": "cangkun_remnant_fragment_a", "drop_rate": 0.20, "quantity_range": [1, 1] },
+          { "key": "cangkun_remnant_fragment_b", "drop_rate": 0.15, "quantity_range": [1, 1] }
+        ],
+        "beast_exp": 50
+      },
+      "grain_guard": {
+        "name": "护粮",
+        "description": "偏灵石补给",
+        "duration_seconds": 3600,
+        "merit_range": [1, 2],
+        "spirit_stone_range": [100, 300],
+        "beast_exp": 40
+      },
+      "camp_raid": {
+        "name": "袭营",
+        "description": "风险更高但军功和稀有材料更好",
+        "duration_seconds": 3600,
+        "merit_range": [2, 5],
+        "item_drops": [
+          { "key": "monster_core", "drop_rate": 0.25, "quantity_range": [1, 2] },
+          { "key": "snake_gall", "drop_rate": 0.15, "quantity_range": [1, 1] }
+        ],
+        "beast_exp": 80,
+        "failure_rate": 0.20
+      }
+    },
+    "min_beast_level": 1,
+    "min_beast_loyalty": 30
+  },
+
+  "remnant_map": {
+    "_comment": "残图匣：4 类残片合成完整残图，按图探禁获得奖励",
+    "fragment_types": ["A", "B", "C", "D"],
+    "fragment_names": {
+      "A": "苍坤残片·甲",
+      "B": "苍坤残片·乙",
+      "C": "苍坤残片·丙",
+      "D": "苍坤残片·丁"
+    },
+    "combine_cost_spirit_stones": 500,
+    "explore": {
+      "duration_seconds": 7200,
+      "merit_range": [3, 8],
+      "exp_range": [100, 500],
+      "spirit_stone_range": [200, 800],
+      "item_drops": [
+        { "key": "cangkun_old_material", "drop_rate": 0.30, "quantity_range": [1, 3] },
+        { "key": "divine_sense_jade_slip", "drop_rate": 0.05, "quantity_range": [1, 1] },
+        { "key": "huanglong_merit_token", "drop_rate": 0.10, "quantity_range": [1, 2] }
+      ],
+      "failure_rate": 0.10,
+      "failure_penalty": { "spirit_stones": 100, "hp_loss_rate": 0.10 }
+    }
+  },
+
+  "war_imprint": {
+    "_comment": "临战刻印：给已有法宝施加一次性刻印，当日匹配路线自动触发",
+    "imprint_types": {
+      "lamp_breaker": {
+        "name": "破灯刻印",
+        "description": "适配 .支援慕兰 破灯，提升破灯成功率与收益",
+        "matched_route": "lamp_breaker",
+        "materials": [
+          { "key": "array_flag_fragment", "quantity": 3 }
+        ],
+        "bonus_rate": 0.30
+      },
+      "array_guard": {
+        "name": "护阵刻印",
+        "description": "适配 .支援慕兰 护阵，提升护阵收益与降低失败率",
+        "matched_route": "array_guard",
+        "materials": [
+          { "key": "array_flag_fragment", "quantity": 2 }
+        ],
+        "bonus_rate": 0.25
+      },
+      "scout_stealth": {
+        "name": "潜行刻印",
+        "description": "适配 .支援慕兰 斥候 或 .支援慕兰 奇袭，提升潜行能力",
+        "matched_route": ["scout", "raid"],
+        "materials": [
+          { "key": "spirit_grass", "quantity": 5 }
+        ],
+        "bonus_rate": 0.20
+      }
+    },
+    "max_active_imprints": 1
+  }
+}

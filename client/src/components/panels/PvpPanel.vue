@@ -330,6 +330,7 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
+import { usePlayerStore } from '../../stores/player'
 import { formatTime } from '../../utils/format'
 import Modal from '../common/Modal.vue'
 import {
@@ -341,6 +342,8 @@ import {
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
+// 引入 playerStore 用于读取当前玩家ID（PVP 结算时判断胜/败方）
+const playerStore = usePlayerStore()
 
 // ====== 响应式状态 ======
 const loading = ref(false)
@@ -489,6 +492,79 @@ const refreshLeaderboard = () => {
 }
 
 /**
+ * 拼装 PVP 结算奖励日志文案
+ *
+ * 后端 PvpService.executeAction / flee 返回的 settle 字段结构：
+ *   - settle.attacker_honor_gain: number  攻击方荣誉获得
+ *   - settle.defender_honor_gain: number  防守方荣誉获得
+ *   - settle.attacker_exp_gain: number  攻击方修为获得
+ *   - settle.defender_exp_gain: number  防守方修为获得
+ *   - settle.spirit_stone_reward: number  灵石奖励（胜方）
+ *   - settle.loser_consolation_stone: number  败方保底灵石
+ *   - settle.loser_consolation_exp: number  败方保底修为
+ *   - settle.loser_id: number|null  败方玩家ID（平局/逃跑可能为 null）
+ *   - settle.drop_item_key: string|null  掉落物品 key
+ *   - settle.drop_item_quantity: number  掉落物品数量
+ *   - settle.winner_id: number  胜者玩家ID
+ *   - settle.is_draw: boolean  是否平局
+ *   - settle.karma_change: number  因果值变化（攻方胜且战力差距大时为负，因果值降低）
+ *
+ * 设计要点：
+ *   - 后端未直接返回"我是攻方还是守方"，但通过 winner_id + loser_id 可推断身份
+ *   - 平局：双方荣誉都获得，无灵石奖励
+ *   - 胜方：荣誉 + 灵石 + 修为 + 可能掉落物品
+ *   - 败方：保底灵石 + 保底修为（参与奖），不获得荣誉
+ *
+ * @param {Object} settle - 后端返回的结算对象
+ * @param {number} myPlayerId - 当前玩家ID
+ * @returns {string} 日志文案
+ */
+const buildPvpSettleLog = (settle, myPlayerId) => {
+  if (!settle) return '斗法结束'
+  const isDraw = settle.is_draw === true
+  const isWinner = !isDraw && settle.winner_id === myPlayerId
+  const isLoser = !isDraw && settle.loser_id === myPlayerId
+
+  // 荣誉/修为：胜方取攻/守中非 0 的那个（自身身份对应），败方无荣誉
+  // 平局时双方都获得荣誉，取攻/守荣誉中非 0 的那个作为己方获得
+  const myHonor = isLoser ? 0
+    : (Number(settle.attacker_honor_gain) || Number(settle.defender_honor_gain) || 0)
+  const myExp = isLoser
+    ? (Number(settle.loser_consolation_exp) || 0)
+    : (Number(settle.attacker_exp_gain) || Number(settle.defender_exp_gain) || 0)
+  const myStones = isWinner
+    ? (Number(settle.spirit_stone_reward) || 0)
+    : (isLoser ? (Number(settle.loser_consolation_stone) || 0) : 0)
+  const dropKey = settle.drop_item_key
+  const dropQty = Number(settle.drop_item_quantity) || 0
+
+  let resultText
+  if (isDraw) {
+    resultText = '斗法平局'
+  } else if (isWinner) {
+    resultText = '斗法胜利'
+  } else {
+    resultText = '斗法落败'
+  }
+
+  const parts = [resultText]
+  // 荣誉/修为/灵石（仅在数值 > 0 时展示，避免"获得 0 荣誉"冗余）
+  if (myHonor > 0) parts.push(`荣誉 +${myHonor}`)
+  if (myExp > 0) parts.push(`修为 +${myExp}`)
+  if (myStones > 0) parts.push(`灵石 +${myStones}`)
+  // 掉落物品（败方被掉落，仅胜方视角展示）
+  if (isWinner && dropKey) {
+    parts.push(`掉落 ${dropKey}${dropQty > 1 ? `×${dropQty}` : ''}`)
+  }
+  // 因果值变化（仅在非 0 时展示）
+  const karmaChange = Number(settle.karma_change) || 0
+  if (karmaChange !== 0) {
+    parts.push(`因果 ${karmaChange > 0 ? '+' : ''}${karmaChange}`)
+  }
+  return parts.join('，')
+}
+
+/**
  * 执行战斗动作
  * @param action 动作类型：attack/skill/defend
  */
@@ -511,13 +587,27 @@ const handleAction = async (action) => {
       currentAttackerHp.value = data.attacker_hp ?? currentAttackerHp.value
       currentDefenderHp.value = data.defender_hp ?? currentDefenderHp.value
     }
-    uiStore.showToast(data?.message || `执行 ${actionLabel(action)} 完成`, 'success')
+    // 修复 B4-Reward：字段名应为 battle_ended（后端返回），原 is_finished 永远为 undefined
+    // 导致战斗结束后不刷新排行榜，且不展示结算奖励
+    if (data?.battle_ended) {
+      // 战斗已结束：展示结算奖励日志
+      const myPlayerId = playerStore.player?.id
+      const settle = data.settle
+      const logContent = buildPvpSettleLog(settle, myPlayerId)
+      const isWinner = settle?.winner_id === myPlayerId
+      const isDraw = settle?.is_draw === true
+      uiStore.addLog({
+        content: logContent,
+        type: isDraw ? 'info' : (isWinner ? 'success' : 'warning'),
+        actorId: 'self'
+      })
+      uiStore.showToast(logContent, isDraw ? 'info' : (isWinner ? 'success' : 'warning'))
+      await fetchLeaderboard()
+    } else {
+      uiStore.showToast(data?.message || `执行 ${actionLabel(action)} 完成`, 'success')
+    }
     // 重新拉取状态以同步回合信息与日志
     await fetchStatus()
-    // 战斗已结束，刷新排行榜
-    if (data?.is_finished) {
-      await fetchLeaderboard()
-    }
   } catch (err) {
     const msg = err?.response?.data?.message || '动作执行失败'
     uiStore.showToast(msg, 'error')
@@ -535,6 +625,9 @@ const openFleeConfirm = () => {
 
 /**
  * 确认逃跑
+ *
+ * 修复 B4-Reward：逃跑也有 settle 字段（败方保底奖励），需展示给玩家
+ * 后端 PvpService.flee 返回 { fled, winner_id, settle }
  */
 const confirmFlee = async () => {
   if (actionLoading.value) return
@@ -542,8 +635,20 @@ const confirmFlee = async () => {
   try {
     const res = await flee()
     const data = res.data?.data || res.data
-    uiStore.showToast(data?.message || '已逃离战斗', 'warning')
     fleeConfirmShow.value = false
+    // 展示逃跑结算奖励（败方保底）
+    if (data?.settle) {
+      const myPlayerId = playerStore.player?.id
+      const logContent = `主动逃离战斗，${buildPvpSettleLog(data.settle, myPlayerId)}`
+      uiStore.addLog({
+        content: logContent,
+        type: 'warning',
+        actorId: 'self'
+      })
+      uiStore.showToast(logContent, 'warning')
+    } else {
+      uiStore.showToast(data?.message || '已逃离战斗', 'warning')
+    }
     await fetchStatus()
     await fetchLeaderboard()
   } catch (err) {

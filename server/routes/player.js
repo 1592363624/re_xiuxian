@@ -24,7 +24,8 @@ router.get('/me', authMiddleware, async (req, res) => {
         }
 
         const realmConfig = game.RealmService.getRealmByName(player.realm);
-        const fullAttributes = game.AttributeService.calculateFullAttributes(player);
+        // 使用异步版本：包含装备加成 + 灵兽加成（出战灵兽按比例加成玩家属性）
+        const fullAttributes = await game.AttributeService.calculateFullAttributesAsync(player);
         const lifespanStatus = game.LifespanService.getLifespanStatus(player);
         const expResult = game.ExperienceService.getExpCap(player);
         const canBreakthrough = game.ExperienceService.canBreakthrough(player);
@@ -36,11 +37,18 @@ router.get('/me', authMiddleware, async (req, res) => {
                 username: player.username,
                 nickname: player.nickname,
                 realm: player.realm,
+                // 修复 B45：暴露 realm_rank 顶层字段，避免前端需要从 realmInfo.rank 间接读取
+                // 同时为 RealmService.meetsRealmRequirement 等业务判断提供可靠数值来源
+                realm_rank: player.realm_rank || 0,
                 role: player.role,
                 // 新增：暴露 is_dead 字段供前端渲染 DeathOverlay
                 // 修复 B3/B4：之前 is_dead 字段从未暴露给前端，前端无法判断玩家是否死亡
                 is_dead: player.is_dead || false,
                 death_reason: player.death_reason || null,
+                // 修复（2026-07-21）：补暴露 death_time 字段
+                // 前端 DeathOverlay.vue 的"陨落时刻"显示依赖此字段，原代码漏返回导致 undefined
+                // 同时toISOString 统一为 ISO 8601 字符串，避免前端处理 Date 对象时区问题
+                death_time: player.death_time ? new Date(player.death_time).toISOString() : null,
                 realmInfo: realmConfig ? {
                     name: realmConfig.name,
                     rank: realmConfig.rank,
@@ -77,8 +85,17 @@ router.get('/me', authMiddleware, async (req, res) => {
                 divine_sense_balance: player.divine_sense_balance || 0,               // 神识余额
                 law_points: player.law_points || 0,                                   // 法则点数
                 age: player.lifespan_current,
+                // 修复 B41：补加 lifespan_current / lifespan_max 顶层字段，与数据库字段名一致
+                // 前端 PlayerStatus.vue 等组件直接读取 player.lifespan_current / player.lifespan_max
+                // 之前只暴露 age 和 lifespan 对象，导致前端 lifePercentage 计算为 NaN%
+                lifespan_current: player.lifespan_current,
+                lifespan_max: player.lifespan_max,
                 lifespan: lifespanStatus,
                 attributes: fullAttributes.final,
+                // 灵兽出战加成信息（前端用于展示"灵兽助战"状态、加成比例）
+                // 来源：AttributeService.calculateFullAttributesAsync → SpiritBeastService.getActiveBeastBonus
+                // 未出战时为 null
+                spirit_beast: fullAttributes.info?.spirit_beast || null,
                 // 修复 B15：hp_current 是 BIGINT 序列化为 string，hp_max 是 Number，
                 // 前端做除法时类型混乱。统一为字符串，前端用 Number/BigInt 显式转换。
                 hp_current: player.hp_current?.toString() || '0',
@@ -149,6 +166,9 @@ router.post('/reincarnate', authMiddleware, async (req, res) => {
         player.death_reason = null;
         player.death_time = null;
         player.realm = '凡人';
+        // 修复 B45：轮回时同步重置 realm_rank，避免 realm 与 realm_rank 不一致
+        // （否则轮回后 realm="凡人" 但 realm_rank 仍是高境界，导致业务判断错乱）
+        player.realm_rank = game.RealmService.getRealmRank('凡人');
         player.exp = keptExp;
         player.lifespan_current = initialAge;
         player.lifespan_max = initialLifespan;
@@ -213,14 +233,17 @@ router.get('/attributes', authMiddleware, async (req, res) => {
             });
         }
 
-        const fullAttributes = game.AttributeService.calculateFullAttributes(player);
-        const battleAttributes = game.AttributeService.getBattleAttributes(player, 'normal');
+        // 使用异步版本：包含装备加成 + 灵兽加成（出战灵兽按比例加成玩家属性）
+        // fullAttributes 结构：{ final, breakdown, info }
+        //   - final: 最终属性（含灵兽/装备/天赋/称号等所有加成）
+        //   - breakdown.spirit_beast: 灵兽对属性的加成明细
+        //   - info.spirit_beast: 出战灵兽简要信息（beast_name/element/star_level/level/bonus_rate/combat_power）
+        const fullAttributes = await game.AttributeService.calculateFullAttributesAsync(player);
 
         res.json({
             code: 200,
             data: {
                 basic_attributes: fullAttributes,
-                battle_attributes: battleAttributes,
                 spirit_root_bonus: game.AttributeService.getSpiritRootBonus(player.spirit_roots)
             }
         });

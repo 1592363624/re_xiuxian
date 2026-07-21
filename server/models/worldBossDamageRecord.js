@@ -93,6 +93,23 @@ const WorldBossDamageRecord = sequelize.define('WorldBossDamageRecord', {
         allowNull: false,
         defaultValue: 1,
         comment: '是否算作参与（伤害>0）'
+    },
+    // ========== 多行动机制字段（迁移 0053 新增，2026-07-21） ==========
+    // 配置 game_balance.json → world_boss.action_system
+    // 记录玩家上次行动类型与连续相同行动次数，用于触发"重复行动惩罚"
+    // 4 种行动：assault=强攻 / break_banner=破幡 / suppress_soul=镇魂 / protect_array=护阵
+    // 切换行动类型时 action_streak 重置为 1，连续 >=3 次同一行动触发 0.5 倍伤害惩罚
+    last_action: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        defaultValue: null,
+        comment: '上次行动类型（assault/break_banner/suppress_soul/protect_array）'
+    },
+    action_streak: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '连续相同行动次数'
     }
 }, {
     tableName: 'world_boss_damage_records',

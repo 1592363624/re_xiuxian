@@ -11,10 +11,12 @@
 const StateRegistry = require('../StateRegistry');
 const PlayerStateMachine = require('../PlayerStateMachine');
 const Player = require('../../../models/player');
-const Realm = require('../../../models/realm');
 const sequelize = require('../../../config/database');
 const { Op } = require('sequelize');
 const { infrastructure } = require('../../../modules');
+// 修复：统一使用 RealmService 读取配置文件，避免数据库 Realm 表与配置不一致
+// （init_realms.js 与 realm_breakthrough.json 数据严重不一致，导致倍率计算错误）
+const RealmService = require('../../../game/core/RealmService');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -34,12 +36,17 @@ function getSeclusionConfigs() {
 }
 
 /**
- * 获取境界加成倍率（与 seclusion.js 逻辑保持一致）
+ * 获取境界加成倍率（与 routes/seclusion.js 逻辑保持一致）
+ *
+ * 修复（2026-07-20）：
+ *   原代码直接查询数据库 Realm 表（init_realms.js），其境界 rank 与
+ *   realm_breakthrough.json 配置文件不一致（化神初期 db.rank=27 vs config.rank=23）。
+ *   现统一通过 RealmService 读取配置文件，保证数据源唯一。
  */
-async function getRealmMultiplier(realmName) {
+function getRealmMultiplier(realmName) {
     try {
-        const realm = await Realm.findOne({ where: { name: realmName } });
-        if (realm) {
+        const realm = RealmService.getRealmByName(realmName);
+        if (realm && realm.rank) {
             return 1.0 + (realm.rank - 1) * 0.1;
         }
     } catch (err) {
@@ -146,7 +153,8 @@ function registerSeclusionState() {
                     const actualDuration = Math.max(0, Math.floor((now - startTime) / 1000));
                     const isDeep = locked.seclusion_mode === 'deep';
                     const config = isDeep ? seclusionConfigs.deep : seclusionConfigs.normal;
-                    const realmMultiplier = await getRealmMultiplier(locked.realm);
+                    // 修复：getRealmMultiplier 已改为同步函数（直接读配置，不再查数据库）
+                    const realmMultiplier = getRealmMultiplier(locked.realm);
 
                     // 深度闭关已过 end_time 视为正常出关（不触发强行出关惩罚）
                     const expGain = Math.floor(

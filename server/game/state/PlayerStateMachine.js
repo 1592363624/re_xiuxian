@@ -28,6 +28,8 @@
  *   IN_DUNGEON - 副本挑战中（与一切状态互斥，玩家被锁定在副本场景内）
  *   IN_WORLD_BOSS - 讨伐世界BOSS中（与一切状态互斥，玩家需先撤退才能开始其他操作）
  *   IN_SECT_WAR - 宗门战参战中（与一切状态互斥，玩家需先离开战役才能开始其他操作）
+ *   IN_DUAL_CULTIVATION - 闭关双修中（与一切状态互斥，玩家间道侣 1v1 双修玩法）
+ *   IN_BEAST_INVASION - 妖兽入侵斩妖中（与一切状态互斥，玩家需先撤退才能开始其他操作）
  *   新增玩法可注册自定义枚举值
  *
  * 互斥规则（默认）：
@@ -58,7 +60,9 @@ const PlayerState = Object.freeze({
     SOUL_OUT: 'SOUL_OUT',  // 元婴出窍中（与一切状态互斥，肉身静止）
     IN_DUNGEON: 'IN_DUNGEON',  // 副本挑战中（与一切状态互斥，玩家被锁定在副本场景内）
     IN_WORLD_BOSS: 'IN_WORLD_BOSS',  // 讨伐世界BOSS中（与一切状态互斥，玩家需先撤退才能开始其他操作）
-    IN_SECT_WAR: 'IN_SECT_WAR'  // 宗门战参战中（与一切状态互斥，玩家需先离开战役才能开始其他操作）
+    IN_SECT_WAR: 'IN_SECT_WAR',  // 宗门战参战中（与一切状态互斥，玩家需先离开战役才能开始其他操作）
+    IN_DUAL_CULTIVATION: 'IN_DUAL_CULTIVATION',  // 闭关双修中（与一切状态互斥，玩家间道侣 1v1 双修玩法）
+    IN_BEAST_INVASION: 'IN_BEAST_INVASION'  // 妖兽入侵斩妖中（与一切状态互斥，玩家需先撤退才能开始其他操作）
 });
 
 class PlayerStateMachine {

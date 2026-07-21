@@ -5,7 +5,7 @@
  * 玩家攻击BOSS后进入此状态，与一切其他状态互斥（闭关/历练/移动/PVP/悟道/副本等）。
  *
  * 状态来源：
- *   world_boss_damage_records 表中 last_attack_time 在配置的 attack_cooldown_seconds 内
+ *   world_boss_damage_records 表中 last_attack_time 在配置的 active_window_ms 内
  *   （即玩家正在攻击BOSS，且BOSS还活着）
  *
  * 设计原则：
@@ -20,6 +20,24 @@ const PlayerStateMachine = require('../PlayerStateMachine');
 const WorldBossDamageRecord = require('../../../models/worldBossDamageRecord');
 const WorldBoss = require('../../../models/worldBoss');
 const { Op } = require('sequelize');
+
+/**
+ * 读取世界BOSS活跃窗口配置（毫秒）
+ * 修复（2026-07-21）：原硬编码 30 分钟，与 game_balance.world_boss.active_window_ms（5 分钟）不一致，
+ * 导致玩家攻击后 30 分钟内无法做任何其他操作（即使实际上早已停止攻击）。
+ * 现统一从配置读取，默认 5 分钟。
+ * @returns {number} 活跃窗口毫秒数
+ */
+function getActiveWindowMs() {
+    try {
+        const { infrastructure } = require('../../../modules');
+        const configLoader = infrastructure.ConfigLoader;
+        const cfg = configLoader?.getConfig('game_balance')?.world_boss;
+        return cfg?.active_window_ms || 300000;
+    } catch (e) {
+        return 300000; // 默认 5 分钟
+    }
+}
 
 /**
  * 注册世界BOSS战斗状态处理器
@@ -41,12 +59,13 @@ function registerWorldBossState() {
         async getSnapshot(playerId) {
             const snapshot = { in_world_boss: false };
             try {
-                // 查询玩家最近一次伤害记录（30分钟内）
-                const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+                // 查询玩家最近一次伤害记录（活跃窗口内）
+                const activeWindowMs = getActiveWindowMs();
+                const activeThreshold = new Date(Date.now() - activeWindowMs);
                 const record = await WorldBossDamageRecord.findOne({
                     where: {
                         player_id: playerId,
-                        last_attack_time: { [Op.gte]: thirtyMinAgo }
+                        last_attack_time: { [Op.gte]: activeThreshold }
                     },
                     order: [['last_attack_time', 'DESC']]
                 });
@@ -82,12 +101,13 @@ function registerWorldBossState() {
          */
         async getActiveState(playerId) {
             try {
-                // 查询玩家最近一次伤害记录（30分钟内）
-                const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+                // 查询玩家最近一次伤害记录（活跃窗口内）
+                const activeWindowMs = getActiveWindowMs();
+                const activeThreshold = new Date(Date.now() - activeWindowMs);
                 const record = await WorldBossDamageRecord.findOne({
                     where: {
                         player_id: playerId,
-                        last_attack_time: { [Op.gte]: thirtyMinAgo }
+                        last_attack_time: { [Op.gte]: activeThreshold }
                     }
                 });
                 if (!record) return null;

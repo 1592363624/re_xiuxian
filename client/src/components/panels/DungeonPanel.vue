@@ -592,8 +592,10 @@ const handleInterrupt = async () => {
       uiStore.showToast(payload.message || '中断失败', 'warning')
     } else {
       uiStore.showToast(payload.message || '副本已中断', 'info')
+      // 修复 B4-Reward：BigInt 字符串需用 formatNumber 格式化，避免长串数字不直观
+      const rewardExp = payload.data?.rewards?.exp
       uiStore.addLog({
-        content: `中断副本：${payload.data?.chapter_name || ''}，补偿修为 ${payload.data?.rewards?.exp || 0}`,
+        content: `中断副本：${payload.data?.chapter_name || ''}，补偿修为 ${formatNumber(rewardExp || 0)}`,
         type: 'info',
         actorId: 'self'
       })
@@ -625,8 +627,11 @@ const handleSweepDungeon = async (chapterId) => {
       uiStore.showToast(payload.message || '扫荡失败', 'warning')
     } else {
       uiStore.showToast(payload.message || '扫荡成功', 'success')
+      // 修复 B4-Reward：BigInt 字符串需用 formatNumber 格式化，避免长串数字不直观
+      const rewardExp = payload.data?.rewards?.exp
+      const rewardStones = payload.data?.rewards?.spirit_stones
       uiStore.addLog({
-        content: `扫荡：${payload.data?.chapter_name}（${getDifficultyLabel(difficulty)}），获得修为 ${payload.data?.rewards?.exp || 0}，灵石 ${payload.data?.rewards?.spirit_stones || 0}`,
+        content: `扫荡：${payload.data?.chapter_name}（${getDifficultyLabel(difficulty)}），获得修为 ${formatNumber(rewardExp || 0)}，灵石 ${formatNumber(rewardStones || 0)}`,
         type: 'success',
         actorId: 'self'
       })

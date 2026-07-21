@@ -426,8 +426,15 @@ const completeExploreAction = async () => {
       const rewards = res.data.data.rewards
       // 修复 B27：奖励数值统一走 formatNumber，避免大数显示为科学计数法或精度丢失
       let rewardText = `获得 ${formatNumber(rewards.exp || 0)} 修为`
+      // 修复 B4-Reward：物品奖励需展示数量，原代码只显示 item_key 不显示 quantity
+      // 后端 AdventureEventService.grantRewards 返回 items: [{ item_key, item_name?, quantity }]
       if (rewards.items?.length) {
-        rewardText += `，${rewards.items.map((i: any) => i.item_key).join('、')}`
+        const itemTexts = rewards.items.map((i: any) => {
+          const name = i.item_name || i.item_key
+          const qty = Number(i.quantity ?? 1)
+          return qty > 1 ? `${name}×${qty}` : name
+        })
+        rewardText += `，获得物品：${itemTexts.join('、')}`
       }
       if (rewards.spirit_stones) {
         rewardText += `，${formatNumber(rewards.spirit_stones)} 灵石`

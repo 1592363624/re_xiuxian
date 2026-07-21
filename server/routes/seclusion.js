@@ -79,13 +79,22 @@ function getBaseExpRate() {
 
 /**
  * 获取境界加成倍率（境界越高收益越高）
+ *
+ * 修复（2026-07-20）：
+ *   原代码直接查询数据库 Realm 表，但 init_realms.js 中的境界数据与
+ *   realm_breakthrough.json 配置文件严重不一致（境界名、rank、数量均不同），
+ *   导致化神初期玩家被错误地用 rank=27 计算倍率（应为 rank=23）。
+ *   现在统一通过 RealmService 读取配置文件，与突破逻辑保持一致。
+ *
  * @param {string} realmName - 境界名称
  * @returns {number} 境界加成倍率
  */
 async function getRealmMultiplier(realmName) {
     try {
-        const realm = await Realm.findOne({ where: { name: realmName } });
-        if (realm) {
+        // 统一通过 RealmService 读取 realm_breakthrough.json 配置文件
+        // 避免数据库 Realm 表与配置文件不一致导致倍率计算错误
+        const realm = RealmService.getRealmByName(realmName);
+        if (realm && realm.rank) {
             // 每提升一个境界 rank，收益增加 10%
             return 1.0 + (realm.rank - 1) * 0.1;
         }
@@ -326,6 +335,31 @@ async function handleEndSeclusion(req, res, next) {
         // 计算收益：基础收益 × 境界加成 × 模式倍率 × 惩罚系数 × 实际时长
         const expGain = Math.floor(actualDuration * baseExpRate * realmMultiplier * modeRate * penaltyRate);
 
+        // 闭关结束后恢复满 HP/MP（修复 B16 bug）
+        // 修复（2026-07-20）：
+        //   原系统闭关结束后只增加 exp，不恢复 HP/MP，导致玩家 MP 耗尽后永远为 0。
+        //   修仙设定中，闭关是吐纳天地灵气、修复肉身的过程，结束后应该状态满满。
+        //   现在通过 AttributeMaxService 获取当前境界下的 HP/MP 上限，恢复到满值。
+        //   注意：强行出关也恢复满 HP/MP（惩罚已体现在 exp 损失上，不再叠加 HP 惩罚）。
+        let hpRestored = 0;
+        let mpRestored = 0;
+        try {
+            const AttributeMaxService = require('../game/core/AttributeMaxService');
+            const realmConfig = RealmService.getRealmByName(player.realm);
+            const maxValues = AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
+            const maxHp = maxValues.hp_max || 100;
+            const maxMp = maxValues.mp_max || 0;
+            const oldHp = Number(player.hp_current || 0n);
+            const oldMp = Number(player.mp_current || 0n);
+            player.hp_current = BigInt(maxHp);
+            player.mp_current = BigInt(maxMp);
+            hpRestored = maxHp - oldHp;
+            mpRestored = maxMp - oldMp;
+        } catch (attrErr) {
+            // 属性恢复失败不阻塞闭关结算，仅打印警告
+            console.warn('[Seclusion] 闭关结算时恢复 HP/MP 失败:', attrErr.message);
+        }
+
         // 更新玩家状态（事务内）
         player.exp = (BigInt(player.exp) + BigInt(expGain)).toString();
         player.is_secluded = false;
@@ -344,20 +378,29 @@ async function handleEndSeclusion(req, res, next) {
             exp_gain: expGain,
             exp: player.exp,
             last_seclusion_time: player.last_seclusion_time,
-            forced_end: forcedEnd
+            forced_end: forcedEnd,
+            hp_restored: hpRestored,
+            mp_restored: mpRestored
         });
 
         // 记录状态转移日志（事务提交后异步记录）
         const PlayerStateMachine = require('../game/state/PlayerStateMachine');
         PlayerStateMachine.logExit(playerId, 'seclusion', PlayerStateMachine.PlayerState.SECLUDED, {
             source: 'route',
-            details: { mode: isDeep ? 'deep' : 'normal', exp_gain: expGain, forced_end: forcedEnd, duration: actualDuration }
+            details: { mode: isDeep ? 'deep' : 'normal', exp_gain: expGain, forced_end: forcedEnd, duration: actualDuration, hp_restored: hpRestored, mp_restored: mpRestored }
         }).catch(() => { /* 日志失败不阻断 */ });
 
         // 拼装提示消息
         let message = `${isDeep ? '深度' : '常规'}闭关结束，本次获得修为 ${expGain} 点`;
         if (forcedEnd) {
             message += `（强行出关，损失 ${Math.round(config.forced_penalty * 100)}% 收益）`;
+        }
+        // 附加 HP/MP 恢复提示（仅在确实有恢复时显示）
+        if (hpRestored > 0 || mpRestored > 0) {
+            const restoreParts = [];
+            if (hpRestored > 0) restoreParts.push(`气血 +${hpRestored}`);
+            if (mpRestored > 0) restoreParts.push(`灵力 +${mpRestored}`);
+            message += `，吐纳归元 ${restoreParts.join('、')}`;
         }
         message += `。下次闭关需间隔 ${Math.floor(config.cooldown / 60)} 分钟。`;
 
@@ -371,10 +414,14 @@ async function handleEndSeclusion(req, res, next) {
                 forced_end: forcedEnd,
                 penalty_rate: penaltyRate,
                 cooldown_seconds: config.cooldown,
+                hp_restored: hpRestored,
+                mp_restored: mpRestored,
                 player: {
                     exp: player.exp,
                     is_secluded: false,
-                    last_seclusion_time: player.last_seclusion_time
+                    last_seclusion_time: player.last_seclusion_time,
+                    hp_current: player.hp_current?.toString() || '0',
+                    mp_current: player.mp_current?.toString() || '0'
                 }
             }
         });
@@ -481,6 +528,18 @@ router.get('/status', authenticateToken, async (req, res, next) => {
             canDeep = false;
         }
 
+        // 修复（2026-07-21）：补返回 realm_multiplier 字段
+        // 前端 SeclusionPanel.vue 的 estimatedExp 预估公式原为 duration * baseExpRate * modeRate，
+        // 缺少境界加成倍率，导致化神期玩家（rank=23，倍率 3.2）看到的预估收益比实际结算少 3.2 倍
+        // 用户反馈"显示的奖励不是预期的数值"的核心原因之一
+        // 后端 getRealmMultiplier 公式：1.0 + (realm.rank - 1) * 0.1
+        let realmMultiplier = 1.0;
+        try {
+            realmMultiplier = await getRealmMultiplier(player.realm);
+        } catch (e) {
+            console.warn('计算 realm_multiplier 失败:', e.message);
+        }
+
         res.json({
             code: 200,
             data: {
@@ -497,6 +556,10 @@ router.get('/status', authenticateToken, async (req, res, next) => {
                 current_duration: currentDuration,
                 remaining_time: remainingTime,
                 progress: progress,
+                // 修复（2026-07-21）：补返回境界加成倍率，供前端预估公式使用
+                // 公式：1.0 + (realm.rank - 1) * 0.1（每提升 1 个 rank +10%）
+                // 化神初期 rank=23 → 倍率 3.2，渡劫期 rank=39 → 倍率 4.8
+                realm_multiplier: realmMultiplier,
                 // 每日次数与剩余
                 daily_seclusion_count: player.daily_seclusion_count,
                 daily_deep_seclusion_count: player.daily_deep_seclusion_count,

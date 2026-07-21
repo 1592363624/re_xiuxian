@@ -83,6 +83,36 @@ require('./models/playerIncenseLog');
 require('./models/playerDivineSense');
 require('./models/playerLaw');
 require('./models/playerLawFragment');
+// 神识对决系统模型（玩法文档第18节：1v1 神识小游戏，同时选择博弈）
+require('./models/playerDivineDuel');
+
+// 灵兽PVP竞技场系统模型（玩法文档第8节：灵兽PVP对战，押注/段位/赛季排行）
+require('./models/spiritBeastPvpMatch');
+require('./models/spiritBeastPvpSeason');
+require('./models/spiritBeastPvpRanking');
+
+// 灵兽探渊系统模型（玩法文档第24节：灵兽探渊，9层深渊PVE+PVP混合探索）
+require('./models/spiritBeastAbyss');
+require('./models/abyssEncounterLog');
+
+// 太一门引道系统模型（玩法文档第25节：太一门引道，五行道途+神识联动+多人共鸣）
+require('./models/playerTaoismGate');
+
+// 道侣/双修/侍妾系统模型（批次3：道侣关系/侍妾/远航记录/互动日志/心劫事件）
+require('./models/daoCompanion');
+require('./models/concubine');
+require('./models/concubineVoyage');
+require('./models/concubineLog');
+require('./models/heartTribulationEvent');
+
+// 道侣/双修系统（玩家间 1v1 长期社交玩法重做版：含亲密度/心契/心印/心劫冷却）
+require('./models/daoCompanions');
+
+// 多人副本系统模型（批次3：实例/成员/抉择记录/冷却）
+require('./models/multiDungeonInstance');
+require('./models/multiDungeonMember');
+require('./models/multiDungeonChoice');
+require('./models/multiDungeonCooldown');
 
 const http = require('http');
 const socketIo = require('socket.io');
@@ -156,6 +186,48 @@ async function initializeCoreServices(configLoaderInstance) {
         // initializeGameServices 是异步函数，需要等待
         await initializeGameServices(configLoaderInstance);
         console.log('游戏核心服务模块初始化成功');
+        // 神识对决服务初始化（独立于 game/index.js，因其依赖 late_stage_data.divine_duel 配置）
+        try {
+            const DivineDuelService = require('./game/services/DivineDuelService');
+            DivineDuelService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('神识对决服务初始化失败:', e.message);
+        }
+        // 坐化遗府服务初始化（独立于 game/index.js，因其依赖 cave_legacy_data.cave_legacy 配置）
+        try {
+            const CaveLegacyService = require('./game/services/CaveLegacyService');
+            CaveLegacyService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('坐化遗府服务初始化失败:', e.message);
+        }
+        // 灵兽PVP竞技场服务初始化（独立于 game/index.js，因其依赖 spirit_beast_pvp_data.spirit_beast_pvp 配置）
+        try {
+            const SpiritBeastPvpService = require('./game/services/SpiritBeastPvpService');
+            SpiritBeastPvpService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('灵兽PVP竞技场服务初始化失败:', e.message);
+        }
+        // 灵兽放养与偷菜服务初始化（独立于 game/index.js，因其依赖 spirit_beast_pasture_data 配置）
+        try {
+            const BeastPastureService = require('./game/services/BeastPastureService');
+            BeastPastureService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('灵兽放养与偷菜服务初始化失败:', e.message);
+        }
+        // 灵兽探渊服务初始化（独立于 game/index.js，因其依赖 spirit_beast_abyss_data 配置）
+        try {
+            const BeastAbyssService = require('./game/services/BeastAbyssService');
+            BeastAbyssService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('灵兽探渊服务初始化失败:', e.message);
+        }
+        // 太一门引道服务初始化（独立于 game/index.js，因其依赖 taoism_gate_data 配置）
+        try {
+            const TaoismGateService = require('./game/services/TaoismGateService');
+            TaoismGateService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('太一门引道服务初始化失败:', e.message);
+        }
         return true;
     } catch (error) {
         console.error('游戏核心服务初始化失败:', error.message);
@@ -227,7 +299,12 @@ const startServer = async () => {
         }
         
         // 同步数据库模型
-        await sequelize.sync({ alter: true });
+        // 修复（2026-07-21）：原 sync({ alter: true }) 会在每次启动时为 unique 字段
+        // 创建带数字后缀的重复索引（player_id_2, player_id_3, ...），导致 player_caves
+        // 表索引数累积到 64 个触发 MySQL 5.6 限制，阻止后续字段同步
+        // 改为 sync()：仅创建不存在的表，不修改已有表结构，新字段通过 migrations 迁移
+        // 已通过 scripts/cleanup_duplicate_indexes.js 清理 99 个冗余索引
+        await sequelize.sync();
     } catch (error) {
         console.error('无法连接到数据库 (但不影响服务器启动):', error.message);
     }
@@ -281,6 +358,17 @@ const startServer = async () => {
         console.error('世界BOSS调度器加载失败:', err.message);
     }
 
+    // 妖兽入侵调度器（多人公共事件）：阶段超时检查/兜底阶段切换
+    // 由 BeastInvasionSchedulerService 内部根据 game_balance.beast_invasion.state_cleaner_interval_ms 配置调度周期
+    try {
+        const BeastInvasionSchedulerService = require('./game/services/BeastInvasionSchedulerService');
+        BeastInvasionSchedulerService.start().catch(err => {
+            console.error('妖兽入侵调度器启动失败:', err.message);
+        });
+    } catch (err) {
+        console.error('妖兽入侵调度器加载失败:', err.message);
+    }
+
     // 宗门战调度器（批次2）：战役状态推进/占领超时补偿/资源点产出结算/赛季结算
     // 由 SectWarSchedulerService 内部根据 game_balance.sect_war.scheduler_interval_ms 配置调度周期
     try {
@@ -290,6 +378,93 @@ const startServer = async () => {
         });
     } catch (err) {
         console.error('宗门战调度器加载失败:', err.message);
+    }
+
+    // 神识对决超时检查调度器（玩法文档第18节）
+    // 每 10 秒检查一次：pending 超时自动取消 + active 操作超时自动固元
+    try {
+        const DivineDuelService = require('./game/services/DivineDuelService');
+        setInterval(async () => {
+            try {
+                await DivineDuelService.checkTimeouts();
+            } catch (e) {
+                console.error('[DivineDuel] 超时检查失败:', e.message);
+            }
+        }, 10000);
+        console.log('神识对决超时检查调度器已启动 (10s)');
+    } catch (err) {
+        console.error('神识对决调度器加载失败:', err.message);
+    }
+
+    // 坐化遗府过期检查调度器（玩法文档第16节）
+    // 每 60 秒检查一次：自动关闭已过期但未关闭的遗府，结算未分配物品
+    try {
+        const CaveLegacyService = require('./game/services/CaveLegacyService');
+        const caveLegacyConfig = configLoader.getConfig('cave_legacy_data')?.cave_legacy?.scheduler;
+        const checkInterval = Number(caveLegacyConfig?.check_interval_ms) || 60000;
+        setInterval(async () => {
+            try {
+                await CaveLegacyService.checkExpiredLegacies();
+            } catch (e) {
+                console.error('[CaveLegacy] 过期检查失败:', e.message);
+            }
+        }, checkInterval);
+        console.log(`坐化遗府过期检查调度器已启动 (${checkInterval}ms)`);
+    } catch (err) {
+        console.error('坐化遗府调度器加载失败:', err.message);
+    }
+
+    // 灵兽PVP竞技场赛季到期检查调度器（每 60 秒）
+    try {
+        const SpiritBeastPvpService = require('./game/services/SpiritBeastPvpService');
+        const pvpConfig = configLoader.getConfig('spirit_beast_pvp_data')?.spirit_beast_pvp?.scheduler;
+        const pvpCheckInterval = Number(pvpConfig?.check_interval_ms) || 60000;
+        setInterval(async () => {
+            try {
+                await SpiritBeastPvpService.checkSeasonExpiry();
+            } catch (e) {
+                console.error('[SpiritBeastPvp] 赛季检查失败:', e.message);
+            }
+        }, pvpCheckInterval);
+        console.log(`灵兽PVP赛季检查调度器已启动 (${pvpCheckInterval}ms)`);
+    } catch (err) {
+        console.error('灵兽PVP调度器加载失败:', err.message);
+    }
+
+    // 灵兽放养过期自动结算调度器（每 60 秒）
+    // 检查超过宽限期仍未手动召回的放养记录，按 80% 折扣自动结算
+    try {
+        const BeastPastureService = require('./game/services/BeastPastureService');
+        const pastureConfig = configLoader.getConfig('spirit_beast_pasture_data')?.scheduler;
+        const pastureCheckInterval = Number(pastureConfig?.check_interval_ms) || 60000;
+        setInterval(async () => {
+            try {
+                await BeastPastureService.checkExpirations();
+            } catch (e) {
+                console.error('[BeastPasture] 过期检查失败:', e.message);
+            }
+        }, pastureCheckInterval);
+        console.log(`灵兽放养过期检查调度器已启动 (${pastureCheckInterval}ms)`);
+    } catch (err) {
+        console.error('灵兽放养调度器加载失败:', err.message);
+    }
+
+    // 灵兽探渊过期检查调度器（玩法文档第24节）
+    // 每 60 秒检查一次：自动结算已过期的探渊记录，模拟所有遭遇事件并发放奖励
+    try {
+        const BeastAbyssService = require('./game/services/BeastAbyssService');
+        const abyssConfig = configLoader.getConfig('spirit_beast_abyss_data')?.abyss?.scheduler;
+        const abyssCheckInterval = Number(abyssConfig?.check_interval_ms) || 60000;
+        setInterval(async () => {
+            try {
+                await BeastAbyssService.checkExpirations();
+            } catch (e) {
+                console.error('[BeastAbyss] 过期检查失败:', e.message);
+            }
+        }, abyssCheckInterval);
+        console.log(`灵兽探渊过期检查调度器已启动 (${abyssCheckInterval}ms)`);
+    } catch (err) {
+        console.error('灵兽探渊调度器加载失败:', err.message);
     }
 
     // 路由
@@ -359,6 +534,10 @@ const startServer = async () => {
     app.use('/api/world-boss', require('./routes/world_boss'));
     // 世界BOSS管理（GM 后台：手动刷新/过期/创建赛季/强制结算）
     app.use('/api/admin/world-boss', require('./routes/admin_world_boss'));
+    // 妖兽入侵系统（多人公共事件：两阶段流程 捐献→战斗，伤害排行，击杀结算）
+    app.use('/api/beast-invasion', require('./routes/beast_invasion'));
+    // 妖兽入侵管理（GM 后台：手动开启/强制结束/统计/配置查询）
+    app.use('/api/admin/beast-invasion', require('./routes/admin_beast_invasion'));
     // 宗门战系统（批次2多人玩法：领地争夺、宣战、攻防、占领、赛季结算）
     app.use('/api/sect-war', require('./routes/sect_war'));
     // 宗门战管理（GM 后台：统计/赛季管理/资源点初始化/手动推进状态）
@@ -385,6 +564,55 @@ const startServer = async () => {
     app.use('/api/law', require('./routes/law'));
     // 批次3 后期系统 GM 后台（调整副元神属性/重置小世界/调整小世界&神庙等级/发放香火/神识/法则点/法则碎片）
     app.use('/api/admin/late-stage', require('./routes/admin_late_stage'));
+
+    // 批次3 道侣/双修/侍妾系统玩家路由（道侣关系/双修/温养/采补/立誓/心契/心劫 + 侍妾培养/远航/觉醒）
+    // 道侣系统（寻侣/双修/温养/采补/立誓/心契面板/心劫抉择）
+    app.use('/api/companion', require('./routes/companion'));
+    // 侍妾系统（红尘寻缘/问安/反哺/赠予/安置/遣散/远航/护法/觉醒）
+    app.use('/api/concubine', require('./routes/concubine'));
+    // 批次3 道侣/侍妾系统 GM 后台（强制解除道侣/调整心契/发放侍妾/调整属性/立即完成远航/触发心劫）
+    app.use('/api/admin/companion-concubine', require('./routes/admin_companion_concubine'));
+
+    // 批次3 多人副本系统玩家路由（创建/加入/进入/状态查询/抉择/投粽/解散/踢人/奖励/历史/冷却）
+    app.use('/api/multi-dungeon', require('./routes/multi_dungeon'));
+    // 批次3 多人副本系统 GM 后台（强制解散/调整变量/发放奖励/重置冷却）
+    app.use('/api/admin/multi-dungeon', require('./routes/admin_multi_dungeon'));
+
+    // 灵兽系统玩家路由（图鉴/列表/详情/捕获/喂养/互动/出战/放生/每日状态）
+    // 4阶灵兽（青云狼/火焰狮/冰魄狐/腾蛇）+ 五行相克 + 培养体系
+    app.use('/api/spirit-beast', require('./routes/spirit_beast'));
+    // 灵兽系统 GM 后台（统计/分页查询/详情/玩家灵兽/发放/修改/删除/强制出战/重置冷却）
+    app.use('/api/admin/spirit-beast', require('./routes/admin_spirit_beast'));
+
+    // 道侣/双修系统玩家路由（玩家间 1v1 长期社交：求婚/响应/互动/双修/解除/心劫/心印）
+    // 与 /api/companion 区别：新系统含亲密度 0-100、心契 0-9、心印、心劫冷却
+    app.use('/api/dao-companion', require('./routes/dao_companion'));
+
+    // 批次5 慕兰战线系统玩家路由（玩法文档第16节：军议/支援/谍影/军功司/灵兽边境/残图匣/临战刻印 7 大子系统）
+    app.use('/api/border-military', require('./routes/border_military'));
+
+    // 批次5 坐化遗府系统玩家+管理员路由（玩法文档第16节：异步多人 PvP/协作玩法）
+    // 玩家端：查看当前遗府/转动分宝/查询历史；管理员端：预览/开启/关闭/状态查询
+    app.use('/api/cave-legacy', require('./routes/cave_legacy'));
+
+    // 批次5 灵兽PVP竞技场系统玩家路由（玩法文档第8节：灵兽PVP对战，押注/段位/赛季排行）
+    // 玩家端：档案/排行榜/历史/赛季信息/发起挑战/战术列表/段位信息/对局详情
+    app.use('/api/spirit-beast/pvp', require('./routes/spirit_beast_pvp'));
+
+    // 批次5 灵兽放养+偷菜系统玩家路由（玩法文档第8节：异步多人经济PVP玩法）
+    // 玩家端：放养场所/开始放养/召回/状态/历史/偷菜/偷菜历史/被偷历史
+    // 多人交互：放养灵兽偷其他玩家药园作物 + 护院灵兽拦截 + 反伤 + 忠诚度变化
+    app.use('/api/spirit-beast/pasture', require('./routes/spirit_beast_pasture'));
+
+    // 批次5 灵兽探渊系统玩家路由（玩法文档第24节：异步多人PVE+PVP混合探索玩法）
+    // 玩家端：层数列表/开始探渊/召回/状态/历史/遭遇历史/排行榜/配置
+    // 多人交互：同层探索有概率遭遇其他玩家灵兽发生PVP + 排行榜竞争
+    app.use('/api/spirit-beast/abyss', require('./routes/spirit_beast_abyss'));
+
+    // 批次5 太一门引道系统玩家路由（玩法文档第25节：五行道途+神识联动+多人共鸣）
+    // 玩家端：道途面板/选择道途/切换道途/引道修炼/使用技能/日常任务/排行榜/共鸣查询
+    // 多人交互：同道途玩家组队获得共鸣加成 + 五行相克影响技能成功率 + 火眼金睛探查他人储物袋
+    app.use('/api/taoism-gate', require('./routes/taoism_gate'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

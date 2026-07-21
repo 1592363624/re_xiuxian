@@ -188,6 +188,27 @@
     <!-- 小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab） -->
     <SmallWorldPanel v-if="isSmallWorldOpen" @close="isSmallWorldOpen = false" />
 
+    <!-- 道侣面板（批次3新增：道侣/双修/心契/心劫 4 Tab） -->
+    <CompanionPanel v-if="isCompanionOpen" @close="isCompanionOpen = false" />
+
+    <!-- 侍妾面板（批次3新增：侍妾列表/红尘寻缘/远航/日志 4 Tab） -->
+    <ConcubinePanel v-if="isConcubineOpen" @close="isConcubineOpen = false" />
+
+    <!-- 多人副本面板（批次3新增：副本大厅/我的副本/奖励池/历史记录 4 Tab） -->
+    <MultiDungeonPanel v-if="isMultiDungeonOpen" @close="isMultiDungeonOpen = false" />
+
+    <!-- 灵兽面板（4阶灵兽/五行相克/捕获/喂养/互动/出战/放生） -->
+    <SpiritBeastPanel v-if="isSpiritBeastOpen" @close="isSpiritBeastOpen = false" />
+
+    <!-- 太一门引道面板（五行道途+神识联动+多人共鸣） -->
+    <TaoismGatePanel v-if="isTaoismGateOpen" @close="isTaoismGateOpen = false" />
+
+    <!-- 灵兽探渊面板（异步多人 PVE+PVP 混合探索：探渊状态/开始探渊/排行榜/历史记录 4 Tab） -->
+    <BeastAbyssPanel v-if="isBeastAbyssOpen" @close="isBeastAbyssOpen = false" />
+
+    <!-- 道侣/双修系统面板（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫） -->
+    <DaoCompanionPanel v-if="isDaoCompanionOpen" @close="isDaoCompanionOpen = false" />
+
     <!-- 世界BOSS面板（批次2多人玩法：3档BOSS、3阶段切换、伤害排行、赛季结算） -->
     <WorldBossPanel v-if="isWorldBossOpen" @close="isWorldBossOpen = false" />
 
@@ -266,6 +287,20 @@ import AscensionPanel from '../panels/AscensionPanel.vue';
 import SecondSoulPanel from '../panels/SecondSoulPanel.vue';
 // 小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
 import SmallWorldPanel from '../panels/SmallWorldPanel.vue';
+// 道侣面板（批次3新增：道侣/双修/心契/心劫 4 Tab）
+import CompanionPanel from '../panels/CompanionPanel.vue';
+// 侍妾面板（批次3新增：侍妾列表/红尘寻缘/远航/日志 4 Tab）
+import ConcubinePanel from '../panels/ConcubinePanel.vue';
+// 多人副本面板（批次3新增：副本大厅/我的副本/奖励池/历史记录 4 Tab）
+import MultiDungeonPanel from '../panels/MultiDungeonPanel.vue';
+// 灵兽面板（4阶灵兽/五行相克/捕获/喂养/互动/出战/放生）
+import SpiritBeastPanel from '../panels/SpiritBeastPanel.vue';
+// 太一门引道面板（五行道途/神识联动/多人共鸣/道途技能/日常任务/排行榜）
+import TaoismGatePanel from '../panels/TaoismGatePanel.vue';
+// 灵兽探渊面板（异步多人 PVE+PVP 混合探索：探渊状态/开始探渊/排行榜/历史记录 4 Tab）
+import BeastAbyssPanel from '../panels/BeastAbyssPanel.vue';
+// 道侣/双修系统面板（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫）
+import DaoCompanionPanel from '../panels/DaoCompanionPanel.vue';
   // 世界BOSS面板（批次2多人玩法：3档BOSS、3阶段切换、伤害排行、赛季结算）
   import WorldBossPanel from '../panels/WorldBossPanel.vue';
   // 宗门战面板（批次2多人玩法：领地争夺、宣战、攻防、占领、赛季结算）
@@ -327,6 +362,20 @@ const isAscensionOpen = ref(false);
 const isSecondSoulOpen = ref(false);
 // 小世界综合面板状态（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
 const isSmallWorldOpen = ref(false);
+// 道侣面板状态（批次3新增：道侣/双修/心契/心劫）
+const isCompanionOpen = ref(false);
+// 侍妾面板状态（批次3新增：侍妾列表/红尘寻缘/远航/日志）
+const isConcubineOpen = ref(false);
+// 多人副本面板状态（批次3新增：副本大厅/我的副本/奖励池/历史记录）
+const isMultiDungeonOpen = ref(false);
+// 灵兽面板状态（4阶灵兽/五行相克/捕获/喂养/互动/出战/放生）
+const isSpiritBeastOpen = ref(false);
+// 太一门引道面板状态（五行道途+神识联动+多人共鸣）
+const isTaoismGateOpen = ref(false);
+// 灵兽探渊面板状态（异步多人 PVE+PVP 混合探索：探渊状态/开始探渊/排行榜/历史记录）
+const isBeastAbyssOpen = ref(false);
+// 道侣/双修系统面板状态（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫）
+const isDaoCompanionOpen = ref(false);
   // 世界BOSS面板状态（批次2多人玩法）
   const isWorldBossOpen = ref(false);
   // 宗门战面板状态（批次2多人玩法）
@@ -480,6 +529,48 @@ const handleAction = async (actionId: string) => {
     return;
   }
 
+  // 道侣按钮：打开道侣面板（批次3新增：道侣/双修/心契/心劫）
+  if (actionId === 'companion') {
+    isCompanionOpen.value = true;
+    return;
+  }
+
+  // 侍妾按钮：打开侍妾面板（批次3新增：侍妾列表/红尘寻缘/远航/日志）
+  if (actionId === 'concubine') {
+    isConcubineOpen.value = true;
+    return;
+  }
+
+  // 多人副本按钮：打开多人副本面板（批次3新增：副本大厅/我的副本/奖励池/历史记录）
+  if (actionId === 'multi_dungeon') {
+    isMultiDungeonOpen.value = true;
+    return;
+  }
+
+  // 灵兽按钮：打开灵兽面板（4阶灵兽/五行相克/捕获/喂养/互动/出战/放生）
+  if (actionId === 'spirit_beast') {
+    isSpiritBeastOpen.value = true;
+    return;
+  }
+
+  // 太一门引道按钮：打开太一门引道面板（五行道途+神识联动+多人共鸣）
+  if (actionId === 'taoism_gate') {
+    isTaoismGateOpen.value = true;
+    return;
+  }
+
+  // 灵兽探渊按钮：打开灵兽探渊面板（异步多人PVE+PVP混合探索）
+  if (actionId === 'beast_abyss') {
+    isBeastAbyssOpen.value = true;
+    return;
+  }
+
+  // 道侣/双修系统按钮：打开道侣面板（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫）
+  if (actionId === 'dao_companion') {
+    isDaoCompanionOpen.value = true;
+    return;
+  }
+
     // 世界BOSS按钮：打开世界BOSS讨伐面板（批次2新增）
     if (actionId === 'world_boss') {
       isWorldBossOpen.value = true;
@@ -576,6 +667,10 @@ const handleMenuClick = (btnName: string) => {
     // 打开坊市（万宝楼）面板
     isMarketOpen.value = true;
     isMobileMenuOpen.value = false;
+  } else if (btnName === '灵兽') {
+    // 打开灵兽面板（4阶灵兽/五行相克/捕获/培养/出战/放生）
+    isSpiritBeastOpen.value = true;
+    isMobileMenuOpen.value = false;
   }
 };
 
@@ -625,7 +720,7 @@ const menuButtons = [
   { name: '坊市', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"/></svg>' },
   { name: '角色', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
   { name: '成就', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>' },
-  { name: '灵宠', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-2.97 7 .41 1.04 1 2.02 1.56 2.85 2.53 3.8-1.41 6.35-4.5 4.73l-3.23-1.68a19 19 0 0 0-2.57 0l-3.23 1.68c-3.09 1.62-7.03-.93-4.5-4.73.56-.83 1.15-1.81 1.56-2.85-2.55 0-4.37-6.42-2.97-7C4.62 2.25 7.87 3.09 9.65 5.09 10.3 4.92 11.33 5 12 5z"/></svg>' },
+  { name: '灵兽', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-2.97 7 .41 1.04 1 2.02 1.56 2.85 2.53 3.8-1.41 6.35-4.5 4.73l-3.23-1.68a19 19 0 0 0-2.57 0l-3.23 1.68c-3.09 1.62-7.03-.93-4.5-4.73.56-.83 1.15-1.81 1.56-2.85-2.55 0-4.37-6.42-2.97-7C4.62 2.25 7.87 3.09 9.65 5.09 10.3 4.92 11.33 5 12 5z"/></svg>' },
   { name: '抽奖', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>' },
   { name: '设置', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
 ];

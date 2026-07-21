@@ -259,6 +259,55 @@ const refinedActions = [
     desc: '开辟小世界 香火神庙'
   },
   {
+    id: 'taoism_gate',
+    name: '太一门',
+    // Indigo/cyan for Taoism gate / five elements dao path - blends mystic & elemental themes
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-300"><path d="M12 2 4 7v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V7l-8-5z"/><path d="M12 8a4 4 0 0 1 4 4"/><path d="M12 16a4 4 0 0 1-4-4"/><path d="M12 2v20"/><path d="M4 12h16"/></svg>`,
+    desc: '太一门引道 五行道途 共鸣'
+  },
+  {
+    id: 'companion',
+    name: '道侣',
+    // Rose/pink for companion / love / dao companion
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-rose-300"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+    desc: '道侣双修 心契心劫'
+  },
+  {
+    id: 'concubine',
+    name: '侍妾',
+    // Purple for concubine / red chamber / cultivation companion
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-fuchsia-300"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    desc: '红尘寻缘 远航归来'
+  },
+  {
+    id: 'multi_dungeon',
+    name: '多人',
+    // Amber/orange for dungeon / raid / multiplayer challenge
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-300"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/></svg>`,
+    desc: '多人副本 掩月抢亲 端午镇蛟'
+  },
+  {
+    id: 'spirit_beast',
+    name: '灵兽',
+    // Emerald for spirit beast / pet / companion creature
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-300"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-2.97 7 .41 1.04 1 2.02 1.56 2.85 2.53 3.8-1.41 6.35-4.5 4.73l-3.23-1.68a19 19 0 0 0-2.57 0l-3.23 1.68c-3.09 1.62-7.03-.93-4.5-4.73.56-.83 1.15-1.81 1.56-2.85-2.55 0-4.37-6.42-2.97-7C4.62 2.25 7.87 3.09 9.65 5.09 10.3 4.92 11.33 5 12 5z"/></svg>`,
+    desc: '灵兽图鉴 捕获培养'
+  },
+  {
+    id: 'beast_abyss',
+    name: '探渊',
+    // Deep teal/emerald for abyss exploration - darker than spirit beast to signify depth
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-teal-400"><path d="M12 2a4 4 0 0 0-4 4v3H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><path d="M12 10v8"/><path d="M9 14h6"/><path d="M3 12a9 9 0 0 1 18 0"/></svg>`,
+    desc: '灵兽探渊 异步多人 PVE+PVP'
+  },
+  {
+    id: 'dao_companion',
+    name: '道侣',
+    // Rose for dao companion / dual cultivation / heart contract
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-rose-300"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+    desc: '道侣双修 心契心印'
+  },
+  {
     id: 'world_boss',
     name: '讨伐',
     // Red for world boss / raid battle - matches 世界BOSS red theme

@@ -1,0 +1,85 @@
+{
+  "_comment": "坐化遗府系统配置（玩法文档第16节）。退坑/死亡玩家的可转移资产由管理员开启遗府活动，合格玩家可参与分宝。",
+  "_design_notes": [
+    "异步多人 PvP/协作玩法：管理员开启后所有合格玩家可参与，每期每人只能转动分宝一次",
+    "防小号机制：同主魂（IP）唯一领取、近期活跃要求、首次记录时间、总指令数、总修为、频道身份绑定",
+    "物品筛选：只分配储物袋里的普通材料和普通物品；跳过剧情物/徽章/绑定物/带器灵/已装备/祭炼/本命法宝"
+  ],
+  "cave_legacy": {
+    "_comment": "遗府活动参数",
+    "default_duration_hours": 24,
+    "min_duration_hours": 1,
+    "max_duration_hours": 168,
+    "max_active_legacies": 3,
+    "max_items_per_legacy": 200,
+    "min_items_to_open": 1,
+
+    "_comment_eligibility": "参与资格阈值，未达标玩家不可参与分宝",
+    "eligibility": {
+      "_comment": "近期活跃要求：最近 N 天内有过在线记录",
+      "recent_active_days": 7,
+      "_comment_min_online_time_ms": "累计在线时长阈值（毫秒），默认 30 分钟",
+      "min_online_time_ms": 1800000,
+      "_comment_min_command_count": "总指令数下限（stats JSON 中 command_count 或 stats 总和），防止临时小号",
+      "min_command_count": 50,
+      "_comment_min_exp": "总修为下限，需达到炼气期修为门槛",
+      "min_exp": 100,
+      "_comment_min_first_record_days": "首次记录时间距今至少 N 天，防止活动期间新注册的小号",
+      "min_first_record_days": 3,
+      "_comment_require_channel_bind": "是否要求频道身份绑定（暂未实现，预留扩展字段，默认 false）",
+      "require_channel_bind": false
+    },
+
+    "_comment_distribution": "分宝规则",
+    "distribution": {
+      "_comment_strategy": "分配策略：weighted_random（按权重随机分配，权重 = 玩家总修为 + 在线时长系数）",
+      "strategy": "weighted_random",
+      "_comment_max_items_per_player": "每期每个玩家最多分得的物品种类数（不含数量）",
+      "max_item_types_per_player": 5,
+      "_comment_quantity_cap_per_player": "每期每个玩家最多分得的总数量上限",
+      "quantity_cap_per_player": 50,
+      "_comment_weight_exp_coeff": "修为权重系数：weight_exp = log10(exp + 10) * coeff",
+      "weight_exp_coeff": 1.0,
+      "_comment_weight_online_coeff": "在线时长权重系数：weight_online = log10(total_online_time_ms / 60000 + 1) * coeff",
+      "weight_online_coeff": 1.5,
+      "_comment_lucky_factor_min": "幸运因子最小值（0.5=减半权重，1.0=无影响，1.5=加半权重）",
+      "lucky_factor_min": 0.8,
+      "lucky_factor_max": 1.2,
+      "_comment_random_seed_note": "随机种子使用 player_id + legacy_id + 时间戳的组合，避免可预测"
+    },
+
+    "_comment_item_filter": "物品筛选规则",
+    "item_filter": {
+      "_comment_include_types": "允许分配的物品 type 列表",
+      "include_types": ["material", "consumable"],
+      "_comment_include_subtypes": "允许分配的物品 subtype（空数组表示不限制 subtype）",
+      "include_subtypes": [],
+      "_comment_exclude_subtypes": "排除的 subtype（如剧情物、徽章）",
+      "exclude_subtypes": ["quest", "badge"],
+      "_comment_include_qualities": "允许分配的物品 quality（仅 common/uncommon/rare/epic）",
+      "include_qualities": ["common", "uncommon", "rare", "epic"],
+      "_comment_exclude_item_keys": "排除指定物品 key（手动维护的黑名单，例如某些特殊材料）",
+      "exclude_item_keys": [],
+      "_comment_skip_equipped": "是否跳过已装备/祭炼/本命法宝（默认 true，从 player_equipment 表排除）",
+      "skip_equipped": true
+    },
+
+    "_comment_scheduler": "调度器参数",
+    "scheduler": {
+      "_comment_check_interval_ms": "遗府过期检查间隔（毫秒），默认 60 秒",
+      "check_interval_ms": 60000,
+      "_comment_auto_close_on_expire": "到期后是否自动关闭（true=自动结算分配，false=仅标记过期，需管理员手动关闭）",
+      "auto_close_on_expire": true
+    },
+
+    "_comment_settlement": "结算规则",
+    "settlement": {
+      "_comment_close_grace_ms": "管理员关闭后的宽限期（毫秒），期间仍可领取但不可再分宝，默认 0=立即结算",
+      "close_grace_ms": 0,
+      "_comment_unclaimed_items": "无人领取的剩余物品处理：destroy=销毁，return_to_owner=退回原主（若仍存活）",
+      "unclaimed_items": "destroy",
+      "_comment_partial_claim_allowed": "是否允许部分领取（玩家只领走分得的部分物品，剩余部分继续保留）",
+      "partial_claim_allowed": true
+    }
+  }
+}

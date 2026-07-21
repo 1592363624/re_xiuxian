@@ -200,7 +200,8 @@
           </div>
           <div>
             <label class="block text-gray-400 mb-1">修为</label>
-            <div class="text-white font-mono">{{ detailPlayer.exp }}</div>
+            <!-- 修复 4-3-P1-2：使用 formatNumber 处理 BigInt 字符串 -->
+            <div class="text-white font-mono">{{ formatNumber(detailPlayer.exp) }}</div>
           </div>
           <div>
             <label class="block text-gray-400 mb-1">悟道状态</label>
@@ -323,6 +324,8 @@ import {
   updateBottleneck,
   resetBottleneck
 } from '../../../api/admin_meditation'
+// 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
+import { formatNumber } from '../../../utils/format'
 
 const uiStore = useUIStore()
 

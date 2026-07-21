@@ -293,9 +293,57 @@
                         </span>
                       </span>
                     </div>
+                    <!-- 灵兽助战伤害（批次4-2-Ext2 新增） -->
+                    <div v-if="lastAttackResult.attack.damage_breakdown?.beast_assist_damage && Number(lastAttackResult.attack.damage_breakdown.beast_assist_damage) > 0"
+                      class="flex items-center justify-between text-emerald-300">
+                      <span>灵兽助战 · {{ lastAttackResult.spirit_beast?.beast_name || '出战灵兽' }}</span>
+                      <span>+{{ formatNumber(lastAttackResult.attack.damage_breakdown.beast_assist_damage) }}</span>
+                    </div>
+                    <!-- 五行相克提示（批次4-2-Ext2 新增） -->
+                    <div v-if="lastAttackResult.elemental_counter" class="flex items-center justify-between">
+                      <span class="text-stone-400">五行相克</span>
+                      <span :class="elementalCounterClass(lastAttackResult.elemental_counter)">
+                        {{ lastAttackResult.elemental_counter.description || '无相克' }}
+                      </span>
+                    </div>
+                    <!-- BOSS 技能反击（批次4-2-Ext3 新增，替代简化公式） -->
                     <div v-if="lastAttackResult.counter && lastAttackResult.counter.damage > 0" class="flex items-center justify-between text-rose-400">
-                      <span>BOSS反击</span>
+                      <span>
+                        BOSS反击
+                        <span v-if="lastAttackResult.counter.skill?.name" class="ml-1 text-purple-300">[{{ lastAttackResult.counter.skill.name }}]</span>
+                        <span v-if="lastAttackResult.counter.skill?.type === 'aoe_all' || lastAttackResult.counter.skill?.type === 'ultimate_screen_wide'"
+                          class="ml-1 text-orange-400 font-bold">[群伤]</span>
+                      </span>
                       <span>-{{ formatNumber(lastAttackResult.counter.damage) }}</span>
+                    </div>
+                    <!-- AOE 事件（批次4-2-Ext3 新增，BOSS 释放范围技能） -->
+                    <div v-if="lastAttackResult.aoe_event" class="text-orange-300 border-t border-stone-800 pt-1.5">
+                      <span class="font-bold">【AOE】{{ lastAttackResult.aoe_event.skill_name || '范围技能' }}</span>
+                      <span class="ml-2 text-stone-400">波及 {{ lastAttackResult.aoe_event.affected_count || '?' }} 人</span>
+                      <span class="ml-2 text-rose-400">总伤 {{ formatNumber(lastAttackResult.aoe_event.aoe_damage) }}</span>
+                    </div>
+                    <!-- BOSS 当前 Buff（批次4-2-Ext3 新增） -->
+                    <div v-if="lastAttackResult.boss?.active_buffs && lastAttackResult.boss.active_buffs.length > 0"
+                      class="flex items-start gap-2 text-yellow-300">
+                      <span class="text-stone-400 shrink-0">BOSS增益</span>
+                      <div class="flex flex-wrap gap-1">
+                        <span v-for="buff in lastAttackResult.boss.active_buffs" :key="buff.name"
+                          class="px-1.5 py-0.5 bg-yellow-900/50 border border-yellow-700 rounded text-[10px]">
+                          {{ buff.name }}
+                          <span v-if="buff.expire_at" class="text-yellow-500 ml-1">{{ formatBuffRemaining(buff.expire_at) }}</span>
+                        </span>
+                      </div>
+                    </div>
+                    <!-- BOSS 召唤的小怪（批次4-2-Ext3 新增） -->
+                    <div v-if="lastAttackResult.boss?.minions && lastAttackResult.boss.minions.length > 0"
+                      class="flex items-start gap-2 text-pink-300">
+                      <span class="text-stone-400 shrink-0">BOSS分身</span>
+                      <div class="flex flex-wrap gap-1">
+                        <span v-for="(minion, idx) in lastAttackResult.boss.minions" :key="idx"
+                          class="px-1.5 py-0.5 bg-pink-900/50 border border-pink-700 rounded text-[10px]">
+                          {{ minion.name }} (HP {{ formatNumber(minion.hp_current) }}/{{ formatNumber(minion.hp_max) }})
+                        </span>
+                      </div>
                     </div>
                     <div v-if="lastAttackResult.boss && lastAttackResult.boss.phase_changed" class="text-purple-400">
                       BOSS进入新阶段！
@@ -990,6 +1038,35 @@ const realmRankLabel = (rank) => {
     9: '渡劫期'
   }
   return map[rank] || `境界${rank}`
+}
+
+/**
+ * 五行相克样式（批次4-2-Ext2 新增）
+ * 根据 elemental_counter.advantage 字段返回 Tailwind 颜色类
+ * - advantage=true：绿色（玩家灵兽克制BOSS）
+ * - advantage=false：红色（被BOSS克制）
+ * - null/undefined：灰色（无相克）
+ * @param {Object} elementalCounter - elemental_counter 响应对象
+ * @returns {string} Tailwind 颜色类
+ */
+const elementalCounterClass = (elementalCounter) => {
+  if (!elementalCounter) return 'text-stone-400'
+  if (elementalCounter.advantage === true) return 'text-emerald-400 font-bold'
+  if (elementalCounter.advantage === false) return 'text-rose-400 font-bold'
+  return 'text-stone-400'
+}
+
+/**
+ * 格式化 Buff 剩余时间（批次4-2-Ext3 新增）
+ * 将 Buff.expire_at 时间戳转为 "Xs" 倒计时显示
+ * @param {string|number} expireAt - 过期时间戳（ms）
+ * @returns {string} 剩余秒数显示
+ */
+const formatBuffRemaining = (expireAt) => {
+  if (!expireAt) return ''
+  const remainMs = Number(expireAt) - Date.now()
+  if (remainMs <= 0) return '已过期'
+  return `${Math.ceil(remainMs / 1000)}s`
 }
 
 // ====== 生命周期 ======

@@ -31,6 +31,8 @@ import {
 } from '../../api/sect'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+// 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
+import { formatNumber } from '../../utils/format'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
@@ -338,7 +340,7 @@ const handleCheckIn = async () => {
     await fetchMySect()
 
     uiStore.addLog({
-      content: `你在宗门完成点卯，获得贡献 +${result.rewards?.contribution || 0}，修为 +${result.rewards?.exp || 0}。`,
+      content: `你在宗门完成点卯，获得贡献 +${result.rewards?.contribution || 0}，修为 +${formatNumber(result.rewards?.exp || 0)}。`,
       type: 'success',
       actorId: 'self'
     })
@@ -404,7 +406,7 @@ const handleSubmitQuest = async (quest: SectQuest) => {
     await Promise.all([fetchQuests(), fetchMySect()])
 
     uiStore.addLog({
-      content: `你完成了宗门任务【${quest.name}】，获得贡献 +${result.rewards?.contribution || 0}，修为 +${result.rewards?.exp || 0}。`,
+      content: `你完成了宗门任务【${quest.name}】，获得贡献 +${result.rewards?.contribution || 0}，修为 +${formatNumber(result.rewards?.exp || 0)}。`,
       type: 'success',
       actorId: 'self'
     })
