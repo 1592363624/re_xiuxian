@@ -10,10 +10,111 @@
  * @author 修仙游戏开发组
  * @updated 2026-07-22
  */
-export const currentVersion = 'v0.3.4_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
+export const currentVersion = 'v0.3.6_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
 
 // 🛡️ 兜底数据：仅在无法连接 GitHub API 时显示
 export const changelog = [
+  {
+    version: 'v0.3.6_BETA',
+    date: '2026-07-22',
+    sections: [
+      {
+        title: '关键Bug修复',
+        type: 'fix',
+        items: [
+          '【悬赏系统结算链路断裂·关键修复】BountyService.settlePendingBountyBattles/cleanExpiredBounties 从未被任何路由/调度器调用，导致 accepted 状态悬赏死锁、过期悬赏永不退款。',
+          '修复方案：创建 bounty.js 状态注册文件接入 StateCleanerService 定期调度（5s 间隔），执行两阶段清理（扫描结算已结束战斗的悬赏 + 清理过期悬赏退款）。',
+          'PvpService 三处战斗结束路径全部添加 bounty 结算同步钩子：executeAction（正常结束）+ flee（逃跑判负）+ cleanExpiredBattles（超时判平），均在 t.commit() 之后调用避免嵌套事务。',
+          'game_balance.json state_cleaner 段新增 bounty 子配置（enable/auto_settle/interval_ms=5000）。',
+          '服务重启验证：StateCleaner 输出含 bounty:0/0，确认状态注册和定期调度正常工作。'
+        ]
+      },
+      {
+        title: '新增功能',
+        type: 'feature',
+        items: [
+          '【悬赏追杀·前端面板】新增 BountyPanel.vue（3 Tab：悬赏榜单/我的悬赏/发布悬赏），支持状态过滤、分页、接取/取消二次确认、发布表单（目标ID+金额+理由）。',
+          '新增 bounty.ts API 层（TypeScript 类型定义 + 5 接口封装：publishBounty/acceptBounty/getBountyList/getMyBounties/cancelBounty）。',
+          '【洞府社交·前端面板】新增 CaveSocialPanel.vue（4 Tab：留言板/访客录/景观/游商），支持留言/拜访/布置景观/购买商品，景观加成对象格式化显示。',
+          '新增 caveSocial.ts API 层（9 接口封装：visitCave/leaveMessage/getMessages/getVisitors/getLandscapes/setLandscape/getMerchantGoods/buyMerchantItem）。',
+          'ActionBar 新增「悬赏」「社交」两个入口按钮，GameLayout 注册两个面板组件。'
+        ]
+      },
+      {
+        title: '功能对比清单修正',
+        type: 'other',
+        items: [
+          '修正 6 个错误标记：问道/法相天地/探寻裂缝/天机回溯（NascentSoulService 已实现 8 路由）+ 请侍妾护法（ConcubineService 已实现）从 ❌ 改为 ✅。',
+          '修正 3 个错误标记：我的侍妾/每日问安/侍妾远航从 ⚠️ 改为 ✅。',
+          '悬赏/洞府社交前端补齐，「布置景观」「查看货品」从部分实现清单中移除。'
+        ]
+      },
+      {
+        title: '验证',
+        type: 'other',
+        items: [
+          '6 个接口全部通过 API 测试：bounty/list、bounty/my、bounty/publish（正确拒绝死亡目标）、cave-social/messages、cave-social/landscapes、cave-social/merchant。',
+          '服务重启成功，StateCleaner 正常调度所有 15 个状态处理器（含新增 bounty）。',
+          '4 个修改文件 + 4 个新建文件全部通过语法检查。'
+        ]
+      }
+    ]
+  },
+  {
+    version: 'v0.3.5_BETA',
+    date: '2026-07-22',
+    sections: [
+      {
+        title: '新增功能',
+        type: 'feature',
+        items: [
+          '【法宝深线战力加成·属性系统集成】三条法宝深线战力加成统一归一化并接入 AttributeService：血魔剑百分比加成（atk/def+暴击/吸血/反噬特效）+ 虚天鼎绝对值加成（atk/def+化极倍率+反噬）+ 大五行幻世轮百分比加成（atk/def/hp_max/speed+相位×阶数倍率），掌天瓶为纯辅助法宝不参与聚合。',
+          '新增 getAllArtifactDeepLineCombatBonuses 方法：并行查询三条线战力加成，归一化为 { is_active, absolute, percent, effects, breakdown } 统一结构，供 AttributeService.calculateFullAttributesAsync 调用，所有调用该方法的战斗/接口自动生效。',
+          '新增 safeAddInsightExp 方法：战斗结算流程的安全封装，内部自带 try/catch + 独立事务，未装备幻世轮时静默返回，不影响主战斗流程。',
+          '【悟印被动积累·13 个战斗 Service 全量集成】大五行幻世轮的 addInsightExp 正式接入全部战斗结算流程，被动战斗驱动成长机制全面生效。'
+        ]
+      },
+      {
+        title: '战斗系统集成明细',
+        type: 'optimize',
+        items: [
+          'PVE 战斗（3 处）：CombatService attack/monsterTurn/flee — 战斗胜负/逃跑均积累悟印。',
+          '副本/试刀（4 处）：DungeonService 通关 / SparringService 切磋木人 / WorldBossService 终结者击杀 / BeastInvasionService 终结者击杀 — 仅对终结者调用避免多参与者耗尽每日上限。',
+          'PVP 双玩家（3 文件 12 处）：PvpService executeAction+flee（双方各调用，flee 补查玩家对象）/ DuelService executeDuelAction（双方）/ DivineDuelService action+surrender+checkTimeouts 三个结算入口（duel_finished 守卫，省略 opponent_realm_rank 回退自身 rank）。',
+          '排名/多人战斗（4 文件 10 处）：FengshenService 封神台挑战（双方）/ SpiritBeastPvpService 灵兽PVP 非友谊赛+友谊赛（双方，切磋调性）/ SectWarService 宗门战 surrender+advanceWarState（遍历 participants，settled 守卫）/ MultiDungeonService 多人副本普通通关+黄龙山决战（遍历在场 members）。',
+          'BountyService 被 PvpService 覆盖无需单独接入。所有调用严格在 t.commit() 之后执行，避免嵌套事务/锁竞争。'
+        ]
+      },
+      {
+        title: '属性计算集成明细',
+        type: 'optimize',
+        items: [
+          'calculateFullAttributes 新增步骤8：法宝深线绝对值加成（addAttr 叠加到 final）+ 百分比加成（基于 final 乘算），breakdown.artifact_deep_line 记录实际叠加值，info.artifact_deep_line 记录战斗特效供战斗系统读取。',
+          'calculateFullAttributesAsync 并行获取装备/灵兽/法宝深线三套加成，通过 player._artifactDeepLineBonus 传入同步方法，计算后清理临时字段。'
+        ]
+      },
+      {
+        title: '功能对比清单研读',
+        type: 'other',
+        items: [
+          '完成功能对比清单全量扫描（474 行），梳理出未实现/部分实现/待处理功能清单。',
+          '❌未实现（5 项）：问道 / 法相天地 / 探寻裂缝 / 天机回溯（第3节境界与突破）+ 请侍妾护法（第12节社交与道侣）。',
+          '⚠️部分实现（13 项）：切换角色UI / 宗门增益 / 后期系统前端 / 虚弱残魂心魔 / 布置景观 / 查看货品 / 器灵试炼 / 封神台 / 侍妾三件套 / 元神调度UI / 修理一键修理。',
+          '用户报告的 Bug（深度闭关境界锁死 / 奖励数值显示 / 玩家年龄修为死亡界面变化）在文档中均已标记为已修复。',
+          '多人玩法深度评估：斗法/悬赏/聊天/洞府拜访四项互动深度评为"浅"，后续可加强耐玩性。'
+        ]
+      },
+      {
+        title: '验证',
+        type: 'other',
+        items: [
+          '13 个 Service 共 30 处 safeAddInsightExp 调用全部通过 rg 验证，分布正确。',
+          '14 个修改文件全部通过 node -c 语法检查。',
+          '服务重启成功，所有调度器（StateCleaner 5s / WorldBoss / BeastInvasion / SectWar / Sparring / 神识对决 / 股市）正常运行，登录接口 + GET /api/player/me 正常响应。'
+        ]
+      }
+    ]
+  },
   {
     version: 'v0.3.4_BETA',
     date: '2026-07-22',

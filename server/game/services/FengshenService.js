@@ -26,6 +26,8 @@ const FengshenRanking = require('../../models/fengshenRanking');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+// 大五行幻世轮服务（同目录引用，用于战斗结算后被动积累悟印）
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 /**
  * BigInt 安全转换工具
@@ -565,6 +567,20 @@ class FengshenService {
             await defenderRanking.save({ transaction: t });
 
             await t.commit();
+
+            // 大五行幻世轮：封神台挑战结算后双方自动积累悟印（未装备时静默返回）
+            await Promise.all([
+                ArtifactDeepLineService.safeAddInsightExp(attacker.id, {
+                    battle_type: 'pvp',
+                    is_win: attackerWins,
+                    opponent_realm_rank: defender.realm_rank
+                }),
+                ArtifactDeepLineService.safeAddInsightExp(defender.id, {
+                    battle_type: 'pvp',
+                    is_win: !attackerWins,
+                    opponent_realm_rank: attacker.realm_rank
+                })
+            ]);
 
             // 更新内存冷却时间
             this.lastChallengeTime.set(playerId, Date.now());

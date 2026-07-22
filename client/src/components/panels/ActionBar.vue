@@ -203,6 +203,20 @@ const refinedActions = [
     desc: '挑战同修 争夺段位'
   },
   {
+    id: 'bounty',
+    name: '悬赏',
+    // Amber/gold for bounty - matches bounty reward gold theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>`,
+    desc: '悬赏追杀 缉拿目标'
+  },
+  {
+    id: 'cave_social',
+    name: '社交',
+    // Emerald for cave social - matches cave social green theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+    desc: '洞府社交 留言访客'
+  },
+  {
     id: 'pawnshop',
     name: '当铺',
     // Amber/gold for pawnshop - matches 聚宝当铺 yellow theme

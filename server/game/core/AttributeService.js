@@ -12,9 +12,20 @@
  *   - 加成比例 = base_rate + star_level * star_rate + level * level_rate（上限 max_rate）
  *   - 通过 player._spiritBeastBonus 传入（异步版本自动填充）
  *   - 加成来源记录在 breakdown.spirit_beast 中，便于前端展示
+ *
+ * 法宝深线加成集成说明（2026-07-22 新增）：
+ *   - 三条法宝深线（血魔剑/虚天鼎/大五行幻世轮）提供战力加成
+ *   - 血魔剑：百分比加成（atk/def + battle 特效：暴击/吸血/反噬）
+ *   - 虚天鼎：绝对值加成（atk/def + 化极倍率 + 反噬）
+ *   - 大五行幻世轮：百分比加成（atk/def/hp_max/speed + 相位 × 阶数倍率）
+ *   - 掌天瓶为纯辅助法宝，无战力加成，不参与属性计算
+ *   - 通过 player._artifactDeepLineBonus 传入（异步版本自动填充）
+ *   - 归一化结构：{ is_active, absolute, percent, effects, breakdown }
+ *   - absolute 直接叠加到 final；percent 基于 final 乘算；effects 记录在 breakdown.artifact_deep_line.effects
  */
 const EquipmentService = require('../services/EquipmentService');
 const SpiritBeastService = require('../services/SpiritBeastService');
+const ArtifactDeepLineService = require('../services/ArtifactDeepLineService');
 
 class AttributeService {
     constructor() {
@@ -148,9 +159,16 @@ class AttributeService {
             }
         }
 
+        // 8. 法宝深线加成（由调用方通过 player._artifactDeepLineBonus 传入，异步版本会自动填充）
+        // 归一化结构：{ is_active, absolute, percent, effects, breakdown }
+        //   - absolute: 绝对值加成（直接叠加到 final）
+        //   - percent: 百分比加成（基于 final 乘算，0.05 表示 +5%）
+        //   - effects: 战斗特殊效果（暴击/吸血/反噬等，不体现在属性面板）
+        const artifactDeepLineBonus = player._artifactDeepLineBonus || null;
+
         // 汇总计算
         const final = { ...base };
-        
+
         // 辅助函数：叠加属性
         const addAttr = (target, source) => {
             if (!source) return;
@@ -168,18 +186,36 @@ class AttributeService {
         addAttr(final, equipmentBonus);
         addAttr(final, spiritBeastAttrBonus);
 
+        // 8.1 法宝深线 - 绝对值加成（虚天鼎的 atk/def 绝对值）
+        if (artifactDeepLineBonus && artifactDeepLineBonus.is_active) {
+            addAttr(final, artifactDeepLineBonus.absolute);
+        }
+
+        // 8.2 法宝深线 - 百分比加成（血魔剑/大五行幻世轮的 atk/def/hp_max/speed 百分比）
+        // 百分比加成基于当前 final 属性乘算（在绝对值加成之后，确保基数最大）
+        const artifactDeepLinePercentApplied = {};
+        if (artifactDeepLineBonus && artifactDeepLineBonus.is_active && artifactDeepLineBonus.percent) {
+            for (const [key, rate] of Object.entries(artifactDeepLineBonus.percent)) {
+                if (typeof rate === 'number' && rate !== 0 && typeof final[key] === 'number') {
+                    const bonusValue = Math.floor(final[key] * rate);
+                    final[key] += bonusValue;
+                    artifactDeepLinePercentApplied[key] = bonusValue;
+                }
+            }
+        }
+
         // 重新计算依赖最终属性的衍生属性
         // 修炼速度 = 基础 + 智慧*0.5 + 神识*0.3
         const wisdom = final.wisdom;
         const sense = final.sense;
         final.cultivate_speed = Math.floor(final.cultivate_speed + wisdom * 0.5 + sense * 0.3);
-        
+
         // 应用修炼速度加成 (如果有百分比)
         // 检查各来源是否有 cultivate_speed_pct
         let cultivateSpeedPct = 0;
         if (talent?.bonuses?.cultivate_speed_pct) cultivateSpeedPct += talent.bonuses.cultivate_speed_pct;
         if (title?.bonuses?.cultivate_speed_pct) cultivateSpeedPct += title.bonuses.cultivate_speed_pct;
-        
+
         final.cultivate_speed = Math.floor(final.cultivate_speed * (1 + cultivateSpeedPct / 100));
 
         return {
@@ -192,6 +228,13 @@ class AttributeService {
                 title: titleBonus,
                 equipment: equipmentBonus,
                 spirit_beast: spiritBeastAttrBonus, // 灵兽属性加成
+                artifact_deep_line: { // 法宝深线加成（2026-07-22 新增）
+                    is_active: !!(artifactDeepLineBonus && artifactDeepLineBonus.is_active),
+                    absolute: artifactDeepLineBonus?.absolute || {},
+                    percent_applied: artifactDeepLinePercentApplied, // 实际叠加的百分比值（已转换为绝对值）
+                    effects: artifactDeepLineBonus?.effects || {}, // 战斗特殊效果（暴击/吸血/反噬等）
+                    sources: artifactDeepLineBonus?.breakdown || {} // 各法宝深线原始返回
+                },
                 cultivation: { // 功法加成 (Placeholder)
                    hp_max: 0, mp_max: 0, atk: 0, def: 0
                 }
@@ -200,31 +243,43 @@ class AttributeService {
                 talent,
                 title,
                 spirit_root: spiritRoot,
-                spirit_beast: spiritBeastInfo // 灵兽简要信息（beast_id/beast_name/element/star_level/level/bonus_rate/combat_power）
+                spirit_beast: spiritBeastInfo, // 灵兽简要信息（beast_id/beast_name/element/star_level/level/bonus_rate/combat_power）
+                artifact_deep_line: artifactDeepLineBonus?.effects || null // 法宝深线战斗特效（供战斗系统读取）
             }
         };
     }
 
     /**
-     * 计算玩家完整属性（异步版本，包含装备加成 + 灵兽加成）
-     * 内部获取装备加成和灵兽加成后临时挂载到 player 对象，再调用同步方法计算
+     * 计算玩家完整属性（异步版本，包含装备加成 + 灵兽加成 + 法宝深线加成）
+     * 内部获取装备加成、灵兽加成和法宝深线加成后临时挂载到 player 对象，再调用同步方法计算
      * 调用后自动清理临时属性，不影响 player 原始数据
+     *
+     * 2026-07-22 新增法宝深线加成集成：
+     *   - 三条法宝深线（血魔剑/虚天鼎/大五行幻世轮）的战力加成并行查询
+     *   - 血魔剑：百分比加成 + 战斗特效（暴击/吸血/反噬）
+     *   - 虚天鼎：绝对值加成（atk/def）+ 化极倍率 + 反噬
+     *   - 大五行幻世轮：百分比加成（相位 × 阶数倍率）
+     *
      * @param {Object} player - 玩家对象
      * @returns {Promise<Object>} 完整属性对象 { final, breakdown, info }
      */
     async calculateFullAttributesAsync(player) {
-        // 并行获取装备总加成和灵兽加成（提升性能）
-        const [equipmentBonus, spiritBeastBonus] = await Promise.all([
+        // 并行获取装备总加成、灵兽加成和法宝深线加成（提升性能）
+        const [equipmentBonus, spiritBeastBonus, artifactDeepLineBonus] = await Promise.all([
             EquipmentService.getEquipmentBonus(player.id),
-            SpiritBeastService.getActiveBeastBonus(player.id)
+            SpiritBeastService.getActiveBeastBonus(player.id),
+            // 法宝深线加成查询失败时回退到 inactive 状态，不影响属性计算主流程
+            ArtifactDeepLineService.getAllArtifactDeepLineCombatBonuses(player.id).catch(() => ({ is_active: false, absolute: {}, percent: {}, effects: {}, breakdown: {} }))
         ]);
         // 临时挂载到 player 对象，供同步方法读取
         player._equipmentBonus = equipmentBonus;
         player._spiritBeastBonus = spiritBeastBonus;
+        player._artifactDeepLineBonus = artifactDeepLineBonus;
         const result = this.calculateFullAttributes(player);
         // 清理临时属性，避免污染 player 原始数据
         delete player._equipmentBonus;
         delete player._spiritBeastBonus;
+        delete player._artifactDeepLineBonus;
         return result;
     }
 

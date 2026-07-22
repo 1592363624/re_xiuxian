@@ -51,6 +51,8 @@ const RealmService = require('../core/RealmService');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const SectService = require('./SectService');
+// 大五行幻世轮服务（同目录引用，用于宗门战结算后被动积累悟印）
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 // ===== 基础设施依赖 =====
 const { infrastructure } = require('../../modules');
@@ -1330,6 +1332,19 @@ class SectWarService {
             const settleResult = await this._settleWar(war, t);
             await t.commit();
 
+            // 大五行幻世轮：宗门战认输结算后所有参与者自动积累悟印（未装备时静默返回）
+            try {
+                const swParticipants = await SectWarParticipant.findAll({ where: { war_id: war.id } });
+                if (swParticipants && swParticipants.length > 0) {
+                    await Promise.all(swParticipants.map(p =>
+                        ArtifactDeepLineService.safeAddInsightExp(p.player_id, {
+                            battle_type: 'pvp',
+                            is_win: p.sect_id === winnerSectId
+                        })
+                    ));
+                }
+            } catch (e) { /* 悟印积累失败不阻塞主流程 */ }
+
             // 推送双方宗门成员通知
             this._notifySectMembers(war.attacker_sect_id, {
                 type: 'sect_war_end',
@@ -1425,6 +1440,21 @@ class SectWarService {
                 await war.save({ transaction: t });
             }
             await t.commit();
+
+            // 大五行幻世轮：宗门战自然结算后所有参与者自动积累悟印（未装备时静默返回）
+            if (war.status === 'settled' && war.winner_sect_id) {
+                try {
+                    const swParticipants = await SectWarParticipant.findAll({ where: { war_id: war.id } });
+                    if (swParticipants && swParticipants.length > 0) {
+                        await Promise.all(swParticipants.map(p =>
+                            ArtifactDeepLineService.safeAddInsightExp(p.player_id, {
+                                battle_type: 'pvp',
+                                is_win: p.sect_id === war.winner_sect_id
+                            })
+                        ));
+                    }
+                } catch (e) { /* 悟印积累失败不阻塞主流程 */ }
+            }
 
             return advanced ? { war_id: warId, status: war.status } : null;
         } catch (err) {

@@ -36,6 +36,8 @@ const PlayerStateMachine = require('../state/PlayerStateMachine');
 const { infrastructure } = require('../../modules');
 // 阵法系统服务（懒加载，避免循环依赖）
 const FormationService = require('./FormationService');
+// 大五行幻世轮服务（PVP 战斗结算后积累悟印，未装备时静默返回）
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -880,6 +882,31 @@ class PvpService {
                 // 调用内部结算
                 const settleResult = await this._settleBattle(battle, winnerId, t, { is_draw: isDraw });
                 await t.commit();
+                // 大五行幻世轮：PVP 战斗结算后双方自动积累悟印（未装备时静默返回）
+                await Promise.all([
+                    ArtifactDeepLineService.safeAddInsightExp(attacker.id, {
+                        battle_type: 'pvp',
+                        is_win: Number(winnerId) === Number(attacker.id),
+                        opponent_realm_rank: defender.realm_rank
+                    }),
+                    ArtifactDeepLineService.safeAddInsightExp(defender.id, {
+                        battle_type: 'pvp',
+                        is_win: Number(winnerId) === Number(defender.id),
+                        opponent_realm_rank: attacker.realm_rank
+                    })
+                ]);
+                // 悬赏结算同步钩子：若为 bounty 类型战斗，战斗结束后立即结算悬赏
+                // 修复关键Bug：此前悬赏结算仅依赖异步扫描，导致 accepted 状态死锁
+                // 此处在 t.commit() 之后调用，避免嵌套事务（BountyService 内部会开启独立事务）
+                if (battle.battle_type === 'bounty') {
+                    try {
+                        const BountyService = require('./BountyService');
+                        await BountyService.settleBountyByBattle(battle.id, winnerId);
+                    } catch (bountyErr) {
+                        // 同步钩子失败不阻塞主流程，异步扫描兜底会处理
+                        console.warn(`[PvpService] 悬赏结算同步钩子失败 battle_id=${battle.id}:`, bountyErr.message);
+                    }
+                }
                 return {
                     battle_id: battle.id,
                     round: battle.total_rounds,
@@ -959,6 +986,37 @@ class PvpService {
             const settleResult = await this._settleBattle(battle, winnerId, t, { is_flee: true, fleer_id: playerId });
 
             await t.commit();
+
+            // 大五行幻世轮：PVP 战斗结算后双方自动积累悟印（未装备时静默返回）
+            // flee 方法中未行级锁加载双方玩家对象，此处补查以获取境界排名
+            const [fleeAttacker, fleeDefender] = await Promise.all([
+                Player.findByPk(battle.attacker_id),
+                Player.findByPk(battle.defender_id)
+            ]);
+            if (fleeAttacker && fleeDefender) {
+                await Promise.all([
+                    ArtifactDeepLineService.safeAddInsightExp(fleeAttacker.id, {
+                        battle_type: 'pvp',
+                        is_win: Number(winnerId) === Number(fleeAttacker.id),
+                        opponent_realm_rank: fleeDefender.realm_rank
+                    }),
+                    ArtifactDeepLineService.safeAddInsightExp(fleeDefender.id, {
+                        battle_type: 'pvp',
+                        is_win: Number(winnerId) === Number(fleeDefender.id),
+                        opponent_realm_rank: fleeAttacker.realm_rank
+                    })
+                ]);
+            }
+
+            // 悬赏结算同步钩子：逃跑判负也需结算悬赏（逃跑方判负，对方胜）
+            if (battle.battle_type === 'bounty') {
+                try {
+                    const BountyService = require('./BountyService');
+                    await BountyService.settleBountyByBattle(battle.id, winnerId);
+                } catch (bountyErr) {
+                    console.warn(`[PvpService] 逃跑悬赏结算同步钩子失败 battle_id=${battle.id}:`, bountyErr.message);
+                }
+            }
 
             return {
                 battle_id: battle.id,
@@ -1473,6 +1531,20 @@ class PvpService {
 
                         await t.commit();
                         stats.cleaned += 1;
+
+                        // 悬赏结算同步钩子：超时判平的 bounty 类型战斗也需结算
+                        // winner_id=null 表示平局，BountyService.settleBountyByBattle 会将悬赏回流为 active
+                        // 修复关键Bug：此前超时取消的 bounty 战斗不触发同步结算，导致 accepted 状态死锁
+                        // 此处在 t.commit() 之后调用，避免嵌套事务（BountyService 内部开启独立事务）
+                        if (locked.battle_type === 'bounty') {
+                            try {
+                                const BountyService = require('./BountyService');
+                                await BountyService.settleBountyByBattle(locked.id, null);
+                            } catch (bountyErr) {
+                                // 同步钩子失败不阻塞清理主流程，异步扫描兜底会处理
+                                console.warn(`[PvpService] 超时悬赏结算同步钩子失败 battle_id=${locked.id}:`, bountyErr.message);
+                            }
+                        }
                     } catch (err) {
                         if (!t.finished) await t.rollback();
                         stats.failed += 1;

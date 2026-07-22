@@ -28,6 +28,8 @@ const SpiritBeast = require('../../models/spiritBeast');
 const SpiritBeastPvpMatch = require('../../models/spiritBeastPvpMatch');
 const SpiritBeastPvpSeason = require('../../models/spiritBeastPvpSeason');
 const SpiritBeastPvpRanking = require('../../models/spiritBeastPvpRanking');
+// 大五行幻世轮服务（同目录引用，用于战斗结算后被动积累悟印）
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 class SpiritBeastPvpService {
     constructor() {
@@ -508,6 +510,20 @@ class SpiritBeastPvpService {
 
                 await transaction.commit();
 
+                // 大五行幻世轮：灵兽PVP非友谊赛结算后双方自动积累悟印（未装备时静默返回）
+                await Promise.all([
+                    ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                        battle_type: 'pvp',
+                        is_win: winnerSide === 'challenger',
+                        opponent_realm_rank: targetPlayer.realm_rank
+                    }),
+                    ArtifactDeepLineService.safeAddInsightExp(targetPlayer.id, {
+                        battle_type: 'pvp',
+                        is_win: winnerSide === 'defender',
+                        opponent_realm_rank: player.realm_rank
+                    })
+                ]);
+
                 return {
                     data: {
                         match_id: match.id,
@@ -558,6 +574,20 @@ class SpiritBeastPvpService {
             await defenderRankingFriendly.save({ transaction, silent: true });
 
             await transaction.commit();
+
+            // 大五行幻世轮：灵兽PVP友谊赛切磋后双方自动积累悟印（未装备时静默返回）
+            await Promise.all([
+                ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pvp',
+                    is_win: winnerSide === 'challenger',
+                    opponent_realm_rank: targetPlayer.realm_rank
+                }),
+                ArtifactDeepLineService.safeAddInsightExp(targetPlayer.id, {
+                    battle_type: 'pvp',
+                    is_win: winnerSide === 'defender',
+                    opponent_realm_rank: player.realm_rank
+                })
+            ]);
 
             return {
                 data: {

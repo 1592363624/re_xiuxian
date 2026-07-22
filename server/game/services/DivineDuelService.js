@@ -43,6 +43,8 @@ const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
+// 大五行幻世轮服务（神识对决结算后积累悟印，未装备时静默返回）
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 // 单例状态
 let _initialized = false;
@@ -773,6 +775,21 @@ class DivineDuelService {
             const settleResult = await this._settleRound(duel, t);
             await t.commit();
 
+            // 大五行幻世轮：神识对决结算后双方自动积累悟印（未装备时静默返回）
+            // 仅在对局真正结束时触发（_settleRound 可能只是进入下一回合）
+            if (settleResult.roundResult && settleResult.roundResult.duel_finished) {
+                await Promise.all([
+                    ArtifactDeepLineService.safeAddInsightExp(duel.challenger_id, {
+                        battle_type: 'pvp',
+                        is_win: duel.winner_id && Number(duel.winner_id) === Number(duel.challenger_id)
+                    }),
+                    ArtifactDeepLineService.safeAddInsightExp(duel.defender_id, {
+                        battle_type: 'pvp',
+                        is_win: duel.winner_id && Number(duel.winner_id) === Number(duel.defender_id)
+                    })
+                ]);
+            }
+
             // 事务提交后推送回合结算结果
             try {
                 const roundResult = settleResult.roundResult;
@@ -1202,6 +1219,18 @@ class DivineDuelService {
             const settleResult = await this._settleDuel(duel, t);
             await t.commit();
 
+            // 大五行幻世轮：神识对决结算后双方自动积累悟印（未装备时静默返回）
+            await Promise.all([
+                ArtifactDeepLineService.safeAddInsightExp(duel.challenger_id, {
+                    battle_type: 'pvp',
+                    is_win: duel.winner_id && Number(duel.winner_id) === Number(duel.challenger_id)
+                }),
+                ArtifactDeepLineService.safeAddInsightExp(duel.defender_id, {
+                    battle_type: 'pvp',
+                    is_win: duel.winner_id && Number(duel.winner_id) === Number(duel.defender_id)
+                })
+            ]);
+
             // 推送通知
             try {
                 const notifyData = {
@@ -1395,6 +1424,21 @@ class DivineDuelService {
             // 触发结算
             const settleResult = await this._settleRound(duelLocked, t);
             await t.commit();
+
+            // 大五行幻世轮：神识对决结算后双方自动积累悟印（未装备时静默返回）
+            // 仅在对局真正结束时触发（_settleRound 可能只是进入下一回合）
+            if (settleResult.roundResult && settleResult.roundResult.duel_finished) {
+                await Promise.all([
+                    ArtifactDeepLineService.safeAddInsightExp(duelLocked.challenger_id, {
+                        battle_type: 'pvp',
+                        is_win: duelLocked.winner_id && Number(duelLocked.winner_id) === Number(duelLocked.challenger_id)
+                    }),
+                    ArtifactDeepLineService.safeAddInsightExp(duelLocked.defender_id, {
+                        battle_type: 'pvp',
+                        is_win: duelLocked.winner_id && Number(duelLocked.winner_id) === Number(duelLocked.defender_id)
+                    })
+                ]);
+            }
 
             // 推送通知
             try {

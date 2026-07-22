@@ -35,6 +35,8 @@ const sequelize = require('../../config/database');
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const InventoryService = require('./InventoryService');
+// 大五行幻世轮服务（同目录引用，用于多人副本通关后被动积累悟印）
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 const { Op } = require('sequelize');
 
@@ -1414,6 +1416,19 @@ class MultiDungeonService {
                 // 结算奖励
                 const rewardsResult = await MultiDungeonService._settleRewards(instance, t);
                 await t.commit();
+
+                // 大五行幻世轮：多人副本通关后所有在场成员自动积累悟印（未装备时静默返回）
+                try {
+                    const presentMembers = await MultiDungeonMember.findAll({ where: { instance_id: instance.id, is_present: 1 } });
+                    if (presentMembers && presentMembers.length > 0) {
+                        await Promise.all(presentMembers.map(m =>
+                            ArtifactDeepLineService.safeAddInsightExp(m.player_id, {
+                                battle_type: 'dungeon',
+                                is_win: true
+                            })
+                        ));
+                    }
+                } catch (e) { /* 悟印积累失败不阻塞主流程 */ }
 
                 MultiDungeonService._notifyInstanceUpdate(instance.id, 'multi_dungeon_cleared', {
                     instance_id: instance.id,
@@ -5661,6 +5676,19 @@ class MultiDungeonService {
 
                 const rewardsResult = await MultiDungeonService._settleRewards(instance, t);
                 await t.commit();
+
+                // 大五行幻世轮：多人副本通关后所有在场成员自动积累悟印（未装备时静默返回）
+                try {
+                    const presentMembers = await MultiDungeonMember.findAll({ where: { instance_id: instance.id, is_present: 1 } });
+                    if (presentMembers && presentMembers.length > 0) {
+                        await Promise.all(presentMembers.map(m =>
+                            ArtifactDeepLineService.safeAddInsightExp(m.player_id, {
+                                battle_type: 'dungeon',
+                                is_win: true
+                            })
+                        ));
+                    }
+                } catch (e) { /* 悟印积累失败不阻塞主流程 */ }
 
                 MultiDungeonService._notifyInstanceUpdate(instance.id, 'multi_dungeon_cleared', {
                     instance_id: instance.id,

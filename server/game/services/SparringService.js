@@ -26,6 +26,7 @@ const PlayerSparring = require('../../models/playerSparring');
 const SystemConfig = require('../../models/system_config');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const path = require('path');
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 /**
  * 构造结算状态记录的 SystemConfig key
@@ -375,6 +376,12 @@ class SparringService {
             }, { transaction: t });
 
             await t.commit();
+
+            // 大五行幻世轮：切磋木人结算后自动积累悟印（未装备时静默返回）
+            await ArtifactDeepLineService.safeAddInsightExp(playerId, {
+                battle_type: 'pve',
+                is_win: battleResult.result === 'win'
+            });
 
             // 14. 返回结果
             return {

@@ -62,6 +62,11 @@ function registerAllStates() {
     // 妖兽入侵斩妖状态（多人公共事件：与一切状态互斥，玩家需先撤退才能开始其他操作）
     require('./registrations/beastInvasion')();
 
+    // 悬赏系统定期清理（非互斥状态：清理过期悬赏 + 扫描结算已结束战斗的悬赏）
+    // 修复关键Bug：此前 settlePendingBountyBattles/cleanExpiredBounties 从未被调用，
+    // 导致 accepted 状态悬赏死锁、过期悬赏永不退款
+    require('./registrations/bounty')();
+
     // 封禁状态
     require('./registrations/ban')();
 

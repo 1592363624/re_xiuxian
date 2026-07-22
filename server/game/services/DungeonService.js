@@ -30,6 +30,7 @@ const RealmService = require('../core/RealmService');
 const AttributeService = require('../core/AttributeService');
 const AIService = require('./AIService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 /**
  * 工具函数：计算玩家副本战斗属性（HP/MP/ATK/DEF 上限）
@@ -1295,6 +1296,13 @@ class DungeonService {
             await progress.destroy({ transaction: t });
 
             await t.commit();
+
+            // 大五行幻世轮：副本结算后自动积累悟印（未装备时静默返回）
+            // 中断/超时按失败处理，通关按成功处理
+            await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                battle_type: 'dungeon',
+                is_win: success
+            });
 
             // 推送通知
             WebSocketNotificationService.notifyPlayerUpdate(player.id, {

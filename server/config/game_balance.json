@@ -69,6 +69,13 @@
       "auto_settle": true,
       "log_each": false,
       "interval_ms": 5000
+    },
+    "bounty": {
+      "comment": "悬赏系统定期清理：扫描结算已结束战斗的悬赏 + 清理过期未接取悬赏退款",
+      "enable": true,
+      "auto_settle": true,
+      "log_each": false,
+      "interval_ms": 5000
     }
   },
   "ascension_balance": {

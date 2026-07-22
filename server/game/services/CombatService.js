@@ -17,6 +17,7 @@ const Player = require('../../models/player');
 const Item = require('../../models/item');
 const MapConfigLoader = require('./MapConfigLoader');
 const DropLoader = require('./DropLoader');
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const { infrastructure } = require('../../modules');
 // 引入 AppError 用于抛出带 HTTP 状态码的业务错误（避免 throw Error 被 errorHandler 当成 500）
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
@@ -316,6 +317,11 @@ class CombatService {
             const battleResult = await this.checkBattleEnd(battle, player, t);
             if (battleResult) {
                 await t.commit();
+                // 大五行幻世轮：PVE 战斗结算后自动积累悟印（未装备时静默返回，不影响主流程）
+                await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pve',
+                    is_win: battleResult.result === 'win'
+                });
                 return battleResult;
             }
 
@@ -440,6 +446,11 @@ class CombatService {
             const battleResult = await this.checkBattleEnd(battle, player, t);
             if (battleResult) {
                 await t.commit();
+                // 大五行幻世轮：PVE 战斗结算后自动积累悟印（未装备时静默返回，不影响主流程）
+                await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pve',
+                    is_win: battleResult.result === 'win'
+                });
                 return battleResult;
             }
 
@@ -515,6 +526,12 @@ class CombatService {
                 await battle.destroy({ transaction: t });
 
                 await t.commit();
+
+                // 大五行幻世轮：逃跑按失败处理积累悟印（未装备时静默返回）
+                await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pve',
+                    is_win: false
+                });
 
                 return {
                     success: true,
@@ -844,6 +861,11 @@ class CombatService {
             const battleResult = await this.checkBattleEnd(battle, player, t);
             if (battleResult) {
                 await t.commit();
+                // 大五行幻世轮：PVE 战斗结算后自动积累悟印（未装备时静默返回，不影响主流程）
+                await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pve',
+                    is_win: battleResult.result === 'win'
+                });
                 return battleResult;
             }
 

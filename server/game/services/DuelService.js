@@ -30,6 +30,8 @@ const { Op } = require('sequelize');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
 const { infrastructure } = require('../../modules');
+// 大五行幻世轮服务（PVP 决斗结算后积累悟印，未装备时静默返回）
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 /**
  * BigInt 安全转换工具
@@ -703,6 +705,20 @@ class DuelService {
                     resolveResult.winnerId, resolveResult.isDraw, t
                 );
                 await t.commit();
+
+                // 大五行幻世轮：神识对决结算后双方自动积累悟印（未装备时静默返回）
+                await Promise.all([
+                    ArtifactDeepLineService.safeAddInsightExp(attacker.id, {
+                        battle_type: 'pvp',
+                        is_win: !resolveResult.isDraw && Number(resolveResult.winnerId) === Number(attacker.id),
+                        opponent_realm_rank: defender.realm_rank
+                    }),
+                    ArtifactDeepLineService.safeAddInsightExp(defender.id, {
+                        battle_type: 'pvp',
+                        is_win: !resolveResult.isDraw && Number(resolveResult.winnerId) === Number(defender.id),
+                        opponent_realm_rank: attacker.realm_rank
+                    })
+                ]);
 
                 // 异步推送：通知双方决斗结果
                 try {

@@ -170,6 +170,12 @@
     <!-- PVP 斗法面板（第四阶段新增：段位卡、战斗、排行榜、段位信息） -->
     <PvpPanel v-if="isPvpOpen" @close="isPvpOpen = false" />
 
+    <!-- 悬赏追杀面板（PVP 延伸玩法：发布悬赏/接取追杀/悬赏榜单/我的悬赏） -->
+    <BountyPanel v-if="isBountyOpen" @close="isBountyOpen = false" />
+
+    <!-- 洞府社交面板（留言板/访客录/景观布置/游商货品） -->
+    <CaveSocialPanel v-if="isCaveSocialOpen" @close="isCaveSocialOpen = false" />
+
     <!-- 聚宝当铺面板（第四阶段新增：典当、赎回、信用额度） -->
     <PawnshopPanel v-if="isPawnshopOpen" @close="isPawnshopOpen = false" />
 
@@ -311,6 +317,8 @@ import DungeonPanel from '../panels/DungeonPanel.vue';
 import FormationPanel from '../panels/FormationPanel.vue';
 // PVP 斗法面板（第四阶段新增：玩家段位 + 排行榜 + 进行中战斗）
 import PvpPanel from '../panels/PvpPanel.vue';
+import BountyPanel from '../panels/BountyPanel.vue';
+import CaveSocialPanel from '../panels/CaveSocialPanel.vue';
 // 聚宝当铺面板（第四阶段新增：典当、赎回、信用额度）
 import PawnshopPanel from '../panels/PawnshopPanel.vue';
 // 聚宝股市面板（第四阶段新增：行情、持仓、交易、融资）
@@ -350,6 +358,10 @@ const isCraftingOpen = ref(false);
 const isMeditationOpen = ref(false);
 // PVP 斗法面板状态（第四阶段新增）
 const isPvpOpen = ref(false);
+// 悬赏追杀面板状态（PVP 延伸玩法）
+const isBountyOpen = ref(false);
+// 洞府社交面板状态（留言/访客/景观/游商）
+const isCaveSocialOpen = ref(false);
 // 聚宝当铺面板状态（第四阶段新增）
 const isPawnshopOpen = ref(false);
 // 聚宝股市面板状态（第四阶段新增：行情、持仓、交易、融资）
@@ -490,6 +502,18 @@ const handleAction = async (actionId: string) => {
   // 斗法按钮：打开 PVP 斗法面板（第四阶段新增）
   if (actionId === 'arena') {
     isPvpOpen.value = true;
+    return;
+  }
+
+  // 悬赏按钮：打开悬赏追杀面板（PVP 延伸玩法）
+  if (actionId === 'bounty') {
+    isBountyOpen.value = true;
+    return;
+  }
+
+  // 洞府社交按钮：打开洞府社交面板（留言/访客/景观/游商）
+  if (actionId === 'cave_social') {
+    isCaveSocialOpen.value = true;
     return;
   }
 

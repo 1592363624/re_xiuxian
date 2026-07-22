@@ -44,6 +44,7 @@ const AttributeService = require('../core/AttributeService');
 const RealmService = require('../core/RealmService');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const InventoryService = require('./InventoryService');
 const { infrastructure } = require('../../modules');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
@@ -1048,6 +1049,15 @@ class BeastInvasionService {
             await invasion.save({ transaction: t });
             await player.save({ transaction: t });
             await t.commit();
+
+            // 大五行幻世轮：妖兽入侵击杀后终结者自动积累悟印（未装备时静默返回）
+            // 仅对终结者调用，与WorldBoss同策略，避免每个参与者都触发导致每日上限被快速用完
+            if (beastDefeated) {
+                await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pve',
+                    is_win: true
+                });
+            }
 
             // ========== 聚合战报推送（事务外，按时间窗口节流） ==========
             const aggregationWindowMs = Number(cfg.aggregation_window_ms) || 30000;

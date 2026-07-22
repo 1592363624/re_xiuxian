@@ -37,6 +37,7 @@ const RealmService = require('../core/RealmService');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
 const WorldBossSkillManager = require('./WorldBossSkillManager');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
+const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const { infrastructure } = require('../../modules');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const sequelize = require('../../config/database');
@@ -1035,6 +1036,15 @@ class WorldBossService {
             await player.save({ transaction: t });
 
             await t.commit();
+
+            // 大五行幻世轮：世界BOSS击杀后终结者自动积累悟印（未装备时静默返回）
+            // 仅对终结者调用，避免每个参与者都触发导致每日上限被快速用完
+            if (bossDefeated) {
+                await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pve',
+                    is_win: true
+                });
+            }
 
             // ========== 异步推送 WebSocket 通知（事务外，失败不阻塞） ==========
             try {

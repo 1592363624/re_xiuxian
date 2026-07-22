@@ -3306,6 +3306,148 @@ class ArtifactDeepLineService {
             combat_bonus: phaseBonus.bonus
         };
     }
+
+    // ==================== 法宝深线战力加成统一聚合（供 AttributeService 调用） ====================
+
+    /**
+     * 获取玩家所有法宝深线的统一战力加成（供 AttributeService.calculateFullAttributesAsync 调用）
+     *
+     * 设计说明：
+     *   三条法宝深线（血魔剑/虚天鼎/大五行幻世轮）的 CombatBonus 方法返回结构各不相同：
+     *     - 血魔剑：百分比加成（atk_bonus_rate=0.05 表示 +5%）+ 战斗特殊效果（暴击/吸血/反噬）
+     *     - 虚天鼎：绝对值加成（def_bonus=100 表示 +100 防御）+ 化极倍率 + 反噬
+     *     - 大五行幻世轮：百分比加成（atk_bonus_rate=0.08 表示 +8%）+ 相位 × 阶数倍率
+     *   本方法将三者归一化为统一结构，便于 AttributeService 统一叠加：
+     *     - absolute: 绝对值加成（直接 addAttr 到 final）
+     *     - percent: 百分比加成（基于 final 乘算，0.05 表示 +5%）
+     *     - effects: 战斗特殊效果（不体现在属性面板，供战斗系统读取）
+     *     - breakdown: 各法宝深线的原始返回（供前端展示和调试）
+     *
+     * 掌天瓶线为纯辅助法宝（炼丹/药园/养竹等），无战力加成，不参与本方法聚合
+     *
+     * @param {number} playerId - 玩家ID
+     * @returns {Promise<Object>} 归一化后的统一战力加成对象
+     */
+    static async getAllArtifactDeepLineCombatBonuses(playerId) {
+        // 并行查询三条法宝深线的战力加成（提升性能）
+        const [bloodSwordBonus, xutianCauldronBonus, wheelBonus] = await Promise.all([
+            this.getBloodSwordCombatBonus(playerId).catch(() => ({ is_active: false })),
+            this.getXutianCauldronCombatBonus(playerId).catch(() => ({ is_active: false })),
+            this.getFiveElementWheelCombatBonus(playerId).catch(() => ({ has_wheel: false, combat_bonus: {} }))
+        ]);
+
+        // 绝对值加成（直接叠加到 final 属性）
+        const absolute = { atk: 0, def: 0, hp_max: 0, speed: 0, mp_max: 0, sense: 0, luck: 0, wisdom: 0 };
+        // 百分比加成（基于 final 乘算，0.05 表示 +5%）
+        const percent = { atk: 0, def: 0, hp_max: 0, speed: 0 };
+        // 战斗特殊效果（不体现在属性面板，供战斗系统读取）
+        const effects = {
+            crit_rate_bonus: 0,           // 暴击率加成
+            crit_damage_bonus: 0,         // 暴击伤害加成
+            hp_steal_bonus_rate: 0,       // 吸血率加成
+            damage_reduction_rate: 0,     // 伤害减免
+            hp_regen_bonus_rate: 0,       // 生命回复加成
+            backlash_rate_per_round: 0,   // 每回合反噬比例
+            backlash_target: 'none',      // 反噬目标（none/self）
+            wheel_spin_enabled: false,    // 轮转技能是否开启
+            active_sources: []            // 当前生效的法宝深线来源列表
+        };
+        const breakdown = {};
+
+        // 1. 血魔剑加成归一化
+        if (bloodSwordBonus.is_active) {
+            breakdown.blood_sword = bloodSwordBonus;
+            effects.active_sources.push('blood_sword');
+            // 血魔剑为百分比加成（atk_bonus_rate=0.05 表示 +5%）
+            percent.atk += bloodSwordBonus.atk_bonus_rate || 0;
+            percent.def += bloodSwordBonus.def_bonus_rate || 0;
+            // 战斗特殊效果
+            effects.crit_rate_bonus += bloodSwordBonus.crit_rate_bonus || 0;
+            effects.crit_damage_bonus += bloodSwordBonus.crit_damage_bonus || 0;
+            effects.hp_steal_bonus_rate += bloodSwordBonus.hp_steal_bonus_rate || 0;
+            effects.backlash_rate_per_round += bloodSwordBonus.blood_backlash_hp_rate_per_round || 0;
+            if (bloodSwordBonus.blood_backlash_hp_rate_per_round > 0) {
+                effects.backlash_target = 'self';
+            }
+        }
+
+        // 2. 虚天鼎加成归一化
+        if (xutianCauldronBonus.is_active) {
+            breakdown.xutian_cauldron = xutianCauldronBonus;
+            effects.active_sources.push('xutian_cauldron');
+            // 虚天鼎为绝对值加成（def_bonus=100 表示 +100 防御）
+            absolute.def += xutianCauldronBonus.def_bonus || 0;
+            // 化极后的最终攻击加成 = atk_bonus × atk_multiplier
+            absolute.atk += xutianCauldronBonus.final_atk_bonus || 0;
+            // 反噬效果
+            if (xutianCauldronBonus.backlash_rate_per_round > 0) {
+                effects.backlash_rate_per_round += xutianCauldronBonus.backlash_rate_per_round;
+                effects.backlash_target = xutianCauldronBonus.backlash_target || 'self';
+            }
+        }
+
+        // 3. 大五行幻世轮加成归一化
+        if (wheelBonus.has_wheel) {
+            breakdown.five_element_wheel = wheelBonus;
+            effects.active_sources.push('five_element_wheel');
+            effects.wheel_spin_enabled = !!wheelBonus.wheel_spin_enabled;
+            // 幻世轮 combat_bonus 内含相位基础加成 × 阶数倍率（百分比形式）
+            const cb = wheelBonus.combat_bonus || {};
+            // atk_bonus_rate/def_bonus_rate/hp_bonus_rate 等为百分比加成
+            percent.atk += cb.atk_bonus_rate || 0;
+            percent.def += cb.def_bonus_rate || 0;
+            percent.hp_max += cb.hp_bonus_rate || 0;
+            percent.speed += cb.speed_bonus_rate || 0;
+            // 战斗特殊效果
+            effects.crit_rate_bonus += cb.crit_rate_bonus || 0;
+            effects.crit_damage_bonus += cb.crit_damage_bonus || 0;
+            effects.damage_reduction_rate += cb.damage_reduction_rate || 0;
+            effects.hp_regen_bonus_rate += cb.hp_regen_bonus_rate || 0;
+        }
+
+        const is_active = effects.active_sources.length > 0;
+        return { is_active, absolute, percent, effects, breakdown };
+    }
+
+    // ==================== 战斗结算集成辅助方法 ====================
+
+    /**
+     * 安全调用 addInsightExp（供所有战斗 Service 结算时统一调用）
+     *
+     * 设计说明：
+     *   大五行幻世轮的核心机制是"被动战斗驱动成长"，即玩家祭出幻世轮后参与斗法自动积累悟印。
+     *   本方法封装了 try/catch + 日志，确保即使悟印积累失败也不影响主战斗流程。
+     *   未装备幻世轮时 addInsightExp 内部静默返回，可无条件调用。
+     *
+     * 调用时机约束：
+     *   - 必须在调用方的事务 commit() 之后调用，避免嵌套事务/锁竞争
+     *   - 建议在 WebSocket 推送之前或之后均可，互不影响
+     *
+     * @param {number} playerId - 玩家ID
+     * @param {Object} battleResult - 战斗结果
+     *   @param {string} battleResult.battle_type - 战斗类型：'pve' | 'pvp' | 'dungeon'
+     *   @param {boolean} battleResult.is_win - 是否胜利
+     *   @param {number} [battleResult.opponent_realm_rank] - 对手境界排名（可选，缺失时回退到玩家自身 rank）
+     *   @param {string} [battleResult.opponent_phase] - 对手五行相位（可选，用于五行相克判定）
+     * @returns {Promise<Object>} addInsightExp 的返回值（失败时返回 { success: false, reason }）
+     */
+    static async safeAddInsightExp(playerId, battleResult) {
+        if (!playerId || !battleResult) {
+            return { success: false, reason: '参数缺失' };
+        }
+        try {
+            const result = await this.addInsightExp(playerId, battleResult);
+            // 仅在成功获得悟印时记日志，便于排查
+            if (result && result.success && result.insight_gained > 0) {
+                console.log(`[ArtifactDeepLine] 玩家${playerId}战斗悟印+${result.insight_gained}（${battleResult.battle_type}/${battleResult.is_win ? '胜' : '败'}）`);
+            }
+            return result || { success: false, reason: '未知原因' };
+        } catch (error) {
+            // 悟印积累失败不影响主战斗流程，仅记错误日志
+            console.error(`[ArtifactDeepLine] safeAddInsightExp 失败 player=${playerId}:`, error?.message || error);
+            return { success: false, reason: '悟印积累异常' };
+        }
+    }
 }
 
 module.exports = ArtifactDeepLineService;
