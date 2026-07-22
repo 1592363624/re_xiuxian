@@ -755,6 +755,24 @@ const Player = sequelize.define('Player', {
         type: DataTypes.DATEONLY,
         allowNull: true,
         comment: '上次接受神识对决挑战日期（每日重置 5 次）'
+    },
+    // ===== 天机回溯字段（migration_0056） =====
+    // 说明：NascentSoulService.tianjiRevert 用于元婴后期玩家在虚弱/残魂过低时的紧急回退
+    //       与 AscensionService.revert（仅飞升失败可回溯）不同，本字段用于元婴出窍/探寻裂缝失败后的状态恢复
+    daily_tianji_revert_count: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '今日天机回溯次数（跨日重置）'
+    },
+    last_tianji_revert_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '最后天机回溯日期（跨日重置判断）'
+    },
+    last_tianji_revert_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后天机回溯时间（冷却计算）'
     }
 }, {
     tableName: 'players',

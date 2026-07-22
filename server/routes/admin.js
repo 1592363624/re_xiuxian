@@ -20,6 +20,8 @@ const path = require('path');
 const LifespanService = require('../game/core/LifespanService');
 const RealmService = require('../game/core/RealmService');
 const webSocketNotificationService = require('../game/services/WebSocketNotificationService');
+// 用于 give-item 接口：通过 InventoryService.addItem 合并到已有记录，避免重复创建同 item_key 的记录
+const InventoryService = require('../game/services/InventoryService');
 
 const SECLUSION_CONFIG_FILE = path.join(__dirname, '../config/seclusion.json');
 
@@ -370,11 +372,25 @@ router.post('/give-item', auth, adminCheck, async (req, res) => {
             return res.status(404).json({ code: 404, message: '目标玩家不存在' });
         }
 
-        const item = await Item.create({
-            player_id: playerId,
-            item_key: itemId,
-            quantity
-        });
+        // 修复：通过 InventoryService.addItem 合并到已有记录，避免直接 Item.create 创建重复 item_key 记录
+        // 原实现 Item.create 会绕过容量检查并创建多条同 item_key 记录，导致背包数据混乱
+        let itemRecordId = null;
+        try {
+            await InventoryService.addItem(playerId, itemId, quantity);
+            // 查询刚写入的记录用于日志记录
+            const created = await Item.findOne({
+                where: { player_id: playerId, item_key: itemId },
+                order: [['id', 'DESC']]
+            });
+            itemRecordId = created?.id || null;
+        } catch (addError) {
+            // 容量不足或其他业务错误，直接返回 400
+            return res.status(400).json({
+                code: 400,
+                error_code: 'BUSINESS_LOGIC_ERROR',
+                message: addError.message || '物品发放失败（可能储物袋容量不足）'
+            });
+        }
 
         await logAdminAction(req.player.id, 'give_item', {
             target_id: playerId,
@@ -402,7 +418,7 @@ router.post('/give-item', auth, adminCheck, async (req, res) => {
             code: 200,
             message: '物品发放成功',
             data: {
-                item_id: item.id,
+                item_id: itemRecordId,
                 item_key: itemId,
                 quantity
             }
@@ -1192,6 +1208,119 @@ router.get('/state-logs', auth, adminCheck, async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: '获取状态日志失败', error: error.message });
+    }
+});
+
+/**
+ * 合并玩家重复物品记录（运维工具）
+ * POST /api/admin/merge-duplicate-items
+ *
+ * 业务场景：
+ *   早期 give-item 接口直接 Item.create 创建新记录，未合并同 item_key 的已有记录，
+ *   导致同一物品出现多条 Item 记录，引发背包容量计算异常、显示混乱等问题。
+ *   本接口扫描指定玩家的物品表，对同 item_key 的多条记录合并为一条，并清理空记录。
+ *
+ * 权限：管理员（auth + adminCheck）
+ *
+ * 请求体：
+ *   - playerId: 目标玩家 ID（必填）
+ *
+ * @author 修仙游戏开发组
+ * @created 2026-07-21
+ */
+router.post('/merge-duplicate-items', auth, adminCheck, async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const { playerId } = req.body;
+        if (!playerId) {
+            return res.status(400).json({ code: 400, message: 'playerId 不能为空' });
+        }
+
+        const player = await Player.findByPk(playerId);
+        if (!player) {
+            return res.status(404).json({ code: 404, message: '目标玩家不存在' });
+        }
+
+        // 查询该玩家所有物品记录，按 item_key 分组
+        const allItems = await Item.findAll({
+            where: { player_id: playerId },
+            transaction: t,
+            lock: t.LOCK.UPDATE
+        });
+
+        const groupedByKey = {};
+        for (const it of allItems) {
+            if (!groupedByKey[it.item_key]) groupedByKey[it.item_key] = [];
+            groupedByKey[it.item_key].push(it);
+        }
+
+        let mergedCount = 0;       // 合并的记录数
+        let deletedCount = 0;      // 删除的空记录数
+        let totalQuantityNormalized = 0;  // 规范化后的总数量
+
+        for (const [itemKey, records] of Object.entries(groupedByKey)) {
+            if (records.length <= 1) {
+                // 单条记录：但仍需检查 quantity<=0 的情况
+                if (records.length === 1 && records[0].quantity <= 0) {
+                    await records[0].destroy({ transaction: t });
+                    deletedCount += 1;
+                } else if (records.length === 1) {
+                    totalQuantityNormalized += records[0].quantity;
+                }
+                continue;
+            }
+
+            // 多条记录：累加数量到第一条，删除其余记录
+            const firstRecord = records[0];
+            let totalQty = 0;
+            for (const r of records) {
+                totalQty += r.quantity;
+            }
+
+            // 删除非首条记录
+            for (let i = 1; i < records.length; i++) {
+                await records[i].destroy({ transaction: t });
+                mergedCount += 1;
+            }
+
+            // 更新首条记录的 quantity
+            if (totalQty <= 0) {
+                // 总数量 <= 0，删除首条记录
+                await firstRecord.destroy({ transaction: t });
+                deletedCount += 1;
+            } else {
+                firstRecord.quantity = totalQty;
+                await firstRecord.save({ transaction: t });
+                totalQuantityNormalized += totalQty;
+            }
+        }
+
+        await logAdminAction(req.player.id, 'merge_duplicate_items', {
+            target_id: playerId,
+            merged_count: mergedCount,
+            deleted_count: deletedCount,
+            total_quantity_after: totalQuantityNormalized
+        }, req);
+
+        await t.commit();
+
+        res.json({
+            code: 200,
+            message: `合并完成：合并 ${mergedCount} 条重复记录，删除 ${deletedCount} 条空记录`,
+            data: {
+                player_id: playerId,
+                merged_count: mergedCount,
+                deleted_count: deletedCount,
+                total_quantity_after: totalQuantityNormalized
+            }
+        });
+    } catch (error) {
+        if (t && !t.finished) await t.rollback();
+        res.status(500).json({
+            code: 500,
+            message: '合并失败',
+            error: error.message
+        });
     }
 });
 

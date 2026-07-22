@@ -30,5 +30,31 @@
       "atk": 50,
       "def": 30
     }
+  },
+  {
+    "id": "化神木人·破阵者",
+    "name": "化神木人·破阵者",
+    "quality": "legendary",
+    "description": "首次击败传说中的化神木人，证明道友实力已臻化境。此称号为木人切磋系统的最高荣誉，唯有破阵者方能佩戴。",
+    "condition": "首次击败化神木人（首通奖励）",
+    "bonuses": {
+      "atk": 200,
+      "def": 100,
+      "hp_max": 2000,
+      "speed": 20
+    }
+  },
+  {
+    "id": "木人切磋·天下第一",
+    "name": "木人切磋·天下第一",
+    "quality": "legendary",
+    "description": "在切磋木人排行榜中登顶当日第一，证明道友战力冠绝群伦。此称号每日结算后发放，仅当日有效持有。",
+    "condition": "切磋木人排行榜每日第一名",
+    "bonuses": {
+      "atk": 100,
+      "def": 50,
+      "hp_max": 1000,
+      "cultivate_speed_pct": 10
+    }
   }
 ]

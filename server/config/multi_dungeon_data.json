@@ -1863,6 +1863,1049 @@
           { "type": "global_announce", "desc": "全服公告首通成就" }
         ]
       }
+    },
+
+    "cangkun": {
+      "name": "苍坤洞府",
+      "desc": "上古苍坤真君留下的洞府，藏有千机残篇（大衍诀残篇之一）与掩月抢亲门票线索。3-5人剧情副本，4幕抉择：入府探秘→搜寻宝物→禁制触发→脱身抉择。维护3专属变量（禁制裂隙/卷轴线索/脱身难度），脱身抉择影响掩月抢亲门票线索动态掉率，是掩月抢亲的前置副本。",
+      "member_min": 3,
+      "member_max": 5,
+      "leader_min_realm": "结丹后期",
+      "leader_min_realm_rank": 17,
+      "member_min_realm": "筑基后期",
+      "member_min_realm_rank": 13,
+      "consume_item_key": "cangkun_pass_token",
+      "consume_item_count": 1,
+      "cooldown_hours": 48,
+      "expire_hours": 2,
+
+      "init_morale": 90,
+      "init_vigilance": 20,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 80,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1.0,
+      "init_forbidden_rift": 0,
+      "init_scroll_clue": 0,
+      "init_escape_difficulty": 30,
+
+      "final_act_number": 4,
+      "final_max_rounds": 5,
+      "cangkun_guardian_hp_base": 800000,
+      "damage_per_round_base": 150000,
+      "damage_scroll_bonus_per_point": 2000,
+      "escape_difficulty_change_per_round": 5,
+      "morale_change_per_round": -2,
+      "soul_stability_change_per_round": -2,
+
+      "perfect_clear_morale_min": 50,
+      "perfect_clear_soul_stability_min": 60,
+
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "入府探秘",
+          "act_key": "enter_cave",
+          "description": "苍坤洞府外禁森严，队长带队选择入府方式。强破禁制可速进但禁制裂隙大涨；寻隙潜入稳健但收获一般；秘纹开路需消耗神识，禁制裂隙小涨且卷轴线索略增。",
+          "is_entry_act": true,
+          "choices": [
+            {
+              "key": "force_break",
+              "text": "强破禁制",
+              "desc": "以法力强破外禁：禁制裂隙+30 士气+10 收获+10%，但神魂稳定-10（激进路线）",
+              "morale_change": 10,
+              "soul_stability_change": -10,
+              "harvest_multiplier_change": 0.10,
+              "forbidden_rift_change": 30
+            },
+            {
+              "key": "find_gap",
+              "text": "寻隙潜入",
+              "desc": "寻外禁空隙潜入：禁制裂隙+5 警戒-10（稳健路线）",
+              "morale_change": 0,
+              "vigilance_change": -10,
+              "harvest_multiplier_change": 0.0,
+              "forbidden_rift_change": 5
+            },
+            {
+              "key": "secret_rune",
+              "text": "秘纹开路",
+              "desc": "以苍坤秘纹开路：禁制裂隙+10 卷轴线索+15，但消耗神识200（巧取路线）",
+              "morale_change": 0,
+              "soul_stability_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "forbidden_rift_change": 10,
+              "scroll_clue_change": 15,
+              "cost_divine_sense": 200
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "搜寻宝物",
+          "act_key": "search_treasure",
+          "description": "入府后洞内宝物琳琅，系统从5种搜寻目标中随机给出3种。队长择一搜寻，影响卷轴线索、收获倍率与千机残篇掉率。",
+          "is_random_choice": true,
+          "random_pool": [
+            {
+              "key": "search_scroll",
+              "text": "搜寻残卷",
+              "desc": "搜寻苍坤残卷：卷轴线索+25 收获+5%",
+              "morale_change": 0,
+              "harvest_multiplier_change": 0.05,
+              "scroll_clue_change": 25
+            },
+            {
+              "key": "search_puppet",
+              "text": "搜寻傀儡残片",
+              "desc": "搜寻傀儡残片：卷轴线索+10 收获+10%，但警戒+10",
+              "morale_change": 0,
+              "vigilance_change": 10,
+              "harvest_multiplier_change": 0.10,
+              "scroll_clue_change": 10
+            },
+            {
+              "key": "search_formation",
+              "text": "搜寻阵图",
+              "desc": "搜寻苍坤阵图：卷轴线索+15 封印+10",
+              "morale_change": 0,
+              "seal_stability_change": 10,
+              "harvest_multiplier_change": 0.0,
+              "scroll_clue_change": 15
+            },
+            {
+              "key": "search_old_seal",
+              "text": "搜寻旧禁材料",
+              "desc": "搜寻苍坤旧禁材料：禁制裂隙+15 收获+15%",
+              "morale_change": 0,
+              "harvest_multiplier_change": 0.15,
+              "forbidden_rift_change": 15
+            },
+            {
+              "key": "search_soul_crystal",
+              "text": "搜寻神魂晶",
+              "desc": "搜寻神魂晶：神魂稳定+15 士气+5 卷轴线索+5",
+              "morale_change": 5,
+              "soul_stability_change": 15,
+              "harvest_multiplier_change": 0.0,
+              "scroll_clue_change": 5
+            }
+          ],
+          "random_choice_count": 3,
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "禁制触发",
+          "act_key": "trigger_seal",
+          "description": "搜寻中触发苍坤旧禁核心，需选择处理方式。镇压最稳但收获打折；绕行可获额外收获但脱身难度上升；破禁激进，禁制裂隙大涨但卷轴线索也大涨。",
+          "choices": [
+            {
+              "key": "suppress_seal",
+              "text": "镇压禁制",
+              "desc": "镇压旧禁核心：封印+25 神魂稳定+10，但收获-10%（保守路线）",
+              "morale_change": 0,
+              "seal_stability_change": 25,
+              "soul_stability_change": 10,
+              "harvest_multiplier_change": -0.10
+            },
+            {
+              "key": "bypass_seal",
+              "text": "绕行禁制",
+              "desc": "绕行旧禁核心：收获+15% 脱身难度+20，但警戒+15（取巧路线）",
+              "morale_change": 0,
+              "vigilance_change": 15,
+              "harvest_multiplier_change": 0.15,
+              "escape_difficulty_change": 20
+            },
+            {
+              "key": "break_seal",
+              "text": "破禁取宝",
+              "desc": "强破旧禁核心取宝：禁制裂隙+25 卷轴线索+20 收获+20%，但神魂稳定-15（激进路线）",
+              "morale_change": 0,
+              "soul_stability_change": -15,
+              "harvest_multiplier_change": 0.20,
+              "forbidden_rift_change": 25,
+              "scroll_clue_change": 20
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "soul_stability_lte": 10,
+            "fail_message": "士气归零或神魂稳定度濒临崩溃，副本失败"
+          }
+        },
+        {
+          "act_number": 4,
+          "act_name": "脱身抉择",
+          "act_key": "escape_choice",
+          "description": "苍坤守灵苏醒，自动进行5回合决战。每回合伤害=基础+卷轴线索×加成；同时消耗士气与神魂稳定度，提升脱身难度。通关条件：苍坤守灵HP归零。脱身方式影响掩月抢亲门票线索动态掉率：强行突围+0%、借阵脱身+30%、隐遁潜行+50%。",
+          "is_auto_advance": true,
+          "is_final_act": true,
+          "rounds_max": 5,
+          "damage_per_round_base": 150000,
+          "damage_scroll_bonus_per_point": 2000,
+          "escape_difficulty_change_per_round": 5,
+          "morale_change_per_round": -2,
+          "soul_stability_change_per_round": -2,
+          "escape_choices": [
+            {
+              "key": "forced_breakout",
+              "text": "强行突围",
+              "desc": "强行突围：脱身难度+30，门票线索掉率加成 +0%（激进路线，决战回合数+1）",
+              "escape_choice": "forced_breakout",
+              "escape_difficulty_change": 30,
+              "ticket_clue_bonus": 0.0
+            },
+            {
+              "key": "formation_escape",
+              "text": "借阵脱身",
+              "desc": "借阵法脱身：脱身难度+10，门票线索掉率加成 +30%（均衡路线）",
+              "escape_choice": "formation_escape",
+              "escape_difficulty_change": 10,
+              "ticket_clue_bonus": 0.3
+            },
+            {
+              "key": "stealth_escape",
+              "text": "隐遁潜行",
+              "desc": "隐遁潜行：脱身难度+0，门票线索掉率加成 +50%（稳健路线，但决战回合数-1）",
+              "escape_choice": "stealth_escape",
+              "escape_difficulty_change": 0,
+              "ticket_clue_bonus": 0.5
+            }
+          ],
+          "clear_condition": {
+            "guardian_hp_zero": true,
+            "clear_message": "苍坤守灵被击退，队伍成功脱身，副本通关！"
+          },
+          "fail_condition": {
+            "morale_lte": 0,
+            "soul_stability_lte": 0,
+            "fail_message": "士气归零或神魂稳定度崩溃，副本失败"
+          }
+        }
+      ],
+
+      "rewards": {
+        "base_rewards": [
+          { "type": "exp", "count": 30000, "desc": "通关基础修为" },
+          { "type": "spirit_stones", "count": 8000, "desc": "通关基础灵石" },
+          { "type": "divine_sense", "count": 50, "desc": "通关永久神识+50" }
+        ],
+        "normal_drops": [
+          { "item_key": "cangkun_old_seal_fragment", "name": "苍坤旧禁残片", "chance": 0.35, "count_min": 1, "count_max": 3, "desc": "苍坤旧禁核心残片，可用于阵法修炼" },
+          { "item_key": "cangkun_rune_scroll", "name": "苍坤符纹残卷", "chance": 0.25, "count_min": 1, "count_max": 2, "desc": "苍坤秘纹残卷，可用于祭炼傀儡" },
+          { "item_key": "ancient_puppet_fragment", "name": "上古傀儡残片", "chance": 0.18, "count_min": 1, "count_max": 2, "desc": "上古傀儡部件，可用于傀儡工坊" },
+          { "item_key": "soul_crystal", "name": "神魂晶", "chance": 0.12, "count_min": 1, "count_max": 1, "desc": "神魂结晶，可用于神识淬炼" },
+          { "item_key": "cangkun_pass_token", "name": "苍坤通行令", "chance": 0.10, "count_min": 1, "count_max": 1, "desc": "再次进入副本的通行令" },
+          { "item_key": "fabao_tupu", "name": "法宝图谱", "chance": 0.04, "count_min": 1, "count_max": 1, "desc": "随机法宝图谱" }
+        ],
+        "first_clear_bonus": [
+          { "type": "title", "title_id": "cangkun_explorer", "title_name": "苍坤探秘者", "desc": "首通苍坤洞府的称号" },
+          { "type": "item", "item_key": "qianji_fragment", "count": 1, "desc": "千机残篇×1（大衍诀残篇之一，来自苍坤洞府）" },
+          { "type": "spirit_stones", "count": 40000, "desc": "额外灵石 40000" },
+          { "type": "global_announce", "desc": "全服公告首通成就" }
+        ],
+        "rare_drop": {
+          "item_key": "puppet_blueprint_ying",
+          "name": "影傀图谱",
+          "chance": 0.005,
+          "leader_only": false,
+          "desc": "稀有傀儡图谱（影傀），0.5% 概率随机分给队伍成员"
+        },
+        "ticket_clue_drops": {
+          "desc": "掩月抢亲门票线索动态权重掉落：基础掉率随卷轴线索、禁制裂隙与脱身抉择动态提高",
+          "drops": [
+            {
+              "item_key": "moon_shadow_letter",
+              "name": "月影传书残页",
+              "base_chance": 0.0759,
+              "desc": "掩月抢亲门票线索之一，基础掉率 7.59%"
+            },
+            {
+              "item_key": "yanyue_secret",
+              "name": "掩月密讯",
+              "base_chance": 0.0316,
+              "desc": "掩月抢亲门票线索之一，基础掉率 3.16%"
+            }
+          ],
+          "dynamic_bonus_formula": "final_chance = base_chance * (1 + scroll_clue/100 + forbidden_rift/100 + escape_choice_bonus)",
+          "escape_choice_bonus": {
+            "forced_breakout": 0.0,
+            "formation_escape": 0.3,
+            "stealth_escape": 0.5
+          },
+          "leader_only": false,
+          "desc_detail": "通关后每位在场成员独立判定。脱身方式决定 escape_choice_bonus：强行突围 +0%、借阵脱身 +30%、隐遁潜行 +50%。卷轴线索与禁制裂隙越高，门票线索掉率越高。"
+        },
+        "scroll_clue_bonus": {
+          "desc": "卷轴线索影响额外奖励：每10点卷轴线索增加1000修为和100灵石",
+          "exp_per_10_scroll_clue": 1000,
+          "spirit_stones_per_10_scroll_clue": 100
+        },
+        "forbidden_rift_bonus": {
+          "desc": "禁制裂隙影响稀有掉落加成：每10点禁制裂隙增加3%稀有掉落概率",
+          "rare_drop_bonus_per_10_rift": 0.03
+        },
+        "perfect_bonus": {
+          "desc": "完美通关加成：士气>50且神魂稳定>60时，每人额外获得修为+3000 灵石+500",
+          "exp": 3000,
+          "spirit_stones": 500
+        },
+        "title": "cangkun_explorer",
+        "title_name": "苍坤探秘者",
+        "title_desc": "完美通关苍坤洞府有机会获得的称号",
+        "title_chance": 0.20
+      }
+    },
+    "xuese": {
+      "name": "血色试炼",
+      "desc": "上古血色尊者遗留的禁地，4-6人 PVPvE 淘汰制副本。前3幕玩家互相博弈累积杀戮分、削减他人血气，每幕淘汰血气最低者；第4幕幸存者合作对抗血色尊者。淘汰机制+合作决战的双重压力，考验玩家在侵略与共生之间的策略平衡。",
+      "member_min": 4,
+      "member_max": 6,
+      "leader_min_realm": "筑基后期",
+      "leader_min_realm_rank": 13,
+      "member_min_realm": "筑基初期",
+      "member_min_realm_rank": 11,
+      "consume_item_key": "blood_token",
+      "consume_item_count": 1,
+      "cooldown_hours": 48,
+      "expire_hours": 2,
+      "init_morale": 80,
+      "init_vigilance": 0,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 100,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1.0,
+      "init_blood_qi_avg": 100,
+      "init_blood_fury": 0,
+      "init_eliminations": 0,
+      "init_survivor_count": 0,
+      "member_init_blood_qi": 100,
+      "member_init_kill_score": 0,
+      "elimination_enabled_acts": [1, 3],
+      "final_act_number": 4,
+      "final_max_rounds": 6,
+      "xuese_boss_hp_base": 1200000,
+      "damage_per_round_base": 100000,
+      "damage_blood_fury_bonus_per_point": 3000,
+      "damage_survivor_bonus_per_point": 20000,
+      "blood_qi_avg_change_per_round": -10,
+      "perfect_clear_no_elimination": true,
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "血色试炼场",
+          "act_key": "blood_arena",
+          "description": "队伍进入血色试炼场，每位成员选择作战策略。猎杀对他人造成血气伤害但自身受损；潜行稳健自保并累积杀戮分；挑战激进，对他人造成更高伤害但自身血气消耗更大。幕末血气最低者被淘汰。",
+          "is_entry_act": true,
+          "is_pvp_eliminable": true,
+          "elimination_count": 1,
+          "choices": [
+            {
+              "key": "hunt",
+              "text": "猎杀",
+              "desc": "对其他玩家造成 30 血气伤害，自身血气 -10，杀戮分 +8（侵略路线）",
+              "morale_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "blood_qi_self_change": -10,
+              "blood_qi_others_change": -30,
+              "kill_score_change": 8,
+              "blood_fury_change": 5
+            },
+            {
+              "key": "stealth",
+              "text": "潜行",
+              "desc": "稳健自保：自身血气 +15，杀戮分 +5（保守路线）",
+              "morale_change": 5,
+              "harvest_multiplier_change": 0.0,
+              "blood_qi_self_change": 15,
+              "blood_qi_others_change": 0,
+              "kill_score_change": 5,
+              "blood_fury_change": 0
+            },
+            {
+              "key": "challenge",
+              "text": "挑战",
+              "desc": "激进挑战：对其他玩家造成 50 血气伤害，自身血气 -25，杀戮分 +15（高侵略路线）",
+              "morale_change": -5,
+              "harvest_multiplier_change": 0.05,
+              "blood_qi_self_change": -25,
+              "blood_qi_others_change": -50,
+              "kill_score_change": 15,
+              "blood_fury_change": 10
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "血魂祭坛",
+          "act_key": "blood_altar",
+          "description": "队伍抵达血魂祭坛，可选择献祭自身血气换取血怒加成、夺取他人血气补充自身、或守护自身稳健累积血怒。本幕不淘汰，但血气归零者将在第3幕被优先淘汰。",
+          "is_pvp_eliminable": false,
+          "choices": [
+            {
+              "key": "sacrifice",
+              "text": "献祭",
+              "desc": "血气 -20，血怒 +30，全队 Boss 战伤害加成提升（献祭路线）",
+              "morale_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "blood_qi_self_change": -20,
+              "blood_qi_others_change": 0,
+              "kill_score_change": 0,
+              "blood_fury_change": 30
+            },
+            {
+              "key": "plunder",
+              "text": "夺取",
+              "desc": "从其他玩家各夺取 10 血气，自身血气 +30，杀戮分 +10（掠夺路线）",
+              "morale_change": -5,
+              "harvest_multiplier_change": 0.0,
+              "blood_qi_self_change": 30,
+              "blood_qi_others_change": -10,
+              "kill_score_change": 10,
+              "blood_fury_change": 5
+            },
+            {
+              "key": "guard",
+              "text": "守护",
+              "desc": "守护自身血气 +10，血怒 +10（稳健路线）",
+              "morale_change": 5,
+              "harvest_multiplier_change": 0.0,
+              "blood_qi_self_change": 10,
+              "blood_qi_others_change": 0,
+              "kill_score_change": 0,
+              "blood_fury_change": 10
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "血雾迷踪",
+          "act_key": "blood_mist",
+          "description": "队伍进入血雾迷踪，视野受限。追击对他人造成伤害但自身暴露；躲避自保但杀戮分扣减；伏击高伤害但自身血气小幅消耗。幕末血气最低者被淘汰，幸存者进入第4幕决战。",
+          "is_pvp_eliminable": true,
+          "elimination_count": 1,
+          "choices": [
+            {
+              "key": "pursue",
+              "text": "追击",
+              "desc": "对其他玩家造成 15 血气伤害，自身血气 -15（追击路线）",
+              "morale_change": 0,
+              "harvest_multiplier_change": 0.0,
+              "blood_qi_self_change": -15,
+              "blood_qi_others_change": -15,
+              "kill_score_change": 5,
+              "blood_fury_change": 5
+            },
+            {
+              "key": "evade",
+              "text": "躲避",
+              "desc": "自身血气 +5，杀戮分 -5（躲避路线）",
+              "morale_change": 5,
+              "harvest_multiplier_change": 0.0,
+              "blood_qi_self_change": 5,
+              "blood_qi_others_change": 0,
+              "kill_score_change": -5,
+              "blood_fury_change": 0
+            },
+            {
+              "key": "ambush",
+              "text": "伏击",
+              "desc": "对其他玩家造成 25 血气伤害，自身血气 -5，杀戮分 +12（伏击路线）",
+              "morale_change": -5,
+              "harvest_multiplier_change": 0.05,
+              "blood_qi_self_change": -5,
+              "blood_qi_others_change": -25,
+              "kill_score_change": 12,
+              "blood_fury_change": 8
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 4,
+          "act_name": "血色尊者决战",
+          "act_key": "xuese_boss",
+          "description": "幸存者合作对抗血色尊者（HP=1200000）。每回合伤害 = 100000 + 血怒×3000 + 幸存人数×20000；每回合全队平均血气 -10。6 回合内削减 Boss HP 至 0 即通关；平均血气归零或回合用尽即失败。幸存人数越多、血怒越高，越易通关。",
+          "is_auto_advance": true,
+          "is_final_act": true,
+          "rounds_max": 6,
+          "damage_per_round_base": 100000,
+          "damage_blood_fury_bonus_per_point": 3000,
+          "damage_survivor_bonus_per_point": 20000,
+          "blood_qi_avg_change_per_round": -10,
+          "clear_condition": {
+            "boss_hp_zero": true,
+            "clear_message": "血色尊者被击溃，幸存者获得血色传承，副本通关！"
+          },
+          "fail_condition": {
+            "blood_qi_avg_lte": 0,
+            "fail_message": "平均血气归零，全队力竭，副本失败"
+          }
+        }
+      ],
+      "rewards": {
+        "base_rewards": [
+          {
+            "type": "exp",
+            "count": 35000,
+            "desc": "通关基础修为（血色试炼收益高于一般副本）"
+          },
+          {
+            "type": "spirit_stones",
+            "count": 10000,
+            "desc": "通关基础灵石"
+          },
+          {
+            "type": "divine_sense",
+            "count": 60,
+            "desc": "通关永久神识+60"
+          }
+        ],
+        "normal_drops": [
+          {
+            "item_key": "blood_token",
+            "name": "血色令牌",
+            "chance": 0.10,
+            "count_min": 1,
+            "count_max": 1,
+            "desc": "再次进入血色试炼的通行令"
+          },
+          {
+            "item_key": "blood_soul_crystal",
+            "name": "血魂晶",
+            "chance": 0.20,
+            "count_min": 1,
+            "count_max": 2,
+            "desc": "血色试炼凝结的血魂晶，可用于血道修炼"
+          },
+          {
+            "item_key": "blood_sha_charm",
+            "name": "血煞符",
+            "chance": 0.15,
+            "count_min": 1,
+            "count_max": 2,
+            "desc": "血煞凝聚的符箓，可用于强化战斗"
+          },
+          {
+            "item_key": "blood_relic_fragment",
+            "name": "血色遗物残片",
+            "chance": 0.12,
+            "count_min": 1,
+            "count_max": 2,
+            "desc": "血色尊者遗物残片，可用于法宝祭炼"
+          }
+        ],
+        "first_clear_bonus": [
+          {
+            "type": "title",
+            "title_id": "blood_purgatory_survivor",
+            "title_name": "血色试炼幸存者",
+            "desc": "首通血色试炼的称号"
+          },
+          {
+            "type": "item",
+            "item_key": "blood_blade_remnant",
+            "count": 1,
+            "desc": "血色残刃×1（血色尊者佩刃残片，可用于血色法宝路线）"
+          },
+          {
+            "type": "spirit_stones",
+            "count": 50000,
+            "desc": "额外灵石 50000"
+          },
+          {
+            "type": "global_announce",
+            "desc": "全服公告首通成就"
+          }
+        ],
+        "rare_drop": {
+          "item_key": "blood_battle_armor",
+          "name": "血色战甲",
+          "chance": 0.008,
+          "leader_only": false,
+          "desc": "稀有血色战甲，0.8% 概率随机分给队伍幸存成员"
+        },
+        "kill_score_bonus": {
+          "desc": "杀戮分影响额外奖励：每10点杀戮分增加2000修为和150灵石",
+          "exp_per_10_kill_score": 2000,
+          "spirit_stones_per_10_kill_score": 150
+        },
+        "survivor_bonus": {
+          "desc": "最终幸存者额外奖励：每位幸存者额外获得5000修为和800灵石",
+          "exp_per_survivor": 5000,
+          "spirit_stones_per_survivor": 800
+        },
+        "perfect_bonus": {
+          "desc": "完美通关加成：零淘汰通关时，每位成员额外获得修为+10000 灵石+2000",
+          "exp": 10000,
+          "spirit_stones": 2000
+        },
+        "title": "blood_purgatory_survivor",
+        "title_name": "血色试炼幸存者",
+        "title_desc": "完美通关血色试炼有机会获得的称号",
+        "title_chance": 0.30
+      }
+    },
+    "zhuimo": {
+      "name": "坠魔谷",
+      "desc": "上古修士陨落之地，3-5人 PVE 心魔博弈副本。玩家进入坠魔谷面对自身心魔考验，抉择影响心魔与道心两个对立变量。心魔越高杀伐力越强但风险越大（满100堕魔淘汰），道心越高奖励越好但防御降低（归0道心破碎淘汰）。队员可护道降低他人心魔，也可试道增加他人心魔换取自身收益，合作与博弈的双重压力考验玩家在杀伐与守道之间的策略平衡。",
+      "member_min": 3,
+      "member_max": 5,
+      "leader_min_realm": "结丹期",
+      "leader_min_realm_rank": 15,
+      "member_min_realm": "筑基后期",
+      "member_min_realm_rank": 13,
+      "consume_item_key": "zhuimo_token",
+      "consume_item_count": 1,
+      "cooldown_hours": 72,
+      "expire_hours": 2,
+      "init_morale": 80,
+      "init_vigilance": 0,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 100,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1,
+      "init_avg_heart_demon": 0,
+      "init_avg_dao_heart": 100,
+      "member_init_heart_demon": 0,
+      "member_init_dao_heart": 100,
+      "fallen_threshold_heart_demon": 100,
+      "broken_threshold_dao_heart": 0,
+      "final_act_number": 4,
+      "final_max_rounds": 5,
+      "demon_boss_hp_base": 1000000,
+      "damage_per_round_base": 80000,
+      "damage_dao_heart_bonus_per_point": 1500,
+      "damage_heart_demon_bonus_per_point": 2000,
+      "dao_heart_change_per_round": -5,
+      "heart_demon_change_per_round": 5,
+      "perfect_clear_no_fallen": true,
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "入谷遇魔",
+          "act_key": "enter_valley",
+          "description": "队伍进入坠魔谷，谷中魔气弥漫，每位成员需选择应对策略。净化可降低自身心魔但伤害低；斩魔对Boss造成高伤害但自身心魔飙升；护道为其他队员降低心魔，自身道心提升。",
+          "is_entry_act": true,
+          "choices": [
+            {
+              "key": "purify",
+              "text": "净化",
+              "desc": "自身心魔-10，道心+5，全队伤害低（守道路线）",
+              "morale_change": 5,
+              "harvest_multiplier_change": 0,
+              "heart_demon_self_change": -10,
+              "heart_demon_others_change": 0,
+              "dao_heart_self_change": 5,
+              "dao_heart_others_change": 0
+            },
+            {
+              "key": "slay",
+              "text": "斩魔",
+              "desc": "全队对Boss高伤害，自身心魔+15，道心-10（杀伐路线）",
+              "morale_change": -5,
+              "harvest_multiplier_change": 0.1,
+              "heart_demon_self_change": 15,
+              "heart_demon_others_change": 0,
+              "dao_heart_self_change": -10,
+              "dao_heart_others_change": 0
+            },
+            {
+              "key": "guard",
+              "text": "护道",
+              "desc": "为其他队员降低心魔-5，自身道心+10（护道路线）",
+              "morale_change": 5,
+              "harvest_multiplier_change": 0,
+              "heart_demon_self_change": 0,
+              "heart_demon_others_change": -5,
+              "dao_heart_self_change": 10,
+              "dao_heart_others_change": 0
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 2,
+          "act_name": "心魔试炼",
+          "act_key": "demon_trial",
+          "description": "队伍抵达心魔试炼场，魔气更浓。静心可大幅降低自身心魔但全队伤害降低；血祭全队高伤害但全队心魔飙升；护道为心魔最高队员降低心魔。",
+          "choices": [
+            {
+              "key": "meditate",
+              "text": "静心",
+              "desc": "自身心魔-15，道心+10，全队伤害降低（静心路线）",
+              "morale_change": 5,
+              "harvest_multiplier_change": -0.1,
+              "heart_demon_self_change": -15,
+              "heart_demon_others_change": 0,
+              "dao_heart_self_change": 10,
+              "dao_heart_others_change": 0
+            },
+            {
+              "key": "blood_sacrifice",
+              "text": "血祭",
+              "desc": "全队对Boss高伤害，全队心魔+10（血祭路线）",
+              "morale_change": -10,
+              "harvest_multiplier_change": 0.15,
+              "heart_demon_self_change": 10,
+              "heart_demon_others_change": 10,
+              "dao_heart_self_change": -5,
+              "dao_heart_others_change": 0
+            },
+            {
+              "key": "protect",
+              "text": "护道",
+              "desc": "为心魔最高的队员降低心魔-20，自身道心+5（护道路线）",
+              "morale_change": 5,
+              "harvest_multiplier_change": 0,
+              "heart_demon_self_change": 0,
+              "heart_demon_others_change_highest": -20,
+              "dao_heart_self_change": 5,
+              "dao_heart_others_change": 0
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 3,
+          "act_name": "道心抉择",
+          "act_key": "dao_choice",
+          "description": "队伍面临道心抉择。守道大幅提升道心降低心魔但伤害低；入魔自身心魔飙升但全队伤害大幅提升，有堕魔风险；平衡中庸之道，心魔道心均小幅提升。",
+          "choices": [
+            {
+              "key": "uphold_dao",
+              "text": "守道",
+              "desc": "自身道心+20，心魔-10，全队伤害低（守道路线）",
+              "morale_change": 10,
+              "harvest_multiplier_change": -0.05,
+              "heart_demon_self_change": -10,
+              "heart_demon_others_change": 0,
+              "dao_heart_self_change": 20,
+              "dao_heart_others_change": 0
+            },
+            {
+              "key": "fall_to_demon",
+              "text": "入魔",
+              "desc": "自身心魔+30，全队伤害大幅提升，自身有堕魔风险（入魔路线）",
+              "morale_change": -10,
+              "harvest_multiplier_change": 0.25,
+              "heart_demon_self_change": 30,
+              "heart_demon_others_change": 0,
+              "dao_heart_self_change": -15,
+              "dao_heart_others_change": 0
+            },
+            {
+              "key": "balance",
+              "text": "平衡",
+              "desc": "自身心魔+5，道心+5，全队伤害中等（平衡路线）",
+              "morale_change": 0,
+              "harvest_multiplier_change": 0.05,
+              "heart_demon_self_change": 5,
+              "heart_demon_others_change": 0,
+              "dao_heart_self_change": 5,
+              "dao_heart_others_change": 0
+            }
+          ],
+          "fail_condition": {
+            "morale_lte": 0,
+            "fail_message": "士气归零，队伍溃散，副本失败"
+          }
+        },
+        {
+          "act_number": 4,
+          "act_name": "心魔决战",
+          "act_key": "demon_boss",
+          "description": "队伍面对心魔Boss（HP=1000000）。每回合伤害 = 80000 + (100-平均心魔)×2000 + 平均道心×1500；每回合全队道心-5、心魔+5（心魔腐蚀）。5回合内削减Boss HP至0即通关；平均道心归0或平均心魔满100即失败。道心越高伤害越稳定，心魔越高伤害爆发但有堕魔风险。",
+          "is_auto_advance": true,
+          "is_final_act": true,
+          "rounds_max": 5,
+          "damage_per_round_base": 80000,
+          "damage_dao_heart_bonus_per_point": 1500,
+          "damage_heart_demon_bonus_per_point": 2000,
+          "dao_heart_change_per_round": -5,
+          "heart_demon_change_per_round": 5,
+          "clear_condition": {
+            "boss_hp_zero": true,
+            "clear_message": "心魔Boss被击溃，队员道心坚固，副本通关！"
+          },
+          "fail_condition": {
+            "avg_dao_heart_lte": 0,
+            "avg_heart_demon_gte": 100,
+            "fail_message": "道心破碎或全员堕魔，副本失败"
+          }
+        }
+      ],
+      "rewards": {
+        "base_rewards": [
+          {
+            "type": "exp",
+            "count": 25000,
+            "desc": "通关基础修为"
+          },
+          {
+            "type": "spirit_stones",
+            "count": 8000,
+            "desc": "通关基础灵石"
+          },
+          {
+            "type": "divine_sense",
+            "count": 50,
+            "desc": "通关永久神识+50"
+          }
+        ],
+        "normal_drops": [
+          {
+            "item_key": "zhuimo_token",
+            "name": "坠魔令",
+            "chance": 0.08,
+            "count_min": 1,
+            "count_max": 1,
+            "desc": "再次进入坠魔谷的通行令"
+          },
+          {
+            "item_key": "heart_demon_crystal",
+            "name": "心魔晶",
+            "chance": 0.18,
+            "count_min": 1,
+            "count_max": 2,
+            "desc": "坠魔谷凝结的心魔晶，可用于魔道修炼"
+          },
+          {
+            "item_key": "dao_heart_fragment",
+            "name": "道心碎片",
+            "chance": 0.15,
+            "count_min": 1,
+            "count_max": 2,
+            "desc": "道心碎片，可用于强化道心"
+          },
+          {
+            "item_key": "demon_seal_rune",
+            "name": "镇魔符文",
+            "chance": 0.12,
+            "count_min": 1,
+            "count_max": 2,
+            "desc": "上古镇魔符文，可用于封印类法宝祭炼"
+          }
+        ],
+        "first_clear_bonus": [
+          {
+            "type": "title",
+            "title_id": "demon_slayer",
+            "title_name": "伏魔者",
+            "desc": "首通坠魔谷的称号"
+          },
+          {
+            "type": "item",
+            "item_key": "heart_demon_seed",
+            "count": 1,
+            "desc": "心魔种子×1（可用于培育第二元神五魔子线）"
+          },
+          {
+            "type": "spirit_stones",
+            "count": 30000,
+            "desc": "额外灵石 30000"
+          },
+          {
+            "type": "global_announce",
+            "desc": "全服公告首通成就"
+          }
+        ],
+        "rare_drop": {
+          "item_key": "dao_heart_crystal",
+          "name": "道心晶",
+          "chance": 0.01,
+          "leader_only": false,
+          "desc": "稀有道心晶，1% 概率随机分给队伍未堕魔成员"
+        },
+        "dao_heart_bonus": {
+          "desc": "道心加成：每10点道心增加1500修为和100灵石（仅未堕魔者）",
+          "exp_per_10_dao_heart": 1500,
+          "spirit_stones_per_10_dao_heart": 100
+        },
+        "perfect_bonus": {
+          "desc": "完美通关加成：零堕魔通关时，每位成员额外获得修为+8000 灵石+1500",
+          "exp": 8000,
+          "spirit_stones": 1500
+        },
+        "title": "demon_slayer",
+        "title_name": "伏魔者",
+        "title_desc": "道心≥80通关坠魔谷有机会获得的称号",
+        "title_chance": 0.25,
+        "title_min_dao_heart": 80
+      }
+    },
+    "huanglong": {
+      "name": "黄龙山",
+      "desc": "慕兰战线南端要塞，5人固定编制宗门协同阵法副本。队员必须同宗门，分别驻守五大阵眼（前锋/中军/后卫/左翼/右翼），相同阵眼≥2人触发共鸣加成。副本联动慕兰战线资源点状态，通关后全员获得宗门军功。宗门特色提供差异化加成：落云+阵法强度、星宫+共鸣触发、天星+稀有掉落、凌霄+士气恢复、阴罗+伤害、合欢+完美通关。差异化设计：与坠魔谷心魔博弈的PVE协作不同，黄龙山强调同宗门成员的阵法配合与共鸣爆发。",
+      "member_min": 5,
+      "member_max": 5,
+      "leader_min_realm": "元婴期",
+      "leader_min_realm_rank": 19,
+      "member_min_realm": "结丹后期",
+      "member_min_realm_rank": 17,
+      "require_same_sect": true,
+      "consume_item_key": "huanglong_token",
+      "consume_item_count": 1,
+      "cooldown_hours": 96,
+      "expire_hours": 2,
+      "init_morale": 90,
+      "init_vigilance": 0,
+      "init_demon_corruption": 0,
+      "init_seal_stability": 100,
+      "init_soul_stability": 100,
+      "init_harvest_multiplier": 1,
+      "init_formation_power": 0,
+      "init_resonance_count": 0,
+      "member_init_eye_position": "unassigned",
+      "member_init_contribution_score": 0,
+      "member_init_is_defecting": false,
+      "formation_power_max": 200,
+      "resonance_threshold": 2,
+      "final_act_number": 4,
+      "final_max_rounds": 5,
+      "huanglong_boss_hp_base": 1500000,
+      "damage_per_round_base": 100000,
+      "damage_formation_power_bonus_per_point": 3000,
+      "damage_resonance_bonus_per_count": 15000,
+      "morale_change_per_round": -3,
+      "vigilance_change_per_round": 5,
+      "vigilance_max": 100,
+      "perfect_clear_no_defect": true,
+      "sect_bonus": {
+        "luoyun": { "formation_power_gain_bonus": 0.10, "desc": "落云宗：阵法强度收益 +10%" },
+        "xinggong": { "resonance_trigger_bonus": 0.05, "desc": "星宫：共鸣触发率 +5%" },
+        "tianxing": { "rare_drop_bonus": 0.15, "desc": "天星宗：稀有掉落率 +15%" },
+        "lingxiao": { "morale_recover_bonus": 0.20, "desc": "凌霄宫：士气恢复 +20%" },
+        "yinluo": { "damage_bonus": 0.10, "desc": "阴罗宗：伤害加成 +10%" },
+        "hehuan": { "perfect_bonus_multiplier": 0.15, "desc": "合欢宗：完美通关加成 +15%" }
+      },
+      "acts": [
+        {
+          "act_number": 1,
+          "act_name": "入阵固守",
+          "act_key": "enter_formation",
+          "description": "队伍入阵，5名队员分别选择阵眼驻守。前锋吸收伤害降低警戒；中军提升阵法强度；后卫恢复士气；左翼增加警戒防御；右翼增加收获倍率。相同阵眼≥2人触发共鸣（坚守/聚灵/守心/警觉/丰收）。",
+          "is_entry_act": true,
+          "choices": [
+            { "key": "forward", "text": "前锋阵眼", "desc": "驻守前锋阵眼，吸收伤害（团队警戒-10，自身贡献+10）", "vigilance_change": -10, "formation_power_change": 0, "eye_position": "forward", "contribution_score_self_change": 10 },
+            { "key": "center", "text": "中军阵眼", "desc": "驻守中军阵眼，提升阵法强度（+15）", "formation_power_change": 15, "eye_position": "center", "contribution_score_self_change": 8 },
+            { "key": "rear", "text": "后卫阵眼", "desc": "驻守后卫阵眼，恢复士气（+10）", "morale_change": 10, "eye_position": "rear", "contribution_score_self_change": 8 },
+            { "key": "left", "text": "左翼阵眼", "desc": "驻守左翼阵眼，增加警戒（+15）", "vigilance_change": 15, "eye_position": "left", "contribution_score_self_change": 8 },
+            { "key": "right", "text": "右翼阵眼", "desc": "驻守右翼阵眼，增加收获（+0.1）", "harvest_multiplier_change": 0.1, "eye_position": "right", "contribution_score_self_change": 8 }
+          ],
+          "fail_condition": { "morale_lte": 0, "fail_message": "士气归零，阵法崩溃，副本失败" }
+        },
+        {
+          "act_number": 2,
+          "act_name": "截断粮道",
+          "act_key": "cut_supply",
+          "description": "队伍选择截粮策略：奇袭高伤害但警戒飙升；伪装稳健但收益低；强攻正面硬刚；潜行低风险低收益。影响阵法强度/警戒/士气/收获倍率。",
+          "choices": [
+            { "key": "raid", "text": "奇袭", "desc": "高伤害截粮，阵法强度+20，警戒+15", "formation_power_change": 20, "vigilance_change": 15, "harvest_multiplier_change": 0.1 },
+            { "key": "disguise", "text": "伪装", "desc": "稳健截粮，阵法强度+5，警戒+5", "formation_power_change": 5, "vigilance_change": 5 },
+            { "key": "storm", "text": "强攻", "desc": "正面截粮，阵法强度+25，士气-10", "formation_power_change": 25, "morale_change": -10, "harvest_multiplier_change": 0.15 },
+            { "key": "stealth", "text": "潜行", "desc": "低风险截粮，警戒+0，收获-0.05", "formation_power_change": 10, "harvest_multiplier_change": -0.05 }
+          ],
+          "fail_condition": { "morale_lte": 0, "fail_message": "士气归零，阵法崩溃，副本失败" }
+        },
+        {
+          "act_number": 3,
+          "act_name": "阵法共鸣",
+          "act_key": "formation_resonance",
+          "description": "队长抉择共鸣方向：聚灵（+阵法强度）/守阵（+士气）/破阵（+伤害）。共鸣方向需配合第1幕阵眼分布：相同阵眼越多共鸣越强。叛道抉择会令该成员不参与共鸣，但获得双倍贡献分。",
+          "choices": [
+            { "key": "gather_spirit", "text": "聚灵共鸣", "desc": "阵法强度+30，共鸣数+1", "formation_power_change": 30, "resonance_count_change": 1 },
+            { "key": "guard_formation", "text": "守阵共鸣", "desc": "士气+20，共鸣数+1", "morale_change": 20, "resonance_count_change": 1 },
+            { "key": "break_formation", "text": "破阵共鸣", "desc": "阵法强度+10，伤害倍率+0.2，共鸣数+1", "formation_power_change": 10, "harvest_multiplier_change": 0.2, "resonance_count_change": 1 },
+            { "key": "defect", "text": "叛道", "desc": "自身不参与共鸣，但获得双倍贡献分（影响个人奖励，不影响团队共鸣）", "contribution_score_self_change": 20, "is_defecting_self": true }
+          ],
+          "fail_condition": { "morale_lte": 0, "fail_message": "士气归零，阵法崩溃，副本失败" }
+        },
+        {
+          "act_number": 4,
+          "act_name": "黄龙主阵决战",
+          "act_key": "huanglong_boss",
+          "description": "队伍面对黄龙阵灵（HP=1500000）。每回合伤害 = 100000 + 阵法强度 × 3000 + 共鸣数 × 15000；每回合士气-3、警戒+5（敌袭警戒上升）。5回合内削减Boss HP至0即通关；士气归0或警戒满100即失败。阵法强度越高伤害越高，共鸣数越多伤害爆发越强。",
+          "is_auto_advance": true,
+          "is_final_act": true,
+          "rounds_max": 5,
+          "damage_per_round_base": 100000,
+          "damage_formation_power_bonus_per_point": 3000,
+          "damage_resonance_bonus_per_count": 15000,
+          "morale_change_per_round": -3,
+          "vigilance_change_per_round": 5,
+          "clear_condition": { "boss_hp_zero": true, "clear_message": "黄龙阵灵被击溃，宗门阵法威震慕兰战线，副本通关！" },
+          "fail_condition": { "morale_lte": 0, "vigilance_gte": 100, "fail_message": "士气崩溃或警戒满100，阵法被破，副本失败" }
+        }
+      ],
+      "rewards": {
+        "base_rewards": [
+          { "type": "exp", "count": 40000, "desc": "通关基础修为" },
+          { "type": "spirit_stones", "count": 12000, "desc": "通关基础灵石" },
+          { "type": "divine_sense", "count": 70, "desc": "通关永久神识+70" },
+          { "type": "sect_contribution", "count": 50, "desc": "通关宗门贡献+50（联动宗门系统）" }
+        ],
+        "normal_drops": [
+          { "item_key": "huanglong_token", "name": "黄龙令", "chance": 0.10, "count_min": 1, "count_max": 1, "desc": "再次进入黄龙山的通行令" },
+          { "item_key": "huanglong_scale", "name": "黄龙鳞", "chance": 0.20, "count_min": 1, "count_max": 2, "desc": "黄龙山凝结的龙鳞，可用于阵法祭炼" },
+          { "item_key": "formation_rune", "name": "阵法符文", "chance": 0.15, "count_min": 1, "count_max": 2, "desc": "上古镇阵符文，可用于阵法强化" },
+          { "item_key": "sect_medal", "name": "宗门勋章", "chance": 0.12, "count_min": 1, "count_max": 2, "desc": "黄龙山战功徽章，可在宗门兑换珍稀物品" }
+        ],
+        "first_clear_bonus": [
+          { "type": "title", "title_id": "huanglong_master", "title_name": "黄龙阵主", "desc": "首通黄龙山的称号" },
+          { "type": "item", "item_key": "huanglong_formation_map", "count": 1, "desc": "黄龙阵图×1（可用于布置宗门级阵法）" },
+          { "type": "spirit_stones", "count": 50000, "desc": "额外灵石 50000" },
+          { "type": "global_announce", "desc": "全服公告首通成就" }
+        ],
+        "rare_drop": {
+          "item_key": "huanglong_pearl",
+          "name": "黄龙珠",
+          "chance": 0.02,
+          "leader_only": false,
+          "desc": "稀有黄龙珠，2% 概率随机分给队伍非叛逃成员"
+        },
+        "formation_power_bonus": {
+          "desc": "阵法强度加成：每10点 formation_power 增加2000修为和150灵石（仅非叛道者）",
+          "exp_per_10_formation_power": 2000,
+          "spirit_stones_per_10_formation_power": 150
+        },
+        "perfect_bonus": {
+          "desc": "完美通关加成：零叛道通关时，每位成员额外获得修为+10000 灵石+2000",
+          "exp": 10000,
+          "spirit_stones": 2000
+        },
+        "title": "huanglong_master",
+        "title_name": "黄龙阵主",
+        "title_desc": "阵法强度≥120通关黄龙山有机会获得的称号",
+        "title_chance": 0.30,
+        "title_min_formation_power": 120
+      }
     }
   }
 }

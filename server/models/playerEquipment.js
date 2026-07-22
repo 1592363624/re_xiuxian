@@ -91,6 +91,32 @@ const PlayerEquipment = sequelize.define('PlayerEquipment', {
         allowNull: false,
         defaultValue: false,
         comment: '本命法器是否已祭出（祭出后用于战斗，受场景限制）'
+    },
+    // ========== 法宝深线系统字段（v1.3 新增，玩法文档第19节） ==========
+    // 统一存储所有法宝深线状态，JSON 结构避免表结构频繁变更
+    // 当前支持：blood_sword（血魔剑线），预留 xutian_cauldron / sky_bottle / five_element_wheel
+    // blood_sword 子结构：
+    //   - blood_pact_stage: 0~5 当前血契阶数
+    //   - blood_pact_weekly_progress: 本周血契累计进度（每周上限 36）
+    //   - blood_pact_week_reset_at: 周重置日期（ISO 周一为起点）
+    //   - last_sacrifice_at: 上次祭血时间（18 小时冷却）
+    //   - corruption: 0~100 魔染值（越高反噬越重）
+    //   - suppression: 0~100 镇契值（降低反噬）
+    //   - imprint_type: 'none'|'blood'|'suppress' 当前铭印类型
+    //   - last_imprint_at: 上次铭印时间（7 天冷却）
+    //   - sheath_until: 封鞘截止时间（null=未封鞘；未到时间=不可祭出/出战）
+    deep_line_state: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: null,
+        get() {
+            const rawValue = this.getDataValue('deep_line_state');
+            return rawValue ? JSON.parse(rawValue) : {};
+        },
+        set(value) {
+            this.setDataValue('deep_line_state', JSON.stringify(value));
+        },
+        comment: '法宝深线状态JSON（血魔剑/虚天鼎/掌天瓶/幻世轮四条线统一存储）'
     }
 }, {
     tableName: 'player_equipment',

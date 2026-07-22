@@ -9,6 +9,7 @@
  * 5. POST /api/nascent-soul/dharma-form/cultivate：凝聚法相天地
  * 6. POST /api/nascent-soul/fracture/explore：探寻虚空裂缝
  * 7. POST /api/nascent-soul/reincarnate：夺舍重生
+ * 8. POST /api/nascent-soul/tianji-revert：天机回溯（清除虚弱+恢复残魂）
  *
  * 设计原则：路由层仅做参数校验与调用 Service，业务逻辑在 NascentSoulService 中
  * 互斥校验由 PlayerStateMachine 统一处理，本路由调用前需通过 canStart 检查
@@ -184,6 +185,22 @@ router.post('/fracture/explore', auth, async (req, res, next) => {
 router.post('/reincarnate', auth, async (req, res, next) => {
     try {
         const result = await NascentSoulService.reincarnate(req.player.id);
+        sendServiceResult(result, res);
+    } catch (err) {
+        next(err);
+    }
+});
+
+/**
+ * POST /api/nascent-soul/tianji-revert
+ * 天机回溯（清除虚弱+恢复残魂，每日1次，消耗灵石+神识）
+ * 仅在虚弱中或残魂<50时可用，与飞升专用 AscensionService.revert 区别：
+ *   - AscensionService.revert：仅飞升失败状态可回溯，重置飞升进度
+ *   - NascentSoulService.tianjiRevert：仅元婴后期虚弱/残魂过低时可用，不重置任何进度，只清状态
+ */
+router.post('/tianji-revert', auth, async (req, res, next) => {
+    try {
+        const result = await NascentSoulService.tianjiRevert(req.player.id);
         sendServiceResult(result, res);
     } catch (err) {
         next(err);

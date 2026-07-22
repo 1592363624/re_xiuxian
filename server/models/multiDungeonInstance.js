@@ -247,6 +247,128 @@ const MultiDungeonInstance = sequelize.define('MultiDungeonInstance', {
         allowNull: true,
         comment: '落云秘圃·第3幕抉择键（用于灵眼树胚掉落判定）'
     },
+    // 苍坤洞府专属变量（2026-07-21 新增，migration_0057）
+    // forbidden_rift：禁制裂隙（0-100），苍坤旧禁被破开的程度，影响门票线索掉率与脱身难度
+    //   - 由第1幕强破禁制/第3幕破禁抉择累加，越高越危险但门票线索掉率越高
+    forbidden_rift: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '苍坤洞府·禁制裂隙（0-100，影响门票线索掉率与脱身难度）'
+    },
+    // scroll_clue：卷轴线索（0-100），千机残篇线索累积度
+    //   - 由第2幕搜寻宝物抉择累加，影响门票线索掉率与首通奖励加成
+    scroll_clue: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '苍坤洞府·卷轴线索（0-100，千机残篇线索累积度）'
+    },
+    // escape_difficulty：脱身难度（0-100），第4幕自动决战中累积
+    //   - 越高决战回合数越长，但门票线索掉率额外加成
+    escape_difficulty: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 30,
+        comment: '苍坤洞府·脱身难度（0-100，影响决战回合数与门票掉率）'
+    },
+    // escape_choice：第4幕脱身抉择键（forced_breakout/formation_escape/stealth_escape），用于门票线索掉率加成
+    escape_choice: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        comment: '苍坤洞府·第4幕脱身抉择键（forced_breakout/formation_escape/stealth_escape）'
+    },
+    // cangkun_guardian_hp：苍坤守灵 HP（第4幕自动决战使用，null=未进入第4幕）
+    cangkun_guardian_hp: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: '苍坤洞府·守灵HP（第4幕自动决战使用，null=未进入第4幕）'
+    },
+    // 血色试炼专属变量（2026-07-21 新增，migration_0058）
+    // blood_qi_avg：团队平均血气（0-100），第1幕起每幕由各成员血气取平均
+    //   - 第4幕决战中每回合 -10，归零即团灭失败
+    blood_qi_avg: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 100,
+        comment: '血色试炼·团队平均血气（0-100，第4幕决战每回合-10，归零团灭）'
+    },
+    // blood_fury：血怒（0-200），第1-3幕抉择累加，第4幕决战伤害加成（每点 +3000 伤害）
+    blood_fury: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '血色试炼·血怒（0-200，第4幕决战伤害加成）'
+    },
+    // eliminations：累计淘汰人数（前3幕每幕最多淘汰1人，最多淘汰2人）
+    eliminations: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '血色试炼·累计淘汰人数（前3幕每幕最多淘汰1人）'
+    },
+    // survivor_count：最终幸存人数（进入第4幕决战的人数，影响决战伤害与奖励）
+    survivor_count: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '血色试炼·最终幸存人数（进入第4幕决战的人数）'
+    },
+    // xuese_boss_hp：血色尊者 HP（第4幕自动决战用，初始1200000，null=未进入第4幕）
+    xuese_boss_hp: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: '血色试炼·血色尊者HP（第4幕自动决战用，初始1200000）'
+    },
+    // 坠魔谷专属变量（2026-07-21 新增，migration_0059）
+    // avg_heart_demon：团队平均心魔（0-100），由各成员 heart_demon 取平均
+    //   - 第1-3幕抉择累加，第4幕决战中每回合 +5，满100团灭失败
+    avg_heart_demon: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '坠魔谷·团队平均心魔（0-100，第4幕决战每回合+5，满100团灭）'
+    },
+    // avg_dao_heart：团队平均道心（0-100），由各成员 dao_heart 取平均
+    //   - 第1-3幕抉择累加，第4幕决战中每回合 -5，归0团灭失败
+    avg_dao_heart: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 100,
+        comment: '坠魔谷·团队平均道心（0-100，第4幕决战每回合-5，归0团灭）'
+    },
+    // demon_boss_hp：心魔Boss HP（第4幕自动决战用，初始1000000，null=未进入第4幕）
+    demon_boss_hp: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: '坠魔谷·心魔Boss HP（第4幕自动决战用，初始1000000）'
+    },
+    // 黄龙山专属变量（2026-07-21 新增，migration_0060）
+    // huanglong_formation_power：阵法强度（0-200），第1幕起由阵眼选择与共鸣累加
+    //   - 影响第4幕决战伤害（每点 +3000）和称号奖励阈值（≥120 才有 30% 几率给称号）
+    //   - 注意：与虚天殿 formation_power 区分，黄龙山独立使用 huanglong_formation_power
+    huanglong_formation_power: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '黄龙山·阵法强度（0-200，影响决战伤害与称号奖励）'
+    },
+    // huanglong_resonance_count：共鸣数（0-5），第1/3幕相同阵眼≥2人触发共鸣累加
+    //   - 影响第4幕决战伤害（每点 +15000）和完美通关判定（共鸣数=5且无叛道）
+    huanglong_resonance_count: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '黄龙山·共鸣数（0-5，相同阵眼≥2人触发，影响决战伤害与完美通关）'
+    },
+    // huanglong_boss_hp：黄龙Boss HP（第4幕自动决战用，初始1500000，null=未进入第4幕）
+    //   - 决战伤害公式：damage = 100000 + formation_power × 3000 + resonance_count × 15000
+    //   - 双向腐蚀：每回合 morale -3 / vigilance +5（vigilance 满100即失败）
+    huanglong_boss_hp: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        comment: '黄龙山·黄龙Boss HP（第4幕自动决战用，初始1500000）'
+    },
     harvest_multiplier: {
         type: DataTypes.FLOAT,
         allowNull: false,

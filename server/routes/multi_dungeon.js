@@ -71,18 +71,18 @@ router.get('/help', auth, async (req, res, next) => {
 /**
  * POST /api/multi-dungeon/create
  * 队长开启副本
- * 请求体：{ dungeon_key: 'yanyue' | 'duanwu' | 'kunwu' | 'xutian' | 'xiaoji' | 'luoyun' }
- * 2026-07-21 扩展：新增 xutian（虚天殿）/ xiaoji（北冥小极宫）/ luoyun（落云秘圃）
+ * 请求体：{ dungeon_key: 'yanyue' | 'duanwu' | 'kunwu' | 'xutian' | 'xiaoji' | 'luoyun' | 'cangkun' | 'xuese' | 'zhuimo' | 'huanglong' }
+ * 2026-07-21 扩展：新增 xutian（虚天殿）/ xiaoji（北冥小极宫）/ luoyun（落云秘圃）/ cangkun（苍坤洞府）/ xuese（血色试炼）/ zhuimo（坠魔谷）/ huanglong（黄龙山）
  */
 router.post('/create', auth, async (req, res, next) => {
     try {
         const { dungeon_key } = req.body;
-        // 2026-07-21 白名单扩展：支持 xutian / xiaoji / luoyun
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun'].includes(dungeon_key)) {
+        // 2026-07-21 白名单扩展：支持 xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong
+        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeon_key)) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'dungeon_key 必须为 yanyue(掩月抢亲) / duanwu(端午镇蛟) / kunwu(昆吾山·封魔塔) / xutian(虚天殿) / xiaoji(北冥小极宫) / luoyun(落云秘圃)'
+                message: 'dungeon_key 必须为 yanyue(掩月抢亲) / duanwu(端午镇蛟) / kunwu(昆吾山·封魔塔) / xutian(虚天殿) / xiaoji(北冥小极宫) / luoyun(落云秘圃) / cangkun(苍坤洞府) / xuese(血色试炼) / zhuimo(坠魔谷) / huanglong(黄龙山)'
             });
         }
         const result = await MultiDungeonService.create(req.player.id, dungeon_key);
@@ -168,14 +168,27 @@ router.post('/choose', auth, async (req, res, next) => {
 
 /**
  * POST /api/multi-dungeon/advance
- * 队长触发自动决战（昆吾山第四幕专用）
- * 无请求体参数
+ * 队长触发自动决战（昆吾山第四幕 / 虚天殿第六幕 / 苍坤洞府第四幕 / 血色试炼第四幕 / 坠魔谷第四幕专用）
+ * 请求体（可选）：{ escape_choice?: 'forced_breakout' | 'formation_escape' | 'stealth_escape' }
+ *   - 苍坤洞府第四幕必须提供 escape_choice（脱身抉择），影响决战回合数与门票线索掉率
+ *   - 其他副本无需该参数
  * 仅当前幕为 is_auto_advance 时允许调用
- * 一次性结算5回合自动战斗，不可中途干预
+ * 一次性结算自动战斗回合，不可中途干预
  */
 router.post('/advance', auth, async (req, res, next) => {
     try {
-        const result = await MultiDungeonService.advance(req.player.id);
+        const { escape_choice } = req.body || {};
+        // 苍坤洞府脱身抉择参数校验（仅在调用时校验，最终是否必需由 Service 层根据副本类型判定）
+        if (escape_choice !== undefined) {
+            if (typeof escape_choice !== 'string' || !['forced_breakout', 'formation_escape', 'stealth_escape'].includes(escape_choice)) {
+                return res.status(400).json({
+                    code: 400,
+                    error_code: ErrorCodes.VALIDATION_ERROR,
+                    message: 'escape_choice 必须为 forced_breakout(强行突围) / formation_escape(借阵脱身) / stealth_escape(隐遁潜行)'
+                });
+            }
+        }
+        const result = await MultiDungeonService.advance(req.player.id, escape_choice);
         sendServiceResult(result, res);
     } catch (err) {
         next(err);
@@ -243,18 +256,18 @@ router.post('/kick', auth, async (req, res, next) => {
 /**
  * GET /api/multi-dungeon/rewards
  * 查看奖励池
- * 查询参数：?dungeon_key=yanyue|duanwu|kunwu|xutian|xiaoji|luoyun
- * 2026-07-21 扩展：新增 xutian（虚天殿）/ xiaoji（北冥小极宫）/ luoyun（落云秘圃）
+ * 查询参数：?dungeon_key=yanyue|duanwu|kunwu|xutian|xiaoji|luoyun|cangkun|xuese|zhuimo|huanglong
+ * 2026-07-21 扩展：新增 xutian（虚天殿）/ xiaoji（北冥小极宫）/ luoyun（落云秘圃）/ cangkun（苍坤洞府）/ xuese（血色试炼）/ zhuimo（坠魔谷）/ huanglong（黄龙山）
  */
 router.get('/rewards', auth, async (req, res, next) => {
     try {
         const { dungeon_key } = req.query;
-        // 2026-07-21 白名单扩展：支持 xutian / xiaoji / luoyun
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun'].includes(dungeon_key)) {
+        // 2026-07-21 白名单扩展：支持 xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong
+        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeon_key)) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun'
+                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong'
             });
         }
         const result = await MultiDungeonService.getRewards(dungeon_key);
@@ -283,7 +296,7 @@ router.get('/history', auth, async (req, res, next) => {
 /**
  * GET /api/multi-dungeon/cooldown
  * 查询冷却状态
- * 2026-07-21 扩展：返回 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun 共6个副本键的当前冷却
+ * 2026-07-21 扩展：返回 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong 共10个副本键的当前冷却
  */
 router.get('/cooldown', auth, async (req, res, next) => {
     try {

@@ -142,6 +142,50 @@
             </div>
           </div>
 
+          <!-- 避世/入世模式卡 -->
+          <!-- 玩法文档第17节：避世可免疫斗法与袭扰，入世则恢复正常 PVP 交互 -->
+          <div class="bg-[#292524] border rounded-lg p-3"
+            :class="isRecluseMode ? 'border-cyan-700/60' : 'border-stone-700'">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <!-- 避世图标：山间幽居 -->
+                <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                  :class="isRecluseMode ? 'bg-cyan-900/40 border border-cyan-600/50' : 'bg-emerald-900/40 border border-emerald-600/50'">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5"
+                    :class="isRecluseMode ? 'text-cyan-300' : 'text-emerald-300'"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 20h18"/>
+                    <path d="M5 20V8l5-4 5 4v12"/>
+                    <path d="M9 20v-6h2v6"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="text-sm font-bold"
+                    :class="isRecluseMode ? 'text-cyan-300' : 'text-emerald-300'">
+                    {{ status.pvp_mode_name || '入世' }}
+                  </div>
+                  <div class="text-xs mt-0.5"
+                    :class="isRecluseMode ? 'text-cyan-400/70' : 'text-stone-400'">
+                    {{ isRecluseMode
+                      ? '避世清修·免疫斗法袭扰，自身亦不可发起挑战'
+                      : '入世历劫·可正常参与 PVP 挑战、决斗、封神台' }}
+                  </div>
+                </div>
+              </div>
+              <!-- 切换按钮 -->
+              <button
+                @click="openPvpModeConfirm"
+                :disabled="modeSwitching"
+                class="px-3 py-1.5 text-xs font-bold rounded border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                :class="isRecluseMode
+                  ? 'bg-emerald-900/40 border-emerald-600 text-emerald-300 hover:bg-emerald-800/50'
+                  : 'bg-cyan-900/40 border-cyan-600 text-cyan-300 hover:bg-cyan-800/50'"
+              >
+                {{ modeSwitching ? '切换中...' : (isRecluseMode ? '入世' : '避世') }}
+              </button>
+            </div>
+          </div>
+
           <!-- 进行中战斗区 -->
           <div v-if="status.is_in_pvp_battle && status.battle_info" class="bg-red-950/20 border border-red-800/50 rounded-lg p-4 space-y-3">
             <div class="flex items-center justify-between">
@@ -311,6 +355,33 @@
           </button>
         </template>
       </Modal>
+
+      <!-- 避世/入世切换确认弹窗 -->
+      <!-- 玩法文档第17节：避世免疫斗法袭扰，入世恢复正常 PVP 交互 -->
+      <Modal :isOpen="pvpModeConfirmShow" :title="pvpModeConfirmTitle" width="460px" @close="pvpModeConfirmShow = false">
+        <div class="space-y-3">
+          <p class="text-stone-300 text-sm">{{ pvpModeConfirmDesc }}</p>
+          <div class="bg-[#0c0a09]/60 border border-stone-800 rounded p-3 space-y-1.5 text-xs">
+            <div v-for="(effect, idx) in pvpModeConfirmEffects" :key="idx"
+              class="flex items-start gap-2"
+              :class="effect.type === 'positive' ? 'text-emerald-300' : 'text-amber-300'">
+              <span class="shrink-0">{{ effect.type === 'positive' ? '✓' : '✗' }}</span>
+              <span class="flex-1">{{ effect.text }}</span>
+            </div>
+          </div>
+        </div>
+        <template #footer>
+          <button @click="pvpModeConfirmShow = false"
+            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">再思</button>
+          <button @click="confirmSwitchPvpMode" :disabled="modeSwitching"
+            class="px-4 py-2 text-white rounded text-sm disabled:opacity-50"
+            :class="pendingPvpMode === 'recluse'
+              ? 'bg-cyan-700 hover:bg-cyan-600'
+              : 'bg-emerald-700 hover:bg-emerald-600'">
+            {{ modeSwitching ? '切换中...' : '确认' }}
+          </button>
+        </template>
+      </Modal>
     </div>
   </div>
 </template>
@@ -337,7 +408,8 @@ import {
   getStatus,
   getLeaderboard,
   executeAction,
-  flee
+  flee,
+  setPvpMode
 } from '../../api/pvp'
 
 const emit = defineEmits(['close'])
@@ -363,7 +435,62 @@ const maxHp = ref(1)
 // 逃跑确认弹窗
 const fleeConfirmShow = ref(false)
 
+// ===== 避世/入世模式切换状态 =====
+// pvpModeConfirmShow：是否显示切换确认弹窗
+// pendingPvpMode：待切换的目标模式（active / recluse）
+// modeSwitching：切换中加载态（防止重复点击）
+const pvpModeConfirmShow = ref(false)
+const pendingPvpMode = ref('active')
+const modeSwitching = ref(false)
+
 // ====== 计算属性 ======
+
+/**
+ * 当前是否为避世模式
+ * 后端 status.pvp_mode='recluse' 表示避世清修中
+ */
+const isRecluseMode = computed(() => {
+  return status.value?.pvp_mode === 'recluse'
+})
+
+/**
+ * 避世/入世切换弹窗标题
+ */
+const pvpModeConfirmTitle = computed(() => {
+  return pendingPvpMode.value === 'recluse' ? '切换为避世' : '切换为入世'
+})
+
+/**
+ * 避世/入世切换弹窗描述
+ */
+const pvpModeConfirmDesc = computed(() => {
+  if (pendingPvpMode.value === 'recluse') {
+    return '避世清修后，将免疫所有斗法袭扰，专心闭关修炼。'
+  }
+  return '入世历劫后，将恢复所有 PVP 交互能力，可挑战他人亦会被挑战。'
+})
+
+/**
+ * 避世/入世切换弹窗影响列表
+ * - positive（绿色✓）：切换后获得的好处
+ * - negative（琥珀色✗）：切换后受到的限制
+ */
+const pvpModeConfirmEffects = computed(() => {
+  if (pendingPvpMode.value === 'recluse') {
+    return [
+      { type: 'positive', text: '免疫 PVP 挑战，他人无法对你发起斗法' },
+      { type: 'positive', text: '免疫决斗、封神台挑战' },
+      { type: 'positive', text: '不可被悬赏、不可被神识探查' },
+      { type: 'negative', text: '自身亦无法发起 PVP 挑战、决斗、封神台' },
+      { type: 'negative', text: '不影响 PVE 战斗、闭关、悟道等修炼玩法' }
+    ]
+  }
+  return [
+    { type: 'positive', text: '可发起 PVP 挑战、决斗、参与封神台' },
+    { type: 'positive', text: '可被悬赏、可被神识探查（正常交互）' },
+    { type: 'negative', text: '会重新暴露在斗法袭扰之下' }
+  ]
+})
 
 /**
  * 今日剩余挑战次数（直接读后端权威值）
@@ -665,6 +792,51 @@ const confirmFlee = async () => {
 const actionLabel = (action) => {
   const map = { attack: '攻击', skill: '技能', defend: '防御' }
   return map[action] || action
+}
+
+// ===== 避世/入世模式切换方法 =====
+
+/**
+ * 打开避世/入世切换确认弹窗
+ * 根据当前模式决定目标模式（避世→入世，入世→避世）
+ */
+const openPvpModeConfirm = () => {
+  // 战斗进行中禁止切换（与后端 setPvpMode 校验保持一致，避免无效请求）
+  if (status.value?.is_in_pvp_battle) {
+    uiStore.showToast('斗法进行中，无法切换避世/入世', 'warning')
+    return
+  }
+  // 设置待切换的目标模式：当前为避世则切回入世，当前为入世则切到避世
+  pendingPvpMode.value = isRecluseMode.value ? 'active' : 'recluse'
+  pvpModeConfirmShow.value = true
+}
+
+/**
+ * 确认切换 PVP 模式
+ * 调用后端 POST /pvp/mode 接口，切换成功后刷新状态
+ */
+const confirmSwitchPvpMode = async () => {
+  if (modeSwitching.value) return
+  modeSwitching.value = true
+  try {
+    const res = await setPvpMode(pendingPvpMode.value)
+    const data = res.data?.data || res.data
+    const modeName = data?.mode_name || (pendingPvpMode.value === 'recluse' ? '避世' : '入世')
+    pvpModeConfirmShow.value = false
+    uiStore.showToast(`已切换为${modeName}模式`, 'success')
+    uiStore.addLog({
+      content: `已切换为${modeName}模式`,
+      type: 'info',
+      actorId: 'self'
+    })
+    // 刷新状态以同步 pvp_mode 字段
+    await fetchStatus()
+  } catch (err) {
+    const msg = err?.response?.data?.message || '切换 PVP 模式失败'
+    uiStore.showToast(msg, 'error')
+  } finally {
+    modeSwitching.value = false
+  }
 }
 
 /**

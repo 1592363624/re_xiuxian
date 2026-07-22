@@ -607,6 +607,51 @@
             "price": 5000
         },
         {
+            "id": "tianlei_zhu",
+            "name": "天雷竹",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "rare",
+            "description": "雷属性灵竹，蕴含辟邪雷意，可洗炼魔器、炼制雷系法宝",
+            "price": 800
+        },
+        {
+            "id": "jinlei_zhu",
+            "name": "金雷竹",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "epic",
+            "description": "雷劫淬炼过的天雷竹变种，雷意更纯，洗炼魔器效果倍增",
+            "price": 3500
+        },
+        {
+            "id": "yuedian_canling",
+            "name": "月殿残令",
+            "type": "material",
+            "subtype": "seal",
+            "quality": "epic",
+            "description": "掩月宗月殿秘藏的残令，持此可入月殿禁地，祭炼血魔剑的高阶材料",
+            "price": 2800
+        },
+        {
+            "id": "xuemojian_cantu",
+            "name": "血魔剑残图",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "记载血魔剑祭炼要诀的残图，研习可推进血契阶数",
+            "price": 4200
+        },
+        {
+            "id": "yinning_zhijing",
+            "name": "阴凝之晶",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "epic",
+            "description": "极阴之地凝结的玄冰之晶，可镇血魔剑凶性，祭炼高阶血契的关键辅材",
+            "price": 3800
+        },
+        {
             "id": "fabao_tupu",
             "name": "法宝图谱",
             "type": "recipe_scroll",
@@ -863,6 +908,24 @@
             "price": 8000
         },
         {
+            "id": "yaodan",
+            "name": "妖丹",
+            "type": "material",
+            "subtype": "neidan",
+            "quality": "rare",
+            "description": "妖兽内丹凝炼而成的纯净丹元，配合兽魂可用于灵兽通灵升星（玩法文档第8节）",
+            "price": 2000
+        },
+        {
+            "id": "beast_soul",
+            "name": "兽魂",
+            "type": "material",
+            "subtype": "soul",
+            "quality": "rare",
+            "description": "满级灵兽溢出经验凝练而得的兽魂精魄，配合妖丹可用于灵兽通灵升星（玩法文档第8节）",
+            "price": 500
+        },
+        {
             "id": "bingfeng_zhiyi",
             "name": "冰凤之翎",
             "type": "material",
@@ -969,6 +1032,318 @@
             "quality": "epic",
             "description": "记载上古灵植的图鉴，研习可提升灵植养护水平，对落云秘圃有额外加成",
             "price": 8000
+        },
+        {
+            "id": "cangkun_pass_token",
+            "name": "苍坤通行令",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "legendary",
+            "description": "上古苍坤真君留下的青铜令牌，刻有苍坤秘纹，持此令方可踏入苍坤洞府秘境。每张仅可使用一次。",
+            "effect": { "dungeon_ticket": "cangkun" },
+            "price": 15000
+        },
+        {
+            "id": "cangkun_old_seal_fragment",
+            "name": "苍坤旧禁残片",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "rare",
+            "description": "苍坤洞府旧禁核心残片，蕴含上古禁制之力，可用于阵法修炼或祭炼禁制类法宝",
+            "price": 1200
+        },
+        {
+            "id": "cangkun_rune_scroll",
+            "name": "苍坤符纹残卷",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "rare",
+            "description": "记载苍坤秘纹的残卷，研习可领悟上古符纹之道，可用于祭炼傀儡或布设禁制",
+            "price": 1500
+        },
+        {
+            "id": "ancient_puppet_fragment",
+            "name": "上古傀儡残片",
+            "type": "material",
+            "subtype": "puppet_part",
+            "quality": "rare",
+            "description": "苍坤洞府中遗留的上古傀儡部件，可用于傀儡工坊修复或炼制新的傀儡",
+            "price": 1800
+        },
+        {
+            "id": "soul_crystal",
+            "name": "神魂晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "epic",
+            "description": "神识凝聚的结晶，可用于神识淬炼或祭炼神魂类法宝，苍坤洞府稀世之物",
+            "price": 3500
+        },
+        {
+            "id": "qianji_fragment",
+            "name": "千机残篇",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "legendary",
+            "description": "大衍诀残篇之一，记载千机道人的神通秘要。集齐所有残篇可领悟大衍千机诀，修仙界至宝之一。",
+            "price": 50000
+        },
+        {
+            "id": "moon_shadow_letter",
+            "name": "月影传书残页",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "掩月宗失传的月影传书残页，掩月抢亲门票线索之一。集齐线索可换取掩月抢亲入场券。",
+            "price": 4000
+        },
+        {
+            "id": "yanyue_secret",
+            "name": "掩月密讯",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "记录掩月宗内幕的密讯残卷，掩月抢亲门票线索之一。集齐线索可换取掩月抢亲入场券。",
+            "price": 4500
+        },
+        {
+            "id": "puppet_blueprint_ying",
+            "name": "影傀图谱",
+            "type": "material",
+            "subtype": "blueprint",
+            "quality": "legendary",
+            "description": "上古影傀炼制图谱，苍坤洞府稀世掉落。研习后可在傀儡工坊炼制影傀——可隐匿于影中的刺杀型傀儡。",
+            "price": 35000
+        },
+        {
+            "id": "blood_token",
+            "name": "血色令牌",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "legendary",
+            "description": "刻有血色符文的古铜令牌，血色试炼的入场凭证。传说持有者将进入血色禁地，与同道厮杀以求一线仙缘。每枚令牌仅可使用一次。",
+            "effect": { "dungeon_ticket": "xuese" },
+            "price": 20000
+        },
+        {
+            "id": "blood_soul_crystal",
+            "name": "血魂晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "rare",
+            "description": "血色试炼场中凝聚的魂力结晶，蕴含浓郁血气。可用于祭炼血系法宝或炼制血属性丹药，亦能在坊市换取高价。",
+            "price": 1200
+        },
+        {
+            "id": "blood_sha_charm",
+            "name": "血煞符",
+            "type": "material",
+            "subtype": "charm",
+            "quality": "rare",
+            "description": "血色禁地中遗留的上古符箓，符上血煞之气不散。可辅助镇压心魔，或用于强化血系法术的威力。",
+            "price": 900
+        },
+        {
+            "id": "blood_relic_fragment",
+            "name": "血色遗物残片",
+            "type": "material",
+            "subtype": "relic",
+            "quality": "rare",
+            "description": "血色尊者遗物的碎片之一，残片上隐现古老血纹。集齐一定数量可在坊市换取珍稀血色法宝或专属称号。",
+            "price": 1500
+        },
+        {
+            "id": "blood_blade_remnant",
+            "name": "血色残刃",
+            "type": "material",
+            "subtype": "weapon_part",
+            "quality": "legendary",
+            "description": "血色尊者昔日所持血刀的残断刃身，刃上血纹流转不息，杀意凛然。乃血色试炼首通方能获得的至宝，是炼制顶阶血系法宝「血魔剑」的主材料之一。",
+            "price": 28000
+        },
+        {
+            "id": "blood_battle_armor",
+            "name": "血色战甲",
+            "type": "material",
+            "subtype": "armor",
+            "quality": "epic",
+            "description": "以上古血色禁地中的血精炼制而成的战甲，甲面血纹流转，刀枪不入。极为罕见的血色试炼掉落，可大幅增强修士的血气与肉身强度，是血系体修梦寐以求的至宝。",
+            "price": 18000
+        },
+        {
+            "id": "zhuimo_token",
+            "name": "坠魔令",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "legendary",
+            "description": "刻有坠魔符文的玄铁令牌，坠魔谷的入场凭证。传说持有者将面对自身心魔考验，于杀伐与守道之间寻求突破。每枚令牌仅可使用一次。",
+            "effect": { "dungeon_ticket": "zhuimo" },
+            "price": 25000
+        },
+        {
+            "id": "heart_demon_crystal",
+            "name": "心魔晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "rare",
+            "description": "坠魔谷中凝结的心魔结晶，蕴含精纯心魔之力。可用于魔道修炼或祭炼血系法宝，亦能在坊市换取高价。",
+            "price": 1500
+        },
+        {
+            "id": "dao_heart_fragment",
+            "name": "道心碎片",
+            "type": "material",
+            "subtype": "fragment",
+            "quality": "rare",
+            "description": "坠魔谷中道心坚固者遗留的道心碎片，蕴含纯净道心之力。可用于强化道心、镇魔类法宝祭炼，亦能在坊市换取高价。",
+            "price": 1200
+        },
+        {
+            "id": "demon_seal_rune",
+            "name": "镇魔符文",
+            "type": "material",
+            "subtype": "rune",
+            "quality": "rare",
+            "description": "上古镇魔符文，符上之力可镇压心魔。可用于封印类法宝祭炼或强化镇魔类法术，亦能在坊市换取高价。",
+            "price": 1000
+        },
+        {
+            "id": "heart_demon_seed",
+            "name": "心魔种子",
+            "type": "material",
+            "subtype": "seed",
+            "quality": "epic",
+            "description": "坠魔谷心魔Boss陨落后遗留的魔种，蕴含心魔本源之力。乃首通坠魔谷方能获得的至宝，是培育第二元神五魔子线的关键材料。",
+            "price": 22000
+        },
+        {
+            "id": "dao_heart_crystal",
+            "name": "道心晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "legendary",
+            "description": "坠魔谷中道心通明者凝结的至宝，蕴含纯净道心本源之力。极为稀有（1% 掉落），可用于大幅强化道心、祭炼顶阶镇魔法宝，亦能在坊市换取天价。",
+            "price": 38000
+        },
+        {
+            "id": "huanglong_token",
+            "name": "黄龙令",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "legendary",
+            "description": "刻有黄龙纹路的玄铁令牌，黄龙山慕兰战线要塞的入场凭证。传说持有者将率同宗门弟子结阵抗击黄龙阵灵，于阵法与共鸣之间铸就宗门荣耀。每枚令牌仅可使用一次，需5名同宗门弟子共同驻守五大阵眼。",
+            "effect": { "dungeon_ticket": "huanglong" },
+            "price": 30000
+        },
+        {
+            "id": "huanglong_scale",
+            "name": "黄龙鳞",
+            "type": "material",
+            "subtype": "scale",
+            "quality": "epic",
+            "description": "黄龙山阵灵身上剥落的金鳞，鳞面流转黄龙威压，可用于阵法类法宝的祭炼与强化，亦能在宗门坊市换取高价。是阵修梦寐以求的稀有材料。",
+            "price": 3500
+        },
+        {
+            "id": "formation_rune",
+            "name": "阵法符文",
+            "type": "material",
+            "subtype": "rune",
+            "quality": "rare",
+            "description": "黄龙山传承的上古镇阵符文，符上之力可稳固阵法、激发共鸣。可用于阵法类法宝祭炼或强化镇阵类法术，亦能在宗门坊市换取高价。",
+            "price": 1200
+        },
+        {
+            "id": "sect_medal",
+            "name": "宗门勋章",
+            "type": "material",
+            "subtype": "medal",
+            "quality": "rare",
+            "description": "黄龙山战功徽章，刻有宗门图腾，象征同宗门弟子在慕兰战线的并肩战功。可在宗门兑换珍稀物品、提升宗门贡献度，亦可在宗门坊市流通。",
+            "price": 1800
+        },
+        {
+            "id": "huanglong_formation_map",
+            "name": "黄龙阵图",
+            "type": "material",
+            "subtype": "map",
+            "quality": "legendary",
+            "description": "黄龙山首通方能获得的至宝阵图，图上铭刻黄龙山五大阵眼与共鸣奥义的完整布局。可用于在宗门领地布置宗门级阵法、提升宗门防御，是宗门级战略资源。极为稀有。",
+            "price": 30000
+        },
+        {
+            "id": "huanglong_pearl",
+            "name": "黄龙珠",
+            "type": "material",
+            "subtype": "pearl",
+            "quality": "legendary",
+            "description": "黄龙山阵灵核心凝结的本源之珠，珠中蕴含黄龙本源之力。极为稀有（2% 掉落），可用于祭炼顶阶阵法类法宝、强化宗门级阵眼，亦能在坊市换取天价。是阵修至高至宝。",
+            "price": 45000
+        },
+        {
+            "id": "qianlan_bingyan",
+            "name": "乾蓝冰焰",
+            "type": "material",
+            "subtype": "flame",
+            "quality": "legendary",
+            "description": "从虚天鼎中抽离出的上古灵焰，冰火同源，可独立成长。消耗神识与乾蓝寒髓可推进灵焰阶数，提供攻击加成。化极后可进阶为紫罗极火。",
+            "price": 80000
+        },
+        {
+            "id": "ziluo_jihuo",
+            "name": "紫罗极火",
+            "type": "material",
+            "subtype": "flame",
+            "quality": "legendary",
+            "description": "乾蓝冰焰经化极后的极致灵焰，攻击力暴涨但每回合反噬自身气血5%。不可逆的高风险高收益形态，唯有敢于赌命者方能驾驭。",
+            "price": 200000
+        },
+        {
+            "id": "zhangtian_bottle",
+            "name": "掌天瓶",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "legendary",
+            "description": "上古遗留的神秘灵瓶，内含掌天绿液。可凝液聚灵、辅助炼丹、滋养灵植、培育灵材，是修仙界最负盛名的辅助型法宝。",
+            "effect": {},
+            "price": 100000,
+            "required_realm_rank": 19
+        },
+        {
+            "id": "green_liquid",
+            "name": "掌天绿液",
+            "type": "material",
+            "subtype": "liquid",
+            "quality": "rare",
+            "description": "掌天瓶中凝聚的翠绿灵液，蕴含精纯天地灵气。可用于驱动掌天瓶的各类辅助功能，是掌天瓶线的核心资源。",
+            "price": 500
+        },
+        {
+            "id": "tianlei_bamboo",
+            "name": "天雷竹",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "rare",
+            "description": "经掌天瓶绿液滋养成熟的天雷竹，蕴含辟邪雷意。可用于雷洗血魔剑或祭炼雷属性法宝。",
+            "price": 800
+        },
+        {
+            "id": "soul_nurturing_wood",
+            "name": "万年养魂木",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "epic",
+            "description": "经掌天瓶逆养万年的养魂木，可稳固神识、壮大魂魄。炼制高阶魂类法宝的顶级材料。",
+            "price": 30000
+        },
+        {
+            "id": "spirit_eye_tree",
+            "name": "灵眼之树",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "legendary",
+            "description": "经掌天瓶从灵眼树胚培养而成的一截灵眼之树，蕴含空间法则碎片。极为稀有的法则级材料。",
+            "price": 150000
         }
     ]
 }

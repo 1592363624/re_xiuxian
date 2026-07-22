@@ -56,7 +56,18 @@ const SpiritBeast = sequelize.define('SpiritBeast', {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 1,
-        comment: '星级（1-10，影响基础属性倍率）'
+        comment: '星级（1-10，影响基础属性倍率；3星/5星激活招牌特性）'
+    },
+    beast_soul: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '兽魂（满级灵兽溢出经验凝练而得，配合妖丹用于通灵升星）'
+    },
+    last_upgrade_star_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后升星时间（用于升星冷却限制）'
     },
     level: {
         type: DataTypes.INTEGER,

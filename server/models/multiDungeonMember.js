@@ -92,6 +92,88 @@ const MultiDungeonMember = sequelize.define('MultiDungeonMember', {
         defaultValue: 0,
         comment: '已投粽数量（端午用）'
     },
+    // 血色试炼专属字段（2026-07-21 新增，migration_0058）
+    // blood_qi：个人血气（0-100），第1-3幕由抉择影响，归零或被淘汰后标记 is_eliminated=1
+    //   - 第1/3幕末按 blood_qi 升序排序，末位淘汰
+    blood_qi: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 100,
+        comment: '血色试炼·个人血气（0-100，归零即被淘汰）'
+    },
+    // kill_score：杀戮分（0-200），第1-3幕抉择累加，影响最终奖励结算
+    kill_score: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '血色试炼·杀戮分（0-200，影响最终奖励）'
+    },
+    // is_eliminated：是否已被淘汰（0=幸存，1=淘汰）
+    //   - 被淘汰后 is_present 同步置 0，不再参与后续抉择与决战
+    is_eliminated: {
+        type: DataTypes.TINYINT,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '血色试炼·是否已被淘汰（0=幸存，1=淘汰）'
+    },
+    // 坠魔谷专属字段（2026-07-21 新增，migration_0059）
+    // heart_demon：个人心魔（0-100），满100则堕魔淘汰
+    //   - 第1-3幕抉择累加（试道+自身静心降低、血祭+他人试道增加）
+    //   - 心魔达到100立即标记 is_fallen=1 并 is_present=0
+    heart_demon: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '坠魔谷·个人心魔（0-100，满100则堕魔淘汰）'
+    },
+    // dao_heart：个人道心（0-100），归0则道心破碎淘汰
+    //   - 第1-3幕抉择累加（守道+护道提升、入魔+心魔侵蚀降低）
+    //   - 道心归0立即标记 is_fallen=1 并 is_present=0
+    dao_heart: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 100,
+        comment: '坠魔谷·个人道心（0-100，归0则道心破碎淘汰）'
+    },
+    // is_fallen：是否已堕魔（0=未堕魔，1=已堕魔）
+    //   - 心魔满100或道心归0都会触发堕魔，堕魔后 is_present 同步置 0
+    //   - 与血色试炼的 is_eliminated 区分：堕魔是心魔/道心失衡导致的自我淘汰
+    is_fallen: {
+        type: DataTypes.TINYINT,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '坠魔谷·是否已堕魔（0=未堕魔，1=已堕魔）'
+    },
+    // 黄龙山专属字段（2026-07-21 新增，migration_0060）
+    // huanglong_eye_position：阵眼位置（默认 unassigned，第1幕选择后更新为 forward/center/rear/left/right）
+    //   - 同一相同阵眼≥2人触发共鸣，5人同阵眼可触发 5 共鸣
+    //   - 第1幕入阵固守抉择后由队长统一分配或队员各自选择
+    huanglong_eye_position: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'unassigned',
+        comment: '黄龙山·阵眼位置（unassigned/forward/center/rear/left/right）'
+    },
+    // huanglong_contribution_score：个人贡献分（默认 0，影响最终奖励分配）
+    //   - 由第1-3幕抉择累加，叛道成员获得双倍贡献分
+    //   - 影响首通奖励分配权重和宗门贡献奖励加成
+    //   - 与 contribution 区分：contribution 是通用贡献度，huanglong_contribution_score 是黄龙山专属
+    huanglong_contribution_score: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '黄龙山·个人贡献分（影响奖励分配，叛道双倍）'
+    },
+    // huanglong_is_defecting：是否已叛道（0=未叛道，1=已叛道）
+    //   - 叛道后成员不再参与共鸣判定，但保留已获得的贡献分
+    //   - 影响完美通关判定（perfect_clear_no_defect=true 时全员未叛道才完美通关）
+    //   - 叛道是黄龙山独有的博弈机制：放弃团队共鸣换个人贡献分双倍
+    huanglong_is_defecting: {
+        type: DataTypes.TINYINT,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '黄龙山·是否已叛道（0=未叛道，1=已叛道）'
+    },
     cooldown_end_time: {
         type: DataTypes.DATE,
         allowNull: true,

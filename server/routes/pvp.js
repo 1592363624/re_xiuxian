@@ -257,6 +257,31 @@ router.post('/flee', auth, async (req, res, next) => {
 });
 
 /**
+ * GET /api/pvp/mode
+ * 查询当前玩家 PVP 模式（避世/入世）
+ * - 返回 pvp_mode 字段值与中文名
+ * - 用于前端 UI 展示当前模式状态
+ */
+router.get('/mode', auth, async (req, res, next) => {
+    try {
+        const result = await PvpService.getPvpMode(req.player.id);
+        res.json({
+            code: 200,
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
  * POST /api/pvp/mode
  * 切换避世/入世模式（body: { mode: 'active'|'recluse' }）
  * - active=入世：可正常参与 PVP

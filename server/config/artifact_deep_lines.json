@@ -1,0 +1,441 @@
+{
+  "description": "法宝深线系统配置（玩法文档第19节）",
+  "version": "1.0.0",
+  "lastUpdated": "2026-07-21T00:00:00.000Z",
+  "settings": {
+    "blood_sword": {
+      "comment": "血魔剑残契线：5阶血契 + 魔染/镇契双值博弈 + 铭印/封鞘/雷洗",
+      "item_key": "blood_magic_sword",
+      "item_name": "血魔剑",
+      "min_realm_rank": 15,
+      "blood_pact": {
+        "comment": "血契阶段定义：每阶提供 atk% 与 hp_steal% 加成",
+        "max_stage": 5,
+        "weekly_progress_limit": 36,
+        "sacrifice_cooldown_hours": 18,
+        "stages": [
+          {
+            "stage": 1,
+            "name": "血契初萌",
+            "description": "剑灵初醒，嗜血之意微现",
+            "atk_bonus_rate": 0.05,
+            "hp_steal_bonus_rate": 0.01,
+            "corruption_gain_min": 8,
+            "corruption_gain_max": 14,
+            "materials": [
+              { "item_key": "xuejian_tiesui", "count": 2 },
+              { "item_key": "duanhong_ling", "count": 3 },
+              { "item_key": "tianlei_zhu", "count": 1 }
+            ]
+          },
+          {
+            "stage": 2,
+            "name": "血契渐深",
+            "description": "血气侵染剑身，剑意森寒",
+            "atk_bonus_rate": 0.10,
+            "hp_steal_bonus_rate": 0.02,
+            "corruption_gain_min": 10,
+            "corruption_gain_max": 16,
+            "materials": [
+              { "item_key": "xuejian_tiesui", "count": 3 },
+              { "item_key": "duanhong_ling", "count": 4 },
+              { "item_key": "yuedian_canling", "count": 1 }
+            ]
+          },
+          {
+            "stage": 3,
+            "name": "血契凝形",
+            "description": "血光凝为剑形，可于斗法中显化",
+            "atk_bonus_rate": 0.15,
+            "hp_steal_bonus_rate": 0.03,
+            "corruption_gain_min": 12,
+            "corruption_gain_max": 18,
+            "materials": [
+              { "item_key": "xuejian_tiesui", "count": 4 },
+              { "item_key": "sunv_jinwen", "count": 1 },
+              { "item_key": "xuemojian_cantu", "count": 1 }
+            ]
+          },
+          {
+            "stage": 4,
+            "name": "血契通灵",
+            "description": "剑灵通灵，可噬敌精血反哺己身",
+            "atk_bonus_rate": 0.20,
+            "hp_steal_bonus_rate": 0.04,
+            "corruption_gain_min": 14,
+            "corruption_gain_max": 20,
+            "materials": [
+              { "item_key": "xuejian_tiesui", "count": 5 },
+              { "item_key": "yinning_zhijing", "count": 1 },
+              { "item_key": "xuemojian_cantu", "count": 2 }
+            ]
+          },
+          {
+            "stage": 5,
+            "name": "血契大成",
+            "description": "血魔剑残契圆满，剑气冲霄，嗜血如狂",
+            "atk_bonus_rate": 0.25,
+            "hp_steal_bonus_rate": 0.05,
+            "corruption_gain_min": 16,
+            "corruption_gain_max": 22,
+            "materials": [
+              { "item_key": "xuejian_tiesui", "count": 6 },
+              { "item_key": "sunv_jinwen", "count": 2 },
+              { "item_key": "yinning_zhijing", "count": 2 },
+              { "item_key": "yuedian_canling", "count": 2 }
+            ]
+          }
+        ]
+      },
+      "suppress": {
+        "comment": "镇契：消耗素女禁纹+掩月镜砂，降低魔染、提高镇契值",
+        "cooldown_hours": 0,
+        "corruption_reduce_min": 5,
+        "corruption_reduce_max": 10,
+        "suppression_gain_min": 5,
+        "suppression_gain_max": 10,
+        "materials": [
+          { "item_key": "sunv_jinwen", "count": 1 },
+          { "item_key": "yanyue_jingsha", "count": 1 }
+        ]
+      },
+      "thunder_wash": {
+        "comment": "雷洗：用天雷竹/金雷竹引辟邪雷意洗剑，降魔染更显著但冷却更长",
+        "cooldown_hours": 24,
+        "corruption_reduce_tianlei_min": 20,
+        "corruption_reduce_tianlei_max": 30,
+        "corruption_reduce_jinlei_min": 35,
+        "corruption_reduce_jinlei_max": 50,
+        "suppression_gain_min": 2,
+        "suppression_gain_max": 5,
+        "materials_tianlei": [
+          { "item_key": "tianlei_zhu", "count": 1 }
+        ],
+        "materials_jinlei": [
+          { "item_key": "jinlei_zhu", "count": 1 }
+        ]
+      },
+      "imprint": {
+        "comment": "铭印：选择血契（高输出+反噬）或镇契（稳定）铭印，7天冷却",
+        "cooldown_days": 7,
+        "blood_imprint": {
+          "name": "血契铭印",
+          "description": "以血契为主导，攻击大幅提升但每回合精血反噬",
+          "atk_bonus_rate": 0.30,
+          "hp_steal_bonus_rate": 0.04,
+          "blood_backlash_hp_rate_per_round": 0.02,
+          "crit_rate_bonus": 0.10,
+          "crit_damage_bonus": 0.20
+        },
+        "suppress_imprint": {
+          "name": "镇契铭印",
+          "description": "以镇契为主导，攻击略低但稳固无反噬，吸血稳定",
+          "atk_bonus_rate": 0.15,
+          "hp_steal_bonus_rate": 0.05,
+          "def_bonus_rate": 0.10,
+          "blood_backlash_hp_rate_per_round": 0,
+          "crit_rate_bonus": 0.05,
+          "crit_damage_bonus": 0.10
+        }
+      },
+      "sheath": {
+        "comment": "封鞘：收回并封鞘24小时，期间不提供战力且不可祭出，但能降低魔染、提高镇契",
+        "duration_hours": 24,
+        "corruption_reduce_min": 25,
+        "corruption_reduce_max": 35,
+        "suppression_gain_min": 15,
+        "suppression_gain_max": 25
+      },
+      "corruption": {
+        "comment": "魔染阈值与反噬配置：魔染越高，铭印血契反噬越重",
+        "max": 100,
+        "backlash_thresholds": [
+          { "min": 0, "max": 30, "level": "正常", "extra_backlash_rate": 0 },
+          { "min": 31, "max": 60, "level": "轻微反噬", "extra_backlash_rate": 0.01 },
+          { "min": 61, "max": 80, "level": "中度反噬", "extra_backlash_rate": 0.03 },
+          { "min": 81, "max": 100, "level": "严重反噬", "extra_backlash_rate": 0.05, "loss_control_chance": 0.05 }
+        ]
+      },
+      "suppression": {
+        "comment": "镇契值：每10点降低1%魔染反噬；镇契≥50时铭印血契反噬减免50%",
+        "max": 100,
+        "backlash_reduction_per_10_points": 0.01,
+        "high_threshold": 50,
+        "high_threshold_reduction_rate": 0.50
+      }
+    },
+    "xutian_cauldron": {
+      "comment": "虚天鼎/乾蓝冰焰线 - 双线并行成长（鼎本体防御向 + 乾蓝冰焰攻击向）+ 化极分支（紫罗极火反噬高攻 vs 乾蓝冰焰稳定中攻），消耗神识推进炼化",
+      "enabled": true,
+      "item_key": "xutian_cauldron",
+      "item_name": "虚天鼎",
+      "flame_item_key": "qianlan_bingyan",
+      "flame_item_name": "乾蓝冰焰",
+      "polarized_flame_item_key": "ziluo_jihuo",
+      "polarized_flame_item_name": "紫罗极火",
+      "min_realm_rank": 19,
+      "divine_sense_cost": {
+        "advance_cauldron": 100,
+        "refine_flame": 200,
+        "polarize": 500
+      },
+      "cauldron_stages": [
+        { "stage": 1,  "material_key": "xutian_ice_crystal", "material_name": "虚天寒晶", "material_cost": 3,  "def_bonus": 100,  "success_rate": 1.00 },
+        { "stage": 2,  "material_key": "xutian_fire_essence", "material_name": "虚天火精", "material_cost": 3,  "def_bonus": 200,  "success_rate": 1.00 },
+        { "stage": 3,  "material_key": "xutian_ice_crystal", "material_name": "虚天寒晶", "material_cost": 5,  "def_bonus": 400,  "success_rate": 1.00 },
+        { "stage": 4,  "material_key": "xutian_fire_essence", "material_name": "虚天火精", "material_cost": 5,  "def_bonus": 700,  "success_rate": 1.00 },
+        { "stage": 5,  "material_key": "xutian_ice_crystal", "material_name": "虚天寒晶", "material_cost": 8,  "def_bonus": 1100, "success_rate": 1.00 },
+        { "stage": 6,  "material_key": "xutian_fire_essence", "material_name": "虚天火精", "material_cost": 8,  "def_bonus": 1600, "success_rate": 0.90 },
+        { "stage": 7,  "material_key": "xutian_ice_crystal", "material_name": "虚天寒晶", "material_cost": 12, "def_bonus": 2200, "success_rate": 0.80 },
+        { "stage": 8,  "material_key": "xutian_fire_essence", "material_name": "虚天火精", "material_cost": 12, "def_bonus": 2900, "success_rate": 0.70 },
+        { "stage": 9,  "material_key": "xutian_ice_crystal", "material_name": "虚天寒晶", "material_cost": 18, "def_bonus": 3700, "success_rate": 0.60 },
+        { "stage": 10, "material_key": "xutian_fire_essence", "material_name": "虚天火精", "material_cost": 18, "def_bonus": 4600, "success_rate": 0.50 }
+      ],
+      "advance_cauldron": {
+        "cooldown_seconds": 43200,
+        "spirit_stones_cost": 10000
+      },
+      "refine_flame": {
+        "enabled": true,
+        "min_cauldron_stage": 3,
+        "cooldown_seconds": 86400,
+        "spirit_stones_cost": 50000,
+        "material_key": "qianlan_hansui",
+        "material_name": "乾蓝寒髓",
+        "material_cost": 2,
+        "flame_stages": [
+          { "stage": 1,  "atk_bonus": 80,   "success_rate": 1.00 },
+          { "stage": 2,  "atk_bonus": 160,  "success_rate": 1.00 },
+          { "stage": 3,  "atk_bonus": 280,  "success_rate": 1.00 },
+          { "stage": 4,  "atk_bonus": 440,  "success_rate": 1.00 },
+          { "stage": 5,  "atk_bonus": 640,  "success_rate": 1.00 },
+          { "stage": 6,  "atk_bonus": 880,  "success_rate": 0.95 },
+          { "stage": 7,  "atk_bonus": 1160, "success_rate": 0.85 },
+          { "stage": 8,  "atk_bonus": 1480, "success_rate": 0.75 },
+          { "stage": 9,  "atk_bonus": 1840, "success_rate": 0.65 },
+          { "stage": 10, "atk_bonus": 2240, "success_rate": 0.55 }
+        ]
+      },
+      "polarize": {
+        "enabled": true,
+        "min_flame_stage": 7,
+        "cooldown_seconds": 172800,
+        "divine_sense_cost": 500,
+        "spirit_stones_cost": 200000,
+        "material_key": "qianlan_hansui",
+        "material_name": "乾蓝寒髓",
+        "material_cost": 10,
+        "options": {
+          "ziluo_jihuo": {
+            "name": "紫罗极火",
+            "description": "极致攻击路线：灵焰化为紫罗极火，攻击额外+50%，但每回合反噬自身气血5%（高风险高收益，不可逆）",
+            "atk_multiplier": 1.50,
+            "backlash_rate_per_round": 0.05,
+            "backlash_target": "self"
+          },
+          "qianlan_bingyan": {
+            "name": "乾蓝冰焰（强化）",
+            "description": "稳定攻击路线：保留乾蓝冰焰本质，攻击额外+20%，无反噬（低风险低收益，不可逆）",
+            "atk_multiplier": 1.20,
+            "backlash_rate_per_round": 0,
+            "backlash_target": "none"
+          }
+        }
+      }
+    },
+    "sky_bottle": {
+      "comment": "掌天瓶线 - 多功能辅助法宝（凝液/炼丹/药园/星台/养竹/养木/养树），绿液经济驱动 + 材料线渐进成长 + 宗门联动",
+      "enabled": true,
+      "item_key": "zhangtian_bottle",
+      "item_name": "掌天瓶",
+      "min_realm_rank": 19,
+      "green_liquid": {
+        "max": 1000,
+        "condense": {
+          "cooldown_seconds": 21600,
+          "base_amount": 10,
+          "realm_bonus_per_rank": 2,
+          "comment": "6h 冷却，基础10点 + 每境界等级额外2点"
+        }
+      },
+      "alchemy": {
+        "enabled": true,
+        "cooldown_seconds": 7200,
+        "stable": {
+          "green_liquid_cost": 50,
+          "success_rate": 1.00,
+          "quality_bonus_rate": 0,
+          "comment": "稳定炼丹：100%成功率，无品质加成"
+        },
+        "variable": {
+          "green_liquid_cost": 30,
+          "success_rate": 0.60,
+          "quality_bonus_rate": 0.20,
+          "comment": "变丹机缘：60%成功率，20%概率品质+1（变丹）"
+        },
+        "supported_pills": ["low_healing_pill", "mid_healing_pill", "foundation_pill", "low_longevity_pill", "mid_longevity_pill"],
+        "comment": "2h 冷却，支持稳/变两种模式"
+      },
+      "garden": {
+        "enabled": true,
+        "cooldown_seconds": 43200,
+        "green_liquid_cost": 80,
+        "yield_bonus_rate": 0.20,
+        "required_sect": "huangfeng",
+        "comment": "12h 冷却，需黄枫谷宗门，灵田产量+20%"
+      },
+      "star_platform": {
+        "enabled": true,
+        "cooldown_seconds": 43200,
+        "green_liquid_cost": 100,
+        "reward_bonus_rate": 0.15,
+        "required_sect": "xinggong",
+        "comment": "12h 冷却，需星宫宗门，星宫任务奖励+15%"
+      },
+      "bamboo": {
+        "enabled": true,
+        "nurture": {
+          "cooldown_seconds": 14400,
+          "green_liquid_cost": 40,
+          "growth_per_action": 10,
+          "max_growth": 100,
+          "comment": "养竹：4h 冷却，每次成长+10，满100可化竹"
+        },
+        "transform": {
+          "cooldown_seconds": 14400,
+          "green_liquid_cost": 60,
+          "min_growth_required": 100,
+          "output_key": "tianlei_bamboo",
+          "output_quantity": 1,
+          "comment": "化竹：4h 冷却，需成长度≥100，产出天雷竹×1"
+        }
+      },
+      "soul_wood": {
+        "enabled": true,
+        "cooldown_seconds": 86400,
+        "green_liquid_cost": 200,
+        "growth_per_action": 5,
+        "max_growth": 100,
+        "output_key": "soul_nurturing_wood",
+        "output_quantity": 1,
+        "comment": "养木：24h 冷却，每次成长+5，满100获得万年养魂木×1"
+      },
+      "spirit_tree": {
+        "enabled": true,
+        "cooldown_seconds": 172800,
+        "green_liquid_cost": 500,
+        "growth_per_action": 3,
+        "max_growth": 100,
+        "output_key": "spirit_eye_tree",
+        "output_quantity": 1,
+        "comment": "养树：48h 冷却，每次成长+3，满100获得灵眼之树×1"
+      }
+    },
+    "five_element_wheel": {
+      "comment": "大五行幻世轮线 - 被动战斗驱动成长（唯一一条非主动操作推进的法宝深线）+ 五行定相系统（6 相位）+ 五行相生相克联动 + 轮转技能（5 阶解锁，战斗中自动切换相位）",
+      "enabled": true,
+      "item_key": "five_element_wheel",
+      "item_name": "大五行幻世轮",
+      "min_realm_rank": 23,
+      "max_stage": 10,
+      "daily_insight_limit": 100,
+      "set_phase_cooldown_days": 7,
+      "wheel_spin_unlock_stage": 5,
+      "wheel_spin_divine_sense_cost_per_round": 10,
+      "phases": {
+        "rotation": {
+          "name": "轮转",
+          "description": "五行均衡流转，各项加成平均，不受相生相克影响",
+          "atk_bonus_rate": 0.03,
+          "def_bonus_rate": 0.03,
+          "hp_bonus_rate": 0.03,
+          "crit_rate_bonus": 0.03,
+          "speed_bonus_rate": 0.03
+        },
+        "metal": {
+          "name": "金",
+          "description": "锐金破甲，偏攻击穿透与暴击伤害",
+          "atk_bonus_rate": 0.08,
+          "def_bonus_rate": 0,
+          "hp_bonus_rate": 0,
+          "crit_rate_bonus": 0.05,
+          "crit_damage_bonus": 0.15,
+          "armor_penetration_rate": 0.05
+        },
+        "water": {
+          "name": "水",
+          "description": "柔水绵延，偏控制与灵力恢复",
+          "atk_bonus_rate": 0.02,
+          "def_bonus_rate": 0.04,
+          "hp_bonus_rate": 0.05,
+          "mp_regen_bonus_rate": 0.10,
+          "slow_chance": 0.10
+        },
+        "wood": {
+          "name": "木",
+          "description": "生木不息，偏气血恢复与持续作战",
+          "atk_bonus_rate": 0.03,
+          "def_bonus_rate": 0.02,
+          "hp_bonus_rate": 0.08,
+          "hp_regen_bonus_rate": 0.05,
+          "heal_bonus_rate": 0.10
+        },
+        "fire": {
+          "name": "火",
+          "description": "烈焰焚天，偏暴击爆发与攻击加成",
+          "atk_bonus_rate": 0.10,
+          "def_bonus_rate": 0,
+          "hp_bonus_rate": 0,
+          "crit_rate_bonus": 0.08,
+          "crit_damage_bonus": 0.20,
+          "burn_damage_per_round_rate": 0.02
+        },
+        "earth": {
+          "name": "土",
+          "description": "厚土凝重，偏防御与伤害减免",
+          "atk_bonus_rate": 0.02,
+          "def_bonus_rate": 0.10,
+          "hp_bonus_rate": 0.06,
+          "damage_reduction_rate": 0.05,
+          "shield_bonus_rate": 0.08
+        }
+      },
+      "stages": [
+        { "stage": 1, "name": "初悟五行", "description": "幻世轮初醒，五行之力微现", "insight_required": 50, "phase_multiplier": 1.0 },
+        { "stage": 2, "name": "渐明万象", "description": "万象渐明，五行流转自如", "insight_required": 120, "phase_multiplier": 1.1 },
+        { "stage": 3, "name": "相生初通", "description": "相生之理初通，悟印加速", "insight_required": 240, "phase_multiplier": 1.2 },
+        { "stage": 4, "name": "相克渐悟", "description": "相克之道渐悟，克敌更锐", "insight_required": 420, "phase_multiplier": 1.3 },
+        { "stage": 5, "name": "轮转初成", "description": "轮转之力初成，可于战斗中切换相位", "insight_required": 700, "phase_multiplier": 1.5, "unlock_wheel_spin": true },
+        { "stage": 6, "name": "五行归元", "description": "五行归于一元，加成大增", "insight_required": 1100, "phase_multiplier": 1.7 },
+        { "stage": 7, "name": "幻世初显", "description": "幻世之境初显，战斗中悟印获取翻倍", "insight_required": 1700, "phase_multiplier": 2.0 },
+        { "stage": 8, "name": "万象通明", "description": "万象通明，五行相生相克了然于胸", "insight_required": 2600, "phase_multiplier": 2.3 },
+        { "stage": 9, "name": "大道将成", "description": "大道将成，一念之间五行轮转", "insight_required": 4000, "phase_multiplier": 2.6 },
+        { "stage": 10, "name": "五行大道", "description": "五行大道圆满，幻世轮威能通天", "insight_required": 6000, "phase_multiplier": 3.0 }
+      ],
+      "element_relations": {
+        "comment": "五行相克：金克木、木克土、土克水、水克火、火克金；轮转不受克制",
+        "overcomes": {
+          "metal": "wood",
+          "wood": "earth",
+          "earth": "water",
+          "water": "fire",
+          "fire": "metal"
+        },
+        "overcome_insight_bonus_rate": 0.50,
+        "overcome_by_insight_penalty_rate": 0.30
+      },
+      "battle_insight_rewards": {
+        "comment": "战斗悟印奖励：根据战斗类型与结果给予悟印经验，对手境界差影响奖励",
+        "pve_win_base": 10,
+        "pve_loss_base": 3,
+        "pvp_win_base": 20,
+        "pvp_loss_base": 5,
+        "dungeon_win_base": 15,
+        "dungeon_loss_base": 4,
+        "opponent_rank_diff_bonus_per_rank": 1,
+        "max_opponent_rank_diff_bonus": 20,
+        "daily_limit_reset_hour": 0
+      }
+    }
+  }
+}

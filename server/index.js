@@ -114,6 +114,9 @@ require('./models/multiDungeonMember');
 require('./models/multiDungeonChoice');
 require('./models/multiDungeonCooldown');
 
+// 切磋木人系统模型（玩法文档第17节：战力测试，5档次木人 + 评分 + 排行榜）
+require('./models/playerSparring');
+
 const http = require('http');
 const socketIo = require('socket.io');
 const { infrastructure } = require('./modules');
@@ -380,6 +383,18 @@ const startServer = async () => {
         console.error('宗门战调度器加载失败:', err.message);
     }
 
+    // 切磋木人排行榜每日奖励结算调度器（玩法文档第17节）
+    // 每小时检查一次，到达 00:05（sparring_woodman.json: ranking_settle_hour/minute）后触发昨日排行榜结算
+    // 调用 SparringService.settleDailyRanking() 结算前 10 名奖励（经验/灵石/称号）
+    try {
+        const SparringSchedulerService = require('./game/services/SparringSchedulerService');
+        SparringSchedulerService.start().catch(err => {
+            console.error('切磋木人排行榜调度器启动失败:', err.message);
+        });
+    } catch (err) {
+        console.error('切磋木人排行榜调度器加载失败:', err.message);
+    }
+
     // 神识对决超时检查调度器（玩法文档第18节）
     // 每 10 秒检查一次：pending 超时自动取消 + active 操作超时自动固元
     try {
@@ -613,6 +628,13 @@ const startServer = async () => {
     // 玩家端：道途面板/选择道途/切换道途/引道修炼/使用技能/日常任务/排行榜/共鸣查询
     // 多人交互：同道途玩家组队获得共鸣加成 + 五行相克影响技能成功率 + 火眼金睛探查他人储物袋
     app.use('/api/taoism-gate', require('./routes/taoism_gate'));
+
+    // 切磋木人系统路由（玩法文档第17节：战力测试，5档次木人 + 评分 + 排行榜）
+    app.use('/api/sparring', require('./routes/sparring'));
+
+    // 法宝深线系统路由（玩法文档第19节：血魔剑残契线，5阶血契+魔染/镇契双值博弈+铭印+封鞘+雷洗）
+    // 玩家端：状态查询/祭血/镇契/雷洗/铭印/封鞘（血魔剑来源于掩月抢亲副本成功后 0.1% 掉落）
+    app.use('/api/artifact-deep-line', require('./routes/artifactDeepLine'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

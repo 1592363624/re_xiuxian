@@ -183,11 +183,6 @@ const handleLogout = () => {
             退出登录
           </button>
         </div>
-
-        <!-- 历史说明 -->
-        <p class="text-center text-xs text-stone-600 mt-6 italic">
-          修复说明：此前死亡不推送通知，玩家完全无感知。现已补全死亡画面与轮回入口。
-        </p>
       </div>
     </div>
   </Transition>

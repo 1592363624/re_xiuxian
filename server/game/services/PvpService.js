@@ -275,13 +275,21 @@ class PvpService {
                 season_wins: ranking.season_wins,
                 season_losses: ranking.season_losses,
                 season_draws: ranking.season_draws,
+                // 胜率：胜场数 / (胜+负+平) * 100，避免 0/0 NaN
+                win_rate: (() => {
+                    const total = (ranking.season_wins || 0) + (ranking.season_losses || 0) + (ranking.season_draws || 0);
+                    return total > 0 ? Math.round(((ranking.season_wins || 0) / total) * 100) : 0;
+                })(),
                 win_streak: ranking.win_streak,
                 max_win_streak: ranking.max_win_streak,
                 daily_challenge_count: ranking.daily_challenge_count,
                 daily_defend_count: ranking.daily_defend_count,
+                // 前端期望 daily_challenge_remaining / daily_defend_remaining 字段（PvpPanel 段位卡显示）
+                daily_challenge_remaining: Math.max(0, (cfg.daily_challenge_limit || 10) - ranking.daily_challenge_count),
+                daily_defend_remaining: Math.max(0, (cfg.daily_defend_limit || 5) - ranking.daily_defend_count),
                 total_battles: ranking.total_battles
             },
-            // 每日剩余挑战次数（后端权威计算）
+            // 每日剩余挑战次数（后端权威计算，保留顶层向后兼容）
             daily_remaining: Math.max(0, (cfg.daily_challenge_limit || 10) - ranking.daily_challenge_count),
             daily_limit: cfg.daily_challenge_limit || 10,
             cooldown_remaining: cooldownRemaining,
@@ -292,7 +300,34 @@ class PvpService {
             karma: player.karma || 0,
             pvp_score: player.pvp_score || 0,
             pvp_rank: player.pvp_rank || '散修',
-            server_time: now
+            // PVP 模式（避世/入世）：active=入世可参与 PVP，recluse=避世免疫 PVP 袭扰
+            // 前端通过此字段显示当前模式并提供切换入口
+            pvp_mode: player.pvp_mode || 'active',
+            pvp_mode_name: (player.pvp_mode === 'recluse') ? '避世' : '入世',
+            server_time: now,
+            // ===== 以下为前端 PvpPanel.vue 期望的嵌套结构（向后兼容新增） =====
+            // player 嵌套对象：聚合玩家自身相关字段（honor/karma/power/is_weak/冷却/虚弱）
+            // 修复前端字段引用不一致 bug：原前端读 status.player.honor 等字段始终为 undefined
+            player: {
+                honor: safeBigInt(player.honor).toString(),
+                karma: player.karma || 0,
+                // 战力：粗略估算（hp_max + atk*10 + def*10），避免调用 getCombatPower 引入循环依赖
+                // 真实战力请使用 GET /api/pvp/combat-power 接口
+                power: Number(player.pvp_score) || 0,
+                is_weak: weaknessRemaining > 0,
+                cooldown_remaining_seconds: cooldownRemaining,
+                weakness_remaining_seconds: weaknessRemaining
+            },
+            // config 嵌套对象：聚合 PVP 系统配置（每日次数/冷却/回合/段位表）
+            config: {
+                daily_challenge_limit: cfg.daily_challenge_limit || 10,
+                daily_defend_limit: cfg.daily_defend_limit || 5,
+                cooldown_seconds: cfg.cooldown_seconds || 300,
+                max_rounds: cfg.max_rounds || 30,
+                round_timeout_seconds: cfg.round_timeout_seconds || 60,
+                weakness_duration_minutes: cfg.weakness_duration_minutes || 30,
+                ranks: cfg.ranks || []
+            }
         };
     }
 

@@ -126,7 +126,11 @@ const handleSubmit = async () => {
       playerStore.logoutReason = null;
 
       // 使用 Pinia 存储状态
-      const token = res.data?.token || res.token
+      // 后端返回 { code, message, token, player } 在 res.data 顶层（详见 AuthResponse 类型）
+      const token = res.data?.token
+      if (!token) {
+        throw new Error('登录响应缺失 token 字段')
+      }
       playerStore.setToken(token)
 
       // 获取完整玩家数据

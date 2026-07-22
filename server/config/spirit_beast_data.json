@@ -34,7 +34,21 @@
             "catch_chance": 0.6,
             "catch_cost_mp": 50,
             "feed_exp": 10,
-            "description": "青云山常见的灵兽，性情温顺易于驯服"
+            "description": "青云山常见的灵兽，性情温顺易于驯服",
+            "signature_traits": {
+                "star_3": {
+                    "trait_key": "wolf_king_fury",
+                    "trait_name": "狼王之怒",
+                    "description": "狼群首领的怒火激发战意，攻击额外+10%",
+                    "atk_bonus_rate": 0.10
+                },
+                "star_5": {
+                    "trait_key": "sky_splitter_claw",
+                    "trait_name": "裂空爪",
+                    "description": "锋利如剑的爪击可裂空破甲，无视目标15%防御",
+                    "def_pierce_rate": 0.15
+                }
+            }
         },
         {
             "beast_key": "huoyan_lion",
@@ -49,7 +63,21 @@
             "catch_chance": 0.3,
             "catch_cost_mp": 200,
             "feed_exp": 30,
-            "description": "栖息于火山口的稀有灵兽，攻击力惊人"
+            "description": "栖息于火山口的稀有灵兽，攻击力惊人",
+            "signature_traits": {
+                "star_3": {
+                    "trait_key": "flame_breath",
+                    "trait_name": "烈焰吐息",
+                    "description": "狮口喷出炽烈火焰，火系技能伤害+20%",
+                    "skill_damage_bonus_rate": 0.20
+                },
+                "star_5": {
+                    "trait_key": "beast_king_aura",
+                    "trait_name": "兽王威压",
+                    "description": "万兽之王的气场压制敌人，暴击率+10%",
+                    "crit_rate_bonus": 0.10
+                }
+            }
         },
         {
             "beast_key": "bingpo_fox",
@@ -64,7 +92,22 @@
             "catch_chance": 0.15,
             "catch_cost_mp": 500,
             "feed_exp": 80,
-            "description": "极寒之地的传说灵兽，速度极快且灵性极高"
+            "description": "极寒之地的传说灵兽，速度极快且灵性极高",
+            "signature_traits": {
+                "star_3": {
+                    "trait_key": "frozen_domain",
+                    "trait_name": "冰封领域",
+                    "description": "冰霜领域笼罩战场，普攻15%概率冻结目标1回合",
+                    "freeze_chance": 0.15,
+                    "freeze_rounds": 1
+                },
+                "star_5": {
+                    "trait_key": "nine_tail_phantom",
+                    "trait_name": "九尾幻影",
+                    "description": "九尾幻影迷乱敌心，闪避率+15%",
+                    "dodge_rate_bonus": 0.15
+                }
+            }
         },
         {
             "beast_key": "tenglong_snake",
@@ -79,7 +122,21 @@
             "catch_chance": 0.05,
             "catch_cost_mp": 1000,
             "feed_exp": 200,
-            "description": "上古神兽后裔，拥有腾云驾雾之力，极难驯服"
+            "description": "上古神兽后裔，拥有腾云驾雾之力，极难驯服",
+            "signature_traits": {
+                "star_3": {
+                    "trait_key": "cloud_soaring",
+                    "trait_name": "腾云驾雾",
+                    "description": "腾蛇乘云而行，速度+20%，先手值大幅提升",
+                    "speed_bonus_rate": 0.20
+                },
+                "star_5": {
+                    "trait_key": "ancient_bloodline",
+                    "trait_name": "上古血脉",
+                    "description": "上古神兽血脉觉醒，全属性+10%",
+                    "all_attr_bonus_rate": 0.10
+                }
+            }
         }
     ],
 
@@ -126,5 +183,123 @@
             "mp_factor": 0.0,
             "sense_factor": 0.2
         }
+    },
+
+    "beast_soul_condense": {
+        "description": "满级灵兽溢出经验凝练兽魂配置：满级后继续获得的经验按 ratio 比率凝练为 beast_soul",
+        "enabled": true,
+        "exp_per_soul": 1000,
+        "max_soul_per_feed": 100,
+        "comment": "exp_per_soul=1000 表示每 1000 点溢出经验凝练 1 兽魂；max_soul_per_feed 单次喂养/互动最多凝练 100 兽魂，防止单次数值溢出"
+    },
+
+    "star_upgrade": {
+        "description": "灵兽升星系统配置（玩法文档第8节）：消耗兽魂+妖丹+灵石，提升星级，3星/5星激活招牌特性",
+        "enabled": true,
+        "cooldown_seconds": 3600,
+        "comment": "升星冷却 1 小时，避免频繁操作造成数据竞争",
+        "yaodan_item_key": "yaodan",
+        "yaodan_item_name": "妖丹",
+        "rarity_cost_multiplier": {
+            "common": 1.0,
+            "rare": 1.5,
+            "epic": 2.0,
+            "legendary": 3.0
+        },
+        "comment_2": "稀有度越高，升星消耗越大；下表为 common 基础消耗，其他稀有度乘以对应 multiplier",
+        "upgrade_table": [
+            {
+                "from_star": 1,
+                "to_star": 2,
+                "beast_soul_cost": 50,
+                "yaodan_cost": 1,
+                "spirit_stones_cost": 1000,
+                "success_rate": 1.0,
+                "description": "1星→2星：初阶通灵，成功率100%"
+            },
+            {
+                "from_star": 2,
+                "to_star": 3,
+                "beast_soul_cost": 200,
+                "yaodan_cost": 3,
+                "spirit_stones_cost": 5000,
+                "success_rate": 0.95,
+                "description": "2星→3星：中阶通灵，激活第一招牌特性，成功率95%"
+            },
+            {
+                "from_star": 3,
+                "to_star": 4,
+                "beast_soul_cost": 500,
+                "yaodan_cost": 8,
+                "spirit_stones_cost": 20000,
+                "success_rate": 0.85,
+                "description": "3星→4星：高阶通灵，成功率85%"
+            },
+            {
+                "from_star": 4,
+                "to_star": 5,
+                "beast_soul_cost": 1500,
+                "yaodan_cost": 20,
+                "spirit_stones_cost": 80000,
+                "success_rate": 0.70,
+                "description": "4星→5星：顶阶通灵，激活第二招牌特性，成功率70%"
+            },
+            {
+                "from_star": 5,
+                "to_star": 6,
+                "beast_soul_cost": 4000,
+                "yaodan_cost": 50,
+                "spirit_stones_cost": 300000,
+                "success_rate": 0.50,
+                "description": "5星→6星：超凡通灵，成功率50%"
+            },
+            {
+                "from_star": 6,
+                "to_star": 7,
+                "beast_soul_cost": 10000,
+                "yaodan_cost": 120,
+                "spirit_stones_cost": 1000000,
+                "success_rate": 0.35,
+                "description": "6星→7星：仙阶通灵，成功率35%"
+            },
+            {
+                "from_star": 7,
+                "to_star": 8,
+                "beast_soul_cost": 25000,
+                "yaodan_cost": 300,
+                "spirit_stones_cost": 3000000,
+                "success_rate": 0.20,
+                "description": "7星→8星：神阶通灵，成功率20%"
+            },
+            {
+                "from_star": 8,
+                "to_star": 9,
+                "beast_soul_cost": 60000,
+                "yaodan_cost": 800,
+                "spirit_stones_cost": 10000000,
+                "success_rate": 0.10,
+                "description": "8星→9星：圣阶通灵，成功率10%"
+            },
+            {
+                "from_star": 9,
+                "to_star": 10,
+                "beast_soul_cost": 150000,
+                "yaodan_cost": 2000,
+                "spirit_stones_cost": 50000000,
+                "success_rate": 0.05,
+                "description": "9星→10星：终极通灵，成功率5%"
+            }
+        ],
+        "failure_penalty": {
+            "description": "升星失败时的惩罚：消耗材料不返还，但灵兽不会降级/掉级",
+            "beast_soul_loss_rate": 1.0,
+            "yaodan_loss_rate": 1.0,
+            "spirit_stones_loss_rate": 1.0,
+            "loyalty_loss_min": 5,
+            "loyalty_loss_max": 15,
+            "comment": "失败时全损材料 + 忠诚度-5~15（不影响等级/星级）"
+        },
+        "signature_trait_unlock_stars": [3, 5],
+        "comment_3": "招牌特性在 3 星、5 星时激活；其他星级提升只增加属性倍率，不激活新特性"
     }
 }

@@ -75,7 +75,34 @@ const VARIABLE_BOUNDS = {
     spirit_vein_power: { min: 0, max: 100 },   // 灵脉之力，影响灵植生长
     root_stability: { min: 0, max: 100 },       // 根脉稳定，第3幕需≥50才不致失败
     branch_vigor: { min: 0, max: 100 },         // 枝桠活力，影响灵眼树胚掉落
-    spirit_plant_aura: { min: 0, max: 100 }      // 灵植灵气，影响最终奖励
+    spirit_plant_aura: { min: 0, max: 100 },     // 灵植灵气，影响最终奖励
+    // 苍坤洞府专属变量边界（2026-07-21 新增，migration_0057）
+    // forbidden_rift / scroll_clue / escape_difficulty 均为 0-100 整数
+    forbidden_rift: { min: 0, max: 100 },        // 禁制裂隙，影响门票线索掉率与脱身难度
+    scroll_clue: { min: 0, max: 100 },           // 卷轴线索，千机残篇线索累积度
+    escape_difficulty: { min: 0, max: 100 },     // 脱身难度，影响决战回合数与门票掉率
+    // cangkun_guardian_hp 无边界限制（BIGINT，可为0表示被击败）
+    // 血色试炼专属变量边界（2026-07-21 新增，migration_0058）
+    blood_qi_avg: { min: 0, max: 100 },          // 团队平均血气，第4幕决战每回合-10，归零团灭
+    blood_fury: { min: 0, max: 200 },            // 血怒，第4幕决战伤害加成
+    eliminations: { min: 0, max: 6 },            // 累计淘汰人数（最多6人副本）
+    survivor_count: { min: 0, max: 6 },          // 最终幸存人数
+    // 个人级变量边界（存于 member 表，第3幕淘汰判定用）
+    member_blood_qi: { min: 0, max: 100 },       // 个人血气，归零即被淘汰
+    member_kill_score: { min: 0, max: 200 },     // 个人杀戮分，影响最终奖励
+    // xuese_boss_hp 无边界限制（BIGINT，可为0表示被击败）
+    // 坠魔谷专属变量边界（2026-07-21 新增，migration_0059）
+    avg_heart_demon: { min: 0, max: 100 },       // 团队平均心魔，第4幕决战每回合+5，满100团灭
+    avg_dao_heart: { min: 0, max: 100 },         // 团队平均道心，第4幕决战每回合-5，归0团灭
+    member_heart_demon: { min: 0, max: 100 },    // 个人心魔，满100则堕魔淘汰
+    member_dao_heart: { min: 0, max: 100 },      // 个人道心，归0则道心破碎淘汰
+    // demon_boss_hp 无边界限制（BIGINT，可为0表示被击败）
+    // 黄龙山专属变量边界（2026-07-21 新增，migration_0060）
+    // huanglong_formation_power 阵法强度，0-200，影响决战伤害与称号奖励
+    huanglong_formation_power: { min: 0, max: 200 },  // 阵法强度（区别于虚天殿 formation_power 0-100）
+    huanglong_resonance_count: { min: 0, max: 5 },    // 共鸣数，相同阵眼≥2人触发
+    member_huanglong_contribution_score: { min: 0, max: 1000 }  // 个人贡献分，影响奖励分配
+    // huanglong_boss_hp 无边界限制（BIGINT，可为0表示被击败）
 };
 
 class MultiDungeonService {
@@ -135,10 +162,14 @@ class MultiDungeonService {
         // 2026-07-21 新增 xutian（虚天殿）4-6人剧情副本
         // 2026-07-21 新增 xiaoji（北冥小极宫）4-5人剧情副本
         // 2026-07-21 新增 luoyun（落云秘圃）3-5人剧情副本
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun'].includes(dungeonKey)) {
+        // 2026-07-21 新增 cangkun（苍坤洞府）3-5人剧情副本，掩月抢亲前置副本
+        // 2026-07-21 新增 xuese（血色试炼）4-6人 PVPvE 淘汰制副本
+        // 2026-07-21 新增 zhuimo（坠魔谷）3-5人 PVE 心魔博弈副本
+        // 2026-07-21 新增 huanglong（黄龙山）5人固定编制宗门协同阵法副本（首个同宗门强制副本）
+        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeonKey)) {
             return {
                 success: false,
-                message: 'dungeon_key 必须为 yanyue(掩月抢亲) / duanwu(端午镇蛟) / kunwu(昆吾山·封魔塔) / xutian(虚天殿) / xiaoji(北冥小极宫) / luoyun(落云秘圃)',
+                message: 'dungeon_key 必须为 yanyue(掩月抢亲) / duanwu(端午镇蛟) / kunwu(昆吾山·封魔塔) / xutian(虚天殿) / xiaoji(北冥小极宫) / luoyun(落云秘圃) / cangkun(苍坤洞府) / xuese(血色试炼) / zhuimo(坠魔谷) / huanglong(黄龙山)',
                 error_code: ErrorCodes.VALIDATION_ERROR
             };
         }
@@ -277,10 +308,55 @@ class MultiDungeonService {
                 instanceData.spirit_plant_aura = dungeonCfg.init_spirit_plant_aura ?? 30;
                 instanceData.act3_choice = null;
             }
+            // 苍坤洞府专属变量初始化（2026-07-21 新增，migration_0057）
+            // forbidden_rift 禁制裂隙（默认0，第1幕强破禁制/第3幕破禁抉择累加）
+            // scroll_clue 卷轴线索（默认0，第2幕搜寻宝物抉择累加，影响门票线索掉率）
+            // escape_difficulty 脱身难度（默认30，第4幕自动决战中累积，越高决战回合数越长）
+            // escape_choice 第4幕脱身抉择键（null，决战后由队长抉择设置）
+            // cangkun_guardian_hp 苍坤守灵HP（null，第4幕决战首次进入时初始化为 cangkun_guardian_hp_base）
+            if (dungeonKey === 'cangkun') {
+                instanceData.forbidden_rift = dungeonCfg.init_forbidden_rift ?? 0;
+                instanceData.scroll_clue = dungeonCfg.init_scroll_clue ?? 0;
+                instanceData.escape_difficulty = dungeonCfg.init_escape_difficulty ?? 30;
+                instanceData.escape_choice = null;
+                instanceData.cangkun_guardian_hp = null;
+            }
+            // 血色试炼专属变量初始化（2026-07-21 新增，migration_0058）
+            // blood_qi_avg 团队平均血气（默认100，第4幕决战每回合-10，归零团灭）
+            // blood_fury 血怒（默认0，前3幕抉择累加，第4幕决战伤害加成）
+            // eliminations 累计淘汰人数（默认0，第1/3幕各淘汰1人时累加）
+            // survivor_count 最终幸存人数（默认0，第3幕结束后更新为幸存者数量）
+            // xuese_boss_hp 血色尊者HP（null，第4幕决战首次进入时初始化为 xuese_boss_hp_base）
+            if (dungeonKey === 'xuese') {
+                instanceData.blood_qi_avg = dungeonCfg.init_blood_qi_avg ?? 100;
+                instanceData.blood_fury = dungeonCfg.init_blood_fury ?? 0;
+                instanceData.eliminations = dungeonCfg.init_eliminations ?? 0;
+                instanceData.survivor_count = dungeonCfg.init_survivor_count ?? 0;
+                instanceData.xuese_boss_hp = null;
+            }
+            // 坠魔谷专属变量初始化（2026-07-21 新增，migration_0059）
+            // avg_heart_demon 团队平均心魔（默认0，第4幕决战每回合+5，满100团灭）
+            // avg_dao_heart 团队平均道心（默认100，第4幕决战每回合-5，归0团灭）
+            // demon_boss_hp 心魔Boss HP（null，第4幕决战首次进入时初始化为 demon_boss_hp_base）
+            if (dungeonKey === 'zhuimo') {
+                instanceData.avg_heart_demon = dungeonCfg.init_avg_heart_demon ?? 0;
+                instanceData.avg_dao_heart = dungeonCfg.init_avg_dao_heart ?? 100;
+                instanceData.demon_boss_hp = null;
+            }
+            // 黄龙山专属变量初始化（2026-07-21 新增，migration_0060）
+            // huanglong_formation_power 阵法强度（默认0，0-200，第1幕起由阵眼选择与共鸣累加）
+            // huanglong_resonance_count 共鸣数（默认0，0-5，相同阵眼≥2人触发共鸣累加）
+            // huanglong_boss_hp 黄龙Boss HP（null，第4幕决战首次进入时初始化为 huanglong_boss_hp_base）
+            if (dungeonKey === 'huanglong') {
+                instanceData.huanglong_formation_power = dungeonCfg.init_formation_power ?? 0;
+                instanceData.huanglong_resonance_count = dungeonCfg.init_resonance_count ?? 0;
+                instanceData.huanglong_boss_hp = null;
+            }
             const instance = await MultiDungeonInstance.create(instanceData, { transaction: t });
 
             // 创建队长成员记录
-            await MultiDungeonMember.create({
+            // 2026-07-21 新增 xuese 专属字段：blood_qi（个人血气）/ kill_score（杀戮分）/ is_eliminated（淘汰标记）
+            const memberInitData = {
                 instance_id: instance.id,
                 player_id: playerId,
                 player_nickname: player.nickname,
@@ -294,7 +370,32 @@ class MultiDungeonService {
                 hp_remaining: BigInt(player.hp_current || 100),
                 zongzi_invested: 0,
                 cooldown_end_time: null
-            }, { transaction: t });
+            };
+            // 血色试炼：初始化个人血气与杀戮分（migration_0058）
+            if (dungeonKey === 'xuese') {
+                memberInitData.blood_qi = dungeonCfg.member_init_blood_qi ?? 100;
+                memberInitData.kill_score = dungeonCfg.member_init_kill_score ?? 0;
+                memberInitData.is_eliminated = 0;
+            }
+            // 坠魔谷：初始化个人心魔与道心（migration_0059）
+            // heart_demon 心魔（默认0，满100则堕魔淘汰）
+            // dao_heart 道心（默认100，归0则道心破碎淘汰）
+            // is_fallen 是否已堕魔（默认0）
+            if (dungeonKey === 'zhuimo') {
+                memberInitData.heart_demon = dungeonCfg.member_init_heart_demon ?? 0;
+                memberInitData.dao_heart = dungeonCfg.member_init_dao_heart ?? 100;
+                memberInitData.is_fallen = 0;
+            }
+            // 黄龙山：初始化阵眼位置、贡献分、叛道标记（migration_0060）
+            // huanglong_eye_position 阵眼位置（默认'unassigned'，第1幕入阵固守抉择后更新）
+            // huanglong_contribution_score 个人贡献分（默认0，第1-3幕抉择累加，叛道双倍）
+            // huanglong_is_defecting 是否已叛道（默认0，第3幕叛道抉择后置1）
+            if (dungeonKey === 'huanglong') {
+                memberInitData.huanglong_eye_position = dungeonCfg.member_init_eye_position ?? 'unassigned';
+                memberInitData.huanglong_contribution_score = dungeonCfg.member_init_contribution_score ?? 0;
+                memberInitData.huanglong_is_defecting = dungeonCfg.member_init_is_defecting ? 1 : 0;
+            }
+            await MultiDungeonMember.create(memberInitData, { transaction: t });
 
             await t.commit();
 
@@ -400,6 +501,54 @@ class MultiDungeonService {
                 };
             }
 
+            // 2026-07-21 新增：同宗门校验（黄龙山 require_same_sect=true 时强制）
+            // 设计目的：黄龙山是首个"5人固定编制+同宗门强制"副本，确保队员与队长属于同一宗门
+            // 校验逻辑：查询队长和当前玩家的 PlayerSect，比较 sect_id 是否一致
+            if (dungeonCfg.require_same_sect === true) {
+                try {
+                    const PlayerSect = require('../../models/playerSect');
+                    // 查询队长的宗门
+                    const leaderSect = await PlayerSect.findOne({
+                        where: { player_id: instance.leader_player_id },
+                        transaction: t
+                    });
+                    if (!leaderSect) {
+                        await t.rollback();
+                        return {
+                            success: false,
+                            message: `队长未加入任何宗门，无法开启同宗门副本【${dungeonCfg.name}】`
+                        };
+                    }
+                    // 查询当前玩家的宗门
+                    const memberSect = await PlayerSect.findOne({
+                        where: { player_id: playerId },
+                        transaction: t
+                    });
+                    if (!memberSect) {
+                        await t.rollback();
+                        return {
+                            success: false,
+                            message: `你未加入任何宗门，无法加入同宗门副本【${dungeonCfg.name}】（队长宗门：${leaderSect.sect_id}）`
+                        };
+                    }
+                    // 比较宗门是否一致
+                    if (leaderSect.sect_id !== memberSect.sect_id) {
+                        await t.rollback();
+                        return {
+                            success: false,
+                            message: `宗门不一致：队长属于【${leaderSect.sect_id}】，你属于【${memberSect.sect_id}】，无法加入同宗门副本【${dungeonCfg.name}】`
+                        };
+                    }
+                } catch (e) {
+                    console.warn(`[MultiDungeonService] join 同宗门校验异常（玩家 ${playerId}）: ${e.message}`);
+                    await t.rollback();
+                    return {
+                        success: false,
+                        message: `同宗门校验失败：${e.message}`
+                    };
+                }
+            }
+
             // 校验队员是否已在其他未终态副本中
             const existingMembership = await MultiDungeonMember.findOne({
                 where: { player_id: playerId },
@@ -429,7 +578,8 @@ class MultiDungeonService {
             }
 
             // 创建成员记录
-            await MultiDungeonMember.create({
+            // 2026-07-21 新增 xuese 专属字段：blood_qi / kill_score / is_eliminated
+            const joinMemberData = {
                 instance_id: instance.id,
                 player_id: playerId,
                 player_nickname: player.nickname,
@@ -443,7 +593,32 @@ class MultiDungeonService {
                 hp_remaining: BigInt(player.hp_current || 100),
                 zongzi_invested: 0,
                 cooldown_end_time: null
-            }, { transaction: t });
+            };
+            // 血色试炼：队员加入时初始化个人血气与杀戮分（migration_0058）
+            if (instance.instance_key === 'xuese') {
+                const xueseCfg = dungeonCfg;
+                joinMemberData.blood_qi = xueseCfg?.member_init_blood_qi ?? 100;
+                joinMemberData.kill_score = xueseCfg?.member_init_kill_score ?? 0;
+                joinMemberData.is_eliminated = 0;
+            }
+            // 坠魔谷：队员加入时初始化个人心魔与道心（migration_0059）
+            if (instance.instance_key === 'zhuimo') {
+                const zhuimoCfg = dungeonCfg;
+                joinMemberData.heart_demon = zhuimoCfg?.member_init_heart_demon ?? 0;
+                joinMemberData.dao_heart = zhuimoCfg?.member_init_dao_heart ?? 100;
+                joinMemberData.is_fallen = 0;
+            }
+            // 黄龙山：队员加入时初始化阵眼位置、贡献分、叛道标记（migration_0060）
+            //   - huanglong_eye_position 默认 'unassigned'，第1幕入阵固守后由抉择更新
+            //   - huanglong_contribution_score 默认 0，第1-3幕抉择累加
+            //   - huanglong_is_defecting 默认 0，第3幕叛道抉择后置 1
+            if (instance.instance_key === 'huanglong') {
+                const huanglongCfg = dungeonCfg;
+                joinMemberData.huanglong_eye_position = huanglongCfg?.member_init_eye_position ?? 'unassigned';
+                joinMemberData.huanglong_contribution_score = huanglongCfg?.member_init_contribution_score ?? 0;
+                joinMemberData.huanglong_is_defecting = huanglongCfg?.member_init_is_defecting ? 1 : 0;
+            }
+            await MultiDungeonMember.create(joinMemberData, { transaction: t });
 
             instance.member_count += 1;
             await instance.save({ transaction: t });
@@ -755,7 +930,27 @@ class MultiDungeonService {
                     root_stability: instance.root_stability,           // 根脉稳定 0-100，第3幕需 ≥ 50 才不致失败
                     branch_vigor: instance.branch_vigor,               // 枝桠活力 0-100，影响灵眼树胚掉落
                     spirit_plant_aura: instance.spirit_plant_aura,     // 灵植灵气 0-100，影响最终奖励
-                    act3_choice: instance.act3_choice                  // 第3幕抉择键（cut_seal/branch_care/balanced_harvest）
+                    act3_choice: instance.act3_choice,                 // 第3幕抉择键（cut_seal/branch_care/balanced_harvest）
+                    // 苍坤洞府专属变量（2026-07-21 新增，migration_0057，非苍坤副本为默认值，前端可按 dungeon_key 判断是否展示）
+                    forbidden_rift: instance.forbidden_rift,           // 禁制裂隙 0-100，影响门票线索掉率与脱身难度
+                    scroll_clue: instance.scroll_clue,                 // 卷轴线索 0-100，千机残篇线索累积度
+                    escape_difficulty: instance.escape_difficulty,     // 脱身难度 0-100，影响决战回合数与门票掉率
+                    escape_choice: instance.escape_choice,             // 第4幕脱身抉择键（forced_breakout/formation_escape/stealth_escape）
+                    cangkun_guardian_hp: instance.cangkun_guardian_hp ? instance.cangkun_guardian_hp.toString() : null, // 苍坤守灵HP（第4幕使用）
+                    // 血色试炼专属变量（2026-07-21 新增，migration_0058，非血色副本为默认值，前端可按 dungeon_key 判断是否展示）
+                    blood_qi_avg: instance.blood_qi_avg,               // 团队平均血气 0-100，第4幕决战每回合-10，归零团灭
+                    blood_fury: instance.blood_fury,                   // 血怒 0-200，第4幕决战伤害加成
+                    eliminations: instance.eliminations,               // 累计淘汰人数
+                    survivor_count: instance.survivor_count,           // 最终幸存人数
+                    xuese_boss_hp: instance.xuese_boss_hp ? instance.xuese_boss_hp.toString() : null, // 血色尊者HP（第4幕使用）
+                    // 坠魔谷专属变量（2026-07-21 新增，migration_0059，非坠魔副本为默认值，前端可按 dungeon_key 判断是否展示）
+                    avg_heart_demon: instance.avg_heart_demon,         // 团队平均心魔 0-100，第4幕决战每回合+5，满100团灭
+                    avg_dao_heart: instance.avg_dao_heart,             // 团队平均道心 0-100，第4幕决战每回合-5，归0团灭
+                    demon_boss_hp: instance.demon_boss_hp ? instance.demon_boss_hp.toString() : null, // 心魔Boss HP（第4幕使用）
+                    // 黄龙山专属变量（2026-07-21 新增，migration_0060，非黄龙山副本为默认值，前端可按 dungeon_key 判断是否展示）
+                    huanglong_formation_power: instance.huanglong_formation_power,  // 阵法强度 0-200，影响决战伤害与称号奖励
+                    huanglong_resonance_count: instance.huanglong_resonance_count,  // 共鸣数 0-5，相同阵眼≥2人触发
+                    huanglong_boss_hp: instance.huanglong_boss_hp ? instance.huanglong_boss_hp.toString() : null // 黄龙Boss HP（第4幕使用）
                 },
                 current_act: currentAct ? {
                     act_number: currentAct.act_number,
@@ -767,6 +962,16 @@ class MultiDungeonService {
                     is_auto_advance: isAutoAdvance,
                     rounds_max: currentAct.rounds_max || null,
                     choices: availableChoices,
+                    // 2026-07-21 新增：苍坤洞府第4幕的脱身抉择选项（仅 cangkun 第4幕有值）
+                    // 前端在 is_auto_advance=true 且 escape_choices 非空时，要求玩家先选择脱身方式后再调用 /advance
+                    escape_choices: Array.isArray(currentAct.escape_choices)
+                        ? currentAct.escape_choices.map(c => ({
+                            key: c.key, text: c.text, desc: c.desc,
+                            escape_choice: c.escape_choice,
+                            escape_difficulty_change: c.escape_difficulty_change,
+                            ticket_clue_bonus: c.ticket_clue_bonus
+                        }))
+                        : [],
                     multi_choice_progress: multiChoiceProgress
                 } : null,
                 members: members.map(m => ({
@@ -776,7 +981,19 @@ class MultiDungeonService {
                     role: m.role,
                     contribution: m.contribution,
                     zongzi_invested: m.zongzi_invested,
-                    is_ready: !!m.is_ready
+                    is_ready: !!m.is_ready,
+                    // 血色试炼专属：个人血气/杀戮分/淘汰标记（migration_0058，非血色副本为默认值）
+                    blood_qi: m.blood_qi !== undefined ? m.blood_qi : 100,
+                    kill_score: m.kill_score !== undefined ? m.kill_score : 0,
+                    is_eliminated: !!m.is_eliminated,
+                    // 坠魔谷专属：个人心魔/道心/堕魔标记（migration_0059，非坠魔副本为默认值）
+                    heart_demon: m.heart_demon !== undefined ? m.heart_demon : 0,
+                    dao_heart: m.dao_heart !== undefined ? m.dao_heart : 100,
+                    is_fallen: !!m.is_fallen,
+                    // 黄龙山专属：阵眼位置/贡献分/叛道标记（migration_0060，非黄龙山副本为默认值）
+                    huanglong_eye_position: m.huanglong_eye_position || 'unassigned',
+                    huanglong_contribution_score: m.huanglong_contribution_score !== undefined ? m.huanglong_contribution_score : 0,
+                    huanglong_is_defecting: !!m.huanglong_is_defecting
                 })),
                 history_choices: choices.map(c => ({
                     act_number: c.act_number,
@@ -1034,7 +1251,20 @@ class MultiDungeonService {
                 spirit_vein_power_change: choice.spirit_vein_power_change || 0,
                 root_stability_change: choice.root_stability_change || 0,
                 branch_vigor_change: choice.branch_vigor_change || 0,
-                spirit_plant_aura_change: choice.spirit_plant_aura_change || 0
+                spirit_plant_aura_change: choice.spirit_plant_aura_change || 0,
+                // 黄龙山专属字段（2026-07-21 新增，migration_0060）
+                // huanglong_formation_power_change：阵法强度变化（累加，非黄龙山写入 0 即可）
+                huanglong_formation_power_change: choice.huanglong_formation_power_change || 0,
+                // huanglong_resonance_count_change：共鸣数变化（累加）
+                huanglong_resonance_count_change: choice.huanglong_resonance_count_change || 0,
+                // huanglong_eye_position：阵眼位置（直接设置，仅第1幕入阵固守有值）
+                huanglong_eye_position: choice.huanglong_eye_position || null,
+                // huanglong_contribution_score_self_change：自身贡献分变化（累加，叛道双倍）
+                huanglong_contribution_score_self_change: choice.huanglong_contribution_score_self_change || 0,
+                // huanglong_is_defecting_self：是否叛道（直接设置 0/1，仅第3幕叛道抉择有值）
+                huanglong_is_defecting_self: (choice.huanglong_is_defecting_self !== undefined && choice.huanglong_is_defecting_self !== null)
+                    ? choice.huanglong_is_defecting_self
+                    : null
             };
             await MultiDungeonChoice.create(choiceRecordData, { transaction: t });
 
@@ -1208,6 +1438,42 @@ class MultiDungeonService {
 
             // 本幕完成 → 推进到下一幕
             if (actComplete) {
+                // 2026-07-21 新增：血色试炼淘汰机制
+                // 第1幕和第3幕标记 is_pvp_eliminable=true，幕末淘汰血气最低者（migration_0058）
+                // 设计目的：通过淘汰机制制造 PVP 紧张感，前3幕玩家需在侵略（高伤害高杀戮分但自损血气）
+                // 与共生（保血气多幸存）之间做策略平衡
+                if (instance.instance_key === 'xuese' &&
+                    currentAct.is_pvp_eliminable &&
+                    (currentAct.elimination_count || 0) > 0) {
+                    const eliminated = await MultiDungeonService._applyXueseElimination(
+                        instance, currentAct, t
+                    );
+                    if (eliminated.success) {
+                        // 记录淘汰审计日志（写入 choice 表便于回放）
+                        await MultiDungeonChoice.create({
+                            instance_id: instance.id,
+                            act_number: currentAct.act_number,
+                            act_name: currentAct.act_name,
+                            choice_key: 'elimination',
+                            choice_text: `幕末淘汰：${eliminated.eliminated_members.map(m => m.nickname).join('、')}`,
+                            chosen_option: 'auto_elimination',
+                            chosen_by: instance.leader_player_id,
+                            chosen_at: new Date(),
+                            morale_change: 0,
+                            vigilance_change: 0,
+                            demon_corruption_change: 0,
+                            seal_stability_change: 0,
+                            harvest_multiplier_change: 0,
+                            blood_qi_self_change: 0,
+                            blood_qi_others_change: 0,
+                            kill_score_change: 0,
+                            blood_fury_change: 0,
+                            round_number: 0,
+                            eye_key: null
+                        }, { transaction: t });
+                    }
+                }
+
                 instance.current_act += 1;
                 instance.current_act_state = 'active';
                 await instance.save({ transaction: t });
@@ -1668,11 +1934,11 @@ class MultiDungeonService {
      * @returns {Promise<Object>} { success, data }
      */
     static async getRewards(dungeonKey) {
-        // 2026-07-21 新增 kunwu（昆吾山·封魔塔）/ xutian（虚天殿）/ xiaoji（北冥小极宫）/ luoyun（落云秘圃）
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun'].includes(dungeonKey)) {
+        // 2026-07-21 新增 kunwu（昆吾山·封魔塔）/ xutian（虚天殿）/ xiaoji（北冥小极宫）/ luoyun（落云秘圃）/ cangkun（苍坤洞府）/ xuese（血色试炼）/ zhuimo（坠魔谷）/ huanglong（黄龙山）
+        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeonKey)) {
             return {
                 success: false,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun',
+                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong',
                 error_code: ErrorCodes.VALIDATION_ERROR
             };
         }
@@ -1882,8 +2148,8 @@ class MultiDungeonService {
      */
     static async getCooldown(playerId) {
         const cooldowns = {};
-        // 2026-07-21 扩展：覆盖全部6个副本键（含 luoyun 落云秘圃）
-        for (const key of ['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun']) {
+        // 2026-07-21 扩展：覆盖全部8个副本键（含 luoyun 落云秘圃 / cangkun 苍坤洞府 / xuese 血色试炼）
+        for (const key of ['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong']) {
             const latest = await MultiDungeonCooldown.findOne({
                 where: { player_id: playerId, dungeon_key: key },
                 order: [['cooldown_end_time', 'DESC']]
@@ -2088,11 +2354,11 @@ class MultiDungeonService {
      * @returns {Promise<Object>} { success, message, data }
      */
     static async gmGrantReward(playerId, dungeonKey, rewardKey, adminId) {
-        // 2026-07-21 扩展：支持 kunwu / xutian / xiaoji / luoyun
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun'].includes(dungeonKey)) {
+        // 2026-07-21 扩展：支持 kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong
+        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeonKey)) {
             return {
                 success: false,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun',
+                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong',
                 error_code: ErrorCodes.VALIDATION_ERROR
             };
         }
@@ -2212,11 +2478,11 @@ class MultiDungeonService {
      * @returns {Promise<Object>} { success, message, data }
      */
     static async gmResetCooldown(playerId, dungeonKey, adminId) {
-        // 2026-07-21 扩展：支持 kunwu / xutian / xiaoji / luoyun
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'all'].includes(dungeonKey)) {
+        // 2026-07-21 扩展：支持 kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong
+        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong', 'all'].includes(dungeonKey)) {
             return {
                 success: false,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / all',
+                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong / all',
                 error_code: ErrorCodes.VALIDATION_ERROR
             };
         }
@@ -2489,6 +2755,388 @@ class MultiDungeonService {
             applied.sapling_drop_rate = choice.sapling_drop_rate;
         }
 
+        // 苍坤洞府专属变量变化（2026-07-21 新增，migration_0057）
+        // forbidden_rift 禁制裂隙（0-100，第1幕强破禁制/第3幕破禁抉择累加，越高越危险但门票掉率越高）
+        // scroll_clue 卷轴线索（0-100，第2幕搜寻宝物抉择累加，影响门票掉率与首通加成）
+        // escape_difficulty 脱身难度（0-100，第4幕自动决战中累加，影响决战回合数与门票掉率）
+        // escape_choice 第4幕脱身抉择键（forced_breakout/formation_escape/stealth_escape），由 _processCangkunFinalAct 内部设置
+        // cangkun_guardian_hp_change 仅在 _processCangkunFinalAct 内部使用，不在通用 _applyChoiceEffect 处理
+        if (choice.forbidden_rift_change) {
+            instance.forbidden_rift = Math.max(VARIABLE_BOUNDS.forbidden_rift.min, Math.min(VARIABLE_BOUNDS.forbidden_rift.max, (instance.forbidden_rift || 0) + choice.forbidden_rift_change));
+            applied.forbidden_rift = instance.forbidden_rift;
+        }
+        if (choice.scroll_clue_change) {
+            instance.scroll_clue = Math.max(VARIABLE_BOUNDS.scroll_clue.min, Math.min(VARIABLE_BOUNDS.scroll_clue.max, (instance.scroll_clue || 0) + choice.scroll_clue_change));
+            applied.scroll_clue = instance.scroll_clue;
+        }
+        if (choice.escape_difficulty_change) {
+            instance.escape_difficulty = Math.max(VARIABLE_BOUNDS.escape_difficulty.min, Math.min(VARIABLE_BOUNDS.escape_difficulty.max, (instance.escape_difficulty || 0) + choice.escape_difficulty_change));
+            applied.escape_difficulty = instance.escape_difficulty;
+        }
+
+        // 血色试炼专属变量变化（2026-07-21 新增，migration_0058）
+        // 实例级：blood_fury 血怒（前3幕累加，第4幕决战伤害加成）
+        if (choice.blood_fury_change) {
+            instance.blood_fury = Math.max(VARIABLE_BOUNDS.blood_fury.min, Math.min(VARIABLE_BOUNDS.blood_fury.max, (instance.blood_fury || 0) + choice.blood_fury_change));
+            applied.blood_fury = instance.blood_fury;
+        }
+        // 个人级变量变化（血色试炼 PVP 抉择特有）
+        // blood_qi_self_change：自身血气变化（猎杀/挑战会自损血气，潜行/献祭/守护会增加）
+        // blood_qi_others_change：他人血气变化（猎杀/挑战/夺取/追击/伏击会对其他成员造成血气伤害）
+        // kill_score_change：杀戮分变化（猎杀/挑战/伏击/夺取增加，躲避扣减）
+        if (choice.blood_qi_self_change || choice.blood_qi_others_change || choice.kill_score_change) {
+            // 查询当前抉择玩家与所有其他在场幸存成员
+            const allMembers = await MultiDungeonMember.findAll({
+                where: { instance_id: instance.id, is_present: 1, is_eliminated: 0 },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+            const currentPlayer = allMembers.find(m => m.player_id === playerId);
+            const otherPlayers = allMembers.filter(m => m.player_id !== playerId);
+
+            // 自身血气变化
+            if (currentPlayer && choice.blood_qi_self_change) {
+                currentPlayer.blood_qi = Math.max(VARIABLE_BOUNDS.member_blood_qi.min,
+                    Math.min(VARIABLE_BOUNDS.member_blood_qi.max,
+                        (currentPlayer.blood_qi ?? 100) + choice.blood_qi_self_change));
+                await currentPlayer.save({ transaction });
+                applied.blood_qi_self = currentPlayer.blood_qi;
+            }
+            // 自身杀戮分变化
+            if (currentPlayer && choice.kill_score_change) {
+                currentPlayer.kill_score = Math.max(VARIABLE_BOUNDS.member_kill_score.min,
+                    Math.min(VARIABLE_BOUNDS.member_kill_score.max,
+                        (currentPlayer.kill_score ?? 0) + choice.kill_score_change));
+                await currentPlayer.save({ transaction });
+                applied.kill_score = currentPlayer.kill_score;
+            }
+            // 其他成员血气变化（伤害均摊到每个其他在场幸存成员）
+            if (otherPlayers.length > 0 && choice.blood_qi_others_change) {
+                for (const other of otherPlayers) {
+                    other.blood_qi = Math.max(VARIABLE_BOUNDS.member_blood_qi.min,
+                        Math.min(VARIABLE_BOUNDS.member_blood_qi.max,
+                            (other.blood_qi ?? 100) + choice.blood_qi_others_change));
+                    await other.save({ transaction });
+                }
+                applied.blood_qi_others = choice.blood_qi_others_change;
+                applied.affected_others = otherPlayers.length;
+            }
+
+            // 同步更新实例级团队平均血气（取所有在场幸存成员的平均值）
+            const survivors = allMembers.filter(m => !m.is_eliminated);
+            if (survivors.length > 0) {
+                const totalBloodQi = survivors.reduce((sum, m) => sum + (m.blood_qi ?? 100), 0);
+                instance.blood_qi_avg = Math.max(VARIABLE_BOUNDS.blood_qi_avg.min,
+                    Math.min(VARIABLE_BOUNDS.blood_qi_avg.max,
+                        Math.floor(totalBloodQi / survivors.length)));
+                applied.blood_qi_avg = instance.blood_qi_avg;
+            }
+        }
+
+        // 坠魔谷专属变量变化（2026-07-21 新增，migration_0059）
+        // 设计：心魔（heart_demon）与道心（dao_heart）是对立变量，构成 PVE 心魔博弈核心
+        //   - heart_demon_self_change：自身心魔变化（血祭/试道增加，静心/守道降低）
+        //   - heart_demon_others_change：他人心魔变化（试道增加他人心魔换取自身收益，护道降低他人心魔）
+        //   - heart_demon_others_change_highest：心魔最高者心魔变化（特殊护道，精准拯救濒临堕魔的队友）
+        //   - dao_heart_self_change：自身道心变化（守道/护道提升，入魔/心魔侵蚀降低）
+        //   - dao_heart_others_change：他人道心变化（护道提升他人道心）
+        // 堕魔判定：心魔 ≥ 100（堕魔）或道心 ≤ 0（道心破碎）立即标记 is_fallen=1, is_present=0
+        if (choice.heart_demon_self_change || choice.heart_demon_others_change ||
+            choice.heart_demon_others_change_highest || choice.dao_heart_self_change ||
+            choice.dao_heart_others_change) {
+            // 查询当前抉择玩家与所有其他在场未堕魔成员（带行级锁防止并发）
+            const allMembers = await MultiDungeonMember.findAll({
+                where: { instance_id: instance.id, is_present: 1, is_fallen: 0 },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+            const currentPlayer = allMembers.find(m => m.player_id === playerId);
+            const otherPlayers = allMembers.filter(m => m.player_id !== playerId);
+            const fallenMembers = []; // 本次堕魔的成员列表（用于审计与通知）
+
+            /**
+             * 内部辅助：判定并标记堕魔（心魔≥100 或 道心≤0）
+             * @param {Object} m - 成员对象
+             * @returns {boolean} 是否触发了堕魔
+             */
+            const checkAndMarkFallen = (m) => {
+                if (m.is_fallen) return false;
+                if ((m.heart_demon ?? 0) >= 100) {
+                    m.is_fallen = 1;
+                    m.is_present = 0;
+                    return true;
+                }
+                if ((m.dao_heart ?? 100) <= 0) {
+                    m.is_fallen = 1;
+                    m.is_present = 0;
+                    return true;
+                }
+                return false;
+            };
+
+            // 自身心魔变化
+            if (currentPlayer && choice.heart_demon_self_change) {
+                currentPlayer.heart_demon = Math.max(VARIABLE_BOUNDS.member_heart_demon.min,
+                    Math.min(VARIABLE_BOUNDS.member_heart_demon.max,
+                        (currentPlayer.heart_demon ?? 0) + choice.heart_demon_self_change));
+                applied.heart_demon_self = currentPlayer.heart_demon;
+                if (checkAndMarkFallen(currentPlayer)) {
+                    fallenMembers.push({
+                        player_id: currentPlayer.player_id,
+                        nickname: currentPlayer.player_nickname,
+                        reason: (currentPlayer.heart_demon ?? 0) >= 100 ? 'heart_demon_overflow' : 'dao_broken',
+                        heart_demon: currentPlayer.heart_demon,
+                        dao_heart: currentPlayer.dao_heart
+                    });
+                }
+            }
+            // 自身道心变化
+            if (currentPlayer && choice.dao_heart_self_change) {
+                currentPlayer.dao_heart = Math.max(VARIABLE_BOUNDS.member_dao_heart.min,
+                    Math.min(VARIABLE_BOUNDS.member_dao_heart.max,
+                        (currentPlayer.dao_heart ?? 100) + choice.dao_heart_self_change));
+                applied.dao_heart_self = currentPlayer.dao_heart;
+                if (checkAndMarkFallen(currentPlayer)) {
+                    // 避免重复加入 fallenMembers（若心魔已触发堕魔则不再加入）
+                    if (!fallenMembers.find(f => f.player_id === currentPlayer.player_id)) {
+                        fallenMembers.push({
+                            player_id: currentPlayer.player_id,
+                            nickname: currentPlayer.player_nickname,
+                            reason: 'dao_broken',
+                            heart_demon: currentPlayer.heart_demon,
+                            dao_heart: currentPlayer.dao_heart
+                        });
+                    }
+                }
+            }
+            // 保存自身变化（堕魔判定后一次性保存）
+            if (currentPlayer) {
+                await currentPlayer.save({ transaction });
+            }
+
+            // 他人心魔变化（伤害均摊到每个其他在场未堕魔成员）
+            if (otherPlayers.length > 0 && choice.heart_demon_others_change) {
+                for (const other of otherPlayers) {
+                    other.heart_demon = Math.max(VARIABLE_BOUNDS.member_heart_demon.min,
+                        Math.min(VARIABLE_BOUNDS.member_heart_demon.max,
+                            (other.heart_demon ?? 0) + choice.heart_demon_others_change));
+                    if (checkAndMarkFallen(other)) {
+                        fallenMembers.push({
+                            player_id: other.player_id,
+                            nickname: other.player_nickname,
+                            reason: (other.heart_demon ?? 0) >= 100 ? 'heart_demon_overflow' : 'dao_broken',
+                            heart_demon: other.heart_demon,
+                            dao_heart: other.dao_heart
+                        });
+                    }
+                    await other.save({ transaction });
+                }
+                applied.heart_demon_others = choice.heart_demon_others_change;
+                applied.affected_others_heart_demon = otherPlayers.length;
+            }
+
+            // 心魔最高者心魔变化（护道专用：仅影响心魔最高的队员，避免对全员加心魔的副作用）
+            // 设计目的：精准拯救濒临堕魔的队友，提升多人协作的护道收益
+            if (otherPlayers.length > 0 && choice.heart_demon_others_change_highest) {
+                // 在其他在场未堕魔成员中找出心魔最高者（已堕魔的不参与）
+                const sortedByHeartDemon = [...otherPlayers].sort((a, b) => (b.heart_demon ?? 0) - (a.heart_demon ?? 0));
+                const highestMember = sortedByHeartDemon[0];
+                if (highestMember) {
+                    highestMember.heart_demon = Math.max(VARIABLE_BOUNDS.member_heart_demon.min,
+                        Math.min(VARIABLE_BOUNDS.member_heart_demon.max,
+                            (highestMember.heart_demon ?? 0) + choice.heart_demon_others_change_highest));
+                    if (checkAndMarkFallen(highestMember)) {
+                        if (!fallenMembers.find(f => f.player_id === highestMember.player_id)) {
+                            fallenMembers.push({
+                                player_id: highestMember.player_id,
+                                nickname: highestMember.player_nickname,
+                                reason: (highestMember.heart_demon ?? 0) >= 100 ? 'heart_demon_overflow' : 'dao_broken',
+                                heart_demon: highestMember.heart_demon,
+                                dao_heart: highestMember.dao_heart
+                            });
+                        }
+                    }
+                    await highestMember.save({ transaction });
+                    applied.heart_demon_others_change_highest = choice.heart_demon_others_change_highest;
+                    applied.heart_demon_highest_target = highestMember.player_id;
+                    applied.heart_demon_highest_before = (highestMember.heart_demon ?? 0) - choice.heart_demon_others_change_highest;
+                    applied.heart_demon_highest_after = highestMember.heart_demon;
+                }
+            }
+
+            // 他人道心变化（提升他人道心，护道专用）
+            if (otherPlayers.length > 0 && choice.dao_heart_others_change) {
+                // 重新查询避免与前面保存的对象冲突
+                const otherMembersRefresh = await MultiDungeonMember.findAll({
+                    where: { instance_id: instance.id, is_present: 1, is_fallen: 0, player_id: { [Op.ne]: playerId } },
+                    transaction,
+                    lock: transaction.LOCK.UPDATE
+                });
+                for (const other of otherMembersRefresh) {
+                    other.dao_heart = Math.max(VARIABLE_BOUNDS.member_dao_heart.min,
+                        Math.min(VARIABLE_BOUNDS.member_dao_heart.max,
+                            (other.dao_heart ?? 100) + choice.dao_heart_others_change));
+                    if (checkAndMarkFallen(other)) {
+                        if (!fallenMembers.find(f => f.player_id === other.player_id)) {
+                            fallenMembers.push({
+                                player_id: other.player_id,
+                                nickname: other.player_nickname,
+                                reason: 'dao_broken',
+                                heart_demon: other.heart_demon,
+                                dao_heart: other.dao_heart
+                            });
+                        }
+                    }
+                    await other.save({ transaction });
+                }
+                applied.dao_heart_others = choice.dao_heart_others_change;
+                applied.affected_others_dao_heart = otherMembersRefresh.length;
+            }
+
+            // 同步更新实例级团队平均心魔与道心（取所有在场未堕魔成员的平均值）
+            const nonFallenMembers = await MultiDungeonMember.findAll({
+                where: { instance_id: instance.id, is_present: 1, is_fallen: 0 },
+                transaction
+            });
+            if (nonFallenMembers.length > 0) {
+                const totalHeartDemon = nonFallenMembers.reduce((sum, m) => sum + (m.heart_demon ?? 0), 0);
+                const totalDaoHeart = nonFallenMembers.reduce((sum, m) => sum + (m.dao_heart ?? 100), 0);
+                instance.avg_heart_demon = Math.max(VARIABLE_BOUNDS.avg_heart_demon.min,
+                    Math.min(VARIABLE_BOUNDS.avg_heart_demon.max,
+                        Math.floor(totalHeartDemon / nonFallenMembers.length)));
+                instance.avg_dao_heart = Math.max(VARIABLE_BOUNDS.avg_dao_heart.min,
+                    Math.min(VARIABLE_BOUNDS.avg_dao_heart.max,
+                        Math.floor(totalDaoHeart / nonFallenMembers.length)));
+                applied.avg_heart_demon = instance.avg_heart_demon;
+                applied.avg_dao_heart = instance.avg_dao_heart;
+            } else {
+                // 全员堕魔：实例级变量归零/满值（触发失败条件）
+                instance.avg_heart_demon = 100;
+                instance.avg_dao_heart = 0;
+                applied.all_fallen = true;
+            }
+
+            // 记录本次堕魔的成员（用于审计与通知）
+            if (fallenMembers.length > 0) {
+                applied.fallen_members = fallenMembers;
+            }
+        }
+
+        // 黄龙山专属变量处理（2026-07-21 新增，migration_0060）
+        // 设计：宗门协同阵法副本，处理 5 大专属字段：
+        //   - huanglong_formation_power_change：阵法强度变化（累加到 instance.huanglong_formation_power，0-200）
+        //   - huanglong_resonance_count_change：共鸣数变化（累加到 instance.huanglong_resonance_count，0-5）
+        //   - huanglong_eye_position：阵眼位置（直接设置 currentPlayer.huanglong_eye_position）
+        //   - huanglong_contribution_score_self_change：自身贡献分变化（累加，0-1000，叛道双倍）
+        //   - huanglong_is_defecting_self：是否叛道（直接设置 0/1，叛道后不参与共鸣）
+        // 共鸣判定：相同阵眼≥2人触发共鸣，共鸣数=相同阵眼≥2人的组数（最多5）
+        if (choice.huanglong_formation_power_change ||
+            choice.huanglong_resonance_count_change ||
+            choice.huanglong_eye_position ||
+            choice.huanglong_contribution_score_self_change ||
+            choice.huanglong_is_defecting_self !== null && choice.huanglong_is_defecting_self !== undefined) {
+            // 查询当前抉择玩家（带行级锁）
+            const currentPlayer = await MultiDungeonMember.findOne({
+                where: { instance_id: instance.id, player_id: playerId, is_present: 1 },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (currentPlayer) {
+                // 1. 阵眼位置设置（直接设置，非累加）
+                //    取值：forward前阵 / center中阵 / rear后阵 / left左阵 / right右阵
+                if (choice.huanglong_eye_position) {
+                    const validPositions = ['forward', 'center', 'rear', 'left', 'right'];
+                    if (validPositions.includes(choice.huanglong_eye_position)) {
+                        currentPlayer.huanglong_eye_position = choice.huanglong_eye_position;
+                        applied.huanglong_eye_position = choice.huanglong_eye_position;
+                    }
+                }
+
+                // 2. 叛道标记设置（直接设置 0/1，非累加）
+                //    叛道后成员不再参与共鸣判定，但保留已获得的贡献分
+                if (choice.huanglong_is_defecting_self !== null && choice.huanglong_is_defecting_self !== undefined) {
+                    currentPlayer.huanglong_is_defecting = choice.huanglong_is_defecting_self ? 1 : 0;
+                    applied.huanglong_is_defecting = !!choice.huanglong_is_defecting_self;
+                    if (choice.huanglong_is_defecting_self) {
+                        applied.huanglong_defecting_player = currentPlayer.player_id;
+                    }
+                }
+
+                // 3. 自身贡献分变化（累加，叛道抉择获得双倍贡献分）
+                //    边界：0-1000，影响最终奖励分配权重
+                if (choice.huanglong_contribution_score_self_change) {
+                    // 叛道成员获得双倍贡献分（在 choice 配置中已设置为双倍值，此处直接累加）
+                    currentPlayer.huanglong_contribution_score = Math.max(
+                        VARIABLE_BOUNDS.member_huanglong_contribution_score.min,
+                        Math.min(VARIABLE_BOUNDS.member_huanglong_contribution_score.max,
+                            (currentPlayer.huanglong_contribution_score || 0) + choice.huanglong_contribution_score_self_change)
+                    );
+                    applied.huanglong_contribution_score_self = currentPlayer.huanglong_contribution_score;
+                }
+
+                await currentPlayer.save({ transaction });
+            }
+
+            // 4. 阵法强度变化（累加到 instance.huanglong_formation_power，0-200）
+            //    影响第4幕决战伤害（每点 +3000）和称号奖励阈值（≥120）
+            if (choice.huanglong_formation_power_change) {
+                instance.huanglong_formation_power = Math.max(
+                    VARIABLE_BOUNDS.huanglong_formation_power.min,
+                    Math.min(VARIABLE_BOUNDS.huanglong_formation_power.max,
+                        (instance.huanglong_formation_power || 0) + choice.huanglong_formation_power_change)
+                );
+                applied.huanglong_formation_power = instance.huanglong_formation_power;
+            }
+
+            // 5. 共鸣数变化（累加到 instance.huanglong_resonance_count，0-5）
+            //    由 choice 配置直接指定共鸣数变化（如第1幕入阵固守的共鸣抉择）
+            if (choice.huanglong_resonance_count_change) {
+                instance.huanglong_resonance_count = Math.max(
+                    VARIABLE_BOUNDS.huanglong_resonance_count.min,
+                    Math.min(VARIABLE_BOUNDS.huanglong_resonance_count.max,
+                        (instance.huanglong_resonance_count || 0) + choice.huanglong_resonance_count_change)
+                );
+                applied.huanglong_resonance_count = instance.huanglong_resonance_count;
+            }
+
+            // 6. 重新计算共鸣数（相同阵眼≥2人的组数）
+            //    设计：每次阵眼位置变更后重新计算，确保共鸣数与实际阵眼分布一致
+            //    查询所有在场未叛道成员的阵眼位置，按阵眼分组，相同阵眼≥2人的组数即为共鸣数
+            const nonDefectingMembers = await MultiDungeonMember.findAll({
+                where: {
+                    instance_id: instance.id,
+                    is_present: 1,
+                    huanglong_is_defecting: 0
+                },
+                transaction
+            });
+            if (nonDefectingMembers.length > 0) {
+                // 按阵眼位置分组统计
+                const eyePositionCounts = {};
+                for (const m of nonDefectingMembers) {
+                    const pos = m.huanglong_eye_position || 'unassigned';
+                    if (pos !== 'unassigned') {
+                        eyePositionCounts[pos] = (eyePositionCounts[pos] || 0) + 1;
+                    }
+                }
+                // 共鸣数 = 相同阵眼≥2人的组数（最多5）
+                let actualResonanceCount = 0;
+                for (const pos in eyePositionCounts) {
+                    if (eyePositionCounts[pos] >= 2) {
+                        actualResonanceCount++;
+                    }
+                }
+                actualResonanceCount = Math.min(VARIABLE_BOUNDS.huanglong_resonance_count.max, actualResonanceCount);
+                // 更新实例共鸣数（覆盖之前的累加值，以实际阵眼分布为准）
+                if (actualResonanceCount !== instance.huanglong_resonance_count) {
+                    instance.huanglong_resonance_count = actualResonanceCount;
+                    applied.huanglong_resonance_recalculated = actualResonanceCount;
+                    applied.huanglong_eye_distribution = eyePositionCounts;
+                }
+            }
+        }
+
         // 神识消耗（直接扣 player.divine_sense_balance）
         if (choice.cost_divine_sense > 0) {
             const player = await Player.findByPk(playerId, { transaction, lock: transaction.LOCK.UPDATE });
@@ -2560,6 +3208,16 @@ class MultiDungeonService {
         // 阵法强度 ≤ 阈值（虚天殿专用，2026-07-21 新增）
         if (cond.formation_power_lte && (instance.formation_power || 0) <= cond.formation_power_lte) {
             return { failed: true, message: cond.fail_message || `阵法强度降至 ${instance.formation_power}`, reason: 'formation_power_depleted' };
+        }
+        // 团队平均心魔 ≥ 阈值（坠魔谷专用，2026-07-21 新增）
+        // 心魔满100触发全队堕魔，副本失败
+        if (cond.avg_heart_demon_gte && (instance.avg_heart_demon || 0) >= cond.avg_heart_demon_gte) {
+            return { failed: true, message: cond.fail_message || `团队平均心魔达到 ${instance.avg_heart_demon}，全队堕魔`, reason: 'avg_heart_demon_overflow' };
+        }
+        // 团队平均道心 ≤ 阈值（坠魔谷专用，2026-07-21 新增）
+        // 道心归0触发道心崩溃，副本失败
+        if (cond.avg_dao_heart_lte && (instance.avg_dao_heart || 100) <= cond.avg_dao_heart_lte) {
+            return { failed: true, message: cond.fail_message || `团队平均道心降至 ${instance.avg_dao_heart}，道心崩溃`, reason: 'avg_dao_heart_depleted' };
         }
         // rounds_exceed：仅作为标志位，由 _processKunwuFinalAct / _processXutianFinalAct 内部主动判断并触发失败
         // 此处不直接检查，避免误判（同步签名无法感知回合数）
@@ -2831,9 +3489,27 @@ class MultiDungeonService {
                 const bonus = Math.floor(instance.treasure_pressure / 10) * bonusPer10;
                 adjustedRareChance = Math.min(1.0, adjustedRareChance + bonus);
             }
+            // 2026-07-21 新增：禁制裂隙加成（苍坤洞府专用，每10点禁制裂隙+3%稀有掉落概率）
+            if (rewards.forbidden_rift_bonus && instance.forbidden_rift > 0) {
+                const bonusPer10 = rewards.forbidden_rift_bonus.rare_drop_bonus_per_10_rift || 0.03;
+                const riftBonus = Math.floor(instance.forbidden_rift / 10) * bonusPer10;
+                adjustedRareChance = Math.min(1.0, adjustedRareChance + riftBonus);
+            }
+            // 苍坤洞府稀有掉落（影傀图谱）按 leader_only=false 分配给队伍中任一成员
+            // 血色试炼稀有掉落（血色战甲）按 leader_only=false 分配给队伍幸存成员中任一成员
             const targetMember = rewards.rare_drop.leader_only
                 ? members.find(m => m.player_id === instance.leader_player_id)
-                : members[0];
+                : (instance.instance_key === 'cangkun'
+                    ? members[Math.floor(Math.random() * members.length)]
+                    : (instance.instance_key === 'xuese'
+                        ? (() => {
+                            // 血色试炼：仅从幸存者中随机分配
+                            const survivors = members.filter(m => !m.is_eliminated);
+                            return survivors.length > 0
+                                ? survivors[Math.floor(Math.random() * survivors.length)]
+                                : members[Math.floor(Math.random() * members.length)];
+                        })()
+                        : members[0]));
             if (targetMember && Math.random() < adjustedRareChance) {
                 try {
                     await InventoryService.addItem(targetMember.player_id, rewards.rare_drop.item_key, 1, transaction);
@@ -3211,6 +3887,605 @@ class MultiDungeonService {
             }
         }
 
+        // 4.4 苍坤洞府专属奖励结算（2026-07-21 新增，migration_0057）
+        // 设计依据：xiuxian_game_guide.md 掩月抢亲前置副本·苍坤洞府
+        //   - 完美通关加成：士气 > 50 且 神魂稳定 > 60 时，每人额外获得修为+3000 灵石+500
+        //   - 卷轴线索加成：每10点卷轴线索 +1000 修为 +100 灵石（全员）
+        //   - 动态权重掉落门票线索：
+        //       final_chance = base_chance * (1 + scroll_clue/100 + forbidden_rift/100 + escape_choice_bonus)
+        //       escape_choice_bonus: forced_breakout=0.0 / formation_escape=0.3 / stealth_escape=0.5
+        //       每位在场成员独立判定，掉落月影传书残页或掩月密讯（掩月抢亲门票线索）
+        //   - 称号奖励：完美通关 20% 概率获得"苍坤探秘者"称号
+        if (instance.instance_key === 'cangkun') {
+            const cangkunCfg = dungeonCfg;
+            // 完美通关判定：士气 > 50 且 神魂稳定 > 60
+            const moraleMin = cangkunCfg.perfect_clear_morale_min ?? 50;
+            const soulStabilityMin = cangkunCfg.perfect_clear_soul_stability_min ?? 60;
+            const isPerfectClear = (instance.morale || 0) > moraleMin
+                && (instance.soul_stability || 0) > soulStabilityMin;
+            summary.cangkun_perfect_clear = isPerfectClear;
+            summary.cangkun_variables = {
+                scroll_clue: instance.scroll_clue,
+                forbidden_rift: instance.forbidden_rift,
+                escape_difficulty: instance.escape_difficulty,
+                escape_choice: instance.escape_choice
+            };
+
+            // 4.4.1 完美通关加成：每人额外获得修为+3000 灵石+500
+            if (isPerfectClear && rewards.perfect_bonus) {
+                const bonusExp = rewards.perfect_bonus.exp || 0;
+                const bonusStones = rewards.perfect_bonus.spirit_stones || 0;
+                for (const m of members) {
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player) {
+                        const perfectBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            perfectBonus.push({ type: 'exp', source: 'perfect_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            perfectBonus.push({ type: 'spirit_stones', source: 'perfect_bonus', count: bonusStones.toString() });
+                        }
+                        if (perfectBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...perfectBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: perfectBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.4.2 卷轴线索加成：每10点卷轴线索 +1000 修为 +100 灵石（全员）
+            if (rewards.scroll_clue_bonus && instance.scroll_clue > 0) {
+                const expPer10 = rewards.scroll_clue_bonus.exp_per_10_scroll_clue || 1000;
+                const stonesPer10 = rewards.scroll_clue_bonus.spirit_stones_per_10_scroll_clue || 100;
+                const bonusExp = Math.floor(instance.scroll_clue / 10) * expPer10;
+                const bonusStones = Math.floor(instance.scroll_clue / 10) * stonesPer10;
+                for (const m of members) {
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player) {
+                        const scrollBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            scrollBonus.push({ type: 'exp', source: 'scroll_clue_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            scrollBonus.push({ type: 'spirit_stones', source: 'scroll_clue_bonus', count: bonusStones.toString() });
+                        }
+                        if (scrollBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...scrollBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: scrollBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.4.3 动态权重掉落门票线索（核心机制）
+            // final_chance = base_chance * (1 + scroll_clue/100 + forbidden_rift/100 + escape_choice_bonus)
+            // 每位在场成员独立判定，最多掉落 2 种门票线索（月影传书残页 / 掩月密讯）
+            if (rewards.ticket_clue_drops && Array.isArray(rewards.ticket_clue_drops.drops)) {
+                const escapeChoiceBonusMap = rewards.ticket_clue_drops.escape_choice_bonus || {
+                    forced_breakout: 0.0,
+                    formation_escape: 0.3,
+                    stealth_escape: 0.5
+                };
+                const escapeChoiceBonus = escapeChoiceBonusMap[instance.escape_choice] || 0;
+                const scrollClueFactor = (instance.scroll_clue || 0) / 100;
+                const forbiddenRiftFactor = (instance.forbidden_rift || 0) / 100;
+                const dynamicMultiplier = 1 + scrollClueFactor + forbiddenRiftFactor + escapeChoiceBonus;
+
+                summary.cangkun_ticket_clue_drops = {
+                    dynamic_multiplier: dynamicMultiplier,
+                    escape_choice_bonus: escapeChoiceBonus,
+                    scroll_clue_factor: scrollClueFactor,
+                    forbidden_rift_factor: forbiddenRiftFactor,
+                    drops: []
+                };
+
+                for (const m of members) {
+                    const memberClueDrops = [];
+                    for (const drop of rewards.ticket_clue_drops.drops) {
+                        const finalChance = Math.min(1.0, drop.base_chance * dynamicMultiplier);
+                        const roll = Math.random();
+                        if (roll < finalChance) {
+                            try {
+                                await InventoryService.addItem(m.player_id, drop.item_key, 1, transaction);
+                                memberClueDrops.push({
+                                    item_key: drop.item_key,
+                                    name: drop.name,
+                                    count: 1,
+                                    base_chance: drop.base_chance,
+                                    final_chance: finalChance,
+                                    roll_value: roll
+                                });
+                            } catch (e) {
+                                console.warn(`[MultiDungeonService] 苍坤门票线索 ${drop.item_key} 发放给玩家 ${m.player_id} 失败:`, e.message);
+                            }
+                        }
+                    }
+                    if (memberClueDrops.length > 0) {
+                        summary.cangkun_ticket_clue_drops.drops.push({
+                            player_id: m.player_id,
+                            drops: memberClueDrops
+                        });
+                        // 合并到 normal_drops 展示
+                        const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                        if (existing) {
+                            existing.drops.push(...memberClueDrops.map(d => ({
+                                type: 'item',
+                                source: 'ticket_clue_drops',
+                                item_key: d.item_key,
+                                count: d.count
+                            })));
+                        } else {
+                            summary.normal_drops.push({
+                                player_id: m.player_id,
+                                drops: memberClueDrops.map(d => ({
+                                    type: 'item',
+                                    source: 'ticket_clue_drops',
+                                    item_key: d.item_key,
+                                    count: d.count
+                                }))
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 4.4.4 称号奖励：完美通关 20% 概率获得"苍坤探秘者"称号
+            if (isPerfectClear && rewards.title && rewards.title_chance > 0) {
+                const titleRoll = Math.random();
+                if (titleRoll < rewards.title_chance) {
+                    summary.cangkun_title_awarded = {
+                        title_id: rewards.title,
+                        title_name: rewards.title_name,
+                        players: []
+                    };
+                    for (const m of members) {
+                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        if (player) {
+                            const titles = player.titles || [];
+                            const alreadyHad = titles.includes(rewards.title);
+                            if (!alreadyHad) {
+                                titles.push(rewards.title);
+                                player.titles = titles;
+                                await player.save({ transaction });
+                            }
+                            summary.cangkun_title_awarded.players.push({
+                                player_id: m.player_id,
+                                title_id: rewards.title,
+                                already_had: alreadyHad
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4.5 血色试炼专属奖励结算（2026-07-21 新增，migration_0058）
+        //   - 杀戮分加成：每10点 kill_score +2000 修为 +150 灵石（个人，仅幸存者）
+        //   - 幸存者加成：每位幸存者 +5000 修为 +800 灵石（个人，仅幸存者）
+        //   - 完美通关加成：零淘汰（eliminations=0）时每人 +10000 修为 +2000 灵石
+        //   - 称号奖励：完美通关 30% 概率获得"血色试炼幸存者"称号
+        if (instance.instance_key === 'xuese') {
+            const xueseCfg = dungeonCfg;
+            // 完美通关判定：零淘汰
+            const isPerfectClear = (instance.eliminations || 0) === 0;
+            summary.xuese_perfect_clear = isPerfectClear;
+            summary.xuese_variables = {
+                blood_fury: instance.blood_fury,
+                eliminations: instance.eliminations,
+                survivor_count: instance.survivor_count,
+                blood_qi_avg: instance.blood_qi_avg
+            };
+
+            // 4.5.1 杀戮分加成：每10点 kill_score +2000 修为 +150 灵石（仅幸存者）
+            if (rewards.kill_score_bonus) {
+                const expPer10 = rewards.kill_score_bonus.exp_per_10_kill_score || 2000;
+                const stonesPer10 = rewards.kill_score_bonus.spirit_stones_per_10_kill_score || 150;
+                for (const m of members) {
+                    // 仅幸存者（未被淘汰）可获得杀戮分加成
+                    if (m.is_eliminated) continue;
+                    const memberKillScore = m.kill_score || 0;
+                    if (memberKillScore <= 0) continue;
+                    const bonusExp = Math.floor(memberKillScore / 10) * expPer10;
+                    const bonusStones = Math.floor(memberKillScore / 10) * stonesPer10;
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player && (bonusExp > 0 || bonusStones > 0)) {
+                        const killScoreBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            killScoreBonus.push({ type: 'exp', source: 'kill_score_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            killScoreBonus.push({ type: 'spirit_stones', source: 'kill_score_bonus', count: bonusStones.toString() });
+                        }
+                        if (killScoreBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...killScoreBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: killScoreBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.5.2 幸存者加成：每位幸存者 +5000 修为 +800 灵石（仅幸存者）
+            // 设计：幸存人数越多，每人加成越多（鼓励共生策略）
+            if (rewards.survivor_bonus && (instance.survivor_count || 0) > 0) {
+                const expPerSurvivor = rewards.survivor_bonus.exp_per_survivor || 5000;
+                const stonesPerSurvivor = rewards.survivor_bonus.spirit_stones_per_survivor || 800;
+                const bonusExp = expPerSurvivor * instance.survivor_count;
+                const bonusStones = stonesPerSurvivor * instance.survivor_count;
+                for (const m of members) {
+                    if (m.is_eliminated) continue;
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player) {
+                        const survivorBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            survivorBonus.push({ type: 'exp', source: 'survivor_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            survivorBonus.push({ type: 'spirit_stones', source: 'survivor_bonus', count: bonusStones.toString() });
+                        }
+                        if (survivorBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...survivorBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: survivorBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.5.3 完美通关加成：零淘汰时每人 +10000 修为 +2000 灵石（全员）
+            if (isPerfectClear && rewards.perfect_bonus) {
+                const bonusExp = rewards.perfect_bonus.exp || 0;
+                const bonusStones = rewards.perfect_bonus.spirit_stones || 0;
+                for (const m of members) {
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player) {
+                        const perfectBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            perfectBonus.push({ type: 'exp', source: 'perfect_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            perfectBonus.push({ type: 'spirit_stones', source: 'perfect_bonus', count: bonusStones.toString() });
+                        }
+                        if (perfectBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...perfectBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: perfectBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.5.4 称号奖励：完美通关 30% 概率获得"血色试炼幸存者"称号（仅幸存者）
+            if (isPerfectClear && rewards.title && rewards.title_chance > 0) {
+                const titleRoll = Math.random();
+                if (titleRoll < rewards.title_chance) {
+                    summary.xuese_title_awarded = {
+                        title_id: rewards.title,
+                        title_name: rewards.title_name,
+                        players: []
+                    };
+                    for (const m of members) {
+                        if (m.is_eliminated) continue; // 仅幸存者可获得称号
+                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        if (player) {
+                            const titles = player.titles || [];
+                            const alreadyHad = titles.includes(rewards.title);
+                            if (!alreadyHad) {
+                                titles.push(rewards.title);
+                                player.titles = titles;
+                                await player.save({ transaction });
+                            }
+                            summary.xuese_title_awarded.players.push({
+                                player_id: m.player_id,
+                                title_id: rewards.title,
+                                already_had: alreadyHad
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4.6 坠魔谷专属奖励结算（2026-07-21 新增，migration_0059）
+        //   - 道心加成：每10点 avg_dao_heart +3000 修为 +400 灵石（个人，仅未堕魔者）
+        //   - 完美通关加成：零堕魔（无任何成员 is_fallen=1）时每人 +12000 修为 +2500 灵石
+        //   - 称号奖励：完美通关 25% 概率获得"伏魔者"称号（仅未堕魔者，需 avg_dao_heart ≥ 80）
+        // 设计：与血色试炼（杀戮分加成/幸存者加成/完美通关加成）差异化
+        //   - 血色试炼奖励侵略策略（高杀戮分高收益）
+        //   - 坠魔谷奖励守护策略（高道心高收益，零堕魔完美通关）
+        if (instance.instance_key === 'zhuimo') {
+            const zhuimoCfg = dungeonCfg;
+            // 完美通关判定：无任何成员堕魔（is_fallen=0 全员）
+            const fallenCount = await MultiDungeonMember.count({
+                where: { instance_id: instance.id, is_fallen: 1 },
+                transaction
+            });
+            const isPerfectClear = fallenCount === 0;
+            // 配置可选开关：perfect_clear_no_fallen=true 表示必须零堕魔才算完美通关
+            const requireNoFallen = zhuimoCfg.perfect_clear_no_fallen !== false;
+            const finalPerfectClear = isPerfectClear || !requireNoFallen;
+            summary.zhuimo_perfect_clear = finalPerfectClear;
+            summary.zhuimo_variables = {
+                avg_heart_demon: instance.avg_heart_demon,
+                avg_dao_heart: instance.avg_dao_heart,
+                fallen_count: fallenCount
+            };
+
+            // 4.6.1 道心加成：每10点 avg_dao_heart +3000 修为 +400 灵石（仅未堕魔者）
+            if (rewards.dao_heart_bonus) {
+                const expPer10 = rewards.dao_heart_bonus.exp_per_10_dao_heart || 3000;
+                const stonesPer10 = rewards.dao_heart_bonus.spirit_stones_per_10_dao_heart || 400;
+                const avgDaoHeart = instance.avg_dao_heart || 0;
+                const bonusExp = Math.floor(avgDaoHeart / 10) * expPer10;
+                const bonusStones = Math.floor(avgDaoHeart / 10) * stonesPer10;
+                for (const m of members) {
+                    // 仅未堕魔者可获得道心加成
+                    if (m.is_fallen) continue;
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player && (bonusExp > 0 || bonusStones > 0)) {
+                        const daoHeartBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            daoHeartBonus.push({ type: 'exp', source: 'dao_heart_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            daoHeartBonus.push({ type: 'spirit_stones', source: 'dao_heart_bonus', count: bonusStones.toString() });
+                        }
+                        if (daoHeartBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...daoHeartBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: daoHeartBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.6.2 完美通关加成：零堕魔时每人 +12000 修为 +2500 灵石（全员，含已堕魔者）
+            // 设计：完美通关是全队荣誉，堕魔者也可获得基础完美奖励（但无法获得道心加成与称号）
+            if (finalPerfectClear && rewards.perfect_bonus) {
+                const bonusExp = rewards.perfect_bonus.exp || 0;
+                const bonusStones = rewards.perfect_bonus.spirit_stones || 0;
+                for (const m of members) {
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player) {
+                        const perfectBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            perfectBonus.push({ type: 'exp', source: 'perfect_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            perfectBonus.push({ type: 'spirit_stones', source: 'perfect_bonus', count: bonusStones.toString() });
+                        }
+                        if (perfectBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...perfectBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: perfectBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.6.3 称号奖励：完美通关 25% 概率获得"伏魔者"称号（仅未堕魔者，需 avg_dao_heart ≥ 80）
+            // 设计：与血色试炼【血色试炼幸存者】称号差异化，强调道心守护者的荣誉
+            if (finalPerfectClear && rewards.title && rewards.title_chance > 0) {
+                const minDaoHeart = rewards.title_min_dao_heart || 80;
+                const avgDaoHeart = instance.avg_dao_heart || 0;
+                if (avgDaoHeart >= minDaoHeart) {
+                    const titleRoll = Math.random();
+                    if (titleRoll < rewards.title_chance) {
+                        summary.zhuimo_title_awarded = {
+                            title_id: rewards.title,
+                            title_name: rewards.title_name,
+                            players: []
+                        };
+                        for (const m of members) {
+                            if (m.is_fallen) continue; // 仅未堕魔者可获得称号
+                            const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                            if (player) {
+                                const titles = player.titles || [];
+                                const alreadyHad = titles.includes(rewards.title);
+                                if (!alreadyHad) {
+                                    titles.push(rewards.title);
+                                    player.titles = titles;
+                                    await player.save({ transaction });
+                                }
+                                summary.zhuimo_title_awarded.players.push({
+                                    player_id: m.player_id,
+                                    title_id: rewards.title,
+                                    already_had: alreadyHad
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4.7 黄龙山专属奖励结算（2026-07-21 新增，migration_0060）
+        //   - 完美通关判定：全员未叛道（huanglong_is_defecting=0 全员）+ 共鸣数=5
+        //   - 阵法强度加成：每10点 huanglong_formation_power +2000 修为 +150 灵石（全员）
+        //   - 完美通关加成：+10000 修为 +2000 灵石（全员）
+        //   - 称号奖励：黄龙阵主，30% 几率，需阵法强度≥120（全员未叛道者）
+        //   - 宗门贡献奖励：base_rewards 含 sect_contribution:50（新增 reward type）
+        // 设计：与坠魔谷（道心加成/零堕魔完美）差异化
+        //   - 坠魔谷奖励道心守护策略
+        //   - 黄龙山奖励阵法协同策略（高阵法强度+高共鸣数+零叛道完美）
+        if (instance.instance_key === 'huanglong') {
+            const huanglongCfg = dungeonCfg;
+            // 完美通关判定：全员未叛道 + 共鸣数≥5
+            const defectingCount = await MultiDungeonMember.count({
+                where: { instance_id: instance.id, huanglong_is_defecting: 1 },
+                transaction
+            });
+            const isPerfectClear = defectingCount === 0 && (instance.huanglong_resonance_count || 0) >= 5;
+            // 配置可选开关：perfect_clear_no_defect=true 表示必须零叛道才算完美通关
+            const requireNoDefect = huanglongCfg.perfect_clear_no_defect !== false;
+            const finalPerfectClear = isPerfectClear || !requireNoDefect;
+            summary.huanglong_perfect_clear = finalPerfectClear;
+            summary.huanglong_variables = {
+                formation_power: instance.huanglong_formation_power,
+                resonance_count: instance.huanglong_resonance_count,
+                defecting_count: defectingCount
+            };
+
+            // 4.7.1 阵法强度加成：每10点 huanglong_formation_power +2000 修为 +150 灵石（全员）
+            if (rewards.formation_power_bonus) {
+                const expPer10 = rewards.formation_power_bonus.exp_per_10_formation_power || 2000;
+                const stonesPer10 = rewards.formation_power_bonus.spirit_stones_per_10_formation_power || 150;
+                const formationPower = instance.huanglong_formation_power || 0;
+                const bonusExp = Math.floor(formationPower / 10) * expPer10;
+                const bonusStones = Math.floor(formationPower / 10) * stonesPer10;
+                for (const m of members) {
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player && (bonusExp > 0 || bonusStones > 0)) {
+                        const formationPowerBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            formationPowerBonus.push({ type: 'exp', source: 'formation_power_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            formationPowerBonus.push({ type: 'spirit_stones', source: 'formation_power_bonus', count: bonusStones.toString() });
+                        }
+                        if (formationPowerBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...formationPowerBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: formationPowerBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.7.2 完美通关加成：零叛道 + 共鸣数≥5 时每人 +10000 修为 +2000 灵石（全员）
+            // 设计：完美通关是全队荣誉，叛道者也可获得基础完美奖励（但无法获得称号）
+            if (finalPerfectClear && rewards.perfect_bonus) {
+                const bonusExp = rewards.perfect_bonus.exp || 0;
+                const bonusStones = rewards.perfect_bonus.spirit_stones || 0;
+                for (const m of members) {
+                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    if (player) {
+                        const perfectBonus = [];
+                        if (bonusExp > 0) {
+                            const oldExp = BigInt(player.exp || 0);
+                            player.exp = (oldExp + BigInt(bonusExp)).toString();
+                            perfectBonus.push({ type: 'exp', source: 'perfect_bonus', count: bonusExp.toString() });
+                        }
+                        if (bonusStones > 0) {
+                            const oldStones = BigInt(player.spirit_stones || 0);
+                            player.spirit_stones = (oldStones + BigInt(bonusStones)).toString();
+                            perfectBonus.push({ type: 'spirit_stones', source: 'perfect_bonus', count: bonusStones.toString() });
+                        }
+                        if (perfectBonus.length > 0) {
+                            await player.save({ transaction });
+                            const existing = summary.normal_drops.find(d => d.player_id === m.player_id);
+                            if (existing) {
+                                existing.drops.push(...perfectBonus);
+                            } else {
+                                summary.normal_drops.push({ player_id: m.player_id, drops: perfectBonus });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4.7.3 称号奖励：完美通关 30% 概率获得"黄龙阵主"称号（仅未叛道者，需阵法强度≥120）
+            // 设计：与坠魔谷【伏魔者】称号差异化，强调阵法协同的荣誉
+            if (finalPerfectClear && rewards.title && rewards.title_chance > 0) {
+                const minFormationPower = rewards.title_min_formation_power || 120;
+                const formationPower = instance.huanglong_formation_power || 0;
+                if (formationPower >= minFormationPower) {
+                    const titleRoll = Math.random();
+                    if (titleRoll < rewards.title_chance) {
+                        summary.huanglong_title_awarded = {
+                            title_id: rewards.title,
+                            title_name: rewards.title_name,
+                            players: []
+                        };
+                        for (const m of members) {
+                            if (m.huanglong_is_defecting) continue; // 仅未叛道者可获得称号
+                            const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                            if (player) {
+                                const titles = player.titles || [];
+                                const alreadyHad = titles.includes(rewards.title);
+                                if (!alreadyHad) {
+                                    titles.push(rewards.title);
+                                    player.titles = titles;
+                                    await player.save({ transaction });
+                                }
+                                summary.huanglong_title_awarded.players.push({
+                                    player_id: m.player_id,
+                                    title_id: rewards.title,
+                                    already_had: alreadyHad
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 5. 全员进入冷却
         await MultiDungeonService._applyCooldownToAllMembers(instance, 'cleared', transaction);
 
@@ -3492,13 +4767,779 @@ class MultiDungeonService {
     }
 
     /**
+     * 血色试炼淘汰机制：幕末淘汰血气最低者
+     *
+     * 设计依据：xiuxian_game_guide.md 第20节·副本决策
+     *   血色试炼前3幕中第1/3幕标记 is_pvp_eliminable=true，幕末自动淘汰血气最低者
+     *   淘汰机制制造 PVP 紧张感，迫使玩家在侵略（高伤害高杀戮分但自损血气）
+     *   与共生（保血气多幸存）之间做策略平衡
+     *
+     * 淘汰规则：
+     *   1. 查询所有在场幸存成员（is_present=1, is_eliminated=0）
+     *   2. 按 blood_qi 升序排序，取末位 N 名淘汰（N=currentAct.elimination_count）
+     *   3. 标记 is_eliminated=1，is_present=0（脱离副本）
+     *   4. 累加 instance.eliminations
+     *   5. 第3幕结束后更新 instance.survivor_count（用于第4幕决战伤害加成）
+     *
+     * 边界处理：
+     *   - 若幸存人数 ≤ elimination_count，则不淘汰（避免全员淘汰导致副本无法继续）
+     *   - 若幸存人数 = 1（仅剩队长），跳过淘汰（保证副本可推进至第4幕）
+     *   - 多人血气相同时，按 kill_score 升序（杀戮分低者先淘汰，奖励侵略策略）
+     *   - 仍相同则按 join_time 升序（先加入者先淘汰，避免随机性）
+     *
+     * @param {Object} instance - 副本实例
+     * @param {Object} currentAct - 当前幕配置（含 elimination_count）
+     * @param {Object} transaction - 事务
+     * @returns {Promise<Object>} { success, eliminated_count, eliminated_members, survivor_count_after }
+     */
+    static async _applyXueseElimination(instance, currentAct, transaction) {
+        const eliminationCount = currentAct.elimination_count || 0;
+        if (eliminationCount <= 0) {
+            return { success: false, reason: 'no_elimination_configured', eliminated_count: 0 };
+        }
+
+        // 查询所有在场幸存成员（带行级锁防止并发）
+        const survivors = await MultiDungeonMember.findAll({
+            where: { instance_id: instance.id, is_present: 1, is_eliminated: 0 },
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
+        // 边界：幸存人数 ≤ 1 时跳过淘汰（保证副本可推进）
+        if (survivors.length <= 1) {
+            return {
+                success: false,
+                reason: 'insufficient_survivors',
+                eliminated_count: 0,
+                survivor_count_after: survivors.length
+            };
+        }
+
+        // 边界：幸存人数 ≤ elimination_count 时，淘汰人数 = 幸存人数 - 1（至少保留1人）
+        const actualEliminationCount = Math.min(eliminationCount, survivors.length - 1);
+
+        // 按 blood_qi 升序 / kill_score 升序 / join_time 升序排序，取末位淘汰
+        // 设计：血气相同则淘汰杀戮分低者（奖励侵略策略）；仍相同则淘汰先加入者
+        survivors.sort((a, b) => {
+            const aBloodQi = a.blood_qi ?? 100;
+            const bBloodQi = b.blood_qi ?? 100;
+            if (aBloodQi !== bBloodQi) return aBloodQi - bBloodQi;
+            const aKillScore = a.kill_score ?? 0;
+            const bKillScore = b.kill_score ?? 0;
+            if (aKillScore !== bKillScore) return aKillScore - bKillScore;
+            return new Date(a.join_time) - new Date(b.join_time);
+        });
+
+        const toEliminate = survivors.slice(0, actualEliminationCount);
+        const remaining = survivors.slice(actualEliminationCount);
+
+        // 标记淘汰成员
+        const eliminatedMembers = [];
+        for (const m of toEliminate) {
+            m.is_eliminated = 1;
+            m.is_present = 0;
+            await m.save({ transaction });
+            eliminatedMembers.push({
+                player_id: m.player_id,
+                nickname: m.player_nickname,
+                blood_qi: m.blood_qi,
+                kill_score: m.kill_score
+            });
+        }
+
+        // 累加淘汰人数
+        instance.eliminations = (instance.eliminations || 0) + actualEliminationCount;
+
+        // 第3幕结束后更新幸存人数（用于第4幕决战伤害加成）
+        if (currentAct.act_number === 3) {
+            instance.survivor_count = remaining.length;
+        }
+
+        await instance.save({ transaction });
+
+        return {
+            success: true,
+            eliminated_count: actualEliminationCount,
+            eliminated_members: eliminatedMembers,
+            survivor_count_after: remaining.length
+        };
+    }
+
+    /**
+     * 处理苍坤洞府第四幕自动决战（脱身抉择）
+     *
+     * 5 回合自动战斗逻辑（受 escape_choice 影响调整回合数）：
+     *   - 每回合伤害 = base + 卷轴线索 × bonus_per_point
+     *   - 每回合消耗士气(-2) 与神魂稳定度(-2)，提升脱身难度(+5)
+     *   - 通关条件：苍坤守灵HP归零
+     *   - 失败条件：士气 ≤ 0 / 神魂稳定度 ≤ 0 / 回合用尽未击败守灵
+     *
+     * escape_choice 对决战的影响（在 advance() 中已预设 escape_difficulty）：
+     *   - forced_breakout（强行突围）：rounds_max + 1（更长时间击杀守灵，但门票掉率 +0%）
+     *   - formation_escape（借阵脱身）：rounds_max ±0（门票掉率 +30%）
+     *   - stealth_escape（隐遁潜行）：rounds_max - 1（更紧迫，但门票掉率 +50%）
+     *
+     * 注意：escape_difficulty 在 advance() 中已应用 escape_choice 的额外加成，
+     *   本方法每回合再累加 escape_difficulty_change_per_round（默认+5），用于影响门票掉率
+     *
+     * @param {Object} instance - 副本实例（escape_choice 与 escape_difficulty 已预设）
+     * @param {Object} finalAct - 第四幕配置（含 rounds_max / damage_per_round_base / cangkun_guardian_hp_base 等）
+     * @param {Object} transaction - 事务
+     * @returns {Promise<Object>} { outcome, fail_reason, fail_reason_message, rounds_total, rounds_max, rounds_log, final_* }
+     */
+    static async _processCangkunFinalAct(instance, finalAct, transaction) {
+        // 初始化苍坤守灵HP（首次进入第四幕）
+        if (!instance.cangkun_guardian_hp || instance.cangkun_guardian_hp <= 0) {
+            instance.cangkun_guardian_hp = BigInt(finalAct.cangkun_guardian_hp_base || 800000);
+        }
+
+        // 基础回合数（5回合）+ escape_choice 调整
+        // - forced_breakout: +1 回合（激进路线，给更多时间击杀守灵）
+        // - formation_escape: ±0 回合（均衡路线）
+        // - stealth_escape: -1 回合（稳健路线，缩短决战）
+        let roundsMax = finalAct.rounds_max || 5;
+        if (instance.escape_choice === 'forced_breakout') {
+            roundsMax += 1;
+        } else if (instance.escape_choice === 'stealth_escape') {
+            roundsMax = Math.max(1, roundsMax - 1);
+        }
+
+        const damageBase = finalAct.damage_per_round_base || 150000;
+        const damageScrollBonus = finalAct.damage_scroll_bonus_per_point || 2000;
+        const escapeDifficultyChange = finalAct.escape_difficulty_change_per_round || 5;
+        const moraleChange = finalAct.morale_change_per_round || -2;
+        const soulStabilityChange = finalAct.soul_stability_change_per_round || -2;
+
+        const roundsLog = [];
+        let battleOutcome = 'ongoing'; // ongoing / cleared / failed
+        let failReason = null;
+        let failReasonMessage = null;
+
+        for (let round = 1; round <= roundsMax; round++) {
+            // 计算本回合伤害：基础 + 卷轴线索 × 加成
+            const scrollClue = instance.scroll_clue || 0;
+            const damage = BigInt(damageBase + scrollClue * damageScrollBonus);
+            const oldHp = BigInt(instance.cangkun_guardian_hp);
+            const newHp = oldHp > damage ? (oldHp - damage) : BigInt(0);
+            instance.cangkun_guardian_hp = newHp;
+            const actualDamage = oldHp - newHp; // 实际削减量（避免负数）
+
+            // 推进变量：士气下降、神魂稳定度下降、脱身难度上升
+            instance.morale = Math.max(VARIABLE_BOUNDS.morale.min, (instance.morale || 0) + moraleChange);
+            instance.soul_stability = Math.max(VARIABLE_BOUNDS.soul_stability.min, (instance.soul_stability || 0) + soulStabilityChange);
+            instance.escape_difficulty = Math.min(
+                VARIABLE_BOUNDS.escape_difficulty.max,
+                (instance.escape_difficulty || 0) + escapeDifficultyChange
+            );
+
+            // 写入本回合的抉择记录（便于审计回放）
+            await MultiDungeonChoice.create({
+                instance_id: instance.id,
+                act_number: finalAct.act_number,
+                act_name: finalAct.act_name,
+                choice_key: `auto_round_${round}`,
+                choice_text: `第 ${round} 回合自动决战（脱身方式：${instance.escape_choice}）`,
+                chosen_option: 'auto_advance',
+                chosen_by: instance.leader_player_id,
+                chosen_at: new Date(),
+                morale_change: moraleChange,
+                vigilance_change: 0,
+                demon_corruption_change: 0,
+                seal_stability_change: 0,
+                harvest_multiplier_change: 0,
+                // 苍坤洞府专属
+                forbidden_rift_change: 0,
+                scroll_clue_change: 0,
+                escape_difficulty_change: escapeDifficultyChange,
+                cangkun_guardian_hp_change: `-${actualDamage.toString()}`, // 负值表示削减
+                round_number: round,
+                eye_key: null
+            }, { transaction });
+
+            roundsLog.push({
+                round,
+                damage: actualDamage.toString(),
+                cangkun_guardian_hp_before: oldHp.toString(),
+                cangkun_guardian_hp_after: newHp.toString(),
+                scroll_clue_after: instance.scroll_clue,
+                escape_difficulty_after: instance.escape_difficulty,
+                morale_after: instance.morale,
+                soul_stability_after: instance.soul_stability
+            });
+
+            // 优先检查失败（避免神魂崩溃后还判定通关的边界）
+            if (instance.morale <= 0) {
+                battleOutcome = 'failed';
+                failReason = 'morale_depleted';
+                failReasonMessage = `第 ${round} 回合后士气归零，队伍溃散，副本失败`;
+                break;
+            }
+            if (instance.soul_stability <= 0) {
+                battleOutcome = 'failed';
+                failReason = 'soul_stability_depleted';
+                failReasonMessage = `第 ${round} 回合后神魂稳定度归零，神魂崩溃，副本失败`;
+                break;
+            }
+
+            // 检查通关：苍坤守灵HP归零
+            if (newHp === 0n) {
+                battleOutcome = 'cleared';
+                break;
+            }
+        }
+
+        // 回合用尽仍未通关
+        if (battleOutcome === 'ongoing') {
+            battleOutcome = 'failed';
+            failReason = 'rounds_exceed';
+            failReasonMessage = `${roundsMax} 回合用尽，苍坤守灵HP剩余 ${instance.cangkun_guardian_hp.toString()}，副本失败`;
+        }
+
+        await instance.save({ transaction });
+
+        return {
+            outcome: battleOutcome,
+            fail_reason: failReason,
+            fail_reason_message: failReasonMessage,
+            rounds_total: roundsLog.length,
+            rounds_max: roundsMax,
+            rounds_log: roundsLog,
+            final_cangkun_guardian_hp: instance.cangkun_guardian_hp.toString(),
+            final_scroll_clue: instance.scroll_clue,
+            final_forbidden_rift: instance.forbidden_rift,
+            final_escape_difficulty: instance.escape_difficulty,
+            final_escape_choice: instance.escape_choice,
+            final_morale: instance.morale,
+            final_soul_stability: instance.soul_stability
+        };
+    }
+
+    /**
+     * 处理血色试炼第四幕【血色尊者决战】自动决战
+     *
+     * 设计依据：xiuxian_game_guide.md 第11节·副本与组队 + 第20节·副本决策
+     *   血色试炼第4幕：幸存者合作对抗血色尊者（HP=1200000）
+     *   每回合伤害 = damage_per_round_base + blood_fury × damage_blood_fury_bonus_per_point + survivor_count × damage_survivor_bonus_per_point
+     *   每回合全队平均血气 -10（blood_qi_avg_change_per_round，默认-10）
+     *   6 回合内削减 Boss HP 至 0 即通关；平均血气归零或回合用尽即失败
+     *
+     * 差异化机制：
+     *   - blood_fury（血怒）：前3幕抉择累积，越高决战伤害越高（0-200）
+     *   - survivor_count（幸存人数）：第3幕淘汰后确定，越多决战伤害越高
+     *   - 双重压力：高血怒需要献祭血气（前3幕自损），高幸存人数需要保守策略（少淘汰）
+     *     → 侵略（高血怒低幸存）vs 共生（低血怒高幸存）的策略平衡
+     *
+     * 注意：survivor_count 在第3幕淘汰判定后由 _applyXueseElimination 写入 instance
+     *
+     * @param {Object} instance - 副本实例（blood_fury 与 survivor_count 已预设）
+     * @param {Object} finalAct - 第四幕配置（含 rounds_max / damage_per_round_base 等）
+     * @param {Object} transaction - 事务
+     * @returns {Promise<Object>} { outcome, fail_reason, fail_reason_message, rounds_total, rounds_max, rounds_log, final_* }
+     */
+    static async _processXueseFinalAct(instance, finalAct, transaction) {
+        // 初始化血色尊者HP（首次进入第四幕）
+        if (!instance.xuese_boss_hp || instance.xuese_boss_hp <= 0) {
+            instance.xuese_boss_hp = BigInt(finalAct.xuese_boss_hp_base || 1200000);
+        }
+
+        // 确定幸存人数（第3幕淘汰后已写入 instance.survivor_count；兜底查询 member 表）
+        let survivorCount = instance.survivor_count || 0;
+        if (survivorCount <= 0) {
+            const survivors = await MultiDungeonMember.count({
+                where: { instance_id: instance.id, is_present: 1, is_eliminated: 0 },
+                transaction
+            });
+            survivorCount = survivors;
+            instance.survivor_count = survivorCount;
+        }
+
+        const roundsMax = finalAct.rounds_max || 6;
+        const damageBase = finalAct.damage_per_round_base || 100000;
+        const damageBloodFuryBonus = finalAct.damage_blood_fury_bonus_per_point || 3000;
+        const damageSurvivorBonus = finalAct.damage_survivor_bonus_per_point || 20000;
+        const bloodQiAvgChange = finalAct.blood_qi_avg_change_per_round || -10;
+
+        const roundsLog = [];
+        let battleOutcome = 'ongoing'; // ongoing / cleared / failed
+        let failReason = null;
+        let failReasonMessage = null;
+
+        for (let round = 1; round <= roundsMax; round++) {
+            // 计算本回合伤害：基础 + 血怒加成 + 幸存人数加成
+            const bloodFury = instance.blood_fury || 0;
+            const damage = BigInt(damageBase + bloodFury * damageBloodFuryBonus + survivorCount * damageSurvivorBonus);
+            const oldHp = BigInt(instance.xuese_boss_hp);
+            const newHp = oldHp > damage ? (oldHp - damage) : BigInt(0);
+            instance.xuese_boss_hp = newHp;
+            const actualDamage = oldHp - newHp; // 实际削减量（避免负数）
+
+            // 推进变量：全队平均血气下降
+            instance.blood_qi_avg = Math.max(
+                VARIABLE_BOUNDS.blood_qi_avg.min,
+                (instance.blood_qi_avg || 0) + bloodQiAvgChange
+            );
+
+            // 同步下降每个幸存成员的个人血气（与平均血气同步衰减）
+            const survivors = await MultiDungeonMember.findAll({
+                where: { instance_id: instance.id, is_present: 1, is_eliminated: 0 },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+            for (const m of survivors) {
+                m.blood_qi = Math.max(
+                    VARIABLE_BOUNDS.member_blood_qi.min,
+                    (m.blood_qi ?? 100) + bloodQiAvgChange
+                );
+                await m.save({ transaction });
+            }
+
+            // 写入本回合的抉择记录（便于审计回放）
+            await MultiDungeonChoice.create({
+                instance_id: instance.id,
+                act_number: finalAct.act_number,
+                act_name: finalAct.act_name,
+                choice_key: `auto_round_${round}`,
+                choice_text: `第 ${round} 回合自动决战（血怒 ${bloodFury} / 幸存 ${survivorCount}）`,
+                chosen_option: 'auto_advance',
+                chosen_by: instance.leader_player_id,
+                chosen_at: new Date(),
+                morale_change: 0,
+                vigilance_change: 0,
+                demon_corruption_change: 0,
+                seal_stability_change: 0,
+                harvest_multiplier_change: 0,
+                // 血色试炼专属字段
+                blood_qi_self_change: 0,
+                blood_qi_others_change: 0,
+                kill_score_change: 0,
+                blood_fury_change: 0,
+                round_number: round,
+                eye_key: null
+            }, { transaction });
+
+            roundsLog.push({
+                round,
+                damage: actualDamage.toString(),
+                xuese_boss_hp_before: oldHp.toString(),
+                xuese_boss_hp_after: newHp.toString(),
+                blood_fury: bloodFury,
+                survivor_count: survivorCount,
+                blood_qi_avg_after: instance.blood_qi_avg
+            });
+
+            // 优先检查失败：平均血气归零（全队力竭）
+            if (instance.blood_qi_avg <= 0) {
+                battleOutcome = 'failed';
+                failReason = 'blood_qi_avg_depleted';
+                failReasonMessage = `第 ${round} 回合后全队平均血气归零，全队力竭，副本失败`;
+                break;
+            }
+
+            // 检查通关：血色尊者 HP 归零
+            if (newHp === 0n) {
+                battleOutcome = 'cleared';
+                break;
+            }
+        }
+
+        // 回合用尽仍未通关
+        if (battleOutcome === 'ongoing') {
+            battleOutcome = 'failed';
+            failReason = 'rounds_exceed';
+            failReasonMessage = `${roundsMax} 回合用尽，血色尊者 HP 剩余 ${instance.xuese_boss_hp.toString()}，副本失败`;
+        }
+
+        await instance.save({ transaction });
+
+        return {
+            outcome: battleOutcome,
+            fail_reason: failReason,
+            fail_reason_message: failReasonMessage,
+            rounds_total: roundsLog.length,
+            rounds_max: roundsMax,
+            rounds_log: roundsLog,
+            final_xuese_boss_hp: instance.xuese_boss_hp.toString(),
+            final_blood_fury: instance.blood_fury,
+            final_survivor_count: survivorCount,
+            final_blood_qi_avg: instance.blood_qi_avg,
+            final_eliminations: instance.eliminations
+        };
+    }
+
+    /**
+     * 处理坠魔谷第四幕【心魔决战】自动决战
+     *
+     * 设计依据：xiuxian_game_guide.md 第11节·副本与组队 + 第20节·副本决策
+     *   坠魔谷第4幕：未堕魔成员合作对抗心魔Boss（HP=1000000）
+     *   每回合伤害 = damage_per_round_base
+     *              + (100 - avg_heart_demon) × damage_heart_demon_bonus_per_point
+     *              + avg_dao_heart × damage_dao_heart_bonus_per_point
+     *   每回合全队平均道心 -5（dao_heart_change_per_round，腐蚀道心）
+     *   每回合全队平均心魔 +5（heart_demon_change_per_round，心魔侵蚀）
+     *   5 回合内削减 Boss HP 至 0 即通关；道心归0/心魔满100/回合用尽即失败
+     *
+     * 差异化机制（与血色试炼 PVPvE 淘汰制对比）：
+     *   - PVE 协作：未堕魔成员共同对抗心魔Boss，无 PVP 淘汰
+     *   - 双向腐蚀：心魔上升 + 道心下降的双重压力（血色试炼只有血气下降单压力）
+     *   - 伤害公式：道心越高伤害越高，心魔越低伤害越高（鼓励维持低心魔高道心状态）
+     *   - 通关后奖励：道心加成（每点道心+修为+灵石）、完美通关加成（零堕魔）、称号【伏魔者】
+     *
+     * 注意：堕魔判定在 _applyChoiceEffect 中即时执行；本方法只处理决战回合内的腐蚀
+     *
+     * @param {Object} instance - 副本实例（avg_heart_demon 与 avg_dao_heart 已预设）
+     * @param {Object} finalAct - 第四幕配置（含 rounds_max / damage_per_round_base 等）
+     * @param {Object} transaction - 事务
+     * @returns {Promise<Object>} { outcome, fail_reason, fail_reason_message, rounds_total, rounds_max, rounds_log, final_* }
+     */
+    static async _processZhuimoFinalAct(instance, finalAct, transaction) {
+        // 初始化心魔Boss HP（首次进入第四幕）
+        if (!instance.demon_boss_hp || instance.demon_boss_hp <= 0) {
+            instance.demon_boss_hp = BigInt(finalAct.demon_boss_hp_base || 1000000);
+        }
+
+        // 确定未堕魔人数（用于伤害加成与失败判定）
+        let nonFallenCount = await MultiDungeonMember.count({
+            where: { instance_id: instance.id, is_present: 1, is_fallen: 0 },
+            transaction
+        });
+        // 边界：全员堕魔则直接失败
+        if (nonFallenCount <= 0) {
+            return {
+                outcome: 'failed',
+                fail_reason: 'all_fallen',
+                fail_reason_message: `全员已堕魔，无法进入心魔决战，副本失败`,
+                rounds_total: 0,
+                rounds_max: finalAct.rounds_max || 5,
+                rounds_log: [],
+                final_demon_boss_hp: instance.demon_boss_hp.toString(),
+                final_avg_heart_demon: instance.avg_heart_demon,
+                final_avg_dao_heart: instance.avg_dao_heart,
+                final_non_fallen_count: 0
+            };
+        }
+
+        const roundsMax = finalAct.rounds_max || 5;
+        const damageBase = finalAct.damage_per_round_base || 80000;
+        const damageHeartDemonBonus = finalAct.damage_heart_demon_bonus_per_point || 2000;
+        const damageDaoHeartBonus = finalAct.damage_dao_heart_bonus_per_point || 1500;
+        const daoHeartChangePerRound = finalAct.dao_heart_change_per_round ?? -5;
+        const heartDemonChangePerRound = finalAct.heart_demon_change_per_round ?? 5;
+
+        const roundsLog = [];
+        let battleOutcome = 'ongoing'; // ongoing / cleared / failed
+        let failReason = null;
+        let failReasonMessage = null;
+
+        for (let round = 1; round <= roundsMax; round++) {
+            // 计算本回合伤害：
+            // - 基础伤害 + (100 - avg_heart_demon) × 心魔加成（心魔越低伤害越高）
+            // - + avg_dao_heart × 道心加成（道心越高伤害越高）
+            // 设计：鼓励玩家维持低心魔高道心状态，与第1-3幕的护道/守道策略呼应
+            const avgHeartDemon = instance.avg_heart_demon || 0;
+            const avgDaoHeart = instance.avg_dao_heart || 100;
+            const damage = BigInt(damageBase
+                + (100 - avgHeartDemon) * damageHeartDemonBonus
+                + avgDaoHeart * damageDaoHeartBonus);
+            const oldHp = BigInt(instance.demon_boss_hp);
+            const newHp = oldHp > damage ? (oldHp - damage) : BigInt(0);
+            instance.demon_boss_hp = newHp;
+            const actualDamage = oldHp - newHp; // 实际削减量（避免负数）
+
+            // 推进变量：每回合腐蚀道心 -5，侵蚀心魔 +5
+            // 设计：双向压力使决战回合数被限制在 5 回合内，避免无限消耗
+            instance.avg_dao_heart = Math.max(
+                VARIABLE_BOUNDS.avg_dao_heart.min,
+                (instance.avg_dao_heart || 100) + daoHeartChangePerRound
+            );
+            instance.avg_heart_demon = Math.min(
+                VARIABLE_BOUNDS.avg_heart_demon.max,
+                (instance.avg_heart_demon || 0) + heartDemonChangePerRound
+            );
+
+            // 同步腐蚀每个未堕魔成员的道心与心魔（与实例级同步）
+            const nonFallenMembers = await MultiDungeonMember.findAll({
+                where: { instance_id: instance.id, is_present: 1, is_fallen: 0 },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+            for (const m of nonFallenMembers) {
+                m.dao_heart = Math.max(
+                    VARIABLE_BOUNDS.member_dao_heart.min,
+                    (m.dao_heart ?? 100) + daoHeartChangePerRound
+                );
+                m.heart_demon = Math.min(
+                    VARIABLE_BOUNDS.member_heart_demon.max,
+                    (m.heart_demon ?? 0) + heartDemonChangePerRound
+                );
+                // 决战回合内的堕魔判定（道心归0或心魔满100）
+                if (m.dao_heart <= 0 || m.heart_demon >= 100) {
+                    m.is_fallen = 1;
+                    m.is_present = 0;
+                }
+                await m.save({ transaction });
+            }
+
+            // 写入本回合的抉择记录（便于审计回放）
+            await MultiDungeonChoice.create({
+                instance_id: instance.id,
+                act_number: finalAct.act_number,
+                act_name: finalAct.act_name,
+                choice_key: `auto_round_${round}`,
+                choice_text: `第 ${round} 回合自动决战（心魔 ${avgHeartDemon} / 道心 ${avgDaoHeart} / 未堕魔 ${nonFallenMembers.length}）`,
+                chosen_option: 'auto_advance',
+                chosen_by: instance.leader_player_id,
+                chosen_at: new Date(),
+                morale_change: 0,
+                vigilance_change: 0,
+                demon_corruption_change: 0,
+                seal_stability_change: 0,
+                harvest_multiplier_change: 0,
+                // 坠魔谷专属字段
+                heart_demon_self_change: heartDemonChangePerRound,
+                heart_demon_others_change: 0,
+                heart_demon_others_change_highest: 0,
+                dao_heart_self_change: daoHeartChangePerRound,
+                dao_heart_others_change: 0,
+                round_number: round,
+                eye_key: null
+            }, { transaction });
+
+            roundsLog.push({
+                round,
+                damage: actualDamage.toString(),
+                demon_boss_hp_before: oldHp.toString(),
+                demon_boss_hp_after: newHp.toString(),
+                avg_heart_demon_after: instance.avg_heart_demon,
+                avg_dao_heart_after: instance.avg_dao_heart,
+                non_fallen_count_after: nonFallenMembers.filter(m => !m.is_fallen).length
+            });
+
+            // 优先检查失败：道心归0（道心崩溃）
+            if (instance.avg_dao_heart <= 0) {
+                battleOutcome = 'failed';
+                failReason = 'avg_dao_heart_depleted';
+                failReasonMessage = `第 ${round} 回合后团队平均道心归零，道心崩溃，副本失败`;
+                break;
+            }
+            // 检查失败：心魔满100（全队堕魔）
+            if (instance.avg_heart_demon >= 100) {
+                battleOutcome = 'failed';
+                failReason = 'avg_heart_demon_overflow';
+                failReasonMessage = `第 ${round} 回合后团队平均心魔满100，全队堕魔，副本失败`;
+                break;
+            }
+            // 检查失败：未堕魔成员全部堕魔
+            const stillNonFallen = await MultiDungeonMember.count({
+                where: { instance_id: instance.id, is_present: 1, is_fallen: 0 },
+                transaction
+            });
+            if (stillNonFallen === 0) {
+                battleOutcome = 'failed';
+                failReason = 'all_fallen_in_battle';
+                failReasonMessage = `第 ${round} 回合后全员已堕魔，无法继续战斗，副本失败`;
+                break;
+            }
+
+            // 检查通关：心魔Boss HP 归零
+            if (newHp === 0n) {
+                battleOutcome = 'cleared';
+                break;
+            }
+        }
+
+        // 回合用尽仍未通关
+        if (battleOutcome === 'ongoing') {
+            battleOutcome = 'failed';
+            failReason = 'rounds_exceed';
+            failReasonMessage = `${roundsMax} 回合用尽，心魔Boss HP 剩余 ${instance.demon_boss_hp.toString()}，副本失败`;
+        }
+
+        await instance.save({ transaction });
+
+        return {
+            outcome: battleOutcome,
+            fail_reason: failReason,
+            fail_reason_message: failReasonMessage,
+            rounds_total: roundsLog.length,
+            rounds_max: roundsMax,
+            rounds_log: roundsLog,
+            final_demon_boss_hp: instance.demon_boss_hp.toString(),
+            final_avg_heart_demon: instance.avg_heart_demon,
+            final_avg_dao_heart: instance.avg_dao_heart,
+            final_non_fallen_count: await MultiDungeonMember.count({
+                where: { instance_id: instance.id, is_present: 1, is_fallen: 0 },
+                transaction
+            })
+        };
+    }
+
+    /**
+     * 处理黄龙山第四幕自动决战·黄龙主阵决战
+     * 5 回合内打掉黄龙Boss（HP=1500000）通关
+     *
+     * 每回合逻辑：
+     *   1. 玩家攻击削减黄龙Boss HP：
+     *      damage = damage_per_round_base + formation_power × damage_formation_power_bonus_per_point
+     *             + resonance_count × damage_resonance_bonus_per_count
+     *      默认：100000 + formation_power × 3000 + resonance_count × 15000
+     *   2. 双向腐蚀：morale -3（士气下降）/ vigilance +5（警戒上升）
+     *   3. 写入一条 choice 记录（act_number=4, round_number=1-5）便于审计
+     *
+     * 失败条件：vigilance >= 100（警戒满） OR morale <= 0（士气归零） OR 5 回合未击败黄龙
+     * 通关条件：huanglong_boss_hp <= 0
+     *
+     * 设计：与坠魔谷（心魔/道心双向腐蚀）差异化
+     *   - 坠魔谷：avg_heart_demon +5 / avg_dao_heart -5（心魔道心对立）
+     *   - 黄龙山：morale -3 / vigilance +5（士气警戒对立，宗门协同阵法特色）
+     *
+     * @param {Object} instance - 副本实例（current_act 已推进到第四幕）
+     * @param {Object} finalAct - 第四幕配置（含 rounds_max / damage_per_round_base 等）
+     * @param {Object} transaction - 事务
+     * @returns {Promise<Object>} { outcome: 'cleared'|'failed', rounds_total, rounds_log, fail_reason, fail_reason_message, ... }
+     */
+    static async _processHuanglongFinalAct(instance, finalAct, transaction) {
+        // 初始化黄龙Boss HP（首次进入第四幕）
+        if (!instance.huanglong_boss_hp || instance.huanglong_boss_hp <= 0) {
+            instance.huanglong_boss_hp = BigInt(finalAct.huanglong_boss_hp_base || 1500000);
+        }
+
+        const roundsMax = finalAct.rounds_max || 5;
+        const damageBase = finalAct.damage_per_round_base || 100000;
+        const damageFormationPowerBonus = finalAct.damage_formation_power_bonus_per_point || 3000;
+        const damageResonanceBonus = finalAct.damage_resonance_bonus_per_count || 15000;
+        const moraleChangePerRound = finalAct.morale_change_per_round ?? -3;
+        const vigilanceChangePerRound = finalAct.vigilance_change_per_round ?? 5;
+
+        const roundsLog = [];
+        let battleOutcome = 'ongoing'; // ongoing / cleared / failed
+        let failReason = null;
+        let failReasonMessage = null;
+
+        for (let round = 1; round <= roundsMax; round++) {
+            // 计算本回合伤害：
+            // - 基础伤害 + 阵法强度 × 加成（阵法越强伤害越高）
+            // - + 共鸣数 × 加成（共鸣越多伤害越高）
+            // 设计：鼓励玩家维持高阵法强度和高共鸣数，与第1-3幕的入阵/共鸣策略呼应
+            const formationPower = instance.huanglong_formation_power || 0;
+            const resonanceCount = instance.huanglong_resonance_count || 0;
+            const damage = BigInt(damageBase
+                + formationPower * damageFormationPowerBonus
+                + resonanceCount * damageResonanceBonus);
+            const oldHp = BigInt(instance.huanglong_boss_hp);
+            const newHp = oldHp > damage ? (oldHp - damage) : BigInt(0);
+            instance.huanglong_boss_hp = newHp;
+            const actualDamage = oldHp - newHp; // 实际削减量（避免负数）
+
+            // 推进变量：每回合双向腐蚀
+            // - morale -3（士气下降，宗门协同阵法消耗精神）
+            // - vigilance +5（警戒上升，黄龙Boss 逐渐警觉）
+            // 设计：双向压力使决战回合数被限制在 5 回合内，避免无限消耗
+            instance.morale = Math.max(
+                VARIABLE_BOUNDS.morale.min,
+                (instance.morale || 100) + moraleChangePerRound
+            );
+            instance.vigilance = Math.min(
+                VARIABLE_BOUNDS.vigilance.max,
+                (instance.vigilance || 0) + vigilanceChangePerRound
+            );
+
+            // 写入本回合的抉择记录（便于审计回放）
+            await MultiDungeonChoice.create({
+                instance_id: instance.id,
+                act_number: finalAct.act_number,
+                act_name: finalAct.act_name,
+                choice_key: `auto_round_${round}`,
+                choice_text: `第 ${round} 回合自动决战（阵法强度 ${formationPower} / 共鸣数 ${resonanceCount} / 士气 ${instance.morale} / 警戒 ${instance.vigilance}）`,
+                chosen_option: 'auto_advance',
+                chosen_by: instance.leader_player_id,
+                chosen_at: new Date(),
+                morale_change: moraleChangePerRound,
+                vigilance_change: vigilanceChangePerRound,
+                demon_corruption_change: 0,
+                seal_stability_change: 0,
+                harvest_multiplier_change: 0,
+                // 黄龙山专属字段（记录决战回合的变量变化）
+                huanglong_formation_power_change: 0,
+                huanglong_resonance_count_change: 0,
+                huanglong_eye_position: null,
+                huanglong_contribution_score_self_change: 0,
+                huanglong_is_defecting_self: null,
+                round_number: round,
+                eye_key: null
+            }, { transaction });
+
+            roundsLog.push({
+                round,
+                damage: actualDamage.toString(),
+                huanglong_boss_hp_before: oldHp.toString(),
+                huanglong_boss_hp_after: newHp.toString(),
+                formation_power: formationPower,
+                resonance_count: resonanceCount,
+                morale_after: instance.morale,
+                vigilance_after: instance.vigilance
+            });
+
+            // 优先检查失败：警戒满100（黄龙Boss 完全警觉，阵法被破）
+            if (instance.vigilance >= 100) {
+                battleOutcome = 'failed';
+                failReason = 'vigilance_overflow';
+                failReasonMessage = `第 ${round} 回合后警戒度满100，黄龙Boss 完全警觉，阵法被破，副本失败`;
+                break;
+            }
+            // 检查失败：士气归零（宗门协同崩溃，无法维持阵法）
+            if (instance.morale <= 0) {
+                battleOutcome = 'failed';
+                failReason = 'morale_depleted';
+                failReasonMessage = `第 ${round} 回合后士气归零，宗门协同崩溃，无法维持阵法，副本失败`;
+                break;
+            }
+
+            // 检查通关：黄龙Boss HP 归零
+            if (newHp === 0n) {
+                battleOutcome = 'cleared';
+                break;
+            }
+        }
+
+        // 回合用尽仍未通关
+        if (battleOutcome === 'ongoing') {
+            battleOutcome = 'failed';
+            failReason = 'rounds_exceed';
+            failReasonMessage = `${roundsMax} 回合用尽，黄龙Boss HP 剩余 ${instance.huanglong_boss_hp.toString()}，副本失败`;
+        }
+
+        await instance.save({ transaction });
+
+        return {
+            outcome: battleOutcome,
+            fail_reason: failReason,
+            fail_reason_message: failReasonMessage,
+            rounds_total: roundsLog.length,
+            rounds_max: roundsMax,
+            rounds_log: roundsLog,
+            final_huanglong_boss_hp: instance.huanglong_boss_hp.toString(),
+            final_formation_power: instance.huanglong_formation_power,
+            final_resonance_count: instance.huanglong_resonance_count,
+            final_morale: instance.morale,
+            final_vigilance: instance.vigilance
+        };
+    }
+
+    /**
      * 队长手动触发自动决战幕推进
      * 仅在当前幕为 is_auto_advance 时允许调用
-     * 用于昆吾山第四幕5回合自动战斗的主动触发（避免3幕完成时立即结算，给玩家准备时间）
+     * 用于昆吾山第四幕5回合 / 虚天殿第六幕6回合 / 苍坤洞府第四幕5回合自动战斗的主动触发
+     *
+     * 2026-07-21 扩展：苍坤洞府需在调用前选择 escape_choice（脱身抉择），影响：
+     *   - 决战回合数（forced_breakout +1 / stealth_escape -1 / formation_escape ±0）
+     *   - 脱身难度（forced_breakout +30 / formation_escape +10 / stealth_escape +0）
+     *   - 门票线索掉率加成（forced_breakout +0% / formation_escape +30% / stealth_escape +50%）
+     *
      * @param {number} playerId - 队长玩家ID
+     * @param {string} [escapeChoiceKey] - 苍坤洞府脱身抉择键（forced_breakout/formation_escape/stealth_escape），苍坤副本必填
      * @returns {Promise<Object>} { success, message, data }
      */
-    static async advance(playerId) {
+    static async advance(playerId, escapeChoiceKey) {
         const t = await sequelize.transaction();
         try {
             const instance = await MultiDungeonInstance.findOne({
@@ -3529,12 +5570,81 @@ class MultiDungeonService {
                 };
             }
 
+            // 2026-07-21 新增：苍坤洞府脱身抉择参数校验与变量预设
+            // 苍坤洞府第4幕必须提供 escape_choice，否则拒绝推进
+            let escapeChoiceConfig = null;
+            if (instance.instance_key === 'cangkun') {
+                if (!escapeChoiceKey) {
+                    await t.rollback();
+                    return {
+                        success: false,
+                        message: '苍坤洞府第4幕脱身抉择未指定，必须提供 escape_choice（forced_breakout/formation_escape/stealth_escape）',
+                        error_code: ErrorCodes.VALIDATION_ERROR
+                    };
+                }
+                escapeChoiceConfig = (currentAct.escape_choices || []).find(c => c.escape_choice === escapeChoiceKey || c.key === escapeChoiceKey);
+                if (!escapeChoiceConfig) {
+                    await t.rollback();
+                    return {
+                        success: false,
+                        message: `escape_choice ${escapeChoiceKey} 不在可选列表（forced_breakout/formation_escape/stealth_escape）`,
+                        error_code: ErrorCodes.VALIDATION_ERROR
+                    };
+                }
+                // 设置 instance.escape_choice 并应用脱身难度变化
+                instance.escape_choice = escapeChoiceConfig.escape_choice;
+                if (escapeChoiceConfig.escape_difficulty_change) {
+                    instance.escape_difficulty = Math.max(
+                        VARIABLE_BOUNDS.escape_difficulty.min,
+                        Math.min(VARIABLE_BOUNDS.escape_difficulty.max, (instance.escape_difficulty || 0) + escapeChoiceConfig.escape_difficulty_change)
+                    );
+                }
+                // 2026-07-21 新增：脱身抉择审计记录（act_number=4, choice_key=escape_choice_set）
+                await MultiDungeonChoice.create({
+                    instance_id: instance.id,
+                    act_number: currentAct.act_number,
+                    act_name: currentAct.act_name,
+                    choice_key: 'escape_choice_set',
+                    choice_text: `脱身抉择：${escapeChoiceConfig.text}（${escapeChoiceConfig.desc}）`,
+                    chosen_option: escapeChoiceConfig.escape_choice,
+                    chosen_by: instance.leader_player_id,
+                    chosen_at: new Date(),
+                    morale_change: 0,
+                    vigilance_change: 0,
+                    demon_corruption_change: 0,
+                    seal_stability_change: 0,
+                    harvest_multiplier_change: 0,
+                    // 苍坤洞府专属
+                    forbidden_rift_change: 0,
+                    scroll_clue_change: 0,
+                    escape_difficulty_change: escapeChoiceConfig.escape_difficulty_change || 0,
+                    cangkun_guardian_hp_change: null,
+                    round_number: null,
+                    eye_key: null
+                }, { transaction: t });
+            }
+
             // 触发自动决战（2026-07-21 扩展：根据 instance_key 分发到对应副本的决战处理器）
             // - kunwu（昆吾山·封魔塔）：_processKunwuFinalAct 处理塔影5回合自动战斗
             // - xutian（虚天殿）：_processXutianFinalAct 处理虚天主魂6回合自动决战
-            const finalActHandler = instance.instance_key === 'xutian'
-                ? MultiDungeonService._processXutianFinalAct
-                : MultiDungeonService._processKunwuFinalAct;
+            // - cangkun（苍坤洞府）：_processCangkunFinalAct 处理苍坤守灵5回合自动决战（受 escape_choice 影响）
+            // - xuese（血色试炼）：_processXueseFinalAct 处理血色尊者6回合自动决战（受 blood_fury 和幸存人数影响）
+            // - zhuimo（坠魔谷）：_processZhuimoFinalAct 处理心魔Boss 5回合自动决战（受 avg_heart_demon 和 avg_dao_heart 影响）
+            // - huanglong（黄龙山）：_processHuanglongFinalAct 处理黄龙Boss 5回合自动决战（受 formation_power 和 resonance_count 影响）
+            let finalActHandler;
+            if (instance.instance_key === 'xutian') {
+                finalActHandler = MultiDungeonService._processXutianFinalAct;
+            } else if (instance.instance_key === 'cangkun') {
+                finalActHandler = MultiDungeonService._processCangkunFinalAct;
+            } else if (instance.instance_key === 'xuese') {
+                finalActHandler = MultiDungeonService._processXueseFinalAct;
+            } else if (instance.instance_key === 'zhuimo') {
+                finalActHandler = MultiDungeonService._processZhuimoFinalAct;
+            } else if (instance.instance_key === 'huanglong') {
+                finalActHandler = MultiDungeonService._processHuanglongFinalAct;
+            } else {
+                finalActHandler = MultiDungeonService._processKunwuFinalAct;
+            }
             const autoBattleResult = await finalActHandler(instance, currentAct, t);
 
             if (autoBattleResult.outcome === 'cleared') {
@@ -3562,7 +5672,7 @@ class MultiDungeonService {
 
                 return {
                     success: true,
-                    message: `【封魔决战】通关！${currentAct.clear_condition.clear_message || ''}${instance.first_clear ? '【首通】' : ''}`,
+                    message: `【决战】通关！${currentAct.clear_condition.clear_message || ''}${instance.first_clear ? '【首通】' : ''}`,
                     data: {
                         instance_id: instance.id,
                         instance_state: 'cleared',
@@ -3582,7 +5692,7 @@ class MultiDungeonService {
 
                 MultiDungeonService._notifyInstanceUpdate(instance.id, 'multi_dungeon_failed', {
                     instance_id: instance.id,
-                    reason: autoBattleResult.fail_reason_message || '封魔决战失败',
+                    reason: autoBattleResult.fail_reason_message || '决战失败',
                     reason_code: autoBattleResult.outcome,
                     auto_battle: autoBattleResult,
                     final_act: instance.current_act
@@ -3590,7 +5700,7 @@ class MultiDungeonService {
 
                 return {
                     success: true,
-                    message: `【封魔决战】失败：${autoBattleResult.fail_reason_message}`,
+                    message: `【决战】失败：${autoBattleResult.fail_reason_message}`,
                     data: {
                         instance_id: instance.id,
                         instance_state: 'failed',

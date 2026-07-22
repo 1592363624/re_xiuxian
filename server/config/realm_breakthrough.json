@@ -673,6 +673,18 @@
             "min_remnant_soul": 50,
             "success_rate": 0.4,
             "cooldown_sec": 86400
+        },
+        "tianji_revert": {
+            "min_realm_rank": 19,
+            "min_realm_name": "元婴初期",
+            "description": "天机回溯最低境界要求",
+            "daily_limit": 1,
+            "cooldown_sec": 3600,
+            "spirit_stone_cost": 5000,
+            "divine_sense_cost": 50,
+            "remnant_soul_restore_value": 80,
+            "min_remnant_soul_threshold": 50,
+            "require_weakness_or_low_soul": true
         }
     }
 }

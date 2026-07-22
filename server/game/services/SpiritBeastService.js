@@ -34,6 +34,7 @@ const SpiritBeast = require('../../models/spiritBeast');
 const sequelize = require('../../config/database');
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
+const InventoryService = require('./InventoryService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 const { Op } = require('sequelize');
 
@@ -739,6 +740,383 @@ class SpiritBeastService {
     }
 
     /**
+     * 灵兽升星预览（不执行实际升星，仅返回消耗与效果预览）
+     *
+     * 设计目的：
+     *   - 前端在确认弹窗中展示给玩家"升星需要什么、成功率多少、失败会怎样、激活什么特性"
+     *   - 玩家明确点击确认后才调用 upgradeStar 接口真正执行
+     *
+     * @param {number} playerId - 玩家ID
+     * @param {number} beastId - 灵兽ID
+     * @returns {Promise<Object>} { success, data: { beast, current_star, target_star, cost, success_rate, trait_unlocked, can_upgrade, reason } }
+     */
+    static async getUpgradePreview(playerId, beastId) {
+        const config = configLoader.getConfig('spirit_beast_data');
+        const starUpgradeCfg = config.star_upgrade || {};
+        const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
+        const rarityConfig = config.rarity_config || {};
+
+        // 查询灵兽（无需事务，只读操作）
+        const beast = await SpiritBeast.findOne({
+            where: { id: beastId, player_id: playerId }
+        });
+        if (!beast) {
+            return { success: false, message: '灵兽不存在或不属于你', error_code: ErrorCodes.NOT_FOUND };
+        }
+
+        const currentStar = Number(beast.star_level) || 1;
+        const maxStar = Number(config.settings.max_star_level) || 10;
+        const bt = beastTypeMap.get(beast.beast_key) || {};
+
+        // 查找当前星级对应的升星配置
+        const upgradeTable = starUpgradeCfg.upgrade_table || [];
+        const upgradeEntry = upgradeTable.find(u => u.from_star === currentStar);
+
+        // 已达最高星级
+        if (!upgradeEntry || currentStar >= maxStar) {
+            return {
+                success: true,
+                data: {
+                    beast: this._formatBeast(beast, beastTypeMap, config.elements || {}, rarityConfig),
+                    current_star: currentStar,
+                    target_star: null,
+                    cost: null,
+                    success_rate: null,
+                    trait_unlocked: null,
+                    can_upgrade: false,
+                    reason: `灵兽已达最高星级 ${maxStar} 星，无法继续升星`
+                }
+            };
+        }
+
+        // 计算稀有度倍率
+        const rarityMultiplier = Number(starUpgradeCfg.rarity_cost_multiplier?.[beast.rarity]) || 1.0;
+        const beastSoulCost = Math.floor((Number(upgradeEntry.beast_soul_cost) || 0) * rarityMultiplier);
+        const yaodanCost = Math.floor((Number(upgradeEntry.yaodan_cost) || 0) * rarityMultiplier);
+        const spiritStonesCost = BigInt(Math.floor((Number(upgradeEntry.spirit_stones_cost) || 0) * rarityMultiplier));
+
+        // 当前持有材料（用于前端展示是否足够）
+        const yaodanItemKey = starUpgradeCfg.yaodan_item_key || 'yaodan';
+        const yaodanOwned = await InventoryService.getItemQuantity(playerId, yaodanItemKey);
+        const player = await Player.findByPk(playerId, { attributes: ['spirit_stones'] });
+        const spiritStonesOwned = BigInt(player?.spirit_stones || 0);
+
+        // 判断是否激活新招牌特性
+        const unlockStars = starUpgradeCfg.signature_trait_unlock_stars || [3, 5];
+        const targetStar = upgradeEntry.to_star;
+        let traitUnlocked = null;
+        if (unlockStars.includes(targetStar) && bt.signature_traits) {
+            const traitKey = `star_${targetStar}`;
+            const trait = bt.signature_traits[traitKey];
+            if (trait) {
+                traitUnlocked = {
+                    unlocked_at_star: targetStar,
+                    ...trait
+                };
+            }
+        }
+
+        // 校验前置条件（不阻塞返回预览，只标记 can_upgrade）
+        const cooldownSec = Number(starUpgradeCfg.cooldown_seconds) || 3600;
+        let reason = null;
+        if (beast.is_pasturing) {
+            reason = '灵兽正在放养中，无法升星';
+        } else if (beast.is_exploring) {
+            reason = '灵兽正在探渊中，无法升星';
+        } else if (beast.injury_until && new Date(beast.injury_until) > new Date()) {
+            reason = `灵兽受伤恢复中（至 ${new Date(beast.injury_until).toLocaleString()}），无法升星`;
+        } else if (beast.last_upgrade_star_time) {
+            const elapsed = Math.floor((new Date() - new Date(beast.last_upgrade_star_time)) / 1000);
+            if (elapsed < cooldownSec) {
+                reason = `升星冷却中，剩余 ${Math.ceil((cooldownSec - elapsed) / 60)} 分钟`;
+            }
+        } else if (Number(beast.beast_soul) < beastSoulCost) {
+            reason = `兽魂不足，需要 ${beastSoulCost}，当前 ${beast.beast_soul}`;
+        } else if (yaodanOwned < yaodanCost) {
+            reason = `妖丹不足，需要 ${yaodanCost}，当前 ${yaodanOwned}`;
+        } else if (spiritStonesOwned < spiritStonesCost) {
+            reason = `灵石不足，需要 ${spiritStonesCost.toString()}，当前 ${spiritStonesOwned.toString()}`;
+        }
+
+        return {
+            success: true,
+            data: {
+                beast: this._formatBeast(beast, beastTypeMap, config.elements || {}, rarityConfig),
+                current_star: currentStar,
+                target_star: targetStar,
+                cost: {
+                    beast_soul: beastSoulCost,
+                    beast_soul_owned: Number(beast.beast_soul) || 0,
+                    yaodan: yaodanCost,
+                    yaodan_owned: yaodanOwned,
+                    spirit_stones: spiritStonesCost.toString(),
+                    spirit_stones_owned: spiritStonesOwned.toString()
+                },
+                success_rate: Number(upgradeEntry.success_rate) || 1.0,
+                trait_unlocked: traitUnlocked,
+                can_upgrade: reason === null,
+                reason
+            }
+        };
+    }
+
+    /**
+     * 灵兽通灵升星（玩法文档第8节）
+     *
+     * 业务流程：
+     *   1. 前置校验：冷却/状态/材料/星级上限
+     *   2. 事务内消耗材料（beast_soul 字段、yaodan 物品、spirit_stones）
+     *   3. 按 success_rate 概率判定升星成功/失败
+     *   4. 成功：star_level+1，重算属性，激活招牌特性（3星/5星）
+     *   5. 失败：材料全损，忠诚度-5~15（不影响等级/星级）
+     *   6. 事务提交后通过 WebSocket 推送结果
+     *
+     * 设计要点：
+     *   - 玩法文档明确指出"兽魂可配合妖丹用 .灵兽升星 <灵兽> 进行通灵升星"
+     *   - 3星、5星激活招牌特性，提升战力
+     *   - 稀有度越高，消耗越大（rarity_cost_multiplier）
+     *   - 失败不降级，避免玩家挫败感过强，但仍消耗材料形成策略博弈
+     *   - 事务+行级锁保证并发安全，避免玩家利用并发刷升星
+     *
+     * @param {number} playerId - 玩家ID
+     * @param {number} beastId - 灵兽ID
+     * @returns {Promise<Object>} { success, message, data: { beast_id, old_star, new_star, success: bool, trait_unlocked, cost } }
+     */
+    static async upgradeStar(playerId, beastId) {
+        const config = configLoader.getConfig('spirit_beast_data');
+        const starUpgradeCfg = config.star_upgrade || {};
+        const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
+        const rarityConfig = config.rarity_config || {};
+
+        // 升星系统开关
+        if (starUpgradeCfg.enabled === false) {
+            return { success: false, message: '灵兽升星系统暂未开放', error_code: ErrorCodes.BUSINESS_LOGIC_ERROR };
+        }
+
+        const t = await sequelize.transaction();
+        try {
+            // 1. 行级锁查询玩家与灵兽
+            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!player) {
+                await t.rollback();
+                return { success: false, message: '玩家不存在' };
+            }
+
+            const beast = await SpiritBeast.findOne({
+                where: { id: beastId, player_id: playerId },
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+            if (!beast) {
+                await t.rollback();
+                return { success: false, message: '灵兽不存在或不属于你', error_code: ErrorCodes.NOT_FOUND };
+            }
+
+            // 2. 状态校验：放养/探渊/受伤中均不可升星
+            if (beast.is_pasturing) {
+                await t.rollback();
+                return { success: false, message: '灵兽正在放养中，无法升星', error_code: ErrorCodes.BUSINESS_LOGIC_ERROR };
+            }
+            if (beast.is_exploring) {
+                await t.rollback();
+                return { success: false, message: '灵兽正在探渊中，无法升星', error_code: ErrorCodes.BUSINESS_LOGIC_ERROR };
+            }
+            if (beast.injury_until && new Date(beast.injury_until) > new Date()) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `灵兽受伤恢复中（至 ${new Date(beast.injury_until).toLocaleString()}），无法升星`,
+                    error_code: ErrorCodes.BUSINESS_LOGIC_ERROR
+                };
+            }
+
+            // 3. 冷却校验
+            const cooldownSec = Number(starUpgradeCfg.cooldown_seconds) || 3600;
+            if (beast.last_upgrade_star_time) {
+                const elapsed = Math.floor((new Date() - new Date(beast.last_upgrade_star_time)) / 1000);
+                if (elapsed < cooldownSec) {
+                    await t.rollback();
+                    return {
+                        success: false,
+                        message: `升星冷却中，剩余 ${Math.ceil((cooldownSec - elapsed) / 60)} 分钟`,
+                        error_code: ErrorCodes.BUSINESS_LOGIC_ERROR
+                    };
+                }
+            }
+
+            // 4. 星级上限校验
+            const currentStar = Number(beast.star_level) || 1;
+            const maxStar = Number(config.settings.max_star_level) || 10;
+            if (currentStar >= maxStar) {
+                await t.rollback();
+                return { success: false, message: `灵兽已达最高星级 ${maxStar} 星`, error_code: ErrorCodes.BUSINESS_LOGIC_ERROR };
+            }
+
+            // 5. 查找升星配置
+            const upgradeTable = starUpgradeCfg.upgrade_table || [];
+            const upgradeEntry = upgradeTable.find(u => u.from_star === currentStar);
+            if (!upgradeEntry) {
+                await t.rollback();
+                return { success: false, message: `未找到 ${currentStar} 星升星配置`, error_code: ErrorCodes.CONFIG_ERROR };
+            }
+
+            // 6. 计算稀有度倍率后的实际消耗
+            const rarityMultiplier = Number(starUpgradeCfg.rarity_cost_multiplier?.[beast.rarity]) || 1.0;
+            const beastSoulCost = Math.floor((Number(upgradeEntry.beast_soul_cost) || 0) * rarityMultiplier);
+            const yaodanCost = Math.floor((Number(upgradeEntry.yaodan_cost) || 0) * rarityMultiplier);
+            const spiritStonesCost = BigInt(Math.floor((Number(upgradeEntry.spirit_stones_cost) || 0) * rarityMultiplier));
+
+            // 7. 材料持有量校验
+            const yaodanItemKey = starUpgradeCfg.yaodan_item_key || 'yaodan';
+            const yaodanOwned = await InventoryService.getItemQuantity(playerId, yaodanItemKey);
+            const spiritStonesOwned = BigInt(player.spirit_stones || 0);
+            const beastSoulOwned = Number(beast.beast_soul) || 0;
+
+            if (beastSoulOwned < beastSoulCost) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `兽魂不足，需要 ${beastSoulCost}，当前 ${beastSoulOwned}`,
+                    error_code: ErrorCodes.BUSINESS_LOGIC_ERROR
+                };
+            }
+            if (yaodanOwned < yaodanCost) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `妖丹不足，需要 ${yaodanCost}，当前 ${yaodanOwned}`,
+                    error_code: ErrorCodes.BUSINESS_LOGIC_ERROR
+                };
+            }
+            if (spiritStonesOwned < spiritStonesCost) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `灵石不足，需要 ${spiritStonesCost.toString()}，当前 ${spiritStonesOwned.toString()}`,
+                    error_code: ErrorCodes.BUSINESS_LOGIC_ERROR
+                };
+            }
+
+            // 8. 扣除材料：兽魂从灵兽字段扣，妖丹从背包扣，灵石从玩家字段扣
+            beast.beast_soul = beastSoulOwned - beastSoulCost;
+            await InventoryService.removeItem(playerId, yaodanItemKey, yaodanCost, t);
+            player.spirit_stones = (spiritStonesOwned - spiritStonesCost).toString();
+
+            // 9. 按 success_rate 概率判定升星结果
+            const successRate = Number(upgradeEntry.success_rate) || 1.0;
+            const rollResult = Math.random();
+            const isUpgradeSuccess = rollResult < successRate;
+
+            const oldStar = currentStar;
+            const targetStar = upgradeEntry.to_star;
+            let newStar = oldStar;
+            let traitUnlocked = null;
+            let loyaltyChange = 0;
+
+            if (isUpgradeSuccess) {
+                // 升星成功：星级 +1，重算属性
+                newStar = targetStar;
+                beast.star_level = newStar;
+                const bt = beastTypeMap.get(beast.beast_key);
+                if (bt) {
+                    beast.hp_max = calcAttr(bt.base_hp, beast.level, newStar);
+                    beast.atk = calcAttr(bt.base_atk, beast.level, newStar);
+                    beast.def = calcAttr(bt.base_def, beast.level, newStar);
+                    beast.speed = calcAttr(bt.base_speed, beast.level, newStar);
+                }
+
+                // 判断是否激活新招牌特性（3星/5星）
+                const unlockStars = starUpgradeCfg.signature_trait_unlock_stars || [3, 5];
+                if (unlockStars.includes(newStar) && bt && bt.signature_traits) {
+                    const traitKey = `star_${newStar}`;
+                    const trait = bt.signature_traits[traitKey];
+                    if (trait) {
+                        traitUnlocked = {
+                            unlocked_at_star: newStar,
+                            ...trait
+                        };
+                    }
+                }
+
+                // 成功时忠诚度 +5（升星让灵兽更信任主人）
+                const maxLoyalty = Number(config.settings.max_loyalty) || 100;
+                beast.loyalty = Math.min(maxLoyalty, Number(beast.loyalty) + 5);
+                loyaltyChange = 5;
+            } else {
+                // 升星失败：材料全损（已扣），忠诚度 -5~15
+                const penaltyCfg = starUpgradeCfg.failure_penalty || {};
+                const loyaltyLossMin = Number(penaltyCfg.loyalty_loss_min) || 5;
+                const loyaltyLossMax = Number(penaltyCfg.loyalty_loss_max) || 15;
+                const loyaltyLoss = loyaltyLossMin + Math.floor(Math.random() * (loyaltyLossMax - loyaltyLossMin + 1));
+                const minLoyalty = Number(config.settings.min_loyalty) || 0;
+                beast.loyalty = Math.max(minLoyalty, Number(beast.loyalty) - loyaltyLoss);
+                loyaltyChange = -loyaltyLoss;
+            }
+
+            // 10. 更新升星冷却时间
+            beast.last_upgrade_star_time = new Date();
+
+            // 11. 保存所有变更
+            await beast.save({ transaction: t });
+            await player.save({ transaction: t });
+            await t.commit();
+
+            // 12. WebSocket 推送升星结果（事务外推送，避免事务回滚导致通知错乱）
+            WebSocketNotificationService.notifyPlayerUpdate(playerId, 'beast_star_upgraded', {
+                beast_id: beast.id,
+                beast_key: beast.beast_key,
+                old_star: oldStar,
+                new_star: newStar,
+                success: isUpgradeSuccess,
+                trait_unlocked: traitUnlocked,
+                cost: {
+                    beast_soul: beastSoulCost,
+                    yaodan: yaodanCost,
+                    spirit_stones: spiritStonesCost.toString()
+                },
+                loyalty_change: loyaltyChange
+            });
+
+            // 13. 构造返回消息
+            const beastTypeName = beastTypeMap.get(beast.beast_key)?.name || beast.beast_key;
+            const message = isUpgradeSuccess
+                ? `${beastTypeName} 通灵升星成功！${oldStar}星 → ${newStar}星${traitUnlocked ? `，激活招牌特性「${traitUnlocked.trait_name}」` : ''}`
+                : `${beastTypeName} 通灵升星失败，材料已消耗，忠诚度 ${loyaltyChange}，灵兽未降级，请再次尝试`;
+
+            return {
+                success: true,
+                message,
+                data: {
+                    beast_id: beast.id,
+                    beast_key: beast.beast_key,
+                    old_star: oldStar,
+                    new_star: newStar,
+                    upgrade_success: isUpgradeSuccess,
+                    trait_unlocked: traitUnlocked,
+                    cost: {
+                        beast_soul: beastSoulCost,
+                        yaodan: yaodanCost,
+                        spirit_stones: spiritStonesCost.toString()
+                    },
+                    loyalty_change: loyaltyChange,
+                    new_beast_soul: Number(beast.beast_soul) || 0,
+                    new_spirit_stones: player.spirit_stones.toString(),
+                    new_star_level: newStar,
+                    new_atk: beast.atk,
+                    new_def: beast.def,
+                    new_hp_max: beast.hp_max?.toString() || '0',
+                    new_speed: beast.speed,
+                    new_loyalty: beast.loyalty
+                }
+            };
+        } catch (err) {
+            await t.rollback();
+            console.error('[SpiritBeastService.upgradeStar] 错误:', err);
+            return { success: false, message: '服务器错误，升星失败', error_code: ErrorCodes.INTERNAL_ERROR };
+        }
+    }
+
+    /**
      * 获取今日捕获状态
      * @param {number} playerId - 玩家ID
      * @returns {Promise<Object>} { success, data }
@@ -915,16 +1293,23 @@ class SpiritBeastService {
 
     /**
      * 检查并执行灵兽升级
+     *
+     * 修复（2026-07-21）：
+     *   原实现满级时直接清零 exp，未按玩法文档第8节要求"满级后的经验不会完全浪费，
+     *   会按阶级凝成兽魂"。现在满级后溢出经验按 beast_soul_condense.exp_per_soul
+     *   比率凝练为 beast_soul 字段，配合妖丹用于通灵升星。
+     *
      * @private
      * @param {Object} beast - 灵兽实例（已更新 exp）
      * @param {Object} config - 灵兽配置
-     * @returns {Object} { level_up: boolean, levels_gained: number }
+     * @returns {Object} { level_up: boolean, levels_gained: number, soul_condensed: number }
      */
     static _checkLevelUp(beast, config) {
         const settings = config.settings;
         const maxLevel = Number(settings.max_level) || 100;
         let levelUp = false;
         let levelsGained = 0;
+        let soulCondensed = 0;
 
         while (beast.level < maxLevel) {
             const expCap = calcExpCap(beast.level, settings);
@@ -948,12 +1333,33 @@ class SpiritBeastService {
             }
         }
 
-        // 满级时清零经验
+        // 满级后将溢出经验凝练为兽魂（玩法文档第8节）
+        // exp_per_soul=1000 表示每 1000 点经验凝练 1 兽魂
+        // max_soul_per_feed 单次最多凝练 100 兽魂，防止单次数值溢出
         if (beast.level >= maxLevel) {
-            beast.exp = '0';
+            const condenseCfg = config.beast_soul_condense || {};
+            if (condenseCfg.enabled !== false) {
+                const expPerSoul = Math.max(1, Number(condenseCfg.exp_per_soul) || 1000);
+                const maxSoulPerFeed = Math.max(1, Number(condenseCfg.max_soul_per_feed) || 100);
+                const currentExpNum = Number(beast.exp) || 0;
+                if (currentExpNum > 0) {
+                    const soulsFromExp = Math.floor(currentExpNum / expPerSoul);
+                    // 单次最多凝练 maxSoulPerFeed 兽魂，超出部分保留为经验以便下次凝练
+                    const soulsToCondense = Math.min(soulsFromExp, maxSoulPerFeed);
+                    if (soulsToCondense > 0) {
+                        const consumedExp = soulsToCondense * expPerSoul;
+                        beast.exp = (BigInt(beast.exp) - BigInt(consumedExp)).toString();
+                        beast.beast_soul = (Number(beast.beast_soul) || 0) + soulsToCondense;
+                        soulCondensed = soulsToCondense;
+                    }
+                }
+            } else {
+                // 配置禁用时退化为原行为：清零经验
+                beast.exp = '0';
+            }
         }
 
-        return { level_up: levelUp, levels_gained: levelsGained };
+        return { level_up: levelUp, levels_gained: levelsGained, soul_condensed: soulCondensed };
     }
 
     /**
@@ -964,6 +1370,25 @@ class SpiritBeastService {
         const bt = beastTypeMap.get(beast.beast_key) || {};
         const elem = elements[beast.element] || {};
         const rarity = rarityConfig[beast.rarity] || {};
+        const starLevel = Number(beast.star_level) || 1;
+
+        // 解析招牌特性激活状态：3星激活 star_3，5星激活 star_5
+        // 玩法文档第8节：噬金虫、啼魂兽、六翼霜蚣等灵兽在 3 星、5 星会强化招牌特性
+        const signatureTraits = bt.signature_traits || {};
+        const activeTraits = [];
+        if (signatureTraits.star_3 && starLevel >= 3) {
+            activeTraits.push({
+                unlocked_at_star: 3,
+                ...signatureTraits.star_3
+            });
+        }
+        if (signatureTraits.star_5 && starLevel >= 5) {
+            activeTraits.push({
+                unlocked_at_star: 5,
+                ...signatureTraits.star_5
+            });
+        }
+
         return {
             id: beast.id,
             player_id: beast.player_id,
@@ -977,7 +1402,8 @@ class SpiritBeastService {
             rarity: beast.rarity,
             rarity_name: rarity.name || beast.rarity,
             rarity_color: rarity.color || '#9ca3af',
-            star_level: beast.star_level,
+            star_level: starLevel,
+            beast_soul: Number(beast.beast_soul) || 0,
             level: beast.level,
             exp: beast.exp?.toString() || '0',
             hp_max: beast.hp_max?.toString() || '0',
@@ -986,11 +1412,20 @@ class SpiritBeastService {
             speed: beast.speed,
             loyalty: beast.loyalty,
             is_active: Boolean(beast.is_active),
+            is_pasturing: Boolean(beast.is_pasturing),
+            is_exploring: Boolean(beast.is_exploring),
+            stamina: Number(beast.stamina) || 100,
             last_feed_time: beast.last_feed_time,
             last_interact_time: beast.last_interact_time,
+            last_upgrade_star_time: beast.last_upgrade_star_time,
             caught_at: beast.caught_at,
             created_at: beast.created_at,
             description: bt.description || '',
+            signature_traits: {
+                star_3: signatureTraits.star_3 || null,
+                star_5: signatureTraits.star_5 || null,
+                active: activeTraits
+            },
             combat_power: this.calculateCombatPower(beast)
         };
     }

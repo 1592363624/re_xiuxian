@@ -129,6 +129,41 @@ function getReincarnationConfig() {
 }
 
 /**
+ * 获取天机回溯配置
+ * 元婴后期玩家在虚弱/残魂过低状态下的紧急回退机制
+ * 与 AscensionService.revert（仅飞升失败可回溯）不同，本功能不重置任何进度，只清状态
+ */
+function getTianjiRevertConfig() {
+    return getHighRealmConfig().tianji_revert || {
+        min_realm_rank: 19,
+        min_realm_name: '元婴初期',
+        daily_limit: 1,
+        cooldown_sec: 3600,
+        spirit_stone_cost: 5000,
+        divine_sense_cost: 50,
+        remnant_soul_restore_value: 80,
+        min_remnant_soul_threshold: 50,
+        require_weakness_or_low_soul: true
+    };
+}
+
+/**
+ * 工具函数：将任意值安全转为 BigInt
+ * 处理 string/number/BigInt 等多种输入类型，避免直接 BigInt(undefined) 抛错
+ * @param {string|number|BigInt|null|undefined} value - 输入值
+ * @returns {BigInt} 转换后的 BigInt（默认 0n）
+ */
+function safeBigInt(value) {
+    if (value === null || value === undefined || value === '') return 0n;
+    if (typeof value === 'bigint') return value;
+    try {
+        return BigInt(String(value));
+    } catch (e) {
+        return 0n;
+    }
+}
+
+/**
  * 工具函数：判断玩家境界是否达到指定境界要求
  * @param {Object} player - 玩家对象
  * @param {number} minRank - 最低境界排名
@@ -197,6 +232,8 @@ class NascentSoulService {
         const remnantCfg = getRemnantSoulConfig();
         const weaknessCfg = getWeaknessConfig();
         const reincarnationCfg = getReincarnationConfig();
+        // 天机回溯配置（用于状态展示）
+        const tianjiRevertCfg = getTianjiRevertConfig();
 
         const currentRealm = RealmService.getRealmByName(player.realm);
         const realmRank = currentRealm?.rank || 0;
@@ -216,6 +253,22 @@ class NascentSoulService {
         const fractureCooldown = checkCooldown(player, 'last_fracture_explore_time', fractureCfg.cooldown_sec);
         // 夺舍冷却
         const reincarnationCooldown = checkCooldown(player, 'last_reincarnation_time', reincarnationCfg.cooldown_sec);
+        // 天机回溯冷却
+        const tianjiRevertCooldown = checkCooldown(player, 'last_tianji_revert_time', tianjiRevertCfg.cooldown_sec);
+        // 跨日重置天机回溯每日次数（仅展示用，不落库）
+        const tianjiDailyCount = (() => {
+            const today = new Date().toISOString().slice(0, 10);
+            const lastDate = player.last_tianji_revert_date;
+            if (lastDate) {
+                const lastStr = lastDate instanceof Date
+                    ? lastDate.toISOString().slice(0, 10)
+                    : String(lastDate).slice(0, 10);
+                return lastStr === today ? (player.daily_tianji_revert_count || 0) : 0;
+            }
+            return 0;
+        })();
+        // 当前残魂值（用于 can_use 判定）
+        const currentRemnantSoul = player.remnant_soul ?? 100;
 
         // 出窍剩余时间
         let soulOutRemainingSec = 0;
@@ -289,6 +342,20 @@ class NascentSoulService {
                 cooldown_remaining_sec: reincarnationCooldown.remainingSec,
                 success_rate: reincarnationCfg.success_rate,
                 min_remnant_soul: reincarnationCfg.min_remnant_soul
+            },
+            // 天机回溯（元婴后期紧急回退机制）
+            tianji_revert: {
+                available: isRealmMet(player, tianjiRevertCfg.min_realm_rank),
+                daily_count: tianjiDailyCount,
+                daily_limit: tianjiRevertCfg.daily_limit,
+                cooldown_ready: tianjiRevertCooldown.ready,
+                cooldown_remaining_sec: tianjiRevertCooldown.remainingSec,
+                spirit_stone_cost: tianjiRevertCfg.spirit_stone_cost,
+                divine_sense_cost: tianjiRevertCfg.divine_sense_cost,
+                remnant_soul_restore_value: tianjiRevertCfg.remnant_soul_restore_value,
+                min_remnant_soul_threshold: tianjiRevertCfg.min_remnant_soul_threshold,
+                // 是否满足触发条件：虚弱中 OR 残魂低于阈值
+                can_use: isWeak || (currentRemnantSoul < tianjiRevertCfg.min_remnant_soul_threshold)
             }
         };
     }
@@ -1178,6 +1245,172 @@ class NascentSoulService {
             if (t && !t.finished) await t.rollback();
             console.error('[NascentSoulService] 夺舍失败:', err);
             return { success: false, message: `夺舍失败：${err.message}` };
+        }
+    }
+
+    /**
+     * 天机回溯
+     *
+     * 元婴后期玩家在虚弱/残魂过低状态下的紧急回退机制：
+     *   - 清除虚弱状态（weakness_end_time = null）
+     *   - 残魂恢复到配置值（默认 80，配置可调）
+     *   - 不影响其他状态（修为/灵石/境界/法相等级等保持不变）
+     *   - 消耗灵石 5000 + 神识 50
+     *   - 每日 1 次，跨日重置
+     *   - 冷却 1 小时（与每日次数独立）
+     *
+     * 与 AscensionService.revert 的区别：
+     *   - AscensionService.revert：仅飞升失败状态可回溯，重置飞升进度
+     *   - NascentSoulService.tianjiRevert：仅元婴后期虚弱/残魂过低时可用，不重置任何进度，只清状态
+     *
+     * @param {number} playerId - 玩家ID
+     * @returns {Promise<Object>} { success, message, data }
+     */
+    async tianjiRevert(playerId) {
+        const t = await sequelize.transaction();
+        try {
+            // 1. 行级锁锁定玩家，防止并发触发回溯
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                await t.rollback();
+                return { success: false, message: '玩家不存在' };
+            }
+
+            // 2. 境界校验：必须达到元婴初期（rank=19）
+            const cfg = getTianjiRevertConfig();
+            if (!isRealmMet(player, cfg.min_realm_rank)) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `境界不足，需达到${cfg.min_realm_name}方可使用天机回溯`
+                };
+            }
+
+            // 3. 跨日重置每日次数（last_tianji_revert_date != today 时清零）
+            resetDailyCountIfCrossDay(player, 'last_tianji_revert_date', 'daily_tianji_revert_count');
+
+            // 4. 每日次数校验
+            if ((player.daily_tianji_revert_count || 0) >= cfg.daily_limit) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `今日已使用天机回溯 ${player.daily_tianji_revert_count} 次，每日上限 ${cfg.daily_limit} 次`
+                };
+            }
+
+            // 5. 冷却校验（与每日次数独立，避免频繁使用）
+            const cooldown = checkCooldown(player, 'last_tianji_revert_time', cfg.cooldown_sec);
+            if (!cooldown.ready) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `天机回溯冷却中，${cooldown.remainingSec} 秒后可再次使用`
+                };
+            }
+
+            // 6. 触发条件校验：必须处于虚弱状态 OR 残魂 < min_remnant_soul_threshold
+            //    否则提示"无需回溯"，避免滥用
+            const isWeak = this.isWeak(player);
+            const remnantSoul = player.remnant_soul ?? 100;
+            const isLowSoul = remnantSoul < cfg.min_remnant_soul_threshold;
+            if (cfg.require_weakness_or_low_soul && !isWeak && !isLowSoul) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `无需回溯：当前未处于虚弱状态且残魂值 ${remnantSoul} ≥ ${cfg.min_remnant_soul_threshold}，无需使用天机回溯`
+                };
+            }
+
+            // 7. 灵石消耗校验（spirit_stones 为 BIGINT，使用 safeBigInt 安全转换）
+            const playerStones = safeBigInt(player.spirit_stones);
+            const stoneCost = BigInt(cfg.spirit_stone_cost);
+            if (playerStones < stoneCost) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `灵石不足，需要 ${cfg.spirit_stone_cost} 灵石，当前 ${playerStones.toString()}`
+                };
+            }
+
+            // 8. 神识消耗校验（从 player.attributes.sense 读取，attributes 字段有 JSON get/set）
+            const attrs = typeof player.attributes === 'string'
+                ? JSON.parse(player.attributes)
+                : (player.attributes || {});
+            const currentSense = Number(attrs.sense) || 0;
+            if (currentSense < cfg.divine_sense_cost) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `神识不足，需要 ${cfg.divine_sense_cost} 神识，当前 ${currentSense}`
+                };
+            }
+
+            // 9. 执行回溯（保留变更前的值用于推送与返回）
+            const beforeWeakness = isWeak ? player.weakness_end_time : null;
+            const beforeRemnantSoul = remnantSoul;
+            const beforeStones = playerStones;
+            const beforeSense = currentSense;
+
+            // 9.1 清除虚弱状态
+            player.weakness_end_time = null;
+            // 9.2 残魂恢复到配置值（若当前残魂已经更高则保持，不主动降低）
+            player.remnant_soul = Math.max(cfg.remnant_soul_restore_value, beforeRemnantSoul);
+            // 9.3 扣除灵石（BigInt 减法）
+            player.spirit_stones = playerStones - stoneCost;
+            // 9.4 扣除神识
+            attrs.sense = currentSense - cfg.divine_sense_cost;
+            player.attributes = attrs;
+            // 9.5 更新每日次数与日期、冷却时间
+            player.daily_tianji_revert_count = (player.daily_tianji_revert_count || 0) + 1;
+            player.last_tianji_revert_date = new Date().toISOString().slice(0, 10);
+            player.last_tianji_revert_time = new Date();
+
+            await player.save({ transaction: t });
+            await t.commit();
+
+            // 10. 推送 WebSocket 通知（事务外执行，避免推送失败影响主流程）
+            try {
+                WebSocketNotificationService.notifyPlayerUpdate(playerId, 'tianji_revert', {
+                    message: '天机回溯成功，虚弱已清除，残魂已恢复',
+                    weakness_cleared: !!beforeWeakness,
+                    remnant_soul_before: beforeRemnantSoul,
+                    remnant_soul_after: player.remnant_soul,
+                    spirit_stone_cost: cfg.spirit_stone_cost,
+                    divine_sense_cost: cfg.divine_sense_cost,
+                    daily_count: player.daily_tianji_revert_count,
+                    daily_limit: cfg.daily_limit
+                });
+            } catch (e) {
+                console.warn('[NascentSoulService] 天机回溯通知推送失败:', e.message);
+            }
+
+            return {
+                success: true,
+                message: '天机回溯成功：虚弱已清除，残魂已恢复',
+                data: {
+                    weakness_cleared: !!beforeWeakness,
+                    weakness_end_time_before: beforeWeakness,
+                    weakness_end_time_after: null,
+                    remnant_soul_before: beforeRemnantSoul,
+                    remnant_soul_after: player.remnant_soul,
+                    spirit_stones_before: beforeStones.toString(),
+                    spirit_stones_after: player.spirit_stones.toString(),
+                    sense_before: beforeSense,
+                    sense_after: attrs.sense,
+                    spirit_stone_cost: cfg.spirit_stone_cost,
+                    divine_sense_cost: cfg.divine_sense_cost,
+                    daily_count: player.daily_tianji_revert_count,
+                    daily_limit: cfg.daily_limit,
+                    cooldown_sec: cfg.cooldown_sec
+                }
+            };
+        } catch (err) {
+            if (t && !t.finished) await t.rollback();
+            console.error('[NascentSoulService] tianjiRevert 异常:', err);
+            return { success: false, message: `天机回溯失败：${err.message}` };
         }
     }
 

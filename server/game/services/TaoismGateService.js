@@ -947,9 +947,14 @@ class TaoismGateService {
             throw new AppError('目标玩家不存在', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
-        // 检查目标是否避世中（避世状态下无法被探查）
+        // 检查目标是否闭关中（闭关状态下无法被探查，与避世不同）
         if (targetPlayer.is_secluded) {
             throw new AppError('目标玩家正在闭关中，无法探查', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+        }
+
+        // 检查目标是否避世中（避世清修状态下免疫神识探查）
+        if (targetPlayer.pvp_mode === 'recluse') {
+            throw new AppError('目标已避世清修，无法探查', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
         // 检查目标水镜盾

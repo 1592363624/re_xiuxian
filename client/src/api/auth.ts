@@ -14,13 +14,28 @@ export interface RegisterRequest {
   nickname: string;
 }
 
+/**
+ * 认证响应结构
+ *
+ * 修复（2026-07-21）：
+ *   历史类型定义为 `data: { token, player }` 嵌套结构，
+ *   但后端实际返回 token/player 在响应体顶层（与 code/message 平级）。
+ *   详见 server/routes/auth.js:220-230 的 res.json 输出。
+ *
+ * axios 调用方拿到的完整结构为：
+ *   res.data = { code, message, token, player }
+ * 因此本类型用于描述 res.data（即后端响应 body），token/player 应在顶层。
+ */
 export interface AuthResponse {
   code: number;
-  data: {
-    token: string;
-    player: any;
-  };
   message?: string;
+  token: string;
+  player: {
+    id: number;
+    nickname: string;
+    realm: string;
+    role: string;
+  };
 }
 
 /**

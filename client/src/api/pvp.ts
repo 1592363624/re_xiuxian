@@ -344,3 +344,69 @@ export const executeAction = (
 export const flee = () => {
   return apiClient.post<{ message: string }>('/pvp/flee');
 };
+
+// ==================== PVP 模式（避世/入世） ====================
+
+/**
+ * PVP 模式类型
+ * - active：入世（可正常发起和接受 PVP 挑战、决斗、封神台、被悬赏）
+ * - recluse：避世（免疫所有 PVP 袭扰，但自身也无法发起挑战/决斗/封神台）
+ *
+ * 业务影响范围（后端 5 个 Service 已集成校验）：
+ *   1. PvpService.challenge：双方任一为避世都拒绝
+ *   2. DuelService.challenge：双方任一为避世都拒绝
+ *   3. FengshenService：双方任一为避世都拒绝
+ *   4. BountyService：目标为避世时不可被悬赏
+ *   5. TaoismGateService：目标为避世时不可被神识探查
+ */
+export type PvpModeType = 'active' | 'recluse';
+
+/** PVP 模式信息（GET /pvp/mode 返回） */
+export interface PvpModeInfo {
+  /** 玩家 ID */
+  player_id: number;
+  /** 道号 */
+  nickname: string;
+  /** 境界名 */
+  realm: string;
+  /** 境界序号（数值，便于前端比较） */
+  realm_rank: number;
+  /** PVP 模式：active=入世 / recluse=避世 */
+  pvp_mode: PvpModeType;
+  /** 模式中文名（入世 / 避世） */
+  mode_name: string;
+}
+
+/** 切换 PVP 模式响应 */
+export interface PvpModeSwitchResult {
+  player_id: number;
+  pvp_mode: PvpModeType;
+  mode_name: string;
+}
+
+/**
+ * 切换 PVP 模式（避世 ↔ 入世）
+ * POST /pvp/mode
+ *
+ * 业务校验（后端）：
+ *   - 玩家存在且未死亡
+ *   - 当前无进行中的 PVP 战斗
+ *   - mode 参数必须为 active / recluse
+ *
+ * 影响范围：
+ *   - 避世时：免疫 PVP 挑战、决斗、封神台、悬赏、神识探查
+ *   - 入世时：恢复所有 PVP 交互能力
+ *
+ * @param mode 目标模式：active=入世 / recluse=避世
+ */
+export const setPvpMode = (mode: PvpModeType) => {
+  return apiClient.post<PvpModeSwitchResult>('/pvp/mode', { mode });
+};
+
+/**
+ * 查询当前玩家 PVP 模式
+ * GET /pvp/mode
+ */
+export const getPvpMode = () => {
+  return apiClient.get<PvpModeInfo>('/pvp/mode');
+};
