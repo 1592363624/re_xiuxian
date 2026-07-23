@@ -73,7 +73,9 @@ class ConfigLoader extends EventEmitter {
             'spirit_beast_abyss_data',  // 灵兽探渊配置（批次5：9层深渊/PVE怪物/PVP遭遇/兽魂凝练）
             'taoism_gate_data',         // 太一门引道配置（批次5：5种道途/等级/技能/任务/共鸣）
             'beast_invasion_data',      // 妖兽入侵静态配置（多人公共事件：3只妖兽属性/捐献需求/奖励池/技能表）
-            'artifact_deep_lines'       // 法宝深线配置（玩法文档第19节：血魔剑/虚天鼎/掌天瓶/幻世轮四条线）
+            'artifact_deep_lines',      // 法宝深线配置（玩法文档第19节：血魔剑/虚天鼎/掌天瓶/幻世轮四条线）
+            'artifact_spirit_data',     // 器灵系统配置（玩法文档第7节：唤醒/试炼/护主/催发/抚摸/温养/试炼榜）
+            'auction_data'              // 拍卖系统配置（玩法文档第27节：竞价博弈/防秒杀/手续费/灵石冻结）
         ];
         const results = {};
 

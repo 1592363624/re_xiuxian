@@ -46,6 +46,7 @@ require('./models/playerRecipe');
 // PVP 扩展系统模型（悬赏追杀、封神台排名）
 require('./models/playerBounty');
 require('./models/fengshenRanking');
+require('./models/playerArtifactSpirit');  // 器灵系统模型（玩法文档第7节）
 // 洞府社交系统模型（留言、访客记录）
 require('./models/caveMessage');
 require('./models/caveVisitor');
@@ -231,6 +232,20 @@ async function initializeCoreServices(configLoaderInstance) {
         } catch (e) {
             console.warn('太一门引道服务初始化失败:', e.message);
         }
+        // 器灵系统服务初始化（玩法文档第7节，依赖 artifact_spirit_data 配置）
+        try {
+            const ArtifactSpiritService = require('./game/services/ArtifactSpiritService');
+            ArtifactSpiritService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('器灵系统服务初始化失败:', e.message);
+        }
+        // 拍卖系统服务初始化（玩法文档第27节，依赖 auction_data 配置）
+        try {
+            const AuctionService = require('./game/services/AuctionService');
+            AuctionService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('拍卖系统服务初始化失败:', e.message);
+        }
         return true;
     } catch (error) {
         console.error('游戏核心服务初始化失败:', error.message);
@@ -393,6 +408,18 @@ const startServer = async () => {
         });
     } catch (err) {
         console.error('切磋木人排行榜调度器加载失败:', err.message);
+    }
+
+    // 拍卖系统自动结算调度器（玩法文档第27节：竞价博弈，多人经济玩法）
+    // 每 30s（auction_data.json: scheduler.settle_check_interval_ms）批量结算到期拍卖
+    // 调用 AuctionService.settleExpiredAuctions()：有人竞价则成交（扣手续费），无人竞价则物品退回卖家
+    try {
+        const AuctionSchedulerService = require('./game/services/AuctionSchedulerService');
+        AuctionSchedulerService.start(configLoader).catch(err => {
+            console.error('拍卖系统调度器启动失败:', err.message);
+        });
+    } catch (err) {
+        console.error('拍卖系统调度器加载失败:', err.message);
     }
 
     // 神识对决超时检查调度器（玩法文档第18节）
@@ -635,6 +662,17 @@ const startServer = async () => {
     // 法宝深线系统路由（玩法文档第19节：血魔剑残契线，5阶血契+魔染/镇契双值博弈+铭印+封鞘+雷洗）
     // 玩家端：状态查询/祭血/镇契/雷洗/铭印/封鞘（血魔剑来源于掩月抢亲副本成功后 0.1% 掉落）
     app.use('/api/artifact-deep-line', require('./routes/artifactDeepLine'));
+
+    // 器灵系统路由（玩法文档第7节/第895-909行 法宝、器灵与徽章）
+    // 玩家端：唤醒器灵/我的器灵列表/器灵详情/器灵试炼/器灵护主/催发器灵/抚摸法宝/温养器灵/器灵试炼榜
+    // 多人互动：器灵试炼榜全服累计分排行竞争 + 4种器灵类型差异化战斗加成
+    app.use('/api/artifact-spirit', require('./routes/artifact_spirit'));
+
+    // 拍卖系统路由（玩法文档第27节：竞价博弈，多人经济玩法）
+    // 玩家端：创建拍卖/列表/详情/出价/撤销/我的拍卖/我的竞价
+    // 多人互动：全服竞价博弈 + 防秒杀延长 + 灵石冻结退还 + 自动结算
+    // 与万宝楼差异化：万宝楼是"标价直购"（即时成交），拍卖是"竞价博弈"（多人竞争 + 倒计时）
+    app.use('/api/auction', require('./routes/auction'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

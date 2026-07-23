@@ -34,6 +34,7 @@ const BountyService = require('./services/BountyService');
 const FengshenService = require('./services/FengshenService');
 const CaveSocialService = require('./services/CaveSocialService');
 const SectSpecialService = require('./services/SectSpecialService');
+const RedPacketService = require('./services/RedPacketService');
 
 // 基础设施模块（从 modules 重新导出）
 const { infrastructure } = require('../modules');
@@ -65,6 +66,8 @@ async function initializeGameServices(configLoader) {
     CaveSocialService.initialize(configLoader);
     // 宗门专属玩法服务初始化（灵眼树/观星台/命盘/天阶/魔道/炉鼎）
     SectSpecialService.initialize(configLoader);
+    // 聊天红包系统服务初始化
+    RedPacketService.initialize(configLoader);
 
     console.log('游戏核心服务模块初始化完成');
 }
@@ -101,6 +104,7 @@ module.exports = {
     FengshenService,
     CaveSocialService,
     SectSpecialService,
+    RedPacketService,
 
     // 基础设施
     ConfigLoader: infrastructure?.ConfigLoader,

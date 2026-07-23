@@ -5,14 +5,16 @@
  * 1. GET  /api/pvp/status：获取 PVP 状态（段位/次数/冷却/虚弱/进行中战斗）
  * 2. GET  /api/pvp/leaderboard：段位排行榜（query: limit=50）
  * 3. GET  /api/pvp/history：战斗历史（query: page=1, limit=20）
- * 4. POST /api/pvp/challenge：发起挑战（body: target_player_id, battle_type='normal'）
- * 5. POST /api/pvp/action：执行回合（body: action='attack'/'skill'/'defend', skill_index）
+ * 4. POST /api/pvp/challenge：发起挑战（body: target_player_id, battle_type='normal')
+ * 5. POST /api/pvp/action：执行回合（body: action='attack'/'skill'/'defend'/'item', skill_index）
+ *    - action='item' 时 skill_index 传物品ID（如 'mid_healing_pill'），使用丹药恢复 HP/MP
  * 6. POST /api/pvp/flee：逃跑
  * 7. POST /api/pvp/mode：切换避世/入世模式（body: mode='active'|'recluse'）
  * 8. GET  /api/pvp/combat-power：查询自己战力
  * 9. GET  /api/pvp/combat-power/:playerId：查询指定玩家战力
  * 10. GET /api/pvp/combat-power/compare/:playerA/:playerB：对比两个玩家战力
  * 11. POST /api/pvp/sparring：切磋木人（body: target_realm_rank）
+ * 12. GET  /api/pvp/battle-items：获取当前战斗中可使用的丹药列表（含剩余使用次数）
  *
  * 设计原则：路由层仅做参数校验与调用 Service，业务逻辑在 PvpService 中
  * 统一响应格式：{ code: 200, message, data }
@@ -164,7 +166,8 @@ router.post('/challenge', auth, async (req, res, next) => {
 
 /**
  * POST /api/pvp/action
- * 执行回合（body: action='attack'/'skill'/'defend', skill_index）
+ * 执行回合（body: action='attack'/'skill'/'defend'/'item', skill_index）
+ * - action='item' 时 skill_index 为物品ID字符串（如 'mid_healing_pill'）
  */
 router.post('/action', auth, async (req, res, next) => {
     try {
@@ -179,12 +182,21 @@ router.post('/action', auth, async (req, res, next) => {
             });
         }
 
-        const allowedActions = ['attack', 'skill', 'defend'];
+        const allowedActions = ['attack', 'skill', 'defend', 'item'];
         if (!allowedActions.includes(action)) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
                 message: `无效的 action：${action}，可选值：${allowedActions.join('/')}`
+            });
+        }
+
+        // action='item' 时必须有 skill_index（物品ID）
+        if (action === 'item' && !skill_index) {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: '使用物品需指定 skill_index（物品ID）'
             });
         }
 
@@ -242,6 +254,32 @@ router.post('/flee', auth, async (req, res, next) => {
         res.json({
             code: 200,
             message: '斗法已逃跑',
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
+ * GET /api/pvp/battle-items
+ * 获取当前战斗中可使用的丹药列表（含剩余使用次数）
+ *
+ * 返回：{ items: [{ item_id, name, description, subtype, quality, effect, quantity }],
+ *         remaining_uses: number, max_uses: number }
+ */
+router.get('/battle-items', auth, async (req, res, next) => {
+    try {
+        const result = await PvpService.getBattleItems(req.player.id);
+        res.json({
+            code: 200,
             data: result
         });
     } catch (err) {

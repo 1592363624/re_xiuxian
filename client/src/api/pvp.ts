@@ -29,10 +29,51 @@
 import apiClient from './index';
 
 /** 战斗动作类型 */
-export type BattleActionType = 'attack' | 'skill' | 'defend';
+export type BattleActionType = 'attack' | 'skill' | 'defend' | 'item';
 
 /** 战斗类型 */
 export type BattleType = 'normal' | 'ranked';
+
+/**
+ * 五行属性类型
+ * metal=金 / wood=木 / water=水 / fire=火 / earth=土
+ * 非五行灵根（如 thunder/wind/ice）视为无属性，不参与五行克制
+ */
+export type ElementType = 'metal' | 'wood' | 'water' | 'fire' | 'earth';
+
+/**
+ * 五行相克信息（战斗前展示双方灵根克制关系）
+ * 后端 PvpService.getStatus 在 battle_info 中返回 element_info 字段
+ */
+export interface PvpElementInfo {
+  /** 己方五行属性（非五行灵根为 null） */
+  my_element: ElementType | null;
+  /** 对手五行属性 */
+  opponent_element: ElementType | null;
+  /** 克制关系中文描述（如 '金克木'，无克制为 null） */
+  matchup: string | null;
+  /** 优势方：attacker=己方克制对手 / defender=对手克制己方 / null=无克制 */
+  advantage: 'attacker' | 'defender' | null;
+  /** 伤害倍率：1.2 克制 / 0.8 被克 / 1.0 中立 */
+  multiplier: number;
+}
+
+/**
+ * 战斗日志中的五行相克信息
+ * 后端 PvpService.executeAction 在每条 battle_log 中返回 element 字段
+ */
+export interface PvpBattleLogElement {
+  /** 攻击方五行属性 */
+  attacker_element: ElementType;
+  /** 防守方五行属性 */
+  defender_element: ElementType;
+  /** 伤害倍率 */
+  multiplier: number;
+  /** 优势方 */
+  advantage: 'attacker' | 'defender' | null;
+  /** 中文克制描述 */
+  name: string;
+}
 
 /** 段位配置项 */
 export interface PvpRankTier {
@@ -86,6 +127,8 @@ export interface PvpBattleInfo {
   is_my_turn: boolean;
   /** 战斗开始时间 */
   started_at: string;
+  /** 五行相克信息（后端返回，供前端展示双方灵根克制关系） */
+  element_info?: PvpElementInfo;
   /** 战斗日志（按时间倒序，最新在前） */
   battle_log: PvpBattleLogEntry[];
 }
@@ -108,6 +151,15 @@ export interface PvpBattleLogEntry {
   text?: string;
   /** 时间戳 */
   timestamp?: string;
+  /** 五行相克信息（后端返回，供前端展示克制效果） */
+  element?: PvpBattleLogElement;
+  /** 丹药使用信息（action='item' 时记录丹药名称和恢复量） */
+  item?: {
+    item_id: string;
+    item_name: string;
+    hp_restore: number;
+    mp_restore: number;
+  };
 }
 
 /** 玩家段位与战绩信息 */
@@ -324,12 +376,12 @@ export const challenge = (
 /**
  * 执行战斗动作
  * POST /pvp/action
- * @param action 动作类型：attack / skill / defend
- * @param skill_index 技能槽位（仅 skill 动作有效，默认 0）
+ * @param action 动作类型：attack / skill / defend / item
+ * @param skill_index 技能槽位（仅 skill 动作有效，默认 0）；action='item' 时传物品ID字符串
  */
 export const executeAction = (
   action: BattleActionType,
-  skill_index = 0
+  skill_index: number | string = 0
 ) => {
   return apiClient.post<PvpActionResult>('/pvp/action', {
     action,
@@ -343,6 +395,48 @@ export const executeAction = (
  */
 export const flee = () => {
   return apiClient.post<{ message: string }>('/pvp/flee');
+};
+
+// ==================== 战斗中使用丹药 ====================
+
+/** 战斗中可用丹药信息 */
+export interface BattleItem {
+  /** 物品ID */
+  item_id: string;
+  /** 物品名称 */
+  name: string;
+  /** 物品描述 */
+  description: string;
+  /** 子类型：healing(恢复气血) / mana(恢复灵力) */
+  subtype: string;
+  /** 品质 */
+  quality: string;
+  /** 效果配置 */
+  effect: {
+    hp_restore?: number;
+    mp_restore?: number;
+  };
+  /** 背包持有数量 */
+  quantity: number;
+}
+
+/** 战斗丹药列表响应 */
+export interface BattleItemsResult {
+  /** 可用丹药列表 */
+  items: BattleItem[];
+  /** 本场剩余使用次数 */
+  remaining_uses: number;
+  /** 每场上限次数 */
+  max_uses: number;
+}
+
+/**
+ * 获取当前战斗中可使用的丹药列表
+ * GET /pvp/battle-items
+ * 返回玩家背包中可在 PVP 战斗中使用的消耗品，及本场剩余使用次数
+ */
+export const getBattleItems = () => {
+  return apiClient.get<BattleItemsResult>('/pvp/battle-items');
 };
 
 // ==================== PVP 模式（避世/入世） ====================

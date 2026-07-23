@@ -263,6 +263,10 @@
     {
       "name": "太一门引道",
       "description": "太一门引道系统（玩法文档第25节）：五行道途+神识联动+多人共鸣"
+    },
+    {
+      "name": "器灵系统",
+      "description": "法宝器灵养成与多人试炼竞技（玩法文档第7节）"
     }
   ],
   "security": [
@@ -272,6 +276,81 @@
   ],
   "components": {
     "schemas": {
+      "PendingVisitor": {
+        "type": "object",
+        "description": "待处理访客信息（洞府主人接待/驱逐/忽略操作对象）",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "访客记录ID",
+            "example": 12
+          },
+          "visitor_id": {
+            "type": "integer",
+            "description": "访客玩家ID",
+            "example": 9
+          },
+          "visitor_nickname": {
+            "type": "string",
+            "description": "访客昵称",
+            "example": "叶天帝"
+          },
+          "visitor_realm": {
+            "type": "string",
+            "description": "访客境界",
+            "example": "化神期"
+          },
+          "visited_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "拜访时间"
+          },
+          "encounter_type": {
+            "type": "string",
+            "nullable": true,
+            "description": "奇遇类型ID（未触发奇遇则为null）",
+            "example": "treasure_pill"
+          },
+          "encounter_reward": {
+            "type": "object",
+            "nullable": true,
+            "description": "奇遇奖励详情"
+          },
+          "reception_status": {
+            "type": "string",
+            "description": "接待状态",
+            "enum": [
+              "pending",
+              "received",
+              "expelled",
+              "ignored"
+            ],
+            "example": "pending"
+          },
+          "reception_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "主人处理时间"
+          },
+          "reception_buff_until": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "接待buff到期时间（仅received状态有值）"
+          },
+          "buff_active": {
+            "type": "boolean",
+            "description": "接待buff是否仍有效",
+            "example": false
+          },
+          "block_active": {
+            "type": "boolean",
+            "description": "驱逐封锁是否仍有效",
+            "example": false
+          }
+        }
+      },
       "AiConfig": {
         "type": "object",
         "description": "AI 配置（API Key 已脱敏）",
@@ -8023,6 +8102,1045 @@
             "type": "string",
             "description": "完美通关有 20% 概率获得的称号：beiming_breaker（北冥破局者）",
             "nullable": true
+          }
+        }
+      },
+      "CaveExhibit": {
+        "type": "object",
+        "description": "万宝阁展品信息（我的展品 / 查看他人展品通用结构）",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "展品ID"
+          },
+          "item_key": {
+            "type": "string",
+            "description": "物品配置键名"
+          },
+          "item_name": {
+            "type": "string",
+            "description": "物品名称"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "common",
+              "uncommon",
+              "rare",
+              "epic",
+              "legendary",
+              "mythic"
+            ],
+            "description": "品质等级：普通/精良/稀有/史诗/传说/神话"
+          },
+          "description": {
+            "type": "string",
+            "description": "物品描述"
+          },
+          "effect": {
+            "type": "object",
+            "description": "物品效果（动态键值对）",
+            "additionalProperties": true
+          },
+          "price": {
+            "type": "integer",
+            "description": "物品基础价格（灵石）"
+          },
+          "type": {
+            "type": "string",
+            "description": "物品类型"
+          },
+          "exhibit_slot": {
+            "type": "integer",
+            "description": "展位编号（1-6）"
+          },
+          "heat_count": {
+            "type": "integer",
+            "description": "热度值（累计被鉴赏次数）",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "上架时间"
+          },
+          "appreciated_today": {
+            "type": "boolean",
+            "description": "今日是否已鉴赏过（查看他人展品时有值）"
+          }
+        },
+        "required": [
+          "id",
+          "item_key",
+          "item_name",
+          "quality",
+          "exhibit_slot",
+          "heat_count",
+          "created_at"
+        ]
+      },
+      "ScrollRatingTier": {
+        "type": "object",
+        "description": "风貌评级档次（兼容别名，推荐使用 ScrollRating）",
+        "properties": {
+          "score": {
+            "type": "number",
+            "description": "综合得分"
+          },
+          "tier_name": {
+            "type": "string",
+            "description": "评级名称",
+            "enum": [
+              "凡品",
+              "灵品",
+              "玄品",
+              "地品",
+              "天品",
+              "仙品"
+            ]
+          },
+          "tier_index": {
+            "type": "integer",
+            "description": "评级序号（0-5）",
+            "minimum": 0,
+            "maximum": 5
+          }
+        },
+        "required": [
+          "score",
+          "tier_name",
+          "tier_index"
+        ]
+      },
+      "ScrollInscription": {
+        "type": "object",
+        "description": "洞天绘卷题词记录",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "题词ID"
+          },
+          "inscriber_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "题词者玩家ID"
+          },
+          "inscriber_nickname": {
+            "type": "string",
+            "description": "题词者昵称"
+          },
+          "content": {
+            "type": "string",
+            "description": "题词内容（最长20字）"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "题词时间"
+          }
+        }
+      },
+      "CaveScroll": {
+        "type": "object",
+        "description": "洞天绘卷数据（我的/他人通用结构）",
+        "properties": {
+          "owner": {
+            "$ref": "#/components/schemas/ScrollOwner"
+          },
+          "cave": {
+            "$ref": "#/components/schemas/ScrollCave"
+          },
+          "exhibits": {
+            "$ref": "#/components/schemas/ScrollExhibits"
+          },
+          "popularity": {
+            "$ref": "#/components/schemas/ScrollPopularity"
+          },
+          "rating": {
+            "$ref": "#/components/schemas/ScrollRating"
+          },
+          "inscriptions": {
+            "type": "array",
+            "description": "近期题词列表（保留最近 20 条）",
+            "items": {
+              "$ref": "#/components/schemas/ScrollInscription"
+            }
+          },
+          "inscription_count": {
+            "type": "integer",
+            "description": "题词总数（含已清理的历史）"
+          },
+          "today_inscribed": {
+            "type": "boolean",
+            "description": "当前玩家今日是否已对该洞府题词（仅他人查看时返回）"
+          },
+          "inscribe_today_count": {
+            "type": "integer",
+            "description": "当前玩家今日已题词次数（仅他人查看时返回）"
+          },
+          "inscribe_daily_limit": {
+            "type": "integer",
+            "description": "题词者每日题词上限（仅他人查看时返回）"
+          },
+          "can_inscribe": {
+            "type": "boolean",
+            "description": "当前玩家是否可对该洞府题词（仅他人查看时返回）"
+          },
+          "message": {
+            "type": "string",
+            "description": "提示信息（如未开辟洞府）"
+          }
+        },
+        "required": [
+          "owner",
+          "cave",
+          "rating"
+        ]
+      },
+      "InscribeScrollResult": {
+        "type": "object",
+        "description": "题词返回结果",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "是否成功"
+          },
+          "message": {
+            "type": "string",
+            "description": "提示信息",
+            "example": "题词成功"
+          },
+          "inscription": {
+            "type": "object",
+            "description": "新创建的题词记录",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "format": "int64",
+                "description": "题词ID"
+              },
+              "content": {
+                "type": "string",
+                "description": "题词内容（最长 20 字）"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "题词时间"
+              }
+            }
+          },
+          "target": {
+            "type": "object",
+            "description": "被题词的洞府主人信息",
+            "properties": {
+              "player_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "nickname": {
+                "type": "string"
+              },
+              "realm": {
+                "type": "string"
+              }
+            }
+          },
+          "honor_gained": {
+            "type": "integer",
+            "description": "被题词者本次获得的声望（受每日上限约束，可能为 0）"
+          },
+          "today_inscribe_count": {
+            "type": "integer",
+            "description": "题词者今日已题词次数（含本次）"
+          },
+          "daily_limit": {
+            "type": "integer",
+            "description": "题词者每日题词上限"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "inscription",
+          "target",
+          "honor_gained",
+          "today_inscribe_count",
+          "daily_limit"
+        ]
+      },
+      "ScrollRankingItem": {
+        "type": "object",
+        "description": "洞天绘卷风貌榜单项",
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "description": "排名（从 1 开始）"
+          },
+          "player_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "玩家ID"
+          },
+          "nickname": {
+            "type": "string",
+            "description": "玩家昵称"
+          },
+          "realm": {
+            "type": "string",
+            "description": "境界名称"
+          },
+          "realm_rank": {
+            "type": "integer",
+            "description": "境界排名"
+          },
+          "facility_total_level": {
+            "type": "integer",
+            "description": "五项设施等级总和"
+          },
+          "exhibit_count": {
+            "type": "integer",
+            "description": "展品数量"
+          },
+          "visitor_count": {
+            "type": "integer",
+            "description": "访客数量"
+          },
+          "message_count": {
+            "type": "integer",
+            "description": "留言数量"
+          },
+          "score": {
+            "type": "number",
+            "description": "风貌综合得分"
+          },
+          "tier_name": {
+            "type": "string",
+            "description": "评级名称",
+            "enum": [
+              "凡品",
+              "灵品",
+              "玄品",
+              "地品",
+              "天品",
+              "仙品"
+            ]
+          },
+          "tier_index": {
+            "type": "integer",
+            "description": "评级序号（0-5）",
+            "minimum": 0,
+            "maximum": 5
+          }
+        },
+        "required": [
+          "rank",
+          "player_id",
+          "nickname",
+          "score",
+          "tier_name",
+          "tier_index"
+        ]
+      },
+      "ScrollRankingResult": {
+        "type": "object",
+        "description": "洞天绘卷风貌榜返回",
+        "properties": {
+          "ranking": {
+            "type": "array",
+            "description": "风貌排行列表（按 score 降序）",
+            "items": {
+              "$ref": "#/components/schemas/ScrollRankingItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "已开辟洞府总数"
+          },
+          "message": {
+            "type": "string",
+            "description": "提示信息（如\"暂无已开辟洞府\"）"
+          }
+        },
+        "required": [
+          "ranking",
+          "total"
+        ]
+      },
+      "ScrollOwner": {
+        "type": "object",
+        "description": "洞府主人信息（绘卷 owner 字段）",
+        "properties": {
+          "player_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "玩家ID"
+          },
+          "nickname": {
+            "type": "string",
+            "description": "玩家昵称"
+          },
+          "realm": {
+            "type": "string",
+            "description": "境界名称"
+          },
+          "realm_rank": {
+            "type": "integer",
+            "description": "境界排名"
+          }
+        },
+        "required": [
+          "player_id",
+          "nickname",
+          "realm"
+        ]
+      },
+      "ScrollFacilities": {
+        "type": "object",
+        "description": "洞府五项设施等级",
+        "properties": {
+          "spirit_vein": {
+            "type": "integer",
+            "description": "灵脉等级"
+          },
+          "quiet_room": {
+            "type": "integer",
+            "description": "静室等级"
+          },
+          "pill_room": {
+            "type": "integer",
+            "description": "丹房等级"
+          },
+          "tool_room": {
+            "type": "integer",
+            "description": "器室等级"
+          },
+          "grand_formation": {
+            "type": "integer",
+            "description": "护山大阵等级"
+          }
+        }
+      },
+      "ScrollCave": {
+        "type": "object",
+        "description": "洞府全景信息（绘卷 cave 字段）",
+        "properties": {
+          "is_opened": {
+            "type": "boolean",
+            "description": "洞府是否已开辟"
+          },
+          "opened_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "开辟时间"
+          },
+          "facilities": {
+            "$ref": "#/components/schemas/ScrollFacilities"
+          },
+          "facility_total_level": {
+            "type": "integer",
+            "description": "五项设施等级总和"
+          },
+          "landscape": {
+            "type": "object",
+            "nullable": true,
+            "description": "当前景观（未布置时为 null）",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "garden_plots": {
+            "type": "integer",
+            "description": "药园地块数"
+          }
+        }
+      },
+      "ScrollExhibits": {
+        "type": "object",
+        "description": "万宝阁展品统计（绘卷 exhibits 字段）",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "当前展品数量"
+          },
+          "top_quality": {
+            "type": "string",
+            "nullable": true,
+            "description": "最高品质（uncommon/rare/epic/legendary/mythic）"
+          },
+          "total_heat": {
+            "type": "integer",
+            "description": "展品累计热度（被鉴赏次数总和）"
+          },
+          "top_exhibits": {
+            "type": "array",
+            "description": "热度前 3 名展品（洞府珍宝展示）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_name": {
+                  "type": "string",
+                  "description": "物品名称"
+                },
+                "quality": {
+                  "type": "string",
+                  "description": "品质"
+                },
+                "heat_count": {
+                  "type": "integer",
+                  "description": "热度值（被鉴赏次数）"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ScrollPopularity": {
+        "type": "object",
+        "description": "洞府人气统计（绘卷 popularity 字段）",
+        "properties": {
+          "visitor_count": {
+            "type": "integer",
+            "description": "近期访客数量"
+          },
+          "message_count": {
+            "type": "integer",
+            "description": "近期留言数量"
+          }
+        }
+      },
+      "ScrollRating": {
+        "type": "object",
+        "description": "风貌评级（综合得分+六档评级）",
+        "properties": {
+          "score": {
+            "type": "number",
+            "description": "综合得分（设施+景观+展品+人气四维）"
+          },
+          "tier_name": {
+            "type": "string",
+            "description": "评级名称",
+            "enum": [
+              "凡品",
+              "灵品",
+              "玄品",
+              "地品",
+              "天品",
+              "仙品"
+            ]
+          },
+          "tier_index": {
+            "type": "integer",
+            "description": "评级序号（0=凡品, 5=仙品）",
+            "minimum": 0,
+            "maximum": 5
+          }
+        },
+        "required": [
+          "score",
+          "tier_name",
+          "tier_index"
+        ]
+      },
+      "AuctionConfig": {
+        "type": "object",
+        "description": "拍卖系统配置（GET /auction/config 返回）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用"
+          },
+          "duration_hours": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer"
+              },
+              "max": {
+                "type": "integer"
+              },
+              "default": {
+                "type": "integer"
+              }
+            }
+          },
+          "starting_price": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer"
+              },
+              "max": {
+                "type": "integer"
+              }
+            }
+          },
+          "bid": {
+            "type": "object",
+            "properties": {
+              "min_increment_rate": {
+                "type": "number"
+              },
+              "min_increment_absolute": {
+                "type": "integer"
+              },
+              "max_increment_absolute": {
+                "type": "integer"
+              }
+            }
+          },
+          "fee_rate": {
+            "type": "number",
+            "description": "手续费率"
+          },
+          "anti_snipe": {
+            "type": "object",
+            "description": "防秒杀机制",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "extension_seconds": {
+                "type": "integer"
+              },
+              "trigger_threshold_seconds": {
+                "type": "integer"
+              },
+              "max_extensions": {
+                "type": "integer"
+              }
+            }
+          },
+          "seller": {
+            "type": "object",
+            "properties": {
+              "max_concurrent_auctions": {
+                "type": "integer"
+              },
+              "cancel_fee_when_bidded": {
+                "type": "number"
+              },
+              "min_level_rank": {
+                "type": "integer"
+              }
+            }
+          },
+          "bidder": {
+            "type": "object",
+            "properties": {
+              "min_level_rank": {
+                "type": "integer"
+              },
+              "max_concurrent_bids": {
+                "type": "integer"
+              }
+            }
+          },
+          "scheduler": {
+            "type": "object",
+            "properties": {
+              "settle_check_interval_ms": {
+                "type": "integer"
+              },
+              "batch_size": {
+                "type": "integer"
+              }
+            }
+          },
+          "list": {
+            "type": "object",
+            "properties": {
+              "default_page_size": {
+                "type": "integer"
+              },
+              "max_page_size": {
+                "type": "integer"
+              }
+            }
+          },
+          "websocket": {
+            "type": "object",
+            "properties": {
+              "events": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "AuctionSummary": {
+        "type": "object",
+        "description": "拍卖摘要（列表项 / 我的拍卖项）",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "拍卖 ID"
+          },
+          "seller_id": {
+            "type": "integer",
+            "description": "卖家玩家 ID"
+          },
+          "seller_nickname": {
+            "type": "string",
+            "nullable": true,
+            "description": "卖家昵称"
+          },
+          "item_key": {
+            "type": "string",
+            "description": "物品配置键名"
+          },
+          "item_name": {
+            "type": "string",
+            "description": "物品名称"
+          },
+          "item_quality": {
+            "type": "string",
+            "description": "物品品质"
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "数量"
+          },
+          "starting_price": {
+            "type": "string",
+            "description": "起拍价（字符串大数）"
+          },
+          "current_price": {
+            "type": "string",
+            "description": "当前价（字符串大数）"
+          },
+          "current_bidder_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "当前最高竞价者 ID"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "cancelled"
+            ],
+            "description": "拍卖状态"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "开始时间"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "结束时间"
+          },
+          "winner_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "得标者 ID"
+          },
+          "final_price": {
+            "type": "string",
+            "nullable": true,
+            "description": "成交价（字符串大数）"
+          },
+          "fee_rate": {
+            "type": "number",
+            "description": "手续费率快照"
+          },
+          "extension_count": {
+            "type": "integer",
+            "description": "防秒杀延长次数"
+          },
+          "remaining_ms": {
+            "type": "integer",
+            "description": "剩余时间（毫秒，负值表示已过期）"
+          },
+          "ending_soon": {
+            "type": "boolean",
+            "description": "是否即将结束（剩余 < 60s）"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "settled_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "AuctionBidRecord": {
+        "type": "object",
+        "description": "竞价历史项",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "auction_id": {
+            "type": "integer"
+          },
+          "bidder_id": {
+            "type": "integer"
+          },
+          "bidder_nickname": {
+            "type": "string",
+            "nullable": true
+          },
+          "bid_price": {
+            "type": "string",
+            "description": "出价（字符串大数）"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuctionDetail": {
+        "type": "object",
+        "description": "拍卖详情（GET /auction/:id 返回）",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AuctionSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "seller": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "player_id": {
+                    "type": "integer"
+                  },
+                  "nickname": {
+                    "type": "string"
+                  },
+                  "realm": {
+                    "type": "string"
+                  }
+                }
+              },
+              "is_seller": {
+                "type": "boolean",
+                "description": "当前查看者是否为卖家"
+              },
+              "is_current_bidder": {
+                "type": "boolean",
+                "description": "当前查看者是否为最高竞价者"
+              },
+              "min_next_bid": {
+                "type": "integer",
+                "description": "最小下一手出价"
+              },
+              "bid_count": {
+                "type": "integer",
+                "description": "竞价总数"
+              },
+              "bids": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AuctionBidRecord"
+                },
+                "description": "竞价历史（最近 20 条，按时间倒序）"
+              }
+            }
+          }
+        ]
+      },
+      "CreateAuctionResult": {
+        "type": "object",
+        "description": "创建拍卖响应",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "auction": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "item_key": {
+                "type": "string"
+              },
+              "item_name": {
+                "type": "string"
+              },
+              "item_quality": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "integer"
+              },
+              "starting_price": {
+                "type": "string"
+              },
+              "current_price": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "end_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "fee_rate": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "PlaceBidResult": {
+        "type": "object",
+        "description": "出价响应",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "auction_id": {
+            "type": "integer"
+          },
+          "new_price": {
+            "type": "string",
+            "description": "新当前价（字符串大数）"
+          },
+          "previous_bidder_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "extended": {
+            "type": "boolean",
+            "description": "防秒杀是否触发延长"
+          },
+          "new_end_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "延长后的新结束时间"
+          },
+          "frozen_amount": {
+            "type": "string",
+            "description": "冻结灵石（字符串大数）"
+          },
+          "spirit_stones_after": {
+            "type": "string",
+            "description": "竞价后灵石余额（字符串大数）"
+          }
+        }
+      },
+      "CancelAuctionResult": {
+        "type": "object",
+        "description": "撤销拍卖响应",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "auction_id": {
+            "type": "integer"
+          },
+          "compensation_fee": {
+            "type": "integer",
+            "description": "补偿费（已有人竞价时撤销需支付）"
+          }
+        }
+      },
+      "MyBidItem": {
+        "type": "object",
+        "description": "我的竞价项",
+        "properties": {
+          "auction": {
+            "$ref": "#/components/schemas/AuctionSummary"
+          },
+          "my_bid_price": {
+            "type": "string",
+            "description": "我的出价（字符串大数）"
+          },
+          "my_bid_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "leading": {
+            "type": "boolean",
+            "description": "是否领先"
+          },
+          "won": {
+            "type": "boolean",
+            "description": "是否得标"
+          },
+          "lost": {
+            "type": "boolean",
+            "description": "是否落标"
+          }
+        }
+      },
+      "GmSettleResult": {
+        "type": "object",
+        "description": "GM 手动结算响应",
+        "properties": {
+          "settled": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "auction_id": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "object"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "GmSchedulerStatus": {
+        "type": "object",
+        "description": "GM 调度器状态",
+        "properties": {
+          "running": {
+            "type": "boolean"
+          },
+          "busy": {
+            "type": "boolean"
+          },
+          "interval_ms": {
+            "type": "integer"
           }
         }
       }
@@ -27056,7 +28174,7 @@
     "/api/bounty/my": {
       "get": {
         "summary": "我的悬赏",
-        "description": "查询当前玩家相关的所有悬赏记录，包括自己发布的和接取的悬赏。",
+        "description": "查询当前玩家相关的所有悬赏记录，包括自己发布的和接取的悬赏。\n\n返回结构包含三个列表：\n- published: 我发布的悬赏\n- accepted: 我接取的悬赏\n- targeting_me: 针对我的悬赏（我是 target，状态为 active/accepted，可用于反悬赏）",
         "tags": [
           "悬赏系统"
         ],
@@ -27184,6 +28302,13 @@
                                 "format": "date-time"
                               }
                             }
+                          }
+                        },
+                        "targeting_me": {
+                          "type": "array",
+                          "description": "针对我的悬赏列表（我是 target，状态为 active/accepted）",
+                          "items": {
+                            "$ref": "#/components/schemas/BountyListItem"
                           }
                         }
                       }
@@ -28289,6 +29414,92 @@
                         "daily_limit": {
                           "type": "integer",
                           "description": "每日拜访上限"
+                        },
+                        "encounter": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "拜访奇遇结果（null 表示未触发奇遇功能）",
+                          "properties": {
+                            "triggered": {
+                              "type": "boolean",
+                              "description": "是否触发了奇遇"
+                            },
+                            "reason": {
+                              "type": "string",
+                              "description": "未触发原因（triggered=false 时有值）",
+                              "nullable": true
+                            },
+                            "encounter_id": {
+                              "type": "string",
+                              "description": "奇遇ID",
+                              "nullable": true,
+                              "example": "treasure_pill"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "奇遇名称",
+                              "nullable": true,
+                              "example": "发现遗落丹药"
+                            },
+                            "description": {
+                              "type": "string",
+                              "description": "奇遇描述",
+                              "nullable": true
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "奇遇类型",
+                              "nullable": true,
+                              "enum": [
+                                "item",
+                                "exp",
+                                "spirit_stone",
+                                "trap",
+                                "nothing"
+                              ]
+                            },
+                            "rewards": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "奇遇奖励",
+                              "properties": {
+                                "item_id": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "item_name": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "item_count": {
+                                  "type": "integer",
+                                  "nullable": true
+                                },
+                                "exp": {
+                                  "type": "integer",
+                                  "nullable": true
+                                },
+                                "spirit_stone": {
+                                  "type": "integer",
+                                  "nullable": true
+                                },
+                                "hp_loss": {
+                                  "type": "integer",
+                                  "nullable": true
+                                }
+                              }
+                            },
+                            "today_encounters": {
+                              "type": "integer",
+                              "description": "今日已触发奇遇次数",
+                              "nullable": true
+                            },
+                            "daily_limit": {
+                              "type": "integer",
+                              "description": "每日奇遇上限",
+                              "nullable": true
+                            }
+                          }
                         }
                       }
                     }
@@ -28681,6 +29892,16 @@
                                 "type": "string",
                                 "format": "date-time",
                                 "description": "拜访时间"
+                              },
+                              "encounter_type": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "奇遇类型ID（null=未触发奇遇）"
+                              },
+                              "encounter_reward": {
+                                "type": "object",
+                                "nullable": true,
+                                "description": "奇遇奖励 JSON"
                               }
                             }
                           }
@@ -66753,14 +67974,15 @@
                     "enum": [
                       "attack",
                       "skill",
-                      "defend"
+                      "defend",
+                      "item"
                     ],
-                    "description": "动作类型"
+                    "description": "行动类型：attack(攻击) / skill(技能) / defend(防御) / item(使用丹药)。action=item 时 skill_index 传物品ID字符串"
                   },
                   "skill_index": {
                     "type": "integer",
                     "default": 0,
-                    "description": "技能槽位（仅 skill 动作有效，默认 0）"
+                    "description": "技能槽位（仅 skill 动作有效）；action=item 时传物品ID字符串（如 mid_healing_pill）"
                   }
                 }
               }
@@ -69351,6 +70573,3783 @@
           },
           "401": {
             "description": "未授权"
+          }
+        }
+      }
+    },
+    "/api/bounty/{bountyId}/counter": {
+      "post": {
+        "tags": [
+          "悬赏系统"
+        ],
+        "summary": "反悬赏（被悬赏者反击悬赏者）",
+        "description": "被悬赏的玩家可花费灵石主动反击，对悬赏自己的人发起反向悬赏。\n\n校验规则：\n- 反悬赏功能全局开启（counter_bounty.enabled=true）\n- 原悬赏存在且状态为 active 或 accepted\n- 调用者为原悬赏的 target_id（仅被悬赏者可反悬赏）\n- 反悬赏链深度未超上限（max_counter_chain=3）\n- 反悬赏金额 = 原悬赏金额 × amount_multiplier（默认 1.2）\n\n流程：\n1. 查询原悬赏，校验调用者身份与状态\n2. 计算反悬赏链深度（reason 中 [反悬赏] 前缀计数）\n3. 计算反悬赏金额\n4. 调用 publishBounty 创建反向悬赏（复用所有校验逻辑）",
+        "operationId": "counterBounty",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bountyId",
+            "in": "path",
+            "required": true,
+            "description": "原悬赏 ID",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 180,
+                    "description": "反悬赏理由（可选，最多 180 字）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "反悬赏发布成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "反悬赏发布成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "bounty_id": {
+                          "type": "integer",
+                          "description": "反悬赏创建的新悬赏 ID"
+                        },
+                        "publisher": {
+                          "type": "object",
+                          "description": "反悬赏发起者（原悬赏目标）信息",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "nickname": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "target": {
+                          "type": "object",
+                          "description": "反悬赏目标（原悬赏发布者）信息",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "nickname": {
+                              "type": "string"
+                            },
+                            "realm": {
+                              "type": "string"
+                            },
+                            "realm_rank": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        "bounty_amount": {
+                          "type": "integer",
+                          "description": "反悬赏金额"
+                        },
+                        "platform_fee": {
+                          "type": "integer",
+                          "description": "平台手续费"
+                        },
+                        "total_cost": {
+                          "type": "integer",
+                          "description": "总消耗（金额+手续费）"
+                        },
+                        "status": {
+                          "type": "string",
+                          "example": "active"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "description": "反悬赏理由（含 [反悬赏] 前缀）"
+                        },
+                        "expire_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "is_counter_bounty": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "original_bounty_id": {
+                          "type": "integer",
+                          "description": "原悬赏 ID"
+                        },
+                        "counter_chain_depth": {
+                          "type": "integer",
+                          "description": "反悬赏链深度（1=首次, 2=二次...）"
+                        },
+                        "original_amount": {
+                          "type": "integer",
+                          "description": "原悬赏金额"
+                        },
+                        "counter_multiplier": {
+                          "type": "number",
+                          "example": 1.2,
+                          "description": "反悬赏倍率"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务逻辑错误或参数校验失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "error_code": {
+                      "type": "string",
+                      "example": "BUSINESS_LOGIC_ERROR"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "错误描述"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权或 token 失效"
+          },
+          "403": {
+            "description": "无权限操作"
+          },
+          "404": {
+            "description": "悬赏不存在"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/chat/red-packet/send": {
+      "post": {
+        "tags": [
+          "聊天红包"
+        ],
+        "summary": "发送红包",
+        "description": "在聊天频道发送红包，支持拼手气(lucky)和普通均分(equal)两种类型。发送时扣除发送者灵石，过期未领取部分自动退还。",
+        "operationId": "sendRedPacket",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "total_amount",
+                  "total_count"
+                ],
+                "properties": {
+                  "total_amount": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 1000000,
+                    "description": "红包总金额（灵石）"
+                  },
+                  "total_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "红包个数"
+                  },
+                  "packet_type": {
+                    "type": "string",
+                    "enum": [
+                      "lucky",
+                      "equal"
+                    ],
+                    "default": "lucky",
+                    "description": "红包类型：lucky=拼手气，equal=普通均分"
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "红包附言（可选）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "红包发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "红包发送成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "red_packet_id": {
+                          "type": "integer"
+                        },
+                        "sender": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "nickname": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "total_amount": {
+                          "type": "number"
+                        },
+                        "total_count": {
+                          "type": "integer"
+                        },
+                        "packet_type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "expire_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "chat_message_id": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数校验失败 / 灵石不足 / 功能未开启"
+          },
+          "401": {
+            "description": "未认证"
+          }
+        }
+      }
+    },
+    "/api/chat/red-packet/{id}/claim": {
+      "post": {
+        "tags": [
+          "聊天红包"
+        ],
+        "summary": "领取红包",
+        "description": "领取指定红包，返回领取金额。同一玩家对同一红包只能领取一次。拼手气红包使用二倍均值法随机分配金额，最后一个领取者触发手气最佳标记。",
+        "operationId": "claimRedPacket",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "红包ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "领取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "red_packet_id": {
+                          "type": "integer"
+                        },
+                        "claim_id": {
+                          "type": "integer"
+                        },
+                        "amount": {
+                          "type": "number",
+                          "description": "领取金额（灵石）"
+                        },
+                        "is_lucky_king": {
+                          "type": "boolean",
+                          "description": "是否手气最佳"
+                        },
+                        "is_last_claim": {
+                          "type": "boolean",
+                          "description": "是否最后一个领取者"
+                        },
+                        "sender_nickname": {
+                          "type": "string"
+                        },
+                        "remain_count": {
+                          "type": "integer"
+                        },
+                        "remain_amount": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "红包不可领取/已领取/已过期/不能领取自己的红包"
+          },
+          "401": {
+            "description": "未认证"
+          },
+          "404": {
+            "description": "红包不存在"
+          }
+        }
+      }
+    },
+    "/api/chat/red-packet/{id}": {
+      "get": {
+        "tags": [
+          "聊天红包"
+        ],
+        "summary": "查询红包详情",
+        "description": "查询红包详情，含所有领取记录列表和当前玩家的领取状态。",
+        "operationId": "getRedPacketDetail",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "红包ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "红包详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "red_packet_id": {
+                          "type": "integer"
+                        },
+                        "sender": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "nickname": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "total_amount": {
+                          "type": "number"
+                        },
+                        "total_count": {
+                          "type": "integer"
+                        },
+                        "remain_amount": {
+                          "type": "number"
+                        },
+                        "remain_count": {
+                          "type": "integer"
+                        },
+                        "packet_type": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "active",
+                            "exhausted",
+                            "expired",
+                            "refunded"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "expire_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "my_claim": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "amount": {
+                              "type": "number"
+                            },
+                            "is_lucky_king": {
+                              "type": "boolean"
+                            },
+                            "claimed_at": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          }
+                        },
+                        "claims": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "receiver": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "integer"
+                                  },
+                                  "nickname": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "amount": {
+                                "type": "number"
+                              },
+                              "is_lucky_king": {
+                                "type": "boolean"
+                              },
+                              "claimed_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证"
+          },
+          "404": {
+            "description": "红包不存在"
+          }
+        }
+      }
+    },
+    "/api/chat/red-packet/active": {
+      "get": {
+        "tags": [
+          "聊天红包"
+        ],
+        "summary": "获取活跃红包列表",
+        "description": "获取当前频道内可领取的活跃红包列表（状态为active且未过期）。",
+        "operationId": "getActiveRedPackets",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "活跃红包列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "red_packet_id": {
+                            "type": "integer"
+                          },
+                          "sender": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "nickname": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "total_amount": {
+                            "type": "number"
+                          },
+                          "total_count": {
+                            "type": "integer"
+                          },
+                          "remain_count": {
+                            "type": "integer"
+                          },
+                          "packet_type": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "expire_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证"
+          }
+        }
+      }
+    },
+    "/api/pvp/battle-items": {
+      "get": {
+        "tags": [
+          "PVP 斗法"
+        ],
+        "summary": "获取战斗中可使用的丹药列表",
+        "description": "查询玩家背包中可在 PVP 战斗中使用的消耗品（回春丹/小还丹/大还丹/凝气丹/聚灵丹等），返回物品名称、效果、持有数量及本场剩余使用次数。需在 PVP 战斗进行中调用。",
+        "operationId": "getPvpBattleItems",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取丹药列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "item_id": {
+                                "type": "string",
+                                "example": "mid_healing_pill"
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "小还丹"
+                              },
+                              "description": {
+                                "type": "string",
+                                "example": "恢复中等气血"
+                              },
+                              "subtype": {
+                                "type": "string",
+                                "example": "healing",
+                                "description": "healing=恢复气血 / mana=恢复灵力"
+                              },
+                              "quality": {
+                                "type": "string",
+                                "example": "uncommon"
+                              },
+                              "effect": {
+                                "type": "object",
+                                "properties": {
+                                  "hp_restore": {
+                                    "type": "integer",
+                                    "example": 50
+                                  },
+                                  "mp_restore": {
+                                    "type": "integer",
+                                    "example": 0
+                                  }
+                                }
+                              },
+                              "quantity": {
+                                "type": "integer",
+                                "example": 5,
+                                "description": "背包持有数量"
+                              }
+                            }
+                          }
+                        },
+                        "remaining_uses": {
+                          "type": "integer",
+                          "example": 3,
+                          "description": "本场剩余使用次数"
+                        },
+                        "max_uses": {
+                          "type": "integer",
+                          "example": 3,
+                          "description": "每场上限次数"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/awaken": {
+      "post": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "唤醒器灵",
+        "description": "消耗灵石+物品，在指定已装备法宝上唤醒器灵。筑基期(rank=3)解锁。成功率=基础80%+祭炼等级*2%（最高98%）。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "equipment_id",
+                  "spirit_type"
+                ],
+                "properties": {
+                  "equipment_id": {
+                    "type": "integer",
+                    "description": "装备记录ID（player_equipment.id）",
+                    "example": 123
+                  },
+                  "spirit_type": {
+                    "type": "string",
+                    "enum": [
+                      "attack",
+                      "defense",
+                      "support",
+                      "balance"
+                    ],
+                    "description": "器灵类型"
+                  },
+                  "spirit_name": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "description": "器灵自定义名称（可选）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "唤醒结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "spirit_id": {
+                          "type": "integer"
+                        },
+                        "spirit_type": {
+                          "type": "string"
+                        },
+                        "spirit_name": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "spirit_level": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "intimacy": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "power": {
+                          "type": "integer",
+                          "example": 50
+                        },
+                        "success_rate": {
+                          "type": "number",
+                          "example": 0.82
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/list": {
+      "get": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "我的器灵列表",
+        "description": "获取玩家所有已唤醒器灵列表（含装备配置合并展示）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "器灵列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "spirits": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "count": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/trial-ranking": {
+      "get": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "器灵试炼榜",
+        "description": "全服试炼累计分排行（多人竞争维度），按 trial_total_score 降序排列",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "试炼榜数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ranking": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "my_rank": {
+                          "type": "integer"
+                        },
+                        "my_spirit": {
+                          "type": "object",
+                          "nullable": true
+                        },
+                        "total": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "page_size": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/{spirit_id}": {
+      "get": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "器灵详情",
+        "description": "获取指定器灵完整状态（含冷却时间、试炼记录、护主/催发状态）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "spirit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "器灵详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "spirit_id": {
+                          "type": "integer"
+                        },
+                        "spirit_type": {
+                          "type": "string"
+                        },
+                        "spirit_level": {
+                          "type": "integer"
+                        },
+                        "intimacy": {
+                          "type": "integer"
+                        },
+                        "power": {
+                          "type": "integer"
+                        },
+                        "cooldowns": {
+                          "type": "object"
+                        },
+                        "daily_trial_count": {
+                          "type": "integer"
+                        },
+                        "daily_trial_limit": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/trial": {
+      "post": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "器灵试炼",
+        "description": "按器灵战力评分获取奖励（经验/灵石/力量值），每日3次。累计分进入排行榜。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "spirit_id"
+                ],
+                "properties": {
+                  "spirit_id": {
+                    "type": "integer",
+                    "description": "器灵记录ID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "试炼结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "score": {
+                          "type": "integer"
+                        },
+                        "is_best_score": {
+                          "type": "boolean"
+                        },
+                        "rewards": {
+                          "type": "object"
+                        },
+                        "spirit_level": {
+                          "type": "integer"
+                        },
+                        "leveled_up": {
+                          "type": "boolean"
+                        },
+                        "daily_trial_count": {
+                          "type": "integer"
+                        },
+                        "daily_trial_limit": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/protect": {
+      "post": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "器灵护主",
+        "description": "开启限时护主状态（5分钟），消耗5亲密度，CD 30分钟。护主时触发减伤/反弹/回血。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "spirit_id"
+                ],
+                "properties": {
+                  "spirit_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "护主开启结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "spirit_id": {
+                          "type": "integer"
+                        },
+                        "active_until": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "duration_seconds": {
+                          "type": "integer"
+                        },
+                        "intimacy_cost": {
+                          "type": "integer"
+                        },
+                        "intimacy_remaining": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/activate": {
+      "post": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "催发器灵",
+        "description": "限时属性爆发（3分钟），消耗50力量值，CD 1小时。催发时属性倍率1.5x。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "spirit_id"
+                ],
+                "properties": {
+                  "spirit_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "催发开启结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "spirit_id": {
+                          "type": "integer"
+                        },
+                        "active_until": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "duration_seconds": {
+                          "type": "integer"
+                        },
+                        "power_cost": {
+                          "type": "integer"
+                        },
+                        "power_remaining": {
+                          "type": "integer"
+                        },
+                        "bonus_multiplier": {
+                          "type": "number",
+                          "example": 1.5
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/pet": {
+      "post": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "抚摸法宝",
+        "description": "增加亲密度+经验，CD 1小时。每次亲密度+5，经验+20。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "spirit_id"
+                ],
+                "properties": {
+                  "spirit_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "抚摸结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "spirit_id": {
+                          "type": "integer"
+                        },
+                        "intimacy_gain": {
+                          "type": "integer"
+                        },
+                        "intimacy": {
+                          "type": "integer"
+                        },
+                        "exp_gain": {
+                          "type": "integer"
+                        },
+                        "spirit_level": {
+                          "type": "integer"
+                        },
+                        "leveled_up": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifact-spirit/nurture": {
+      "post": {
+        "tags": [
+          "器灵系统"
+        ],
+        "summary": "温养器灵",
+        "description": "增加力量值，CD 2小时，消耗1000灵石。每次力量值+20。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "spirit_id"
+                ],
+                "properties": {
+                  "spirit_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "温养结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "spirit_id": {
+                          "type": "integer"
+                        },
+                        "power_gain": {
+                          "type": "integer"
+                        },
+                        "power": {
+                          "type": "integer"
+                        },
+                        "power_max": {
+                          "type": "integer"
+                        },
+                        "spirit_stones_cost": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/show-item": {
+      "post": {
+        "summary": "展示物品到聊天",
+        "description": "在聊天频道中展示玩家背包中的物品（多人社交互动·炫耀装备/分享收获）。后端校验玩家持有该物品，防伪造。展示信息包含物品名称、品质、类型、描述、售价、持有数量。",
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item_key"
+                ],
+                "properties": {
+                  "item_key": {
+                    "type": "string",
+                    "description": "物品配置键名（必须为玩家背包中持有的物品）",
+                    "example": "low_healing_pill"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "展示成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "物品展示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "chat_message_id": {
+                          "type": "integer",
+                          "description": "聊天消息ID"
+                        },
+                        "item_show": {
+                          "type": "object",
+                          "description": "物品展示信息",
+                          "properties": {
+                            "item_key": {
+                              "type": "string",
+                              "description": "物品键名"
+                            },
+                            "item_name": {
+                              "type": "string",
+                              "description": "物品名称"
+                            },
+                            "quality": {
+                              "type": "string",
+                              "enum": [
+                                "common",
+                                "uncommon",
+                                "rare",
+                                "epic",
+                                "legendary",
+                                "unknown"
+                              ],
+                              "description": "物品品质"
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "物品类型"
+                            },
+                            "subtype": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "物品子类型"
+                            },
+                            "description": {
+                              "type": "string",
+                              "description": "物品描述"
+                            },
+                            "price": {
+                              "type": "integer",
+                              "description": "物品售价（灵石）"
+                            },
+                            "quantity": {
+                              "type": "integer",
+                              "description": "展示时持有数量"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数校验失败或未拥有该物品",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "empty_key": {
+                    "summary": "item_key 为空",
+                    "value": {
+                      "code": 400,
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "item_key 参数不能为空"
+                    }
+                  },
+                  "not_owned": {
+                    "summary": "未拥有该物品",
+                    "value": {
+                      "code": 400,
+                      "error_code": "BUSINESS_LOGIC_ERROR",
+                      "message": "你未拥有该物品，无法展示"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cave-social/treasure": {
+      "post": {
+        "summary": "洞天寻宝",
+        "description": "在他人洞府探索地块寻宝，触发宝物/陷阱/遭遇/空手结果。寻宝成功可从洞府主人灵石中借取一部分（真实资源转移），失败触发陷阱或遭遇护阵惩罚。每日限5次，同一洞府24小时冷却。多人交互核心玩法。",
+        "tags": [
+          "洞府社交系统"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "target_player_id",
+                  "plot_number"
+                ],
+                "properties": {
+                  "target_player_id": {
+                    "type": "integer",
+                    "description": "目标洞府主人玩家ID",
+                    "example": 9
+                  },
+                  "plot_number": {
+                    "type": "integer",
+                    "description": "探索地块编号（1-9）",
+                    "minimum": 1,
+                    "maximum": 9,
+                    "example": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "寻宝完成（无论成功/失败/空手，只要参数合法就返回200）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "寻宝完成"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "操作是否成功执行",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "结果描述",
+                          "example": "你在地块下发现了一处藏宝点，颇有收获"
+                        },
+                        "result_type": {
+                          "type": "string",
+                          "enum": [
+                            "treasure",
+                            "trap",
+                            "encounter",
+                            "empty"
+                          ],
+                          "description": "结果类型：treasure宝物/trap陷阱/encounter遭遇/empty空手",
+                          "example": "treasure"
+                        },
+                        "result_name": {
+                          "type": "string",
+                          "description": "结果名称",
+                          "example": "寻得宝物"
+                        },
+                        "rewards": {
+                          "type": "object",
+                          "description": "奖励/损失明细（不同结果类型字段不同）",
+                          "properties": {
+                            "spirit_stones": {
+                              "type": "integer",
+                              "description": "借取的灵石（treasure类型，从洞府主人处获得）"
+                            },
+                            "exp": {
+                              "type": "integer",
+                              "description": "获得的修为（treasure类型）"
+                            },
+                            "item_id": {
+                              "type": "string",
+                              "description": "获得的物品ID（treasure类型，按概率）"
+                            },
+                            "item_name": {
+                              "type": "string",
+                              "description": "获得的物品名称（treasure类型，按概率）"
+                            },
+                            "hp_loss": {
+                              "type": "integer",
+                              "description": "损失的气血（trap类型）"
+                            },
+                            "spirit_stone_loss": {
+                              "type": "integer",
+                              "description": "损失的灵石（trap/encounter类型）"
+                            }
+                          }
+                        },
+                        "is_discovered": {
+                          "type": "boolean",
+                          "description": "是否被洞府主人发现（仅寻宝失败时可能为true）",
+                          "example": false
+                        },
+                        "success_rate": {
+                          "type": "number",
+                          "format": "float",
+                          "description": "本次寻宝成功率（0.05-0.85）",
+                          "example": 0.3
+                        },
+                        "plot_number": {
+                          "type": "integer",
+                          "description": "探索地块编号",
+                          "example": 1
+                        },
+                        "target": {
+                          "type": "object",
+                          "properties": {
+                            "player_id": {
+                              "type": "integer",
+                              "description": "目标玩家ID"
+                            },
+                            "nickname": {
+                              "type": "string",
+                              "description": "目标玩家昵称"
+                            }
+                          }
+                        },
+                        "today_count": {
+                          "type": "integer",
+                          "description": "今日已寻宝次数（含本次）",
+                          "example": 1
+                        },
+                        "daily_limit": {
+                          "type": "integer",
+                          "description": "每日寻宝上限",
+                          "example": 5
+                        },
+                        "cost": {
+                          "type": "integer",
+                          "description": "本次寻宝消耗灵石",
+                          "example": 100
+                        },
+                        "remaining_spirit_stones": {
+                          "type": "integer",
+                          "description": "寻宝者剩余灵石",
+                          "example": 99800
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "寻宝失败（功能未开启/地块编号无效/不能寻宝自己/目标洞府未开辟/每日上限/冷却中/灵石不足）",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_plot": {
+                    "value": {
+                      "code": 400,
+                      "message": "地块编号必须为 1-9 的整数"
+                    }
+                  },
+                  "self_hunt": {
+                    "value": {
+                      "code": 400,
+                      "message": "不能在自己的洞府寻宝"
+                    }
+                  },
+                  "cave_not_opened": {
+                    "value": {
+                      "code": 400,
+                      "message": "对方尚未开辟洞府，无法寻宝"
+                    }
+                  },
+                  "daily_limit": {
+                    "value": {
+                      "code": 400,
+                      "message": "今日寻宝次数已达上限（5次）"
+                    }
+                  },
+                  "cooldown": {
+                    "value": {
+                      "code": 400,
+                      "message": "该洞府寻宝冷却中，还需约 24 小时"
+                    }
+                  },
+                  "insufficient_stones": {
+                    "value": {
+                      "code": 400,
+                      "message": "灵石不足，寻宝需 100 灵石"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "目标玩家不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "message": "目标玩家不存在"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cave-social/treasure/logs": {
+      "get": {
+        "summary": "查询寻宝日志",
+        "description": "查询寻宝日志记录。role=hunter（默认）查询自己作为寻宝者的记录；role=owner查询自己洞府被他人寻宝的记录。",
+        "tags": [
+          "洞府社交系统"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hunter",
+                "owner"
+              ],
+              "default": "hunter"
+            },
+            "description": "角色：hunter（寻宝者）/ owner（洞府主人被寻宝）"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 200
+            },
+            "description": "返回条数上限，默认50"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "hunter",
+                            "owner"
+                          ],
+                          "description": "查询角色",
+                          "example": "hunter"
+                        },
+                        "logs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "description": "日志ID"
+                              },
+                              "hunter_id": {
+                                "type": "integer",
+                                "description": "寻宝者玩家ID"
+                              },
+                              "hunter_nickname": {
+                                "type": "string",
+                                "description": "寻宝者昵称"
+                              },
+                              "cave_owner_id": {
+                                "type": "integer",
+                                "description": "洞府主人玩家ID"
+                              },
+                              "cave_owner_nickname": {
+                                "type": "string",
+                                "description": "洞府主人昵称"
+                              },
+                              "plot_number": {
+                                "type": "integer",
+                                "description": "探索地块编号",
+                                "example": 1
+                              },
+                              "result_type": {
+                                "type": "string",
+                                "enum": [
+                                  "treasure",
+                                  "trap",
+                                  "encounter",
+                                  "empty"
+                                ],
+                                "description": "结果类型",
+                                "example": "treasure"
+                              },
+                              "rewards": {
+                                "type": "object",
+                                "description": "奖励/损失明细",
+                                "properties": {
+                                  "spirit_stones": {
+                                    "type": "integer"
+                                  },
+                                  "exp": {
+                                    "type": "integer"
+                                  },
+                                  "item_id": {
+                                    "type": "string"
+                                  },
+                                  "item_name": {
+                                    "type": "string"
+                                  },
+                                  "hp_loss": {
+                                    "type": "integer"
+                                  },
+                                  "spirit_stone_loss": {
+                                    "type": "integer"
+                                  }
+                                }
+                              },
+                              "is_discovered": {
+                                "type": "boolean",
+                                "description": "是否被发现",
+                                "example": false
+                              },
+                              "created_at": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "寻宝时间"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "description": "返回记录数",
+                          "example": 5
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cave-social/visitors/reception": {
+      "get": {
+        "tags": [
+          "洞府社交"
+        ],
+        "summary": "获取待处理访客列表（洞府主人视角）",
+        "description": "洞府主人查看待接待/驱逐/忽略的访客记录，同时返回近期已处理的访客记录。\n\n与洞天寻宝联动形成社交博弈：\n- 接待访客后，访客获得临时增益buff（悟道经验+10%、游商折扣+10%，持续2小时）\n- 驱逐访客后，该访客24小时内无法拜访和寻宝你的洞府\n- 接待期间访客若寻宝你的洞府，被发现率额外+50%（背叛惩罚）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "返回条数，默认20",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取访客接待列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "pending": {
+                          "type": "array",
+                          "description": "待处理访客列表（reception_status=pending）",
+                          "items": {
+                            "$ref": "#/components/schemas/PendingVisitor"
+                          }
+                        },
+                        "recent": {
+                          "type": "array",
+                          "description": "近期已处理访客记录",
+                          "items": {
+                            "$ref": "#/components/schemas/PendingVisitor"
+                          }
+                        },
+                        "total_pending": {
+                          "type": "integer",
+                          "description": "待处理总数",
+                          "example": 2
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权（Token 缺失或失效）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cave-social/visitors/{recordId}/receive": {
+      "post": {
+        "tags": [
+          "洞府社交"
+        ],
+        "summary": "接待访客（消耗灵石，赠予临时增益buff）",
+        "description": "洞府主人接待访客，消耗灵石赠予访客临时增益buff。\n\n增益效果：\n- 悟道经验+10%\n- 游商折扣+10%\n- 持续时间：2小时\n\n⚠ 背叛惩罚：接待期间访客若寻宝你的洞府，被发现率额外+50%。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "description": "访客记录ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "接待成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已接待访客 叶天帝，消耗 100 灵石，赠予2小时增益buff"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "已接待访客 叶天帝，消耗 100 灵石，赠予2小时增益buff"
+                        },
+                        "visitor": {
+                          "type": "object",
+                          "properties": {
+                            "player_id": {
+                              "type": "integer",
+                              "example": 9
+                            },
+                            "nickname": {
+                              "type": "string",
+                              "example": "叶天帝"
+                            },
+                            "realm": {
+                              "type": "string",
+                              "example": "化神期"
+                            }
+                          }
+                        },
+                        "cost": {
+                          "type": "integer",
+                          "description": "消耗灵石",
+                          "example": 100
+                        },
+                        "buff_until": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "buff到期时间"
+                        },
+                        "buff_meditation_bonus": {
+                          "type": "number",
+                          "description": "悟道经验加成",
+                          "example": 0.1
+                        },
+                        "buff_merchant_discount": {
+                          "type": "number",
+                          "description": "游商折扣",
+                          "example": 0.1
+                        },
+                        "remaining_spirit_stones": {
+                          "type": "integer",
+                          "description": "剩余灵石",
+                          "example": 1169579
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务逻辑错误（灵石不足/已处理过/功能未开启）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "灵石不足，无法接待"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cave-social/visitors/{recordId}/expel": {
+      "post": {
+        "tags": [
+          "洞府社交"
+        ],
+        "summary": "驱逐访客（封锁拜访+寻宝24h）",
+        "description": "洞府主人驱逐访客，被驱逐的访客在24小时内无法拜访和寻宝该洞府。\n\n驱逐不消耗灵石，是对不信任访客的防御性措施。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "description": "访客记录ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "驱逐成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已驱逐访客 叶天帝，24 小时内无法拜访和寻宝"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "已驱逐访客 叶天帝，24 小时内无法拜访和寻宝"
+                        },
+                        "visitor": {
+                          "type": "object",
+                          "properties": {
+                            "player_id": {
+                              "type": "integer",
+                              "example": 9
+                            },
+                            "nickname": {
+                              "type": "string",
+                              "example": "叶天帝"
+                            },
+                            "realm": {
+                              "type": "string",
+                              "example": "化神期"
+                            }
+                          }
+                        },
+                        "block_until": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "封锁到期时间"
+                        },
+                        "block_hours": {
+                          "type": "integer",
+                          "description": "封锁时长（小时）",
+                          "example": 24
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务逻辑错误（已处理过/功能未开启）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "该访客已处理过（状态: received）"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cave-social/visitors/{recordId}/ignore": {
+      "post": {
+        "tags": [
+          "洞府社交"
+        ],
+        "summary": "忽略访客（不予理睬）",
+        "description": "洞府主人忽略访客记录，不影响访客的任何行为。访客仍可再次拜访触发新的访客记录。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "description": "访客记录ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "忽略成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已忽略该访客记录"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "已忽略该访客记录"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务逻辑错误（已处理过/功能未开启）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "该访客已处理过（状态: expelled）"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 401,
+                  "message": "未授权，请先登录"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 500,
+                  "message": "服务器内部错误"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cave-social/exhibits": {
+      "get": {
+        "tags": [
+          "洞府社交",
+          "万宝阁"
+        ],
+        "summary": "获取我的万宝阁展品列表",
+        "description": "返回当前玩家洞府万宝阁中已上架的展品列表，含展品详情、热度值、展位编号。同时返回展品上限与最低品质要求。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "展品列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "exhibits": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CaveExhibit"
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "max_exhibits": {
+                          "type": "integer",
+                          "example": 6
+                        },
+                        "min_quality": {
+                          "type": "string",
+                          "example": "uncommon"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/cave-social/exhibits/list": {
+      "post": {
+        "tags": [
+          "洞府社交",
+          "万宝阁"
+        ],
+        "summary": "上架展品至万宝阁",
+        "description": "从背包选择物品上架至万宝阁展示。上架时从背包扣除1件物品并存入展品表（物品锁定不可使用/交易）。需满足最低品质要求，展位未满。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item_key"
+                ],
+                "properties": {
+                  "item_key": {
+                    "type": "string",
+                    "description": "物品配置键名",
+                    "example": "foundation_pill"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上架成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "成功将「筑基丹」上架至万宝阁第 1 展位"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "exhibit": {
+                          "$ref": "#/components/schemas/CaveExhibit"
+                        },
+                        "total_exhibits": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "max_exhibits": {
+                          "type": "integer",
+                          "example": 6
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "品质不足/展位已满/重复上架/背包无此物品"
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/cave-social/exhibits/{exhibitId}": {
+      "delete": {
+        "tags": [
+          "洞府社交",
+          "万宝阁"
+        ],
+        "summary": "从万宝阁取下展品",
+        "description": "将展品从万宝阁取下，物品归还背包。取下后该展品的热度值清零，不可恢复。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "exhibitId",
+            "in": "path",
+            "description": "展品ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取下成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已将「筑基丹」从万宝阁取下，物品已归还背包"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "returned_item": {
+                          "type": "object",
+                          "properties": {
+                            "item_key": {
+                              "type": "string",
+                              "example": "foundation_pill"
+                            },
+                            "item_name": {
+                              "type": "string",
+                              "example": "筑基丹"
+                            },
+                            "quantity": {
+                              "type": "integer",
+                              "example": 1
+                            }
+                          }
+                        },
+                        "cleared_heat": {
+                          "type": "integer",
+                          "example": 5
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "无权取下他人洞府的展品"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/cave-social/exhibits/player/{playerId}": {
+      "get": {
+        "tags": [
+          "洞府社交",
+          "万宝阁"
+        ],
+        "summary": "查看他人洞府的万宝阁展品（供鉴赏）",
+        "description": "拜访者视角查看目标洞府的万宝阁展品列表，标注哪些今日已鉴赏过。返回今日鉴赏次数与剩余次数。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "description": "目标洞府主人玩家ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "展品列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "target_player_id": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "target_nickname": {
+                          "type": "string",
+                          "example": "青云子"
+                        },
+                        "target_realm": {
+                          "type": "string",
+                          "example": "筑基中期"
+                        },
+                        "exhibits": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CaveExhibit"
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "today_appreciated_count": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "daily_limit": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "remaining_appreciations": {
+                          "type": "integer",
+                          "example": 2
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "对方尚未开辟洞府"
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/cave-social/exhibits/{exhibitId}/appreciate": {
+      "post": {
+        "tags": [
+          "洞府社交",
+          "万宝阁"
+        ],
+        "summary": "鉴赏展品（获得修为，有概率触发顿悟）",
+        "description": "核心多人正向交互：拜访者鉴赏他人洞府展品，获得修为灵感。基础修为 = exp_base + exp_per_quality × qualityRank。按 enlighten_chance 概率触发顿悟：修为×3 + 临时修炼buff。展品热度+1，高品质展品为主人带来声望奖励。每日鉴赏上限3次，同一展品每日仅可鉴赏1次。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "exhibitId",
+            "in": "path",
+            "description": "展品ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "鉴赏结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "鉴赏「筑基丹」触发顿悟！获得 360 修为"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "is_enlightened": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "exp_gained": {
+                          "type": "integer",
+                          "example": 360
+                        },
+                        "base_exp": {
+                          "type": "integer",
+                          "example": 120
+                        },
+                        "enlighten_multiplier": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "enlighten_buff_until": {
+                          "type": "string",
+                          "format": "date-time",
+                          "example": "2026-07-23T15:00:00.000Z"
+                        },
+                        "enlighten_buff_meditation_bonus": {
+                          "type": "number",
+                          "example": 0.15
+                        },
+                        "owner_honor_gained": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "new_heat": {
+                          "type": "integer",
+                          "example": 6
+                        },
+                        "today_appreciated_count": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "daily_limit": {
+                          "type": "integer",
+                          "example": 3
+                        },
+                        "remaining_appreciations": {
+                          "type": "integer",
+                          "example": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "每日上限/今日已鉴赏/不能鉴赏自己"
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/cave-social/exhibits/heat-board": {
+      "get": {
+        "tags": [
+          "洞府社交",
+          "万宝阁"
+        ],
+        "summary": "获取万宝阁热度榜",
+        "description": "返回全服展品热度 Top N 排行榜，展示最受关注的展品及其主人信息。热度值由被鉴赏次数累计。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "返回条数上限，默认20，最大100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "热度榜",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "board": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "rank": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "exhibit_id": {
+                                "type": "integer",
+                                "example": 5
+                              },
+                              "item_key": {
+                                "type": "string",
+                                "example": "foundation_pill"
+                              },
+                              "item_name": {
+                                "type": "string",
+                                "example": "筑基丹"
+                              },
+                              "quality": {
+                                "type": "string",
+                                "example": "rare"
+                              },
+                              "heat_count": {
+                                "type": "integer",
+                                "example": 42
+                              },
+                              "owner_id": {
+                                "type": "integer",
+                                "example": 2
+                              },
+                              "owner_nickname": {
+                                "type": "string",
+                                "example": "青云子"
+                              },
+                              "owner_realm": {
+                                "type": "string",
+                                "example": "筑基中期"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 15
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/cave-social/scroll/me": {
+      "get": {
+        "tags": [
+          "洞府社交-洞天绘卷"
+        ],
+        "summary": "查看自己的洞天绘卷",
+        "description": "展示自己洞府的全景风貌、评级（凡/灵/玄/地/天/仙六品）、得分明细（设施/景观/展品/人气四维）、近期题词列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "返回洞天绘卷数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CaveScroll"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "玩家不存在或未开辟洞府"
+          }
+        }
+      }
+    },
+    "/api/cave-social/scroll/player/{playerId}": {
+      "get": {
+        "tags": [
+          "洞府社交-洞天绘卷"
+        ],
+        "summary": "查看他人洞天绘卷",
+        "description": "展示目标洞府的全景风貌、评级、得分明细、近期题词，以及当前玩家对该洞府的今日题词状态",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "目标洞府主人玩家ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "返回目标洞天绘卷数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CaveScroll"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "目标玩家ID无效"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "目标玩家不存在或未开辟洞府"
+          }
+        }
+      }
+    },
+    "/api/cave-social/scroll/{playerId}/inscribe": {
+      "post": {
+        "tags": [
+          "洞府社交-洞天绘卷"
+        ],
+        "summary": "在他人洞天绘卷上题词",
+        "description": "多人交互玩法：拜访者为他人洞府题写评语，被题词者获得声望奖励（每日上限20点）。题词者每日限5次，同一洞府每日仅1次，内容限20字",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "目标洞府主人玩家ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "description": "题词内容（最长20字）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "题词成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "题词成功"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/InscribeScrollResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "题词内容为空/过长/今日已题词/次数用完"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "目标玩家不存在或未开辟洞府"
+          }
+        }
+      }
+    },
+    "/api/cave-social/scroll/ranking": {
+      "get": {
+        "tags": [
+          "洞府社交-洞天绘卷"
+        ],
+        "summary": "获取洞天绘卷风貌排行榜",
+        "description": "按风貌综合得分排序，展示全服洞府风貌等级 Top N",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            },
+            "description": "返回条数，默认20，上限100"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "返回风貌排行榜",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ScrollRankingResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/auction/config": {
+      "get": {
+        "tags": [
+          "拍卖系统"
+        ],
+        "summary": "获取拍卖系统配置",
+        "description": "获取拍卖系统配置（无需鉴权，供前端展示规则说明）",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuctionConfig"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auction/list": {
+      "get": {
+        "tags": [
+          "拍卖系统"
+        ],
+        "summary": "拍卖列表（分页 + 筛选）",
+        "description": "拍卖列表（分页 + 筛选，无需鉴权可浏览）",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "cancelled"
+              ],
+              "default": "open"
+            }
+          },
+          {
+            "name": "quality",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "end_at_asc",
+                "current_price_desc",
+                "current_price_asc"
+              ],
+              "default": "end_at_asc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "auctions": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AuctionSummary"
+                          }
+                        },
+                        "total": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "page_size": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auction/my": {
+      "get": {
+        "tags": [
+          "拍卖系统"
+        ],
+        "summary": "我的拍卖",
+        "description": "获取玩家发布的拍卖列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "cancelled"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "auctions": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AuctionSummary"
+                          }
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          }
+        }
+      }
+    },
+    "/auction/my-bids": {
+      "get": {
+        "tags": [
+          "拍卖系统"
+        ],
+        "summary": "我的竞价",
+        "description": "获取玩家参与的竞价列表（含领先/得标/落标状态标记）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "bids": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/MyBidItem"
+                          }
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          }
+        }
+      }
+    },
+    "/auction/{id}": {
+      "get": {
+        "tags": [
+          "拍卖系统"
+        ],
+        "summary": "拍卖详情",
+        "description": "获取拍卖详情（含竞价历史 + 最小加价）",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuctionDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "拍卖不存在"
+          }
+        }
+      }
+    },
+    "/auction/create": {
+      "post": {
+        "tags": [
+          "拍卖系统"
+        ],
+        "summary": "创建拍卖",
+        "description": "创建拍卖（扣物品 + 创建记录 + 快照手续费率）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item_key",
+                  "starting_price"
+                ],
+                "properties": {
+                  "item_key": {
+                    "type": "string"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "default": 1
+                  },
+                  "starting_price": {
+                    "type": "integer",
+                    "description": "起拍价（灵石）"
+                  },
+                  "duration_hours": {
+                    "type": "number",
+                    "default": 6
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CreateAuctionResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误 / 业务校验失败"
+          },
+          "401": {
+            "description": "未授权"
+          }
+        }
+      }
+    },
+    "/auction/{id}/bid": {
+      "post": {
+        "tags": [
+          "拍卖系统"
+        ],
+        "summary": "出价",
+        "description": "出价（冻结灵石 + 退还前竞价者 + 防秒杀延长）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "bid_price"
+                ],
+                "properties": {
+                  "bid_price": {
+                    "type": "integer",
+                    "description": "出价金额（灵石）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlaceBidResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误 / 业务校验失败"
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "404": {
+            "description": "拍卖不存在"
+          }
+        }
+      }
+    },
+    "/auction/{id}/cancel": {
+      "post": {
+        "tags": [
+          "拍卖系统"
+        ],
+        "summary": "撤销拍卖",
+        "description": "撤销拍卖（物品退回 + 补偿费）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "撤销原因（可选）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CancelAuctionResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误 / 业务校验失败"
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "无权操作"
+          },
+          "404": {
+            "description": "拍卖不存在"
+          }
+        }
+      }
+    },
+    "/auction/gm/settle": {
+      "post": {
+        "tags": [
+          "拍卖系统",
+          "GM运维"
+        ],
+        "summary": "[GM] 手动触发到期拍卖结算",
+        "description": "手动触发到期拍卖结算（调试或紧急清理遗留到期拍卖）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GmSettleResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "权限不足"
+          }
+        }
+      }
+    },
+    "/auction/gm/scheduler": {
+      "get": {
+        "tags": [
+          "拍卖系统",
+          "GM运维"
+        ],
+        "summary": "[GM] 查看调度器状态",
+        "description": "查看拍卖自动结算调度器的运行状态",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GmSchedulerStatus"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "权限不足"
           }
         }
       }

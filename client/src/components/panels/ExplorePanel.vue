@@ -151,7 +151,10 @@
             </div>
 
             <div v-if="currentEvent.rewards && currentEvent.rewards.exp" class="text-sm text-emerald-400">
-              预计获得: {{ formatNumber(currentEvent.rewards.exp) }} 修为
+              预计获得: {{ formatNumber(estimatedExp) }} 修为
+              <span v-if="realmMultiplier > 1.0" class="text-xs text-stone-500 ml-1">
+                (基础{{ formatNumber(currentEvent.rewards.exp) }} × 境界{{ realmMultiplier.toFixed(1) }}x)
+              </span>
             </div>
           </div>
 
@@ -207,12 +210,38 @@ import {
 import { getMapInfo } from '../../api/map'
 import { getGameBalancePublic, type AdventureConfig, type DurationTypeConfig } from '../../api/config'
 import { useUIStore } from '../../stores/ui'
+import { usePlayerStore } from '../../stores/player'
 // 修复 B27：奖励数值未走 formatNumber，大数显示为科学计数法或精度丢失
 import { formatNumber } from '../../utils/format'
 
 const emit = defineEmits(['close', 'combat'])
 
 const uiStore = useUIStore()
+const playerStore = usePlayerStore()
+
+/**
+ * 境界加成倍率（与后端 getRealmMultiplier 公式一致）
+ * 修复 B46（2026-07-22）：
+ *   原前端"预计获得"显示的是模板基础奖励（如 10 修为），
+ *   未乘以境界倍率，化神期玩家（倍率 3.2x）看到的预估比实际少 3.2 倍。
+ *   后端 grantRewards 已正确应用境界倍率，但 startAdventure 返回的 event.rewards 是模板原始值。
+ *   现在前端预估时乘以境界倍率，与实际结算保持一致。
+ * 公式：1.0 + (realm_rank - 1) * 0.1（每提升 1 个 rank +10%）
+ */
+const realmMultiplier = computed(() => {
+  const rank = playerStore.player?.realm_rank
+  if (!rank || rank <= 0) return 1.0
+  return 1.0 + (rank - 1) * 0.1
+})
+
+/**
+ * 预估修为奖励（基础奖励 × 境界倍率）
+ * 与后端 grantRewards 的 finalExp = Math.floor(baseExp * realmMultiplier) 一致
+ */
+const estimatedExp = computed(() => {
+  if (!currentEvent.value?.rewards?.exp) return 0
+  return Math.floor(currentEvent.value.rewards.exp * realmMultiplier.value)
+})
 
 const currentMap = ref<any>(null)
 const timeOfDay = ref('')

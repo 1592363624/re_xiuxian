@@ -162,14 +162,75 @@
     },
     "social": {
       "description": "洞府社交系统配置：拜访/留言/访客/景观/商人",
-      "visit": {
-        "daily_limit": 10,
-        "cooldown_seconds": 0,
-        "max_recent_visitors": 50,
-        "max_messages": 100,
-        "message_max_length": 200,
-        "message_delete_after_days": 30
-      },
+      "visit":  {
+                  "daily_limit":  10,
+                  "cooldown_seconds":  0,
+                  "max_recent_visitors":  50,
+                  "max_messages":  100,
+                  "message_max_length":  200,
+                  "message_delete_after_days":  30
+              },
+    "visit_encounters": {
+        "comment": "洞府拜访奇遇系统配置：拜访他人洞府时有概率触发随机奇遇，增加多人交互探索深度",
+        "enabled": true,
+        "trigger_chance": 0.4,
+        "daily_encounter_limit": 5,
+        "encounters": [
+            {
+                "id": "treasure_pill",
+                "name": "发现遗落丹药",
+                "description": "你在洞府角落发现一枚遗落的丹药，看样子是洞府主人遗落的",
+                "weight": 25,
+                "type": "item",
+                "rewards": {
+                    "item_pool": ["low_healing_pill", "low_mana_pill", "mid_healing_pill"],
+                    "item_count": 1
+                }
+            },
+            {
+                "id": "spirit_vein_residual",
+                "name": "灵脉残留",
+                "description": "你感应到洞府中残留的灵脉气息，冥想片刻有所感悟",
+                "weight": 25,
+                "type": "exp",
+                "rewards": {
+                    "exp_min": 50,
+                    "exp_max": 200
+                }
+            },
+            {
+                "id": "cave_trap",
+                "name": "触发洞府机关",
+                "description": "你不慎触发了洞府中的防御机关，受了些轻伤，但在机关旁发现了一些灵石",
+                "weight": 20,
+                "type": "trap",
+                "rewards": {
+                    "spirit_stone_min": 20,
+                    "spirit_stone_max": 100,
+                    "hp_loss_percent": 5
+                }
+            },
+            {
+                "id": "spirit_beast_encounter",
+                "name": "偶遇洞府灵兽",
+                "description": "洞府中灵兽对你表示友好，你与它互动了一番，它赠予你一些灵石",
+                "weight": 15,
+                "type": "spirit_stone",
+                "rewards": {
+                    "spirit_stone_min": 50,
+                    "spirit_stone_max": 150
+                }
+            },
+            {
+                "id": "nothing",
+                "name": "空手而归",
+                "description": "你在洞府中转了一圈，没有发现什么特别的东西",
+                "weight": 15,
+                "type": "nothing",
+                "rewards": {}
+            }
+        ]
+    },
       "landscapes": [
         {
           "id": "pine_bamboo",
@@ -229,6 +290,133 @@
           { "item_key": "spirit_iron_ore", "base_price": 120, "weight": 8 },
           { "item_key": "cold_crystal", "base_price": 150, "weight": 5 }
         ]
+      },
+      "treasure_hunt": {
+        "comment": "洞天寻宝系统：拜访他人洞府后可主动探索地块寻宝，涉及资源真实转移与社交博弈。寻宝成功从洞府主人灵石中借取一部分，失败可能触发陷阱或被发现",
+        "enabled": true,
+        "cost_spirit_stones": 100,
+        "daily_limit": 5,
+        "cooldown_seconds": 86400,
+        "plot_count": 9,
+        "base_success_rate": 0.35,
+        "realm_diff_modifier": 0.03,
+        "formation_defense_per_level": 0.05,
+        "spirit_vein_bonus_per_level": 0.05,
+        "discovered_rate_on_fail": 0.30,
+        "results": {
+          "treasure": {
+            "weight": 40,
+            "name": "寻得宝物",
+            "description": "你在地块下发现了一处藏宝点，颇有收获",
+            "spirit_stone_steal_rate": [0.05, 0.15],
+            "exp_min": 100,
+            "exp_max": 500,
+            "item_pool": ["wild_herb", "condensing_flower", "cinnabar", "golden_ore", "spirit_iron_ore", "cold_crystal"],
+            "item_chance": 0.3
+          },
+          "trap": {
+            "weight": 20,
+            "name": "触发陷阱",
+            "description": "你触碰了洞府中暗藏的禁制，一阵反噬袭来",
+            "hp_loss_percent_min": 5,
+            "hp_loss_percent_max": 15,
+            "spirit_stone_loss_min": 50,
+            "spirit_stone_loss_max": 200
+          },
+          "encounter": {
+            "weight": 15,
+            "name": "遭遇护阵",
+            "description": "洞府大阵的残留灵力化作守卫向你攻击，你仓皇撤退",
+            "spirit_stone_loss_min": 20,
+            "spirit_stone_loss_max": 80
+          },
+          "empty": {
+            "weight": 25,
+            "name": "一无所获",
+            "description": "你仔细搜寻了一番，这个地块似乎什么也没有"
+          }
+        },
+        "discovered_penalty": {
+          "grudge_increase": 10,
+          "notify_owner": true,
+          "owner_message": "有修士在你的洞府寻宝被你发现了！"
+        }
+      },
+      "visitor_reception": {
+        "comment": "接待/驱逐访客系统配置：洞府主人可对接待访客进行接待（赠予临时增益）或驱逐（封锁拜访+寻宝），与洞天寻宝联动形成社交博弈",
+        "enabled": true,
+        "receive_cost": 100,
+        "buff_duration_hours": 2,
+        "buff_meditation_bonus": 0.1,
+        "buff_merchant_discount": 0.1,
+        "expel_block_hours": 24,
+        "pending_expire_hours": 48,
+        "betrayal_discovery_bonus": 0.5,
+        "receive_exp_reward": 50
+      },
+      "treasure_pavilion": {
+        "comment": "万宝阁展品系统配置：洞府主人将珍贵物品上架展示，拜访者可鉴赏获得修为灵感，主人积累声望。展品越多财富外露，被寻宝成功率上升（与洞天寻宝联动）",
+        "enabled": true,
+        "max_exhibits": 6,
+        "min_quality": "uncommon",
+        "quality_order": ["common", "uncommon", "rare", "epic", "legendary", "mythic"],
+        "appreciate": {
+          "comment": "鉴赏配置：拜访他人洞府后可鉴赏展品获得修为，有概率触发顿悟",
+          "daily_limit": 3,
+          "exp_base": 50,
+          "exp_per_quality": 30,
+          "enlighten_chance": 0.15,
+          "enlighten_exp_multiplier": 3,
+          "enlighten_buff_hours": 1,
+          "enlighten_buff_meditation_bonus": 0.15
+        },
+        "heat": {
+          "comment": "热度声望配置：展品被鉴赏累计热度，达到阈值后主人获得声望奖励（实时发放，非每日结算）",
+          "honor_per_appreciation": 1,
+          "honor_min_quality": "rare",
+          "honor_bonus_per_higher_quality": 2
+        },
+        "treasure_hunt_link": {
+          "comment": "与洞天寻宝联动：展品越多越显眼，被寻宝成功率上升；高品质展品自带灵气护体，提升大阵防御",
+          "success_rate_bonus_per_exhibit": 0.02,
+          "max_success_rate_bonus": 0.15,
+          "formation_defense_bonus_per_legendary": 0.03
+        }
+      },
+      "scroll": {
+        "comment": "洞天绘卷系统配置：洞府全景展示+风貌评级+题词互动。与万宝阁差异化：万宝阁是物品展示+鉴赏获修为（个人收益），绘卷是洞府全景+评级排行+题词互动（社交竞争）",
+        "enabled": true,
+        "rating": {
+          "comment": "风貌评级算法：综合设施/景观/展品/人气计算得分，映射6档评级",
+          "facility_weight": 2,
+          "landscape_score": 5,
+          "exhibit_score_per": 3,
+          "exhibit_quality_bonus": { "rare": 2, "epic": 4, "legendary": 6, "mythic": 10 },
+          "popularity_visitor_weight": 0.5,
+          "popularity_message_weight": 0.5,
+          "popularity_heat_weight": 0.2,
+          "tiers": [
+            { "name": "凡品", "min_score": 0 },
+            { "name": "灵品", "min_score": 21 },
+            { "name": "玄品", "min_score": 41 },
+            { "name": "地品", "min_score": 61 },
+            { "name": "天品", "min_score": 81 },
+            { "name": "仙品", "min_score": 101 }
+          ]
+        },
+        "inscribe": {
+          "comment": "题词配置：查看他人绘卷后可题词留下诗意评价，被题词者获声望（每日上限）",
+          "daily_limit": 5,
+          "max_content_length": 20,
+          "keep_recent": 20,
+          "honor_per_inscription": 2,
+          "honor_daily_cap": 20,
+          "self_inscribe_forbidden": true
+        },
+        "ranking": {
+          "comment": "绘卷风貌排行榜配置",
+          "limit": 20
+        }
       }
     }
   }

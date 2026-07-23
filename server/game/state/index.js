@@ -67,6 +67,9 @@ function registerAllStates() {
     // 导致 accepted 状态悬赏死锁、过期悬赏永不退款
     require('./registrations/bounty')();
 
+    // 红包系统定期清理（非互斥状态：清理过期红包，剩余金额退还发送者）
+    require('./registrations/red_packet')();
+
     // 封禁状态
     require('./registrations/ban')();
 

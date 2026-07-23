@@ -21,6 +21,7 @@ class AppError extends Error {
 
 /**
  * 标准错误码
+ * 扩展错误码用于器灵系统等新模块细分业务场景，便于前端精确识别
  */
 const ErrorCodes = {
     // 业务错误 (4xx)
@@ -29,6 +30,17 @@ const ErrorCodes = {
     NOT_FOUND: 'NOT_FOUND',
     VALIDATION_ERROR: 'VALIDATION_ERROR',
     BUSINESS_LOGIC_ERROR: 'BUSINESS_LOGIC_ERROR',
+
+    // 扩展业务错误（器灵/法宝/养成系统细分场景）
+    FEATURE_DISABLED: 'FEATURE_DISABLED',              // 功能未开启
+    REALM_NOT_ENOUGH: 'REALM_NOT_ENOUGH',              // 境界不足
+    EQUIPMENT_BROKEN: 'EQUIPMENT_BROKEN',              // 装备已破碎
+    ALREADY_EXISTS: 'ALREADY_EXISTS',                  // 资源已存在（重复操作）
+    LIMIT_EXCEEDED: 'LIMIT_EXCEEDED',                  // 次数/额度超限
+    CONDITION_NOT_MET: 'CONDITION_NOT_MET',            // 前置条件不满足
+    COOLDOWN: 'COOLDOWN',                              // 冷却中
+    INSUFFICIENT_RESOURCES: 'INSUFFICIENT_RESOURCES',  // 资源不足（灵石/物品）
+    PLAYER_DEAD: 'PLAYER_DEAD',                         // 玩家已陨落
 
     // 系统错误 (5xx)
     INTERNAL_ERROR: 'INTERNAL_ERROR',

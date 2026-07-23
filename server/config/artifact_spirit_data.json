@@ -1,0 +1,108 @@
+{
+  "_comment": "器灵系统静态配置 - 玩法文档第7节/第895-909行 法宝、器灵与徽章。所有可变参数集中此处，禁止代码硬编码",
+  "enabled": true,
+  "unlock_realm_rank": 3,
+  "_unlock_realm_rank_comment": "筑基期(rank=3)解锁器灵，符合玩法文档筑基期解锁深度闭关调性",
+  "spirit_types": {
+    "attack": {
+      "name": "攻灵型",
+      "desc": "增加法宝攻击力，护主时反弹伤害，催发时暴击率提升",
+      "base_bonus": { "atk_percent": 0.05, "def_percent": 0.0, "crit_percent": 0.0, "dodge_percent": 0.0 },
+      "level_bonus_per_level": { "atk_percent": 0.02, "def_percent": 0.0, "crit_percent": 0.0, "dodge_percent": 0.0 },
+      "protect_effect": "damage_reflect",
+      "protect_value": 0.2,
+      "activate_effect": "crit_boost",
+      "activate_value": 0.3
+    },
+    "defense": {
+      "name": "防灵型",
+      "desc": "增加法宝防御力，护主时减伤，催发时受击回血",
+      "base_bonus": { "atk_percent": 0.0, "def_percent": 0.05, "crit_percent": 0.0, "dodge_percent": 0.0 },
+      "level_bonus_per_level": { "atk_percent": 0.0, "def_percent": 0.02, "crit_percent": 0.0, "dodge_percent": 0.0 },
+      "protect_effect": "damage_reduction",
+      "protect_value": 0.3,
+      "activate_effect": "lifesteal",
+      "activate_value": 0.15
+    },
+    "support": {
+      "name": "辅灵型",
+      "desc": "增加暴击与闪避，护主时回血，催发时净化负面状态",
+      "base_bonus": { "atk_percent": 0.0, "def_percent": 0.0, "crit_percent": 0.03, "dodge_percent": 0.03 },
+      "level_bonus_per_level": { "atk_percent": 0.0, "def_percent": 0.0, "crit_percent": 0.01, "dodge_percent": 0.01 },
+      "protect_effect": "heal",
+      "protect_value": 0.1,
+      "activate_effect": "cleanse",
+      "activate_value": 1.0
+    },
+    "balance": {
+      "name": "平灵型",
+      "desc": "均衡属性加成，护主时净化负面状态，催发时全属性微增",
+      "base_bonus": { "atk_percent": 0.02, "def_percent": 0.02, "crit_percent": 0.01, "dodge_percent": 0.01 },
+      "level_bonus_per_level": { "atk_percent": 0.01, "def_percent": 0.01, "crit_percent": 0.0, "dodge_percent": 0.0 },
+      "protect_effect": "cleanse",
+      "protect_value": 1.0,
+      "activate_effect": "all_boost",
+      "activate_value": 0.1
+    }
+  },
+  "awaken": {
+    "cost": {
+      "spirit_stones": 50000,
+      "items": [
+        { "item_id": "soul_stone", "quantity": 5 }
+      ]
+    },
+    "success_rate_base": 0.8,
+    "success_rate_per_refine_level": 0.02,
+    "success_rate_max": 0.98,
+    "intimacy_init": 10,
+    "power_init": 50
+  },
+  "growth": {
+    "max_level": 10,
+    "exp_per_level": [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 0],
+    "intimacy_max": 100,
+    "intimacy_pet_gain": 5,
+    "intimacy_pet_cd_seconds": 3600,
+    "intimacy_pet_exp_gain": 20,
+    "power_max": 1000,
+    "power_nurture_gain": 20,
+    "power_nurture_cd_seconds": 7200,
+    "power_nurture_cost_spirit_stones": 1000,
+    "level_up_intimacy_required": 20
+  },
+  "trial": {
+    "daily_limit": 3,
+    "base_difficulty": 100,
+    "difficulty_per_level": 50,
+    "score_multiplier_per_power": 1.5,
+    "score_multiplier_per_intimacy": 0.5,
+    "rewards": [
+      { "min_score": 0, "exp": 50, "spirit_stones": 100, "power_gain": 2 },
+      { "min_score": 300, "exp": 100, "spirit_stones": 300, "power_gain": 5 },
+      { "min_score": 600, "exp": 200, "spirit_stones": 800, "power_gain": 10 },
+      { "min_score": 1000, "exp": 400, "spirit_stones": 1500, "power_gain": 20 },
+      { "min_score": 1500, "exp": 800, "spirit_stones": 3000, "power_gain": 40 }
+    ]
+  },
+  "protect": {
+    "cooldown_seconds": 1800,
+    "duration_seconds": 300,
+    "intimacy_cost": 5,
+    "intimacy_required": 20
+  },
+  "activate": {
+    "cooldown_seconds": 3600,
+    "duration_seconds": 180,
+    "power_cost": 50,
+    "power_required": 100,
+    "bonus_multiplier": 1.5
+  },
+  "trial_ranking": {
+    "top_count": 50,
+    "reward_top_ranks": [1, 2, 3],
+    "rank_reward_honor": [500, 300, 150],
+    "rank_reward_spirit_stones": [5000, 3000, 1500],
+    "settle_interval_hours": 168
+  }
+}

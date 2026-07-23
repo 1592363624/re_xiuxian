@@ -46,15 +46,18 @@ class PlayerService {
     }
 
     /**
-     * 初始化玩家数据（静态方法）
+     * 初始化玩家数据（实例方法）
      * 统一的玩家创建逻辑，供 auth 路由调用，避免业务逻辑散落到路由层
+     * 说明：本模块导出的是 PlayerService 实例（module.exports = new PlayerService()），
+     *       故此处必须为实例方法（非 static），否则 auth 路由调用时会报
+     *       "PlayerService.initializePlayer is not a function"。
      * @param {string} username - 账号
      * @param {string} hashedPassword - 已加密的密码（bcrypt 哈希）
      * @param {string} nickname - 道号
      * @param {Object} [extra] - 可选附加字段（IP、设备信息等）
      * @returns {Promise<Object>} 创建的玩家对象
      */
-    static async initializePlayer(username, hashedPassword, nickname, extra = {}) {
+    async initializePlayer(username, hashedPassword, nickname, extra = {}) {
         const roleInitConfig = configLoader.getConfig('role_init');
         const gameBalanceConfig = configLoader.getConfig('game_balance');
 

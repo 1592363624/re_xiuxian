@@ -38,6 +38,8 @@ const { infrastructure } = require('../../modules');
 const FormationService = require('./FormationService');
 // 大五行幻世轮服务（PVP 战斗结算后积累悟印，未装备时静默返回）
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
+// 背包服务（PVP 战斗中使用消耗品时扣除物品）
+const InventoryService = require('./InventoryService');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -156,6 +158,62 @@ class PvpService {
     }
 
     /**
+     * 获取玩家五行属性（基于灵根 type）
+     * 灵根 type: metal(金)/wood(木)/water(水)/fire(火)/earth(土)
+     * 非五行灵根（如 thunder/wind/ice 等）返回 null，视为无属性（不参与五行克制）
+     * @param {Object} player - 玩家实例
+     * @returns {string|null} 五行属性 key（metal/wood/water/fire/earth）或 null
+     */
+    static _getPlayerElement(player) {
+        const spiritRoots = player.spirit_roots;
+        if (!spiritRoots || typeof spiritRoots !== 'object') return null;
+        const rootType = spiritRoots.type;
+        const validElements = ['metal', 'wood', 'water', 'fire', 'earth'];
+        return validElements.includes(rootType) ? rootType : null;
+    }
+
+    /**
+     * 计算五行克制伤害倍率
+     * 金克木、木克土、土克水、水克火、火克金
+     * @param {string|null} attackerElement - 攻击方五行属性
+     * @param {string|null} defenderElement - 防守方五行属性
+     * @returns {{ multiplier: number, advantage: string|null, elementName: string|null }}
+     *   multiplier: 伤害倍率（1.2 克制 / 0.8 被克 / 1.0 中立）
+     *   advantage: 'attacker' | 'defender' | null（谁占优势）
+     *   elementName: 中文五行名称（如 '金克木'），供战斗日志展示
+     */
+    static _calculateElementMultiplier(attackerElement, defenderElement) {
+        const cfg = this.getPvpConfig();
+        const fiveElementsCfg = cfg.five_elements || {};
+
+        // 功能未开启或任一方无五行属性：返回中立
+        if (fiveElementsCfg.enabled === false || !attackerElement || !defenderElement) {
+            return { multiplier: fiveElementsCfg.neutral_multiplier || 1.0, advantage: null, elementName: null };
+        }
+
+        const overcomes = fiveElementsCfg.overcomes || {};
+        const elementNames = fiveElementsCfg.element_names || {};
+        const advMul = fiveElementsCfg.advantage_multiplier || 1.2;
+        const disMul = fiveElementsCfg.disadvantage_multiplier || 0.8;
+        const neutralMul = fiveElementsCfg.neutral_multiplier || 1.0;
+
+        // 攻击方克制防守方（如金克木）
+        if (overcomes[attackerElement] === defenderElement) {
+            const name = `${elementNames[attackerElement] || attackerElement}克${elementNames[defenderElement] || defenderElement}`;
+            return { multiplier: advMul, advantage: 'attacker', elementName: name };
+        }
+
+        // 防守方克制攻击方（攻击方被反克，伤害降低）
+        if (overcomes[defenderElement] === attackerElement) {
+            const name = `${elementNames[defenderElement] || defenderElement}克${elementNames[attackerElement] || attackerElement}`;
+            return { multiplier: disMul, advantage: 'defender', elementName: name };
+        }
+
+        // 同属性或无克制关系：中立
+        return { multiplier: neutralMul, advantage: null, elementName: null };
+    }
+
+    /**
      * 获取 PVP 状态快照（前端展示用）
      * 返回：当前是否在 PVP 战斗、段位/次数/冷却/虚弱等
      * @param {number} playerId - 玩家ID
@@ -247,8 +305,12 @@ class PvpService {
             const isAttacker = ongoingBattle.attacker_id === playerId;
             const opponentId = isAttacker ? ongoingBattle.defender_id : ongoingBattle.attacker_id;
             const opponent = await Player.findByPk(opponentId, {
-                attributes: ['id', 'nickname', 'realm', 'realm_rank', 'pvp_score', 'pvp_rank']
+                attributes: ['id', 'nickname', 'realm', 'realm_rank', 'pvp_score', 'pvp_rank', 'spirit_roots']
             });
+            // 计算五行克制关系（供前端展示"金克木"等克制提示）
+            const myElement = this._getPlayerElement(player);
+            const opponentElement = opponent ? this._getPlayerElement(opponent) : null;
+            const elementMatchup = this._calculateElementMultiplier(myElement, opponentElement);
             battleInfo = {
                 battle_id: ongoingBattle.id,
                 is_attacker: isAttacker,
@@ -263,6 +325,14 @@ class PvpService {
                 battle_type: ongoingBattle.battle_type,
                 total_rounds: ongoingBattle.total_rounds,
                 started_at: ongoingBattle.started_at,
+                // 五行相克信息（供前端展示双方灵根属性与克制关系）
+                element_info: {
+                    my_element: myElement,
+                    opponent_element: opponentElement,
+                    matchup: elementMatchup.elementName,
+                    advantage: elementMatchup.advantage,
+                    multiplier: elementMatchup.multiplier
+                },
                 // 解析战斗日志，供前端回合展示
                 battle_log: ongoingBattle.battle_log ? JSON.parse(ongoingBattle.battle_log) : []
             };
@@ -635,6 +705,9 @@ class PvpService {
      * - attack：基础攻击，伤害 = max(1, attacker_atk - defender_def + random_range)
      * - skill：技能攻击，伤害 × skill_damage_multiplier (1.5)，扣 MP 20
      * - defend：本回合受到伤害减半，MP +10
+     * - item：使用消耗品（丹药），不造成伤害，恢复自身 HP/MP，消耗一个回合
+     *         参数 skillIndex 传物品ID字符串（如 "mid_healing_pill"）
+     *         受 battle_items 配置限制：每场上限/每回合上限/允许的物品子类型
      *
      * 回合机制：双方交替行动，攻击方为当前回合的 actor
      * 累加 total_rounds，写入 battle_log
@@ -642,17 +715,22 @@ class PvpService {
      * 胜利时调用 _settleBattle 结算
      *
      * @param {number} playerId - 执行行动的玩家ID
-     * @param {string} action - 行动类型：attack/skill/defend
-     * @param {number} skillIndex - 技能索引（保留扩展，暂未使用）
+     * @param {string} action - 行动类型：attack/skill/defend/item
+     * @param {number|string} skillIndex - 技能索引（保留扩展）；action='item' 时传物品ID字符串
      * @returns {Promise<Object>} 回合结果
      */
     static async executeAction(playerId, action, skillIndex) {
         const cfg = this.getPvpConfig();
 
         // 参数校验
-        const allowedActions = ['attack', 'skill', 'defend'];
+        const allowedActions = ['attack', 'skill', 'defend', 'item'];
         if (!allowedActions.includes(action)) {
             throw new AppError(`无效的行动类型：${action}，可选值：${allowedActions.join('/')}`, 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        // item 动作必须携带物品ID
+        if (action === 'item' && !skillIndex) {
+            throw new AppError('使用物品需指定物品ID（通过 skillIndex 参数传入）', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
         const t = await sequelize.transaction();
@@ -740,26 +818,95 @@ class PvpService {
             const skillDamageMul = combatConfig.skill_damage_multiplier ?? 1.5;
             const skillMpCost = combatConfig.skill_mp_cost ?? 20;
 
+            // ===== 五行相克计算（基于灵根属性，增加 PVP 策略深度）=====
+            // 金克木、木克土、土克水、水克火、火克金
+            // 克制方伤害 ×1.2，被克方伤害 ×0.8，无克制关系 ×1.0
+            const actorElement = this._getPlayerElement(actor);
+            const targetElement = this._getPlayerElement(target);
+            const elementResult = this._calculateElementMultiplier(actorElement, targetElement);
+
             // 计算伤害
             let damage = 0;
             let actualAction = action;
             if (action === 'attack') {
-                // 基础攻击：max(1, atk - def + random_range)
-                damage = Math.max(1, actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset);
+                // 基础攻击：max(1, atk - def + random_range)，再乘五行克制倍率
+                damage = Math.max(1, Math.floor((actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset) * elementResult.multiplier));
             } else if (action === 'skill') {
                 // 技能攻击：需消耗 MP，否则降级为普通攻击
                 if (actorMp >= skillMpCost) {
                     actorMp -= skillMpCost;
-                    damage = Math.max(1, Math.floor((actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset) * skillDamageMul));
+                    damage = Math.max(1, Math.floor((actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset) * skillDamageMul * elementResult.multiplier));
                 } else {
                     // MP 不足，降级为普通攻击
                     actualAction = 'attack';
-                    damage = Math.max(1, actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset);
+                    damage = Math.max(1, Math.floor((actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset) * elementResult.multiplier));
                 }
             } else if (action === 'defend') {
                 // 防御：本回合不造成伤害，但受到伤害减半，恢复少量 MP
                 actorMp = Math.min(actorMp + 10, Number(actorAttrs.mp_max) || 0);
                 damage = 0;
+            } else if (action === 'item') {
+                // ===== 使用消耗品（丹药）：不造成伤害，恢复自身 HP/MP，消耗一个回合 =====
+                // 设计目的：增加 PVP 战斗策略深度，玩家需在"攻击/防御/使用丹药"间博弈
+                const itemId = String(skillIndex);
+                const battleItemsCfg = cfg.battle_items || {};
+                if (!battleItemsCfg.enabled) {
+                    throw new AppError('战斗中使用丹药功能未开启', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+                }
+
+                // 校验本场已使用丹药次数（从 battle_log 统计当前玩家 item 动作数）
+                const myItemUses = battleLog.filter(e =>
+                    e.action === 'item' && Number(e.actor_id) === Number(actor.id)
+                ).length;
+                const maxUses = battleItemsCfg.max_uses_per_battle ?? 3;
+                if (myItemUses >= maxUses) {
+                    throw new AppError(`本场战斗已用 ${myItemUses} 次丹药，达到上限 ${maxUses} 次`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+                }
+
+                // 查找物品配置（从 item_data.json 读取）
+                const itemData = configLoader.getConfig('item_data');
+                const itemDef = itemData?.items?.find(it => it.id === itemId);
+                if (!itemDef) {
+                    throw new AppError(`物品配置不存在：${itemId}`, 400, ErrorCodes.VALIDATION_ERROR);
+                }
+                // 校验物品为可战斗使用的消耗品
+                if (!itemDef.usable_in_battle) {
+                    throw new AppError(`物品【${itemDef.name}】不能在战斗中使用`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+                }
+                const allowedSubtypes = battleItemsCfg.allowed_subtypes || ['healing', 'mana'];
+                if (!allowedSubtypes.includes(itemDef.subtype)) {
+                    throw new AppError(`物品【${itemDef.name}】类型（${itemDef.subtype}）不允许在战斗中使用`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+                }
+
+                // 校验玩家持有该物品
+                const hasItem = await InventoryService.hasItem(actor.id, itemId, 1, t);
+                if (!hasItem) {
+                    throw new AppError(`背包中没有【${itemDef.name}】`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+                }
+
+                // 扣除物品（在当前事务内）
+                await InventoryService.removeItem(actor.id, itemId, 1, t);
+
+                // 应用物品效果到战斗中的 HP/MP
+                const effect = itemDef.effect || {};
+                let itemEffectInfo = {};
+                if (effect.hp_restore) {
+                    const before = actorHp;
+                    actorHp = Math.min(actorHp + effect.hp_restore, actorHpMax);
+                    itemEffectInfo.hp_restore = actorHp - before;
+                }
+                if (effect.mp_restore) {
+                    const before = actorMp;
+                    actorMp = Math.min(actorMp + effect.mp_restore, Number(actorAttrs.mp_max) || 0);
+                    itemEffectInfo.mp_restore = actorMp - before;
+                }
+
+                // 使用丹药不造成伤害
+                damage = 0;
+                // 将物品信息存入 actualAction 供战斗日志记录
+                actualAction = 'item';
+                // 暂存物品效果信息，后续写入 battle_log
+                battle._itemEffectInfo = { item_id: itemId, item_name: itemDef.name, ...itemEffectInfo };
             }
 
             // 应用伤害到目标（注意：若目标上一回合选择 defend，则伤害减半）
@@ -832,6 +979,14 @@ class PvpService {
                 damage: actualDamage,
                 actor_hp: actorHp,
                 defender_hp: targetHp,
+                // 五行相克信息（供前端战斗日志展示克制效果）
+                element: elementResult.elementName ? {
+                    attacker_element: actorElement,
+                    defender_element: targetElement,
+                    multiplier: elementResult.multiplier,
+                    advantage: elementResult.advantage,
+                    name: elementResult.elementName
+                } : undefined,
                 // 护道信息（若本回合触发道侣护道）
                 protect: protectInfo ? {
                     triggered: true,
@@ -843,8 +998,17 @@ class PvpService {
                     log_id: protectInfo.log_id
                 } : undefined,
                 counter_damage_to_actor: counterDamageToActor || undefined,
+                // 物品使用信息（action='item' 时记录丹药名称和恢复量，供前端展示）
+                item: battle._itemEffectInfo ? {
+                    item_id: battle._itemEffectInfo.item_id,
+                    item_name: battle._itemEffectInfo.item_name,
+                    hp_restore: battle._itemEffectInfo.hp_restore || 0,
+                    mp_restore: battle._itemEffectInfo.mp_restore || 0
+                } : undefined,
                 timestamp: new Date().toISOString()
             });
+            // 清理临时字段，避免持久化到数据库
+            delete battle._itemEffectInfo;
             battle.battle_log = JSON.stringify(battleLog);  // 重新 set 整个字符串触发更新
 
             // 判断胜负
@@ -944,6 +1108,82 @@ class PvpService {
             if (!t.finished) await t.rollback();
             throw err;
         }
+    }
+
+    /**
+     * 获取玩家当前战斗中可使用的消耗品列表
+     *
+     * 筛选逻辑：
+     * 1. 查询玩家背包中所有 consumable 类型物品
+     * 2. 从 item_data.json 过滤 usable_in_battle=true 且 subtype 在 allowed_subtypes 中的物品
+     * 3. 匹配背包与配置，返回 { item_id, name, description, subtype, effect, quantity, remaining_uses }
+     *
+     * @param {number} playerId - 玩家ID
+     * @returns {Promise<Object>} { items: Array, remaining_uses: number, max_uses: number }
+     */
+    static async getBattleItems(playerId) {
+        const cfg = this.getPvpConfig();
+        const battleItemsCfg = cfg.battle_items || {};
+
+        // 查询玩家当前进行中的战斗（统计已用丹药次数）
+        const battle = await PvpBattleRecord.findOne({
+            where: {
+                [Op.and]: [
+                    { status: 'ongoing' },
+                    {
+                        [Op.or]: [
+                            { attacker_id: playerId },
+                            { defender_id: playerId }
+                        ]
+                    }
+                ]
+            },
+            order: [['started_at', 'DESC']]
+        });
+
+        let usedCount = 0;
+        if (battle && battle.battle_log) {
+            const log = JSON.parse(battle.battle_log);
+            usedCount = log.filter(e => e.action === 'item' && Number(e.actor_id) === Number(playerId)).length;
+        }
+
+        const maxUses = battleItemsCfg.max_uses_per_battle ?? 3;
+        const remainingUses = Math.max(0, maxUses - usedCount);
+
+        // 若功能未开启或剩余次数为0，返回空列表
+        if (!battleItemsCfg.enabled || remainingUses <= 0) {
+            return { items: [], remaining_uses: remainingUses, max_uses: maxUses };
+        }
+
+        // 从 item_data.json 获取可战斗使用的物品配置
+        const itemData = configLoader.getConfig('item_data');
+        const allowedSubtypes = battleItemsCfg.allowed_subtypes || ['healing', 'mana'];
+        const battleItemDefs = (itemData?.items || []).filter(it =>
+            it.usable_in_battle === true && allowedSubtypes.includes(it.subtype)
+        );
+
+        // 查询玩家背包，匹配可战斗使用的物品
+        const inventoryItems = await Item.findAll({
+            where: { player_id: playerId }
+        });
+        const invMap = {};
+        for (const inv of inventoryItems) {
+            invMap[inv.item_key] = inv.quantity;
+        }
+
+        const result = battleItemDefs
+            .filter(def => invMap[def.id] > 0)
+            .map(def => ({
+                item_id: def.id,
+                name: def.name,
+                description: def.description,
+                subtype: def.subtype,
+                quality: def.quality,
+                effect: def.effect,
+                quantity: invMap[def.id]
+            }));
+
+        return { items: result, remaining_uses: remainingUses, max_uses: maxUses };
     }
 
     /**

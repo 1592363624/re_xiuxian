@@ -8,7 +8,8 @@
             "quality": "common",
             "description": "恢复少量气血",
             "effect": { "hp_restore": 10 },
-            "price": 10
+            "price": 10,
+            "usable_in_battle": true
         },
         {
             "id": "mid_healing_pill",
@@ -18,7 +19,8 @@
             "quality": "uncommon",
             "description": "恢复中等气血",
             "effect": { "hp_restore": 50 },
-            "price": 50
+            "price": 50,
+            "usable_in_battle": true
         },
         {
             "id": "high_healing_pill",
@@ -28,7 +30,8 @@
             "quality": "rare",
             "description": "恢复大量气血",
             "effect": { "hp_restore": 100 },
-            "price": 200
+            "price": 200,
+            "usable_in_battle": true
         },
         {
             "id": "low_mana_pill",
@@ -38,7 +41,8 @@
             "quality": "common",
             "description": "恢复少量灵力",
             "effect": { "mp_restore": 15 },
-            "price": 15
+            "price": 15,
+            "usable_in_battle": true
         },
         {
             "id": "mid_mana_pill",
@@ -48,7 +52,8 @@
             "quality": "uncommon",
             "description": "恢复中等灵力",
             "effect": { "mp_restore": 50 },
-            "price": 80
+            "price": 80,
+            "usable_in_battle": true
         },
         {
             "id": "foundation_pill",
@@ -924,6 +929,15 @@
             "quality": "rare",
             "description": "满级灵兽溢出经验凝练而得的兽魂精魄，配合妖丹可用于灵兽通灵升星（玩法文档第8节）",
             "price": 500
+        },
+        {
+            "id": "soul_stone",
+            "name": "器灵魂石",
+            "type": "material",
+            "subtype": "soul",
+            "quality": "epic",
+            "description": "蕴含灵识之力的魂石，用于在法宝上唤醒器灵（玩法文档第7节 器灵系统）",
+            "price": 10000
         },
         {
             "id": "bingfeng_zhiyi",

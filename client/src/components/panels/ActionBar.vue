@@ -217,6 +217,20 @@ const refinedActions = [
     desc: '洞府社交 留言访客'
   },
   {
+    id: 'fengshen',
+    name: '封神',
+    // Purple for fengshen arena - matches fengshen purple/gold theme
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-purple-400"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`,
+    desc: '封神台 镜像排名战'
+  },
+  {
+    id: 'artifact_spirit',
+    name: '器灵',
+    // Cyan for artifact spirit - matches 器灵 cyan/emerald theme (灵识养成)
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><path d="M12 2v6"/><path d="M12 22v-6"/><path d="M4.93 4.93l4.24 4.24"/><path d="M14.83 14.83l4.24 4.24"/><path d="M2 12h6"/><path d="M22 12h-6"/><path d="M4.93 19.07l4.24-4.24"/><path d="M14.83 9.17l4.24-4.24"/></svg>`,
+    desc: '法宝器灵 灵识养成'
+  },
+  {
     id: 'pawnshop',
     name: '当铺',
     // Amber/gold for pawnshop - matches 聚宝当铺 yellow theme
@@ -229,6 +243,13 @@ const refinedActions = [
     // Cyan for stock market - matches 聚宝股市 cyan theme
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`,
     desc: '聚宝股市 买卖股票'
+  },
+  {
+    id: 'auction',
+    name: '拍卖',
+    // Rose/red for auction - 竞价博弈的热烈感
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-rose-400"><circle cx="12" cy="12" r="10"/><path d="m14.31 8 5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16 3.95 6.06M14.31 16H2.83M16.62 12l-5.74 9.94"/></svg>`,
+    desc: '拍卖竞价 多人博弈'
   },
   {
     id: 'dungeon',
@@ -271,6 +292,13 @@ const refinedActions = [
     // Cyan for small world / domain - matches 小世界 realm theme
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-300"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a9 9 0 0 1 0 18"/><path d="M12 3a9 9 0 0 0 0 18"/><path d="M7 8h10"/><path d="M7 16h10"/></svg>`,
     desc: '开辟小世界 香火神庙'
+  },
+  {
+    id: 'divine_sense_duel',
+    name: '神识对决',
+    // Purple for divine sense duel - 1v1 mystic PvP
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-purple-300"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/><path d="M12 3v2"/><path d="M12 19v2"/><circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.4"/></svg>`,
+    desc: '神识对决 1v1 博弈 PvP'
   },
   {
     id: 'taoism_gate',

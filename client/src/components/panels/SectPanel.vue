@@ -493,6 +493,67 @@ const getRoleName = (role: string) => {
 }
 
 /**
+ * 宗门加成字段中文名映射表
+ * 设计说明：后端 sect_data.json 的 bonus 字段为英文 key，前端需映射为修仙题材中文名展示
+ * 不同宗门只配置各自相关的 2 个字段，其余字段为 undefined 不展示
+ */
+const bonusLabels: Record<string, string> = {
+  exp_multiplier: '修为加成',
+  gather_bonus: '采集加成',
+  sense_multiplier: '感知加成',
+  breakthrough_bonus: '突破加成',
+  luck_bonus: '气运加成',
+  atk_multiplier: '攻击加成',
+  dark_arts_bonus: '魔道加成',
+  charm_bonus: '魅惑加成',
+  mp_multiplier: '灵力加成',
+  mental_strength: '道心加成'
+}
+
+/**
+ * 格式化 bonus 字段值为展示文本
+ *   - *_multiplier 类（倍率）：1.1 → "+10%"
+ *   - *_bonus / mental_strength 类（加成比例）：0.15 → "+15%"
+ *   - 其他数值：原样展示
+ * @param key - bonus 字段 key
+ * @param value - 字段值
+ * @returns {string} 格式化后的展示文本
+ */
+const formatBonusValue = (key: string, value: number): string => {
+  if (typeof value !== 'number' || isNaN(value)) return '—'
+  // 倍率类字段：value - 1 后转百分比（1.1 → +10%）
+  if (key.endsWith('_multiplier')) {
+    const pct = (value - 1) * 100
+    return pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`
+  }
+  // 加成比例类字段：直接转百分比（0.15 → +15%）
+  const pct = value * 100
+  return pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`
+}
+
+/**
+ * 将 bonus 对象转换为有序展示列表
+ * 只返回该宗门实际配置的字段（过滤 undefined），按 bonusLabels 映射顺序输出
+ * @param bonus - 宗门加成对象
+ * @returns {Array<{label: string, value: string}>} 加成项列表
+ */
+const getBonusList = (bonus: Record<string, number> | undefined | null): Array<{ label: string; value: string }> => {
+  if (!bonus || typeof bonus !== 'object') return []
+  const result: Array<{ label: string; value: string }> = []
+  // 按 bonusLabels 定义顺序遍历，保证各宗门展示顺序一致
+  for (const key of Object.keys(bonusLabels)) {
+    const val = bonus[key]
+    if (val !== undefined && val !== null) {
+      result.push({
+        label: bonusLabels[key],
+        value: formatBonusValue(key, Number(val))
+      })
+    }
+  }
+  return result
+}
+
+/**
  * 格式化冷却倒计时（HH:MM:SS）
  * @param ms - 剩余毫秒
  */
@@ -650,6 +711,25 @@ onUnmounted(() => {
                 </div>
               </div>
 
+              <!-- 宗门加成展示区：展示该宗门独有的加成特色（不同宗门字段不同） -->
+              <div v-if="getBonusList(sect.bonus).length > 0" class="bg-[#0c0a09] rounded p-2 border border-stone-800 mb-3">
+                <div class="text-xs text-stone-500 mb-1.5 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-violet-500">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  宗门加成
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span
+                    v-for="item in getBonusList(sect.bonus)"
+                    :key="item.label"
+                    class="text-xs px-2 py-0.5 rounded bg-violet-900/20 border border-violet-700/40 text-violet-300"
+                  >
+                    {{ item.label }} <span class="text-emerald-400 font-bold">{{ item.value }}</span>
+                  </span>
+                </div>
+              </div>
+
               <!-- 操作按钮 -->
               <div class="flex justify-end">
                 <button
@@ -733,6 +813,27 @@ onUnmounted(() => {
                 <div class="bg-[#0c0a09] rounded p-2 border border-stone-800 text-center">
                   <div class="text-xs text-stone-500 mb-1">加入时间</div>
                   <div class="text-xs font-bold text-stone-300 mt-1">{{ formatDate(mySect.joined_at) }}</div>
+                </div>
+              </div>
+
+              <!-- 宗门加成展示区：玩家已加入宗门后查看自身加成（紫色主题，与列表卡片保持一致） -->
+              <div v-if="getBonusList(mySect.bonus).length > 0" class="mt-3 bg-[#0c0a09] rounded p-3 border border-violet-800/40">
+                <div class="text-xs text-stone-400 mb-2 flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-violet-500">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  <span class="font-bold text-violet-400">宗门加成</span>
+                  <span class="text-stone-600 font-normal">（入宗即享，永久生效）</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div
+                    v-for="item in getBonusList(mySect.bonus)"
+                    :key="item.label"
+                    class="flex items-center justify-between px-2.5 py-1.5 rounded bg-violet-900/15 border border-violet-700/30"
+                  >
+                    <span class="text-xs text-violet-300">{{ item.label }}</span>
+                    <span class="text-xs text-emerald-400 font-bold">{{ item.value }}</span>
+                  </div>
                 </div>
               </div>
             </div>

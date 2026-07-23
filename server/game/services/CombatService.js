@@ -18,6 +18,9 @@ const Item = require('../../models/item');
 const MapConfigLoader = require('./MapConfigLoader');
 const DropLoader = require('./DropLoader');
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
+// 引入 InventoryService：战斗掉落物品通过统一的 addItem 方法入包（正确累加数量）
+// 修复关键Bug：此前使用 Item.upsert 会替换已有物品数量而非累加，导致玩家丢失原有物品
+const InventoryService = require('./InventoryService');
 const { infrastructure } = require('../../modules');
 // 引入 AppError 用于抛出带 HTTP 状态码的业务错误（避免 throw Error 被 errorHandler 当成 500）
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
@@ -617,11 +620,15 @@ class CombatService {
 
             const gainedItems = [];
             for (const item of (dropResult.items || [])) {
-                await Item.upsert({
-                    player_id: player.id,
-                    item_key: item.item_id,
-                    quantity: item.quantity
-                }, transactionOptions);
+                // 修复关键Bug：使用 InventoryService.addItem 正确累加物品数量
+                // 此前 Item.upsert 会替换已有数量（如已有5个+掉落3个→变为3个而非8个）
+                // addItem 内部会查找已有记录并 quantity += 新数量
+                try {
+                    await InventoryService.addItem(player.id, item.item_id, item.quantity, t);
+                } catch (invErr) {
+                    // 背包容量不足或物品配置不存在时，跳过该物品但不中断战斗结算
+                    console.warn(`[CombatService] 战斗掉落物品入包失败 item=${item.item_id}:`, invErr.message);
+                }
                 gainedItems.push({
                     item_id: item.item_id,
                     quantity: item.quantity

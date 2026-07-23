@@ -76,6 +76,13 @@
       "auto_settle": true,
       "log_each": false,
       "interval_ms": 5000
+    },
+    "red_packet": {
+      "comment": "红包系统定期清理：过期未领完的红包剩余金额退还发送者",
+      "enable": true,
+      "auto_settle": true,
+      "log_each": false,
+      "interval_ms": 5000
     }
   },
   "ascension_balance": {
@@ -445,7 +452,37 @@
     ],
     "match_score_range": 200,
     "match_timeout_seconds": 300,
-    "state_cleaner_interval_ms": 5000
+    "state_cleaner_interval_ms": 5000,
+    "five_elements": {
+      "comment": "五行相克 PVP 战斗系统：基于灵根属性计算克制伤害倍率，增加战斗策略深度",
+      "enabled": true,
+      "advantage_multiplier": 1.2,
+      "disadvantage_multiplier": 0.8,
+      "neutral_multiplier": 1.0,
+      "overcomes": {
+        "metal": "wood",
+        "wood": "earth",
+        "earth": "water",
+        "water": "fire",
+        "fire": "metal"
+      },
+      "element_names": {
+        "metal": "金",
+        "wood": "木",
+        "water": "水",
+        "fire": "火",
+        "earth": "土"
+      }
+    },
+    "battle_items": {
+      "comment": "PVP 战斗中使用消耗品配置：增加战斗策略深度，玩家可在战斗回合使用丹药恢复气血/灵力",
+      "enabled": true,
+      "max_uses_per_battle": 3,
+      "max_uses_per_round": 1,
+      "allowed_subtypes": ["healing", "mana"],
+      "item_action_mp_cost": 0,
+      "comment_zh": "每场战斗最多使用3次丹药，每回合最多1次，仅允许 healing(恢复气血) 和 mana(恢复灵力) 子类型"
+    }
   },
   "pvp_extended": {
     "sparring": {
@@ -472,7 +509,15 @@
       "min_realm_rank_to_publish": 3,
       "min_realm_rank_to_accept": 3,
       "bounty_kill_reward_ratio": 0.9,
-      "cleaner_interval_ms": 5000
+      "cleaner_interval_ms": 5000,
+      "protection_period_minutes": 30,
+      "counter_bounty": {
+        "comment": "反悬赏机制：被悬赏者可对悬赏者发起反向悬赏，增加 PVP 社交博弈深度",
+        "enabled": true,
+        "amount_multiplier": 1.2,
+        "max_counter_chain": 3,
+        "reason_prefix": "[反悬赏]"
+      }
     },
     "fengshen": {
       "enabled": true,
@@ -515,6 +560,24 @@
       "realm_rank_multiplier": 100,
       "equipment_weight": 0.3,
       "max_display_decimals": 0
+    }
+  },
+  "chat": {
+    "comment": "聊天系统配置：红包玩法 + 频道管理",
+    "history_limit": 50,
+    "message_max_length": 500,
+    "red_packet": {
+      "comment": "红包玩法配置：支持拼手气和普通均分两种类型，过期未领取部分自动退款",
+      "enabled": true,
+      "min_amount": 10,
+      "max_amount": 1000000,
+      "min_count": 1,
+      "max_count": 100,
+      "min_per_packet": 1,
+      "expire_hours": 24,
+      "daily_send_limit": 10,
+      "self_claim_allowed": false,
+      "cleaner_interval_ms": 5000
     }
   },
   "pawnshop": {

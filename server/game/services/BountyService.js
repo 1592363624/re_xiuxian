@@ -220,6 +220,32 @@ class BountyService {
                 throw new AppError('目标处于避世状态，无法被悬赏', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
+            // 保护期校验：目标玩家最近完成悬赏后的一段保护期内不可被再次悬赏
+            // 防止恶意连续悬赏同一玩家，增加社交公平性
+            const protectionMinutes = cfg.protection_period_minutes ?? 30;
+            if (protectionMinutes > 0) {
+                const protectionDeadline = new Date(Date.now() - protectionMinutes * 60 * 1000);
+                const recentCompleted = await PlayerBounty.findOne({
+                    where: {
+                        target_id: targetId,
+                        status: BountyStatus.COMPLETED,
+                        completed_at: { [Op.gt]: protectionDeadline }
+                    },
+                    transaction: t
+                });
+                if (recentCompleted) {
+                    await t.commit();
+                    const remainMin = Math.ceil(
+                        (new Date(recentCompleted.completed_at).getTime() + protectionMinutes * 60 * 1000 - Date.now()) / 60000
+                    );
+                    throw new AppError(
+                        `目标处于悬赏保护期内，剩余 ${remainMin} 分钟，暂不可被悬赏`,
+                        400,
+                        ErrorCodes.BUSINESS_LOGIC_ERROR
+                    );
+                }
+            }
+
             // 计算总扣除：悬赏金额 + 平台手续费
             const feeRate = cfg.platform_fee_rate ?? 0.05;
             const feeNum = Math.floor(amountNum * feeRate);
@@ -549,9 +575,9 @@ class BountyService {
     }
 
     /**
-     * 获取我的悬赏（发布的 + 接取的）
+     * 获取我的悬赏（发布的 + 接取的 + 针对我的）
      * @param {number} playerId - 玩家ID
-     * @returns {Promise<Object>} { published: [], accepted: [] }
+     * @returns {Promise<Object>} { published: [], accepted: [], targeting_me: [] }
      */
     async getMyBounties(playerId) {
         // 查询我发布的悬赏
@@ -566,9 +592,19 @@ class BountyService {
             order: [['accepted_at', 'DESC']]
         });
 
+        // 查询针对我的悬赏（我是 target，且状态为 active 或 accepted）
+        // 用于反悬赏功能：被悬赏者可在"针对我的"列表中对悬赏者发起反悬赏
+        const targetingMe = await PlayerBounty.findAll({
+            where: {
+                target_id: playerId,
+                status: { [Op.in]: [BountyStatus.ACTIVE, BountyStatus.ACCEPTED] }
+            },
+            order: [['created_at', 'DESC']]
+        });
+
         // 批量查询关联玩家信息
         const playerIds = new Set();
-        for (const r of [...published, ...accepted]) {
+        for (const r of [...published, ...accepted, ...targetingMe]) {
             playerIds.add(r.publisher_id);
             playerIds.add(r.target_id);
             if (r.acceptor_id) playerIds.add(r.acceptor_id);
@@ -581,7 +617,8 @@ class BountyService {
 
         return {
             published: published.map(r => this._formatBountyDetail(r, playerMap)),
-            accepted: accepted.map(r => this._formatBountyDetail(r, playerMap))
+            accepted: accepted.map(r => this._formatBountyDetail(r, playerMap)),
+            targeting_me: targetingMe.map(r => this._formatBountyDetail(r, playerMap))
         };
     }
 
@@ -667,6 +704,115 @@ class BountyService {
             if (!t.finished) await t.rollback();
             throw err;
         }
+    }
+
+    /**
+     * 反悬赏：被悬赏者对悬赏者发起反向悬赏
+     *
+     * 设计目的：增加 PVP 社交博弈深度。被悬赏的玩家不只能被动防守，
+     * 还可以花费灵石主动反击，对悬赏自己的人发起反向悬赏。
+     *
+     * 校验规则：
+     * - 反悬赏功能全局开启（counter_bounty.enabled=true）
+     * - 原悬赏存在且状态为 active 或 accepted
+     * - 调用者为原悬赏的 target_id（只有被悬赏者才能反悬赏）
+     * - 反悬赏链深度未超上限（max_counter_chain，通过 reason 前缀计数）
+     * - 反悬赏金额 = 原悬赏金额 * amount_multiplier
+     *
+     * 流程：
+     * 1. 查询原悬赏，校验调用者身份与状态
+     * 2. 计算反悬赏链深度（reason 中 [反悬赏] 前缀出现次数）
+     * 3. 计算反悬赏金额
+     * 4. 调用 publishBounty 创建反向悬赏（复用所有校验逻辑）
+     *
+     * @param {number} playerId - 调用者玩家ID（须为原悬赏的 target）
+     * @param {number} bountyId - 原悬赏ID
+     * @param {string} [reason] - 反悬赏理由（可选）
+     * @returns {Promise<Object>} 反悬赏详情
+     */
+    async counterBounty(playerId, bountyId, reason) {
+        const cfg = this._getBountyConfig();
+        const counterCfg = cfg.counter_bounty || {};
+
+        // 反悬赏功能开关校验
+        if (counterCfg.enabled === false) {
+            throw new AppError('反悬赏功能未开启', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+        }
+
+        // 查询原悬赏记录（只读，无需事务）
+        const originalBounty = await PlayerBounty.findByPk(bountyId);
+        if (!originalBounty) {
+            throw new AppError('原悬赏不存在', 404, ErrorCodes.NOT_FOUND);
+        }
+
+        // 状态校验：仅 active 或 accepted 状态的原悬赏可被反悬赏
+        if (originalBounty.status !== BountyStatus.ACTIVE &&
+            originalBounty.status !== BountyStatus.ACCEPTED) {
+            throw new AppError(
+                `原悬赏状态为 ${originalBounty.status}，仅悬赏中或已接单状态可反悬赏`,
+                400,
+                ErrorCodes.BUSINESS_LOGIC_ERROR
+            );
+        }
+
+        // 身份校验：仅原悬赏的目标玩家可发起反悬赏
+        if (Number(originalBounty.target_id) !== Number(playerId)) {
+            throw new AppError('仅悬赏目标本人可发起反悬赏', 403, ErrorCodes.UNAUTHORIZED);
+        }
+
+        // 反悬赏链深度校验：通过原悬赏 reason 中的 [反悬赏] 前缀计数
+        // 每次反悬赏在 reason 前添加 prefix，链深度 = prefix 出现次数
+        const prefix = counterCfg.reason_prefix || '[反悬赏]';
+        const maxChain = counterCfg.max_counter_chain ?? 3;
+        const originalReason = originalBounty.reason || '';
+        const chainDepth = originalReason.split(prefix).length - 1;
+        if (chainDepth >= maxChain) {
+            throw new AppError(
+                `反悬赏链已达上限（${maxChain} 次），不可继续反悬赏`,
+                400,
+                ErrorCodes.BUSINESS_LOGIC_ERROR
+            );
+        }
+
+        // 计算反悬赏金额：原悬赏金额 * 倍率
+        const multiplier = counterCfg.amount_multiplier ?? 1.2;
+        const originalAmount = Number(safeBigInt(originalBounty.bounty_amount));
+        const counterAmount = Math.floor(originalAmount * multiplier);
+
+        // 金额范围校验（防止超出配置上下限）
+        const minAmount = cfg.min_bounty_amount ?? 100;
+        const maxAmount = cfg.max_bounty_amount ?? 100000;
+        if (counterAmount < minAmount || counterAmount > maxAmount) {
+            throw new AppError(
+                `反悬赏金额 ${counterAmount} 超出范围（${minAmount} ~ ${maxAmount}）`,
+                400,
+                ErrorCodes.VALIDATION_ERROR
+            );
+        }
+
+        // 构建反悬赏理由：前缀 + 原理由（链深度通过前缀计数）
+        const counterReason = reason
+            ? `${prefix}${reason}`
+            : `${prefix}反击悬赏`;
+
+        // 调用 publishBounty 创建反向悬赏（复用所有校验逻辑：灵石扣除、保护期、PVP模式等）
+        // 反悬赏方向：原 target → 原 publisher（身份互换）
+        const result = await this.publishBounty(
+            playerId,                              // 反悬赏发起者 = 原悬赏目标
+            originalBounty.publisher_id,           // 反悬赏目标 = 原悬赏发布者
+            counterAmount,
+            counterReason
+        );
+
+        // 附加反悬赏元信息
+        return {
+            ...result,
+            is_counter_bounty: true,
+            original_bounty_id: bountyId,
+            counter_chain_depth: chainDepth + 1,
+            original_amount: originalAmount,
+            counter_multiplier: multiplier
+        };
     }
 
     /**

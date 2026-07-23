@@ -176,11 +176,20 @@
     <!-- 洞府社交面板（留言板/访客录/景观布置/游商货品） -->
     <CaveSocialPanel v-if="isCaveSocialOpen" @close="isCaveSocialOpen = false" />
 
+    <!-- 封神台面板（PVP 镜像排名竞技场：排行榜/挑战/防守/赛季） -->
+    <FengshenPanel v-if="isFengshenOpen" @close="isFengshenOpen = false" />
+
+    <!-- 器灵面板（法宝器灵养成：唤醒/抚摸/温养/试炼/护主/催发/试炼榜） -->
+    <ArtifactSpiritPanel v-if="isArtifactSpiritOpen" @close="isArtifactSpiritOpen = false" />
+
     <!-- 聚宝当铺面板（第四阶段新增：典当、赎回、信用额度） -->
     <PawnshopPanel v-if="isPawnshopOpen" @close="isPawnshopOpen = false" />
 
     <!-- 聚宝股市面板（第四阶段新增：行情、持仓、交易、融资） -->
     <StockPanel v-if="isStockOpen" @close="isStockOpen = false" />
+
+    <!-- 拍卖竞价面板（玩法文档第27节：竞价博弈，多人经济玩法） -->
+    <AuctionPanel v-if="isAuctionOpen" @close="isAuctionOpen = false" />
 
     <!-- 元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生） -->
     <NascentSoulPanel v-if="isNascentSoulOpen" @close="isNascentSoulOpen = false" />
@@ -193,6 +202,9 @@
 
     <!-- 小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab） -->
     <SmallWorldPanel v-if="isSmallWorldOpen" @close="isSmallWorldOpen = false" />
+
+    <!-- 神识对决面板（1v1 同时选择博弈 PvP） -->
+    <DivineSenseDuelPanel v-if="isDivineSenseDuelOpen" @close="isDivineSenseDuelOpen = false" />
 
     <!-- 道侣面板（批次3新增：道侣/双修/心契/心劫 4 Tab） -->
     <CompanionPanel v-if="isCompanionOpen" @close="isCompanionOpen = false" />
@@ -293,6 +305,7 @@ import AscensionPanel from '../panels/AscensionPanel.vue';
 import SecondSoulPanel from '../panels/SecondSoulPanel.vue';
 // 小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
 import SmallWorldPanel from '../panels/SmallWorldPanel.vue';
+import DivineSenseDuelPanel from '../panels/DivineSenseDuelPanel.vue';
 // 道侣面板（批次3新增：道侣/双修/心契/心劫 4 Tab）
 import CompanionPanel from '../panels/CompanionPanel.vue';
 // 侍妾面板（批次3新增：侍妾列表/红尘寻缘/远航/日志 4 Tab）
@@ -319,10 +332,15 @@ import FormationPanel from '../panels/FormationPanel.vue';
 import PvpPanel from '../panels/PvpPanel.vue';
 import BountyPanel from '../panels/BountyPanel.vue';
 import CaveSocialPanel from '../panels/CaveSocialPanel.vue';
+// 封神台面板（PVP 镜像排名竞技场：排行榜/挑战/防守/赛季）
+import FengshenPanel from '../panels/FengshenPanel.vue';
+// 器灵面板（法宝器灵养成：唤醒/抚摸/温养/试炼/护主/催发/试炼榜）
+import ArtifactSpiritPanel from '../panels/ArtifactSpiritPanel.vue';
 // 聚宝当铺面板（第四阶段新增：典当、赎回、信用额度）
 import PawnshopPanel from '../panels/PawnshopPanel.vue';
 // 聚宝股市面板（第四阶段新增：行情、持仓、交易、融资）
 import StockPanel from '../panels/StockPanel.vue';
+import AuctionPanel from '../panels/AuctionPanel.vue';
 
 const props = defineProps<{
   player: any
@@ -362,10 +380,15 @@ const isPvpOpen = ref(false);
 const isBountyOpen = ref(false);
 // 洞府社交面板状态（留言/访客/景观/游商）
 const isCaveSocialOpen = ref(false);
+// 封神台面板状态（PVP 镜像排名竞技场）
+const isFengshenOpen = ref(false);
+// 器灵面板状态（法宝器灵养成）
+const isArtifactSpiritOpen = ref(false);
 // 聚宝当铺面板状态（第四阶段新增）
 const isPawnshopOpen = ref(false);
 // 聚宝股市面板状态（第四阶段新增：行情、持仓、交易、融资）
 const isStockOpen = ref(false);
+const isAuctionOpen = ref(false);
 // 元婴出窍面板状态（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生）
 const isNascentSoulOpen = ref(false);
 // 飞升灵界面板状态（批次3新增：飞升/夺舍重生系统）
@@ -374,6 +397,7 @@ const isAscensionOpen = ref(false);
 const isSecondSoulOpen = ref(false);
 // 小世界综合面板状态（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
 const isSmallWorldOpen = ref(false);
+const isDivineSenseDuelOpen = ref(false);
 // 道侣面板状态（批次3新增：道侣/双修/心契/心劫）
 const isCompanionOpen = ref(false);
 // 侍妾面板状态（批次3新增：侍妾列表/红尘寻缘/远航/日志）
@@ -517,6 +541,18 @@ const handleAction = async (actionId: string) => {
     return;
   }
 
+  // 封神台按钮：打开封神台面板（PVP 镜像排名竞技场）
+  if (actionId === 'fengshen') {
+    isFengshenOpen.value = true;
+    return;
+  }
+
+  // 器灵按钮：打开器灵面板（法宝器灵养成：唤醒/抚摸/温养/试炼/护主/催发/试炼榜）
+  if (actionId === 'artifact_spirit') {
+    isArtifactSpiritOpen.value = true;
+    return;
+  }
+
   // 当铺按钮：打开聚宝当铺面板（第四阶段新增：典当、赎回、信用额度）
   if (actionId === 'pawnshop') {
     isPawnshopOpen.value = true;
@@ -526,6 +562,12 @@ const handleAction = async (actionId: string) => {
   // 股市按钮：打开聚宝股市面板（第四阶段新增：行情、持仓、交易、融资）
   if (actionId === 'stock') {
     isStockOpen.value = true;
+    return;
+  }
+
+  // 拍卖按钮：打开拍卖竞价面板（玩法文档第27节：竞价博弈，多人经济玩法）
+  if (actionId === 'auction') {
+    isAuctionOpen.value = true;
     return;
   }
 
@@ -550,6 +592,12 @@ const handleAction = async (actionId: string) => {
   // 小世界按钮：打开小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
   if (actionId === 'small_world') {
     isSmallWorldOpen.value = true;
+    return;
+  }
+
+  // 神识对决按钮：打开神识对决面板（1v1 同时选择博弈 PvP）
+  if (actionId === 'divine_sense_duel') {
+    isDivineSenseDuelOpen.value = true;
     return;
   }
 

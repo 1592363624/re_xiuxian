@@ -1,0 +1,51 @@
+{
+  "_comment": "拍卖系统配置（玩法文档第21/27节·经济与博彩补充）。所有阈值/开关/比例均集中在此，支持热更新。",
+  "enabled": true,
+  "duration_hours": {
+    "min": 1,
+    "max": 72,
+    "default": 6
+  },
+  "starting_price": {
+    "min": 100,
+    "max": 1000000000
+  },
+  "bid": {
+    "min_increment_rate": 0.05,
+    "min_increment_absolute": 10,
+    "max_increment_absolute": 100000000
+  },
+  "fee_rate": 0.05,
+  "anti_snipe": {
+    "enabled": true,
+    "extension_seconds": 60,
+    "trigger_threshold_seconds": 60,
+    "max_extensions": 3
+  },
+  "seller": {
+    "max_concurrent_auctions": 5,
+    "cancel_fee_when_bidded": 0.02,
+    "min_level_rank": 1
+  },
+  "bidder": {
+    "min_level_rank": 1,
+    "max_concurrent_bids": 20
+  },
+  "scheduler": {
+    "settle_check_interval_ms": 30000,
+    "batch_size": 50
+  },
+  "list": {
+    "default_page_size": 20,
+    "max_page_size": 100
+  },
+  "websocket": {
+    "events": {
+      "auction_new_bid": "auction_new_bid",
+      "auction_won": "auction_won",
+      "auction_settled": "auction_settled",
+      "auction_cancelled": "auction_cancelled",
+      "auction_outbid": "auction_outbid"
+    }
+  }
+}

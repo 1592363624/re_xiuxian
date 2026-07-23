@@ -7,6 +7,7 @@
  * 3. GET  /api/bounty/list：悬赏榜单（query: page, page_size, status?）
  * 4. GET  /api/bounty/my：我的悬赏（发布的 + 接取的）
  * 5. POST /api/bounty/:bountyId/cancel：取消悬赏（仅发布者可取消 active 状态）
+ * 6. POST /api/bounty/:bountyId/counter：反悬赏（被悬赏者对悬赏者发起反向悬赏）
  *
  * 设计原则：路由层仅做参数校验与调用 Service，业务逻辑在 BountyService 中
  * 统一响应格式：{ code: 200, message, data }
@@ -247,6 +248,77 @@ router.post('/:bountyId/cancel', auth, async (req, res, next) => {
         res.json({
             code: 200,
             message: '悬赏已取消',
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
+ * POST /api/bounty/:bountyId/counter
+ * 反悬赏：被悬赏者对悬赏者发起反向悬赏
+ *
+ * 玩法说明：被悬赏的玩家不只能被动防守，还可以花费灵石主动反击，
+ * 对悬赏自己的人发起反向悬赏。反悬赏金额 = 原悬赏金额 * 倍率（默认 1.2）。
+ * 反悬赏链深度有上限（默认 3 次），防止无限连锁。
+ *
+ * 路径参数：bountyId - 原悬赏ID
+ * body: { reason?: string } - 反悬赏理由（可选）
+ */
+router.post('/:bountyId/counter', auth, async (req, res, next) => {
+    try {
+        const bountyId = parseInt(req.params.bountyId);
+        if (!Number.isFinite(bountyId) || bountyId <= 0) {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: 'bountyId 参数无效'
+            });
+        }
+
+        // reason 可选，若提供则校验类型与长度
+        const { reason } = req.body;
+        if (reason !== undefined && reason !== null && typeof reason !== 'string') {
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: 'reason 参数必须为字符串'
+            });
+        }
+        if (reason && reason.length > 180) {
+            // 反悬赏理由上限略短于 200，留出 [反悬赏] 前缀空间
+            return res.status(400).json({
+                code: 400,
+                error_code: ErrorCodes.VALIDATION_ERROR,
+                message: '反悬赏理由不能超过 180 字'
+            });
+        }
+
+        const result = await BountyService.counterBounty(req.player.id, bountyId, reason);
+
+        // 推送反悬赏事件给发起方
+        try {
+            WebSocketNotificationService.notifyPlayerUpdate(req.player.id, 'bounty_counter_success', {
+                bounty_id: result.bounty_id,
+                original_bounty_id: bountyId,
+                counter_amount: result.bounty_amount,
+                counter_chain_depth: result.counter_chain_depth
+            });
+        } catch (e) {
+            console.warn('[Bounty] 推送反悬赏事件失败:', e.message);
+        }
+
+        res.json({
+            code: 200,
+            message: '反悬赏发布成功',
             data: result
         });
     } catch (err) {

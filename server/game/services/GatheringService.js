@@ -11,6 +11,9 @@ const ResourceLoader = require('./ResourceLoader');
 const MapConfigLoader = require('./MapConfigLoader');
 // 引入宗门服务（导出单例实例），用于获取采集加成
 const SectService = require('./SectService');
+// 引入背包服务：采集产物通过统一的 addItem 方法入包（正确累加数量）
+// 修复关键Bug：此前使用 Item.upsert 会替换已有物品数量而非累加
+const InventoryService = require('./InventoryService');
 
 class GatheringService {
     /**
@@ -169,13 +172,9 @@ class GatheringService {
             player.mp_current = BigInt(player.mp_current) - BigInt(mpCost);
             await player.save({ transaction: t });
 
-            await Item.upsert({
-                player_id: playerId,
-                item_key: resourceConfig.item_id,
-                quantity: quantity
-            }, {
-                transaction: t
-            });
+            // 修复关键Bug：使用 InventoryService.addItem 正确累加物品数量
+            // 此前 Item.upsert 会替换已有数量（如已有10个+采集5个→变为5个而非15个）
+            await InventoryService.addItem(playerId, resourceConfig.item_id, quantity, t);
 
             if (playerGather) {
                 const newExp = playerGather.proficiency_exp + expGain;

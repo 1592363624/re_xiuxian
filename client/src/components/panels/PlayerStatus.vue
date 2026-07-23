@@ -349,7 +349,7 @@ onUnmounted(() => {
       </div>
       <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">灵石</span>
-        <span class="text-amber-500 font-bold font-mono text-lg">{{ player.spirit_stones || 0 }}</span>
+        <span class="text-amber-500 font-bold font-mono text-lg">{{ formatNumber(player.spirit_stones || 0) }}</span>
       </div>
     </div>
     

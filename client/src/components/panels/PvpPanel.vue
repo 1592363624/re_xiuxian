@@ -236,6 +236,53 @@
                   </div>
                 </div>
               </div>
+
+              <!-- 五行相克展示（基于灵根属性，增加 PVP 策略深度） -->
+              <!-- 后端 battle_info.element_info 返回双方灵根克制关系与伤害倍率 -->
+              <div v-if="status.battle_info.element_info" class="bg-[#0c0a09]/60 border rounded p-2 mt-2"
+                :class="elementBorderColor(status.battle_info.element_info)">
+                <div class="flex items-center justify-between gap-2">
+                  <!-- 己方灵根 -->
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs text-stone-400">己方</span>
+                    <span v-if="status.battle_info.element_info.my_element"
+                      class="px-1.5 py-0.5 rounded text-xs font-bold border"
+                      :class="elementBadgeClass(status.battle_info.element_info.my_element)">
+                      {{ elementIcon(status.battle_info.element_info.my_element) }}
+                      {{ elementName(status.battle_info.element_info.my_element) }}
+                    </span>
+                    <span v-else class="text-xs text-stone-500">无属性</span>
+                  </div>
+                  <!-- 克制关系 -->
+                  <div class="flex-1 text-center">
+                    <div v-if="status.battle_info.element_info.matchup"
+                      class="text-xs font-bold"
+                      :class="elementAdvantageTextClass(status.battle_info.element_info)">
+                      {{ status.battle_info.element_info.matchup }}
+                      <span class="ml-1">×{{ status.battle_info.element_info.multiplier }}</span>
+                    </div>
+                    <div v-else class="text-xs text-stone-500">无相克关系 ×1.0</div>
+                  </div>
+                  <!-- 对手灵根 -->
+                  <div class="flex items-center gap-1.5">
+                    <span v-if="status.battle_info.element_info.opponent_element"
+                      class="px-1.5 py-0.5 rounded text-xs font-bold border"
+                      :class="elementBadgeClass(status.battle_info.element_info.opponent_element)">
+                      {{ elementIcon(status.battle_info.element_info.opponent_element) }}
+                      {{ elementName(status.battle_info.element_info.opponent_element) }}
+                    </span>
+                    <span v-else class="text-xs text-stone-500">无属性</span>
+                    <span class="text-xs text-stone-400">对手</span>
+                  </div>
+                </div>
+                <!-- 克制提示文案 -->
+                <div v-if="status.battle_info.element_info.matchup" class="text-center mt-1.5 text-xs"
+                  :class="status.battle_info.element_info.advantage === 'attacker' ? 'text-emerald-400' : 'text-rose-400'">
+                  {{ status.battle_info.element_info.advantage === 'attacker'
+                    ? '己方灵根克制对手，伤害提升'
+                    : '对手灵根克制己方，伤害降低' }}
+                </div>
+              </div>
             </div>
 
             <!-- 战斗日志（最近 5 条，最新在上） -->
@@ -251,13 +298,21 @@
                     {{ log.actor === 'attacker' ? '攻' : '守' }}
                   </span>
                   <span class="text-stone-300 flex-1">{{ formatLogText(log) }}</span>
+                  <!-- 五行克制标签（行动方对目标方的克制关系） -->
+                  <span v-if="log.element && log.element.name"
+                    class="shrink-0 px-1 rounded text-[10px] font-bold"
+                    :class="log.element.advantage === 'attacker'
+                      ? 'text-emerald-400 bg-emerald-950/50'
+                      : 'text-rose-400 bg-rose-950/50'">
+                    {{ log.element.name }}
+                  </span>
                   <span v-if="log.damage > 0" class="text-amber-400 shrink-0">-{{ log.damage }}</span>
                 </li>
               </ul>
             </div>
 
             <!-- 操作按钮 -->
-            <div class="grid grid-cols-4 gap-2">
+            <div class="grid grid-cols-5 gap-2">
               <button
                 @click="handleAction('attack')"
                 :disabled="actionLoading || !status.battle_info.is_my_turn"
@@ -273,6 +328,11 @@
                 :disabled="actionLoading || !status.battle_info.is_my_turn"
                 class="px-2 py-2 text-xs font-bold rounded bg-cyan-900/50 border border-cyan-700 text-cyan-300 hover:bg-cyan-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
               >防御</button>
+              <button
+                @click="openBattleItems"
+                :disabled="actionLoading || !status.battle_info.is_my_turn"
+                class="px-2 py-2 text-xs font-bold rounded bg-amber-900/50 border border-amber-700 text-amber-300 hover:bg-amber-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
+              >丹药</button>
               <button
                 @click="openFleeConfirm"
                 :disabled="actionLoading"
@@ -356,6 +416,76 @@
         </template>
       </Modal>
 
+      <!-- 丹药选择弹窗（PVP 战斗中使用消耗品） -->
+      <Modal :isOpen="battleItemsShow" title="使用丹药" width="480px" @close="battleItemsShow = false">
+        <div class="space-y-3">
+          <!-- 剩余次数提示 -->
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-stone-400">本场剩余使用次数</span>
+            <span class="font-bold" :class="battleItemsRemaining > 0 ? 'text-amber-400' : 'text-rose-400'">
+              {{ battleItemsRemaining }} / {{ battleItemsMax }}
+            </span>
+          </div>
+
+          <!-- 加载中 -->
+          <div v-if="battleItemsLoading" class="text-center text-stone-500 py-6 text-sm">
+            正在翻阅随身丹药...
+          </div>
+
+          <!-- 无可用丹药 -->
+          <div v-else-if="battleItems.length === 0" class="text-center text-stone-500 py-6 text-sm">
+            <p>背包中没有可在战斗中使用的丹药</p>
+            <p class="text-xs mt-2 text-stone-600">回春丹、小还丹、大还丹、凝气丹、聚灵丹可在战斗中使用</p>
+          </div>
+
+          <!-- 丹药列表 -->
+          <div v-else class="space-y-2 max-h-64 overflow-y-auto">
+            <button
+              v-for="item in battleItems"
+              :key="item.item_id"
+              @click="handleUseItem(item.item_id)"
+              :disabled="actionLoading || battleItemsRemaining <= 0"
+              class="w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
+              :class="item.subtype === 'healing'
+                ? 'bg-rose-950/30 border-rose-800/50 hover:border-rose-600 hover:bg-rose-950/50'
+                : 'bg-sky-950/30 border-sky-800/50 hover:border-sky-600 hover:bg-sky-950/50'"
+            >
+              <!-- 丹药图标 -->
+              <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                :class="item.subtype === 'healing' ? 'bg-rose-900/40' : 'bg-sky-900/40'">
+                <span class="text-lg">{{ item.subtype === 'healing' ? '💊' : '✨' }}</span>
+              </div>
+              <!-- 丹药信息 -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold text-stone-200">{{ item.name }}</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded"
+                    :class="item.quality === 'rare' ? 'bg-purple-900/50 text-purple-300'
+                      : item.quality === 'uncommon' ? 'bg-emerald-900/50 text-emerald-300'
+                      : 'bg-stone-800 text-stone-400'">
+                    {{ item.quality === 'rare' ? '稀有' : item.quality === 'uncommon' ? '良品' : '普通' }}
+                  </span>
+                </div>
+                <p class="text-xs text-stone-500 mt-0.5">{{ item.description }}</p>
+                <p class="text-xs mt-1" :class="item.subtype === 'healing' ? 'text-rose-400' : 'text-sky-400'">
+                  恢复 {{ item.effect.hp_restore || item.effect.mp_restore || 0 }} 点{{ item.subtype === 'healing' ? '气血' : '灵力' }}
+                </p>
+              </div>
+              <!-- 持有数量 -->
+              <div class="text-right shrink-0">
+                <div class="text-xs text-stone-500">持有</div>
+                <div class="text-sm font-bold text-amber-400">×{{ item.quantity }}</div>
+              </div>
+            </button>
+          </div>
+        </div>
+        <template #footer>
+          <button @click="battleItemsShow = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">
+            关闭
+          </button>
+        </template>
+      </Modal>
+
       <!-- 避世/入世切换确认弹窗 -->
       <!-- 玩法文档第17节：避世免疫斗法袭扰，入世恢复正常 PVP 交互 -->
       <Modal :isOpen="pvpModeConfirmShow" :title="pvpModeConfirmTitle" width="460px" @close="pvpModeConfirmShow = false">
@@ -409,7 +539,8 @@ import {
   getLeaderboard,
   executeAction,
   flee,
-  setPvpMode
+  setPvpMode,
+  getBattleItems
 } from '../../api/pvp'
 
 const emit = defineEmits(['close'])
@@ -434,6 +565,18 @@ const maxHp = ref(1)
 
 // 逃跑确认弹窗
 const fleeConfirmShow = ref(false)
+
+// ===== 丹药使用弹窗状态 =====
+// battleItemsShow：是否显示丹药选择弹窗
+// battleItems：可用丹药列表
+// battleItemsLoading：加载中
+// battleItemsRemaining：本场剩余使用次数
+// battleItemsMax：每场上限次数
+const battleItemsShow = ref(false)
+const battleItems = ref([])
+const battleItemsLoading = ref(false)
+const battleItemsRemaining = ref(0)
+const battleItemsMax = ref(3)
 
 // ===== 避世/入世模式切换状态 =====
 // pvpModeConfirmShow：是否显示切换确认弹窗
@@ -790,8 +933,73 @@ const confirmFlee = async () => {
  * 动作类型中文标签
  */
 const actionLabel = (action) => {
-  const map = { attack: '攻击', skill: '技能', defend: '防御' }
+  const map = { attack: '攻击', skill: '技能', defend: '防御', item: '使用丹药' }
   return map[action] || action
+}
+
+// ===== 丹药使用方法 =====
+
+/**
+ * 打开丹药选择弹窗
+ * 调用 GET /pvp/battle-items 获取可用丹药列表
+ */
+const openBattleItems = async () => {
+  if (!status.value?.is_in_pvp_battle) {
+    uiStore.showToast('当前未在战斗中', 'warning')
+    return
+  }
+  if (!status.value.battle_info?.is_my_turn) {
+    uiStore.showToast('当前非己方回合', 'warning')
+    return
+  }
+  battleItemsShow.value = true
+  battleItemsLoading.value = true
+  battleItems.value = []
+  try {
+    const res = await getBattleItems()
+    const data = res.data?.data || res.data
+    battleItems.value = data?.items || []
+    battleItemsRemaining.value = data?.remaining_uses ?? 0
+    battleItemsMax.value = data?.max_uses ?? 3
+  } catch (err) {
+    const msg = err?.response?.data?.message || '获取丹药列表失败'
+    uiStore.showToast(msg, 'error')
+    battleItemsShow.value = false
+  } finally {
+    battleItemsLoading.value = false
+  }
+}
+
+/**
+ * 使用丹药（战斗中使用消耗品）
+ * 调用 POST /pvp/action (action='item', skill_index=物品ID)
+ * @param itemId 物品ID字符串
+ */
+const handleUseItem = async (itemId) => {
+  if (actionLoading.value) return
+  if (battleItemsRemaining.value <= 0) {
+    uiStore.showToast('本场丹药使用次数已用完', 'warning')
+    return
+  }
+  actionLoading.value = true
+  try {
+    const res = await executeAction('item', itemId)
+    const data = res.data?.data || res.data
+    // 更新实时 HP
+    if (data) {
+      currentAttackerHp.value = data.attacker_hp ?? currentAttackerHp.value
+      currentDefenderHp.value = data.defender_hp ?? currentDefenderHp.value
+    }
+    uiStore.showToast('丹药使用成功', 'success')
+    // 关闭弹窗，重新拉取状态
+    battleItemsShow.value = false
+    await fetchStatus()
+  } catch (err) {
+    const msg = err?.response?.data?.message || '丹药使用失败'
+    uiStore.showToast(msg, 'error')
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 // ===== 避世/入世模式切换方法 =====
@@ -845,8 +1053,96 @@ const confirmSwitchPvpMode = async () => {
 const formatLogText = (log) => {
   if (log.text) return log.text
   const actor = log.actor === 'attacker' ? '攻击方' : '防守方'
+  // 丹药使用日志：展示丹药名称和恢复量
+  if (log.action === 'item' && log.item) {
+    const parts = []
+    if (log.item.hp_restore > 0) parts.push(`气血+${log.item.hp_restore}`)
+    if (log.item.mp_restore > 0) parts.push(`灵力+${log.item.mp_restore}`)
+    return `${actor}使用【${log.item.item_name}】${parts.join('，')}`
+  }
   const action = actionLabel(log.action)
   return `${actor}使用${action}`
+}
+
+// ===== 五行相克展示辅助方法 =====
+// 五行图标与颜色映射，用于在战斗区直观展示双方灵根克制关系
+
+/**
+ * 五行属性 → 中文名映射
+ * 供战斗区灵根徽章与克制提示展示
+ */
+const ELEMENT_NAMES = {
+  metal: '金',
+  wood: '木',
+  water: '水',
+  fire: '火',
+  earth: '土'
+}
+
+/**
+ * 五行属性 → 图标 emoji 映射
+ * 金≈⚔️(金戈) / 木≈🌿(草木) / 水≈💧(水珠) / 火≈🔥(火焰) / 土≈⛰️(山土)
+ */
+const ELEMENT_ICONS = {
+  metal: '⚔️',
+  wood: '🌿',
+  water: '💧',
+  fire: '🔥',
+  earth: '⛰️'
+}
+
+/**
+ * 五行属性 → 徽章样式映射
+ * 每种五行使用对应色系的背景+边框，增加视觉辨识度
+ */
+const elementBadgeClass = (element) => {
+  const map = {
+    metal: 'bg-amber-950/60 border-amber-600/60 text-amber-300',
+    wood: 'bg-emerald-950/60 border-emerald-600/60 text-emerald-300',
+    water: 'bg-cyan-950/60 border-cyan-600/60 text-cyan-300',
+    fire: 'bg-red-950/60 border-red-600/60 text-red-300',
+    earth: 'bg-yellow-950/60 border-yellow-700/60 text-yellow-300'
+  }
+  return map[element] || 'bg-stone-800 border-stone-600 text-stone-300'
+}
+
+/**
+ * 五行属性 → 中文名
+ */
+const elementName = (element) => {
+  return ELEMENT_NAMES[element] || element
+}
+
+/**
+ * 五行属性 → 图标
+ */
+const elementIcon = (element) => {
+  return ELEMENT_ICONS[element] || ''
+}
+
+/**
+ * 五行展示卡边框样式
+ * - 己方克制对手：绿色边框（有利）
+ * - 对手克制己方：红色边框（不利）
+ * - 无克制：默认灰色边框
+ */
+const elementBorderColor = (elementInfo) => {
+  if (!elementInfo || !elementInfo.matchup) return 'border-stone-700'
+  return elementInfo.advantage === 'attacker'
+    ? 'border-emerald-600/60'
+    : 'border-rose-600/60'
+}
+
+/**
+ * 克制关系文字颜色
+ * - 己方克制：绿色（有利）
+ * - 对手克制：红色（不利）
+ */
+const elementAdvantageTextClass = (elementInfo) => {
+  if (!elementInfo || !elementInfo.matchup) return 'text-stone-400'
+  return elementInfo.advantage === 'attacker'
+    ? 'text-emerald-300'
+    : 'text-rose-300'
 }
 
 /**

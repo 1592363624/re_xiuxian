@@ -156,7 +156,7 @@
         <!-- ===== Tab 2: 我的悬赏 ===== -->
         <div v-else-if="activeTab === 'my'">
           <div v-if="myLoading" class="text-center text-stone-500 py-10">正在查阅我的悬赏...</div>
-          <div v-else-if="myBounties.published.length === 0 && myBounties.accepted.length === 0" class="text-center text-stone-500 py-10">
+          <div v-else-if="myBounties.published.length === 0 && myBounties.accepted.length === 0 && (myBounties.targeting_me || []).length === 0" class="text-center text-stone-500 py-10">
             <p>你还没有任何悬赏记录</p>
           </div>
           <div v-else class="space-y-4">
@@ -221,6 +221,58 @@
                       </div>
                     </div>
                     <span class="text-amber-400 font-bold shrink-0">{{ bounty.bounty_amount.toLocaleString() }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 针对我的悬赏（我是 target，可反悬赏） -->
+            <div v-if="(myBounties.targeting_me || []).length > 0">
+              <h3 class="text-sm font-bold text-rose-400 mb-2 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                针对我的悬赏
+              </h3>
+              <div class="bg-rose-950/20 border border-rose-800/30 rounded-lg p-2 mb-2 text-xs text-rose-300/80">
+                你正被悬赏追杀，可选择接单者来应战，或花费灵石发起反悬赏反击悬赏者
+              </div>
+              <div class="space-y-2">
+                <div
+                  v-for="bounty in myBounties.targeting_me"
+                  :key="bounty.bounty_id"
+                  class="bg-[#292524] border border-rose-800/40 rounded-lg p-3"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs px-1.5 py-0.5 rounded" :class="statusBadgeClass(bounty.status)">
+                          {{ statusLabel(bounty.status) }}
+                        </span>
+                        <span class="text-sm font-bold text-rose-300">被 {{ bounty.publisher?.nickname || '未知' }} 悬赏</span>
+                      </div>
+                      <div class="text-xs text-stone-400">
+                        金额：{{ bounty.bounty_amount.toLocaleString() }} 灵石
+                        <span v-if="bounty.acceptor"> · 接单者：{{ bounty.acceptor.nickname }}</span>
+                      </div>
+                      <div v-if="bounty.reason" class="text-xs text-stone-500 mt-1 italic truncate">
+                        "{{ bounty.reason }}"
+                      </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-1 shrink-0">
+                      <span class="text-rose-400 font-bold">{{ bounty.bounty_amount.toLocaleString() }}</span>
+                      <!-- 反悬赏按钮（仅 active 状态可反悬赏，accepted 状态战斗进行中也可反悬赏） -->
+                      <button
+                        v-if="bounty.status === 'active' || bounty.status === 'accepted'"
+                        @click="handleCounter(bounty)"
+                        :disabled="actionLoading"
+                        class="px-2 py-1 text-xs bg-purple-900/40 text-purple-300 border border-purple-700/50 rounded hover:bg-purple-800/50 transition-colors disabled:opacity-50"
+                      >
+                        反悬赏
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -321,6 +373,43 @@
           <button @click="confirmCancel" class="px-4 py-2 text-sm bg-rose-900/50 text-rose-300 border border-rose-800/50 rounded hover:bg-rose-800/60 transition-colors">确认取消</button>
         </template>
       </Modal>
+
+      <!-- 反悬赏确认弹窗 -->
+      <Modal :isOpen="counterConfirmShow" title="发起反悬赏" width="480px" @close="counterConfirmShow = false">
+        <div class="space-y-3 text-sm text-stone-300">
+          <p>确认对悬赏者发起反悬赏？反悬赏将创建一个针对原悬赏者的新悬赏。</p>
+          <div v-if="pendingCounter" class="bg-[#292524] border border-purple-800/40 rounded p-3 space-y-1.5">
+            <div>原悬赏者：<span class="text-purple-300 font-bold">{{ pendingCounter.publisher?.nickname }}</span></div>
+            <div>原悬赏金额：<span class="text-stone-200">{{ pendingCounter.bounty_amount.toLocaleString() }}</span> 灵石</div>
+            <div class="pt-1 border-t border-stone-700/50">
+              反悬赏金额：<span class="text-purple-300 font-bold">{{ counterPreviewAmount.toLocaleString() }}</span> 灵石
+              <span class="text-xs text-stone-500">（原金额 × {{ COUNTER_MULTIPLIER }}）</span>
+            </div>
+            <div class="text-xs text-amber-400">总消耗：{{ counterPreviewCost.toLocaleString() }} 灵石（含手续费）</div>
+          </div>
+          <div>
+            <label class="text-xs text-stone-400 mb-1 block">反悬赏理由（可选，最多 180 字）</label>
+            <textarea
+              v-model="counterReason"
+              rows="2"
+              maxlength="180"
+              placeholder="填写反悬赏理由..."
+              class="w-full bg-[#292524] border border-stone-700 rounded px-3 py-2 text-stone-200 text-sm focus:border-purple-600/50 focus:outline-none resize-none"
+            ></textarea>
+          </div>
+          <p class="text-xs text-purple-400/80">反悬赏链上限 3 次，超出将无法继续反悬赏</p>
+        </div>
+        <template #footer>
+          <button @click="counterConfirmShow = false" class="px-4 py-2 text-sm border border-stone-700 text-stone-300 rounded hover:bg-stone-800 transition-colors">再思</button>
+          <button
+            @click="confirmCounter"
+            :disabled="actionLoading"
+            class="px-4 py-2 text-sm bg-purple-900/50 text-purple-300 border border-purple-700/50 rounded hover:bg-purple-800/60 transition-colors disabled:opacity-50"
+          >
+            {{ actionLoading ? '发布中...' : '确认反悬赏' }}
+          </button>
+        </template>
+      </Modal>
     </div>
   </div>
 </template>
@@ -345,7 +434,8 @@ import {
   getMyBounties,
   publishBounty,
   acceptBounty,
-  cancelBounty
+  cancelBounty,
+  counterBounty
 } from '../../api/bounty'
 
 const emit = defineEmits(['close'])
@@ -378,7 +468,7 @@ const pageSize = 20
 
 // ====== 我的悬赏 ======
 const myLoading = ref(false)
-const myBounties = ref({ published: [], accepted: [] })
+const myBounties = ref({ published: [], accepted: [], targeting_me: [] })
 
 // ====== 发布表单 ======
 // 悬赏配置（从后端返回的数据中提取，这里用默认值兜底）
@@ -400,6 +490,10 @@ const acceptConfirmShow = ref(false)
 const pendingBounty = ref(null)
 const cancelConfirmShow = ref(false)
 const pendingCancel = ref(null)
+// 反悬赏确认弹窗
+const counterConfirmShow = ref(false)
+const pendingCounter = ref(null)
+const counterReason = ref('')
 
 // ====== 计算属性 ======
 const feeRateText = computed(() => `${(feeRate * 100).toFixed(0)}%`)
@@ -486,7 +580,7 @@ async function loadMyBounties() {
   myLoading.value = true
   try {
     const res = await getMyBounties()
-    myBounties.value = res.data || { published: [], accepted: [] }
+    myBounties.value = res.data || { published: [], accepted: [], targeting_me: [] }
   } catch (err) {
     uiStore.showToast(err.response?.data?.message || '加载我的悬赏失败', 'error')
   } finally {
@@ -546,6 +640,64 @@ async function confirmCancel() {
     await loadMyBounties()
   } catch (err) {
     uiStore.showToast(err.response?.data?.message || '取消悬赏失败', 'error')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+// ===== 反悬赏功能 =====
+// 玩法说明：被悬赏者可花费灵石对悬赏者发起反向悬赏，增加 PVP 社交博弈深度
+// 反悬赏金额 = 原悬赏金额 * 1.2 倍率，链深度上限 3 次防止无限连锁
+
+/** 反悬赏倍率（与后端配置 counter_bounty.amount_multiplier 保持一致） */
+const COUNTER_MULTIPLIER = 1.2
+
+/**
+ * 反悬赏预估金额（基于原悬赏金额 * 倍率）
+ */
+const counterPreviewAmount = computed(() => {
+  if (!pendingCounter.value) return 0
+  return Math.floor(pendingCounter.value.bounty_amount * COUNTER_MULTIPLIER)
+})
+
+/**
+ * 反悬赏预估总消耗（含手续费）
+ */
+const counterPreviewCost = computed(() => {
+  return counterPreviewAmount.value + Math.floor(counterPreviewAmount.value * feeRate)
+})
+
+/**
+ * 点击反悬赏（弹出确认）
+ */
+function handleCounter(bounty) {
+  pendingCounter.value = bounty
+  counterReason.value = ''
+  counterConfirmShow.value = true
+}
+
+/**
+ * 确认反悬赏
+ */
+async function confirmCounter() {
+  if (!pendingCounter.value) return
+  actionLoading.value = true
+  try {
+    const res = await counterBounty(
+      pendingCounter.value.bounty_id,
+      counterReason.value || undefined
+    )
+    const msg = `反悬赏发布成功！消耗 ${res.data.total_cost} 灵石，` +
+      `反悬赏 ${res.data.target?.nickname} ${res.data.bounty_amount} 灵石` +
+      (res.data.counter_chain_depth > 1 ? `（第 ${res.data.counter_chain_depth} 次反悬赏）` : '')
+    uiStore.showToast(msg, 'success')
+    counterConfirmShow.value = false
+    pendingCounter.value = null
+    counterReason.value = ''
+    // 刷新我的悬赏列表
+    await loadMyBounties()
+  } catch (err) {
+    uiStore.showToast(err.response?.data?.message || '反悬赏失败', 'error')
   } finally {
     actionLoading.value = false
   }

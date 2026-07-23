@@ -27,6 +27,7 @@
     "initialLifespan": 60,
     "initialSpiritStones": 10,
     "agingRate": 1,
+    "reincarnateExpKeepRate": 0.1,
     "spiritRootBonuses": {
         "金": { "atk": 4, "def": 2 },
         "木": { "hp_max": 30, "mp_max": 8 },

@@ -1090,7 +1090,7 @@ class DivineDuelService {
                 opponent_action: duel.challenger_id === player.id ? duel.defender_action : duel.challenger_action,
                 action_deadline: duel.action_deadline,
                 settle_reason: duel.settle_reason,
-                created_at: duel.created_at
+                created_at: duel.createdAt
             }
         };
     }
@@ -1151,7 +1151,7 @@ class DivineDuelService {
                     settle_reason: d.settle_reason,
                     challenger_shield: d.challenger_shield,
                     defender_shield: d.defender_shield,
-                    created_at: d.created_at,
+                    created_at: d.createdAt,
                     finished_at: d.finished_at
                 }))
             }
