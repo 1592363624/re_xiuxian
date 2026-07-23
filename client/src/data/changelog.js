@@ -41,8 +41,10 @@ export const changelog = [
           '【CombatService 集成】出战傀儡属性加成已集成到 PVE 战斗的 3 个关键点：战斗初始化（HP加成）、普通攻击（ATK加成）、技能释放（ATK加成），查询失败时静默降级不影响主流程。',
           '【端到端测试】25/25 断言通过：登录/配置/工坊/参悟图谱/制造傀儡/设置出战/取消出战/设置护法/取消护法/淬炼升级/维修耐久/回收预览/确认回收/401/操作不存在傀儡全覆盖。'
         ]
-      },
-      {
+      }
+    ]
+  },
+  {
         version: 'v0.4.4_BETA',
         date: '2026-07-23',
         sections: [
@@ -66,8 +68,10 @@ export const changelog = [
               '【OpenAPI】新增 5 个路径定义 + 7 个 schema（DayanConfig/DayanStatus/DayanMeditateResult/DayanBreakthroughResult/DayanAscensionCheckResult/DayanLevelConfig/DayanFragmentConfig），可导入 Apifox。',
               '【端到端测试】22/22 断言通过：登录/配置/状态/参悟/参悟后状态/突破边界/飞升前置检查/未鉴权401/神识系统联动验证全覆盖。'
             ]
-          },
-      {
+          }
+        ]
+  },
+  {
         version: 'v0.4.3_BETA',
         date: '2026-07-23',
         sections: [
@@ -91,8 +95,10 @@ export const changelog = [
           '【OpenAPI】新增 10 个路径定义 + 10 个 schema（AuctionConfig/AuctionSummary/AuctionBidRecord/AuctionDetail/CreateAuctionResult/PlaceBidResult/CancelAuctionResult/MyBidItem/GmSettleResult/GmSchedulerStatus），可导入 Apifox。',
           '【端到端测试】22/22 断言通过：登录/配置/储物袋/创建/列表/详情/自己出价失败/我的拍卖/我的竞价/撤销/GM结算/GM调度器/404/401 全覆盖。'
         ]
-      },
-      {
+      }
+        ]
+  },
+  {
         version: 'v0.4.2_BETA',
         date: '2026-07-23',
         sections: [
