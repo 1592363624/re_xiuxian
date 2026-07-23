@@ -63,11 +63,11 @@
           <div class="bg-[#1c1917] rounded border border-stone-800 p-4 space-y-3">
              <div class="flex justify-between items-center">
                 <span class="text-stone-400">游戏版本</span>
-                <span class="text-amber-500 font-mono">v0.0.7_BETA</span>
+                <span class="text-amber-500 font-mono">{{ gameVersion }}</span>
              </div>
              <div class="flex justify-between items-center text-xs text-stone-600">
                 <span>最后更新</span>
-                <span>2025年12月21日09:34:10</span>
+                <span>2026年7月23日</span>
              </div>
              
              <a href="https://github.com/1592363624/re_xiuxian" class="flex items-center justify-between p-3 bg-stone-800/50 rounded border border-stone-700/50 hover:bg-stone-800 hover:border-stone-600 text-stone-300 transition-all group">
@@ -124,9 +124,13 @@
  */
 import { ref } from 'vue'
 import { usePlayerStore } from '../../stores/player'
+// 引入版本号，保证设置面板与更新日志版本一致（单一数据源）
+import { currentVersion } from '../../data/changelog'
 
 const emit = defineEmits(['close'])
 const playerStore = usePlayerStore()
+// 游戏版本（从 changelog 单一数据源读取，避免硬编码不同步）
+const gameVersion = currentVersion
 
 // 注销确认弹窗显示状态
 const showLogoutConfirm = ref(false)

@@ -54,6 +54,22 @@ const PlayerAscension = sequelize.define('PlayerAscension', {
         defaultValue: 0,
         comment: '大衍诀当前层数熟练度'
     },
+    dayan_meditate_count: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '今日参悟次数（跨日重置为0）'
+    },
+    last_meditate_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最后参悟时间（冷却计算用）'
+    },
+    last_meditate_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+        comment: '最后参悟日期（跨日重置判断用）'
+    },
     reverse_channel_coord: {
         type: DataTypes.STRING(100),
         allowNull: true,

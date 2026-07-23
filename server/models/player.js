@@ -468,6 +468,14 @@ const Player = sequelize.define('Player', {
         defaultValue: 0,
         comment: '当铺信用额度（影响典当折扣率，每次按时赎回+1）'
     },
+    // ===== 灵溪垂钓系统字段（玩法文档第21节·经济与博彩补充） =====
+    // LDC（灵鱼丹珠）：稀有保底货币，用于购买钓竿；产出来源于鱼腹机缘+全服每日保底
+    // 与灵石分账，避免通胀污染主货币；后续拍卖/万宝楼可流通
+    ldc: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: 'LDC灵鱼丹珠（稀有保底货币：购买钓竿/拍卖流通，鱼腹机缘产出）'
+    },
     // ===== 股市系统字段（第四阶段新增） =====
     stock_account_balance: {
         type: DataTypes.BIGINT,

@@ -273,6 +273,27 @@ const refinedActions = [
     desc: '元婴出窍 高阶境界'
   },
   {
+    id: 'dayan',
+    name: '大衍诀',
+    // Indigo/violet for dayan - 神识修炼的玄奥感，呼应神识系统
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-300"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="11"/><path d="M12 1v3"/><path d="M12 20v3"/></svg>`,
+    desc: '大衍诀修炼 神识飞升前置'
+  },
+  {
+    id: 'puppet',
+    name: '傀儡',
+    // Amber/stone for puppet workshop - 机关术的金属木质质感
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400"><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>`,
+    desc: '傀儡工坊 制造出战护法'
+  },
+  {
+    id: 'fishing',
+    name: '垂钓',
+    // Cyan/blue for fishing - 水系灵溪的清冷感
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><path d="M12 2v14"/><path d="M12 16a4 4 0 0 1-4-4"/><circle cx="12" cy="20" r="2"/><path d="M6 20q3 2 6 0t6 0"/></svg>`,
+    desc: '灵溪垂钓 钓竿剖鱼排行'
+  },
+  {
     id: 'ascension',
     name: '飞升',
     // Amber/gold for ascension - matches 飞升灵界 gold theme
@@ -362,6 +383,13 @@ const refinedActions = [
     // Amber for sect war / guild battle - matches 宗门战 gold theme
     icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M4 22V4l4-2 4 2 4-2 4 2v18"/><path d="M4 14h16"/><path d="M9 9h2"/><path d="M13 9h2"/><path d="M9 17h2"/><path d="M13 17h2"/></svg>`,
     desc: '宗门战 领地争夺'
+  },
+  {
+    id: 'gambling_stone',
+    name: '赌石',
+    // Purple/amber for gambling stone - 博彩的神秘与财富感
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-purple-400"><path d="M12 2 4 7v10l8 5 8-5V7l-8-5z"/><path d="M12 22V12"/><path d="M4 7l8 5 8-5"/><path d="M9 9l3-2 3 2"/></svg>`,
+    desc: '赌石博彩 线索博弈 切石机缘'
   },
 ]
 

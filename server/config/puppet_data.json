@@ -1,0 +1,200 @@
+{
+  "_comment": "傀儡工坊系统配置（玩法文档第23节·大衍诀与傀儡路线）",
+  "_doc": "大衍诀第三层·控傀解锁傀儡制造；影傀需第四层·千机；大衍灵傀需第五层·衍神",
+  "enabled": true,
+  "min_dayan_level": 3,
+  "max_puppets": 10,
+  "max_battle_puppets": 1,
+  "max_guard_puppets": 1,
+  "battle_stat_ratio": 0.30,
+  "guard_counter_ratio": 0.50,
+
+  "puppet_types": {
+    "mechanical_wood": {
+      "name": "机关木傀",
+      "description": "以机关术与养魂木制造的入门傀儡，属性均衡，造价低廉",
+      "quality": "rare",
+      "required_dayan_level": 3,
+      "blueprint_key": "mechanical_wood_blueprint",
+      "base_stats": {
+        "atk": 50,
+        "def": 30,
+        "hp": 200,
+        "speed": 5
+      },
+      "manufacture_cost": {
+        "spirit_stone": 5000,
+        "materials": {
+          "mechanism_core": 5,
+          "soul_nurturing_wood": 1
+        }
+      },
+      "color": "stone"
+    },
+    "iron_armor": {
+      "name": "铁甲战傀",
+      "description": "披挂铁甲的重装战傀，防御极高，适合扛伤护主",
+      "quality": "epic",
+      "required_dayan_level": 3,
+      "blueprint_key": "iron_armor_blueprint",
+      "base_stats": {
+        "atk": 40,
+        "def": 80,
+        "hp": 400,
+        "speed": 3
+      },
+      "manufacture_cost": {
+        "spirit_stone": 15000,
+        "materials": {
+          "iron_armor_piece": 10,
+          "mechanism_core": 5,
+          "soul_nurturing_wood": 2
+        }
+      },
+      "color": "slate"
+    },
+    "five_element": {
+      "name": "五行灵傀",
+      "description": "以五行灵晶驱动的法术型傀儡，攻防兼备，灵力浑厚",
+      "quality": "epic",
+      "required_dayan_level": 3,
+      "blueprint_key": "five_element_blueprint",
+      "base_stats": {
+        "atk": 70,
+        "def": 50,
+        "hp": 300,
+        "speed": 7
+      },
+      "manufacture_cost": {
+        "spirit_stone": 20000,
+        "materials": {
+          "five_element_crystal": 8,
+          "mechanism_core": 5,
+          "soul_nurturing_wood": 3
+        }
+      },
+      "color": "emerald"
+    },
+    "shadow": {
+      "name": "影傀",
+      "description": "以影石炼制的暗影傀儡，速度极快，擅长突袭刺杀",
+      "quality": "legendary",
+      "required_dayan_level": 4,
+      "blueprint_key": "shadow_blueprint",
+      "base_stats": {
+        "atk": 90,
+        "def": 30,
+        "hp": 250,
+        "speed": 15
+      },
+      "manufacture_cost": {
+        "spirit_stone": 50000,
+        "materials": {
+          "shadow_stone": 5,
+          "mechanism_core": 8,
+          "ancient_soul_wood": 1
+        }
+      },
+      "color": "violet"
+    },
+    "dayan_spirit": {
+      "name": "大衍灵傀",
+      "description": "以大衍灵晶与万年养魂木炼制的终极傀儡，全属性卓越，神识操控之巅",
+      "quality": "mythic",
+      "required_dayan_level": 5,
+      "blueprint_key": "dayan_spirit_blueprint",
+      "base_stats": {
+        "atk": 120,
+        "def": 80,
+        "hp": 500,
+        "speed": 12
+      },
+      "manufacture_cost": {
+        "spirit_stone": 200000,
+        "materials": {
+          "dayan_spirit_crystal": 5,
+          "shadow_stone": 3,
+          "ancient_soul_wood": 2,
+          "mechanism_core": 10
+        }
+      },
+      "color": "amber"
+    }
+  },
+
+  "blueprints": {
+    "mechanical_wood_blueprint": {
+      "name": "机关木傀图谱",
+      "puppet_type": "mechanical_wood",
+      "source": "LDC商城购买 / 基础副本掉落",
+      "description": "记载机关木傀制造方法的古老图谱"
+    },
+    "iron_armor_blueprint": {
+      "name": "铁甲战傀图谱",
+      "puppet_type": "iron_armor",
+      "source": "昆吾山·封魔塔副本掉落",
+      "description": "铁甲战傀的锻造图谱，昆吾山遗宫中偶有发现"
+    },
+    "five_element_blueprint": {
+      "name": "五行灵傀图谱",
+      "puppet_type": "five_element",
+      "source": "苍坤洞府副本掉落",
+      "description": "五行灵傀的炼制图谱，苍坤洞府守灵掉落"
+    },
+    "shadow_blueprint": {
+      "name": "影傀图谱",
+      "puppet_type": "shadow",
+      "source": "虚天殿副本 / 玄骨高阶分支掉落",
+      "description": "影傀的炼魂图谱，虚天殿深层与玄骨秘境产出"
+    },
+    "dayan_spirit_blueprint": {
+      "name": "大衍灵傀图谱",
+      "puppet_type": "dayan_spirit",
+      "source": "青元子世界Boss掉落",
+      "description": "大衍灵傀的终极图谱，仅青元子世界Boss有概率掉落"
+    }
+  },
+
+  "quench": {
+    "max_level": 20,
+    "stat_growth_rate": {
+      "atk": 0.08,
+      "def": 0.08,
+      "hp": 0.08,
+      "speed": 0.03
+    },
+    "cost_per_level": {
+      "spirit_stone_base": 2000,
+      "spirit_stone_per_level": 500,
+      "mechanism_core": 1
+    },
+    "durability_cost": 2,
+    "success_rate_base": 1.0,
+    "success_rate_per_level_decay": 0.02,
+    "min_success_rate": 0.5
+  },
+
+  "repair": {
+    "max_durability": 100,
+    "spirit_stone_per_point": 50,
+    "mechanism_core_per_repair": 1,
+    "durability_loss_per_battle_min": 1,
+    "durability_loss_per_battle_max": 3
+  },
+
+  "recycle": {
+    "material_return_rate": 0.5,
+    "spirit_stone_return_rate": 0.3,
+    "require_confirmation": true
+  },
+
+  "websocket_events": {
+    "puppet_manufactured": "傀儡制造成功",
+    "puppet_quenched": "傀儡淬炼完成",
+    "puppet_repaired": "傀儡维修完成",
+    "puppet_recycled": "傀儡已回收",
+    "puppet_battle_set": "出战傀儡已设置",
+    "puppet_guard_set": "护法傀儡已设置",
+    "puppet_blueprint_learned": "图谱已参悟"
+  }
+}

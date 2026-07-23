@@ -194,6 +194,18 @@
     <!-- 元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生） -->
     <NascentSoulPanel v-if="isNascentSoulOpen" @close="isNascentSoulOpen = false" />
 
+    <!-- 大衍诀修炼面板（玩法文档第23节：5层修炼，神识联动，飞升前置） -->
+    <DayanPanel v-if="isDayanOpen" @close="isDayanOpen = false" />
+
+    <!-- 傀儡工坊面板（玩法文档第23节：大衍诀·控傀解锁，制造/出战/护法/淬炼/维修/回收） -->
+    <PuppetPanel v-if="isPuppetOpen" @close="isPuppetOpen = false" />
+
+    <!-- 灵溪垂钓面板（玩法文档第21节：4级钓竿/鱼饵/鱼塘/钓术熟练度/剖鱼机缘/排行榜） -->
+    <FishingPanel v-if="isFishingOpen" @close="isFishingOpen = false" />
+
+    <!-- 赌石面板（玩法文档第21节：生成原石/线索博弈/切石机缘/熟练度/排行榜） -->
+    <GamblingStonePanel v-if="isGamblingStoneOpen" @close="isGamblingStoneOpen = false" />
+
     <!-- 飞升灵界面板（批次3新增：问道/法相天地/探寻裂缝/空间节点/飞升/天机回溯/夺舍重生） -->
     <AscensionPanel v-if="isAscensionOpen" @close="isAscensionOpen = false" />
 
@@ -341,6 +353,13 @@ import PawnshopPanel from '../panels/PawnshopPanel.vue';
 // 聚宝股市面板（第四阶段新增：行情、持仓、交易、融资）
 import StockPanel from '../panels/StockPanel.vue';
 import AuctionPanel from '../panels/AuctionPanel.vue';
+// 大衍诀修炼面板（玩法文档第23节：5层修炼，神识联动，飞升前置）
+import DayanPanel from '../panels/DayanPanel.vue';
+// 傀儡工坊面板（玩法文档第23节：大衍诀·控傀解锁，制造/出战/护法/淬炼/维修/回收）
+import PuppetPanel from '../panels/PuppetPanel.vue';
+// 灵溪垂钓面板（玩法文档第21节：4级钓竿/鱼饵/鱼塘/钓术熟练度/剖鱼机缘/排行榜）
+import FishingPanel from '../panels/FishingPanel.vue';
+import GamblingStonePanel from '../panels/GamblingStonePanel.vue';
 
 const props = defineProps<{
   player: any
@@ -391,6 +410,13 @@ const isStockOpen = ref(false);
 const isAuctionOpen = ref(false);
 // 元婴出窍面板状态（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生）
 const isNascentSoulOpen = ref(false);
+// 大衍诀修炼面板状态（玩法文档第23节：5层修炼，神识联动，飞升前置）
+const isDayanOpen = ref(false);
+// 傀儡工坊面板状态（玩法文档第23节：大衍诀·控傀解锁，制造/出战/护法/淬炼/维修/回收）
+const isPuppetOpen = ref(false);
+// 灵溪垂钓面板状态（玩法文档第21节：4级钓竿/鱼饵/鱼塘/钓术熟练度/剖鱼机缘/排行榜）
+const isFishingOpen = ref(false);
+const isGamblingStoneOpen = ref(false);
 // 飞升灵界面板状态（批次3新增：飞升/夺舍重生系统）
 const isAscensionOpen = ref(false);
 // 第二元神面板状态（批次3新增：凝练/分化/调度/独立修炼）
@@ -576,6 +602,30 @@ const handleAction = async (actionId: string) => {
     isNascentSoulOpen.value = true;
       return;
     }
+
+  // 大衍诀按钮：打开大衍诀修炼面板（玩法文档第23节：5层修炼，神识联动，飞升前置）
+  if (actionId === 'dayan') {
+    isDayanOpen.value = true;
+    return;
+  }
+
+  // 傀儡按钮：打开傀儡工坊面板（玩法文档第23节：制造/出战/护法/淬炼/维修/回收）
+  if (actionId === 'puppet') {
+    isPuppetOpen.value = true;
+    return;
+  }
+
+  // 垂钓按钮：打开灵溪垂钓面板（玩法文档第21节：钓竿/鱼饵/鱼塘/熟练度/剖鱼/排行榜）
+  if (actionId === 'fishing') {
+    isFishingOpen.value = true;
+    return;
+  }
+
+  // 赌石按钮：打开赌石面板（玩法文档第21节：生成原石/线索博弈/切石机缘/熟练度/排行榜）
+  if (actionId === 'gambling_stone') {
+    isGamblingStoneOpen.value = true;
+    return;
+  }
 
   // 飞升按钮：打开飞升灵界面板（批次3新增：飞升/夺舍重生系统）
   if (actionId === 'ascension') {

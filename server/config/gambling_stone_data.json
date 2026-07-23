@@ -1,0 +1,262 @@
+{
+  "_comment": "赌石系统配置（玩法文档第21节·经济与博彩补充）",
+  "_doc": "博彩小游戏：生成3块原石→根据线索博弈→选择切法→切开产出；熟练度成长+全服保底+原石流转",
+
+  "enabled": true,
+
+  "_daily": "每日次数与产出上限（防沉迷+经济平衡）",
+  "daily": {
+    "generate_limit": 3,
+    "stones_per_generate": 3,
+    "max_uncut_stones": 9,
+    "daily_spirit_stone_cap": 50000,
+    "daily_cultivation_cap": 80000,
+    "_comment_generate": "每日3次生成，每次3块，最多囤9块未切开原石"
+  },
+
+  "_origins": "原石产地（4+1个产地差异化产出池，对应不同资源定位）",
+  "origins": {
+    "luan_xing_island": {
+      "name": "乱星海岛",
+      "description": "海岛矿脉，盛产灵石与修为类原石",
+      "icon": "🏝",
+      "weight": 30,
+      "pool_bias": { "spirit_stones": 0.5, "cultivation": 0.3, "material": 0.15, "rare": 0.05 }
+    },
+    "huang_feng_mine": {
+      "name": "黄枫谷矿脉",
+      "description": "正道宗门矿脉，产出丹方材料与中级资源",
+      "icon": "⛏",
+      "weight": 25,
+      "pool_bias": { "spirit_stones": 0.3, "cultivation": 0.2, "material": 0.4, "rare": 0.1 }
+    },
+    "kun_wu_depth": {
+      "name": "昆吾山深处",
+      "description": "封魔塔周边遗矿，有概率产出法宝碎片与残卷",
+      "icon": "🏔",
+      "weight": 20,
+      "pool_bias": { "spirit_stones": 0.2, "cultivation": 0.2, "material": 0.3, "rare": 0.3 }
+    },
+    "xu_tian_relic": {
+      "name": "虚天殿遗矿",
+      "description": "虚天殿遗落矿脉，极小概率产出LDC与稀有道具",
+      "icon": "✨",
+      "weight": 15,
+      "pool_bias": { "spirit_stones": 0.2, "cultivation": 0.2, "material": 0.3, "rare": 0.3 }
+    },
+    "cursed_vein": {
+      "name": "诅咒矿脉",
+      "description": "煞气浸染的矿脉，产出极高但触发石中诅咒",
+      "icon": "💀",
+      "weight": 10,
+      "pool_bias": { "spirit_stones": 0.4, "cultivation": 0.3, "material": 0.2, "rare": 0.1 },
+      "triggers_curse": true
+    }
+  },
+
+  "_qualities": "原石品质（4档影响基础价/产出上限/线索真实度）",
+  "qualities": {
+    "common": {
+      "name": "普通原石",
+      "tier": 1,
+      "base_price": 100,
+      "weight": 50,
+      "yield_multiplier": 1.0,
+      "rare_chance_bonus": 0.0,
+      "color": "#9ca3af"
+    },
+    "spirit_vein": {
+      "name": "灵纹原石",
+      "tier": 2,
+      "base_price": 500,
+      "weight": 30,
+      "yield_multiplier": 2.5,
+      "rare_chance_bonus": 0.05,
+      "color": "#60a5fa"
+    },
+    "treasure_glow": {
+      "name": "宝光原石",
+      "tier": 3,
+      "base_price": 2000,
+      "weight": 15,
+      "yield_multiplier": 6.0,
+      "rare_chance_bonus": 0.15,
+      "color": "#fbbf24"
+    },
+    "fairy_mist": {
+      "name": "仙雾原石",
+      "tier": 4,
+      "base_price": 8000,
+      "weight": 5,
+      "yield_multiplier": 15.0,
+      "rare_chance_bonus": 0.35,
+      "color": "#c084fc"
+    }
+  },
+
+  "_clues": "线索维度（4维，玩家博弈核心：每条线索可能为真/假，熟练度提升解读准确度）",
+  "clues": {
+    "crust": {
+      "name": "皮壳纹路",
+      "values": ["粗糙", "细腻", "油润", "冰晶"],
+      "_hint": "冰晶>油润>细腻>粗糙，但诅咒矿脉会反向"
+    },
+    "weight": {
+      "name": "重量手感",
+      "values": ["偏轻", "适中", "沉手", "极重"],
+      "_hint": "极重>沉手>适中>偏轻，但空洞原石会欺骗"
+    },
+    "aura": {
+      "name": "灵气强度",
+      "values": ["无", "微弱", "明显", "浓郁"],
+      "_hint": "浓郁>明显>微弱>无，灵气是品质最直接指标"
+    },
+    "color": {
+      "name": "色泽光华",
+      "values": ["灰白", "青绿", "金红", "紫晕"],
+      "_hint": "紫晕>金红>青绿>灰白，色泽越艳价值越高"
+    },
+    "fake_probability": 0.3,
+    "_fake_comment": "每条线索有30%概率为假线索（与真实品质相反），熟练度可降低假线索概率"
+  },
+
+  "_cut_methods": "切开方式（3种，影响损耗/保底/产出，差异化策略选择）",
+  "cut_methods": {
+    "rough": {
+      "name": "粗切",
+      "description": "免费粗切，损耗30%产出，无保底，赌性最强",
+      "cost_spirit_stones": 0,
+      "cost_dayan_level": 0,
+      "loss_rate": 0.3,
+      "guarantee_rare": false,
+      "_comment": "适合低品质原石或赌性玩家"
+    },
+    "fine": {
+      "name": "精切",
+      "description": "精切工艺，损耗10%产出，保底不亏本价，平衡选择",
+      "cost_spirit_stones": 100,
+      "cost_dayan_level": 0,
+      "loss_rate": 0.1,
+      "guarantee_rare": false,
+      "_comment": "适合中品质原石，保底不低于基础价60%"
+    },
+    "divine_sense": {
+      "name": "神识切",
+      "description": "大衍诀神识操控切开，无损产出，必出稀有，需大衍诀一层",
+      "cost_spirit_stones": 0,
+      "cost_dayan_level": 1,
+      "loss_rate": 0.0,
+      "guarantee_rare": true,
+      "_comment": "适合高品质原石，最大化收益"
+    }
+  },
+
+  "_yield_pools": "产出池（按类型分布，受产地pool_bias影响）",
+  "yield_pools": {
+    "spirit_stones": {
+      "common": [50, 200],
+      "spirit_vein": [300, 800],
+      "treasure_glow": [1500, 4000],
+      "fairy_mist": [8000, 20000]
+    },
+    "cultivation": {
+      "common": [100, 500],
+      "spirit_vein": [800, 3000],
+      "treasure_glow": [5000, 15000],
+      "fairy_mist": [30000, 80000]
+    },
+    "materials": {
+      "common": [
+        {"item_id": "low_healing_pill", "min": 1, "max": 3, "weight": 30},
+        {"item_id": "low_mana_pill", "min": 1, "max": 3, "weight": 30},
+        {"item_id": "wild_herb", "min": 1, "max": 2, "weight": 40}
+      ],
+      "spirit_vein": [
+        {"item_id": "mid_healing_pill", "min": 1, "max": 3, "weight": 25},
+        {"item_id": "foundation_pill", "min": 1, "max": 1, "weight": 15},
+        {"item_id": "wild_herb", "min": 2, "max": 5, "weight": 35},
+        {"item_id": "xutian_fire_essence", "min": 1, "max": 2, "weight": 25}
+      ],
+      "treasure_glow": [
+        {"item_id": "gold_pill", "min": 1, "max": 2, "weight": 25},
+        {"item_id": "high_healing_pill", "min": 2, "max": 5, "weight": 30},
+        {"item_id": "faze_suipian_lei", "min": 1, "max": 3, "weight": 25},
+        {"item_id": "ancient_soul_wood", "min": 1, "max": 1, "weight": 20}
+      ],
+      "fairy_mist": [
+        {"item_id": "nascent_pill", "min": 1, "max": 2, "weight": 25},
+        {"item_id": "faze_suipian_lei", "min": 3, "max": 8, "weight": 25},
+        {"item_id": "ancient_soul_wood", "min": 1, "max": 3, "weight": 25},
+        {"item_id": "tianlei_zhu", "min": 1, "max": 1, "weight": 25}
+      ]
+    },
+    "rare_drops": {
+      "_comment": "稀有掉落池：极小概率产出，受产地rare bias影响，LDC走player.ldc字段",
+      "common": [],
+      "spirit_vein": [
+        {"item_id": "shaqi_xiaodao", "chance": 0.005, "name": "煞气小刀"}
+      ],
+      "treasure_glow": [
+        {"item_id": "xingyun_fu", "chance": 0.01, "name": "幸运符"},
+        {"item_id": "yanglian_yin", "chance": 0.008, "name": "养廉银"},
+        {"item_id": "yiming_fu", "chance": 0.005, "name": "易名符"}
+      ],
+      "fairy_mist": [
+        {"type": "ldc", "chance": 0.05, "ldc_amount": [1, 3], "name": "LDC灵鱼丹珠"},
+        {"item_id": "jiaobiao_ling", "chance": 0.01, "name": "劫镖令"},
+        {"item_id": "tianlei_zhu", "chance": 0.02, "name": "天雷竹"},
+        {"item_id": "lingyan_mu_sui_suipian", "chance": 0.015, "name": "灵眼木髓碎片"}
+      ]
+    },
+    "curse_drops": {
+      "_comment": "诅咒矿脉特有：高产出但触发诅咒",
+      "bonus_multiplier": 2.0,
+      "curse_chance": 0.4,
+      "curse_duration_hours": 24,
+      "_curse_effect": "诅咒期间其他玩家可使用劫镖令劫走赌石产出的30%"
+    }
+  },
+
+  "_skill": "赌石熟练度（0-100级，成长系统）",
+  "skill": {
+    "max_level": 100,
+    "exp_per_cut": 10,
+    "exp_per_rare_drop": 50,
+    "_benefits": "每5级+1%线索解读准确度，每10级+1%稀有产出权重",
+    "insight_unlock_level": 100,
+    "_insight_comment": "100级解锁灵识透石：查看1条真实线索",
+    "fake_reduction_per_level": 0.005,
+    "rare_bonus_per_10_level": 0.01,
+    "level_titles": {
+      "0": "赌石新手",
+      "10": "初窥门径",
+      "30": "略有小成",
+      "50": "鉴石行家",
+      "70": "石中老眼",
+      "90": "赌石宗师",
+      "100": "灵识透石"
+    }
+  },
+
+  "_server_guarantee": "全服每日保底（参考灵溪垂钓设计，保证经济流通）",
+  "server_guarantee": {
+    "ldc_daily_min": 1,
+    "ldc_daily_max": 2,
+    "rare_item_daily_min": 1,
+    "rare_item_daily_max": 2,
+    "_comment": "LDC全服每日保底1-2个，稀有道具保底1-2件，避免全服脸黑"
+  },
+
+  "_ranking": "排行榜类型",
+  "ranking": {
+    "types": ["biggest_win", "total_profit", "rare_count", "skill_level"],
+    "limit": 20
+  },
+
+  "_trade": "原石流转（多人交互：未切开原石可上架拍卖行）",
+  "trade": {
+    "enabled": true,
+    "max_markup_rate": 3.0,
+    "_comment": "未切开原石可上架拍卖行，最高3倍基础价，切开后不可交易"
+  }
+}

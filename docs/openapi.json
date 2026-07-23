@@ -267,6 +267,10 @@
     {
       "name": "器灵系统",
       "description": "法宝器灵养成与多人试炼竞技（玩法文档第7节）"
+    },
+    {
+      "name": "灵溪垂钓",
+      "description": "灵溪垂钓系统（玩法文档第21节）：4级钓竿/4种鱼饵/4个鱼塘/钓术熟练度/异步钓鱼/剖鱼机缘/鱼篓鱼谱/4类排行榜"
     }
   ],
   "security": [
@@ -9141,6 +9145,1797 @@
           },
           "interval_ms": {
             "type": "integer"
+          }
+        }
+      },
+      "DayanLevelConfig": {
+        "type": "object",
+        "description": "大衍诀单层配置（含名称/神识倍率/升级经验/残篇需求）",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "第一层·凝识",
+            "description": "层级名称"
+          },
+          "sense_multiplier": {
+            "type": "number",
+            "example": 1.3,
+            "description": "神识倍率"
+          },
+          "exp_to_next": {
+            "type": "integer",
+            "example": 1000,
+            "description": "升至下一层所需经验（0=最高层）"
+          },
+          "fragment_required": {
+            "type": "string",
+            "nullable": true,
+            "example": "ningshi_fragment",
+            "description": "突破所需残篇物品 key"
+          },
+          "fragment_count": {
+            "type": "integer",
+            "example": 1,
+            "description": "突破所需残篇数量"
+          },
+          "description": {
+            "type": "string",
+            "example": "凝练神识，神识上限+100",
+            "description": "该层描述"
+          }
+        }
+      },
+      "DayanFragmentConfig": {
+        "type": "object",
+        "description": "大衍诀残篇物品配置",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "凝识残篇"
+          },
+          "level": {
+            "type": "integer",
+            "example": 1,
+            "description": "对应层级"
+          },
+          "source": {
+            "type": "string",
+            "example": "LDC商城购买",
+            "description": "获取来源"
+          },
+          "description": {
+            "type": "string",
+            "example": "大衍诀入门残篇"
+          }
+        }
+      },
+      "DayanConfig": {
+        "type": "object",
+        "description": "大衍诀系统完整配置（GET /dayan/config 返回）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "min_realm_rank": {
+            "type": "integer",
+            "example": 15,
+            "description": "最低修炼境界 rank（默认15=炼气期）"
+          },
+          "max_level": {
+            "type": "integer",
+            "example": 5
+          },
+          "meditate": {
+            "type": "object",
+            "description": "参悟参数",
+            "properties": {
+              "daily_limit": {
+                "type": "integer",
+                "example": 3
+              },
+              "cooldown_sec": {
+                "type": "integer",
+                "example": 600
+              },
+              "exp_per_meditate": {
+                "type": "integer",
+                "example": 100
+              },
+              "cost_exp_base": {
+                "type": "integer",
+                "example": 500
+              },
+              "cost_exp_per_level": {
+                "type": "integer",
+                "example": 300
+              }
+            }
+          },
+          "breakthrough": {
+            "type": "object",
+            "description": "突破参数",
+            "properties": {
+              "success_rate_base": {
+                "type": "number",
+                "example": 0.8
+              },
+              "success_rate_per_level_decay": {
+                "type": "number",
+                "example": 0.1
+              },
+              "min_success_rate": {
+                "type": "number",
+                "example": 0.3
+              }
+            }
+          },
+          "levels": {
+            "type": "object",
+            "description": "各层配置（key=层级数字字符串）",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DayanLevelConfig"
+            }
+          },
+          "fragments": {
+            "type": "object",
+            "description": "残篇物品配置",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DayanFragmentConfig"
+            }
+          },
+          "ascension_requirement": {
+            "type": "object",
+            "properties": {
+              "required_level": {
+                "type": "integer",
+                "example": 5
+              },
+              "description": {
+                "type": "string",
+                "example": "飞升灵界需大衍诀五层·衍神"
+              }
+            }
+          },
+          "sense_bonus_per_level": {
+            "type": "integer",
+            "example": 100,
+            "description": "每层神识上限加成"
+          }
+        }
+      },
+      "DayanStatus": {
+        "type": "object",
+        "description": "玩家大衍诀修炼状态（GET /dayan/status 返回）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "current_level": {
+            "type": "integer",
+            "example": 0,
+            "description": "当前层数（0-5）"
+          },
+          "current_level_name": {
+            "type": "string",
+            "example": "未入门"
+          },
+          "current_level_description": {
+            "type": "string",
+            "example": "尚未参悟大衍诀"
+          },
+          "current_exp": {
+            "type": "integer",
+            "example": 100,
+            "description": "当前层已积累经验"
+          },
+          "exp_to_next": {
+            "type": "integer",
+            "example": 1000,
+            "description": "升至下一层所需经验（0=最高层）"
+          },
+          "sense_multiplier": {
+            "type": "number",
+            "example": 1,
+            "description": "当前神识倍率"
+          },
+          "sense_max_bonus": {
+            "type": "integer",
+            "example": 0,
+            "description": "神识上限加成"
+          },
+          "can_ascend": {
+            "type": "boolean",
+            "example": false,
+            "description": "是否满足飞升前置"
+          },
+          "ascension_requirement": {
+            "type": "object",
+            "properties": {
+              "required_level": {
+                "type": "integer",
+                "example": 5
+              }
+            }
+          },
+          "meditate": {
+            "type": "object",
+            "description": "参悟状态",
+            "properties": {
+              "daily_limit": {
+                "type": "integer",
+                "example": 3
+              },
+              "daily_used": {
+                "type": "integer",
+                "example": 1
+              },
+              "daily_remaining": {
+                "type": "integer",
+                "example": 2
+              },
+              "cooldown_remaining_sec": {
+                "type": "integer",
+                "example": 0
+              },
+              "can_meditate": {
+                "type": "boolean",
+                "example": true
+              },
+              "cost_exp": {
+                "type": "integer",
+                "example": 500
+              },
+              "exp_per_meditate": {
+                "type": "integer",
+                "example": 100
+              }
+            }
+          },
+          "next_fragment": {
+            "type": "object",
+            "nullable": true,
+            "description": "下一层突破所需残篇信息（最高层为 null）",
+            "properties": {
+              "item_key": {
+                "type": "string",
+                "example": "ningshi_fragment"
+              },
+              "name": {
+                "type": "string",
+                "example": "凝识残篇"
+              },
+              "required": {
+                "type": "integer",
+                "example": 1
+              },
+              "owned": {
+                "type": "integer",
+                "example": 0
+              },
+              "source": {
+                "type": "string",
+                "example": "LDC商城购买"
+              },
+              "description": {
+                "type": "string",
+                "example": "大衍诀入门残篇"
+              }
+            }
+          },
+          "can_breakthrough": {
+            "type": "boolean",
+            "example": false
+          },
+          "player_exp": {
+            "type": "string",
+            "example": "9999500",
+            "description": "玩家当前修为（字符串大数）"
+          },
+          "player_realm": {
+            "type": "string",
+            "example": "化神初期"
+          },
+          "player_realm_rank": {
+            "type": "integer",
+            "example": 18
+          }
+        }
+      },
+      "DayanMeditateResult": {
+        "type": "object",
+        "description": "参悟大衍诀结果（POST /dayan/meditate 返回）",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "参悟大衍诀成功，获得 100 经验"
+          },
+          "level": {
+            "type": "integer",
+            "example": 0,
+            "description": "参悟时所在层数"
+          },
+          "level_name": {
+            "type": "string",
+            "example": "未入门"
+          },
+          "exp_gained": {
+            "type": "integer",
+            "example": 100
+          },
+          "exp_current": {
+            "type": "integer",
+            "example": 100
+          },
+          "exp_to_next": {
+            "type": "integer",
+            "example": 1000
+          },
+          "can_breakthrough": {
+            "type": "boolean",
+            "example": false
+          },
+          "cost_exp": {
+            "type": "integer",
+            "example": 500
+          },
+          "player_exp_after": {
+            "type": "string",
+            "example": "9999500",
+            "description": "参悟后修为余额（字符串大数）"
+          },
+          "daily_remaining": {
+            "type": "integer",
+            "example": 2
+          }
+        }
+      },
+      "DayanBreakthroughResult": {
+        "type": "object",
+        "description": "突破大衍诀层数结果（POST /dayan/breakthrough 返回）",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true,
+            "description": "接口是否成功"
+          },
+          "breakthrough": {
+            "type": "boolean",
+            "example": true,
+            "description": "突破是否成功"
+          },
+          "message": {
+            "type": "string",
+            "example": "突破成功！大衍诀晋升至第一层·凝识"
+          },
+          "old_level": {
+            "type": "integer",
+            "example": 0,
+            "description": "突破前层数（成功时）"
+          },
+          "new_level": {
+            "type": "integer",
+            "example": 1,
+            "description": "突破后层数（成功时）"
+          },
+          "new_level_name": {
+            "type": "string",
+            "example": "第一层·凝识"
+          },
+          "new_level_description": {
+            "type": "string",
+            "example": "凝练神识"
+          },
+          "sense_multiplier": {
+            "type": "number",
+            "example": 1.3
+          },
+          "can_ascend": {
+            "type": "boolean",
+            "example": false
+          },
+          "level": {
+            "type": "integer",
+            "description": "失败时所在层数"
+          },
+          "success_rate": {
+            "type": "number",
+            "example": 0.8,
+            "description": "失败时的成功率"
+          },
+          "exp_current": {
+            "type": "integer",
+            "description": "失败时保留的经验"
+          }
+        }
+      },
+      "DayanAscensionCheckResult": {
+        "type": "object",
+        "description": "飞升前置检查结果（GET /dayan/ascension-check 返回）",
+        "properties": {
+          "required_level": {
+            "type": "integer",
+            "example": 5
+          },
+          "current_level": {
+            "type": "integer",
+            "example": 0
+          },
+          "met": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "需大衍诀5层·衍神方可飞升，当前0层"
+          }
+        }
+      },
+      "PuppetTypeConfig": {
+        "type": "object",
+        "description": "傀儡类型配置",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "机关木傀"
+          },
+          "description": {
+            "type": "string",
+            "example": "以机关术与养魂木制造的入门傀儡"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "rare",
+              "epic",
+              "legendary",
+              "mythic"
+            ],
+            "example": "rare"
+          },
+          "required_dayan_level": {
+            "type": "integer",
+            "example": 3,
+            "description": "所需大衍诀层数"
+          },
+          "blueprint_key": {
+            "type": "string",
+            "example": "mechanical_wood_blueprint"
+          },
+          "base_stats": {
+            "type": "object",
+            "properties": {
+              "atk": {
+                "type": "integer",
+                "example": 50
+              },
+              "def": {
+                "type": "integer",
+                "example": 30
+              },
+              "hp": {
+                "type": "integer",
+                "example": 200
+              },
+              "speed": {
+                "type": "integer",
+                "example": 5
+              }
+            }
+          },
+          "manufacture_cost": {
+            "type": "object",
+            "properties": {
+              "spirit_stone": {
+                "type": "integer",
+                "example": 5000,
+                "description": "灵石消耗（BIGINT 字段，字符串安全）"
+              },
+              "materials": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "example": {
+                  "mechanism_core": 5,
+                  "soul_nurturing_wood": 1
+                }
+              }
+            }
+          },
+          "color": {
+            "type": "string",
+            "example": "stone",
+            "description": "前端主题色"
+          }
+        }
+      },
+      "PuppetBlueprintConfig": {
+        "type": "object",
+        "description": "傀儡图谱配置",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "机关木傀图谱"
+          },
+          "puppet_type": {
+            "type": "string",
+            "example": "mechanical_wood"
+          },
+          "source": {
+            "type": "string",
+            "example": "LDC商城购买 / 基础副本掉落"
+          },
+          "description": {
+            "type": "string",
+            "example": "记载机关木傀制造方法的古老图谱"
+          }
+        }
+      },
+      "PuppetConfig": {
+        "type": "object",
+        "description": "傀儡工坊系统完整配置（GET /puppet/config 返回）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "min_dayan_level": {
+            "type": "integer",
+            "example": 3,
+            "description": "解锁傀儡工坊的最低大衍诀层数"
+          },
+          "max_puppets": {
+            "type": "integer",
+            "example": 10
+          },
+          "max_battle_puppets": {
+            "type": "integer",
+            "example": 1
+          },
+          "max_guard_puppets": {
+            "type": "integer",
+            "example": 1
+          },
+          "battle_stat_ratio": {
+            "type": "number",
+            "example": 0.3,
+            "description": "出战傀儡属性加成比例（30%）"
+          },
+          "guard_counter_ratio": {
+            "type": "number",
+            "example": 0.5,
+            "description": "护法傀儡反击伤害比例（50%）"
+          },
+          "puppet_types": {
+            "type": "object",
+            "description": "5 种傀儡类型配置",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PuppetTypeConfig"
+            }
+          },
+          "blueprints": {
+            "type": "object",
+            "description": "5 种图谱配置",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PuppetBlueprintConfig"
+            }
+          },
+          "quench": {
+            "type": "object",
+            "description": "淬炼配置",
+            "properties": {
+              "max_level": {
+                "type": "integer",
+                "example": 20
+              },
+              "stat_growth_rate": {
+                "type": "object",
+                "properties": {
+                  "atk": {
+                    "type": "number",
+                    "example": 0.08
+                  },
+                  "def": {
+                    "type": "number",
+                    "example": 0.08
+                  },
+                  "hp": {
+                    "type": "number",
+                    "example": 0.08
+                  },
+                  "speed": {
+                    "type": "number",
+                    "example": 0.03
+                  }
+                }
+              },
+              "cost_per_level": {
+                "type": "object",
+                "properties": {
+                  "spirit_stone_base": {
+                    "type": "integer",
+                    "example": 2000
+                  },
+                  "spirit_stone_per_level": {
+                    "type": "integer",
+                    "example": 500
+                  },
+                  "mechanism_core": {
+                    "type": "integer",
+                    "example": 1
+                  }
+                }
+              },
+              "durability_cost": {
+                "type": "integer",
+                "example": 2
+              },
+              "success_rate_base": {
+                "type": "number",
+                "example": 1
+              },
+              "success_rate_per_level_decay": {
+                "type": "number",
+                "example": 0.02
+              },
+              "min_success_rate": {
+                "type": "number",
+                "example": 0.5
+              }
+            }
+          },
+          "repair": {
+            "type": "object",
+            "description": "维修配置",
+            "properties": {
+              "max_durability": {
+                "type": "integer",
+                "example": 100
+              },
+              "spirit_stone_per_point": {
+                "type": "integer",
+                "example": 50
+              },
+              "mechanism_core_per_repair": {
+                "type": "integer",
+                "example": 1
+              },
+              "durability_loss_per_battle_min": {
+                "type": "integer",
+                "example": 1
+              },
+              "durability_loss_per_battle_max": {
+                "type": "integer",
+                "example": 3
+              }
+            }
+          },
+          "recycle": {
+            "type": "object",
+            "description": "回收配置",
+            "properties": {
+              "material_return_rate": {
+                "type": "number",
+                "example": 0.5
+              },
+              "spirit_stone_return_rate": {
+                "type": "number",
+                "example": 0.3
+              },
+              "require_confirmation": {
+                "type": "boolean",
+                "example": true
+              }
+            }
+          },
+          "websocket_events": {
+            "type": "object",
+            "description": "WebSocket 事件文案映射"
+          }
+        }
+      },
+      "PuppetItem": {
+        "type": "object",
+        "description": "傀儡对象（玩家拥有的傀儡）",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "puppet_type": {
+            "type": "string",
+            "example": "mechanical_wood"
+          },
+          "name": {
+            "type": "string",
+            "example": "机关木傀"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "rare",
+              "epic",
+              "legendary",
+              "mythic"
+            ],
+            "example": "rare"
+          },
+          "level": {
+            "type": "integer",
+            "example": 1,
+            "description": "当前等级（1-20）"
+          },
+          "durability": {
+            "type": "integer",
+            "example": 100,
+            "description": "当前耐久度（0-100，0时无法出战/护法/淬炼）"
+          },
+          "max_durability": {
+            "type": "integer",
+            "example": 100
+          },
+          "atk": {
+            "type": "integer",
+            "example": 50
+          },
+          "def": {
+            "type": "integer",
+            "example": 30
+          },
+          "hp": {
+            "type": "integer",
+            "example": 200
+          },
+          "speed": {
+            "type": "integer",
+            "example": 5
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "battle",
+              "guard"
+            ],
+            "example": "idle",
+            "description": "状态：闲置/出战/护法"
+          },
+          "description": {
+            "type": "string",
+            "example": "以机关术与养魂木制造的入门傀儡"
+          },
+          "color": {
+            "type": "string",
+            "example": "stone"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PuppetBlueprint": {
+        "type": "object",
+        "description": "已学图谱对象",
+        "properties": {
+          "blueprint_key": {
+            "type": "string",
+            "example": "mechanical_wood_blueprint"
+          },
+          "blueprint_name": {
+            "type": "string",
+            "example": "机关木傀图谱"
+          },
+          "puppet_type": {
+            "type": "string",
+            "example": "mechanical_wood"
+          },
+          "learned_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "example": "LDC商城购买 / 基础副本掉落"
+          }
+        }
+      },
+      "ManufacturableItem": {
+        "type": "object",
+        "description": "可制造傀儡项（含是否满足条件）",
+        "properties": {
+          "puppet_type": {
+            "type": "string",
+            "example": "mechanical_wood"
+          },
+          "name": {
+            "type": "string",
+            "example": "机关木傀"
+          },
+          "quality": {
+            "type": "string",
+            "example": "rare"
+          },
+          "description": {
+            "type": "string",
+            "example": "以机关术与养魂木制造的入门傀儡"
+          },
+          "required_dayan_level": {
+            "type": "integer",
+            "example": 3
+          },
+          "has_blueprint": {
+            "type": "boolean",
+            "example": true,
+            "description": "是否已参悟图谱"
+          },
+          "dayan_met": {
+            "type": "boolean",
+            "example": true,
+            "description": "大衍诀层数是否达标"
+          },
+          "can_manufacture": {
+            "type": "boolean",
+            "example": true,
+            "description": "是否可制造（图谱+层数双校验通过）"
+          },
+          "manufacture_cost": {
+            "type": "object",
+            "description": "制造消耗（与 PuppetTypeConfig.manufacture_cost 一致）"
+          },
+          "base_stats": {
+            "type": "object",
+            "description": "基础属性（与 PuppetTypeConfig.base_stats 一致）"
+          },
+          "blueprint_source": {
+            "type": "string",
+            "example": "LDC商城购买 / 基础副本掉落"
+          }
+        }
+      },
+      "PuppetWorkshop": {
+        "type": "object",
+        "description": "傀儡工坊完整数据（GET /puppet/workshop 返回）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "dayan_level": {
+            "type": "integer",
+            "example": 3,
+            "description": "玩家当前大衍诀层数"
+          },
+          "min_dayan_level": {
+            "type": "integer",
+            "example": 3
+          },
+          "max_puppets": {
+            "type": "integer",
+            "example": 10
+          },
+          "puppet_count": {
+            "type": "integer",
+            "example": 1
+          },
+          "puppets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PuppetItem"
+            }
+          },
+          "blueprints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PuppetBlueprint"
+            }
+          },
+          "manufacturable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManufacturableItem"
+            }
+          },
+          "battle_stat_ratio": {
+            "type": "number",
+            "example": 0.3
+          },
+          "guard_counter_ratio": {
+            "type": "number",
+            "example": 0.5
+          },
+          "quench_config": {
+            "type": "object",
+            "properties": {
+              "max_level": {
+                "type": "integer",
+                "example": 20
+              },
+              "cost_per_level": {
+                "type": "object"
+              }
+            }
+          },
+          "repair_config": {
+            "type": "object",
+            "properties": {
+              "max_durability": {
+                "type": "integer",
+                "example": 100
+              },
+              "spirit_stone_per_point": {
+                "type": "integer",
+                "example": 50
+              }
+            }
+          },
+          "recycle_config": {
+            "type": "object",
+            "properties": {
+              "material_return_rate": {
+                "type": "number",
+                "example": 0.5
+              },
+              "spirit_stone_return_rate": {
+                "type": "number",
+                "example": 0.3
+              }
+            }
+          }
+        }
+      },
+      "LearnBlueprintResult": {
+        "type": "object",
+        "description": "参悟图谱结果",
+        "properties": {
+          "blueprint_key": {
+            "type": "string",
+            "example": "mechanical_wood_blueprint"
+          },
+          "blueprint_name": {
+            "type": "string",
+            "example": "机关木傀图谱"
+          },
+          "puppet_type": {
+            "type": "string",
+            "example": "mechanical_wood"
+          }
+        }
+      },
+      "ManufacturePuppetResult": {
+        "type": "object",
+        "description": "制造傀儡结果",
+        "properties": {
+          "puppet_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "puppet_type": {
+            "type": "string",
+            "example": "mechanical_wood"
+          },
+          "name": {
+            "type": "string",
+            "example": "机关木傀"
+          },
+          "level": {
+            "type": "integer",
+            "example": 1
+          },
+          "atk": {
+            "type": "integer",
+            "example": 50
+          },
+          "def": {
+            "type": "integer",
+            "example": 30
+          },
+          "hp": {
+            "type": "integer",
+            "example": 200
+          },
+          "speed": {
+            "type": "integer",
+            "example": 5
+          },
+          "durability": {
+            "type": "integer",
+            "example": 100
+          },
+          "spirit_stones_after": {
+            "type": "string",
+            "example": "999995000",
+            "description": "制造后剩余灵石（BIGINT 字符串）"
+          }
+        }
+      },
+      "SetPuppetRoleResult": {
+        "type": "object",
+        "description": "设置/取消出战护法结果",
+        "properties": {
+          "puppet_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "机关木傀"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "battle",
+              "guard",
+              "idle"
+            ],
+            "example": "battle",
+            "description": "battle=出战 / guard=护法 / idle=闲置"
+          },
+          "atk": {
+            "type": "integer",
+            "example": 50
+          },
+          "def": {
+            "type": "integer",
+            "example": 30
+          },
+          "hp": {
+            "type": "integer",
+            "example": 200
+          },
+          "speed": {
+            "type": "integer",
+            "example": 5
+          }
+        }
+      },
+      "QuenchPuppetResult": {
+        "type": "object",
+        "description": "淬炼结果",
+        "properties": {
+          "puppet_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "quench_success": {
+            "type": "boolean",
+            "example": true,
+            "description": "淬炼是否成功"
+          },
+          "success_rate": {
+            "type": "number",
+            "example": 0.98,
+            "description": "本次淬炼成功率（0-1）"
+          },
+          "level": {
+            "type": "integer",
+            "example": 2,
+            "description": "淬炼后等级（成功+1，失败不变）"
+          },
+          "atk": {
+            "type": "integer",
+            "example": 54
+          },
+          "def": {
+            "type": "integer",
+            "example": 32
+          },
+          "hp": {
+            "type": "integer",
+            "example": 216
+          },
+          "speed": {
+            "type": "integer",
+            "example": 5
+          },
+          "durability": {
+            "type": "integer",
+            "example": 98,
+            "description": "成功时-2，失败不变"
+          },
+          "spirit_stones_after": {
+            "type": "string",
+            "example": "999997000",
+            "description": "淬炼后剩余灵石（BIGINT 字符串）"
+          }
+        }
+      },
+      "RepairPuppetResult": {
+        "type": "object",
+        "description": "维修结果",
+        "properties": {
+          "puppet_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "durability": {
+            "type": "integer",
+            "example": 100,
+            "description": "维修后耐久度（恢复满值）"
+          },
+          "max_durability": {
+            "type": "integer",
+            "example": 100
+          },
+          "repaired_points": {
+            "type": "integer",
+            "example": 2,
+            "description": "本次恢复的耐久点数"
+          },
+          "cost_spirit_stones": {
+            "type": "string",
+            "example": "100",
+            "description": "本次消耗灵石（BIGINT 字符串）"
+          },
+          "spirit_stones_after": {
+            "type": "string",
+            "example": "999997900",
+            "description": "维修后剩余灵石（BIGINT 字符串）"
+          }
+        }
+      },
+      "RecyclePreviewResult": {
+        "type": "object",
+        "description": "回收预览结果",
+        "properties": {
+          "puppet_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "puppet_name": {
+            "type": "string",
+            "example": "机关木傀"
+          },
+          "puppet_type": {
+            "type": "string",
+            "example": "mechanical_wood"
+          },
+          "level": {
+            "type": "integer",
+            "example": 1
+          },
+          "material_returns": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "example": {
+              "mechanism_core": 2,
+              "soul_nurturing_wood": 0
+            },
+            "description": "材料返还（key=材料id，value=数量，按 material_return_rate 50% 计算）"
+          },
+          "spirit_stone_return": {
+            "type": "integer",
+            "example": 1500,
+            "description": "灵石返还（含淬炼投入估算，按 spirit_stone_return_rate 30% 计算）"
+          },
+          "material_return_rate": {
+            "type": "number",
+            "example": 0.5
+          },
+          "spirit_stone_return_rate": {
+            "type": "number",
+            "example": 0.3
+          },
+          "require_confirmation": {
+            "type": "boolean",
+            "example": true,
+            "description": "是否需要二次确认"
+          }
+        }
+      },
+      "RecyclePuppetResult": {
+        "type": "object",
+        "description": "确认回收结果",
+        "properties": {
+          "puppet_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "material_returns": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "example": {
+              "mechanism_core": 2
+            }
+          },
+          "spirit_stone_return": {
+            "type": "string",
+            "example": "1500",
+            "description": "返还灵石（BIGINT 字符串）"
+          },
+          "spirit_stones_after": {
+            "type": "string",
+            "example": "999999500",
+            "description": "回收后剩余灵石（BIGINT 字符串）"
+          }
+        }
+      },
+      "FishingConfig": {
+        "type": "object",
+        "description": "灵溪垂钓完整配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "rods": {
+            "type": "object",
+            "description": "4级钓竿配置（qing_zhu/yin_zhu/jin_zhu/jinlei_zhu）"
+          },
+          "baits": {
+            "type": "object",
+            "description": "4种鱼饵配置（diworm/spirit_worm/heaven_spirit/handmade）"
+          },
+          "ponds": {
+            "type": "object",
+            "description": "4个鱼塘配置（qingyun_stream/bibo_pool/lingquan_lake/luanxing_reef）"
+          },
+          "fish_pools": {
+            "type": "object",
+            "description": "鱼类池配置（common/medium/rare/sea_rare）"
+          },
+          "skill": {
+            "type": "object",
+            "description": "熟练度配置（max_level/经验曲线/效果加成）"
+          },
+          "nibble": {
+            "type": "object",
+            "description": "试探配置（max_attempts/bonus/reduction）"
+          },
+          "daily_limits": {
+            "type": "object",
+            "description": "日上限（spirit_stone/cultivation）"
+          },
+          "ldc": {
+            "type": "object",
+            "description": "LDC产出配置（全服保底/鱼腹概率/产出数量）"
+          },
+          "cooking": {
+            "type": "object",
+            "description": "烹鱼配置（exp_per_filet/max_per_cook）"
+          },
+          "scale_talisman": {
+            "type": "object",
+            "description": "鳞符配置（scale_cost/buff_casts/buff_luck_bonus）"
+          },
+          "ranking": {
+            "type": "object",
+            "description": "排行配置（max_entries）"
+          }
+        }
+      },
+      "FishingProfile": {
+        "type": "object",
+        "description": "钓鱼档案",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "rod_tier": {
+            "type": "integer",
+            "description": "钓竿等级（0-4）"
+          },
+          "rod_name": {
+            "type": "string"
+          },
+          "skill_level": {
+            "type": "integer",
+            "description": "钓术熟练度等级（0-100）"
+          },
+          "skill_exp": {
+            "type": "integer"
+          },
+          "next_level_exp": {
+            "type": "integer"
+          },
+          "daily_casts": {
+            "type": "integer",
+            "description": "今日已用竿数"
+          },
+          "daily_limit": {
+            "type": "integer",
+            "description": "今日竿数上限"
+          },
+          "daily_stone_earned": {
+            "type": "string",
+            "description": "今日已获灵石"
+          },
+          "daily_stone_limit": {
+            "type": "integer"
+          },
+          "daily_cultivation_earned": {
+            "type": "string",
+            "description": "今日已获修为"
+          },
+          "daily_cultivation_limit": {
+            "type": "integer"
+          },
+          "buff_casts_remaining": {
+            "type": "integer",
+            "description": "鳞符buff剩余竿数"
+          },
+          "buff_luck_bonus": {
+            "type": "number",
+            "description": "鳞符幸运加成"
+          },
+          "has_active_session": {
+            "type": "boolean"
+          },
+          "total_catches": {
+            "type": "integer"
+          },
+          "total_success": {
+            "type": "integer"
+          },
+          "success_rate": {
+            "type": "number"
+          },
+          "biggest_catch_kg": {
+            "type": "number"
+          },
+          "rarest_catch_quality": {
+            "type": "string"
+          },
+          "ldc_balance": {
+            "type": "integer",
+            "description": "LDC余额"
+          }
+        }
+      },
+      "FishingShop": {
+        "type": "object",
+        "description": "钓具商店",
+        "properties": {
+          "today_weather": {
+            "type": "string",
+            "description": "今日天象"
+          },
+          "luck_modifier": {
+            "type": "number",
+            "description": "幸运修正（-0.06~+0.06）"
+          },
+          "ponds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShopPond"
+            }
+          },
+          "baits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShopBait"
+            }
+          },
+          "skill_level": {
+            "type": "integer"
+          },
+          "rod_tier": {
+            "type": "integer"
+          }
+        }
+      },
+      "ShopPond": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "required_skill_level": {
+            "type": "integer"
+          },
+          "required_bait": {
+            "type": "string"
+          },
+          "is_unlocked": {
+            "type": "boolean"
+          },
+          "is_advanced": {
+            "type": "boolean"
+          },
+          "has_rare_material": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ShopBait": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "integer",
+            "nullable": true
+          },
+          "craftable": {
+            "type": "boolean"
+          },
+          "craft_cost": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      },
+      "CastResult": {
+        "type": "object",
+        "description": "抛竿结果",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "waiting"
+          },
+          "pond_id": {
+            "type": "string"
+          },
+          "pond_name": {
+            "type": "string"
+          },
+          "wait_sec": {
+            "type": "integer",
+            "description": "鱼讯预计等待秒数"
+          },
+          "nibble_at": {
+            "type": "integer",
+            "description": "鱼讯到达时间戳(ms)"
+          },
+          "reel_deadline": {
+            "type": "integer",
+            "description": "提竿截止时间戳(ms)"
+          },
+          "bait_used": {
+            "type": "string"
+          },
+          "daily_casts": {
+            "type": "integer"
+          },
+          "daily_limit": {
+            "type": "integer"
+          }
+        }
+      },
+      "FishingStatus": {
+        "type": "object",
+        "description": "会话状态",
+        "properties": {
+          "has_active_session": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "biting",
+              "expired",
+              "idle"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "remaining_sec": {
+            "type": "integer"
+          },
+          "pond_id": {
+            "type": "string"
+          },
+          "pond_name": {
+            "type": "string"
+          },
+          "nibble_count": {
+            "type": "integer"
+          },
+          "max_nibble": {
+            "type": "integer"
+          },
+          "cast_at": {
+            "type": "integer"
+          },
+          "nibble_at": {
+            "type": "integer"
+          },
+          "reel_deadline": {
+            "type": "integer"
+          }
+        }
+      },
+      "NibbleResult": {
+        "type": "object",
+        "description": "试探咬饵结果",
+        "properties": {
+          "nibble_count": {
+            "type": "integer"
+          },
+          "max_nibble": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "fish_scared": {
+            "type": "boolean",
+            "description": "鱼是否被吓跑（空竿）"
+          },
+          "session_ended": {
+            "type": "boolean",
+            "description": "会话是否已结束"
+          }
+        }
+      },
+      "ReelResult": {
+        "type": "object",
+        "description": "提竿结算结果",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "fish": {
+            "$ref": "#/components/schemas/CaughtFish",
+            "nullable": true
+          },
+          "bonus_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_id": {
+                  "type": "string"
+                },
+                "item_name": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "skill_exp_gained": {
+            "type": "integer"
+          },
+          "stone_earned": {
+            "type": "integer"
+          },
+          "cultivation_earned": {
+            "type": "integer"
+          },
+          "ldc_earned": {
+            "type": "integer"
+          },
+          "is_new_species": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CaughtFish": {
+        "type": "object",
+        "properties": {
+          "fish_id": {
+            "type": "string"
+          },
+          "fish_name": {
+            "type": "string"
+          },
+          "quality": {
+            "type": "string"
+          },
+          "weight_kg": {
+            "type": "number"
+          },
+          "pond_id": {
+            "type": "string"
+          }
+        }
+      },
+      "FishCreel": {
+        "type": "object",
+        "description": "鱼篓",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          },
+          "total_pages": {
+            "type": "integer"
+          },
+          "filter": {
+            "type": "string"
+          },
+          "catches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FishCatchRecord"
+            }
+          }
+        }
+      },
+      "FishCatchRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "fish_id": {
+            "type": "string"
+          },
+          "fish_name": {
+            "type": "string"
+          },
+          "quality": {
+            "type": "string"
+          },
+          "weight_kg": {
+            "type": "number"
+          },
+          "pond_id": {
+            "type": "string"
+          },
+          "is_filleted": {
+            "type": "integer"
+          },
+          "bonus_items": {
+            "type": "string",
+            "nullable": true
+          },
+          "caught_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FishAlbum": {
+        "type": "object",
+        "description": "鱼谱图鉴",
+        "properties": {
+          "total_species": {
+            "type": "integer"
+          },
+          "discovered": {
+            "type": "integer"
+          },
+          "discovery_rate": {
+            "type": "number"
+          },
+          "album": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlbumEntry"
+            }
+          }
+        }
+      },
+      "AlbumEntry": {
+        "type": "object",
+        "properties": {
+          "fish_id": {
+            "type": "string"
+          },
+          "fish_name": {
+            "type": "string"
+          },
+          "quality": {
+            "type": "string"
+          },
+          "first_caught_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total_caught": {
+            "type": "integer"
+          },
+          "biggest_kg": {
+            "type": "number"
+          }
+        }
+      },
+      "FilletResult": {
+        "type": "object",
+        "description": "剖鱼结果",
+        "properties": {
+          "fish_name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "filet_gained": {
+            "type": "integer",
+            "description": "灵鱼肉"
+          },
+          "scale_gained": {
+            "type": "integer",
+            "description": "灵鱼鳞"
+          },
+          "grass_gained": {
+            "type": "integer",
+            "description": "水草团"
+          },
+          "stone_earned": {
+            "type": "integer",
+            "description": "灵石"
+          },
+          "cultivation_earned": {
+            "type": "integer",
+            "description": "修为"
+          },
+          "ldc_earned": {
+            "type": "integer",
+            "description": "LDC"
+          },
+          "spirit_stones_after": {
+            "type": "string"
+          }
+        }
+      },
+      "CookResult": {
+        "type": "object",
+        "description": "烹鱼结果",
+        "properties": {
+          "filet_used": {
+            "type": "integer"
+          },
+          "cultivation_gained": {
+            "type": "integer"
+          }
+        }
+      },
+      "FishingRanking": {
+        "type": "object",
+        "description": "排行榜",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankingEntry"
+            }
+          }
+        }
+      },
+      "RankingEntry": {
+        "type": "object",
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "player_id": {
+            "type": "integer"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "display": {
+            "type": "string"
           }
         }
       }
@@ -74350,6 +76145,1833 @@
           },
           "403": {
             "description": "权限不足"
+          }
+        }
+      }
+    },
+    "/dayan/config": {
+      "get": {
+        "tags": [
+          "大衍诀修炼"
+        ],
+        "summary": "获取大衍诀系统配置",
+        "description": "获取大衍诀系统配置（无需鉴权，供前端展示规则说明与各层详情）",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DayanConfig"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dayan/status": {
+      "get": {
+        "tags": [
+          "大衍诀修炼"
+        ],
+        "summary": "获取玩家大衍诀修炼状态",
+        "description": "获取玩家大衍诀修炼状态（需鉴权）。返回当前层数/经验/参悟次数/冷却/突破条件/神识倍率/飞升前置。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DayanStatus"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/dayan/meditate": {
+      "post": {
+        "tags": [
+          "大衍诀修炼"
+        ],
+        "summary": "参悟大衍诀",
+        "description": "参悟大衍诀（需鉴权）。消耗修为获得大衍诀经验，每日3次，冷却10分钟。境界需≥炼气期（rank≥15）。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "参悟成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "参悟大衍诀成功，获得 100 经验"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DayanMeditateResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（次数上限/冷却中/修为不足/已达最高层）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/dayan/breakthrough": {
+      "post": {
+        "tags": [
+          "大衍诀修炼"
+        ],
+        "summary": "突破大衍诀层数",
+        "description": "突破大衍诀层数（需鉴权）。经验满后消耗残篇尝试突破，成功率随层数递减（80%→70%→60%→50%→40%），失败时残篇损耗但经验保留。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "突破结果（成功或失败）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DayanBreakthroughResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（经验不足/残篇不足/未初始化/已达最高层）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/dayan/ascension-check": {
+      "get": {
+        "tags": [
+          "大衍诀修炼"
+        ],
+        "summary": "检查飞升前置条件",
+        "description": "检查飞升前置条件（需鉴权）。返回大衍诀五层·衍神是否已达成。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DayanAscensionCheckResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/config": {
+      "get": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "获取傀儡工坊系统配置",
+        "description": "获取傀儡工坊系统配置（无需鉴权，供前端展示规则说明与傀儡类型详情）。包含 5 种傀儡类型、5 种图谱、淬炼/维修/回收/战斗加成配置。",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PuppetConfig"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/puppet/workshop": {
+      "get": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "查看傀儡工坊",
+        "description": "查看玩家傀儡工坊（需鉴权）。返回：玩家所有傀儡 + 已学图谱 + 可制造列表 + 大衍诀层数 + 各项配置。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PuppetWorkshop"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/blueprint/learn": {
+      "post": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "参悟图谱",
+        "description": "参悟图谱（需鉴权）。消耗背包中的图谱物品，解锁对应傀儡的制造权限。事务+行级锁保证并发安全，WebSocket 推送 puppet_blueprint_learned 通知。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "blueprint_key"
+                ],
+                "properties": {
+                  "blueprint_key": {
+                    "type": "string",
+                    "example": "mechanical_wood_blueprint",
+                    "description": "图谱key（如 mechanical_wood_blueprint）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "参悟成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "参悟图谱成功：机关木傀图谱"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/LearnBlueprintResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（图谱不存在/已参悟过/背包无此图谱）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/manufacture": {
+      "post": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "制造傀儡",
+        "description": "制造傀儡（需鉴权）。校验大衍诀层数 + 已学图谱 + 灵石 + 材料 + 傀儡数量上限，事务+行级锁+BigInt安全处理灵石消耗。WebSocket 推送 puppet_manufactured 通知。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "puppet_type"
+                ],
+                "properties": {
+                  "puppet_type": {
+                    "type": "string",
+                    "example": "mechanical_wood",
+                    "description": "傀儡类型key（mechanical_wood/iron_armor/five_element/shadow/dayan_spirit）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "制造成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "傀儡制造成功：机关木傀"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ManufacturePuppetResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（类型不存在/大衍诀层数不足/未参悟图谱/数量上限/灵石不足/材料不足）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/{id}/battle": {
+      "post": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "设置出战傀儡",
+        "description": "设置出战傀儡（需鉴权）。出战傀儡在 PVP/PVE 战斗中按 battle_stat_ratio（30%）提供属性加成。同一玩家同时只有 1 个出战傀儡，设置新出战时自动取消旧的。耐久度为0不可出战。WebSocket 推送 puppet_battle_set 通知。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "傀儡ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "设置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "机关木傀 已设置为出战傀儡"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SetPuppetRoleResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（傀儡不存在/不属于你/耐久为0）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/{id}/guard": {
+      "post": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "设置护法傀儡",
+        "description": "设置护法傀儡（需鉴权）。护法傀儡在闭关被袭击时自动反击，造成 guard_counter_ratio（50%）攻击力伤害。同一玩家同时只有 1 个护法傀儡，设置新护法时自动取消旧的。耐久度为0不可护法。WebSocket 推送 puppet_guard_set 通知。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "傀儡ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "设置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "机关木傀 已设置为护法傀儡"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SetPuppetRoleResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（傀儡不存在/不属于你/耐久为0）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/{id}/unset": {
+      "post": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "取消出战/护法",
+        "description": "取消傀儡的出战/护法状态，设为闲置（需鉴权）。闲置状态的傀儡可被回收。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "傀儡ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取消成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已取消出战"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SetPuppetRoleResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（傀儡不存在/不属于你/已是闲置状态）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/{id}/quench": {
+      "post": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "淬炼傀儡",
+        "description": "淬炼傀儡提升等级与属性（需鉴权）。消耗：灵石（base + per_level × 当前等级）+ 机关核心×1。成功率随等级递减（base - decay × level，下限 min_rate），失败材料消耗但等级不变。每次成功消耗2点耐久，最高20级。属性按 8%/级增长（速度 3%/级）。WebSocket 推送 puppet_quenched 通知。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "傀儡ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "淬炼完成（可能成功或失败）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "淬炼成功！机关木傀 升至 2 级"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/QuenchPuppetResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（傀儡不存在/已达最高等级/耐久为0/灵石不足/机关核心不足）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/{id}/repair": {
+      "post": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "维修傀儡",
+        "description": "维修傀儡恢复耐久度至满值（需鉴权）。消耗：灵石（50/点 × 缺失耐久）+ 机关核心×1。WebSocket 推送 puppet_repaired 通知。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "傀儡ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "维修成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "机关木傀 维修完成，耐久度恢复至 100"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RepairPuppetResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（傀儡不存在/耐久已满/灵石不足/机关核心不足）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/{id}/recycle-preview": {
+      "get": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "回收预览",
+        "description": "回收预览（需鉴权）。计算回收可返还的材料与灵石，不实际执行。材料返还率 50%，灵石返还率 30%（含淬炼投入估算）。仅闲置傀儡可回收。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "傀儡ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "预览成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RecyclePreviewResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（傀儡不存在/出战护法中不可回收）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/puppet/{id}/recycle": {
+      "post": {
+        "tags": [
+          "傀儡工坊"
+        ],
+        "summary": "确认回收傀儡",
+        "description": "确认回收傀儡（需鉴权）。删除傀儡，返还材料（50%）+ 灵石（30%，含淬炼投入估算）。事务保证原子性，WebSocket 推送 puppet_recycled 通知。建议前端先调用 recycle-preview 二次确认。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "傀儡ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "回收成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "机关木傀 已回收"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RecyclePuppetResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（傀儡不存在/出战护法中不可回收）"
+          },
+          "401": {
+            "description": "未鉴权"
+          }
+        }
+      }
+    },
+    "/api/fishing/config": {
+      "get": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "获取灵溪垂钓配置",
+        "description": "返回完整配置：4级钓竿/4种鱼饵/4个鱼塘/鱼类池/熟练度/鳞符/排行等（无需鉴权）",
+        "responses": {
+          "200": {
+            "description": "配置详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FishingConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/profile": {
+      "get": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "钓鱼档案",
+        "description": "查看玩家钓鱼状态：钓竿等级/熟练度/今日已用竿数/日上限/LDC余额/最大鱼获/最稀有品质/总成功次数",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FishingProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/shop": {
+      "get": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "钓具商店",
+        "description": "查看今日天象/幸运修正/鱼塘列表（含解锁状态）/鱼饵列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FishingShop"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/rod/buy": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "购买青竹钓竿",
+        "description": "消耗 30 LDC 购买初始 1 级钓竿（每日5竿）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/rod/upgrade": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "升级钓竿",
+        "description": "消耗法则碎片·雷+天雷竹升级钓竿（1→2银竹/2→3金竹/3→4金雷竹）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/bait/buy": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "购买鱼饵",
+        "description": "消耗灵石购买鱼饵（蚯蚓10/灵虫饵50/天灵饵200）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bait_key": {
+                    "type": "string",
+                    "example": "diworm"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "example": 5
+                  }
+                },
+                "required": [
+                  "bait_key",
+                  "quantity"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/bait/craft": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "制作鱼饵",
+        "description": "消耗灵鱼肉/灵鱼鳞/水草团制作自制灵饵（每批次产出3个）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bait_key": {
+                    "type": "string",
+                    "example": "handmade"
+                  },
+                  "batches": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "example": 1
+                  }
+                },
+                "required": [
+                  "bait_key",
+                  "batches"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/scale-talisman": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "炼制鳞符",
+        "description": "消耗灵鱼鳞×10，获得3竿提竿窗口延长+珍稀鱼概率提升buff",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/cast": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "抛竿",
+        "description": "校验钓竿/鱼饵/日竿数/鱼塘解锁，创建活跃会话，预选鱼类",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pond_id": {
+                    "type": "string",
+                    "example": "qingyun_stream",
+                    "description": "鱼塘key"
+                  }
+                },
+                "required": [
+                  "pond_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CastResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/status": {
+      "get": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "会话状态",
+        "description": "查看当前活跃会话进度（等待鱼讯/鱼讯窗口/试探次数/剩余秒数）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FishingStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/nibble": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "试探咬饵",
+        "description": "在鱼讯窗口内试探，提高珍稀鱼概率但有空竿风险（最多3次，每次缩短提竿窗口）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NibbleResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/reel": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "提竿结算",
+        "description": "在鱼讯窗口内提竿，根据时机判定成功/失败，产出鱼获+伴生物品+熟练度经验",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReelResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/give-up": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "放弃收竿",
+        "description": "主动放弃当前会话，不返还鱼饵与日竿数",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/creel": {
+      "get": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "鱼篓",
+        "description": "分页查询玩家鱼获记录，支持按未剖/已剖过滤",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 50
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "unfilleted",
+                "filleted"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FishCreel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/album": {
+      "get": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "鱼谱图鉴",
+        "description": "查看所有已发现鱼类+发现率+首次钓获时间/总数/最大重量",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FishAlbum"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/fillet": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "剖鱼",
+        "description": "消耗鱼获记录，产出灵鱼肉/灵鱼鳞/水草团+灵石/修为/LDC（有日上限）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "catch_id": {
+                    "type": "integer"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 1
+                  }
+                },
+                "required": [
+                  "catch_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilletResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/cook": {
+      "post": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "烹鱼换修为",
+        "description": "消耗灵鱼肉，按 cooking.exp_per_filet 比例获得修为",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "quantity"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CookResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fishing/ranking": {
+      "get": {
+        "tags": [
+          "灵溪垂钓"
+        ],
+        "summary": "排行榜",
+        "description": "4类排行：熟练度/最大鱼获/最稀有品质/总钓获",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "skill_level",
+                "biggest_catch_kg",
+                "rarest_catch_quality",
+                "total_success"
+              ],
+              "default": "skill_level"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FishingRanking"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "业务错误（LDC不足/无钓竿/无活跃会话等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未鉴权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }

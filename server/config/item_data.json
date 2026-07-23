@@ -1103,6 +1103,42 @@
             "price": 50000
         },
         {
+            "id": "ningshi_fragment",
+            "name": "凝识残篇",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "大衍诀残篇之一，记载凝识之法，修习可凝练神识。大衍诀入门残篇，来自 LDC 商城。",
+            "price": 8000
+        },
+        {
+            "id": "fennian_fragment",
+            "name": "分念残篇",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "大衍诀残篇之一，记载分念之术，修习可分神多念。来自 LDC 商城。",
+            "price": 15000
+        },
+        {
+            "id": "kongkui_fragment",
+            "name": "控傀残篇",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "legendary",
+            "description": "大衍诀残篇之一，记载控傀秘法，修习可操控傀儡。来自昆吾山·封魔塔副本。",
+            "price": 30000
+        },
+        {
+            "id": "yanshen_fragment",
+            "name": "衍神残篇",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "mythic",
+            "description": "大衍诀残篇之一，记载衍神大道，修习可达大衍诀五层·衍神，飞升灵界之前置。来自青元子世界BOSS。",
+            "price": 100000
+        },
+        {
             "id": "moon_shadow_letter",
             "name": "月影传书残页",
             "type": "material",
@@ -1351,6 +1387,15 @@
             "price": 30000
         },
         {
+            "id": "ancient_soul_wood",
+            "name": "上古养魂木",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "legendary",
+            "description": "上古遗留的养魂木，神魂之力远超万年养魂木。苍坤洞府与高阶Boss极低概率产出，是炼制影傀与大衍灵傀的关键材料。",
+            "price": 80000
+        },
+        {
             "id": "spirit_eye_tree",
             "name": "灵眼之树",
             "type": "material",
@@ -1358,6 +1403,276 @@
             "quality": "legendary",
             "description": "经掌天瓶从灵眼树胚培养而成的一截灵眼之树，蕴含空间法则碎片。极为稀有的法则级材料。",
             "price": 150000
+        },
+        {
+            "id": "mechanism_core",
+            "name": "机关核心",
+            "type": "material",
+            "subtype": "mechanism",
+            "quality": "uncommon",
+            "description": "傀儡工坊的基础零件，驱动机关运转的核心部件。制造与淬炼傀儡的必备材料。",
+            "price": 200
+        },
+        {
+            "id": "iron_armor_piece",
+            "name": "铁甲片",
+            "type": "material",
+            "subtype": "metal",
+            "quality": "rare",
+            "description": "锻造铁甲战傀的重型甲片，坚硬耐用，可大幅提升傀儡防御。",
+            "price": 500
+        },
+        {
+            "id": "five_element_crystal",
+            "name": "五行灵晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "rare",
+            "description": "蕴含五行之力的灵晶，驱动五行灵傀法术阵列的核心材料。",
+            "price": 800
+        },
+        {
+            "id": "shadow_stone",
+            "name": "影石",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "epic",
+            "description": "产自虚天殿深层的暗影结晶，炼制影傀的关键材料，蕴含空间与暗影之力。",
+            "price": 3000
+        },
+        {
+            "id": "dayan_spirit_crystal",
+            "name": "大衍灵晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "mythic",
+            "description": "青元子世界Boss凝结的终极灵晶，蕴含大衍之力，炼制大衍灵傀的核心材料。",
+            "price": 50000
+        },
+        {
+            "id": "mechanical_wood_blueprint",
+            "name": "机关木傀图谱",
+            "type": "blueprint",
+            "subtype": "puppet",
+            "quality": "rare",
+            "description": "记载机关木傀制造方法的古老图谱。参悟后可制造机关木傀。来源：LDC商城/基础副本。",
+            "price": 1000
+        },
+        {
+            "id": "iron_armor_blueprint",
+            "name": "铁甲战傀图谱",
+            "type": "blueprint",
+            "subtype": "puppet",
+            "quality": "epic",
+            "description": "铁甲战傀的锻造图谱，昆吾山遗宫中偶有发现。参悟后可制造铁甲战傀。",
+            "price": 5000
+        },
+        {
+            "id": "five_element_blueprint",
+            "name": "五行灵傀图谱",
+            "type": "blueprint",
+            "subtype": "puppet",
+            "quality": "epic",
+            "description": "五行灵傀的炼制图谱，苍坤洞府守灵掉落。参悟后可制造五行灵傀。",
+            "price": 8000
+        },
+        {
+            "id": "shadow_blueprint",
+            "name": "影傀图谱",
+            "type": "blueprint",
+            "subtype": "puppet",
+            "quality": "legendary",
+            "description": "影傀的炼魂图谱，虚天殿深层与玄骨秘境产出。参悟后可制造影傀。需大衍诀四层·千机。",
+            "price": 20000
+        },
+        {
+            "id": "dayan_spirit_blueprint",
+            "name": "大衍灵傀图谱",
+            "type": "blueprint",
+            "subtype": "puppet",
+            "quality": "mythic",
+            "description": "大衍灵傀的终极图谱，仅青元子世界Boss有概率掉落。参悟后可制造大衍灵傀。需大衍诀五层·衍神。",
+            "price": 100000
+        },
+        {
+            "id": "qing_zhu_diaogan",
+            "name": "青竹钓竿",
+            "type": "tool",
+            "subtype": "fishing_rod",
+            "quality": "common",
+            "description": "青竹制成的入门钓竿，每日5竿。在灵溪垂钓系统中使用，需30 LDC购买。",
+            "price": 3000
+        },
+        {
+            "id": "yin_zhu_diaogan",
+            "name": "银竹钓竿",
+            "type": "tool",
+            "subtype": "fishing_rod",
+            "quality": "uncommon",
+            "description": "银竹钓竿，每日10竿。由青竹钓竿升级而来，需法则碎片·雷×30+天雷竹×1。",
+            "price": 10000
+        },
+        {
+            "id": "jin_zhu_diaogan",
+            "name": "金竹钓竿",
+            "type": "tool",
+            "subtype": "fishing_rod",
+            "quality": "rare",
+            "description": "金竹钓竿，每日15竿。由银竹钓竿升级而来，需法则碎片·雷×60+万年天雷竹×1。",
+            "price": 50000
+        },
+        {
+            "id": "jinlei_zhu_diaogan",
+            "name": "金雷竹钓竿",
+            "type": "tool",
+            "subtype": "fishing_rod",
+            "quality": "epic",
+            "description": "金雷竹钓竿，每日20竿，终极钓竿。由金竹钓竿升级而来，需法则碎片·雷×90+金雷竹×1。",
+            "price": 200000
+        },
+        {
+            "id": "faze_suipian_lei",
+            "name": "法则碎片·雷",
+            "type": "material",
+            "subtype": "law_fragment",
+            "quality": "legendary",
+            "description": "蕴含雷之法则的碎片，用于升级钓竿（银竹/金竹/金雷竹）和雷法则修炼。",
+            "price": 15000
+        },
+        {
+            "id": "wan_nian_tianlei_zhu",
+            "name": "万年天雷竹",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "epic",
+            "description": "万年生长的天雷竹，金竹钓竿升级的关键材料。乱星海礁与高阶Boss极低概率产出。",
+            "price": 5000
+        },
+        {
+            "id": "diworm",
+            "name": "蚯蚓",
+            "type": "consumable",
+            "subtype": "bait",
+            "quality": "common",
+            "description": "最基础的鱼饵，青云溪通用。渔具铺10灵石/个。",
+            "price": 10
+        },
+        {
+            "id": "spirit_worm",
+            "name": "灵虫饵",
+            "type": "consumable",
+            "subtype": "bait",
+            "quality": "uncommon",
+            "description": "灵气滋养的虫饵，碧波潭通用。渔具铺50灵石/个。",
+            "price": 50
+        },
+        {
+            "id": "heaven_spirit",
+            "name": "天灵饵",
+            "type": "consumable",
+            "subtype": "bait",
+            "quality": "rare",
+            "description": "天灵之气凝炼的高级饵料，灵泉湖通用。渔具铺200灵石/个。",
+            "price": 200
+        },
+        {
+            "id": "handmade",
+            "name": "自制灵饵",
+            "type": "consumable",
+            "subtype": "bait",
+            "quality": "epic",
+            "description": "用灵鱼肉/灵鱼鳞/水草团精心制作的特制饵料，乱星海礁专用。无法购买，需制饵制作。",
+            "price": 500
+        },
+        {
+            "id": "ling_yu_rou",
+            "name": "灵鱼肉",
+            "type": "material",
+            "subtype": "fish_part",
+            "quality": "common",
+            "description": "剖鱼获得的灵鱼肉，可烹鱼换修为或制饵。鱼获本体不可流转，剖出材料可流通。",
+            "price": 30
+        },
+        {
+            "id": "ling_yu_lin",
+            "name": "灵鱼鳞",
+            "type": "material",
+            "subtype": "fish_part",
+            "quality": "uncommon",
+            "description": "剖鱼获得的灵鱼鳞，可制饵或炼鳞符换钓鱼增益。鱼获本体不可流转，剖出材料可流通。",
+            "price": 80
+        },
+        {
+            "id": "shui_cao_tuan",
+            "name": "水草团",
+            "type": "material",
+            "subtype": "fish_part",
+            "quality": "common",
+            "description": "剖鱼获得的水草团，可制饵。鱼获本体不可流转，剖出材料可流通。",
+            "price": 20
+        },
+        {
+            "id": "lingyan_mu_sui_suipian",
+            "name": "灵眼木髓碎片",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "legendary",
+            "description": "灵眼木的核心木髓碎片，极稀有。仅乱星海礁高钓术鱼塘极低概率伴生产出。与灵树系统/傀儡工坊联动。",
+            "price": 30000
+        },
+        {
+            "id": "lian_lin_fu",
+            "name": "炼鳞符",
+            "type": "consumable",
+            "subtype": "talisman",
+            "quality": "rare",
+            "description": "用灵鱼鳞炼制的钓鱼符箓，使用后获得3竿钓鱼增益（幸运+10%）。需灵鱼鳞×5炼制。",
+            "price": 400
+        },
+        {
+            "id": "shaqi_xiaodao",
+            "name": "煞气小刀",
+            "type": "consumable",
+            "subtype": "weapon_item",
+            "quality": "epic",
+            "description": "一次性道具，使用后效果等同一次不消耗修为与材料的物理攻击。鱼获伴生极小概率获得。",
+            "price": 5000
+        },
+        {
+            "id": "xingyun_fu",
+            "name": "幸运符",
+            "type": "consumable",
+            "subtype": "buff_item",
+            "quality": "rare",
+            "description": "使用后获得一段时间幸运加成，提升各类随机事件的好运概率。鱼获伴生极小概率获得。",
+            "price": 2000
+        },
+        {
+            "id": "yanglian_yin",
+            "name": "养廉银",
+            "type": "material",
+            "subtype": "currency",
+            "quality": "rare",
+            "description": "特殊的银锭，可用于特定NPC兑换或上缴。鱼获伴生极小概率获得。",
+            "price": 1000
+        },
+        {
+            "id": "yiming_fu",
+            "name": "易名符",
+            "type": "consumable",
+            "subtype": "utility",
+            "quality": "rare",
+            "description": "使用后可修改角色昵称一次。鱼获伴生极小概率获得。",
+            "price": 1500
+        },
+        {
+            "id": "jiaobiao_ling",
+            "name": "劫镖令",
+            "type": "consumable",
+            "subtype": "weapon_item",
+            "quality": "epic",
+            "description": "一次性道具，使用后24小时内埋伏公开LDC红包，截走第一个/最后一个/最大份额。定向/副本限定红包不触发。鱼获伴生极小概率获得。",
+            "price": 8000
         }
     ]
 }

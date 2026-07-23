@@ -1,0 +1,111 @@
+{
+  "_comment": "大衍诀系统配置（玩法文档第23节·大衍诀与傀儡路线）。所有阈值/比例/冷却均集中在此，支持热更新。",
+  "enabled": true,
+  "min_realm_rank": 15,
+  "max_level": 5,
+  "meditate": {
+    "daily_limit": 3,
+    "cooldown_sec": 600,
+    "exp_per_meditate": 100,
+    "cost_exp_base": 500,
+    "cost_exp_per_level": 300
+  },
+  "breakthrough": {
+    "success_rate_base": 0.8,
+    "success_rate_per_level_decay": 0.1,
+    "min_success_rate": 0.3
+  },
+  "levels": {
+    "0": {
+      "name": "未入门",
+      "sense_multiplier": 1.0,
+      "exp_to_next": 0,
+      "fragment_required": null,
+      "description": "尚未参悟大衍诀，需获取凝识残篇开启修炼"
+    },
+    "1": {
+      "name": "第一层·凝识",
+      "sense_multiplier": 1.30,
+      "exp_to_next": 1000,
+      "fragment_required": "ningshi_fragment",
+      "fragment_count": 1,
+      "description": "凝练神识，神识上限+100，倍率x1.30。可初步探查他人修为。"
+    },
+    "2": {
+      "name": "第二层·分念",
+      "sense_multiplier": 1.60,
+      "exp_to_next": 2000,
+      "fragment_required": "fennian_fragment",
+      "fragment_count": 1,
+      "description": "分神多念，神识上限+200，倍率x1.60。可同时操控多个目标。"
+    },
+    "3": {
+      "name": "第三层·控傀",
+      "sense_multiplier": 2.00,
+      "exp_to_next": 4000,
+      "fragment_required": "kongkui_fragment",
+      "fragment_count": 1,
+      "description": "操控傀儡，神识上限+300，倍率x2.00。解锁傀儡工坊，可制造与操控傀儡。"
+    },
+    "4": {
+      "name": "第四层·千机",
+      "sense_multiplier": 2.45,
+      "exp_to_next": 8000,
+      "fragment_required": "qianji_fragment",
+      "fragment_count": 1,
+      "description": "千机神算，神识上限+400，倍率x2.45。神识威压大幅提升，御宝预算增加。"
+    },
+    "5": {
+      "name": "第五层·衍神",
+      "sense_multiplier": 3.00,
+      "exp_to_next": 0,
+      "fragment_required": "yanshen_fragment",
+      "fragment_count": 1,
+      "description": "衍化元神，神识上限+500，倍率x3.00。飞升灵界之前置条件已满足。"
+    }
+  },
+  "fragments": {
+    "ningshi_fragment": {
+      "name": "凝识残篇",
+      "level": 1,
+      "source": "LDC商城购买",
+      "description": "大衍诀入门残篇，记载凝识之法"
+    },
+    "fennian_fragment": {
+      "name": "分念残篇",
+      "level": 2,
+      "source": "LDC商城购买",
+      "description": "记载分念之术，修习可分神多念"
+    },
+    "kongkui_fragment": {
+      "name": "控傀残篇",
+      "level": 3,
+      "source": "昆吾山·封魔塔副本掉落",
+      "description": "记载控傀秘法，修习可操控傀儡"
+    },
+    "qianji_fragment": {
+      "name": "千机残篇",
+      "level": 4,
+      "source": "苍坤洞府副本掉落",
+      "description": "记载千机道人的神通秘要"
+    },
+    "yanshen_fragment": {
+      "name": "衍神残篇",
+      "level": 5,
+      "source": "青元子世界BOSS掉落",
+      "description": "记载衍神大道，飞升灵界之前置"
+    }
+  },
+  "ascension_requirement": {
+    "required_level": 5,
+    "description": "飞升灵界需大衍诀五层·衍神"
+  },
+  "sense_bonus_per_level": 100,
+  "websocket": {
+    "events": {
+      "dayan_meditate": "dayan_meditate",
+      "dayan_breakthrough_success": "dayan_breakthrough_success",
+      "dayan_breakthrough_failed": "dayan_breakthrough_failed"
+    }
+  }
+}

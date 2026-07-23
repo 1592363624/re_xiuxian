@@ -246,6 +246,42 @@ async function initializeCoreServices(configLoaderInstance) {
         } catch (e) {
             console.warn('拍卖系统服务初始化失败:', e.message);
         }
+        // 大衍诀修炼服务初始化（玩法文档第23节·大衍诀与傀儡路线，依赖 dayan_data 配置）
+        // 系统定位：后期成长线，5层修炼（凝识→分念→控傀→千机→衍神）
+        // 联动：神识上限（dayan_level * 100）、飞升前置（五层·衍神）
+        try {
+            const DayanService = require('./game/services/DayanService');
+            DayanService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('大衍诀修炼服务初始化失败:', e.message);
+        }
+        // 傀儡工坊服务初始化（玩法文档第23节·大衍诀与傀儡路线，依赖 puppet_data 配置）
+        // 系统定位：大衍诀第三层·控傀解锁的深度多人 PVP/PVE 玩法
+        // 5种傀儡制造/淬炼/维修/回收 + 出战属性加成 + 护法自动反击
+        try {
+            const PuppetService = require('./game/services/PuppetService');
+            PuppetService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('傀儡工坊服务初始化失败:', e.message);
+        }
+        // 灵溪垂钓服务初始化（玩法文档第21节·经济与博彩补充，依赖 fishing_data 配置）
+        // 系统定位：异步钓鱼 + 钓术熟练度成长 + 剖鱼机缘 + 全服 LDC 保底产出
+        // 4级钓竿/4种鱼饵/4个鱼塘 + 鱼篓/鱼谱/排行榜 + 鳞符 buff + 烹鱼换修为
+        try {
+            const FishingService = require('./game/services/FishingService');
+            FishingService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('灵溪垂钓服务初始化失败:', e.message);
+        }
+        // 赌石系统服务初始化（玩法文档第21节·经济与博彩补充，依赖 gambling_stone_data 配置）
+        // 系统定位：博彩小游戏 + 线索博弈 + 熟练度成长 + 全服保底 + 原石流转
+        // 4+1产地/4档品质/4维线索/3种切法 + 诅咒PVP + 排行榜 + 灵识透石
+        try {
+            const GamblingStoneService = require('./game/services/GamblingStoneService');
+            GamblingStoneService.initialize(configLoaderInstance);
+        } catch (e) {
+            console.warn('赌石系统服务初始化失败:', e.message);
+        }
         return true;
     } catch (error) {
         console.error('游戏核心服务初始化失败:', error.message);
@@ -673,6 +709,30 @@ const startServer = async () => {
     // 多人互动：全服竞价博弈 + 防秒杀延长 + 灵石冻结退还 + 自动结算
     // 与万宝楼差异化：万宝楼是"标价直购"（即时成交），拍卖是"竞价博弈"（多人竞争 + 倒计时）
     app.use('/api/auction', require('./routes/auction'));
+
+    // 大衍诀修炼系统路由（玩法文档第23节·大衍诀与傀儡路线）
+    // 玩家端：获取配置/修炼状态/参悟（消耗修为获得经验）/突破（消耗残篇+成功率判定）/飞升前置检查
+    // 联动系统：神识淬炼（层数影响神识上限）、飞升灵界（五层·衍神为前置条件）
+    // 多人互动：后续傀儡工坊（第三层·控傀解锁）将引入傀儡 PVP/PVE 玩法
+    app.use('/api/dayan', require('./routes/dayan'));
+
+    // 傀儡工坊系统路由（玩法文档第23节·大衍诀与傀儡路线）
+    // 玩家端：查看工坊/参悟图谱/制造傀儡/出战/护法/淬炼/维修/回收
+    // 多人互动：出战傀儡 PVP/PVE 属性加成 + 护法傀儡闭关自动反击 + 图谱来自多人副本
+    // 联动系统：大衍诀（第三层·控傀解锁制造权限）
+    app.use('/api/puppet', require('./routes/puppet'));
+
+    // 灵溪垂钓系统路由（玩法文档第21节·经济与博彩补充）
+    // 玩家端：购买/升级钓竿、购买/制作鱼饵、抛竿/试探/提竿、剖鱼/烹鱼、鱼篓/鱼谱/排行榜
+    // 多人互动：剖鱼产出在万宝楼/拍卖行流通 + LDC 全服每日保底 + 排行榜竞争 + 煞气小刀/劫镖令
+    // 联动系统：法则碎片·雷（飞升系统产出）、天雷竹（鱼塘伴生物）、灵鱼肉/灵鱼鳞（烹饪/炼器材料）
+    app.use('/api/fishing', require('./routes/fishing'));
+
+    // 赌石系统路由（玩法文档第21节·经济与博彩补充）
+    // 玩家端：生成原石/查看线索/选择切法/切开产出/历史记录/排行榜/上架拍卖行/灵识透石
+    // 多人互动：未切开原石上架拍卖行流转 + 稀有掉落全服广播 + 诅咒PVP劫掠 + LDC全服保底
+    // 联动系统：大衍诀层数（神识切权限）、LDC（钓鱼系统钓竿购买）、法则碎片·雷/天雷竹（傀儡工坊升级）
+    app.use('/api/gambling-stone', require('./routes/gambling_stone'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

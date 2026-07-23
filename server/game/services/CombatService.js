@@ -153,6 +153,21 @@ class CombatService {
             const beastHpBonus = BigInt(beastBonus.hp_max || 0);
             const beastMpBonus = BigInt(beastBonus.mp_max || 0);
 
+            // 获取出战傀儡属性加成（傀儡工坊·大衍诀·控傀 解锁的战斗加成）
+            // 出战傀儡按 battle_stat_ratio（30%）提供额外 HP，叠加到战斗初始 HP
+            // 注意：傀儡加成查询是只读 SELECT，在事务内执行不影响锁语义
+            const PuppetService = require('./PuppetService');
+            let puppetHpBonus = 0n;
+            try {
+                const puppetBonus = await PuppetService.getBattlePuppetBonus(playerId);
+                if (puppetBonus) {
+                    puppetHpBonus = BigInt(puppetBonus.hp || 0);
+                }
+            } catch (e) {
+                // PuppetService 未初始化或查询失败时静默降级，不影响战斗主流程
+                console.warn('[CombatService] 傀儡加成查询失败，降级处理:', e.message);
+            }
+
             const battle = await ActiveBattle.create({
                 player_id: playerId,
                 monster_id: selectedMonster.id,
@@ -162,8 +177,8 @@ class CombatService {
                 battle_type: 'normal',
                 round: 1,
                 turn: 'player',
-                // 战斗初始 HP/MP = 玩家当前 HP/MP + 灵兽加成（灵兽护主，额外提供生命/法力）
-                player_hp: safeBigInt(player.hp_current) + beastHpBonus,
+                // 战斗初始 HP/MP = 玩家当前 HP/MP + 灵兽加成 + 傀儡加成（出战傀儡额外提供生命值）
+                player_hp: safeBigInt(player.hp_current) + beastHpBonus + puppetHpBonus,
                 player_mp: safeBigInt(player.mp_current) + beastMpBonus,
                 monster_hp: monsterData.max_hp,
                 monster_max_hp: monsterData.max_hp,
@@ -287,7 +302,18 @@ class CombatService {
             // 灵兽加成：出战灵兽按比例提供额外攻击力（灵兽助战）
             const SpiritBeastService = require('./SpiritBeastService');
             const beastAtkBonus = await SpiritBeastService.getActiveBeastBonus(playerId);
-            const totalPlayerAtk = playerAtk + (beastAtkBonus.atk || 0);
+            // 傀儡加成：出战傀儡按 battle_stat_ratio（30%）提供额外攻击力
+            const PuppetService = require('./PuppetService');
+            let puppetAtkBonus = 0;
+            try {
+                const puppetBonus = await PuppetService.getBattlePuppetBonus(playerId);
+                if (puppetBonus) {
+                    puppetAtkBonus = puppetBonus.atk || 0;
+                }
+            } catch (e) {
+                // PuppetService 未初始化或查询失败时静默降级
+            }
+            const totalPlayerAtk = playerAtk + (beastAtkBonus.atk || 0) + puppetAtkBonus;
             const monsterDef = battle.monster_data?.def || 5;
 
             const combatConfig = getGameBalanceConfig().combat || {};
@@ -842,7 +868,18 @@ class CombatService {
             // 灵兽加成：出战灵兽按比例提供额外攻击力（灵兽助战，与普通攻击一致）
             const SpiritBeastService = require('./SpiritBeastService');
             const beastAtkBonus = await SpiritBeastService.getActiveBeastBonus(playerId);
-            const totalPlayerAtk = playerAtk + (beastAtkBonus.atk || 0);
+            // 傀儡加成：出战傀儡按 battle_stat_ratio（30%）提供额外攻击力（与普通攻击一致）
+            const PuppetService = require('./PuppetService');
+            let puppetAtkBonus = 0;
+            try {
+                const puppetBonus = await PuppetService.getBattlePuppetBonus(playerId);
+                if (puppetBonus) {
+                    puppetAtkBonus = puppetBonus.atk || 0;
+                }
+            } catch (e) {
+                // PuppetService 未初始化或查询失败时静默降级
+            }
+            const totalPlayerAtk = playerAtk + (beastAtkBonus.atk || 0) + puppetAtkBonus;
             const monsterDef = battle.monster_data?.def || 5;
 
             // 技能伤害随机范围从配置读取（与 damage_random_range/offset 复用，避免新增配置项）

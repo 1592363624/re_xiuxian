@@ -1,0 +1,274 @@
+{
+  "_comment": "灵溪垂钓系统配置（玩法文档第21节·经济与博彩补充）",
+  "_doc": "单人异步钓鱼小游戏：钓竿4级/鱼饵/鱼塘/钓术熟练度/剖鱼机缘/伴生物品/LDC产出/材料联动",
+
+  "enabled": true,
+
+  "rods": {
+    "qing_zhu": {
+      "name": "青竹钓竿",
+      "description": "青竹制成的入门钓竿，每日5竿，适合初学者",
+      "tier": 1,
+      "daily_limit": 5,
+      "law_phase_required": 30,
+      "purchase_cost_ldc": 30,
+      "upgrade_cost": null,
+      "wait_time_min_sec": 90,
+      "wait_time_max_sec": 180,
+      "reel_window_sec": 10,
+      "nibble_bonus": 0.0,
+      "rare_bonus": 0.0
+    },
+    "yin_zhu": {
+      "name": "银竹钓竿",
+      "description": "银竹钓竿，每日10竿，等鱼时间缩短，提竿窗口延长",
+      "tier": 2,
+      "daily_limit": 10,
+      "law_phase_required": 60,
+      "purchase_cost_ldc": null,
+      "upgrade_cost": {
+        "law_fragment_lei": 30,
+        "tianlei_zhu": 1
+      },
+      "wait_time_min_sec": 70,
+      "wait_time_max_sec": 140,
+      "reel_window_sec": 12,
+      "nibble_bonus": 0.05,
+      "rare_bonus": 0.03
+    },
+    "jin_zhu": {
+      "name": "金竹钓竿",
+      "description": "金竹钓竿，每日15竿，大幅缩短等鱼时间，珍稀鱼概率提升",
+      "tier": 3,
+      "law_phase_required": 90,
+      "purchase_cost_ldc": null,
+      "upgrade_cost": {
+        "law_fragment_lei": 60,
+        "wan_nian_tianlei_zhu": 1
+      },
+      "wait_time_min_sec": 50,
+      "wait_time_max_sec": 100,
+      "reel_window_sec": 15,
+      "nibble_bonus": 0.08,
+      "rare_bonus": 0.06
+    },
+    "jinlei_zhu": {
+      "name": "金雷竹钓竿",
+      "description": "金雷竹钓竿，每日20竿，等鱼极快，珍稀鱼概率大幅提升，终极钓竿",
+      "tier": 4,
+      "law_phase_required": 120,
+      "purchase_cost_ldc": null,
+      "upgrade_cost": {
+        "law_fragment_lei": 90,
+        "jinlei_zhu": 1
+      },
+      "wait_time_min_sec": 30,
+      "wait_time_max_sec": 70,
+      "reel_window_sec": 18,
+      "nibble_bonus": 0.12,
+      "rare_bonus": 0.10
+    }
+  },
+
+  "baits": {
+    "diworm": {
+      "name": "蚯蚓",
+      "description": "最基础的鱼饵，青云溪通用",
+      "price": 10,
+      "craftable": false,
+      "craft_cost": null
+    },
+    "spirit_worm": {
+      "name": "灵虫饵",
+      "description": "灵气滋养的虫饵，碧波潭通用",
+      "price": 50,
+      "craftable": false,
+      "craft_cost": null
+    },
+    "heaven_spirit": {
+      "name": "天灵饵",
+      "description": "天灵之气凝炼的高级饵料，灵泉湖通用",
+      "price": 200,
+      "craftable": false,
+      "craft_cost": null
+    },
+    "handmade": {
+      "name": "自制灵饵",
+      "description": "用灵鱼肉/灵鱼鳞/水草团精心制作的特制饵料，乱星海礁专用",
+      "price": null,
+      "craftable": true,
+      "craft_cost": {
+        "ling_yu_rou": 2,
+        "ling_yu_lin": 1,
+        "shui_cao_tuan": 1
+      },
+      "craft_batch": 3
+    }
+  },
+
+  "ponds": {
+    "qingyun_stream": {
+      "name": "青云溪",
+      "description": "山间清溪，常见淡水鱼，适合初学者",
+      "required_skill_level": 0,
+      "required_bait": "diworm",
+      "fish_pool": "common",
+      "rare_material_pool": null,
+      "is_advanced": false
+    },
+    "bibo_pool": {
+      "name": "碧波潭",
+      "description": "灵气充沛的深潭，鱼类品质提升",
+      "required_skill_level": 20,
+      "required_bait": "spirit_worm",
+      "fish_pool": "medium",
+      "rare_material_pool": null,
+      "is_advanced": false
+    },
+    "lingquan_lake": {
+      "name": "灵泉湖",
+      "description": "灵泉汇聚之湖，珍稀鱼类出没",
+      "required_skill_level": 50,
+      "required_bait": "heaven_spirit",
+      "fish_pool": "rare",
+      "rare_material_pool": null,
+      "is_advanced": false
+    },
+    "luanxing_reef": {
+      "name": "乱星海礁",
+      "description": "乱星海深处的海礁，高钓术鱼塘，成功鱼获时极小概率伴生天雷竹或灵眼木髓碎片",
+      "required_skill_level": 80,
+      "required_bait": "handmade",
+      "fish_pool": "sea_rare",
+      "rare_material_pool": "luanxing_rare",
+      "is_advanced": true
+    }
+  },
+
+  "fish_pools": {
+    "common": {
+      "empty_weight": 25,
+      "fishes": [
+        { "id": "minnow", "name": "白鲦", "quality": "common", "weight": 50, "min_kg": 0.1, "max_kg": 0.5, "filet_yield": 1, "scale_yield": 0, "grass_yield": 0, "exp_reward": 10, "stone_reward": 20, "cultivation_reward": 5 },
+        { "id": "crucian", "name": "鲫鱼", "quality": "common", "weight": 35, "min_kg": 0.2, "max_kg": 1.0, "filet_yield": 2, "scale_yield": 1, "grass_yield": 0, "exp_reward": 15, "stone_reward": 30, "cultivation_reward": 8 },
+        { "id": "grass_carp", "name": "草鱼", "quality": "uncommon", "weight": 15, "min_kg": 0.5, "max_kg": 3.0, "filet_yield": 3, "scale_yield": 1, "grass_yield": 1, "exp_reward": 25, "stone_reward": 50, "cultivation_reward": 12 }
+      ]
+    },
+    "medium": {
+      "empty_weight": 18,
+      "fishes": [
+        { "id": "spirit_carp", "name": "灵鲤", "quality": "uncommon", "weight": 40, "min_kg": 0.5, "max_kg": 2.0, "filet_yield": 3, "scale_yield": 2, "grass_yield": 1, "exp_reward": 30, "stone_reward": 80, "cultivation_reward": 15 },
+        { "id": "golden_perch", "name": "金鲈", "quality": "rare", "weight": 25, "min_kg": 0.8, "max_kg": 3.5, "filet_yield": 4, "scale_yield": 2, "grass_yield": 1, "exp_reward": 50, "stone_reward": 150, "cultivation_reward": 25 },
+        { "id": "jade_fish", "name": "玉鱼", "quality": "rare", "weight": 17, "min_kg": 1.0, "max_kg": 4.0, "filet_yield": 5, "scale_yield": 3, "grass_yield": 1, "exp_reward": 60, "stone_reward": 200, "cultivation_reward": 30 }
+      ]
+    },
+    "rare": {
+      "empty_weight": 12,
+      "fishes": [
+        { "id": "dragon_carp", "name": "龙鲤", "quality": "epic", "weight": 35, "min_kg": 2.0, "max_kg": 8.0, "filet_yield": 6, "scale_yield": 4, "grass_yield": 2, "exp_reward": 100, "stone_reward": 500, "cultivation_reward": 50 },
+        { "id": "phoenix_fish", "name": "凤凰鱼", "quality": "epic", "weight": 25, "min_kg": 3.0, "max_kg": 10.0, "filet_yield": 7, "scale_yield": 5, "grass_yield": 2, "exp_reward": 120, "stone_reward": 700, "cultivation_reward": 60 },
+        { "id": "void_whale", "name": "虚空鲸", "quality": "legendary", "weight": 15, "min_kg": 10.0, "max_kg": 50.0, "filet_yield": 10, "scale_yield": 8, "grass_yield": 3, "exp_reward": 200, "stone_reward": 1500, "cultivation_reward": 100 },
+        { "id": "celestial_koi", "name": "仙锦鲤", "quality": "legendary", "weight": 10, "min_kg": 5.0, "max_kg": 20.0, "filet_yield": 8, "scale_yield": 6, "grass_yield": 2, "exp_reward": 180, "stone_reward": 1200, "cultivation_reward": 80 }
+      ]
+    },
+    "sea_rare": {
+      "empty_weight": 8,
+      "fishes": [
+        { "id": "star_fish", "name": "星辰鱼", "quality": "epic", "weight": 30, "min_kg": 3.0, "max_kg": 12.0, "filet_yield": 7, "scale_yield": 5, "grass_yield": 2, "exp_reward": 150, "stone_reward": 1000, "cultivation_reward": 70 },
+        { "id": "abyss_shark", "name": "深渊鲨", "quality": "legendary", "weight": 22, "min_kg": 15.0, "max_kg": 80.0, "filet_yield": 12, "scale_yield": 10, "grass_yield": 4, "exp_reward": 300, "stone_reward": 2500, "cultivation_reward": 150 },
+        { "id": "chaos_serpent", "name": "混沌海蛇", "quality": "legendary", "weight": 18, "min_kg": 8.0, "max_kg": 30.0, "filet_yield": 9, "scale_yield": 7, "grass_yield": 3, "exp_reward": 250, "stone_reward": 2000, "cultivation_reward": 120 },
+        { "id": "void_whale_king", "name": "虚空鲸王", "quality": "mythic", "weight": 12, "min_kg": 30.0, "max_kg": 150.0, "filet_yield": 15, "scale_yield": 12, "grass_yield": 5, "exp_reward": 500, "stone_reward": 5000, "cultivation_reward": 300 }
+      ]
+    }
+  },
+
+  "skill": {
+    "max_level": 100,
+    "exp_per_success": 10,
+    "exp_per_fail": 2,
+    "level_exp_base": 100,
+    "level_exp_growth": 50,
+    "effects": {
+      "empty_reduction_per_level": 0.005,
+      "rare_bonus_per_level": 0.003,
+      "wait_reduction_per_level_sec": 1,
+      "reel_window_bonus_per_level_sec": 0.2,
+      "fish_weight_bonus_per_level": 0.002
+    }
+  },
+
+  "daily_limits": {
+    "spirit_stone": 5000,
+    "cultivation": 2000,
+    "ldc_server_daily_min": 2,
+    "ldc_server_daily_max": 3,
+    "ldc_fish_chance": 0.02,
+    "ldc_amounts": [1, 2, 3]
+  },
+
+  "rare_material_pools": {
+    "luanxing_rare": {
+      "chance_per_success": 0.01,
+      "items": [
+        { "id": "tianlei_zhu", "name": "天雷竹", "weight": 60 },
+        { "id": "lingyan_mu_sui_suipian", "name": "灵眼木髓碎片", "weight": 40 }
+      ]
+    }
+  },
+
+  "function_item_pools": {
+    "chance_per_success": 0.008,
+    "items": [
+      { "id": "shaqi_xiaodao", "name": "煞气小刀", "weight": 25 },
+      { "id": "xingyun_fu", "name": "幸运符", "weight": 25 },
+      { "id": "yanglian_yin", "name": "养廉银", "weight": 20 },
+      { "id": "yiming_fu", "name": "易名符", "weight": 20 },
+      { "id": "jiaobiao_ling", "name": "劫镖令", "weight": 10 }
+    ]
+  },
+
+  "nibble": {
+    "max_attempts": 3,
+    "quality_bonus_per_attempt": 0.08,
+    "rare_bonus_per_attempt": 0.05,
+    "empty_risk_per_attempt": 0.15,
+    "weight_bonus_per_attempt": 0.03
+  },
+
+  "cooking": {
+    "exp_per_filet": 15,
+    "max_filet_per_cook": 10
+  },
+
+  "scale_talisman": {
+    "name": "炼鳞符",
+    "craft_cost": {
+      "ling_yu_lin": 5
+    },
+    "buff_casts": 3,
+    "buff_luck_bonus": 0.10
+  },
+
+  "scheduler": {
+    "progress_check_interval_sec": 5,
+    "daily_reset_hour": 0,
+    "rare_material_daily_cap": 2,
+    "function_item_daily_cap": 2
+  },
+
+  "websocket_events": {
+    "fishing_cast": "抛竿成功",
+    "fishing_nibble": "鱼讯到来",
+    "fishing_reel": "提竿结算",
+    "fishing_give_up": "收竿放弃",
+    "fishing_skill_up": "钓术熟练度提升",
+    "fishing_rare_caught": "钓到珍稀鱼获",
+    "fishing_ldc_caught": "鱼腹开出LDC",
+    "fishing_material_caught": "伴生稀有材料"
+  },
+
+  "ranking": {
+    "max_entries": 20,
+    "categories": ["skill_level", "biggest_catch", "rarest_catch", "total_catches"]
+  }
+}
