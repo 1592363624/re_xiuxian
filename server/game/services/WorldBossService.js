@@ -42,6 +42,8 @@ const { infrastructure } = require('../../modules');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
+// 洞府服务：读取大阵提供的防御减伤加成（修复配置断链，此前 getCaveBonus.defense 无调用者）
+const CaveService = require('./CaveService');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -842,13 +844,16 @@ class WorldBossService {
             // 阶段加成系数 = 1 + 魔压加成 + 阵势加成
             const bossCounterBonusFactor = 1 + magicPressureBossBonus + arrayIntegrityBossBonus;
             // 应用加成并向下取整（最小 0）
-            const bossCounterDamage = Math.max(0, Math.floor(rawBossCounterDamage * bossCounterBonusFactor));
+            // 接通洞府 defense 断链：大阵等级提供防御减伤，降低玩家受到的 BOSS 反击伤害（受 cave_bonus.defense.max_bonus 钳制）
+            const caveDefenseBonus = await CaveService.getCaveDefenseBonus(playerId);
+            const bossCounterDamage = Math.max(0, Math.floor(rawBossCounterDamage * bossCounterBonusFactor * (1 - caveDefenseBonus)));
             // 透传加成详情到 skillResult，便于前端展示"魔压加成 +30%"等提示
             skillResult.counter_damage = bossCounterDamage;
             skillResult.counter_bonus_breakdown = {
                 raw_damage: rawBossCounterDamage,
                 magic_pressure_bonus: Number(magicPressureBossBonus.toFixed(4)),
                 array_integrity_bonus: Number(arrayIntegrityBossBonus.toFixed(4)),
+                cave_defense_reduction: Number(caveDefenseBonus.toFixed(4)),
                 final_factor: Number(bossCounterBonusFactor.toFixed(4)),
                 final_damage: bossCounterDamage
             };

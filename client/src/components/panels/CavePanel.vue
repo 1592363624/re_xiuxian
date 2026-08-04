@@ -52,11 +52,24 @@ let timer: number | null = null
 
 // ====== 确认弹窗状态（统一管理 开辟 / 升级 / 领取 / 解锁 / 播种 / 采收 / 一键采收 七类确认） ======
 type ConfirmType = 'open' | 'upgrade' | 'collect' | 'unlock' | 'plant' | 'harvest' | 'harvestAll'
+
+// 各类型确认弹窗的 payload 结构（取代 any，提升类型安全，避免模板内联 as 断言）
+interface UpgradePayload {
+  facility: FacilityType
+  info: FacilityInfo
+}
+interface PlantPayload {
+  plotIndex: number
+  seed: AvailableSeed
+}
+// 采收 payload 复用 api 中的 PlotInfo；其余类型 payload 为 null
+type ConfirmPayload = UpgradePayload | PlantPayload | PlotInfo | null
+
 const confirmModal = ref<{
   show: boolean
   type: ConfirmType
   // 升级时存 { facility, info }，播种时存 { plotIndex, seed }，采收时存 PlotInfo，其余为 null
-  payload: any
+  payload: ConfirmPayload
 }>({
   show: false,
   type: 'open',
@@ -70,6 +83,26 @@ const seedModal = ref<{ show: boolean; plotIndex: number }>({
 })
 
 // ====== 计算属性 ======
+
+/**
+ * 类型收窄辅助：将联合类型 payload 按 type 安全取出对应结构，避免模板内联 as 断言
+ * （vue-tsc 模板编译器无法解析 {{ }} 中的 as 语法，故在 script 中收窄后供模板使用）
+ */
+const confirmUpgrade = computed<UpgradePayload | null>(() =>
+  confirmModal.value.type === 'upgrade' && confirmModal.value.payload && 'info' in confirmModal.value.payload
+    ? (confirmModal.value.payload as UpgradePayload)
+    : null
+)
+const confirmPlant = computed<PlantPayload | null>(() =>
+  confirmModal.value.type === 'plant' && confirmModal.value.payload && 'seed' in confirmModal.value.payload
+    ? (confirmModal.value.payload as PlantPayload)
+    : null
+)
+const confirmHarvest = computed<PlotInfo | null>(() =>
+  confirmModal.value.type === 'harvest' && confirmModal.value.payload && 'plot_index' in confirmModal.value.payload
+    ? (confirmModal.value.payload as PlotInfo)
+    : null
+)
 
 /**
  * 是否已开辟洞府
@@ -234,22 +267,23 @@ const closeConfirmModal = () => {
  * 确认弹窗回调：根据 type 执行对应后端操作
  */
 const handleConfirm = async () => {
-  const { type, payload } = confirmModal.value
+  const type = confirmModal.value.type
   // 先关闭弹窗，再执行操作（避免操作期间弹窗被多次点击）
   closeConfirmModal()
 
   if (type === 'open') {
     await doOpenCave()
-  } else if (type === 'upgrade' && payload) {
-    await doUpgrade(payload.facility as FacilityType, payload.info as FacilityInfo)
+  } else if (type === 'upgrade' && confirmUpgrade.value) {
+    // 使用已类型收窄的 payload，避免运行时/模板内联 as 断言
+    await doUpgrade(confirmUpgrade.value.facility, confirmUpgrade.value.info)
   } else if (type === 'collect') {
     await doCollect()
   } else if (type === 'unlock') {
     await doUnlockPlot()
-  } else if (type === 'plant' && payload) {
-    await doPlant(payload.plotIndex as number, payload.seed as AvailableSeed)
-  } else if (type === 'harvest' && payload) {
-    await doHarvest(payload as PlotInfo)
+  } else if (type === 'plant' && confirmPlant.value) {
+    await doPlant(confirmPlant.value.plotIndex, confirmPlant.value.seed)
+  } else if (type === 'harvest' && confirmHarvest.value) {
+    await doHarvest(confirmHarvest.value)
   } else if (type === 'harvestAll') {
     await doHarvestAll()
   }
@@ -902,17 +936,17 @@ onUnmounted(() => {
       </div>
 
       <!-- 升级设施 -->
-      <div class="space-y-3" v-else-if="confirmModal.type === 'upgrade' && confirmModal.payload">
+      <div class="space-y-3" v-else-if="confirmModal.type === 'upgrade' && confirmUpgrade">
         <p class="text-stone-300">
           确定要将
-          <span class="font-bold text-amber-400">{{ (confirmModal.payload as { info: FacilityInfo }).info.name }}</span>
+          <span class="font-bold text-amber-400">{{ confirmUpgrade.info.name }}</span>
           升级至
-          <span class="font-bold text-amber-400">Lv.{{ (confirmModal.payload as { info: FacilityInfo }).info.level + 1 }}</span>
+          <span class="font-bold text-amber-400">Lv.{{ confirmUpgrade.info.level + 1 }}</span>
           吗？
         </p>
         <p class="text-xs text-stone-500 leading-relaxed">
           升级消耗：
-          <span class="text-yellow-500">{{ formatUpgradeCost((confirmModal.payload as { info: FacilityInfo }).info) }}</span>
+          <span class="text-yellow-500">{{ formatUpgradeCost(confirmUpgrade.info) }}</span>
         </p>
       </div>
 
@@ -936,28 +970,28 @@ onUnmounted(() => {
       </div>
 
       <!-- 播种 -->
-      <div class="space-y-3" v-else-if="confirmModal.type === 'plant' && confirmModal.payload">
+      <div class="space-y-3" v-else-if="confirmModal.type === 'plant' && confirmPlant">
         <p class="text-stone-300">
-          确定要在地块 #{{ (confirmModal.payload as { plotIndex: number }).plotIndex + 1 }} 播种
-          <span class="font-bold text-amber-400">{{ (confirmModal.payload as { seed: AvailableSeed }).seed.name }}</span>
+          确定要在地块 #{{ confirmPlant.plotIndex + 1 }} 播种
+          <span class="font-bold text-amber-400">{{ confirmPlant.seed.name }}</span>
           吗？
         </p>
         <p class="text-xs text-stone-500 leading-relaxed">
           生长时间：
-          <span class="text-cyan-400">{{ formatGrowTime((confirmModal.payload as { seed: AvailableSeed }).seed.grow_time_seconds) }}</span>，
+          <span class="text-cyan-400">{{ formatGrowTime(confirmPlant.seed.grow_time_seconds) }}</span>，
           成熟后可采收
-          <span class="text-emerald-400">{{ (confirmModal.payload as { seed: AvailableSeed }).seed.produce_name }}</span>
+          <span class="text-emerald-400">{{ confirmPlant.seed.produce_name }}</span>
         </p>
       </div>
 
       <!-- 采收 -->
-      <div class="space-y-3" v-else-if="confirmModal.type === 'harvest' && confirmModal.payload">
+      <div class="space-y-3" v-else-if="confirmModal.type === 'harvest' && confirmHarvest">
         <p class="text-stone-300">
-          确定要采收地块 #{{ (confirmModal.payload as PlotInfo).plot_index + 1 }} 吗？
+          确定要采收地块 #{{ confirmHarvest.plot_index + 1 }} 吗？
         </p>
         <p class="text-xs text-stone-500 leading-relaxed">
           作物：
-          <span class="text-amber-400">{{ (confirmModal.payload as PlotInfo).seed?.name || '灵草' }}</span>
+          <span class="text-amber-400">{{ confirmHarvest.seed?.name || '灵草' }}</span>
         </p>
       </div>
 

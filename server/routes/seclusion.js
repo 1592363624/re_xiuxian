@@ -24,6 +24,8 @@ const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 // 修复 B1 bug：化神期及以上玩家境界（如"化神中期"）不在旧版 REALM_ORDER 中，
 //            导致 indexOf 返回 -1，被深度闭关错误拦截。
 const RealmService = require('../game/core/RealmService');
+// 洞府服务：读取静室提供的闭关收益加成（修复配置断链，此前 getCaveBonus.seclusion_bonus 无调用者）
+const CaveService = require('../game/services/CaveService');
 
 /**
  * 读取常规闭关配置
@@ -332,8 +334,10 @@ async function handleEndSeclusion(req, res, next) {
             penaltyRate = 1 - config.forced_penalty;
         }
 
-        // 计算收益：基础收益 × 境界加成 × 模式倍率 × 惩罚系数 × 实际时长
-        const expGain = Math.floor(actualDuration * baseExpRate * realmMultiplier * modeRate * penaltyRate);
+        // 计算收益：基础收益 × 境界加成 × 模式倍率 × 惩罚系数 × 实际时长 × (1 + 洞府静室加成)
+        // 接通洞府 seclusion_bonus 断链：静室等级越高，闭关修为收益越高（受 cave_bonus.seclusion.max_bonus 钳制）
+        const caveSeclusionBonus = await CaveService.getCaveSeclusionBonus(player.id);
+        const expGain = Math.floor(actualDuration * baseExpRate * realmMultiplier * modeRate * penaltyRate * (1 + caveSeclusionBonus));
 
         // 闭关结束后恢复满 HP/MP（修复 B16 bug）
         // 修复（2026-07-20）：
@@ -487,7 +491,9 @@ router.get('/status', authenticateToken, async (req, res, next) => {
             if (isDeep && currentDuration < config.min_duration) {
                 penaltyRate = 1 - (config.forced_penalty ?? 0.5);
             }
-            expGained = Math.floor(currentDuration * baseExpRate * realmMultiplier * config.exp_rate * penaltyRate);
+            // 实时收益同步计入洞府静室闭关加成（与 /end 结算口径一致）
+            const caveSeclusionBonus = await CaveService.getCaveSeclusionBonus(player.id);
+            expGained = Math.floor(currentDuration * baseExpRate * realmMultiplier * config.exp_rate * penaltyRate * (1 + caveSeclusionBonus));
 
             if (player.seclusion_end_time) {
                 const endTime = new Date(player.seclusion_end_time);

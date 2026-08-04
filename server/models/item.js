@@ -26,6 +26,12 @@ const Item = sequelize.define('Item', {
         defaultValue: 1,
         comment: '物品数量'
     },
+    metadata: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+        comment: '物品动态元数据（如炼制品质倍率 effect_multiplier，用于服用时放大效果）'
+    },
     created_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

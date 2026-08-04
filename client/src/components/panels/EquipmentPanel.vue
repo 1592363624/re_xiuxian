@@ -296,6 +296,9 @@ onMounted(() => {
                   <span v-if="item.is_broken" class="text-xs px-2 py-0.5 rounded bg-red-700 text-red-100">
                     已破碎
                   </span>
+                  <span v-if="item.attr_multiplier && item.attr_multiplier > 1" class="text-xs px-2 py-0.5 rounded bg-emerald-700 text-emerald-100">
+                    炼制 ×{{ item.attr_multiplier.toFixed(2) }}
+                  </span>
                 </div>
                 <div class="text-xs text-gray-400 mt-1">{{ item.description }}</div>
                 <div v-if="item.effect && Object.keys(item.effect).length > 0" class="text-xs text-gray-300 mt-1">

@@ -41,6 +41,8 @@ export interface EquippedItem {
     effect: Record<string, number>;
     /** 穿戴时间（ISO 字符串） */
     equipped_at: string;
+    /** 炼制品质属性浮动倍率（来自炼器产物 metadata.attr_multiplier，穿戴时带入；1.0 为普通装备，>1 为高品质炼制装备） */
+    attr_multiplier: number;
 }
 
 /**

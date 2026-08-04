@@ -408,7 +408,65 @@
     "max_craft_quantity": 10,
     "fail_exp_ratio": 0.2,
     "skill_level_cap": 10,
-    "default_recipes_auto_learn": true
+    "default_recipes_auto_learn": true,
+
+    "_comment_realm": "境界差修正：以 玩家境界rank - 配方要求rank 为差值。低于要求已被硬门槛拦截，此处仅处理正差值带来的熟练加成，并对超出上限的部分做收益递减。",
+    "realm_diff": {
+      "bonus_per_rank": 0.02,
+      "max_bonus": 0.12,
+      "penalty_per_rank": 0.08,
+      "max_penalty": 0.4
+    },
+
+    "_comment_rate_clamp": "成功率上下限钳制，防止叠加加成后必定成功或必定失败",
+    "success_rate_floor": 0.05,
+    "success_rate_cap": 0.95,
+
+    "_comment_cave": "洞府丹房/器室加成开关。加成值本身来自 cave_data.json 的 success_bonus_per_level，此处只控制是否接入与封顶。",
+    "cave_bonus": {
+      "enabled": true,
+      "max_alchemy_bonus": 0.3,
+      "max_refining_bonus": 0.3,
+      "_comment_seclusion": "静室提供的闭关修为收益加成（seclusion_bonus = 静室等级 × bonus_per_level）。max_bonus 钳制上限，防止高等级静室收益溢出。enabled=false 可灰度关闭。",
+      "seclusion": {
+        "enabled": true,
+        "max_bonus": 1.0
+      },
+      "_comment_defense": "大阵提供的防御减伤比例（defense = 大阵等级 × defense_per_level）。max_bonus 钳制上限（减伤比例不应超过此值）。enabled=false 可灰度关闭。",
+      "defense": {
+        "enabled": true,
+        "max_bonus": 0.5
+      }
+    },
+
+    "_comment_heat": "火候控制玩法：炼制分为若干阶段，每阶段玩家选择火候档位。偏离目标火候会累积偏差，偏差决定最终品质与成功率修正。",
+    "heat_control": {
+      "enabled": true,
+      "stages": 3,
+      "session_timeout_sec": 300,
+      "heat_min": 1,
+      "heat_max": 5,
+      "_comment_deviation": "单阶段偏差 = |选择档位 - 目标档位|，最大偏差为 heat_max-heat_min",
+      "perfect_bonus_per_stage": 0.04,
+      "deviation_penalty_per_point": 0.05,
+      "auto_mode_success_modifier": -0.05,
+      "_comment_auto": "auto 模式跳过火候交互一键炼制，代价是固定成功率惩罚，保留老玩法路径"
+    },
+
+    "_comment_quality": "丹药品质浮动：以偏差评分映射品质档位。score 越高品质越好，upgrade 表示相对配方基准品质提升的档数。",
+    "quality_float": {
+      "enabled": true,
+      "quality_order": ["common", "uncommon", "rare", "epic", "legendary", "mythic"],
+      "tiers": [
+        { "name": "劣品", "max_deviation": 99, "upgrade": -1, "effect_multiplier": 0.7, "weight_hint": "偏差极大" },
+        { "name": "凡品", "max_deviation": 6, "upgrade": 0, "effect_multiplier": 1.0 },
+        { "name": "上品", "max_deviation": 3, "upgrade": 0, "effect_multiplier": 1.15 },
+        { "name": "极品", "max_deviation": 1, "upgrade": 1, "effect_multiplier": 1.35 },
+        { "name": "完美", "max_deviation": 0, "upgrade": 1, "effect_multiplier": 1.6 }
+      ],
+      "skill_level_deviation_forgiveness": 0.1,
+      "_comment_forgiveness": "每级炼制技能抵消的偏差点数，高技能玩家火候容错更高"
+    }
   },
   "lastUpdated": "2026-07-04T14:31:18.845Z",
   "pvp": {

@@ -411,6 +411,24 @@ class CombatService {
             const monsterDmgOffset = monsterDmgConfig.monster_damage_random_offset ?? 3;
             let damage = Math.max(1, (monsterData.atk || 8) - playerDef + Math.floor(Math.random() * monsterDmgRange) - monsterDmgOffset);
 
+            // ===== 洞府防御加成减免（与 WorldBossService 一致的断链接通模式）=====
+            // getCaveDefenseBonus 返回玩家因洞府设施获得的受击伤害减免比例（0~max_bonus），
+            // 由 CaveService 统一计算，避免防御逻辑散落在各战斗入口。
+            // try-catch 兜底：洞府服务异常不影响 PVE 战斗主流程。
+            let caveDefenseReduction = 0;
+            try {
+                // 懒加载 CaveService，避免与服务层循环依赖
+                const CaveService = require('./CaveService');
+                caveDefenseReduction = Number(await CaveService.getCaveDefenseBonus(playerId)) || 0;
+                if (caveDefenseReduction > 0) {
+                    const reduced = Math.floor(damage * caveDefenseReduction);
+                    damage = Math.max(1, damage - reduced);
+                }
+            } catch (caveErr) {
+                // 洞府减免查询失败不影响战斗主流程
+                console.warn('[CombatService] 洞府防御减免查询异常:', caveErr.message);
+            }
+
             // ===== 道侣护道判定（与 PvpService 一致的集成模式）=====
             // 设计文档 5.6.1：心契等级 L2 解锁护道，被攻击时有概率触发道侣远程护持
             // PVE 场景下护道反击伤害作用于怪物（道侣远程协助攻击怪物），区别于 PVP 反击攻击方玩家
@@ -455,6 +473,8 @@ class CombatService {
                 attacker: 'monster',
                 action: 'attack',
                 damage: damage,
+                // 洞府防御减免比例（0 表示无减免），便于前端/日志展示减免来源
+                cave_defense_reduction: Number(caveDefenseReduction.toFixed(4)),
                 target_hp: safeBigInt(battle.player_hp).toString(),
                 timestamp: new Date().toISOString()
             });

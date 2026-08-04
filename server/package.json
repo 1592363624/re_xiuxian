@@ -7,7 +7,19 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "init-db": "node scripts/init_db.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "game/services/**/*.js"
+    ],
+    "testTimeout": 10000
   },
   "keywords": [],
   "author": "",
@@ -23,5 +35,8 @@
     "nodemon": "^3.0.2",
     "sequelize": "^6.35.1",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }

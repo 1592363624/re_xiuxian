@@ -86,6 +86,16 @@ const PlayerEquipment = sequelize.define('PlayerEquipment', {
         defaultValue: 0,
         comment: '装备在面板中的排序顺序（数值小的排前面）'
     },
+    // ========== 炼制品质字段（v1.4 新增） ==========
+    // 装备属性浮动倍率，穿戴时从背包物品 metadata.attr_multiplier 带入
+    // 由 CraftingService 炼器产出时按品质写入（见 game_balance.crafting.quality_float.tiers[].effect_multiplier）
+    // 用于放大装备基础属性，使高品质炼制装备优于普通装备
+    attr_multiplier: {
+        type: DataTypes.DECIMAL(6, 4),
+        allowNull: false,
+        defaultValue: 1.0,
+        comment: '装备属性浮动倍率（炼制品质系数，1.0 为普通装备，>1 为高品质炼制装备）'
+    },
     is_summoned: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

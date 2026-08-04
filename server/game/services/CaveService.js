@@ -388,6 +388,50 @@ class CaveService {
     }
 
     /**
+     * 读取洞府加成配置（来自 game_balance.json）
+     * 说明：将开关/上限等可变参数集中到配置中心，避免硬编码。
+     * 配置未加载时返回空对象，由调用方降级为 0。
+     */
+    _getCaveBonusConfig() {
+        try {
+            return this.configLoader?.getConfig('game_balance')?.cave_bonus || {};
+        } catch {
+            return {};
+        }
+    }
+
+    /**
+     * 获取闭关收益加成（静室提供），供闭关服务调用
+     * 修复断链：CaveService.getCaveBonus 已返回 seclusion_bonus，但此前无调用者生效。
+     * @param {number} playerId - 玩家ID
+     * @returns {Promise<number>} 闭关修为收益加成系数（0~max_bonus），未开启或异常时为 0
+     */
+    async getCaveSeclusionBonus(playerId) {
+        const cfg = this._getCaveBonusConfig()?.seclusion;
+        // 开关关闭时直接返回 0（配置中心化，便于灰度/平衡调整）
+        if (!cfg || cfg.enabled === false) return 0;
+        const raw = await this.getCaveBonus(playerId).then(b => b.seclusion_bonus || 0);
+        const max = Number(cfg.max_bonus ?? raw);
+        // 钳制在 [0, max_bonus] 区间，避免高等级静室收益溢出
+        return Math.max(0, Math.min(raw, max));
+    }
+
+    /**
+     * 获取洞府防御加成（大阵提供），供战斗/被攻击服务调用
+     * 修复断链：CaveService.getCaveBonus 已返回 defense，但此前无调用者生效。
+     * @param {number} playerId - 玩家ID
+     * @returns {Promise<number>} 防御减伤比例（0~max_bonus），未开启或异常时为 0
+     */
+    async getCaveDefenseBonus(playerId) {
+        const cfg = this._getCaveBonusConfig()?.defense;
+        if (!cfg || cfg.enabled === false) return 0;
+        const raw = await this.getCaveBonus(playerId).then(b => b.defense || 0);
+        const max = Number(cfg.max_bonus ?? raw);
+        // 钳制在 [0, max_bonus] 区间，防御减伤比例不应无限放大
+        return Math.max(0, Math.min(raw, max));
+    }
+
+    /**
      * 计算灵脉待领取灵石数（按时间累计）
      * 公式：等级 × (基础速率 + 等级×每级增量) × 经过小时数
      */

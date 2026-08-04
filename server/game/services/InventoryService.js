@@ -155,7 +155,9 @@ class InventoryService {
 
             // 应用物品效果
             const effect = config.effect || {};
-            const appliedEffects = await this._applyItemEffect(player, effect, quantity, t);
+            // 读取库存物品携带的品质倍率（炼丹/炼器产出时写入的 effect_multiplier），无则按 1 处理
+            const qualityMultiplier = Number(playerItem.metadata?.effect_multiplier) || 1;
+            const appliedEffects = await this._applyItemEffect(player, effect, quantity, qualityMultiplier, t);
 
             // 扣减物品数量
             playerItem.quantity -= quantity;
@@ -238,7 +240,7 @@ class InventoryService {
      * @param {Object} transaction - 可选的事务实例
      * @returns {Promise<Object>} 添加结果
      */
-    async addItem(playerId, itemKey, quantity = 1, transaction = null) {
+    async addItem(playerId, itemKey, quantity = 1, transaction = null, metadata = null) {
         if (quantity < 1) {
             throw new AppError('添加数量必须大于 0', 400, ErrorCodes.VALIDATION_ERROR);
         }
@@ -267,12 +269,17 @@ class InventoryService {
 
         if (existing) {
             existing.quantity += quantity;
+            // 累计炼制产出时，以最近一次炼制的品质倍率为准（库存模型按 player_id+item_key 聚合，不区分单件品质）
+            if (metadata && typeof metadata === 'object') {
+                existing.metadata = metadata;
+            }
             await existing.save(options);
         } else {
             await Item.create({
                 player_id: playerId,
                 item_key: itemKey,
-                quantity: quantity
+                quantity: quantity,
+                metadata: (metadata && typeof metadata === 'object') ? metadata : null
             }, options);
         }
 
@@ -346,42 +353,46 @@ class InventoryService {
     /**
      * 应用物品效果（内部方法）
      * 根据 effect 字段分别处理气血恢复、灵力恢复、灵石增益等
+     * 最终效果 = 配置基础值 × 数量倍率(multiplier) × 品质倍率(qualityMultiplier)
      * @param {Object} player - 玩家实例
      * @param {Object} effect - 物品效果配置
-     * @param {number} multiplier - 数量倍率
+     * @param {number} multiplier - 数量倍率（使用数量）
+     * @param {number} qualityMultiplier - 品质倍率（炼制品质 effect_multiplier，未携带则 1）
      * @param {Object} transaction - 事务实例
      * @returns {Promise<Object>} 实际应用的效果
      */
-    async _applyItemEffect(player, effect, multiplier, transaction) {
+    async _applyItemEffect(player, effect, multiplier, qualityMultiplier, transaction) {
         const applied = {};
+        // 数量倍率与品质倍率叠加（品质倍率来自炼制产出的 effect_multiplier，打通"品质→收益"断链）
+        const totalMultiplier = Number(multiplier) * Number(qualityMultiplier || 1);
         const attrs = player.attributes;
         const hpMax = attrs.hp_max || 100;
         const mpMax = attrs.mp_max || 0;
 
         // 恢复气血
         if (effect.hp_restore) {
-            const restore = effect.hp_restore * multiplier;
+            const restore = effect.hp_restore * totalMultiplier;
             player.hp_current = Math.min(hpMax, Number(player.hp_current) + restore);
             applied.hp_restore = restore;
         }
 
         // 恢复灵力
         if (effect.mp_restore) {
-            const restore = effect.mp_restore * multiplier;
+            const restore = effect.mp_restore * totalMultiplier;
             player.mp_current = Math.min(mpMax, Number(player.mp_current) + restore);
             applied.mp_restore = restore;
         }
 
         // 增加灵石
         if (effect.spirit_stones) {
-            const gain = effect.spirit_stones * multiplier;
+            const gain = effect.spirit_stones * totalMultiplier;
             player.spirit_stones = BigInt(player.spirit_stones || 0) + BigInt(gain);
             applied.spirit_stones = gain;
         }
 
         // 增加修为
         if (effect.exp) {
-            const gain = effect.exp * multiplier;
+            const gain = effect.exp * totalMultiplier;
             player.exp = BigInt(player.exp || 0) + BigInt(gain);
             applied.exp = gain;
         }

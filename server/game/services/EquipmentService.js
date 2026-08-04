@@ -93,6 +93,8 @@ class EquipmentService {
                 spirit_power: record.spirit_power,
                 sort_order: record.sort_order,
                 is_summoned: record.is_summoned,
+                // 炼制品质系数（属性浮动倍率，1.0 为普通装备）
+                attr_multiplier: Number(record.attr_multiplier) || 1.0,
                 // 派生字段：是否已破碎（耐久<=0）
                 is_broken: record.durability <= 0
             };
@@ -204,6 +206,13 @@ class EquipmentService {
             const durabilityConfig = equipmentConfig.durability || {};
             const initialDurability = durabilityConfig.initial_max ?? 100;
 
+            // 读取背包物品 metadata 中的炼制品质系数（attr_multiplier）
+            // 炼器产物由 CraftingService 按品质写入 metadata.attr_multiplier，此处带入装备记录，
+            // 使高品质炼制装备在属性计算时获得更高倍率（见 getEquipmentBonus）
+            // 非炼制装备（如掉落/商店获得）metadata 为空，默认 1.0 不放大
+            const craftedMultiplier = Number(playerItem.metadata?.attr_multiplier);
+            const attrMultiplier = Number.isFinite(craftedMultiplier) && craftedMultiplier > 0 ? craftedMultiplier : 1.0;
+
             await PlayerEquipment.create({
                 player_id: playerId,
                 slot,
@@ -217,7 +226,9 @@ class EquipmentService {
                 benming_slot: null,
                 spirit_power: 0,
                 sort_order: 0,
-                is_summoned: false
+                is_summoned: false,
+                // 炼制品质系数（属性浮动倍率）
+                attr_multiplier: attrMultiplier
             }, { transaction: t });
 
             await t.commit();
@@ -231,7 +242,8 @@ class EquipmentService {
                     item_key: itemKey,
                     name: config.name,
                     quality: config.quality || 'common',
-                    effect: config.effect || {}
+                    effect: config.effect || {},
+                    attr_multiplier: attrMultiplier
                 },
                 unequipped: unequippedItem
             };
@@ -336,7 +348,7 @@ class EquipmentService {
         const refineConfig = equipmentConfig.refine || {};
         const bonusPerLevel = refineConfig.bonus_per_level || {};
 
-        // 累加所有装备的 effect 字段（含祭炼加成）
+        // 累加所有装备的 effect 字段（含祭炼加成与炼制品质加成）
         const bonus = {};
         for (const record of equipments) {
             // 耐久为 0 的装备已破碎，不提供加成
@@ -346,14 +358,19 @@ class EquipmentService {
             const effect = config?.effect || {};
             const refineLevel = record.refine_level || 0;
 
+            // 炼制品质系数（属性浮动倍率）：由穿戴时从背包 metadata.attr_multiplier 带入，
+            // 1.0 表示普通装备，>1 表示高品质炼制装备，放大整件装备的基础属性
+            const craftedMultiplier = Number(record.attr_multiplier) || 1.0;
+
             for (const [key, value] of Object.entries(effect)) {
                 // 仅累加数值型属性
                 if (typeof value !== 'number') continue;
 
                 // 计算祭炼加成系数（如 bonus_per_level.atk = 0.05，10级则加成 1+0.5=1.5 倍）
                 const ratePerLevel = bonusPerLevel[key] || 0;
-                const multiplier = 1 + refineLevel * ratePerLevel;
-                const finalValue = Math.floor(value * multiplier);
+                const refineMultiplier = 1 + refineLevel * ratePerLevel;
+                // 最终倍率 = 祭炼系数 × 炼制品质系数
+                const finalValue = Math.floor(value * refineMultiplier * craftedMultiplier);
 
                 bonus[key] = (bonus[key] || 0) + finalValue;
             }

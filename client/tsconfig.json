@@ -1,0 +1,40 @@
+/**
+ * 前端 TypeScript 类型检查配置
+ *
+ * 用途：配合 vue-tsc 进行类型检查（npm run type-check），
+ *       弥补 vite build 只做转译、不做类型校验的不足，提前暴露类型漂移。
+ *
+ * 注意：
+ *   - 本项目前端全部使用相对路径导入（如 '../../api/xxx'），未配置 @ 别名，
+ *     因此 compilerOptions 中未设置 paths，保持与现有代码一致。
+ *   - vue-tsc 版本需与本地 typescript 版本匹配：当前锁定 vue-tsc@^2.2 + typescript@^5.6
+ *     （vue-tsc 1.x 与 TS 5.6+ 不兼容，会报 "Search string not found: /supportedTSExtensions/"）。
+ *   - 类型检查脚本用于 CI / 提交前自检，构建（vite build）流程保持不变。
+ */
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.vue",
+    "env.d.ts",
+    "vite.config.js"
+  ]
+}

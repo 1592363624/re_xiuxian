@@ -954,6 +954,25 @@ class PvpService {
                 }
             }
 
+            // ===== 洞府防御加成减免（与 WorldBossService / CombatService 一致的断链接通模式）=====
+            // 被攻击方因洞府设施获得受击伤害减免比例（0~max_bonus），由 CaveService 统一计算。
+            // 接入位置：道侣护道之后、应用伤害之前，叠加在所有减伤逻辑最末层。
+            let caveDefenseReduction = 0;
+            if (action !== 'defend' && actualDamage > 0) {
+                try {
+                    // 懒加载 CaveService，避免与服务层循环依赖
+                    const CaveService = require('./CaveService');
+                    caveDefenseReduction = Number(await CaveService.getCaveDefenseBonus(target.id)) || 0;
+                    if (caveDefenseReduction > 0) {
+                        const reduced = Math.floor(actualDamage * caveDefenseReduction);
+                        actualDamage = Math.max(1, actualDamage - reduced);
+                    }
+                } catch (caveErr) {
+                    // 洞府减免查询失败不影响 PVP 战斗主流程
+                    console.warn('[PvpService] 洞府防御减免查询异常:', caveErr.message);
+                }
+            }
+
             // 应用伤害
             targetHp = Math.max(0, targetHp - actualDamage);
             // 同步回写到目标 attributes（注意：attributes 是 getter/setter，必须重新 set 整个对象）
@@ -998,6 +1017,8 @@ class PvpService {
                     log_id: protectInfo.log_id
                 } : undefined,
                 counter_damage_to_actor: counterDamageToActor || undefined,
+                // 洞府防御减免比例（0 表示无减免），与 WorldBoss/Combat 日志字段一致，便于前端展示减免来源
+                cave_defense_reduction: Number(caveDefenseReduction.toFixed(4)),
                 // 物品使用信息（action='item' 时记录丹药名称和恢复量，供前端展示）
                 item: battle._itemEffectInfo ? {
                     item_id: battle._itemEffectInfo.item_id,

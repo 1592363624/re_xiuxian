@@ -12,7 +12,20 @@
  *   - 炼制后刷新配方列表，同步材料持有量与冷却状态
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { getLearnedRecipes, craft, type LearnedRecipe, type CraftSkillInfo, type LearnedRecipesData } from '../../api/crafting'
+import {
+  getLearnedRecipes,
+  craft,
+  craftStart,
+  craftHeat,
+  craftFinish,
+  craftCancel,
+  type LearnedRecipe,
+  type CraftSkillInfo,
+  type LearnedRecipesData,
+  type CraftStartResult,
+  type CraftHeatResult,
+  type CraftResult
+} from '../../api/crafting'
 import { useUIStore } from '../../stores/ui'
 
 const emit = defineEmits(['close'])
@@ -34,6 +47,32 @@ const lastFetchTime = ref(Date.now())
 // 当前时间戳，每秒更新一次驱动冷却倒计时刷新
 const currentTime = ref(Date.now())
 let timer: number | null = null
+
+// ====== 火候控制状态 ======
+// 当前火候会话（null 表示未开炉）
+const heatSession = ref<CraftStartResult | null>(null)
+// 各阶段的控火反馈记录，用于炉火时间线展示
+const heatLogs = ref<CraftHeatResult[]>([])
+// 控火请求进行中，防止连点导致跳阶段
+const heatSubmitting = ref(false)
+// 结算结果，用于成品展示弹层
+const craftOutcome = ref<CraftResult | null>(null)
+// 会话剩余秒数（由 currentTime 驱动）
+const heatRemaining = computed(() => {
+  if (!heatSession.value) return 0
+  return Math.max(0, Math.floor((heatSession.value.expires_at - currentTime.value) / 1000))
+})
+// 可选火候档位列表
+const heatOptions = computed(() => {
+  if (!heatSession.value) return []
+  const { heat_min, heat_max } = heatSession.value
+  return Array.from({ length: heat_max - heat_min + 1 }, (_, i) => heat_min + i)
+})
+// 火候阶段是否已全部完成
+const heatFinished = computed(() => {
+  if (!heatSession.value) return false
+  return heatLogs.value.length >= heatSession.value.total_stages
+})
 
 // ====== 计算属性 ======
 
@@ -143,6 +182,124 @@ const handleCraft = async (recipe: LearnedRecipe) => {
   } finally {
     crafting.value = false
   }
+}
+
+// ====== 火候控制交互 ======
+
+/**
+ * 开炉：创建火候会话，进入控火流程
+ * 与 handleCraft（一键炼制）互斥，玩家二选一
+ * @param recipe - 配方对象
+ */
+const handleStartHeat = async (recipe: LearnedRecipe) => {
+  if (crafting.value) return
+  if (!recipe.can_craft) {
+    uiStore.showToast('材料不足或条件未满足，无法炼制', 'warning')
+    return
+  }
+  if (getCooldownRemaining(recipe) > 0) {
+    uiStore.showToast(`${recipe.name}正在冷却中`, 'warning')
+    return
+  }
+
+  const quantity = craftQuantities.value[recipe.recipe_id] || 1
+  crafting.value = true
+  try {
+    const session = await craftStart(recipe.recipe_id, quantity)
+    heatSession.value = session
+    heatLogs.value = []
+    craftOutcome.value = null
+  } catch (error: any) {
+    const msg = error.response?.data?.message || error.response?.data?.error || '开炉失败'
+    uiStore.showToast(msg, 'error')
+  } finally {
+    crafting.value = false
+  }
+}
+
+/**
+ * 控火：提交当前阶段的火候档位
+ * 使用 heatSubmitting 锁防止连点造成阶段错乱
+ * @param heat - 玩家选择的火候档位
+ */
+const handleSubmitHeat = async (heat: number) => {
+  if (!heatSession.value || heatSubmitting.value || heatFinished.value) return
+
+  heatSubmitting.value = true
+  try {
+    const res = await craftHeat(heat)
+    heatLogs.value.push(res)
+    // 阶段推进后更新提示，供下一阶段参考
+    if (res.hint && heatSession.value) {
+      heatSession.value.hint = res.hint
+      heatSession.value.current_stage = res.current_stage
+    }
+  } catch (error: any) {
+    const msg = error.response?.data?.message || error.response?.data?.error || '控火失败'
+    uiStore.showToast(msg, 'error')
+    // 会话超时或失效时退出控火界面，避免玩家卡在无效状态
+    if (msg.includes('超时') || msg.includes('没有进行中')) {
+      heatSession.value = null
+      heatLogs.value = []
+    }
+  } finally {
+    heatSubmitting.value = false
+  }
+}
+
+/**
+ * 开炉结算：执行炼制并展示成品
+ */
+const handleFinishHeat = async () => {
+  if (!heatSession.value || crafting.value) return
+
+  crafting.value = true
+  try {
+    const result = await craftFinish()
+    craftOutcome.value = result
+    heatSession.value = null
+    heatLogs.value = []
+    uiStore.showToast(result.message || '炼制完成', result.success ? 'success' : 'warning')
+    await fetchRecipes()
+  } catch (error: any) {
+    const msg = error.response?.data?.message || error.response?.data?.error || '结算失败'
+    uiStore.showToast(msg, 'error')
+    heatSession.value = null
+    heatLogs.value = []
+  } finally {
+    crafting.value = false
+  }
+}
+
+/**
+ * 停火散炉：放弃当前火候会话
+ */
+const handleCancelHeat = async () => {
+  try {
+    await craftCancel()
+  } catch {
+    // 取消失败不影响前端退出控火界面，会话最终会由服务端超时清理
+  } finally {
+    heatSession.value = null
+    heatLogs.value = []
+    uiStore.showToast('已停火散炉', 'info')
+  }
+}
+
+/**
+ * 火候档位对应的显示文案
+ * @param heat - 档位数值
+ * @returns 中文火候名称
+ */
+const getHeatLabel = (heat: number): string => {
+  const labels: Record<number, string> = {
+    1: '文火',
+    2: '小火',
+    3: '中火',
+    4: '大火',
+    5: '武火'
+  }
+  return labels[heat] || `${heat}档`
 }
 
 // ====== 辅助方法 ======
@@ -464,23 +621,203 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <!-- 炼制按钮 -->
-              <button
-                @click="handleCraft(recipe)"
-                :disabled="!canCraft(recipe)"
-                class="flex-1 py-2 rounded border transition-colors text-sm font-bold disabled:cursor-not-allowed"
-                :class="canCraft(recipe)
-                  ? (activeTab === 'alchemy'
-                      ? 'bg-amber-900/30 border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300'
-                      : 'bg-purple-900/30 border-purple-700/50 text-purple-400 hover:bg-purple-800/50 hover:text-purple-300')
-                  : 'bg-stone-900 border-stone-700 text-stone-500'"
-              >
-                <span v-if="canCraft(recipe)">炼制</span>
-                <span v-else>{{ getDisableReason(recipe) || '无法炼制' }}</span>
-              </button>
+              <!-- 炼制按钮组：开炉控火（高收益）/ 一键炼制（省事但有惩罚） -->
+              <div class="flex-1 flex gap-2">
+                <!-- 开炉控火：进入火候小游戏，可炼出更高品质 -->
+                <button
+                  @click="handleStartHeat(recipe)"
+                  :disabled="!canCraft(recipe)"
+                  :title="canCraft(recipe) ? '手动把控火候，偏差越小品质越高' : ''"
+                  class="flex-1 py-2 rounded border transition-colors text-sm font-bold disabled:cursor-not-allowed"
+                  :class="canCraft(recipe)
+                    ? (activeTab === 'alchemy'
+                        ? 'bg-amber-900/30 border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300'
+                        : 'bg-purple-900/30 border-purple-700/50 text-purple-400 hover:bg-purple-800/50 hover:text-purple-300')
+                    : 'bg-stone-900 border-stone-700 text-stone-500'"
+                >
+                  <span v-if="canCraft(recipe)">开炉控火</span>
+                  <span v-else>{{ getDisableReason(recipe) || '无法炼制' }}</span>
+                </button>
+
+                <!-- 一键炼制：跳过火候，承担固定成功率惩罚 -->
+                <button
+                  v-if="canCraft(recipe)"
+                  @click="handleCraft(recipe)"
+                  :disabled="crafting"
+                  title="跳过火候把控，成功率略降且品质固定为中档"
+                  class="px-3 py-2 rounded border border-stone-700 bg-stone-900/60 text-stone-400 text-xs hover:text-stone-200 hover:border-stone-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  一键
+                </button>
+              </div>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ====== 火候控制浮层 ====== -->
+    <div
+      v-if="heatSession"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+    >
+      <div class="w-full max-w-md bg-stone-900 border border-amber-800/50 rounded-lg shadow-2xl animate-fade-in">
+        <!-- 标题栏 -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-stone-800">
+          <div>
+            <h3 class="text-amber-400 font-bold">{{ heatSession.recipe_name }}</h3>
+            <p class="text-xs text-stone-500">
+              第 {{ Math.min(heatLogs.length + 1, heatSession.total_stages) }} / {{ heatSession.total_stages }} 阶段
+              · 数量 x{{ heatSession.quantity }}
+            </p>
+          </div>
+          <!-- 剩余时间：低于 30 秒转红警示 -->
+          <div class="text-right">
+            <div class="text-xs text-stone-500">丹炉冷却倒计时</div>
+            <div class="font-mono text-sm" :class="heatRemaining <= 30 ? 'text-red-400' : 'text-stone-300'">
+              {{ heatRemaining }}s
+            </div>
+          </div>
+        </div>
+
+        <!-- 炉火动画区 -->
+        <div class="px-4 py-5 flex flex-col items-center">
+          <div
+            class="w-24 h-24 rounded-full flex items-center justify-center text-4xl transition-all duration-500 furnace-glow"
+            :class="{
+              'furnace-low': heatSession.hint?.level === 'low',
+              'furnace-mid': heatSession.hint?.level === 'mid',
+              'furnace-high': heatSession.hint?.level === 'high'
+            }"
+          >
+            🔥
+          </div>
+          <!-- 火候提示：模糊描述，玩家据此推断档位 -->
+          <p v-if="!heatFinished" class="mt-4 text-center text-sm text-amber-300/90 px-2">
+            {{ heatSession.hint?.text }}
+          </p>
+          <p v-else class="mt-4 text-center text-sm text-emerald-400">
+            火候把控完毕，可以开炉了
+          </p>
+        </div>
+
+        <!-- 阶段反馈时间线 -->
+        <div v-if="heatLogs.length" class="px-4 pb-2 flex justify-center gap-2">
+          <div
+            v-for="(log, idx) in heatLogs"
+            :key="idx"
+            class="px-2 py-1 rounded text-xs border"
+            :class="log.stage_result === 'perfect'
+              ? 'border-emerald-700/60 bg-emerald-900/20 text-emerald-400'
+              : (log.stage_result === 'too_hot'
+                  ? 'border-red-700/60 bg-red-900/20 text-red-400'
+                  : 'border-sky-700/60 bg-sky-900/20 text-sky-400')"
+            :title="log.stage_message"
+          >
+            {{ log.stage_result === 'perfect' ? '完美' : (log.stage_result === 'too_hot' ? '火大' : '火小') }}
+          </div>
+        </div>
+
+        <!-- 火候档位选择 -->
+        <div v-if="!heatFinished" class="px-4 pb-4">
+          <div class="grid grid-cols-5 gap-2">
+            <button
+              v-for="h in heatOptions"
+              :key="h"
+              @click="handleSubmitHeat(h)"
+              :disabled="heatSubmitting"
+              class="py-2 rounded border border-stone-700 bg-stone-800/60 text-xs text-stone-300 hover:border-amber-600 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {{ getHeatLabel(h) }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 操作区 -->
+        <div class="px-4 pb-4 flex gap-2">
+          <button
+            @click="handleCancelHeat"
+            :disabled="crafting"
+            class="px-4 py-2 rounded border border-stone-700 text-stone-400 text-sm hover:text-stone-200 transition-colors disabled:opacity-40"
+          >
+            停火散炉
+          </button>
+          <button
+            v-if="heatFinished"
+            @click="handleFinishHeat"
+            :disabled="crafting"
+            class="flex-1 py-2 rounded border border-amber-700/50 bg-amber-900/30 text-amber-400 text-sm font-bold hover:bg-amber-800/50 transition-colors disabled:opacity-40"
+          >
+            {{ crafting ? '开炉中…' : '开炉取丹' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 炼制结果浮层 ====== -->
+    <div
+      v-if="craftOutcome"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      @click.self="craftOutcome = null"
+    >
+      <div class="w-full max-w-sm bg-stone-900 border border-stone-700 rounded-lg shadow-2xl animate-fade-in p-5">
+        <h3 class="text-center font-bold mb-3" :class="craftOutcome.success ? 'text-emerald-400' : 'text-red-400'">
+          {{ craftOutcome.success ? '炼制成功' : '炼制失败' }}
+        </h3>
+
+        <!-- 成品信息 -->
+        <div v-if="craftOutcome.success_count > 0" class="text-center mb-4">
+          <div class="text-lg text-amber-300">
+            {{ craftOutcome.product.name }} x{{ craftOutcome.product.quantity }}
+          </div>
+          <div v-if="craftOutcome.product.quality_tier" class="mt-1 text-sm text-amber-500">
+            【{{ craftOutcome.product.quality_tier }}】
+            <!-- 丹药展示效果倍率（服用恢复/修为放大）；装备展示属性浮动倍率（穿戴基础属性放大） -->
+            <span v-if="craftOutcome.recipe_type === 'alchemy'" class="text-stone-500 text-xs">效果 x{{ craftOutcome.product.effect_multiplier }}</span>
+            <span v-else class="text-stone-500 text-xs">属性 x{{ craftOutcome.product.attr_multiplier }}</span>
+          </div>
+        </div>
+
+        <!-- 成功率构成明细，让玩家看懂数值来源 -->
+        <div class="text-xs space-y-1 bg-stone-950/60 rounded p-3 border border-stone-800">
+          <div class="flex justify-between text-stone-400">
+            <span>基础成功率</span><span>{{ (craftOutcome.rate_detail.base * 100).toFixed(0) }}%</span>
+          </div>
+          <div class="flex justify-between text-stone-400">
+            <span>技能加成</span><span class="text-emerald-400">+{{ (craftOutcome.rate_detail.skill_bonus * 100).toFixed(1) }}%</span>
+          </div>
+          <div class="flex justify-between text-stone-400">
+            <span>境界修正</span>
+            <span :class="craftOutcome.rate_detail.realm_modifier >= 0 ? 'text-emerald-400' : 'text-red-400'">
+              {{ craftOutcome.rate_detail.realm_modifier >= 0 ? '+' : '' }}{{ (craftOutcome.rate_detail.realm_modifier * 100).toFixed(1) }}%
+            </span>
+          </div>
+          <div class="flex justify-between text-stone-400">
+            <span>洞府丹房</span><span class="text-emerald-400">+{{ (craftOutcome.rate_detail.cave_bonus * 100).toFixed(1) }}%</span>
+          </div>
+          <div class="flex justify-between text-stone-400">
+            <span>火候修正</span>
+            <span :class="craftOutcome.rate_detail.heat_modifier >= 0 ? 'text-emerald-400' : 'text-red-400'">
+              {{ craftOutcome.rate_detail.heat_modifier >= 0 ? '+' : '' }}{{ (craftOutcome.rate_detail.heat_modifier * 100).toFixed(1) }}%
+            </span>
+          </div>
+          <div class="flex justify-between pt-1 mt-1 border-t border-stone-800 text-amber-400 font-bold">
+            <span>最终成功率</span><span>{{ (craftOutcome.rate_detail.final * 100).toFixed(1) }}%</span>
+          </div>
+        </div>
+
+        <div class="mt-3 text-xs text-stone-500 text-center">
+          成功 {{ craftOutcome.success_count }} / {{ craftOutcome.total_attempts }} 次
+          · 获得技能经验 {{ craftOutcome.skill_exp_gained }}
+          <span v-if="craftOutcome.skill_level_up" class="text-amber-400">（技能升级！）</span>
+        </div>
+
+        <button
+          @click="craftOutcome = null"
+          class="mt-4 w-full py-2 rounded border border-stone-700 text-stone-300 text-sm hover:border-amber-600 hover:text-amber-400 transition-colors"
+        >
+          确定
+        </button>
       </div>
     </div>
   </div>
@@ -493,5 +830,32 @@ onUnmounted(() => {
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* 丹炉光晕：以呼吸动画表现炉火强弱，配合火候提示等级切换颜色 */
+.furnace-glow {
+  animation: furnacePulse 1.6s ease-in-out infinite;
+}
+.furnace-low {
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.25), transparent 70%);
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+}
+.furnace-mid {
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.28), transparent 70%);
+  box-shadow: 0 0 28px rgba(251, 191, 36, 0.4);
+}
+.furnace-high {
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.3), transparent 70%);
+  box-shadow: 0 0 34px rgba(239, 68, 68, 0.5);
+}
+@keyframes furnacePulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.08); filter: brightness(1.25); }
+}
+
+/* 尊重用户的减少动效偏好，避免动画引起不适 */
+@media (prefers-reduced-motion: reduce) {
+  .furnace-glow { animation: none; }
+  .animate-fade-in { animation: none; }
 }
 </style>
