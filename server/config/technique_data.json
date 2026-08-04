@@ -1,0 +1,338 @@
+{
+  "_comment": "功法系统配置文件。所有功法静态数据、修炼数值、突破概率、领悟机制均集中于此，禁止在代码中硬编码。",
+
+  "settings": {
+    "_comment": "功法系统全局开关与通用规则",
+    "enabled": true,
+    "max_equipped_main": 1,
+    "max_equipped_auxiliary": 2,
+    "_comment_equipped": "主修功法只能装备1本（决定修炼路线），辅修功法最多2本（提供额外加成）",
+    "auxiliary_ratio": 0.5,
+    "_comment_aux_ratio": "辅修功法加成的折算比例（0.5 表示辅修只提供 50% 加成），保证主修功法的核心地位",
+    "switch_main_cooldown_hours": 12,
+    "_comment_switch": "更换主修功法的冷却时间（小时），防止玩家频繁切换功法白嫖不同加成",
+    "switch_main_cost_spirit_stone": 5000,
+    "_comment_switch_cost": "更换主修功法消耗的灵石（切换成本，体现'改修换脉'代价）",
+    "proficiency_decay_on_switch_pct": 20,
+    "_comment_decay": "更换主修功法时，原功法熟练度衰减百分比（20 表示损失 20% 熟练度）",
+    "daily_practice_limit": 10,
+    "_comment_daily": "每日修炼功法次数上限，控制成长节奏",
+    "practice_cooldown_seconds": 60,
+    "_comment_cooldown": "两次修炼之间的冷却秒数，防止脚本刷取"
+  },
+
+  "grades": {
+    "_comment": "功法品阶定义。品阶决定功法的属性系数、最大层数、突破难度。阶梯式设计：越高阶收益越大但突破越难。",
+    "huang": {
+      "name": "黄阶",
+      "order": 1,
+      "color": "#a1887f",
+      "max_layer": 9,
+      "attr_coefficient": 1.0,
+      "_comment_coef": "属性系数，功法每层加成 = 基础加成 × 该系数",
+      "breakthrough_base_rate": 0.85,
+      "_comment_rate": "该品阶功法层数突破的基础成功率",
+      "proficiency_per_layer": 100,
+      "_comment_prof": "每提升一层所需的基础熟练度"
+    },
+    "xuan": {
+      "name": "玄阶",
+      "order": 2,
+      "color": "#4fc3f7",
+      "max_layer": 9,
+      "attr_coefficient": 1.6,
+      "breakthrough_base_rate": 0.72,
+      "proficiency_per_layer": 260
+    },
+    "di": {
+      "name": "地阶",
+      "order": 3,
+      "color": "#ba68c8",
+      "max_layer": 12,
+      "attr_coefficient": 2.5,
+      "breakthrough_base_rate": 0.58,
+      "proficiency_per_layer": 620
+    },
+    "tian": {
+      "name": "天阶",
+      "order": 4,
+      "color": "#ffb74d",
+      "max_layer": 12,
+      "attr_coefficient": 4.0,
+      "breakthrough_base_rate": 0.42,
+      "proficiency_per_layer": 1500
+    },
+    "shen": {
+      "name": "神阶",
+      "order": 5,
+      "color": "#ef5350",
+      "max_layer": 15,
+      "attr_coefficient": 6.5,
+      "breakthrough_base_rate": 0.28,
+      "proficiency_per_layer": 3600
+    }
+  },
+
+  "practice": {
+    "_comment": "修炼功法（提升熟练度）的消耗与产出配置",
+    "base_spirit_stone_cost": 120,
+    "_comment_cost": "单次修炼基础灵石消耗",
+    "cost_growth_per_layer": 0.35,
+    "_comment_cost_growth": "灵石消耗随功法层数增长的系数：实际消耗 = 基础 × (1 + 层数 × 该系数) × 品阶系数",
+    "base_proficiency_gain": 20,
+    "_comment_gain": "单次修炼获得的基础熟练度",
+    "proficiency_gain_variance": 0.25,
+    "_comment_variance": "熟练度获得的随机浮动范围（0.25 表示 ±25%），提供随机性但不影响长期期望",
+    "mp_cost_ratio": 0.15,
+    "_comment_mp": "单次修炼消耗的灵力占最大灵力的比例",
+    "exp_reward_ratio": 0.6,
+    "_comment_exp": "修炼功法同时获得修为，数值为熟练度收益 × 该比例 × 品阶系数",
+    "comprehension_bonus_per_wisdom": 0.004,
+    "_comment_wisdom": "每点悟性(wisdom)提升的熟练度收益比例（0.004 表示每点悟性 +0.4%）"
+  },
+
+  "breakthrough": {
+    "_comment": "功法层数突破配置。突破成功率采用递减曲线，中后期形成明显瓶颈。",
+    "layer_penalty_per_level": 0.045,
+    "_comment_penalty": "每已有层数对成功率的惩罚（线性递减）：成功率 = 基础率 - 当前层数 × 该值",
+    "min_success_rate": 0.08,
+    "_comment_min": "成功率下限，保证再难也有 8% 机会，避免玩家完全卡死",
+    "max_success_rate": 0.95,
+    "_comment_max": "成功率上限，保留失败可能性",
+    "wisdom_bonus_factor": 0.0015,
+    "_comment_wisdom": "每点悟性对突破成功率的加成（0.0015 表示每点 +0.15%）",
+    "bottleneck_layers": [3, 6, 9, 12],
+    "_comment_bottleneck": "瓶颈层数，突破到这些层数时额外扣减成功率，形成阶段性关卡",
+    "bottleneck_extra_penalty": 0.15,
+    "_comment_bottleneck_penalty": "瓶颈层的额外成功率惩罚",
+    "failure_proficiency_loss_pct": 30,
+    "_comment_fail_loss": "突破失败损失的熟练度百分比（保留大部分，避免挫败感过强）",
+    "failure_protection_count": 3,
+    "_comment_protection": "连续失败达到该次数后，下次突破必定成功（保底机制，防止极端非酋卡死）",
+    "spirit_stone_cost_multiplier": 8,
+    "_comment_bt_cost": "突破消耗灵石 = 单次修炼消耗 × 该倍数"
+  },
+
+  "comprehension": {
+    "_comment": "功法领悟机制：修炼达到特定层数时可领悟功法神通，提供独特战斗效果。这是功法区别于装备的深度玩法。",
+    "enabled": true,
+    "unlock_layers": [3, 6, 9, 12, 15],
+    "_comment_unlock": "达到这些层数时解锁一个神通槽位",
+    "base_comprehend_rate": 0.35,
+    "_comment_rate": "领悟神通的基础成功率",
+    "wisdom_bonus_factor": 0.002,
+    "_comment_wisdom": "每点悟性对领悟成功率的加成",
+    "spirit_stone_cost": 3000,
+    "_comment_cost": "每次尝试领悟消耗的灵石",
+    "cooldown_hours": 6,
+    "_comment_cooldown": "两次领悟尝试之间的冷却时间"
+  },
+
+  "techniques": {
+    "_comment": "功法列表。bonuses 为每层提供的加成（最终加成 = 每层加成 × 当前层数 × 品阶系数）。element 为功法五行属性，与灵根匹配时有额外加成。",
+
+    "huang_basic_qi": {
+      "id": "huang_basic_qi",
+      "name": "引气诀",
+      "grade": "huang",
+      "element": "none",
+      "description": "最基础的引气入体法门，人人可修，根基扎实。",
+      "required_realm": "炼气期",
+      "bonuses": { "hp_max": 12, "mp_max": 8, "atk": 2, "def": 2 },
+      "cultivate_speed_pct_per_layer": 0.8,
+      "_comment_speed": "每层提供的修炼速度加成百分比",
+      "acquire": { "source": "default", "_comment": "新玩家默认拥有" }
+    },
+    "huang_iron_body": {
+      "id": "huang_iron_body",
+      "name": "铁身功",
+      "grade": "huang",
+      "element": "earth",
+      "description": "淬炼肉身的粗浅功法，防御见长，攻伐不足。",
+      "required_realm": "炼气期",
+      "bonuses": { "hp_max": 30, "mp_max": 0, "atk": 1, "def": 6 },
+      "cultivate_speed_pct_per_layer": 0.3,
+      "acquire": { "source": "shop", "cost_spirit_stone": 8000 }
+    },
+    "huang_swift_wind": {
+      "id": "huang_swift_wind",
+      "name": "轻风步",
+      "grade": "huang",
+      "element": "wood",
+      "description": "身法功法，提升速度与闪避，适合游斗。",
+      "required_realm": "炼气期",
+      "bonuses": { "hp_max": 8, "mp_max": 5, "atk": 2, "def": 1, "speed": 5 },
+      "cultivate_speed_pct_per_layer": 0.5,
+      "acquire": { "source": "shop", "cost_spirit_stone": 9000 }
+    },
+
+    "xuan_flame_art": {
+      "id": "xuan_flame_art",
+      "name": "赤焰真诀",
+      "grade": "xuan",
+      "element": "fire",
+      "description": "以火入道，攻势凌厉，然火气灼身需以灵力压制。",
+      "required_realm": "筑基期",
+      "bonuses": { "hp_max": 20, "mp_max": 25, "atk": 12, "def": 3 },
+      "cultivate_speed_pct_per_layer": 1.2,
+      "acquire": { "source": "sect", "sect_contribution": 3000 }
+    },
+    "xuan_water_moon": {
+      "id": "xuan_water_moon",
+      "name": "水月心经",
+      "grade": "xuan",
+      "element": "water",
+      "description": "水属功法，灵力浑厚绵长，恢复与续航俱佳。",
+      "required_realm": "筑基期",
+      "bonuses": { "hp_max": 45, "mp_max": 50, "atk": 4, "def": 8 },
+      "cultivate_speed_pct_per_layer": 1.5,
+      "acquire": { "source": "sect", "sect_contribution": 3000 }
+    },
+    "xuan_thunder_step": {
+      "id": "xuan_thunder_step",
+      "name": "雷霆纵",
+      "grade": "xuan",
+      "element": "thunder",
+      "description": "雷属身法，迅捷如电，先发制人。",
+      "required_realm": "筑基期",
+      "bonuses": { "hp_max": 18, "mp_max": 20, "atk": 9, "def": 2, "speed": 10 },
+      "cultivate_speed_pct_per_layer": 1.0,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.04 }
+    },
+
+    "di_five_element": {
+      "id": "di_five_element",
+      "name": "五行归元功",
+      "grade": "di",
+      "element": "none",
+      "description": "调和五行之力归于一元，无属性偏好，全面均衡。",
+      "required_realm": "金丹期",
+      "bonuses": { "hp_max": 90, "mp_max": 90, "atk": 22, "def": 22 },
+      "cultivate_speed_pct_per_layer": 2.2,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.02 }
+    },
+    "di_blood_demon": {
+      "id": "di_blood_demon",
+      "name": "血魔炼形诀",
+      "grade": "di",
+      "element": "none",
+      "_comment_element": "魔功不依赖灵根属性，设为 none 以免玩家因灵根不符被永久排除",
+      "description": "魔道功法，以血养功攻伐无双，然反噬自身减损气血上限。",
+      "required_realm": "金丹期",
+      "bonuses": { "hp_max": -40, "mp_max": 60, "atk": 48, "def": 10 },
+      "_comment_negative": "hp_max 为负值，体现魔功反噬——高风险高回报的策略选择",
+      "cultivate_speed_pct_per_layer": 3.0,
+      "acquire": { "source": "sect", "sect_id": "yinluo", "sect_contribution": 12000 }
+    },
+    "di_mountain_seal": {
+      "id": "di_mountain_seal",
+      "name": "镇岳诀",
+      "grade": "di",
+      "element": "earth",
+      "description": "厚土载物，防御冠绝同阶，攻伐迟缓。",
+      "required_realm": "金丹期",
+      "bonuses": { "hp_max": 160, "mp_max": 40, "atk": 8, "def": 45, "speed": -3 },
+      "cultivate_speed_pct_per_layer": 1.6,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.02 }
+    },
+
+    "tian_taixu": {
+      "id": "tian_taixu",
+      "name": "太虚玄经",
+      "grade": "tian",
+      "element": "none",
+      "description": "上古遗留的天阶功法，玄妙无方，修炼速度冠绝诸法。",
+      "required_realm": "元婴期",
+      "bonuses": { "hp_max": 200, "mp_max": 220, "atk": 55, "def": 55 },
+      "cultivate_speed_pct_per_layer": 4.5,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.006 }
+    },
+    "tian_nine_sun": {
+      "id": "tian_nine_sun",
+      "name": "九阳焚天诀",
+      "grade": "tian",
+      "element": "fire",
+      "description": "九阳齐出，焚尽八荒，攻伐之道的极致。",
+      "required_realm": "元婴期",
+      "bonuses": { "hp_max": 120, "mp_max": 180, "atk": 110, "def": 25 },
+      "cultivate_speed_pct_per_layer": 3.5,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.005 }
+    },
+
+    "shen_chaos_origin": {
+      "id": "shen_chaos_origin",
+      "name": "混沌本源经",
+      "grade": "shen",
+      "element": "none",
+      "description": "传说中开天辟地时诞生的功法，可窥大道本源。",
+      "required_realm": "化神期",
+      "bonuses": { "hp_max": 500, "mp_max": 500, "atk": 160, "def": 160 },
+      "cultivate_speed_pct_per_layer": 7.0,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.0015 }
+    }
+  },
+
+  "element_match": {
+    "_comment": "功法五行与玩家灵根匹配的加成/减成。匹配时收益放大，相克时收益衰减，提供功法选择的策略深度。",
+    "match_bonus_pct": 20,
+    "_comment_match": "灵根与功法属性一致时，功法加成提升的百分比",
+    "conflict_penalty_pct": 15,
+    "_comment_conflict": "灵根与功法属性相克时，功法加成衰减的百分比",
+    "_comment_conflicts": "相克表：key 灵根 克 value 中的属性。注意灵根键名须与 attribute_system.json 的 spirit_root_bonus 一致（金为 gold 而非 metal），否则永远匹配不上。雷/冰为变异灵根，各自克制两种属性以体现其稀有强度。",
+    "conflicts": {
+      "fire": ["gold"],
+      "gold": ["wood"],
+      "wood": ["earth"],
+      "earth": ["water"],
+      "water": ["fire"],
+      "thunder": ["gold", "wood"],
+      "ice": ["water", "fire"]
+    }
+  },
+
+  "skills": {
+    "_comment": "功法神通列表。领悟后提供战斗特殊效果，是功法系统的深度玩法核心。effects 由战斗系统读取。",
+    "flame_burst": {
+      "id": "flame_burst",
+      "name": "烈焰爆发",
+      "element": "fire",
+      "description": "战斗中有几率造成额外火焰伤害。",
+      "effects": { "extra_damage_rate": 0.25, "trigger_chance": 0.18 }
+    },
+    "water_shield": {
+      "id": "water_shield",
+      "name": "水灵护体",
+      "element": "water",
+      "description": "受到攻击时有几率减免伤害。",
+      "effects": { "damage_reduction": 0.30, "trigger_chance": 0.20 }
+    },
+    "thunder_strike": {
+      "id": "thunder_strike",
+      "name": "雷霆一击",
+      "element": "thunder",
+      "description": "提升暴击率与暴击伤害。",
+      "effects": { "crit_rate_bonus": 0.12, "crit_damage_bonus": 0.25 }
+    },
+    "earth_fortress": {
+      "id": "earth_fortress",
+      "name": "厚土壁垒",
+      "element": "earth",
+      "description": "永久提升防御，并有几率完全格挡一次攻击。",
+      "effects": { "def_bonus_pct": 0.15, "block_chance": 0.10 }
+    },
+    "blood_drain": {
+      "id": "blood_drain",
+      "name": "血魔汲取",
+      "element": "none",
+      "description": "攻击时吸取目标气血。",
+      "effects": { "lifesteal_rate": 0.22, "trigger_chance": 0.25 }
+    },
+    "void_insight": {
+      "id": "void_insight",
+      "name": "虚空感悟",
+      "element": "none",
+      "description": "提升修炼速度与突破成功率。",
+      "effects": { "cultivate_speed_pct": 8, "breakthrough_rate_bonus": 0.05 }
+    }
+  }
+}

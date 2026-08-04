@@ -33,6 +33,10 @@
       "description": "境界突破系统"
     },
     {
+      "name": "Technique",
+      "description": "功法系统（习得/修炼/层数突破/神通领悟/主辅修装备）"
+    },
+    {
       "name": "Seclusion",
       "description": "闭关修炼系统"
     },
@@ -271,6 +275,14 @@
     {
       "name": "灵溪垂钓",
       "description": "灵溪垂钓系统（玩法文档第21节）：4级钓竿/4种鱼饵/4个鱼塘/钓术熟练度/异步钓鱼/剖鱼机缘/鱼篓鱼谱/4类排行榜"
+    },
+    {
+      "name": "Achievement",
+      "description": "成就系统（成就查询 / 奖励领取）"
+    },
+    {
+      "name": "Lottery",
+      "description": "抽奖（寻仙机缘）系统（面板 / 抽奖）"
     }
   ],
   "security": [
@@ -280,6 +292,237 @@
   ],
   "components": {
     "schemas": {
+      "OwnedTechnique": {
+        "type": "object",
+        "description": "玩家已习得的功法（静态配置 + 动态进度 + 实时计算值）",
+        "properties": {
+          "technique_id": {
+            "type": "string",
+            "description": "功法ID",
+            "example": "basic_qi_art"
+          },
+          "name": {
+            "type": "string",
+            "example": "引气诀"
+          },
+          "grade": {
+            "type": "string",
+            "description": "品阶key",
+            "enum": [
+              "huang",
+              "xuan",
+              "di",
+              "tian",
+              "shen"
+            ],
+            "example": "huang"
+          },
+          "grade_name": {
+            "type": "string",
+            "example": "黄阶"
+          },
+          "grade_color": {
+            "type": "string",
+            "description": "品阶展示色（前端用）",
+            "example": "#a0a0a0"
+          },
+          "element": {
+            "type": "string",
+            "description": "功法五行属性，none 表示无属性",
+            "example": "fire"
+          },
+          "description": {
+            "type": "string",
+            "example": "最基础的引气入体法门"
+          },
+          "layer": {
+            "type": "integer",
+            "description": "当前层数",
+            "example": 3
+          },
+          "max_layer": {
+            "type": "integer",
+            "description": "该品阶的最大层数",
+            "example": 9
+          },
+          "proficiency": {
+            "type": "integer",
+            "description": "当前熟练度",
+            "example": 88
+          },
+          "required_proficiency": {
+            "type": "integer",
+            "description": "突破下一层所需熟练度",
+            "example": 200
+          },
+          "equip_slot": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "main",
+              "auxiliary",
+              null
+            ],
+            "description": "装备槽位，null 表示未装备",
+            "example": "main"
+          },
+          "comprehended_skills": {
+            "type": "array",
+            "description": "已领悟的神通ID列表",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "fire_ball"
+            ]
+          },
+          "fail_streak": {
+            "type": "integer",
+            "description": "连续突破失败次数（达保底次数后必定成功）",
+            "example": 1
+          },
+          "practice_count": {
+            "type": "integer",
+            "description": "累计修炼次数",
+            "example": 42
+          },
+          "daily_practice_count": {
+            "type": "integer",
+            "description": "今日已修炼次数（跨天自动归零）",
+            "example": 5
+          },
+          "daily_practice_limit": {
+            "type": "integer",
+            "example": 20
+          },
+          "practice_cost": {
+            "type": "integer",
+            "description": "下一次修炼的灵石消耗",
+            "example": 67
+          },
+          "mp_cost": {
+            "type": "integer",
+            "description": "下一次修炼的灵力消耗（依赖玩家灵力上限），前端消耗预览用",
+            "example": 50
+          },
+          "breakthrough_cost": {
+            "type": "integer",
+            "description": "一次突破的灵石消耗（= practice_cost × breakthrough.spirit_stone_cost_multiplier），前端消耗预览用",
+            "example": 670
+          },
+          "comprehend_cost": {
+            "type": "integer",
+            "description": "一次神通领悟的灵石消耗（来自 comprehension.spirit_stone_cost），前端消耗预览用",
+            "example": 1500
+          },
+          "breakthrough_rate": {
+            "type": "number",
+            "format": "float",
+            "nullable": true,
+            "description": "当前突破成功率，已满层时为 null",
+            "example": 0.715
+          },
+          "is_max_layer": {
+            "type": "boolean",
+            "example": false
+          },
+          "current_bonus": {
+            "type": "object",
+            "description": "该功法当前提供的属性加成（可能含负值，如魔功反噬）",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "example": {
+              "hp_max": 60,
+              "atk": 9
+            }
+          }
+        }
+      },
+      "AvailableTechnique": {
+        "type": "object",
+        "description": "尚未习得、可供研习的功法",
+        "properties": {
+          "technique_id": {
+            "type": "string",
+            "example": "flame_art"
+          },
+          "name": {
+            "type": "string",
+            "example": "炎阳功"
+          },
+          "grade": {
+            "type": "string",
+            "example": "xuan"
+          },
+          "grade_name": {
+            "type": "string",
+            "example": "玄阶"
+          },
+          "grade_color": {
+            "type": "string",
+            "example": "#4a9eff"
+          },
+          "element": {
+            "type": "string",
+            "example": "fire"
+          },
+          "description": {
+            "type": "string",
+            "example": "引天阳之火淬炼己身"
+          },
+          "required_realm": {
+            "type": "string",
+            "description": "习得所需最低境界",
+            "example": "筑基期"
+          },
+          "realm_satisfied": {
+            "type": "boolean",
+            "description": "玩家境界是否已达标",
+            "example": true
+          },
+          "acquire": {
+            "type": "object",
+            "description": "获取途径与代价",
+            "properties": {
+              "source": {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "shop",
+                  "sect",
+                  "secret_realm"
+                ],
+                "example": "shop"
+              },
+              "cost_spirit_stone": {
+                "type": "integer",
+                "example": 5000
+              },
+              "sect_contribution": {
+                "type": "integer",
+                "example": 800
+              },
+              "sect_id": {
+                "type": "string",
+                "nullable": true,
+                "description": "限定宗门ID，为空表示所有宗门均可研习"
+              }
+            }
+          },
+          "bonuses": {
+            "type": "object",
+            "description": "每层提供的基础属性加成",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "example": {
+              "hp_max": 30,
+              "atk": 8
+            }
+          }
+        }
+      },
       "PendingVisitor": {
         "type": "object",
         "description": "待处理访客信息（洞府主人接待/驱逐/忽略操作对象）",
@@ -10951,6 +11194,655 @@
     }
   },
   "paths": {
+    "/api/technique/list": {
+      "get": {
+        "summary": "获取功法总览",
+        "description": "返回玩家已习得的功法（含层数、熟练度、实时突破率、当前属性加成、已领悟神通）与可习得功法列表（含境界是否达标、获取途径与代价）。",
+        "tags": [
+          "Technique"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "description": "功法系统是否开放",
+                          "example": true
+                        },
+                        "wisdom": {
+                          "type": "integer",
+                          "description": "玩家悟性（取神识 sense 属性）",
+                          "example": 32
+                        },
+                        "settings": {
+                          "type": "object",
+                          "properties": {
+                            "max_equipped_main": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "max_equipped_auxiliary": {
+                              "type": "integer",
+                              "example": 2
+                            },
+                            "daily_practice_limit": {
+                              "type": "integer",
+                              "example": 20
+                            },
+                            "practice_cooldown_seconds": {
+                              "type": "integer",
+                              "example": 10
+                            },
+                            "switch_main_cost_spirit_stone": {
+                              "type": "integer",
+                              "description": "主修切换灵石代价",
+                              "example": 1000
+                            },
+                            "proficiency_decay_on_switch_pct": {
+                              "type": "integer",
+                              "description": "主修切换时原主修熟练度衰减百分比",
+                              "example": 20
+                            },
+                            "switch_main_cooldown_hours": {
+                              "type": "integer",
+                              "description": "主修切换冷却（小时），0 表示无冷却",
+                              "example": 24
+                            }
+                          }
+                        },
+                        "owned": {
+                          "type": "array",
+                          "description": "已习得功法列表",
+                          "items": {
+                            "$ref": "#/components/schemas/OwnedTechnique"
+                          }
+                        },
+                        "available": {
+                          "type": "array",
+                          "description": "可习得功法列表",
+                          "items": {
+                            "$ref": "#/components/schemas/AvailableTechnique"
+                          }
+                        },
+                        "current_main": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "当前主修信息（无主修时为 null），供前端预览切换代价与冷却",
+                          "properties": {
+                            "technique_id": {
+                              "type": "string",
+                              "example": "qingyuan_jue"
+                            },
+                            "name": {
+                              "type": "string",
+                              "example": "青元剑诀"
+                            },
+                            "proficiency": {
+                              "type": "integer",
+                              "example": 320
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或令牌失效"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
+        }
+      }
+    },
+    "/api/technique/learn": {
+      "post": {
+        "summary": "习得功法",
+        "description": "研习一本新功法。根据功法的获取途径扣除相应代价：shop 扣灵石，sect 扣宗门贡献（限定宗门的功法还会校验所属宗门），default 免费。秘境功法（secret_realm）不可通过本接口习得。",
+        "tags": [
+          "Technique"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "technique_id"
+                ],
+                "properties": {
+                  "technique_id": {
+                    "type": "string",
+                    "description": "功法ID",
+                    "example": "basic_qi_art"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "习得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "成功研习《引气诀》"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "cost": {
+                          "type": "string",
+                          "description": "本次消耗描述",
+                          "example": "500 灵石"
+                        },
+                        "technique": {
+                          "type": "object",
+                          "properties": {
+                            "technique_id": {
+                              "type": "string",
+                              "example": "basic_qi_art"
+                            },
+                            "name": {
+                              "type": "string",
+                              "example": "引气诀"
+                            },
+                            "layer": {
+                              "type": "integer",
+                              "example": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数缺失、已习得、境界不足、灵石或宗门贡献不足"
+          },
+          "403": {
+            "description": "功法系统未开放、秘境功法不可直接习得、非本门传承"
+          },
+          "404": {
+            "description": "功法或玩家不存在"
+          }
+        }
+      }
+    },
+    "/api/technique/practice": {
+      "post": {
+        "summary": "修炼功法",
+        "description": "运转功法提升熟练度。消耗灵石与灵力，产出熟练度（含随机浮动与悟性加成）与修为。受每日次数上限与冷却时间限制。",
+        "tags": [
+          "Technique"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "technique_id"
+                ],
+                "properties": {
+                  "technique_id": {
+                    "type": "string",
+                    "example": "basic_qi_art"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "修炼成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "运转《引气诀》，熟练度 +13"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "proficiency_gain": {
+                          "type": "integer",
+                          "example": 13
+                        },
+                        "exp_gain": {
+                          "type": "integer",
+                          "example": 39
+                        },
+                        "spirit_stone_cost": {
+                          "type": "integer",
+                          "example": 67
+                        },
+                        "mp_cost": {
+                          "type": "integer",
+                          "example": 15
+                        },
+                        "proficiency": {
+                          "type": "integer",
+                          "description": "修炼后的当前熟练度",
+                          "example": 88
+                        },
+                        "required_proficiency": {
+                          "type": "integer",
+                          "description": "突破下一层所需熟练度",
+                          "example": 100
+                        },
+                        "can_breakthrough": {
+                          "type": "boolean",
+                          "description": "熟练度是否已够突破",
+                          "example": false
+                        },
+                        "daily_practice_count": {
+                          "type": "integer",
+                          "example": 5
+                        },
+                        "daily_practice_limit": {
+                          "type": "integer",
+                          "example": 20
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "未习得该功法、冷却中、今日次数已满、灵石或灵力不足"
+          },
+          "403": {
+            "description": "功法系统未开放"
+          },
+          "404": {
+            "description": "功法或玩家不存在"
+          }
+        }
+      }
+    },
+    "/api/technique/breakthrough": {
+      "post": {
+        "summary": "突破功法层数",
+        "description": "消耗熟练度与灵石尝试突破功法层数。成功率 = 品阶基础率 - 层数×层惩罚 - 瓶颈层额外惩罚 + 悟性×悟性系数，并被钳制在配置的上下限之间。连续失败达保底次数时必定成功。失败会按比例损失熟练度。",
+        "tags": [
+          "Technique"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "technique_id"
+                ],
+                "properties": {
+                  "technique_id": {
+                    "type": "string",
+                    "example": "basic_qi_art"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "突破流程执行完毕（成功与否见 breakthrough_success 字段）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "突破成功！《引气诀》臻至第 2 层"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "breakthrough_success": {
+                          "type": "boolean",
+                          "description": "本次突破是否成功",
+                          "example": true
+                        },
+                        "protected": {
+                          "type": "boolean",
+                          "description": "是否由连续失败保底机制触发的成功",
+                          "example": false
+                        },
+                        "rate": {
+                          "type": "number",
+                          "format": "float",
+                          "description": "本次突破的实际成功率",
+                          "example": 0.805
+                        },
+                        "layer": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "max_layer": {
+                          "type": "integer",
+                          "example": 9
+                        },
+                        "proficiency": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "required_proficiency": {
+                          "type": "integer",
+                          "example": 150
+                        },
+                        "fail_streak": {
+                          "type": "integer",
+                          "description": "当前连续失败次数",
+                          "example": 0
+                        },
+                        "spirit_stone_cost": {
+                          "type": "integer",
+                          "example": 335
+                        },
+                        "can_comprehend": {
+                          "type": "boolean",
+                          "description": "突破后是否达到神通解锁层",
+                          "example": false
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "未习得该功法、已达满层、熟练度不足、灵石不足"
+          },
+          "403": {
+            "description": "功法系统未开放"
+          },
+          "404": {
+            "description": "功法或玩家不存在"
+          }
+        }
+      }
+    },
+    "/api/technique/comprehend": {
+      "post": {
+        "summary": "领悟神通",
+        "description": "消耗灵石尝试领悟功法神通。候选池为与功法五行一致或无属性的神通。成功率 = 基础领悟率 + 悟性×悟性系数。失败同样扣除灵石并进入冷却。神通槽位数量由功法层数决定。",
+        "tags": [
+          "Technique"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "technique_id"
+                ],
+                "properties": {
+                  "technique_id": {
+                    "type": "string",
+                    "example": "flame_art"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "领悟流程执行完毕（成功与否见 comprehend_success 字段）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "顿悟！领悟神通【烈火球】"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "comprehend_success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "rate": {
+                          "type": "number",
+                          "format": "float",
+                          "example": 0.496
+                        },
+                        "skill": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "领悟到的神通，失败时为 null",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "example": "fire_ball"
+                            },
+                            "name": {
+                              "type": "string",
+                              "example": "烈火球"
+                            },
+                            "description": {
+                              "type": "string",
+                              "example": "凝聚灵力化作火球攻击敌人"
+                            },
+                            "effects": {
+                              "type": "object",
+                              "description": "神通战斗效果",
+                              "additionalProperties": true
+                            }
+                          }
+                        },
+                        "spirit_stone_cost": {
+                          "type": "integer",
+                          "example": 500
+                        },
+                        "slots_used": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "slots_total": {
+                          "type": "integer",
+                          "example": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "未习得该功法、槽位已满、冷却中、灵石不足、已无神通可悟"
+          },
+          "403": {
+            "description": "功法系统或神通领悟未开放"
+          },
+          "404": {
+            "description": "功法或玩家不存在"
+          }
+        }
+      }
+    },
+    "/api/technique/equip": {
+      "post": {
+        "summary": "装备/卸下功法",
+        "description": "设置功法为主修或辅修，或卸下（slot 传 null）。主修槽唯一，更换主修需消耗灵石、受冷却限制，且原主修功法熟练度会按比例衰减。辅修槽数量由配置决定，切换无代价。",
+        "tags": [
+          "Technique"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "technique_id"
+                ],
+                "properties": {
+                  "technique_id": {
+                    "type": "string",
+                    "example": "basic_qi_art"
+                  },
+                  "slot": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "main",
+                      "auxiliary",
+                      null
+                    ],
+                    "description": "目标槽位：main 主修 / auxiliary 辅修 / null 卸下",
+                    "example": "main"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "《引气诀》已设为主修功法"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "equip_slot": {
+                          "type": "string",
+                          "nullable": true,
+                          "example": "main"
+                        },
+                        "cost": {
+                          "type": "string",
+                          "description": "本次操作代价描述",
+                          "example": "1000 灵石，原功法熟练度 -30"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数非法、未习得该功法、已在此槽位、辅修槽已满、改修冷却中、灵石不足"
+          },
+          "403": {
+            "description": "功法系统未开放"
+          },
+          "404": {
+            "description": "功法或玩家不存在"
+          }
+        }
+      }
+    },
     "/api/status": {
       "get": {
         "summary": "检查服务器状态",
@@ -78609,6 +79501,458 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/achievement/list": {
+      "get": {
+        "summary": "获取成就总览",
+        "description": "返回全部成就定义并附带玩家进度 / 是否达成 / 是否已领奖。",
+        "tags": [
+          "Achievement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 6
+                        },
+                        "completed_count": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "categories": {
+                          "type": "object",
+                          "description": "成就分类元信息 {id:{name,color,icon}}"
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "example": "first_step"
+                              },
+                              "category": {
+                                "type": "string",
+                                "example": "cultivation"
+                              },
+                              "category_name": {
+                                "type": "string",
+                                "example": "修炼"
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "初入修行"
+                              },
+                              "description": {
+                                "type": "string",
+                                "example": "完成第一次闭关修炼"
+                              },
+                              "metric": {
+                                "type": "string",
+                                "example": "seclusion_count"
+                              },
+                              "target": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "progress": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "percent": {
+                                "type": "integer",
+                                "example": 100
+                              },
+                              "completed": {
+                                "type": "boolean",
+                                "example": true
+                              },
+                              "claimed": {
+                                "type": "boolean",
+                                "example": false
+                              },
+                              "reward": {
+                                "type": "object",
+                                "properties": {
+                                  "spirit_stones": {
+                                    "type": "integer",
+                                    "example": 100
+                                  },
+                                  "exp": {
+                                    "type": "integer",
+                                    "example": 500
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或令牌失效"
+          }
+        }
+      }
+    },
+    "/api/achievement/claim": {
+      "post": {
+        "summary": "领取成就奖励",
+        "description": "对已达成且未领取的成就发放灵石 / 修为奖励。",
+        "tags": [
+          "Achievement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "achievement_id"
+                ],
+                "properties": {
+                  "achievement_id": {
+                    "type": "string",
+                    "example": "first_step"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "领取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "领取成就《初入修行》奖励：100 灵石"
+                        },
+                        "reward": {
+                          "type": "object",
+                          "properties": {
+                            "spirit_stones": {
+                              "type": "integer",
+                              "example": 100
+                            },
+                            "exp": {
+                              "type": "integer",
+                              "example": 500
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "成就未达成 / 已领取 / 参数错误"
+          },
+          "401": {
+            "description": "未登录或令牌失效"
+          },
+          "404": {
+            "description": "成就不存在 / 玩家不存在"
+          }
+        }
+      }
+    },
+    "/api/lottery/panel": {
+      "get": {
+        "summary": "获取抽奖面板",
+        "description": "返回花费 / 保底 / 奖池预览 / 玩家保底进度。",
+        "tags": [
+          "Lottery"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "single_cost": {
+                          "type": "integer",
+                          "example": 200
+                        },
+                        "ten_cost": {
+                          "type": "integer",
+                          "example": 1800
+                        },
+                        "pity_threshold": {
+                          "type": "integer",
+                          "example": 50
+                        },
+                        "pity_remaining": {
+                          "type": "integer",
+                          "example": 12
+                        },
+                        "total_draws": {
+                          "type": "integer",
+                          "example": 38
+                        },
+                        "rank_counts": {
+                          "type": "object",
+                          "description": "各档位历史产出计数"
+                        },
+                        "pool": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "rank": {
+                                "type": "string",
+                                "example": "SSR"
+                              },
+                              "rank_name": {
+                                "type": "string",
+                                "example": "天品"
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "九转金丹"
+                              },
+                              "reward": {
+                                "type": "object",
+                                "properties": {
+                                  "spirit_stones": {
+                                    "type": "integer",
+                                    "example": 5000
+                                  },
+                                  "exp": {
+                                    "type": "integer",
+                                    "example": 10000
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或令牌失效"
+          }
+        }
+      }
+    },
+    "/api/lottery/draw": {
+      "post": {
+        "summary": "抽奖",
+        "description": "消耗灵石进行单次 / 十连抽奖，按权重抽取档位并结算奖励（含保底）。",
+        "tags": [
+          "Lottery"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "single",
+                      "ten"
+                    ],
+                    "example": "ten"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "抽奖成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "mode": {
+                          "type": "string",
+                          "example": "ten"
+                        },
+                        "cost": {
+                          "type": "integer",
+                          "example": 1800
+                        },
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "rank": {
+                                "type": "string",
+                                "example": "SR"
+                              },
+                              "rank_name": {
+                                "type": "string",
+                                "example": "地品"
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "千年灵草"
+                              },
+                              "reward": {
+                                "type": "object",
+                                "properties": {
+                                  "spirit_stones": {
+                                    "type": "integer",
+                                    "example": 1500
+                                  },
+                                  "exp": {
+                                    "type": "integer",
+                                    "example": 3000
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "total_gain": {
+                          "type": "object",
+                          "properties": {
+                            "spirit_stones": {
+                              "type": "integer",
+                              "example": 4200
+                            },
+                            "exp": {
+                              "type": "integer",
+                              "example": 9000
+                            }
+                          }
+                        },
+                        "balance": {
+                          "type": "object",
+                          "properties": {
+                            "spirit_stones": {
+                              "type": "integer",
+                              "example": 2400
+                            },
+                            "exp": {
+                              "type": "integer",
+                              "example": 9000
+                            }
+                          }
+                        },
+                        "pity_remaining": {
+                          "type": "integer",
+                          "example": 8
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "灵石不足 / 抽奖模式错误"
+          },
+          "401": {
+            "description": "未登录或令牌失效"
+          },
+          "403": {
+            "description": "抽奖功能未开放"
           }
         }
       }

@@ -166,6 +166,20 @@ class AttributeService {
         //   - effects: 战斗特殊效果（暴击/吸血/反噬等，不体现在属性面板）
         const artifactDeepLineBonus = player._artifactDeepLineBonus || null;
 
+        // 9. 功法加成（由调用方通过 player._techniqueBonus 传入，异步版本会自动填充）
+        // 结构：{ hp_max, mp_max, atk, def, speed, cultivate_speed_pct, skills[] }
+        //   - 属性字段直接叠加到 final（注意可能为负值，如魔功反噬减损气血上限）
+        //   - cultivate_speed_pct 参与修炼速度百分比汇总
+        //   - skills 为已领悟神通，不影响面板属性，供战斗系统读取
+        const techniqueBonus = player._techniqueBonus || {};
+        // 剔除非数值字段（skills 数组），只保留纯属性加成用于叠加
+        const techniqueAttrBonus = {};
+        for (const [k, v] of Object.entries(techniqueBonus)) {
+            if (typeof v === 'number' && k !== 'cultivate_speed_pct') {
+                techniqueAttrBonus[k] = v;
+            }
+        }
+
         // 汇总计算
         const final = { ...base };
 
@@ -185,6 +199,7 @@ class AttributeService {
         addAttr(final, titleBonus);
         addAttr(final, equipmentBonus);
         addAttr(final, spiritBeastAttrBonus);
+        addAttr(final, techniqueAttrBonus);
 
         // 8.1 法宝深线 - 绝对值加成（虚天鼎的 atk/def 绝对值）
         if (artifactDeepLineBonus && artifactDeepLineBonus.is_active) {
@@ -215,6 +230,8 @@ class AttributeService {
         let cultivateSpeedPct = 0;
         if (talent?.bonuses?.cultivate_speed_pct) cultivateSpeedPct += talent.bonuses.cultivate_speed_pct;
         if (title?.bonuses?.cultivate_speed_pct) cultivateSpeedPct += title.bonuses.cultivate_speed_pct;
+        // 功法提供的修炼速度加成（主修全额 + 辅修按比例，已在 TechniqueService 中折算完毕）
+        if (techniqueBonus.cultivate_speed_pct) cultivateSpeedPct += techniqueBonus.cultivate_speed_pct;
 
         final.cultivate_speed = Math.floor(final.cultivate_speed * (1 + cultivateSpeedPct / 100));
 
@@ -235,8 +252,9 @@ class AttributeService {
                     effects: artifactDeepLineBonus?.effects || {}, // 战斗特殊效果（暴击/吸血/反噬等）
                     sources: artifactDeepLineBonus?.breakdown || {} // 各法宝深线原始返回
                 },
-                cultivation: { // 功法加成 (Placeholder)
-                   hp_max: 0, mp_max: 0, atk: 0, def: 0
+                cultivation: { // 功法加成（2026-08-04 接通 TechniqueService，此前为硬编码占位）
+                    ...techniqueAttrBonus,
+                    cultivate_speed_pct: techniqueBonus.cultivate_speed_pct || 0
                 }
             },
             info: {
@@ -244,7 +262,8 @@ class AttributeService {
                 title,
                 spirit_root: spiritRoot,
                 spirit_beast: spiritBeastInfo, // 灵兽简要信息（beast_id/beast_name/element/star_level/level/bonus_rate/combat_power）
-                artifact_deep_line: artifactDeepLineBonus?.effects || null // 法宝深线战斗特效（供战斗系统读取）
+                artifact_deep_line: artifactDeepLineBonus?.effects || null, // 法宝深线战斗特效（供战斗系统读取）
+                technique_skills: techniqueBonus.skills || [] // 功法已领悟神通（供战斗系统读取）
             }
         };
     }
@@ -265,21 +284,28 @@ class AttributeService {
      */
     async calculateFullAttributesAsync(player) {
         // 并行获取装备总加成、灵兽加成和法宝深线加成（提升性能）
-        const [equipmentBonus, spiritBeastBonus, artifactDeepLineBonus] = await Promise.all([
+        // 功法服务采用延迟 require，避免 TechniqueService → AttributeService 的循环依赖
+        const TechniqueService = require('../services/TechniqueService');
+
+        const [equipmentBonus, spiritBeastBonus, artifactDeepLineBonus, techniqueBonus] = await Promise.all([
             EquipmentService.getEquipmentBonus(player.id),
             SpiritBeastService.getActiveBeastBonus(player.id),
             // 法宝深线加成查询失败时回退到 inactive 状态，不影响属性计算主流程
-            ArtifactDeepLineService.getAllArtifactDeepLineCombatBonuses(player.id).catch(() => ({ is_active: false, absolute: {}, percent: {}, effects: {}, breakdown: {} }))
+            ArtifactDeepLineService.getAllArtifactDeepLineCombatBonuses(player.id).catch(() => ({ is_active: false, absolute: {}, percent: {}, effects: {}, breakdown: {} })),
+            // 功法加成失败时回退为空对象（服务内部已做兜底，此处为双保险）
+            TechniqueService.getTechniqueBonus(player.id, player).catch(() => ({}))
         ]);
         // 临时挂载到 player 对象，供同步方法读取
         player._equipmentBonus = equipmentBonus;
         player._spiritBeastBonus = spiritBeastBonus;
         player._artifactDeepLineBonus = artifactDeepLineBonus;
+        player._techniqueBonus = techniqueBonus;
         const result = this.calculateFullAttributes(player);
         // 清理临时属性，避免污染 player 原始数据
         delete player._equipmentBonus;
         delete player._spiritBeastBonus;
         delete player._artifactDeepLineBonus;
+        delete player._techniqueBonus;
         return result;
     }
 

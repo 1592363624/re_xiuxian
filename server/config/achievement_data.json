@@ -1,0 +1,70 @@
+{
+  "settings": {
+    "enabled": true,
+    "description": "成就系统配置：定义全部成就及其完成条件与奖励。所有阈值集中于此，禁止硬编码。",
+    "auto_grant_on_login": true
+  },
+  "categories": {
+    "cultivation": { "name": "修炼", "color": "emerald", "icon": "🧘" },
+    "combat": { "name": "战斗", "color": "rose", "icon": "⚔️" },
+    "wealth": { "name": "财富", "color": "amber", "icon": "💰" },
+    "social": { "name": "交际", "color": "sky", "icon": "🤝" },
+    "explore": { "name": "探索", "color": "violet", "icon": "🧭" }
+  },
+  "achievements": [
+    {
+      "id": "first_step",
+      "category": "cultivation",
+      "name": "初入修行",
+      "description": "完成第一次闭关修炼",
+      "metric": "seclusion_count",
+      "target": 1,
+      "reward": { "spirit_stones": 100, "exp": 500 }
+    },
+    {
+      "id": "qi_refining",
+      "category": "cultivation",
+      "name": "引气入体",
+      "description": "修为达到练气期",
+      "metric": "realm_index",
+      "target": 1,
+      "reward": { "spirit_stones": 500, "exp": 2000 }
+    },
+    {
+      "id": "slay_demon",
+      "category": "combat",
+      "name": "初战告捷",
+      "description": "击败 10 个敌人",
+      "metric": "kill_count",
+      "target": 10,
+      "reward": { "spirit_stones": 800, "exp": 3000 }
+    },
+    {
+      "id": "rich_man",
+      "category": "wealth",
+      "name": "小有积蓄",
+      "description": "累计获得 10000 灵石",
+      "metric": "total_spirit_stones",
+      "target": 10000,
+      "reward": { "spirit_stones": 2000, "exp": 1000 }
+    },
+    {
+      "id": "social_butterfly",
+      "category": "social",
+      "name": "广结善缘",
+      "description": "拥有 5 名道侣或好友",
+      "metric": "friend_count",
+      "target": 5,
+      "reward": { "spirit_stones": 600, "exp": 1500 }
+    },
+    {
+      "id": "explorer",
+      "category": "explore",
+      "name": "遍历山河",
+      "description": "探索 20 个秘境或地图",
+      "metric": "explore_count",
+      "target": 20,
+      "reward": { "spirit_stones": 1000, "exp": 2500 }
+    }
+  ]
+}

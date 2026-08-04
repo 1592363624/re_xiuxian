@@ -163,6 +163,12 @@
     <EquipmentPanel v-if="isTreasureOpen" @close="isTreasureOpen = false" />
     <!-- 炼制系统面板（炼丹/炼器、学习配方、技能成长） -->
     <CraftingPanel v-if="isCraftingOpen" @close="isCraftingOpen = false" />
+    <!-- 功法系统面板（修炼/突破/领悟/装备） -->
+    <TechniquePanel v-if="isTechniqueOpen" @close="isTechniqueOpen = false" />
+    <!-- 成就系统面板（成就总览 / 奖励领取） -->
+    <AchievementPanel v-if="isAchievementOpen" @close="isAchievementOpen = false" />
+    <!-- 抽奖（寻仙机缘）系统面板（单次 / 十连 / 奖池预览） -->
+    <LotteryPanel v-if="isLotteryOpen" @close="isLotteryOpen = false" />
 
     <!-- 静思悟道面板（第三阶段新增：选择时长、查看瓶颈进度） -->
     <MeditationPanel v-if="isMeditationOpen" @close="isMeditationOpen = false" />
@@ -302,6 +308,12 @@ import SectPanel from '../panels/SectPanel.vue';
 import MarketPanel from '../panels/MarketPanel.vue';
 import CavePanel from '../panels/CavePanel.vue';
 import EquipmentPanel from '../panels/EquipmentPanel.vue';
+// 功法系统面板（修炼/突破/领悟/装备）
+import TechniquePanel from '../panels/TechniquePanel.vue';
+// 成就系统面板（成就总览 / 奖励领取）
+import AchievementPanel from '../panels/AchievementPanel.vue';
+// 抽奖（寻仙机缘）系统面板（单次 / 十连 / 奖池预览）
+import LotteryPanel from '../panels/LotteryPanel.vue';
 // 炼制系统面板（炼丹/炼器、学习配方、技能成长）
 import CraftingPanel from '../panels/CraftingPanel.vue';
 // 静思悟道面板与浮动状态条（第三阶段新增：悟道玩法 + 瓶颈系统）
@@ -391,6 +403,12 @@ const isCaveOpen = ref(false);
 const isTreasureOpen = ref(false);
 // 炼制系统面板状态（炼丹/炼器）
 const isCraftingOpen = ref(false);
+// 功法系统面板状态（修炼/突破/领悟/装备）
+const isTechniqueOpen = ref(false);
+// 成就系统面板状态（成就总览 / 奖励领取）
+const isAchievementOpen = ref(false);
+// 抽奖（寻仙机缘）系统面板状态（单次 / 十连 / 奖池预览）
+const isLotteryOpen = ref(false);
 // 静思悟道面板状态（第三阶段新增）
 const isMeditationOpen = ref(false);
 // PVP 斗法面板状态（第四阶段新增）
@@ -792,6 +810,18 @@ const handleMenuClick = (btnName: string) => {
   } else if (btnName === '灵兽') {
     // 打开灵兽面板（4阶灵兽/五行相克/捕获/培养/出战/放生）
     isSpiritBeastOpen.value = true;
+    isMobileMenuOpen.value = false;
+  } else if (btnName === '功法') {
+    // 打开功法面板（修炼/突破/领悟/装备）
+    isTechniqueOpen.value = true;
+    isMobileMenuOpen.value = false;
+  } else if (btnName === '成就') {
+    // 打开成就面板（成就总览 / 奖励领取）
+    isAchievementOpen.value = true;
+    isMobileMenuOpen.value = false;
+  } else if (btnName === '抽奖') {
+    // 打开抽奖（寻仙机缘）面板（单次 / 十连 / 奖池预览）
+    isLotteryOpen.value = true;
     isMobileMenuOpen.value = false;
   }
 };

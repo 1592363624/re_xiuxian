@@ -35,6 +35,9 @@ const FengshenService = require('./services/FengshenService');
 const CaveSocialService = require('./services/CaveSocialService');
 const SectSpecialService = require('./services/SectSpecialService');
 const RedPacketService = require('./services/RedPacketService');
+const TechniqueService = require('./services/TechniqueService');
+const AchievementService = require('./services/AchievementService');
+const LotteryService = require('./services/LotteryService');
 
 // 基础设施模块（从 modules 重新导出）
 const { infrastructure } = require('../modules');
@@ -68,6 +71,12 @@ async function initializeGameServices(configLoader) {
     SectSpecialService.initialize(configLoader);
     // 聊天红包系统服务初始化
     RedPacketService.initialize(configLoader);
+    // 功法系统服务初始化（修炼/突破/神通领悟/属性加成）
+    TechniqueService.initialize(configLoader);
+    // 成就系统服务初始化
+    AchievementService.initialize(configLoader);
+    // 抽奖（寻仙机缘）系统服务初始化
+    LotteryService.initialize(configLoader);
 
     console.log('游戏核心服务模块初始化完成');
 }
@@ -105,6 +114,9 @@ module.exports = {
     CaveSocialService,
     SectSpecialService,
     RedPacketService,
+    TechniqueService,
+    AchievementService,
+    LotteryService,
 
     // 基础设施
     ConfigLoader: infrastructure?.ConfigLoader,

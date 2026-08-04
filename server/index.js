@@ -568,6 +568,12 @@ const startServer = async () => {
     app.use('/api/combat', require('./routes/combat'));
     app.use('/api/config', require('./routes/config'));
     app.use('/api/attribute', require('./routes/attribute'));
+    // 功法系统（习得/修炼/层数突破/神通领悟/主辅修装备）
+    app.use('/api/technique', require('./routes/technique'));
+    // 成就系统（成就查询 / 奖励领取）
+    app.use('/api/achievement', require('./routes/achievement'));
+    // 抽奖（寻仙机缘）系统（面板 / 抽奖）
+    app.use('/api/lottery', require('./routes/lottery'));
     app.use('/api/time', require('./routes/time'));
     app.use('/api/notifications', require('./routes/notifications'));
     app.use('/api/inventory', require('./routes/inventory'));

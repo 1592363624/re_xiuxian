@@ -1,0 +1,27 @@
+{
+  "settings": {
+    "enabled": true,
+    "description": "抽奖（寻仙机缘）系统配置：单次花费、保底、各档位概率与奖池。所有数值集中于此，禁止硬编码。",
+    "single_cost_spirit_stone": 200,
+    "ten_cost_spirit_stone": 1800,
+    "pity_threshold": 50,
+    "pity_upgrade_rank": "SSR",
+    "reroll_probability_each_draw": true
+  },
+  "ranks": {
+    "SSR": { "name": "天品", "color": "amber", "weight": 3 },
+    "SR": { "name": "地品", "color": "violet", "weight": 17 },
+    "R": { "name": "玄品", "color": "sky", "weight": 40 },
+    "N": { "name": "黄品", "color": "stone", "weight": 40 }
+  },
+  "pool": [
+    { "rank": "SSR", "name": "九转金丹", "reward": { "spirit_stones": 5000, "exp": 10000 }, "weight": 3 },
+    { "rank": "SSR", "name": "上古灵宝", "reward": { "exp": 30000 }, "weight": 0 },
+    { "rank": "SR", "name": "千年灵草", "reward": { "spirit_stones": 1500, "exp": 3000 }, "weight": 10 },
+    { "rank": "SR", "name": "玄铁宝箱", "reward": { "spirit_stones": 800 }, "weight": 7 },
+    { "rank": "R", "name": "培元丹", "reward": { "spirit_stones": 300, "exp": 800 }, "weight": 40 },
+    { "rank": "R", "name": "灵石袋", "reward": { "spirit_stones": 500 }, "weight": 0 },
+    { "rank": "N", "name": "碎石", "reward": { "spirit_stones": 50 }, "weight": 40 },
+    { "rank": "N", "name": "碎灵", "reward": { "exp": 200 }, "weight": 0 }
+  ]
+}
