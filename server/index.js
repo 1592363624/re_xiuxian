@@ -564,6 +564,8 @@ const startServer = async () => {
     app.use('/api/breakthrough', require('./routes/breakthrough'));
     app.use('/api/meditation', require('./routes/meditation'));
     app.use('/api/map', require('./routes/map').router);
+    // 大世界地图路由（World Map MVP：连续世界坐标移动 + 同图在线玩家）
+    app.use('/api/world', require('./routes/world'));
     app.use('/api/gather', require('./routes/gather'));
     app.use('/api/combat', require('./routes/combat'));
     app.use('/api/config', require('./routes/config'));
@@ -887,6 +889,23 @@ const startServer = async () => {
 
     // 3000端口仅提供API服务，不托管前端静态文件
     // 前端游戏客户端和管理后台需单独部署
+
+    // 监听 listen 错误（如端口被占用 EADDRINUSE），避免进程静默崩溃无提示
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.error('');
+            console.error('═══════════════════════════════════════════');
+            console.error(`❌ 端口 ${PORT} 已被占用，API服务启动失败`);
+            console.error('═══════════════════════════════════════════');
+            console.error(`请先关闭占用该端口的进程，例如执行：`);
+            console.error(`  taskkill /PID <占用进程PID> /F`);
+            console.error(`或修改 server/.env 中的 PORT 后重试`);
+            console.error('═══════════════════════════════════════════');
+        } else {
+            console.error('❌ 服务器监听失败:', err.message);
+        }
+        process.exit(1);
+    });
 
     server.listen(PORT, () => {
         console.log(`API服务运行在 http://localhost:${PORT}`);

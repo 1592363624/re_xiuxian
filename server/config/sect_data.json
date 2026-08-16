@@ -20,9 +20,9 @@
         { "id": "luoyun_exp_book", "name": "落云道典", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
       ],
       "quests": [
-        { "id": "luoyun_q1", "name": "灵树灌溉", "description": "为灵眼之树灌注灵力", "contribution": 20, "exp_reward": 100, "daily": true },
-        { "id": "luoyun_q2", "name": "守山巡逻", "description": "巡视宗门山门", "contribution": 30, "exp_reward": 150, "daily": true },
-        { "id": "luoyun_q3", "name": "采摘灵果", "description": "采摘成熟灵果上交宗门", "contribution": 50, "exp_reward": 200, "daily": true }
+        { "id": "luoyun_q1", "name": "灵树灌溉", "description": "为灵眼之树灌注灵力", "contribution": 20, "exp_reward": 100, "daily": true, "min_contribution": 0 },
+        { "id": "luoyun_q2", "name": "守山巡逻", "description": "巡视宗门山门", "contribution": 30, "exp_reward": 150, "daily": true, "min_contribution": 30 },
+        { "id": "luoyun_q3", "name": "采摘灵果", "description": "采摘成熟灵果上交宗门", "contribution": 50, "exp_reward": 200, "daily": true, "min_contribution": 80 }
       ]
     },
     {
@@ -45,9 +45,9 @@
         { "id": "xinggong_book", "name": "观星要术", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
       ],
       "quests": [
-        { "id": "xinggong_q1", "name": "观星值守", "description": "观星台值守一夜", "contribution": 25, "exp_reward": 120, "daily": true },
-        { "id": "xinggong_q2", "name": "牵引星辰", "description": "协助牵引星辰入盘", "contribution": 35, "exp_reward": 180, "daily": true },
-        { "id": "xinggong_q3", "name": "维护星阵", "description": "维护周天星斗大阵", "contribution": 50, "exp_reward": 220, "daily": true }
+        { "id": "xinggong_q1", "name": "观星值守", "description": "观星台值守一夜", "contribution": 25, "exp_reward": 120, "daily": true, "min_contribution": 0 },
+        { "id": "xinggong_q2", "name": "牵引星辰", "description": "协助牵引星辰入盘", "contribution": 35, "exp_reward": 180, "daily": true, "min_contribution": 35 },
+        { "id": "xinggong_q3", "name": "维护星阵", "description": "维护周天星斗大阵", "contribution": 50, "exp_reward": 220, "daily": true, "min_contribution": 90 }
       ]
     },
     {
@@ -70,9 +70,9 @@
         { "id": "tianxing_book", "name": "天机诀", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
       ],
       "quests": [
-        { "id": "tianxing_q1", "name": "观命推演", "description": "推演自身命格", "contribution": 25, "exp_reward": 120, "daily": true },
-        { "id": "tianxing_q2", "name": "消劫护法", "description": "协助同门化解逆命劫", "contribution": 40, "exp_reward": 200, "daily": true },
-        { "id": "tianxing_q3", "name": "定命修习", "description": "修习定命之法", "contribution": 50, "exp_reward": 220, "daily": true }
+        { "id": "tianxing_q1", "name": "观命推演", "description": "推演自身命格", "contribution": 25, "exp_reward": 120, "daily": true, "min_contribution": 0 },
+        { "id": "tianxing_q2", "name": "消劫护法", "description": "协助同门化解逆命劫", "contribution": 40, "exp_reward": 200, "daily": true, "min_contribution": 40 },
+        { "id": "tianxing_q3", "name": "定命修习", "description": "修习定命之法", "contribution": 50, "exp_reward": 220, "daily": true, "min_contribution": 100 }
       ]
     },
     {
@@ -95,9 +95,9 @@
         { "id": "lingxiao_book", "name": "凌霄心法", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
       ],
       "quests": [
-        { "id": "lingxiao_q1", "name": "登天阶", "description": "攀登天阶磨砺道心", "contribution": 30, "exp_reward": 150, "daily": true },
-        { "id": "lingxiao_q2", "name": "问心台试炼", "description": "在问心台接受心性考验", "contribution": 40, "exp_reward": 200, "daily": true },
-        { "id": "lingxiao_q3", "name": "护法诵经", "description": "护持同门诵经修炼", "contribution": 50, "exp_reward": 220, "daily": true }
+        { "id": "lingxiao_q1", "name": "登天阶", "description": "攀登天阶磨砺道心", "contribution": 30, "exp_reward": 150, "daily": true, "min_contribution": 0 },
+        { "id": "lingxiao_q2", "name": "问心台试炼", "description": "在问心台接受心性考验", "contribution": 40, "exp_reward": 200, "daily": true, "min_contribution": 40 },
+        { "id": "lingxiao_q3", "name": "护法诵经", "description": "护持同门诵经修炼", "contribution": 50, "exp_reward": 220, "daily": true, "min_contribution": 100 }
       ]
     },
     {
@@ -120,9 +120,9 @@
         { "id": "yinluo_book", "name": "阴罗秘典", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
       ],
       "quests": [
-        { "id": "yinluo_q1", "name": "收取魂魄", "description": "收集魂魄供奉阴罗幡", "contribution": 30, "exp_reward": 150, "daily": true },
-        { "id": "yinluo_q2", "name": "安抚幡灵", "description": "安抚躁动的幡灵", "contribution": 40, "exp_reward": 200, "daily": true },
-        { "id": "yinluo_q3", "name": "血洗山林", "description": "血洗山林获取煞气", "contribution": 60, "exp_reward": 250, "daily": true }
+        { "id": "yinluo_q1", "name": "收取魂魄", "description": "收集魂魄供奉阴罗幡", "contribution": 30, "exp_reward": 150, "daily": true, "min_contribution": 0 },
+        { "id": "yinluo_q2", "name": "安抚幡灵", "description": "安抚躁动的幡灵", "contribution": 40, "exp_reward": 200, "daily": true, "min_contribution": 40 },
+        { "id": "yinluo_q3", "name": "血洗山林", "description": "血洗山林获取煞气", "contribution": 60, "exp_reward": 250, "daily": true, "min_contribution": 100 }
       ]
     },
     {
@@ -145,9 +145,9 @@
         { "id": "hehuan_book", "name": "合欢秘录", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
       ],
       "quests": [
-        { "id": "hehuan_q1", "name": "魔音灌脑", "description": "修炼魔音之术", "contribution": 30, "exp_reward": 150, "daily": true },
-        { "id": "hehuan_q2", "name": "红尘历练", "description": "入红尘历练心境", "contribution": 40, "exp_reward": 200, "daily": true },
-        { "id": "hehuan_q3", "name": "采补修炼", "description": "采补天地灵气", "contribution": 60, "exp_reward": 250, "daily": true }
+        { "id": "hehuan_q1", "name": "魔音灌脑", "description": "修炼魔音之术", "contribution": 30, "exp_reward": 150, "daily": true, "min_contribution": 0 },
+        { "id": "hehuan_q2", "name": "红尘历练", "description": "入红尘历练心境", "contribution": 40, "exp_reward": 200, "daily": true, "min_contribution": 40 },
+        { "id": "hehuan_q3", "name": "采补修炼", "description": "采补天地灵气", "contribution": 60, "exp_reward": 250, "daily": true, "min_contribution": 100 }
       ]
     }
   ]

@@ -192,7 +192,8 @@
     "transfer_gain_exp": 200,
     "transfer_cooldown_hours": 24,
     "default_min_realm_rank": 1,
-    "leave_contribution_loss_rate": 1
+    "leave_contribution_loss_rate": 1,
+    "quest_accept_min_wait_minutes": 5
   },
   "market": {
     "max_active_listings": 20,

@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import FullMapList from './FullMapList.vue'
+import WorldMapPanel from './WorldMapPanel.vue'
 import { getMapInfo, getMapConfig, startMove } from '../../api/map'
 import { getGameBalancePublic } from '../../api/config'
 import { buildMapTypeNameMap, buildSafetyLevelNameMap, getMapTypeStyle as getMapTypeStyleUtil, getSafetyStyle as getSafetyStyleUtil } from '../../utils/mapStyles'
@@ -164,7 +165,7 @@ onMounted(async () => {
       <!-- 标签页切换 -->
       <div class="flex border-b border-stone-800 bg-[#1c1917]">
         <button 
-          v-for="tab in ['connected', 'all']" 
+          v-for="tab in ['connected', 'all', 'world']" 
           :key="tab"
           @click="activeTab = tab"
           class="flex-1 py-3 px-4 text-center text-sm font-medium transition-colors"
@@ -172,7 +173,7 @@ onMounted(async () => {
             ? 'text-amber-500 border-b-2 border-amber-700' 
             : 'text-stone-500 hover:text-stone-300 border-b-2 border-transparent hover:border-stone-700'"
         >
-          {{ tab === 'connected' ? '可行路径' : '全部地图' }}
+          {{ tab === 'connected' ? '可行路径' : (tab === 'all' ? '全部地图' : '大世界') }}
         </button>
       </div>
       
@@ -290,6 +291,11 @@ onMounted(async () => {
           <!-- 全部地图列表 -->
           <div v-else-if="activeTab === 'all'" class="h-full overflow-hidden">
             <FullMapList @close="emit('close')" />
+          </div>
+
+          <!-- 大世界地图（World Map MVP：2D 俯视大世界 + 同图多人实时可见） -->
+          <div v-else-if="activeTab === 'world'" class="h-full overflow-hidden">
+            <WorldMapPanel @close="emit('close')" />
           </div>
         </div>
       </div>

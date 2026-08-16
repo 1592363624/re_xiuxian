@@ -88,7 +88,7 @@
               <div class="text-xs text-stone-400 mb-1">今日挑战</div>
               <div class="text-sm font-bold"
                 :class="challengeRemaining > 0 ? 'text-red-400' : 'text-stone-500'">
-                {{ challengeRemaining }} / {{ status.config.daily_challenge_limit }}
+                {{ challengeRemaining }} / {{ status.config?.daily_challenge_limit || 0 }}
               </div>
             </div>
             <!-- 今日防守剩余 -->
@@ -96,7 +96,7 @@
               <div class="text-xs text-stone-400 mb-1">今日防守</div>
               <div class="text-sm font-bold"
                 :class="defendRemaining > 0 ? 'text-amber-400' : 'text-stone-500'">
-                {{ defendRemaining }} / {{ status.config.daily_defend_limit }}
+                {{ defendRemaining }} / {{ status.config?.daily_defend_limit || 0 }}
               </div>
             </div>
             <!-- 冷却倒计时 -->
@@ -375,7 +375,7 @@
           <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
             <div class="text-sm font-bold text-red-300 mb-2">段位阶序</div>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-              <div v-for="(rank, idx) in status.config.ranks" :key="idx"
+              <div v-for="(rank, idx) in (status.config?.ranks || [])" :key="idx"
                 class="px-2 py-1.5 rounded border flex items-center justify-between"
                 :class="rank.name === status.ranking.rank_tier
                   ? 'bg-red-900/40 border-red-600 text-red-300'

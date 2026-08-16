@@ -88,5 +88,7 @@ export const SOCKET_EVENTS = [
   'stock:dividend',
   'stock:liquidation',
   'stock:halt',
-  'stock:margin_call'
+  'stock:margin_call',
+  // 大世界地图事件（World Map MVP：同图玩家位置实时同步）
+  'world:player-moved'
 ]

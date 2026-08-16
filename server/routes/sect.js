@@ -147,6 +147,25 @@ router.post('/submit-quest', auth, async (req, res, next) => {
 });
 
 /**
+ * 接取宗门任务
+ * POST /api/sect/accept-quest
+ * body: { quest_id }
+ * 业务说明：玩家必须先接取任务，等待一定时间后才能提交完成任务
+ */
+router.post('/accept-quest', auth, async (req, res, next) => {
+    try {
+        const { quest_id } = req.body;
+        if (!quest_id) {
+            throw new AppError('任务ID不能为空', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        const result = await SectService.acceptQuest(req.user.id, quest_id);
+        res.json({ code: 200, ...result });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
  * 获取宗门宝库物品列表
  * GET /api/sect/treasury/:sectId
  */

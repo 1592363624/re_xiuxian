@@ -60,6 +60,14 @@ class WebSocketNotificationService {
             console.log(`[WebSocket] 玩家 ${playerId} 已连接，SocketID: ${socket.id}`);
             socket.join(`player:${playerId}`);
 
+            // 世界地图接入：确保出生坐标并加入同图房间（懒加载避免循环依赖）
+            try {
+                const WorldMovementService = require('./WorldMovementService');
+                await WorldMovementService.onSocketConnect(playerId);
+            } catch (err) {
+                console.warn(`[WebSocket] 玩家 ${playerId} 世界房间初始化失败:`, err.message);
+            }
+
             // 状态恢复：连接建立后主动推送玩家进行中状态快照
             // 解决"纯 Socket 重连不刷新页面无法恢复状态"的问题
             // 前端收到 state:snapshot 后可据此恢复闭关/移动/战斗/历练的 UI 状态

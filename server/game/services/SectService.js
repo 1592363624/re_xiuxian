@@ -593,7 +593,7 @@ class SectService {
     }
 
     /**
-     * 获取宗门任务列表（标记今日是否已完成）
+     * 获取宗门任务列表（标记今日是否已完成/已接取）
      * @param {number} playerId - 玩家ID
      * @returns {Promise<Object>} 任务列表
      */
@@ -610,14 +610,15 @@ class SectService {
             throw new AppError('宗门配置已失效', 500, ErrorCodes.CONFIG_ERROR);
         }
 
-        // 检查并重置每日任务（读取时若跨天则清零已完成列表）
+        // 检查并重置每日任务（读取时若跨天则清零已完成列表和已接取列表）
         let needsSave = this._checkAndResetDailyQuests(playerSect);
         if (needsSave) {
             await playerSect.save();
         }
 
-        // 标记今日是否已完成
+        // 标记今日是否已完成、是否已接取
         const completedIds = playerSect.daily_quests_completed || [];
+        const acceptedIds = playerSect.quests_accepted || [];
         const quests = (sect.quests || []).map(q => ({
             id: q.id,
             name: q.name,
@@ -625,7 +626,9 @@ class SectService {
             contribution: q.contribution,
             exp_reward: q.exp_reward,
             daily: q.daily,
-            completed: completedIds.includes(q.id)
+            min_contribution: q.min_contribution || 0,
+            completed: completedIds.includes(q.id),
+            accepted: acceptedIds.includes(q.id)
         }));
 
         return {
@@ -638,7 +641,7 @@ class SectService {
 
     /**
      * 提交宗门任务
-     * 校验是否已完成（防重复领取），发放贡献度+修为奖励
+     * 校验：是否已接取 → 是否已完成 → 贡献度门槛 → 等待时间是否足够
      * @param {number} playerId - 玩家ID
      * @param {string} questId - 任务ID
      * @returns {Promise<Object>} 提交结果
@@ -671,13 +674,52 @@ class SectService {
                 throw new AppError('宗门任务不存在', 404, ErrorCodes.NOT_FOUND);
             }
 
-            // 提交前先检查并重置每日任务（跨天则清零已完成列表）
+            // 提交前先检查并重置每日任务（跨天则清零已完成列表和已接取列表）
             this._checkAndResetDailyQuests(playerSect);
 
             // 校验是否已完成（每日任务仅可领取一次）
             const completedIds = playerSect.daily_quests_completed || [];
             if (completedIds.includes(questId)) {
                 throw new AppError('今日已完成该任务，请明日再来', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 校验任务最低贡献度要求（玩家需先通过点卯/其他任务积累贡献度，才能接取更高阶任务）
+            const minContribution = quest.min_contribution || 0;
+            if (playerSect.contribution < minContribution) {
+                throw new AppError(
+                    `宗门贡献度不足，提交【${quest.name}】需要至少 ${minContribution} 贡献度，当前 ${playerSect.contribution}`,
+                    400,
+                    ErrorCodes.BUSINESS_LOGIC_ERROR
+                );
+            }
+
+            // 校验是否已接取任务（必须先接取才能提交，防止无操作直接领奖）
+            const acceptedIds = playerSect.quests_accepted || [];
+            if (!acceptedIds.includes(questId)) {
+                throw new AppError(
+                    `请先接取任务【${quest.name}】后再提交`,
+                    400,
+                    ErrorCodes.BUSINESS_LOGIC_ERROR
+                );
+            }
+
+            // 校验接取后等待时间（防止接取后立即提交，模拟"做任务"的时间消耗）
+            const balanceCfg = this.getBalanceConfig();
+            const minWaitMinutes = balanceCfg.quest_accept_min_wait_minutes || 5;
+            const acceptedAtMap = playerSect.quests_accepted_at || {};
+            const acceptedAt = acceptedAtMap[questId];
+            if (acceptedAt) {
+                const acceptedTime = new Date(acceptedAt).getTime();
+                const nowTime = Date.now();
+                const elapsedMinutes = (nowTime - acceptedTime) / 60000;
+                if (elapsedMinutes < minWaitMinutes) {
+                    const remainingMinutes = Math.ceil(minWaitMinutes - elapsedMinutes);
+                    throw new AppError(
+                        `任务【${quest.name}】正在进行中，还需等待约 ${remainingMinutes} 分钟才能提交`,
+                        400,
+                        ErrorCodes.BUSINESS_LOGIC_ERROR
+                    );
+                }
             }
 
             // 发放奖励：贡献度 + 修为
@@ -709,6 +751,86 @@ class SectService {
     }
 
     /**
+     * 接取宗门任务
+     * 校验贡献度门槛，记录接取状态与时间戳
+     * @param {number} playerId - 玩家ID
+     * @param {string} questId - 任务ID
+     * @returns {Promise<Object>} 接取结果
+     */
+    async acceptQuest(playerId, questId) {
+        const t = await sequelize.transaction();
+        try {
+            const playerSect = await PlayerSect.findOne({
+                where: { player_id: playerId },
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+            if (!playerSect) {
+                throw new AppError('尚未加入宗门，无法接取任务', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            const sect = this.findSectById(playerSect.sect_id);
+            if (!sect) {
+                throw new AppError('宗门配置已失效', 500, ErrorCodes.CONFIG_ERROR);
+            }
+
+            const quest = (sect.quests || []).find(q => q.id === questId);
+            if (!quest) {
+                throw new AppError('宗门任务不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
+            // 跨天重置
+            this._checkAndResetDailyQuests(playerSect);
+
+            // 校验是否已完成
+            const completedIds = playerSect.daily_quests_completed || [];
+            if (completedIds.includes(questId)) {
+                throw new AppError('今日已完成该任务，请明日再来', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 校验是否已接取
+            const acceptedIds = playerSect.quests_accepted || [];
+            if (acceptedIds.includes(questId)) {
+                throw new AppError('已接取该任务，请等待完成后提交', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 校验贡献度门槛
+            const minContribution = quest.min_contribution || 0;
+            if (playerSect.contribution < minContribution) {
+                throw new AppError(
+                    `宗门贡献度不足，接取【${quest.name}】需要至少 ${minContribution} 贡献度，当前 ${playerSect.contribution}`,
+                    400,
+                    ErrorCodes.BUSINESS_LOGIC_ERROR
+                );
+            }
+
+            // 记录接取状态
+            acceptedIds.push(questId);
+            playerSect.quests_accepted = acceptedIds;
+
+            const acceptedAtMap = playerSect.quests_accepted_at || {};
+            acceptedAtMap[questId] = new Date().toISOString();
+            playerSect.quests_accepted_at = acceptedAtMap;
+
+            await playerSect.save({ transaction: t });
+            await t.commit();
+
+            const balanceCfg = this.getBalanceConfig();
+            const minWaitMinutes = balanceCfg.quest_accept_min_wait_minutes || 5;
+
+            return {
+                success: true,
+                message: `已接取任务【${quest.name}】，预计需要 ${minWaitMinutes} 分钟完成`,
+                quest_id: questId,
+                min_wait_minutes: minWaitMinutes
+            };
+        } catch (error) {
+            if (t && !t.finished) await t.rollback();
+            throw error;
+        }
+    }
+
+    /**
      * 计算下次任务重置时间（次日0点）
      * @returns {Date} 次日0点时间
      */
@@ -732,6 +854,8 @@ class SectService {
         // 重置条件：从未设置重置时间，或当前时间已超过重置时间
         if (!resetAt || now >= resetAt) {
             playerSect.daily_quests_completed = [];
+            playerSect.quests_accepted = [];
+            playerSect.quests_accepted_at = {};
             playerSect.quests_reset_at = this._getNextResetTime();
             return true; // 标记已修改，需调用方保存
         }

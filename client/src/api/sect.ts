@@ -100,6 +100,8 @@ export interface SectQuestConfig {
   exp_reward: number;
   /** 是否每日任务 */
   daily: boolean;
+  /** 提交所需最低贡献度（0 表示无门槛，可直接提交） */
+  min_contribution?: number;
 }
 
 /**
@@ -156,6 +158,8 @@ export interface MySect {
 export interface SectQuest extends SectQuestConfig {
   /** 今日是否已完成 */
   completed: boolean;
+  /** 今日是否已接取 */
+  accepted: boolean;
 }
 
 /**
@@ -263,4 +267,14 @@ export const getQuests = () => {
  */
 export const submitQuest = (questId: string) => {
   return apiClient.post('/sect/submit-quest', { quest_id: questId });
+};
+
+/**
+ * 接取宗门任务
+ * POST /sect/accept-quest
+ * 业务说明：玩家必须先接取任务，等待一定时间后才能提交完成任务
+ * @param questId - 任务ID
+ */
+export const acceptQuest = (questId: string) => {
+  return apiClient.post('/sect/accept-quest', { quest_id: questId });
 };

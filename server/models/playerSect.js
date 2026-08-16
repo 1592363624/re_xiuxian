@@ -72,6 +72,38 @@ const PlayerSect = sequelize.define('PlayerSect', {
             this.setDataValue('daily_quests_completed', JSON.stringify(value || []));
         }
     },
+    quests_accepted: {
+        type: DataTypes.TEXT,
+        defaultValue: '[]',
+        comment: '当日已接取任务ID（JSON数组）',
+        get() {
+            const rawValue = this.getDataValue('quests_accepted');
+            try {
+                return rawValue ? JSON.parse(rawValue) : [];
+            } catch (e) {
+                return [];
+            }
+        },
+        set(value) {
+            this.setDataValue('quests_accepted', JSON.stringify(value || []));
+        }
+    },
+    quests_accepted_at: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        comment: '接取任务时间戳（JSON对象，key=questId, value=ISO时间字符串）',
+        get() {
+            const rawValue = this.getDataValue('quests_accepted_at');
+            try {
+                return rawValue ? JSON.parse(rawValue) : {};
+            } catch (e) {
+                return {};
+            }
+        },
+        set(value) {
+            this.setDataValue('quests_accepted_at', JSON.stringify(value || {}));
+        }
+    },
     quests_reset_at: {
         type: DataTypes.DATE,
         allowNull: true,

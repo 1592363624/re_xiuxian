@@ -509,10 +509,10 @@ const handleEquip = async () => {
       actorId: 'self'
     })
 
-    // 收起操作菜单并刷新背包、装备栏和加成
+    // 收起操作菜单并刷新背包、装备栏、加成和玩家属性
     closeEquipConfirmModal()
     expandedItemKey.value = null
-    await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus()])
+    await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus(), playerStore.fetchPlayer()])
   } catch (error) {
     const msg = error.response?.data?.error || error.response?.data?.message || '穿戴失败'
     uiStore.showToast(msg, 'error')
@@ -566,9 +566,9 @@ const handleUnequip = async () => {
       actorId: 'self'
     })
 
-    // 关闭弹窗并刷新背包、装备栏和加成
+    // 关闭弹窗并刷新背包、装备栏、加成和玩家属性
     closeUnequipConfirmModal()
-    await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus()])
+    await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus(), playerStore.fetchPlayer()])
   } catch (error) {
     const msg = error.response?.data?.error || error.response?.data?.message || '卸下失败'
     uiStore.showToast(msg, 'error')

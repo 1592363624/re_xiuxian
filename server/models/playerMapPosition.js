@@ -25,6 +25,21 @@ const PlayerMapPosition = sequelize.define('PlayerMapPosition', {
         allowNull: false,
         comment: '当前所在地图ID'
     },
+    pos_x: {
+        type: DataTypes.DOUBLE,
+        allowNull: true,
+        comment: '世界坐标X（大世界地图）'
+    },
+    pos_y: {
+        type: DataTypes.DOUBLE,
+        allowNull: true,
+        comment: '世界坐标Y（大世界地图）'
+    },
+    latest_move_time: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '最近一次世界移动时间（防滥用）'
+    },
     exploration_progress: {
         type: DataTypes.FLOAT,
         defaultValue: 0,

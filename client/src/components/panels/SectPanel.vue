@@ -23,6 +23,7 @@ import {
   dailyCheckIn,
   transferSkill,
   submitQuest,
+  acceptQuest,
   exchangeTreasury,
   type Sect,
   type MySect,
@@ -412,6 +413,34 @@ const handleSubmitQuest = async (quest: SectQuest) => {
     })
   } catch (error: any) {
     const msg = error.response?.data?.message || error.response?.data?.error || '提交任务失败'
+    uiStore.showToast(msg, 'error')
+  } finally {
+    operating.value = false
+  }
+}
+
+/**
+ * 接取宗门任务
+ * @param quest - 任务对象
+ */
+const handleAcceptQuest = async (quest: SectQuest) => {
+  if (quest.accepted || quest.completed || operating.value) return
+  operating.value = true
+  try {
+    const res = await acceptQuest(quest.id)
+    const result = res.data
+    uiStore.showToast(result.message || '任务接取成功', 'success')
+
+    // 刷新任务列表（更新接取状态）
+    await fetchQuests()
+
+    uiStore.addLog({
+      content: `你接取了宗门任务【${quest.name}】，预计需要 ${result.min_wait_minutes || 5} 分钟完成。`,
+      type: 'info',
+      actorId: 'self'
+    })
+  } catch (error: any) {
+    const msg = error.response?.data?.message || error.response?.data?.error || '接取任务失败'
     uiStore.showToast(msg, 'error')
   } finally {
     operating.value = false
@@ -923,22 +952,41 @@ onUnmounted(() => {
                       <span class="text-sm font-bold text-stone-200">{{ quest.name }}</span>
                       <span v-if="quest.daily" class="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-400">日常</span>
                       <span v-if="quest.completed" class="text-xs px-1.5 py-0.5 rounded bg-emerald-900/30 text-emerald-400 border border-emerald-700/50">已完成</span>
+                      <span v-else-if="quest.accepted" class="text-xs px-1.5 py-0.5 rounded bg-cyan-900/30 text-cyan-400 border border-cyan-700/50">进行中</span>
                     </div>
                     <p class="text-xs text-stone-500 mb-1">{{ quest.description }}</p>
                     <div class="text-xs flex gap-3">
                       <span class="text-amber-400">贡献 +{{ quest.contribution }}</span>
                       <span class="text-cyan-400">修为 +{{ quest.exp_reward }}</span>
+                      <span v-if="(quest.min_contribution || 0) > 0" class="text-stone-500">需要贡献 ≥{{ quest.min_contribution }}</span>
                     </div>
                   </div>
+                  <!-- 按钮区：未接取显示"接取"，已接取未完成显示"提交"，已完成显示"已完成" -->
                   <button
-                    @click="handleSubmitQuest(quest)"
-                    :disabled="quest.completed || operating"
+                    v-if="!quest.completed && !quest.accepted"
+                    @click="handleAcceptQuest(quest)"
+                    :disabled="operating || (mySect?.contribution || 0) < (quest.min_contribution || 0)"
                     class="ml-3 px-3 py-1.5 rounded border text-xs whitespace-nowrap transition-colors"
-                    :class="quest.completed
+                    :class="(mySect?.contribution || 0) < (quest.min_contribution || 0)
                       ? 'bg-stone-900 border-stone-700 text-stone-600 cursor-not-allowed'
-                      : 'bg-emerald-900/30 border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed'"
+                      : 'bg-cyan-900/30 border-cyan-700/50 text-cyan-400 hover:bg-cyan-800/50 hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed'"
                   >
-                    {{ quest.completed ? '已完成' : '提交' }}
+                    {{ (mySect?.contribution || 0) < (quest.min_contribution || 0) ? '贡献不足' : '接取' }}
+                  </button>
+                  <button
+                    v-else-if="quest.accepted && !quest.completed"
+                    @click="handleSubmitQuest(quest)"
+                    :disabled="operating"
+                    class="ml-3 px-3 py-1.5 rounded border text-xs whitespace-nowrap transition-colors bg-emerald-900/30 border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    提交
+                  </button>
+                  <button
+                    v-else
+                    disabled
+                    class="ml-3 px-3 py-1.5 rounded border text-xs whitespace-nowrap bg-stone-900 border-stone-700 text-stone-600 cursor-not-allowed"
+                  >
+                    已完成
                   </button>
                 </div>
               </div>

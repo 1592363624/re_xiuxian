@@ -355,8 +355,8 @@ const doCollect = async () => {
   try {
     const res = await collectStones()
     const result = res.data
-    // 后端返回 amount 可能在顶层或 data 中
-    const amount = result.amount ?? result.data?.amount ?? 0
+    // 后端返回字段为 collected（collected），兼容顶层与 data 嵌套
+    const amount = result.data?.collected ?? result.collected ?? 0
     uiStore.showToast(result.message || `领取灵石 +${amount}`, 'success')
 
     syncPlayerStones(result)

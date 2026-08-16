@@ -38,7 +38,9 @@ export const usePlayerStore = defineStore('player', {
       endTime: null,
       totalSeconds: 0,
       remainingSeconds: 0
-    }
+    },
+    // 大世界状态（World Map MVP：服务器权威连续坐标）
+    worldState: null
   }),
   
   actions: {
@@ -126,6 +128,20 @@ export const usePlayerStore = defineStore('player', {
       socketService.on('move:completed', async () => {
         this.clearMovingState()
         await this.fetchPlayer()
+      })
+
+      // 监听大世界移动广播：自己移动时同步 worldState（其他人由 WorldMapPanel 处理）
+      socketService.on('world:player-moved', (data) => {
+        const p = data?.player
+        if (!p || !this.player) return
+        if (Number(p.player_id) !== Number(this.player.id)) return
+        this.worldState = {
+          map_id: p.map_id,
+          map_name: p.map_name,
+          pos_x: p.pos_x,
+          pos_y: p.pos_y,
+          server_time: Date.now()
+        }
       })
 
       // 监听 WebSocket 鉴权失败：服务端 JWT 校验失败时强制登出
@@ -509,6 +525,33 @@ export const usePlayerStore = defineStore('player', {
         totalSeconds: 0,
         remainingSeconds: 0
       }
+    },
+
+    /**
+     * 获取玩家大世界状态（无坐标时后端自动分配随机出生点）
+     */
+    async fetchWorldState() {
+      if (!this.token) return null
+      try {
+        const { getWorldState } = await import('../api/world')
+        const res = await getWorldState()
+        const data = res.data?.data || res.data
+        if (data) {
+          this.worldState = {
+            map_id: data.map_id,
+            map_name: data.map_name,
+            map_type: data.map_type,
+            pos_x: data.pos_x,
+            pos_y: data.pos_y,
+            bounds: data.bounds,
+            server_time: data.server_time
+          }
+        }
+        return data
+      } catch (error) {
+        console.error('获取大世界状态失败:', error)
+      }
+      return null
     },
     
     /**
