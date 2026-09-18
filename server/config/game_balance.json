@@ -102,6 +102,12 @@
     "jwt_expires_in": "7d",
     "online_threshold_minutes": 5
   },
+  "rate_limit": {
+    "api": { "limit": 600, "window_seconds": 60 },
+    "action": { "limit": 120, "window_seconds": 60 },
+    "auth": { "limit": 10, "window_seconds": 900 },
+    "admin": { "limit": 200, "window_seconds": 60 }
+  },
   "breakthrough": {
     "failure_exp_loss_rate": 0.1,
     "failure_age_multiplier": 2,
@@ -199,7 +205,8 @@
     "max_active_listings": 20,
     "listing_page_size": 20,
     "search_page_size": 20,
-    "my_listing_page_size": 20
+    "my_listing_page_size": 20,
+    "max_price_ratio": 5
   },
   "admin": {
     "sect_members_page_size": 20,

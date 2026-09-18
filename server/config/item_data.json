@@ -126,6 +126,77 @@
             "price": 20
         },
         {
+            "id": "qi_condensing_pill",
+            "name": "聚气丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "uncommon",
+            "description": "服下后灵气通脉，永久提升 30 点灵力上限",
+            "effect": { "mp_max": 30 },
+            "price": 300
+        },
+        {
+            "id": "qi_condensation_pill",
+            "name": "凝元丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "uncommon",
+            "description": "凝练元气护住根本，永久提升 60 点气血上限",
+            "effect": { "hp_max": 60 },
+            "price": 350
+        },
+        {
+            "id": "core_formation_pill",
+            "name": "凝丹丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "rare",
+            "description": "借丹力打磨筋骨攻势，永久提升 25 点攻击、15 点防御",
+            "effect": { "atk": 25, "def": 15 },
+            "price": 1500
+        },
+        {
+            "id": "xuanji_pill",
+            "name": "玄机丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "epic",
+            "description": "丹中暗藏玄机，服后神识清明，永久提升 20 点神识",
+            "effect": { "sense": 20 },
+            "price": 6000
+        },
+        {
+            "id": "nascent_soul_pill",
+            "name": "元婴丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "legendary",
+            "description": "婴成之后脱胎换骨，永久提升 300 点气血上限、50 点攻击",
+            "effect": { "hp_max": 300, "atk": 50 },
+            "price": 25000
+        },
+        {
+            "id": "spirit_gathering_pill",
+            "name": "聚灵液",
+            "type": "consumable",
+            "subtype": "mana",
+            "quality": "uncommon",
+            "description": "采集地脉灵液炼化，恢复大量灵力",
+            "effect": { "mp_restore": 120 },
+            "price": 120,
+            "usable_in_battle": true
+        },
+        {
+            "id": "huiling_pill",
+            "name": "回灵丹",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "uncommon",
+            "description": "战线军需司常备丹药，服用后获得 500 修为",
+            "effect": { "exp": 500 },
+            "price": 300
+        },
+        {
             "id": "low_spirit_stone",
             "name": "低阶灵石",
             "type": "currency",

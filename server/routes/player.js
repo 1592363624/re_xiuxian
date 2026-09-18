@@ -257,8 +257,12 @@ router.get('/attributes', authMiddleware, async (req, res) => {
 });
 
 /**
- * 更新玩家信息
+ * 更新玩家信息（当前仅开放道号）
  * PUT /api/player/me
+ *
+ * 安全说明：is_secluded / seclusion_end_time 等状态字段不在此处写入。
+ * 闭关状态必须经 /api/seclusion/* 由状态机互斥校验、每日次数与冷却判定后设置，
+ * 否则客户端可绕过校验伪造"闭关中"状态。
  */
 router.put('/me', authMiddleware, async (req, res) => {
     try {
@@ -271,18 +275,41 @@ router.put('/me', authMiddleware, async (req, res) => {
             });
         }
 
-        const updates = req.body;
-        // 仅允许更新非敏感字段，敏感字段（exp/realm/spirit_stones等）需通过专用接口处理
-        const allowedUpdates = [
-            'nickname', 'is_secluded', 'seclusion_end_time'
-        ];
+        const { nickname } = req.body;
+        if (nickname === undefined) {
+            return res.status(400).json({
+                code: 400,
+                message: '没有可更新的字段，当前仅支持 nickname'
+            });
+        }
 
-        allowedUpdates.forEach(key => {
-            if (updates[key] !== undefined) {
-                player[key] = updates[key];
-            }
-        });
+        if (typeof nickname !== 'string') {
+            return res.status(400).json({ code: 400, message: '道号格式不正确' });
+        }
 
+        const authConfig = game.ConfigLoader?.getConfig('game_balance')?.auth || {};
+        const nicknameMinLen = authConfig.nickname_min_length ?? 2;
+        const nicknameMaxLen = authConfig.nickname_max_length ?? 10;
+        const trimmedNickname = nickname.trim();
+
+        if (trimmedNickname.length < nicknameMinLen || trimmedNickname.length > nicknameMaxLen) {
+            return res.status(400).json({
+                code: 400,
+                message: `道号必须为${nicknameMinLen}-${nicknameMaxLen}个字符`
+            });
+        }
+
+        // 拒绝控制字符与换行，避免污染聊天、榜单等纯文本展示位
+        if (/[\u0000-\u001f\u007f]/.test(trimmedNickname)) {
+            return res.status(400).json({ code: 400, message: '道号包含非法字符' });
+        }
+
+        const nicknameOwner = await Player.findOne({ where: { nickname: trimmedNickname } });
+        if (nicknameOwner && nicknameOwner.id !== player.id) {
+            return res.status(400).json({ code: 400, message: '道号已被占用' });
+        }
+
+        player.nickname = trimmedNickname;
         await player.save();
 
         res.json({

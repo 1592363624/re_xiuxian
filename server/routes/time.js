@@ -1,9 +1,16 @@
 /**
  * 双时间系统相关路由
  * 处理天道时间、红尘时间、活动时间消耗等接口
+ *
+ * 安全说明：客户端只发送意图（activity_type / activity_id / 期望年数），
+ * 活动定义、年数区间、完成时点全部由服务端 config/time_system.json 与服务器时钟决定；
+ * 客户端提交的 activity_config 不再被读取或存储，避免把任意结构写进 time_system_data。
  */
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
+const sequelize = require('../config/database');
+const Player = require('../models/player');
 const game = require('../game');
 const authMiddleware = require('../middleware/auth');
 
@@ -26,7 +33,7 @@ router.get('/status', authMiddleware, async (req, res) => {
         const timeSystemStatus = game.DualTimeService.getTimeSystemStatus();
         
         // 计算玩家寿元信息
-        const lifespanInfo = game.DualTimeService.calculateRemainingLifespan(player);
+        const lifespanInfo = game.DualTimeService.getLifespanSummary(player);
         
         const responseData = {
             code: 200,
@@ -34,6 +41,7 @@ router.get('/status', authMiddleware, async (req, res) => {
                 // 天道时间信息
                 heavenly_time: {
                     current_year: timeSystemStatus.heavenly_time.current_year,
+                    current_time: timeSystemStatus.heavenly_time.current_time,
                     next_events: timeSystemStatus.heavenly_time.next_events
                 },
                 // 玩家时间信息
@@ -45,7 +53,7 @@ router.get('/status', authMiddleware, async (req, res) => {
                     remaining_lifespan: lifespanInfo.remaining_lifespan,
                     lifespan_percentage: lifespanInfo.lifespan_percentage
                 },
-                // 可用活动
+                // 可用活动（服务端配置的活动类型）
                 available_activities: game.DualTimeService.getAvailableActivities(player)
             }
         };
@@ -63,11 +71,12 @@ router.get('/status', authMiddleware, async (req, res) => {
 /**
  * 开始红尘时间活动（闭关突破、秘境历练、参悟功法等）
  * POST /api/time/start_activity
+ * body: { activity_type, years? }  // years 为期望消耗年数，仅用于在服务端区间内收敛
  */
 router.post('/start_activity', authMiddleware, async (req, res) => {
     try {
         const player = req.player;
-        const { activity_type, activity_config } = req.body;
+        const { activity_type, years } = req.body;
         
         if (!player) {
             return res.status(404).json({ 
@@ -76,49 +85,55 @@ router.post('/start_activity', authMiddleware, async (req, res) => {
             });
         }
 
-        if (!activity_type) {
+        if (!activity_type || typeof activity_type !== 'string') {
             return res.status(400).json({ 
                 code: 400, 
                 message: '缺少必要参数：activity_type' 
             });
         }
 
-        // 验证活动类型是否可用
-        const availableActivities = game.DualTimeService.getAvailableActivities(player);
-        if (!availableActivities.includes(activity_type)) {
-            return res.status(400).json({ 
-                code: 400, 
-                message: '当前无法进行该活动' 
+        // 处理红尘时间消耗（活动类型未配置时返回 null）
+        const timeResult = game.DualTimeService.processMortalTimeConsumption(player, activity_type, years);
+        if (!timeResult) {
+            return res.status(400).json({
+                code: 400,
+                message: '当前无法进行该活动'
             });
         }
 
-        // 处理红尘时间消耗
-        const timeResult = game.DualTimeService.processMortalTimeConsumption(
-            player, 
-            activity_type, 
-            activity_config || {}
-        );
+        // 进行中活动数量与同名活动唯一性校验（均取自服务端配置与玩家自身数据）
+        const availableActivities = game.DualTimeService.getAvailableActivities(player);
+        if (!availableActivities.includes(activity_type)) {
+            return res.status(400).json({
+                code: 400,
+                message: '进行中活动已达上限或该活动已在进行中'
+            });
+        }
 
-        // 更新玩家时间数据
-        const currentTimeData = player.time_system_data || {};
-        currentTimeData.pending_activities = currentTimeData.pending_activities || [];
-        currentTimeData.pending_activities.push({
-            activity_type: activity_type,
-            start_time: Date.now(),
-            time_cost: timeResult.time_cost_years,
-            completion_time: timeResult.completion_time,
-            config: activity_config
+        const currentTimeData = { ...(player.time_system_data || {}) };
+        const pendingActivities = Array.isArray(currentTimeData.pending_activities)
+            ? currentTimeData.pending_activities
+            : [];
+        pendingActivities.push({
+            id: crypto.randomUUID(),
+            activity_type: timeResult.activity_type,
+            name: timeResult.name,
+            start_time: new Date().toISOString(),
+            time_cost_years: timeResult.time_cost_years,
+            wait_seconds: timeResult.wait_seconds,
+            completion_time: timeResult.completion_time
         });
+        currentTimeData.pending_activities = pendingActivities;
 
         await player.update({
-            mortal_age: (player.mortal_age || 0) + timeResult.age_increase,
+            heavenly_age: (Number(player.heavenly_age) || 0) + timeResult.heavenly_time_elapsed,
             time_system_data: currentTimeData
         });
 
         res.json({
             code: 200,
             data: {
-                activity: activity_type,
+                activity: timeResult.activity_type,
                 time_cost_years: timeResult.time_cost_years,
                 age_increase: timeResult.age_increase,
                 completion_time: timeResult.completion_time,
@@ -138,71 +153,87 @@ router.post('/start_activity', authMiddleware, async (req, res) => {
 /**
  * 完成红尘时间活动
  * POST /api/time/complete_activity
+ * body: { activity_id }
  */
 router.post('/complete_activity', authMiddleware, async (req, res) => {
+    // 事务 + 行锁只用于摘除活动：并发重复提交同一 activity_id 时，
+    // 只有先拿到锁的请求能摘到该活动，后到的请求查不到即返回 404
+    let activity = null;
+    let activityClaimed = false;
+    const t = await sequelize.transaction();
     try {
-        const player = req.player;
-        const { activity_id } = req.body;
-        
-        if (!player) {
+        const lockedPlayer = await Player.findByPk(req.user.id, {
+            lock: t.LOCK.UPDATE,
+            transaction: t
+        });
+
+        if (!lockedPlayer) {
+            await t.rollback();
             return res.status(404).json({ 
                 code: 404, 
                 message: '玩家不存在' 
             });
         }
 
-        if (!activity_id) {
+        const { activity_id } = req.body;
+        if (!activity_id || typeof activity_id !== 'string') {
+            await t.rollback();
             return res.status(400).json({ 
                 code: 400, 
                 message: '缺少必要参数：activity_id' 
             });
         }
 
-        const currentTimeData = player.time_system_data || {};
-        const pendingActivities = currentTimeData.pending_activities || [];
+        const currentTimeData = { ...(lockedPlayer.time_system_data || {}) };
+        const pendingActivities = Array.isArray(currentTimeData.pending_activities)
+            ? currentTimeData.pending_activities
+            : [];
         
-        // 查找并完成活动
+        // 查找活动
         const activityIndex = pendingActivities.findIndex(act => act.id === activity_id);
         if (activityIndex === -1) {
+            await t.rollback();
             return res.status(404).json({ 
                 code: 404, 
                 message: '未找到该活动' 
             });
         }
 
-        const activity = pendingActivities[activityIndex];
-        
-        // 检查活动是否已完成
-        if (Date.now() < new Date(activity.completion_time).getTime()) {
+        activity = pendingActivities[activityIndex];
+
+        // 检查活动是否已完成（服务器时钟，客户端无法提前领取）
+        const completionAt = new Date(activity.completion_time).getTime();
+        if (!Number.isFinite(completionAt) || Date.now() < completionAt) {
+            await t.rollback();
             return res.status(400).json({ 
                 code: 400, 
                 message: '活动尚未完成' 
             });
         }
 
-        // 根据活动类型处理结果
-        const activityResult = await game.DualTimeService.processActivityCompletion(
-            player, 
-            activity
-        );
-
-        // 移除已完成的活动
+        // 先摘除活动再结算，避免结算异常时同一活动被重复领取
         pendingActivities.splice(activityIndex, 1);
         currentTimeData.pending_activities = pendingActivities;
+        await lockedPlayer.update({ time_system_data: currentTimeData }, { transaction: t });
 
-        await player.update({
-            time_system_data: currentTimeData
-        });
+        await t.commit();
+        activityClaimed = true;
+
+        // 结算交由服务实例自身落库（不并入上面的事务，避免跨事务混用同一实例）
+        const result = await game.DualTimeService.processActivityCompletion(req.player, activity);
 
         res.json({
             code: 200,
             data: {
                 activity: activity.activity_type,
-                result: activityResult,
+                result: result,
                 message: '活动完成成功'
             }
         });
     } catch (error) {
+        if (!activityClaimed) {
+            await t.rollback();
+        }
         console.error('完成活动失败:', error);
         res.status(500).json({ 
             code: 500, 
@@ -226,21 +257,23 @@ router.get('/pending_activities', authMiddleware, async (req, res) => {
             });
         }
 
-        const currentTimeData = player.time_system_data || {};
-        const pendingActivities = currentTimeData.pending_activities || [];
-        
-        // 过滤出已完成的活动的
         const now = Date.now();
-        const filteredActivities = pendingActivities.map(activity => ({
-            id: activity.id,
-            activity_type: activity.activity_type,
-            start_time: activity.start_time,
-            time_cost_years: activity.time_cost,
-            completion_time: activity.completion_time,
-            time_remaining: Math.max(0, new Date(activity.completion_time).getTime() - now),
-            is_completed: now >= new Date(activity.completion_time).getTime(),
-            config: activity.config
-        }));
+        const filteredActivities = game.DualTimeService.getPendingActivities(player)
+            .filter(activity => activity && typeof activity.id === 'string')
+            .map(activity => {
+                const completionAt = new Date(activity.completion_time).getTime();
+                const isCompleted = Number.isFinite(completionAt) && now >= completionAt;
+                return {
+                    id: activity.id,
+                    activity_type: activity.activity_type,
+                    name: activity.name,
+                    start_time: activity.start_time,
+                    time_cost_years: activity.time_cost_years,
+                    completion_time: activity.completion_time,
+                    time_remaining: isCompleted ? 0 : Math.max(0, completionAt - now),
+                    is_completed: isCompleted
+                };
+            });
 
         res.json({
             code: 200,
@@ -273,15 +306,14 @@ router.get('/world_events', authMiddleware, async (req, res) => {
         }
 
         const timeSystemStatus = game.DualTimeService.getTimeSystemStatus();
-        const currentTimeData = player.time_system_data || {};
-        const worldEventParticipation = currentTimeData.world_event_participation || {};
+        const worldEventParticipation = player.time_system_data?.world_event_participation || {};
 
         const worldEvents = timeSystemStatus.heavenly_time.next_events.map(event => ({
             event: event.event,
             name: event.name,
             next_occurrence: event.next_occurrence,
             years_until: event.years_until,
-            player_participation: worldEventParticipation[event.event] || false
+            player_participation: worldEventParticipation[event.event] === true
         }));
 
         res.json({

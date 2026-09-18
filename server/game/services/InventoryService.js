@@ -131,6 +131,18 @@ class InventoryService {
             throw new AppError('该物品不可使用', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
+        // 永久属性加成丹药一次只吞一颗：multiplier 会让多次服用叠加出超出单次上限的收益，
+        // 而单次上限本就无法靠堆数量突破，批量使用只会白白浪费丹药
+        const AttributeMaxService = require('../core/AttributeMaxService');
+        const permanentEffect = AttributeMaxService.buildPillEffectFromConfig(config.effect);
+        if (permanentEffect && quantity > 1) {
+            throw new AppError(
+                `${config.name} 为永久属性加成丹药，每次只能使用 1 颗`,
+                400,
+                ErrorCodes.VALIDATION_ERROR
+            );
+        }
+
         const t = await sequelize.transaction();
         try {
             // 查询玩家物品记录（加锁防并发）
@@ -400,6 +412,22 @@ class InventoryService {
         // 突破加成（仅记录，实际使用在突破流程读取）
         if (effect.breakthrough_bonus) {
             applied.breakthrough_bonus = effect.breakthrough_bonus;
+        }
+
+        // 永久属性上限加成（属性丹）：键名与数值由服务端配置 + 白名单 + 上限钳制决定，
+        // 与 POST /api/attribute/use_pill 共用同一套解析逻辑，避免两条链路口径不一
+        const AttributeMaxService = require('../core/AttributeMaxService');
+        const pillEffect = AttributeMaxService.buildPillEffectFromConfig(effect);
+        if (pillEffect) {
+            player.attributes = AttributeMaxService.applyPillBonusToAttributes(
+                attrs,
+                pillEffect,
+                qualityMultiplier
+            );
+            const granted = AttributeMaxService.diffAttributeBonuses(attrs, player.attributes);
+            if (Object.keys(granted).length > 0) {
+                applied.permanent_attribute_bonus = granted;
+            }
         }
 
         return applied;

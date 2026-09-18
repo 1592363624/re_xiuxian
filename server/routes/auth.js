@@ -11,6 +11,7 @@ const { Op } = require('sequelize');
 const PlayerService = require('../game/core/PlayerService');
 const { infrastructure } = require('../modules');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
+const { authLimiter } = require('../middleware/rateLimit');
 
 // 通过 ConfigLoader 获取配置（懒加载，避免模块加载时配置未初始化）
 const configLoader = infrastructure.ConfigLoader;
@@ -60,7 +61,7 @@ router.get('/check-unique', async (req, res, next) => {
 });
 
 // 注册
-router.post('/register', async (req, res, next) => {
+router.post('/register', authLimiter, async (req, res, next) => {
     try {
         const { username, password, nickname } = req.body;
         const authConfig = getAuthConfig();
@@ -132,7 +133,7 @@ router.post('/register', async (req, res, next) => {
 });
 
 // 登录
-router.post('/login', async (req, res, next) => {
+router.post('/login', authLimiter, async (req, res, next) => {
     try {
         const { username, password } = req.body;
         const authConfig = getAuthConfig();

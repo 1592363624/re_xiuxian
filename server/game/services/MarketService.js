@@ -22,6 +22,9 @@ const MarketListing = require('../../models/marketListing');
 const Item = require('../../models/item');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 
+/** game_balance.market.max_price_ratio 缺失时的兜底折价倍数 */
+const DEFAULT_MAX_PRICE_RATIO = 5;
+
 class MarketService {
     constructor() {
         this.configLoader = null;
@@ -53,6 +56,42 @@ class MarketService {
     getItemConfig(itemKey) {
         const items = this.configLoader?.getConfig('item_data')?.items || [];
         return items.find(i => i.id === itemKey) || null;
+    }
+
+    /**
+     * 挂单价格锚定校验
+     *
+     * 万宝楼为自由换物，但"1 灵石换神器"式挂单会被用于洗价值与线下交易，
+     * 因此以 item_data.json 的 price 为参考价，限制换取总价值不得低于出售总价值的 1 / max_price_ratio。
+     * 出售物品未配置参考价时跳过锚定（如任务道具、材料）。
+     *
+     * @param {Object} sellConfig - 出售物品配置
+     * @param {number} sellQuantity - 出售数量
+     * @param {Object} wantConfig - 换取物品配置
+     * @param {number} wantQuantity - 换取数量
+     * @returns {{allowed: boolean, reason?: string}} 校验结果
+     */
+    checkPriceAnchor(sellConfig, sellQuantity, wantConfig, wantQuantity) {
+        const config = this.getMarketConfig();
+        const configuredRatio = Number(config.max_price_ratio);
+        const maxRatio = (Number.isFinite(configuredRatio) && configuredRatio >= 1)
+            ? configuredRatio
+            : DEFAULT_MAX_PRICE_RATIO;
+
+        const sellUnitPrice = Number(sellConfig?.price) || 0;
+        if (sellUnitPrice <= 0) return { allowed: true };
+
+        const sellValue = sellUnitPrice * sellQuantity;
+        const wantValue = (Number(wantConfig?.price) || 0) * wantQuantity;
+
+        if (wantValue * maxRatio < sellValue) {
+            return {
+                allowed: false,
+                reason: `挂单换取价值过低（出售参考 ${sellValue} 灵石，换取参考 ${wantValue} 灵石），最多允许折价 ${maxRatio} 倍`
+            };
+        }
+
+        return { allowed: true };
     }
 
     /**
@@ -201,6 +240,13 @@ class MarketService {
         const wantConfig = this.getItemConfig(wantItemKey);
         if (!wantConfig) {
             throw new AppError(`换取物品配置不存在: ${wantItemKey}`, 400, ErrorCodes.VALIDATION_ERROR);
+        }
+
+        // 价格锚定：挂单不得以远低于参考价的比例出售，避免通过 1 灵石换神器洗价值/线下交易
+        // 参考价值取 item_data.json 的 price，未配置价格的物品不参与锚定
+        const priceAnchor = this.checkPriceAnchor(sellConfig, quantity, wantConfig, wantQuantity);
+        if (!priceAnchor.allowed) {
+            throw new AppError(priceAnchor.reason, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
         // 校验玩家存在且未死亡

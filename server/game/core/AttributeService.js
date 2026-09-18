@@ -27,6 +27,37 @@ const EquipmentService = require('../services/EquipmentService');
 const SpiritBeastService = require('../services/SpiritBeastService');
 const ArtifactDeepLineService = require('../services/ArtifactDeepLineService');
 
+/**
+ * 可加点属性白名单：前端属性名 → player.attributes 存储键
+ * 必须与 calculateFullAttributes 中 allocated 读取的键保持一致，否则加点不生效
+ */
+const ALLOCATABLE_BONUS_KEYS = {
+    hp: 'hp_bonus',
+    mp: 'mp_bonus',
+    atk: 'atk_bonus',
+    def: 'def_bonus',
+    speed: 'speed_bonus',
+    sense: 'sense_bonus'
+};
+
+/** 单属性单次加点上限与累计总量上限 */
+const MAX_POINTS_PER_ATTRIBUTE = 100;
+const MAX_TOTAL_BONUS_PER_ATTRIBUTE = 1000000;
+
+/** 存储键 → 前端属性名，用于回收加点时反查 */
+const BONUS_KEY_TO_ALLOCATABLE = Object.fromEntries(
+    Object.entries(ALLOCATABLE_BONUS_KEYS).map(([attr, bonusKey]) => [bonusKey, attr])
+);
+
+/** attributes 中记录"加点来源"的账本键，用于区分加点与丹药等其他加成来源 */
+const ALLOCATION_LEDGER_KEY = 'attribute_point_allocations';
+
+/** attribute_system.json: attribute_reset 缺失时的兜底规则 */
+const DEFAULT_RESET_CONFIG = {
+    cost_spirit_stones: 500,
+    cooldown_minutes: 1440
+};
+
 class AttributeService {
     constructor() {
         this.configLoader = null;
@@ -346,17 +377,44 @@ class AttributeService {
 
     /**
      * 属性加点
+     *
+     * 安全约束：属性名必须命中白名单（与 calculateFullAttributes 读取的 *_bonus 键一致），
+     * 加点数必须为正整数。旧实现允许负数通过求和校验后反向累加 attribute_points，
+     * 等于凭空刷出属性点，这里一并堵掉。
+     *
      * @param {Object} player - 玩家对象
-     * @param {Object} points - 加点分配
+     * @param {Object} points - 加点分配 { hp: 2, atk: 1 }
      * @returns {Object} 加点结果
      */
     async allocatePoints(player, points) {
         const attributes = typeof player.attributes === 'string' 
             ? JSON.parse(player.attributes) 
             : (player.attributes || {});
+
+        if (!points || typeof points !== 'object' || Array.isArray(points)) {
+            return { success: false, message: '加点参数格式错误' };
+        }
+
+        const entries = Object.entries(points);
+        if (entries.length === 0) {
+            return { success: false, message: '加点参数不能为空' };
+        }
+
+        for (const [attr, value] of entries) {
+            // hasOwnProperty 判定：防止 '__proto__' 等键取到原型对象而绕过白名单
+            if (!Object.prototype.hasOwnProperty.call(ALLOCATABLE_BONUS_KEYS, attr)) {
+                return { success: false, message: `未知的属性项: ${attr}` };
+            }
+            if (!Number.isInteger(value) || value < 1) {
+                return { success: false, message: `${attr} 的加点数必须为正整数` };
+            }
+            if (value > MAX_POINTS_PER_ATTRIBUTE) {
+                return { success: false, message: `${attr} 单次加点不能超过 ${MAX_POINTS_PER_ATTRIBUTE} 点` };
+            }
+        }
         
         const availablePoints = player.attribute_points || 0;
-        const totalPointsNeeded = Object.values(points).reduce((sum, p) => sum + p, 0);
+        const totalPointsNeeded = entries.reduce((sum, [, value]) => sum + value, 0);
         
         if (totalPointsNeeded > availablePoints) {
             return { 
@@ -366,18 +424,18 @@ class AttributeService {
         }
 
         const newAttributes = { ...attributes };
-        for (const [attr, value] of Object.entries(points)) {
-            if (value > 0) {
-                // 映射前端属性名到后端存储名 (如果需要)
-                // 前端: atk, def, hp, sense, speed
-                // 后端存储: atk_bonus, def_bonus, hp_bonus, sense_bonus, speed_bonus
-                
-                let bonusAttr = `${attr}_bonus`;
-                if (attr === 'hp') bonusAttr = 'hp_bonus'; // hp -> hp_bonus (mapped to hp_max usually)
-                
-                newAttributes[bonusAttr] = (newAttributes[bonusAttr] || 0) + value;
+        const ledger = { ...(attributes[ALLOCATION_LEDGER_KEY] || {}) };
+        for (const [attr, value] of entries) {
+            const bonusAttr = ALLOCATABLE_BONUS_KEYS[attr];
+            const before = Number(newAttributes[bonusAttr]) || 0;
+            newAttributes[bonusAttr] = Math.min(before + value, MAX_TOTAL_BONUS_PER_ATTRIBUTE);
+            // 账本只记实际入账的点数（受总量上限截断），否则重置时会多退属性点
+            const credited = newAttributes[bonusAttr] - before;
+            if (credited > 0) {
+                ledger[bonusAttr] = (Number(ledger[bonusAttr]) || 0) + credited;
             }
         }
+        newAttributes[ALLOCATION_LEDGER_KEY] = ledger;
 
         player.attributes = newAttributes;
         player.attribute_points = availablePoints - totalPointsNeeded;
@@ -391,6 +449,74 @@ class AttributeService {
             message: '属性点分配成功',
             newAttributes: fullStats.final, // 返回最新的最终属性
             remainingPoints: player.attribute_points
+        };
+    }
+
+    /**
+     * 读取属性点重置规则（attribute_system.json: attribute_reset）
+     * @returns {Object} { cost_spirit_stones, cooldown_minutes }
+     */
+    getAttributeResetConfig() {
+        const configured = this.configLoader?.getConfig('attribute_system')?.attribute_reset || {};
+        const cost = Number(configured.cost_spirit_stones);
+        const cooldown = Number(configured.cooldown_minutes);
+
+        return {
+            cost_spirit_stones: Number.isFinite(cost) && cost >= 0 ? cost : DEFAULT_RESET_CONFIG.cost_spirit_stones,
+            cooldown_minutes: Number.isFinite(cooldown) && cooldown >= 0 ? cooldown : DEFAULT_RESET_CONFIG.cooldown_minutes
+        };
+    }
+
+    /**
+     * 计算可回收的属性加点
+     *
+     * 只回收"加点账本"里记录的数值，丹药/装备等其他来源的 *_bonus 不受影响也不退点，
+     * 否则吃一颗属性丹再来重置就能凭空换回可分配点数。
+     *
+     * @param {Object} player - 玩家对象
+     * @returns {Object} { refundablePoints, refunded: {hp_bonus: n}, attributes }
+     */
+    buildAllocatedPointsReset(player) {
+        const attributes = typeof player.attributes === 'string'
+            ? JSON.parse(player.attributes)
+            : { ...(player.attributes || {}) };
+        const ledger = attributes[ALLOCATION_LEDGER_KEY];
+        const nextAttributes = { ...attributes };
+        const refunded = {};
+        let refundablePoints = 0;
+
+        if (ledger && typeof ledger === 'object' && !Array.isArray(ledger)) {
+            for (const [bonusKey, amountRaw] of Object.entries(ledger)) {
+                if (!Object.prototype.hasOwnProperty.call(BONUS_KEY_TO_ALLOCATABLE, bonusKey)) continue;
+
+                const amount = Math.floor(Number(amountRaw));
+                if (!Number.isFinite(amount) || amount <= 0) continue;
+
+                const current = Number(nextAttributes[bonusKey]) || 0;
+                // 账本值可能大于实际加成（例如历史脏数据），按较小值回收，避免把属性扣成负数
+                const reclaimed = Math.min(current, amount);
+                if (reclaimed <= 0) continue;
+
+                nextAttributes[bonusKey] = current - reclaimed;
+                refundablePoints += reclaimed;
+                refunded[bonusKey] = reclaimed;
+            }
+        }
+
+        delete nextAttributes[ALLOCATION_LEDGER_KEY];
+
+        return { refundablePoints, refunded, attributes: nextAttributes };
+    }
+
+    /**
+     * 在回收结果上记录重置时点（供冷却判定），调用方负责落库
+     * @param {Object} resetPlan - buildAllocatedPointsReset 的返回值
+     * @returns {Object} 带 last_attribute_reset_time 的 attributes
+     */
+    buildAttributesAfterReset(resetPlan) {
+        return {
+            ...(resetPlan?.attributes || {}),
+            last_attribute_reset_time: new Date().toISOString()
         };
     }
 

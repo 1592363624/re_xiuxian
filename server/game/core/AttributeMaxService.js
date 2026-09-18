@@ -2,6 +2,40 @@
  * 属性最大值服务模块
  * 处理属性最大值计算、恢复机制、丹药效果等核心业务逻辑
  */
+
+/**
+ * 丹药永久属性上限加成白名单：config/item_data.json 的 effect 字段 → player.attributes 存储键
+ * 只有列在此处的键会被服务端采信；hp_restore / breakthrough_bonus / longevity_add 等
+ * 由各自子系统（战斗回复、突破、寿元）单独处理，不属于属性上限加成
+ */
+const PILL_BONUS_KEY_MAP = {
+    hp_max: 'hp_bonus',
+    mp_max: 'mp_bonus',
+    atk: 'atk_bonus',
+    def: 'def_bonus',
+    speed: 'speed_bonus',
+    sense: 'sense_bonus'
+};
+
+/** 存储键 → 属性上限键，用于回显丹药使用后的上限值 */
+const PILL_BONUS_TO_MAX_KEY = {
+    hp_bonus: 'hp_max',
+    mp_bonus: 'mp_max'
+};
+
+/** 兜底上限，attribute_system.json: attribute_pill_limits 缺失时生效 */
+const DEFAULT_PILL_LIMITS = {
+    max_increase_per_use: 500,
+    max_total_bonus_per_attribute: 100000,
+    max_temp_boost_minutes: 1440
+};
+
+/** 恢复结算兜底窗口：单次最多结算 24 小时，少于一分钟不结算 */
+const DEFAULT_RECOVERY_SETTLEMENT = {
+    max_window_minutes: 1440,
+    min_settlement_minutes: 1
+};
+
 class AttributeMaxService {
     constructor() {
         this.configLoader = null;
@@ -256,6 +290,70 @@ class AttributeMaxService {
     }
 
     /**
+     * 读取恢复结算窗口配置（attribute_system.json: attribute_recovery.recovery_settlement）
+     * @returns {Object} { max_window_minutes, min_settlement_minutes }
+     */
+    getRecoverySettlementConfig() {
+        const settlement = this.attributeConfig?.attribute_recovery?.recovery_settlement || {};
+        const pick = (value, fallback) =>
+            (typeof value === 'number' && Number.isFinite(value) && value >= 0) ? value : fallback;
+
+        return {
+            max_window_minutes: pick(settlement.max_window_minutes, DEFAULT_RECOVERY_SETTLEMENT.max_window_minutes),
+            min_settlement_minutes: pick(
+                settlement.min_settlement_minutes,
+                DEFAULT_RECOVERY_SETTLEMENT.min_settlement_minutes
+            )
+        };
+    }
+
+    /**
+     * 解析本次可结算的恢复分钟数（以服务端时钟为唯一依据）
+     *
+     * 安全约束：区间起点是 attributes.last_recovery_time（缺失时退回 player.last_online），
+     * 终点是服务器当前时间。客户端传入的期望分钟数只能收缩区间、不能放大，
+     * 因此无法通过伪造 duration_minutes 瞬间回满或绕过恢复冷却。
+     *
+     * @param {Object} player - 玩家对象
+     * @param {number} [requestedMinutes] - 客户端期望分钟数（可选，仅作上限收敛）
+     * @returns {number} 实际可结算分钟数
+     */
+    resolveRecoveryMinutes(player, requestedMinutes = null) {
+        const settlement = this.getRecoverySettlementConfig();
+        const attributes = player?.attributes || {};
+        const baselineRaw = attributes.last_recovery_time || player?.last_online;
+        const baseline = baselineRaw ? new Date(baselineRaw).getTime() : NaN;
+
+        // 无基准时间（新建角色首次结算）时视为无累计时长
+        if (!Number.isFinite(baseline)) return 0;
+
+        const elapsedMinutes = Math.floor((Date.now() - baseline) / 60000);
+        let minutes = Math.max(0, Math.min(elapsedMinutes, settlement.max_window_minutes));
+
+        // 未传时长时不做额外收敛（Number(null) 与 Number(undefined) 语义不同，需显式判空）
+        const hasRequested = requestedMinutes !== null && requestedMinutes !== undefined && requestedMinutes !== '';
+        const requested = Number(requestedMinutes);
+        if (hasRequested && Number.isFinite(requested) && requested >= 0) {
+            minutes = Math.min(minutes, Math.floor(requested));
+        }
+
+        return minutes < settlement.min_settlement_minutes ? 0 : minutes;
+    }
+
+    /**
+     * 生成"恢复已结算"时点的 attributes 快照，调用方负责落库
+     * 所有 HP/MP 恢复入口（登录离线恢复、在线定时恢复、/recover 接口）共用该基准，
+     * 避免同一段时间被重复结算
+     * @param {Object} player - 玩家对象
+     * @returns {Object} 新的 attributes 对象
+     */
+    buildAttributesAfterRecovery(player) {
+        const attributes = { ...(player?.attributes || {}) };
+        attributes.last_recovery_time = new Date().toISOString();
+        return attributes;
+    }
+
+    /**
      * 计算灵力消耗
      * @param {number} level - 技能/法宝等级
      * @param {string} type - 消耗类型（spell/treasure）
@@ -274,28 +372,175 @@ class AttributeMaxService {
     }
 
     /**
-     * 应用丹药效果到属性最大值
+     * 读取丹药加点上限配置（attribute_system.json: attribute_pill_limits）
+     * @returns {Object} { max_increase_per_use, max_total_bonus_per_attribute }
+     */
+    getPillLimitsConfig() {
+        const limits = this.attributeConfig?.attribute_pill_limits || {};
+        const pick = (value, fallback) =>
+            (typeof value === 'number' && Number.isFinite(value) && value > 0) ? value : fallback;
+
+        return {
+            max_increase_per_use: pick(limits.max_increase_per_use, DEFAULT_PILL_LIMITS.max_increase_per_use),
+            max_total_bonus_per_attribute: pick(
+                limits.max_total_bonus_per_attribute,
+                DEFAULT_PILL_LIMITS.max_total_bonus_per_attribute
+            ),
+            max_temp_boost_minutes: pick(limits.max_temp_boost_minutes, DEFAULT_PILL_LIMITS.max_temp_boost_minutes)
+        };
+    }
+
+    /**
+     * 从服务端物品配置的 effect 字段解析永久属性上限加成
+     *
+     * 安全约束：数值只来自 config/item_data.json，客户端无法指定；
+     * 白名单外的效果字段（hp_restore / breakthrough_bonus 等）由各自子系统处理，此处忽略。
+     *
+     * @param {Object} rawEffect - 物品配置的 effect 对象
+     * @returns {Object|null} { type: 'permanent_max_increase', attributes: { hp_bonus: n, ... } }
+     */
+    buildPillEffectFromConfig(rawEffect) {
+        if (!rawEffect || typeof rawEffect !== 'object') return null;
+
+        const attributes = {};
+        for (const [effectKey, bonusKey] of Object.entries(PILL_BONUS_KEY_MAP)) {
+            const raw = rawEffect[effectKey];
+            if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) continue;
+            attributes[bonusKey] = Math.floor(raw);
+        }
+
+        if (Object.keys(attributes).length === 0) return null;
+        return { type: 'permanent_max_increase', attributes };
+    }
+
+    /**
+     * 解析指定丹药 item_key 的永久属性上限加成效果
+     * @param {string} itemKey - 丹药 item_key
+     * @returns {Object|null} 效果对象，非消耗品或无属性上限加成时返回 null
+     */
+    getPillMaxIncreaseEffect(itemKey) {
+        const items = this.configLoader?.getConfig('item_data')?.items || [];
+        const item = items.find(i => i.id === itemKey);
+        if (!item || item.type !== 'consumable') return null;
+
+        return this.buildPillEffectFromConfig(item.effect);
+    }
+
+    /**
+     * 清洗丹药效果：丢弃白名单外的键名、非正整数数值，并按单次上限钳制
+     * 作为 applyPillEffect / applyPillBonusToAttributes 的统一兜底，
+     * 确保即使调用方传入外部数据也无法注入任意属性
+     * @param {Object} pillEffect - 待清洗的效果对象
+     * @returns {Object|null} 清洗后的效果，无有效加成时返回 null
+     */
+    sanitizePillEffect(pillEffect) {
+        if (!pillEffect || typeof pillEffect !== 'object') return null;
+
+        const allowedBonusKeys = Object.values(PILL_BONUS_KEY_MAP);
+        const limits = this.getPillLimitsConfig();
+        const rawAttributes = (pillEffect.attributes && typeof pillEffect.attributes === 'object')
+            ? pillEffect.attributes : {};
+
+        const attributes = {};
+        for (const [bonusKey, raw] of Object.entries(rawAttributes)) {
+            if (!allowedBonusKeys.includes(bonusKey)) continue;
+            const value = Math.floor(Number(raw));
+            if (!Number.isFinite(value) || value <= 0) continue;
+            attributes[bonusKey] = Math.min(value, limits.max_increase_per_use);
+        }
+
+        if (Object.keys(attributes).length === 0) return null;
+
+        if (pillEffect.type === 'temporary_max_boost') {
+            const duration = Number(pillEffect.duration);
+            if (!Number.isFinite(duration) || duration <= 0) return null;
+            return {
+                type: 'temporary_max_boost',
+                attributes,
+                duration: Math.min(duration, limits.max_temp_boost_minutes)
+            };
+        }
+
+        return { type: 'permanent_max_increase', attributes };
+    }
+
+    /**
+     * 将丹药加成累加进玩家属性对象
+     *
+     * 钳制顺序：配置名义值 → 单次上限 → 乘以品质倍率 → 再次钳到单次上限，
+     * 因此任何一次服用都不可能超过 max_increase_per_use，玩家属性总量也不会超过
+     * max_total_bonus_per_attribute。
+     *
+     * @param {Object} attributes - 玩家当前 attributes
+     * @param {Object} pillEffect - 服务端解析出的丹药效果
+     * @param {number} [multiplier] - 品质倍率（炼制品 effect_multiplier，默认 1）
+     * @returns {Object} 新的 attributes（不修改入参）
+     */
+    applyPillBonusToAttributes(attributes, pillEffect, multiplier = 1) {
+        const next = { ...(attributes || {}) };
+        const effect = this.sanitizePillEffect(pillEffect);
+        if (!effect || effect.type !== 'permanent_max_increase') return next;
+
+        const limits = this.getPillLimitsConfig();
+        const qualityMultiplier = Number.isFinite(Number(multiplier)) && Number(multiplier) > 0
+            ? Number(multiplier)
+            : 1;
+
+        for (const [bonusKey, increase] of Object.entries(effect.attributes)) {
+            const gained = Math.min(Math.floor(increase * qualityMultiplier), limits.max_increase_per_use);
+            if (gained <= 0) continue;
+            const current = Number(next[bonusKey]) || 0;
+            next[bonusKey] = Math.min(current + gained, limits.max_total_bonus_per_attribute);
+        }
+
+        return next;
+    }
+
+    /**
+     * 计算属性加成前后的差值，用于回显本次实际获得的加成
+     * @param {Object} previousAttributes - 变化前的 attributes
+     * @param {Object} nextAttributes - 变化后的 attributes
+     * @returns {Object} { hp_bonus: 40, ... }，无变化时为空对象
+     */
+    diffAttributeBonuses(previousAttributes, nextAttributes) {
+        const before = previousAttributes || {};
+        const after = nextAttributes || {};
+        const allowedBonusKeys = Object.values(PILL_BONUS_KEY_MAP);
+
+        const diff = {};
+        for (const key of allowedBonusKeys) {
+            const delta = (Number(after[key]) || 0) - (Number(before[key]) || 0);
+            if (delta > 0) diff[key] = delta;
+        }
+
+        return diff;
+    }
+
+    /**
+     * 应用丹药效果到属性最大值（用于回显，落库由 applyPillBonusToAttributes 负责）
      * @param {Object} player - 玩家对象
-     * @param {Object} pillEffect - 丹药效果配置
+     * @param {Object} pillEffect - 丹药效果配置（内部会再清洗一次）
      * @returns {Object} 更新后的属性最大值
      */
     applyPillEffect(player, pillEffect) {
         const maxValues = this.calculateAttributeMaxValues(player);
-        
-        if (pillEffect.type === 'permanent_max_increase') {
+        const effect = this.sanitizePillEffect(pillEffect);
+        if (!effect) return maxValues;
+
+        if (effect.type === 'permanent_max_increase') {
             // 永久提升最大值
-            for (const [attrKey, increase] of Object.entries(pillEffect.attributes)) {
-                const maxKey = `${attrKey}_max`;
-                if (maxValues[maxKey] !== undefined) {
+            for (const [bonusKey, increase] of Object.entries(effect.attributes)) {
+                const maxKey = PILL_BONUS_TO_MAX_KEY[bonusKey];
+                if (maxKey && maxValues[maxKey] !== undefined) {
                     maxValues[maxKey] += increase;
                 }
             }
-        } else if (pillEffect.type === 'temporary_max_boost') {
+        } else if (effect.type === 'temporary_max_boost') {
             // 临时提升最大值（需要记录时效）
             const boostKey = `temp_max_boost_${Date.now()}`;
             maxValues[boostKey] = {
-                attributes: pillEffect.attributes,
-                expires_at: Date.now() + (pillEffect.duration * 60 * 1000) // 转换为毫秒
+                attributes: effect.attributes,
+                expires_at: Date.now() + (effect.duration * 60 * 1000) // 转换为毫秒
             };
         }
 

@@ -79,7 +79,8 @@ class ConfigLoader extends EventEmitter {
             'dayan_data',               // 大衍诀配置（玩法文档第23节：5层修炼/神识倍率/残篇突破/飞升前置）
             'puppet_data',              // 傀儡工坊配置（玩法文档第23节：5种傀儡/图谱/淬炼/维修/回收）
             'fishing_data',             // 灵溪垂钓配置（玩法文档第21节：4级钓竿/鱼饵/鱼塘/钓术熟练度/剖鱼/伴生物品/LDC产出）
-            'gambling_stone_data'       // 赌石系统配置（玩法文档第21节：4+1产地/4档品质/4维线索/3种切法/熟练度/诅咒PVP/原石流转）
+            'gambling_stone_data',      // 赌石系统配置（玩法文档第21节：4+1产地/4档品质/4维线索/3种切法/熟练度/诅咒PVP/原石流转）
+            'time_system'               // 双时间系统配置（天道事件周期 + 红尘活动时长与寿元消耗）
         ];
         const results = {};
 

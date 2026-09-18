@@ -8,6 +8,7 @@ const sequelize = require('../config/database');
 const game = require('../game');
 const authMiddleware = require('../middleware/auth');
 const Item = require('../models/item');
+const Player = require('../models/player');
 
 /**
  * 获取玩家完整属性信息（包含最大值）
@@ -143,6 +144,9 @@ router.post('/allocate', authMiddleware, async (req, res) => {
 /**
  * 恢复属性（自然恢复或打坐恢复）
  * POST /api/attribute/recover
+ *
+ * 安全说明：可结算时长由服务端时钟推导（上次恢复结算时点 → 服务器当前时间），
+ * duration_minutes 只用于缩短结算区间，客户端无法凭它放大恢复量或瞬间回满。
  */
 router.post('/recover', authMiddleware, async (req, res) => {
     try {
@@ -156,10 +160,10 @@ router.post('/recover', authMiddleware, async (req, res) => {
             });
         }
 
-        if (!recovery_type || !duration_minutes) {
+        if (!recovery_type) {
             return res.status(400).json({ 
                 code: 400, 
-                message: '缺少必要参数：recovery_type, duration_minutes' 
+                message: '缺少必要参数：recovery_type' 
             });
         }
 
@@ -167,6 +171,14 @@ router.post('/recover', authMiddleware, async (req, res) => {
             return res.status(400).json({ 
                 code: 400, 
                 message: '恢复类型必须是 natural 或 meditation' 
+            });
+        }
+
+        const settledMinutes = game.AttributeMaxService.resolveRecoveryMinutes(player, duration_minutes);
+        if (settledMinutes <= 0) {
+            return res.status(400).json({
+                code: 400,
+                message: '距上次恢复结算时间过短，暂无可恢复时长'
             });
         }
 
@@ -179,20 +191,22 @@ router.post('/recover', authMiddleware, async (req, res) => {
             player, 
             maxValues, 
             recovery_type, 
-            duration_minutes
+            settledMinutes
         );
 
-        // 更新玩家属性
+        // 更新玩家属性与恢复结算基准时点（本次窗口一经消费即作废，不累积到下次）
         await player.update({
             hp_current: recoveryResult.hp_current,
-            mp_current: recoveryResult.mp_current
+            mp_current: recoveryResult.mp_current,
+            attributes: game.AttributeMaxService.buildAttributesAfterRecovery(player)
         });
 
         res.json({
             code: 200,
             data: {
                 recovery_type: recovery_type,
-                duration_minutes: duration_minutes,
+                requested_minutes: Number(duration_minutes) || null,
+                duration_minutes: settledMinutes,
                 recovered: recoveryResult.recovered,
                 new_values: {
                     hp: recoveryResult.hp_current,
@@ -212,12 +226,15 @@ router.post('/recover', authMiddleware, async (req, res) => {
 /**
  * 使用丹药提升属性最大值
  * POST /api/attribute/use_pill
+ *
+ * 安全说明：客户端只传 pill_id，丹药效果由服务端 config/item_data.json 查表得出，
+ * 属性键名与数值均经白名单与上限钳制，不接受客户端提交的 pill_effect。
  */
 router.post('/use_pill', authMiddleware, async (req, res) => {
     const t = await sequelize.transaction();
     try {
         const player = req.player;
-        const { pill_id, pill_effect } = req.body;
+        const { pill_id } = req.body;
         
         if (!player) {
             await t.rollback();
@@ -227,21 +244,32 @@ router.post('/use_pill', authMiddleware, async (req, res) => {
             });
         }
 
-        if (!pill_id || !pill_effect) {
+        if (!pill_id || typeof pill_id !== 'string') {
             await t.rollback();
             return res.status(400).json({ 
                 code: 400, 
-                message: '缺少必要参数：pill_id, pill_effect' 
+                message: '缺少必要参数：pill_id' 
             });
         }
 
-        // 验证玩家是否拥有该丹药（安全检查：防止无限使用）
+        // 服务端解析丹药效果，未配置永久属性上限加成的物品不可在此使用
+        const pillEffect = game.AttributeMaxService.getPillMaxIncreaseEffect(pill_id);
+        if (!pillEffect) {
+            await t.rollback();
+            return res.status(400).json({
+                code: 400,
+                message: '该丹药没有永久属性上限加成效果，无法在此使用'
+            });
+        }
+
+        // 验证玩家是否拥有该丹药（行级锁：防止并发重复消耗同一颗丹药）
         const playerItem = await Item.findOne({
             where: { 
                 player_id: player.id, 
                 item_key: pill_id 
             },
-            transaction: t
+            transaction: t,
+            lock: t.LOCK.UPDATE
         });
 
         if (!playerItem || playerItem.quantity < 1) {
@@ -251,29 +279,25 @@ router.post('/use_pill', authMiddleware, async (req, res) => {
                 message: '未拥有该丹药或数量不足' 
             });
         }
-        
-        // 应用丹药效果
-        const newMaxValues = game.AttributeMaxService.applyPillEffect(player, pill_effect);
-        
-        // 更新玩家属性（这里需要根据丹药类型决定如何更新）
-        if (pill_effect.type === 'permanent_max_increase') {
-            // 永久提升 - 更新属性加成
-            const currentAttributes = typeof player.attributes === 'string' 
-                ? JSON.parse(player.attributes) 
-                : (player.attributes || {});
-            
-            for (const [attrKey, increase] of Object.entries(pill_effect.attributes)) {
-                const bonusKey = `${attrKey}_bonus`;
-                currentAttributes[bonusKey] = (currentAttributes[bonusKey] || 0) + increase;
-            }
-            
-            await player.update({
-                attributes: currentAttributes
-            }, { transaction: t });
-        }
+
+        // 累加属性加成并钳制单属性总量上限
+        const currentAttributes = typeof player.attributes === 'string' 
+            ? JSON.parse(player.attributes) 
+            : (player.attributes || {});
+        const nextAttributes = game.AttributeMaxService.applyPillBonusToAttributes(
+            currentAttributes,
+            pillEffect
+        );
+
+        await player.update({
+            attributes: nextAttributes
+        }, { transaction: t });
 
         // 消耗丹药（数量减1）
         await playerItem.decrement('quantity', { transaction: t });
+
+        // 回显使用后的属性上限
+        const newMaxValues = game.AttributeMaxService.applyPillEffect(player, pillEffect);
         
         await t.commit();
         
@@ -281,7 +305,8 @@ router.post('/use_pill', authMiddleware, async (req, res) => {
             code: 200,
             data: {
                 pill_id: pill_id,
-                effect_type: pill_effect.type,
+                effect_type: pillEffect.type,
+                applied: pillEffect.attributes,
                 new_max_values: newMaxValues,
                 remaining_quantity: playerItem.quantity - 1,
                 message: '丹药使用成功'
@@ -332,6 +357,86 @@ router.post('/equip_title', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('装备称号失败:', error);
         res.status(500).json({ code: 500, message: '装备称号失败' });
+    }
+});
+
+/**
+ * 重置属性加点
+ * POST /api/attribute/reset
+ *
+ * 规则（attribute_system.json: attribute_reset）：消耗灵石、按冷却限次，
+ * 只回收"加点账本"里记录的点数——丹药等其他来源的 *_bonus 既不被扣掉，也不折算成可分配点数。
+ */
+router.post('/reset', authMiddleware, async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        // 行级锁：防止并发重置重复退点
+        const player = await Player.findByPk(req.user.id, {
+            transaction: t,
+            lock: t.LOCK.UPDATE
+        });
+
+        if (!player) {
+            await t.rollback();
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
+        }
+        if (player.is_dead) {
+            await t.rollback();
+            return res.status(400).json({ code: 400, message: '已陨落，无法重置属性点' });
+        }
+
+        const resetConfig = game.AttributeService.getAttributeResetConfig();
+        const lastResetAt = new Date(player.attributes?.last_attribute_reset_time || 0).getTime();
+        if (Number.isFinite(lastResetAt) && lastResetAt > 0) {
+            const elapsedMinutes = (Date.now() - lastResetAt) / 60000;
+            if (elapsedMinutes < resetConfig.cooldown_minutes) {
+                await t.rollback();
+                return res.status(400).json({
+                    code: 400,
+                    message: `重置冷却中，还需等待 ${Math.ceil(resetConfig.cooldown_minutes - elapsedMinutes)} 分钟`
+                });
+            }
+        }
+
+        const resetPlan = game.AttributeService.buildAllocatedPointsReset(player);
+        if (resetPlan.refundablePoints <= 0) {
+            await t.rollback();
+            return res.status(400).json({ code: 400, message: '没有可回收的属性加点' });
+        }
+
+        if (Number(player.spirit_stones) < resetConfig.cost_spirit_stones) {
+            await t.rollback();
+            return res.status(400).json({
+                code: 400,
+                message: `灵石不足，重置需要 ${resetConfig.cost_spirit_stones} 灵石`
+            });
+        }
+
+        player.spirit_stones = Number(player.spirit_stones) - resetConfig.cost_spirit_stones;
+        player.attribute_points = (Number(player.attribute_points) || 0) + resetPlan.refundablePoints;
+        player.attributes = game.AttributeService.buildAttributesAfterReset(resetPlan);
+        await player.save({ transaction: t });
+
+        await t.commit();
+
+        const fullAttributesResult = game.AttributeService.calculateFullAttributes(player);
+
+        res.json({
+            code: 200,
+            message: `属性点重置成功，回收 ${resetPlan.refundablePoints} 点`,
+            data: {
+                refunded_points: resetPlan.refundablePoints,
+                refunded: resetPlan.refunded,
+                cost_spirit_stones: resetConfig.cost_spirit_stones,
+                attribute_points: player.attribute_points,
+                spirit_stones: String(player.spirit_stones || 0),
+                current: fullAttributesResult.final
+            }
+        });
+    } catch (error) {
+        if (!t.finished) await t.rollback();
+        console.error('属性点重置失败:', error);
+        res.status(500).json({ code: 500, message: '属性点重置失败' });
     }
 });
 

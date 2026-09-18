@@ -11,7 +11,23 @@
       "mp_recovery_per_minute": 5,
       "hp_recovery_multiplier": 1.5,
       "mp_recovery_multiplier": 2
+    },
+    "recovery_settlement": {
+      "max_window_minutes": 1440,
+      "min_settlement_minutes": 1,
+      "comment": "服务端时钟推导的单次最大结算窗口（分钟），客户端传入的时长只能缩短该窗口"
     }
+  },
+  "attribute_pill_limits": {
+    "max_increase_per_use": 500,
+    "max_total_bonus_per_attribute": 100000,
+    "max_temp_boost_minutes": 1440,
+    "comment": "丹药永久属性上限加成的单次/总量钳制，效果数值只来自 item_data.json 的 effect 字段"
+  },
+  "attribute_reset": {
+    "cost_spirit_stones": 500,
+    "cooldown_minutes": 1440,
+    "comment": "属性点重置：仅回收加点账本内的点数，丹药等其他来源加成不退点"
   },
   "attribute_bonuses": {
     "spirit_root_bonus": {

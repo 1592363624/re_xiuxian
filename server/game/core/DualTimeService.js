@@ -7,7 +7,6 @@ class DualTimeService {
     constructor() {
         this.configLoader = null;
         this.heavenlyTime = null; // 天道时间
-        this.mortalTime = null;   // 红尘时间
     }
 
     /**
@@ -28,18 +27,10 @@ class DualTimeService {
             realToGameRatio: 1 / (30 * 24), // 1现实小时 = 1游戏月
             gameToRealRatio: 30 * 24,       // 1游戏月 = 720现实小时
             currentGameTime: '仙历元年一月一日',
+            gameMonthsElapsed: 0,           // 自仙历元年一月一日累计的游戏月数
             lastUpdate: Date.now()
         };
-
-        // 红尘时间：活动时间加速
-        this.mortalTime = {
-            activityMultipliers: {
-                seclusion: 3,    // 闭关：3年/次
-                training: 1,     // 历练：1年/次
-                cultivation: 0.5 // 修炼：0.5年/次
-            },
-            pendingActivities: []
-        };
+        // 红尘活动的年数区间与真实等待时长改为配置驱动：config/time_system.json
     }
 
     /**
@@ -51,6 +42,7 @@ class DualTimeService {
         
         if (timePassed > 0) {
             const gameTimePassed = timePassed * this.heavenlyTime.realToGameRatio; // 游戏月
+            this.heavenlyTime.gameMonthsElapsed = (this.heavenlyTime.gameMonthsElapsed || 0) + gameTimePassed;
             this.heavenlyTime.currentGameTime = this.addGameTime(this.heavenlyTime.currentGameTime, gameTimePassed);
             this.heavenlyTime.lastUpdate = now;
         }
@@ -118,101 +110,235 @@ class DualTimeService {
     }
 
     /**
-     * 开始红尘活动
-     * @param {Object} player - 玩家对象
-     * @param {string} activityType - 活动类型
-     * @param {Object} activityData - 活动数据
-     */
-    startMortalActivity(player, activityType, activityData) {
-        const multiplier = this.mortalTime.activityMultipliers[activityType] || 1;
-        const activityDuration = activityData.duration || 1; // 默认1年
-        
-        const activity = {
-            type: activityType,
-            startTime: Date.now(),
-            duration: activityDuration * multiplier, // 实际消耗的年数
-            data: activityData,
-            playerId: player.id
-        };
-
-        this.mortalTime.pendingActivities.push(activity);
-        
-        // 更新玩家状态
-        player.is_secluded = activityType === 'seclusion';
-        player.seclusion_start_time = new Date();
-        player.seclusion_duration = activityDuration * 60 * 60; // 转换为秒
-
-        return activity;
-    }
-
-    /**
-     * 完成红尘活动
-     * @param {Object} player - 玩家对象
-     */
-    completeMortalActivity(player) {
-        const activityIndex = this.mortalTime.pendingActivities.findIndex(
-            activity => activity.playerId === player.id
-        );
-
-        if (activityIndex === -1) return null;
-
-        const activity = this.mortalTime.pendingActivities[activityIndex];
-        
-        // 应用时间消耗到玩家年龄
-        if (player.attributes) {
-            player.attributes.lifespan_current += activity.duration;
-        }
-        
-        // 移除活动
-        this.mortalTime.pendingActivities.splice(activityIndex, 1);
-        
-        // 重置玩家状态
-        player.is_secluded = false;
-        player.seclusion_start_time = null;
-        player.seclusion_duration = 0;
-
-        return activity;
-    }
-
-    /**
      * 计算玩家剩余寿命
+     * 修复：年龄存于 player.lifespan_current 独立列（attributes.lifespan_current 已废弃），
+     * 旧实现读嵌套字段恒为 undefined，导致剩余寿命恒等于满值
      * @param {Object} player - 玩家对象
      * @returns {number} 剩余寿命（年）
      */
     calculateRemainingLifespan(player) {
-        if (!player.attributes) return 0;
-        
-        const currentAge = player.attributes.lifespan_current || 0;
-        const maxLifespan = player.attributes.lifespan_max || 60;
-        
+        if (!player) return 0;
+
+        const currentAge = Number(player.lifespan_current) || 0;
+        const maxLifespan = Number(player.lifespan_max) || 0;
+
         return Math.max(0, maxLifespan - currentAge);
     }
 
     /**
-     * 获取时间状态
+     * 汇总玩家双时间状态（供 /api/time/status 直接下发）
      * @param {Object} player - 玩家对象
-     * @returns {Object} 时间状态对象
+     * @returns {Object} { total_age, heavenly_age, mortal_age, max_lifespan, remaining_lifespan, lifespan_percentage }
      */
-    getTimeStatus(player) {
-        this.updateHeavenlyTime();
-        
+    getLifespanSummary(player) {
+        const currentAge = Number(player?.lifespan_current) || 0;
+        const maxLifespan = Number(player?.lifespan_max) || 0;
         const remainingLifespan = this.calculateRemainingLifespan(player);
-        const playerActivities = this.mortalTime.pendingActivities.filter(
-            activity => activity.playerId === player.id
-        );
 
         return {
-            heavenly_time: this.heavenlyTime.currentGameTime,
-            mortal_time: {
-                current_age: player.attributes?.lifespan_current || 0,
-                max_lifespan: player.attributes?.lifespan_max || 60,
-                remaining_lifespan: remainingLifespan,
-                pending_activities: playerActivities
+            total_age: currentAge,
+            heavenly_age: Number(player?.heavenly_age) || 0,
+            mortal_age: Number(player?.mortal_age) || 0,
+            max_lifespan: maxLifespan,
+            remaining_lifespan: remainingLifespan,
+            lifespan_percentage: maxLifespan > 0
+                ? Number(((remainingLifespan / maxLifespan) * 100).toFixed(1))
+                : 0
+        };
+    }
+
+    /**
+     * 读取双时间配置（config/time_system.json）
+     * 配置未加载时 ConfigLoader 会抛错，这里兜底为空配置（活动不可用，fail-closed）
+     * @returns {Object} 时间系统配置
+     */
+    getTimeSystemConfig() {
+        try {
+            return this.configLoader?.getConfig('time_system') || {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    /**
+     * 玩家当前进行中的红尘活动列表
+     * @param {Object} player - 玩家对象
+     * @returns {Array} 活动记录
+     */
+    getPendingActivities(player) {
+        const pending = player?.time_system_data?.pending_activities;
+        return Array.isArray(pending) ? pending : [];
+    }
+
+    /**
+     * 获取天道时间全局状态（世界年 + 即将发生的世界事件）
+     * @returns {Object} { heavenly_time: { current_year, current_time, next_events }, time_ratios }
+     */
+    getTimeSystemStatus() {
+        this.updateHeavenlyTime();
+
+        const config = this.getTimeSystemConfig();
+        const currentYear = this.getCurrentHeavenlyYear();
+        const previewCount = Number(config?.limits?.next_events_preview_count) || 3;
+        const events = (Array.isArray(config.heavenly_events) ? config.heavenly_events : [])
+            .map(event => {
+                const interval = Number(event.interval_years);
+                if (!Number.isFinite(interval) || interval <= 0) return null;
+
+                let nextYear = Number(event.first_year) || 0;
+                while (nextYear <= currentYear) nextYear += interval;
+
+                return {
+                    event: String(event.key),
+                    name: String(event.name || event.key),
+                    next_year: nextYear,
+                    next_occurrence: `仙历${nextYear}年`,
+                    years_until: nextYear - currentYear
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.years_until - b.years_until)
+            .slice(0, previewCount);
+
+        return {
+            heavenly_time: {
+                current_year: currentYear,
+                current_time: this.heavenlyTime.currentGameTime,
+                next_events: events
             },
             time_ratios: {
                 real_to_game: this.heavenlyTime.realToGameRatio,
                 game_to_real: this.heavenlyTime.gameToRealRatio
             }
+        };
+    }
+
+    /**
+     * 当前天道纪年（仙历年份，元年为 1）
+     * @returns {number} 年份
+     */
+    getCurrentHeavenlyYear() {
+        const monthsElapsed = Number(this.heavenlyTime?.gameMonthsElapsed) || 0;
+        return 1 + Math.floor(monthsElapsed / 12);
+    }
+
+    /**
+     * 获取单个红尘活动的服务端配置，数值字段逐个兜底
+     * @param {string} activityType - 活动类型
+     * @returns {Object|null} 活动配置，未配置返回 null
+     */
+    getActivityConfig(activityType) {
+        const activities = this.getTimeSystemConfig().mortal_activities || {};
+        // hasOwnProperty 判定：避免 '__proto__' / 'constructor' 等键取到原型对象而被当成合法活动
+        if (typeof activityType !== 'string' || !Object.prototype.hasOwnProperty.call(activities, activityType)) {
+            return null;
+        }
+        const activity = activities[activityType];
+        if (!activity || typeof activity !== 'object') return null;
+
+        const num = (value, fallback) => {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+        };
+        const minYears = num(activity.min_years, 0.5);
+        const maxYears = Math.max(minYears, num(activity.max_years, 1));
+
+        return {
+            type: String(activityType),
+            name: String(activity.name || activityType),
+            min_years: minYears,
+            max_years: maxYears,
+            default_years: Math.min(maxYears, Math.max(minYears, num(activity.default_years, minYears))),
+            real_seconds_per_year: num(activity.real_seconds_per_year, 60)
+        };
+    }
+
+    /**
+     * 获取玩家当前可开始的红尘活动类型
+     * 同名活动不可叠加，且进行中活动数受 max_pending_activities 约束
+     * @param {Object} player - 玩家对象
+     * @returns {Array<string>} 可用活动类型
+     */
+    getAvailableActivities(player) {
+        const activities = this.getTimeSystemConfig().mortal_activities || {};
+        const pending = this.getPendingActivities(player);
+        const maxPending = Number(this.getTimeSystemConfig()?.limits?.max_pending_activities) || 3;
+
+        if (pending.length >= maxPending) return [];
+
+        const pendingTypes = new Set(pending.map(activity => activity?.activity_type));
+        return Object.keys(activities).filter(type => !pendingTypes.has(type));
+    }
+
+    /**
+     * 计算红尘活动的时间消耗
+     *
+     * 安全约束：活动类型与年数区间全部来自服务端配置，客户端传入的年数只能被钳制，
+     * 无法放大单次消耗，也无法伪造完成时点（completion_time 由服务器时钟生成）。
+     *
+     * @param {Object} player - 玩家对象
+     * @param {string} activityType - 活动类型
+     * @param {number} [requestedYears] - 客户端期望消耗年数（可选）
+     * @returns {Object|null} 消耗结果，活动未配置返回 null
+     */
+    processMortalTimeConsumption(player, activityType, requestedYears = null) {
+        const activityConfig = this.getActivityConfig(activityType);
+        if (!activityConfig) return null;
+
+        const requested = Number(requestedYears);
+        const years = (Number.isFinite(requested) && requested > 0)
+            ? Math.min(Math.max(requested, activityConfig.min_years), activityConfig.max_years)
+            : activityConfig.default_years;
+
+        const waitSeconds = Math.round(years * activityConfig.real_seconds_per_year);
+
+        return {
+            activity_type: activityConfig.type,
+            name: activityConfig.name,
+            time_cost_years: years,
+            age_increase: years,
+            wait_seconds: waitSeconds,
+            completion_time: new Date(Date.now() + waitSeconds * 1000).toISOString(),
+            heavenly_time_elapsed: years
+        };
+    }
+
+    /**
+     * 结算红尘活动：只累加红尘年龄与寿元消耗
+     *
+     * 说明：修为/物品等奖益由各玩法自己的结算接口负责，时间系统不再重复发放，
+     * 避免形成第二条可被刷的奖励通道。寿元耗尽时复用 LifespanService 的死亡流程。
+     *
+     * @param {Object} player - 玩家对象
+     * @param {Object} activity - 活动记录（来自 player.time_system_data，服务端写入）
+     * @returns {Promise<Object>} 结算结果
+     */
+    async processActivityCompletion(player, activity) {
+        const years = Number(activity?.time_cost_years);
+        if (!Number.isFinite(years) || years <= 0) {
+            throw new Error('活动记录缺少有效的寿元消耗');
+        }
+
+        const LifespanService = require('./LifespanService');
+
+        player.mortal_age = (Number(player.mortal_age) || 0) + years;
+        player.lifespan_current = Math.min(
+            (Number(player.lifespan_current) || 0) + years,
+            Number(player.lifespan_max) || 0
+        );
+        await player.save();
+
+        const lifespan = this.getLifespanSummary(player);
+        const exhausted = lifespan.remaining_lifespan <= 0;
+        const death = exhausted ? await LifespanService.handleLifespanEnd(player) : null;
+
+        return {
+            activity_type: activity.activity_type,
+            time_cost_years: years,
+            mortal_age: player.mortal_age,
+            lifespan: lifespan,
+            lifespan_exhausted: exhausted,
+            death: death
         };
     }
 
@@ -256,6 +382,8 @@ class DualTimeService {
         // 关键修复：将恢复结果写回 player 对象
         player.hp_current = BigInt(recoveryResult.hp_current);
         player.mp_current = BigInt(recoveryResult.mp_current);
+        // 记录本次恢复结算时点，/api/attribute/recover 不会重复结算同一段时间
+        player.attributes = attributeService.buildAttributesAfterRecovery(player);
 
         return {
             hp_recovered: recoveryResult.recovered.hp,
@@ -297,6 +425,8 @@ class DualTimeService {
         // 关键修复：将恢复结果写回 player 对象
         player.hp_current = BigInt(recoveryResult.hp_current);
         player.mp_current = BigInt(recoveryResult.mp_current);
+        // 记录本次恢复结算时点，/api/attribute/recover 不会重复结算同一段时间
+        player.attributes = attributeService.buildAttributesAfterRecovery(player);
 
         return {
             hp_recovered: recoveryResult.recovered.hp,

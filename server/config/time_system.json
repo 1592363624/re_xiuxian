@@ -1,0 +1,35 @@
+{
+  "description": "双时间系统静态配置（天道时间事件 + 红尘时间活动）",
+  "heavenly_events": [
+    { "key": "spirit_tide", "name": "灵潮", "interval_years": 10, "first_year": 5 },
+    { "key": "beast_calamity", "name": "兽劫", "interval_years": 25, "first_year": 15 },
+    { "key": "immortal_assembly", "name": "万仙大会", "interval_years": 50, "first_year": 30 }
+  ],
+  "mortal_activities": {
+    "cultivation": {
+      "name": "参悟打坐",
+      "default_years": 0.5,
+      "min_years": 0.5,
+      "max_years": 5,
+      "real_seconds_per_year": 60
+    },
+    "training": {
+      "name": "秘境历练",
+      "default_years": 1,
+      "min_years": 1,
+      "max_years": 10,
+      "real_seconds_per_year": 120
+    },
+    "seclusion": {
+      "name": "闭关苦修",
+      "default_years": 3,
+      "min_years": 1,
+      "max_years": 20,
+      "real_seconds_per_year": 180
+    }
+  },
+  "limits": {
+    "max_pending_activities": 3,
+    "next_events_preview_count": 3
+  }
+}

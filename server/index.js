@@ -120,11 +120,21 @@ require('./models/playerSparring');
 
 const http = require('http');
 const socketIo = require('socket.io');
+const helmet = require('helmet');
 const { infrastructure } = require('./modules');
 const game = require('./game');
 const WebSocketNotificationService = require('./game/services/WebSocketNotificationService');
+const { apiLimiter, actionLimiter, adminLimiter, initializeRateLimiters } = require('./middleware/rateLimit');
 
 const app = express();
+
+// 反向代理层数：部署在 nginx 等代理之后需配置 TRUST_PROXY_HOPS=1，
+// 否则限流会把全部玩家计入同一个 IP；直连部署保持默认（不信任 X-Forwarded-For）
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS, 10);
+if (Number.isFinite(trustProxyHops) && trustProxyHops > 0) {
+  app.set('trust proxy', trustProxyHops);
+}
+
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
@@ -162,8 +172,20 @@ const corsOptions = {
 };
 
 // 中间件
+// helmet 提供基础安全响应头；本服务仅返回 JSON 且由前端自行渲染，故关闭 CSP、放行跨源资源读取
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// 限流：查询类接口按全局阈值约束，写操作接口另按更严阈值约束（防脚本刷奖励）
+app.use('/api', apiLimiter);
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'OPTIONS') return next();
+  return actionLimiter(req, res, next);
+});
 
 // 将 io 实例挂载到 app 上，供路由使用
 app.set('io', io);
@@ -304,6 +326,8 @@ const startServer = async () => {
     // 初始化核心服务
     if (configInitResult) {
         await initializeCoreServices(configLoader);
+        // 配置就绪后按 game_balance.rate_limit 重建限流器（模块加载时用的是兜底阈值）
+        initializeRateLimiters();
     }
 
     // 初始化历练探索服务（AI大模型事件生成）
@@ -549,6 +573,8 @@ const startServer = async () => {
     app.use('/api/auth', require('./routes/auth'));
     app.use('/api/player', require('./routes/player'));
     app.use('/api/chat', require('./routes/chat'));
+    // GM 后台统一限流（所有 /api/admin/* 挂载点均以此为前缀，一次覆盖）
+    app.use('/api/admin', adminLimiter);
     app.use('/api/admin', require('./routes/admin'));
     app.use('/api/admin/ai-config', require('./routes/admin_ai'));
     app.use('/api/admin/sect', require('./routes/admin_sect'));

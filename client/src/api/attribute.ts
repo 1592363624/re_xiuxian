@@ -11,17 +11,15 @@ export const getFullAttributes = () => {
 };
 
 /**
- * 获取属性详细信息
+ * 可加点属性名（与服务端 ALLOCATABLE_BONUS_KEYS 白名单一致）
  */
-export const getAttributeDetails = () => {
-  return apiClient.get('/attribute/details');
-};
+export type AllocatableAttribute = 'hp' | 'mp' | 'atk' | 'def' | 'speed' | 'sense';
 
 /**
  * 分配属性点
  */
-export const allocateAttributePoints = (data: { attribute: string; points: number }) => {
-  return apiClient.post('/attribute/allocate', data);
+export const allocateAttributePoints = (points: Partial<Record<AllocatableAttribute, number>>) => {
+  return apiClient.post('/attribute/allocate', { points });
 };
 
 /**
