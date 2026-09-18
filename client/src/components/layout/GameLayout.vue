@@ -83,11 +83,11 @@
       </header>
 
       <!-- 返回战斗浮动按钮：仅当玩家有进行中战斗且战斗面板未打开时显示
-           位置：屏幕底部中央上方（ActionBar 之上），大号红字+脉动动画，确保玩家不会错过 -->
+           位置：屏幕底部中央（移动端需避开横向滚动的 ActionBar rail），大号红字+脉动动画，确保玩家不会错过 -->
       <button
         v-if="hasActiveBattle && !isCombatOpen"
         @click="handleReturnToBattle"
-        class="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-full bg-red-700 hover:bg-red-600 text-white font-bold shadow-2xl shadow-red-900/50 animate-pulse flex items-center gap-2 border-2 border-red-400/50"
+        class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-full bg-red-700 hover:bg-red-600 text-white font-bold shadow-2xl shadow-red-900/50 animate-pulse flex items-center gap-2 border-2 border-red-400/50"
         title="您有进行中的战斗，点击返回"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>
@@ -109,14 +109,22 @@
         @complete="handleMoveComplete"
       />
 
-      <!-- 游戏内容区 (日志 + 战斗视觉) -->
-      <div class="flex-1 overflow-hidden relative flex flex-col">
-        <!-- 这里可以放战斗视觉层 (CombatVisuals) -->
-        <GameLog :logs="logs" />
+      <!-- 中部：【日志窄栏】+【右侧操作 rail】两栏并排 -->
+      <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative min-h-0">
+        <div class="flex-1 flex flex-col overflow-hidden relative min-w-0">
+          <!-- 窄阅读栏之外的留白用灵尘氛围层填充，避免读作渲染缺陷 -->
+          <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <div class="absolute inset-0 bg-[radial-gradient(90%_70%_at_72%_18%,rgba(56,189,248,0.05),transparent_65%)]"></div>
+            <div class="absolute w-2 h-2 bg-emerald-500/25 rounded-full blur-[1px] animate-float top-1/3 left-[64%]"></div>
+            <div class="absolute w-3 h-3 bg-cyan-500/15 rounded-full blur-[2px] animate-float top-2/3 left-[78%]" style="animation-duration: 9s; animation-delay: 1.2s;"></div>
+            <div class="absolute w-1 h-1 bg-amber-500/35 rounded-full animate-float top-1/2 left-[88%]" style="animation-duration: 6s; animation-delay: 2.4s;"></div>
+            <div class="absolute w-4 h-4 bg-purple-500/10 rounded-full blur-[3px] animate-float top-1/4 left-[94%]" style="animation-duration: 11s; animation-delay: 0.6s;"></div>
+          </div>
+          <!-- 这里可以放战斗视觉层 (CombatVisuals) -->
+          <GameLog :logs="logs" />
+        </div>
+        <ActionBar :player="playerStore.player" @action="handleAction" />
       </div>
-
-      <!-- 底部操作栏 -->
-    <ActionBar :player="playerStore.player" @action="handleAction" />
   </main>
 
     <!-- 全局聊天组件 -->

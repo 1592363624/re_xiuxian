@@ -33,7 +33,7 @@ module.exports = {
 
         // 辅助函数：检查列是否存在（幂等性保证）
         async function columnExists(tableName, columnName) {
-            const [rows] = await sequelize.query(
+            const rows = await sequelize.query(
                 `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
                 { replacements: [tableName, columnName], type: QueryTypes.SELECT }
@@ -75,7 +75,7 @@ module.exports = {
         const sequelize = sequelizeInstance;
 
         async function columnExists(tableName, columnName) {
-            const [rows] = await sequelize.query(
+            const rows = await sequelize.query(
                 `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
                 { replacements: [tableName, columnName], type: QueryTypes.SELECT }

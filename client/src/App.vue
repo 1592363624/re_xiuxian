@@ -8,6 +8,8 @@ import { usePlayerStore } from './stores/player'
 import { useUIStore } from './stores/ui'
 import ChangelogModal from './components/modals/ChangelogModal.vue'
 import { currentVersion } from './data/changelog'
+import { exchangeQQTicket } from './api/auth'
+import { readQQRedirect } from './utils/qqAuth'
 
 const serverStatus = ref('正在连接...')
 const dbStatus = ref('检查中...')
@@ -51,6 +53,33 @@ const handleChangelogClose = () => {
   localStorage.setItem('app_version', currentVersion)
 }
 
+/**
+ * 处理 QQ 授权回跳
+ *
+ * 只把一次性票据换成 token，后续的玩家数据加载仍走下面原有的 token 恢复分支，
+ * 使 QQ 登录与账号密码登录共用同一条初始化路径。
+ * 未绑定的 QQ（qq_pending）不在这里处理，由 Login.vue 引导登录/注册后完成绑定。
+ */
+const handleQQRedirect = async () => {
+  const qq = readQQRedirect()
+
+  if (qq.ticket) {
+    try {
+      const res = await exchangeQQTicket(qq.ticket)
+      playerStore.logoutReason = null
+      playerStore.setToken(res.data.token)
+    } catch (e) {
+      uiStore.showToast('QQ 登录凭证已失效，请重新扫码', 'error')
+    }
+  }
+
+  if (qq.error) {
+    uiStore.showToast(qq.error, 'error')
+  } else if (qq.bindResult === 'success') {
+    uiStore.showToast('QQ 绑定成功，以后可直接用 QQ 登录', 'success')
+  }
+}
+
 let pingInterval
 
 onMounted(async () => {
@@ -63,6 +92,8 @@ onMounted(async () => {
   if (lastVersion !== currentVersion) {
     showChangelog.value = true
   }
+
+  await handleQQRedirect()
 
   // 恢复 Token 并验证
   if (playerStore.token) {

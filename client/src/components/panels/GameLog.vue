@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useUIStore } from '../../stores/ui'
 
 const props = defineProps({
@@ -13,16 +13,31 @@ const uiStore = useUIStore()
 const filterMode = ref('all') // all, self, system
 const logContainer = ref(null)
 
-// 模拟日志生成 (用于展示功能)
-let mockInterval = null
+// 玩家往上翻记录时暂停跟随，避免新日志把阅读位置强行拽回底部
+const atBottom = ref(true)
+const hasNewBelow = ref(false)
 
-// 监听日志变化，自动滚动
+const onLogScroll = (e) => {
+  const el = e.currentTarget
+  atBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+  if (atBottom.value) hasNewBelow.value = false
+}
+
+const jumpToLatest = () => {
+  const el = logContainer.value
+  if (!el) return
+  el.scrollTop = el.scrollHeight
+  atBottom.value = true
+  hasNewBelow.value = false
+}
+
+// 监听日志变化，仅在已贴底时自动滚动
 watch(() => uiStore.logs.length, () => {
-  nextTick(() => {
-    if (logContainer.value) {
-      logContainer.value.scrollTop = logContainer.value.scrollHeight
-    }
-  })
+  if (!atBottom.value) {
+    hasNewBelow.value = true
+    return
+  }
+  nextTick(jumpToLatest)
 })
 
 const getLogStyle = (type) => {
@@ -86,17 +101,15 @@ onMounted(() => {
       isImportant: true
     })
   }
-})
-
-onUnmounted(() => {
-  if (mockInterval) clearInterval(mockInterval)
+  nextTick(jumpToLatest)
 })
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col bg-[#0c0a09] overflow-hidden relative min-h-[200px] border border-stone-800/50 rounded-lg mx-2 my-1">
+  <!-- 窄阅读栏：限宽并贴左锚定，避免 12px 文字横跨整个视口 -->
+  <div class="flex-1 w-full max-w-[680px] mr-2 ml-0 md:ml-2 my-1 flex flex-col bg-[#0c0a09] overflow-hidden relative min-h-[200px] border border-stone-800/50 rounded-lg">
     <!-- 日志内容区 -->
-    <div ref="logContainer" class="flex-1 overflow-y-auto font-mono text-xs relative scroll-smooth bg-[#0c0a09] custom-scrollbar">
+    <div ref="logContainer" @scroll="onLogScroll" class="flex-1 overflow-y-auto font-mono text-xs relative scroll-smooth bg-[#0c0a09] custom-scrollbar">
       <div class="flex flex-col gap-1 px-2 py-2 relative z-10">
         <TransitionGroup name="scroll">
           <div
@@ -124,6 +137,15 @@ onUnmounted(() => {
       </div>
     </div>
     
+    <!-- 上翻阅读时提示有新日志，点击回到底部 -->
+    <button
+      v-if="hasNewBelow"
+      @click="jumpToLatest"
+      class="absolute bottom-4 left-4 z-20 px-3 py-1.5 rounded-full bg-amber-900/80 border border-amber-600/60 text-amber-100 text-xs shadow-lg hover:bg-amber-800 transition-colors"
+    >
+      有新日志 · 回到底部
+    </button>
+
     <!-- 过滤按钮 (右下角悬浮) -->
     <div class="absolute bottom-4 right-4 flex gap-2">
       <button 

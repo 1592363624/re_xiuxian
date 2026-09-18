@@ -1,12 +1,21 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import apiClient from '../api'
 // 修复：使用统一封装的 auth API 替代直接调用 apiClient
-import { checkUnique as checkUniqueApi, login as loginApi, register as registerApi } from '../api/auth'
+import {
+  checkUnique as checkUniqueApi,
+  login as loginApi,
+  register as registerApi,
+  getQQStatus,
+  getQQAuthorizeUrl,
+  getQQPending,
+  bindQQPending
+} from '../api/auth'
 import { usePlayerStore } from '../stores/player'
 import { useUIStore } from '../stores/ui'
 // 修复：正则与道号长度限制从配置读取，避免硬编码
 import { AUTH_REGEX, NICKNAME_LIMITS, UI_CONFIG } from '../config'
+import { readQQRedirect } from '../utils/qqAuth'
 
 const isLogin = ref(true) // true: 登录模式, false: 注册模式
 const form = ref({
@@ -20,6 +29,12 @@ const errorMsg = ref('')
 const usernameError = ref('')
 const nicknameError = ref('')
 const checking = ref({ username: false, nickname: false })
+
+// QQ 登录入口是否可用（服务端未配置 QQ 互联凭据时隐藏）
+const qqEnabled = ref(false)
+// 已通过 QQ 校验但尚未绑定账号时，后端回跳带来的待绑定票据
+const qqPendingTicket = ref('')
+const qqPendingProfile = ref(null)
 
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
@@ -95,6 +110,67 @@ watch(isLogin, () => {
   form.value = { username: '', password: '', nickname: '' }
 })
 
+// 待绑定提示条上的 QQ 名称，QQ 互联未放开资料接口时为空，只说"这个 QQ"
+const pendingQQLabel = () => {
+  const name = qqPendingProfile.value?.nickname
+  return name ? `QQ「${name}」` : '这个 QQ'
+}
+
+/**
+ * 整页跳转到 QQ 授权页
+ * 授权结果由后端 302 回本页面，靠地址栏上的一次性参数交接，因此这里不做等待
+ */
+const startQQLogin = async () => {
+  errorMsg.value = ''
+  try {
+    const res = await getQQAuthorizeUrl('login')
+    window.location.href = res.data.url
+  } catch (error) {
+    errorMsg.value = error.response?.data?.message || '无法发起 QQ 登录，请稍后再试'
+  }
+}
+
+/**
+ * 登录成功后补完绑定
+ *
+ * 未绑定过的 QQ 走登录流程时，后端只会给出待绑定票据而不会放行登录；
+ * 玩家随后在本页正常登录/注册，此刻才把 QQ 挂到这个账号上。
+ * 绑定失败不影响本次登录，最多是玩家下次再点一次 QQ 登录。
+ */
+const finishPendingQQBind = async () => {
+  if (!qqPendingTicket.value) return
+  try {
+    await bindQQPending(qqPendingTicket.value)
+    uiStore.showToast(`${pendingQQLabel()}已绑定到本账号，以后可直接用 QQ 登录`, 'success')
+  } catch (error) {
+    uiStore.showToast(error.response?.data?.message || 'QQ 绑定失败，可稍后在设置中重试', 'error')
+  } finally {
+    qqPendingTicket.value = ''
+    qqPendingProfile.value = null
+  }
+}
+
+onMounted(async () => {
+  const qq = readQQRedirect()
+  if (qq.pending) {
+    try {
+      const res = await getQQPending(qq.pending)
+      qqPendingTicket.value = qq.pending
+      qqPendingProfile.value = res.data.profile
+    } catch (error) {
+      // 票据已过期，不再展示引导条，避免出现点了登录却绑不上任何东西
+      uiStore.showToast(error.response?.data?.message || 'QQ 绑定会话已过期，请重新发起 QQ 登录', 'error')
+    }
+  }
+
+  try {
+    const res = await getQQStatus()
+    qqEnabled.value = !!res.data.enabled
+  } catch (error) {
+    qqEnabled.value = false
+  }
+})
+
 const handleSubmit = async () => {
   if (!validateFormat()) {
     return
@@ -139,13 +215,16 @@ const handleSubmit = async () => {
       // 同步最新的闭关状态，避免 localStorage 缓存的旧状态
       await playerStore.fetchSeclusionStatus()
 
+      // 若本次登录是由未绑定的 QQ 授权发起的，此时才把 QQ 挂到刚登录的账号上
+      await finishPendingQQBind()
+
       // 触发登录成功事件，传递 true 表示成功，不需要传 player 对象，避免传旧数据
       emit('login-success', true)
     } else {
       // 注册（使用统一封装的 auth API）
       await registerApi(form.value)
       isLogin.value = true
-      uiStore.addToast('注册成功，请登录', 'success')
+      uiStore.showToast('注册成功，请登录', 'success')
       form.value = { username: '', password: '', nickname: '' }
     }
   } catch (error) {
@@ -170,6 +249,12 @@ const handleSubmit = async () => {
       <!-- 登出/互踢提示 -->
       <div v-if="playerStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm text-center animate-pulse">
         {{ playerStore.logoutReason }}
+      </div>
+
+      <!-- QQ 已通过校验但还没绑定账号：引导正常登录/注册，成功后自动完成绑定 -->
+      <div v-if="qqPendingTicket" class="mb-6 p-3 bg-sky-900/40 border border-sky-700 rounded text-sky-100 text-sm">
+        <p class="font-bold mb-1">{{ pendingQQLabel() }}还没有绑定任何账号</p>
+        <p class="text-sky-200/80">登录已有账号、或注册一个新账号，完成后会自动把这个 QQ 绑定上去，以后就能直接用 QQ 登录。</p>
       </div>
 
       <form @submit.prevent="handleSubmit" class="space-y-6">
@@ -242,6 +327,25 @@ const handleSubmit = async () => {
         >
           {{ isLogin ? '没有账号？点击注册' : '已有账号？返回登录' }}
         </button>
+      </div>
+
+      <!-- QQ 登录：服务端未配置 QQ 互联凭据时整块隐藏 -->
+      <div v-if="qqEnabled" class="mt-6">
+        <div class="flex items-center gap-3 text-xs text-gray-600 mb-4">
+          <div class="flex-1 h-px bg-gray-700"></div>
+          <span>或</span>
+          <div class="flex-1 h-px bg-gray-700"></div>
+        </div>
+        <button
+          type="button"
+          @click="startQQLogin"
+          :disabled="loading"
+          class="w-full flex items-center justify-center gap-2 bg-[#12B7F5]/90 text-black font-bold py-2 rounded hover:bg-[#12B7F5] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span class="w-5 h-5 flex items-center justify-center rounded-full bg-black text-[#12B7F5] text-[10px] font-black leading-none">QQ</span>
+          使用 QQ 登录
+        </button>
+        <p class="mt-2 text-xs text-gray-500 text-center">首次使用需用 QQ 验证后绑定或注册一个账号</p>
       </div>
     </div>
   </div>

@@ -118,6 +118,9 @@ require('./models/multiDungeonCooldown');
 // 切磋木人系统模型（玩法文档第17节：战力测试，5档次木人 + 评分 + 排行榜）
 require('./models/playerSparring');
 
+// 第三方登录绑定模型（QQ 登录：QQ 身份与玩家账号一对一绑定）
+require('./models/playerOAuthBinding');
+
 const http = require('http');
 const socketIo = require('socket.io');
 const helmet = require('helmet');
@@ -353,7 +356,23 @@ const startServer = async () => {
             }
         }
 
-        // 执行数据库迁移（必须在 sequelize.sync() 之前）
+        // 同步数据库模型 —— 必须在迁移之前
+        //
+        // 顺序原因：迁移脚本大量使用 ALTER TABLE。空库上若先跑迁移，第一条
+        // migration_0001 就会因为 players 表尚不存在而失败，migrate() 返回 not success，
+        // 下面直接 process.exit(1)，导致全新数据库永远无法自举。
+        //
+        // 对已有库这个顺序是安全的：sync() 只创建缺失的表，不改动已存在表的结构
+        // （见下方 2026-07-21 说明），因此相当于空操作，迁移照常补齐模型未覆盖的表与字段。
+        //
+        // 修复（2026-07-21）：原 sync({ alter: true }) 会在每次启动时为 unique 字段
+        // 创建带数字后缀的重复索引（player_id_2, player_id_3, ...），导致 player_caves
+        // 表索引数累积到 64 个触发 MySQL 5.6 限制，阻止后续字段同步
+        // 改为 sync()：仅创建不存在的表，不修改已有表结构，新字段通过 migrations 迁移
+        // 已通过 scripts/cleanup_duplicate_indexes.js 清理 99 个冗余索引
+        await sequelize.sync();
+
+        // 执行数据库迁移
         console.log('检查数据库迁移...');
         const { migrate } = require('./scripts/migration_manager');
         const migrationResult = await migrate();
@@ -375,14 +394,6 @@ const startServer = async () => {
             console.error('');
             process.exit(1);
         }
-        
-        // 同步数据库模型
-        // 修复（2026-07-21）：原 sync({ alter: true }) 会在每次启动时为 unique 字段
-        // 创建带数字后缀的重复索引（player_id_2, player_id_3, ...），导致 player_caves
-        // 表索引数累积到 64 个触发 MySQL 5.6 限制，阻止后续字段同步
-        // 改为 sync()：仅创建不存在的表，不修改已有表结构，新字段通过 migrations 迁移
-        // 已通过 scripts/cleanup_duplicate_indexes.js 清理 99 个冗余索引
-        await sequelize.sync();
     } catch (error) {
         console.error('无法连接到数据库 (但不影响服务器启动):', error.message);
     }
@@ -570,6 +581,8 @@ const startServer = async () => {
     }
 
     // 路由
+    // QQ 登录挂在账号密码登录之前，避免 /api/auth 路由器先吞掉 /api/auth/qq/*
+    app.use('/api/auth/qq', require('./routes/auth_qq'));
     app.use('/api/auth', require('./routes/auth'));
     app.use('/api/player', require('./routes/player'));
     app.use('/api/chat', require('./routes/chat'));

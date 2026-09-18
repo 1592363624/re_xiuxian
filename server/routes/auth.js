@@ -1,14 +1,15 @@
 /**
  * 认证路由：注册与登录
- * 业务逻辑委托 PlayerService.initializePlayer，路由层只做参数校验和响应
+ * 注册业务逻辑委托 PlayerService.initializePlayer，登录委托 LoginSession，
+ * 路由层只做参数校验和响应
  */
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const Player = require('../models/player');
 const { Op } = require('sequelize');
 const PlayerService = require('../game/core/PlayerService');
+const LoginSession = require('../game/core/LoginSession');
 const { infrastructure } = require('../modules');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { authLimiter } = require('../middleware/rateLimit');
@@ -19,15 +20,8 @@ function getAuthConfig() {
     return configLoader.getConfig('game_balance')?.auth || {};
 }
 
-// IP 提取工具函数（统一抽取，消除 auth.js 内重复代码）
-function getClientIp(req) {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-        // 取第一个 IP 并去除空白（注意：x-forwarded-for 可被伪造，生产环境需配合反向代理信任设置）
-        return forwarded.split(',')[0].trim();
-    }
-    return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || null;
-}
+// IP 提取统一由 LoginSession 提供，注册与登录共用同一份实现
+const { getClientIp } = LoginSession;
 
 // 检查唯一性 API
 router.get('/check-unique', async (req, res, next) => {
@@ -136,7 +130,6 @@ router.post('/register', authLimiter, async (req, res, next) => {
 router.post('/login', authLimiter, async (req, res, next) => {
     try {
         const { username, password } = req.body;
-        const authConfig = getAuthConfig();
 
         // 查找用户
         const player = await Player.findOne({ where: { username } });
@@ -156,78 +149,15 @@ router.post('/login', authLimiter, async (req, res, next) => {
             throw new AppError('密码错误，请重新输入', 401, ErrorCodes.UNAUTHORIZED);
         }
 
-        // 更新 Token 版本号（实现互踢）和 IP 地址
-        player.token_version = (player.token_version || 0) + 1;
-        player.ip_address = getClientIp(req);
-
-        // 登录时离线 HP/MP 恢复（修复 B16 bug）
-        // 修复（2026-07-20）：
-        //   原系统 DualTimeService.processOfflineTime 方法定义了但从未被调用，
-        //   导致玩家 MP 耗尽后永远为 0（除非突破/决斗/药品）。
-        //   现在在登录时根据 last_online 计算离线时长，调用 processOfflineTime 恢复 HP/MP。
-        //   恢复条件：玩家未死亡、未在闭关中、未在战斗中（这些状态有独立的恢复/结算逻辑）。
-        //   恢复速率：自然恢复 1HP/分钟、1MP/分钟（attribute_system.json 配置）。
-        //   恢复上限：单次最多 24 小时（processOfflineTime 内部限制），避免长期未登录玩家恢复过量。
-        let offlineRecoveryInfo = null;
-        try {
-            if (player.last_online && !player.is_dead && !player.is_secluded) {
-                const lastOnlineTime = new Date(player.last_online).getTime();
-                const nowMs = Date.now();
-                const offlineDurationSec = Math.max(0, Math.floor((nowMs - lastOnlineTime) / 1000));
-                // 仅当离线超过 60 秒才触发恢复，避免频繁登录的玩家产生无意义计算
-                if (offlineDurationSec >= 60) {
-                    const DualTimeService = require('../game/core/DualTimeService');
-                    offlineRecoveryInfo = DualTimeService.processOfflineTime(player, offlineDurationSec);
-                    if (offlineRecoveryInfo.hp_recovered > 0 || offlineRecoveryInfo.mp_recovered > 0) {
-                        console.log(`[Auth] 玩家 ${player.username} 离线 ${Math.floor(offlineDurationSec / 60)} 分钟，恢复 HP +${offlineRecoveryInfo.hp_recovered} / MP +${offlineRecoveryInfo.mp_recovered}`);
-                    }
-                }
-            }
-        } catch (recoveryErr) {
-            // 恢复失败不阻塞登录，仅打印警告
-            console.warn('[Auth] 离线 HP/MP 恢复失败:', recoveryErr.message);
-        }
-
-        // 更新最后在线时间为当前时间
-        player.last_online = new Date();
-        await player.save();
-
-        // 登录时清理过期战斗记录，解决"一进游戏就显示战斗"的遗留问题
-        // 场景：玩家上次战斗未正常结束（关浏览器/服务重启），expires_at 已过期的战斗会被清除
-        try {
-            const CombatService = require('../game/services/CombatService');
-            const cleanedCount = await CombatService.cleanExpiredBattles(player.id);
-            if (cleanedCount > 0) {
-                console.log(`[Auth] 玩家 ${player.username} 登录时清理了 ${cleanedCount} 条过期战斗记录`);
-            }
-        } catch (e) {
-            // 清理失败不阻塞登录，仅打印警告
-            console.warn('[Auth] 清理过期战斗记录失败:', e.message);
-        }
-
-        // 生成 JWT（过期时间从配置读取，避免硬编码）
-        const payload = {
-            id: player.id,
-            username: player.username,
-            v: player.token_version // 存入版本号
-        };
-
-        const token = jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: authConfig.jwt_expires_in ?? '7d' }
-        );
+        // 更新 Token 版本号（实现互踢）、离线恢复、清理遗留战斗并签发 JWT
+        // 与 QQ 登录共用 LoginSession，保证两种登录方式行为一致
+        const token = await LoginSession.issueLoginToken(player, req);
 
         res.json({
             code: 200,
             message: '登录成功',
             token,
-            player: {
-                id: player.id,
-                nickname: player.nickname,
-                realm: player.realm,
-                role: player.role
-            }
+            player: LoginSession.toLoginPlayerPayload(player)
         });
     } catch (error) {
         next(error);

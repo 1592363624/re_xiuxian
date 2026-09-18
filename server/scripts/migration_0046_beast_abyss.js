@@ -30,7 +30,7 @@ module.exports = {
 
         // 辅助函数：检查表是否存在（幂等性保证）
         async function tableExists(tableName) {
-            const [rows] = await sequelize.query(
+            const rows = await sequelize.query(
                 `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
                 { replacements: [tableName], type: QueryTypes.SELECT }
@@ -40,7 +40,7 @@ module.exports = {
 
         // 辅助函数：检查列是否存在
         async function columnExists(tableName, columnName) {
-            const [rows] = await sequelize.query(
+            const rows = await sequelize.query(
                 `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
                 { replacements: [tableName, columnName], type: QueryTypes.SELECT }
@@ -174,7 +174,7 @@ module.exports = {
         const sequelize = sequelizeInstance;
 
         async function columnExists(tableName, columnName) {
-            const [rows] = await sequelize.query(
+            const rows = await sequelize.query(
                 `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
                 { replacements: [tableName, columnName], type: QueryTypes.SELECT }
@@ -183,7 +183,7 @@ module.exports = {
         }
 
         async function tableExists(tableName) {
-            const [rows] = await sequelize.query(
+            const rows = await sequelize.query(
                 `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
                 { replacements: [tableName], type: QueryTypes.SELECT }

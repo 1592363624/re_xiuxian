@@ -15,7 +15,45 @@
       
       <!-- Body -->
       <div class="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-        
+
+        <!-- QQ 账号绑定 -->
+        <section v-if="qqEnabled">
+          <h3 class="flex items-center gap-2 text-stone-200 font-bold mb-3 text-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            QQ 登录
+          </h3>
+          <div class="bg-[#1c1917] rounded border border-stone-800 p-4">
+            <template v-if="qqBinding">
+              <div class="flex items-center gap-3 mb-4">
+                <img v-if="qqBinding.avatarUrl" :src="qqBinding.avatarUrl" alt="QQ 头像" class="w-10 h-10 rounded-full border border-stone-700 object-cover">
+                <div v-else class="w-10 h-10 rounded-full bg-stone-800 border border-stone-700 flex items-center justify-center text-stone-500 text-[10px] font-black">QQ</div>
+                <div class="min-w-0">
+                  <p class="text-stone-200 font-bold truncate">{{ qqBinding.nickname || '已绑定的 QQ' }}</p>
+                  <p class="text-xs text-stone-500">绑定于 {{ formatBoundAt(qqBinding.boundAt) }}</p>
+                </div>
+              </div>
+              <p class="text-xs text-stone-500 mb-3">下次起可直接在登录页用这个 QQ 进入游戏。换绑需先解绑；解绑后本账号仍只能用账号密码登录。</p>
+              <button
+                @click="showUnbindConfirm = true"
+                :disabled="qqBusy"
+                class="w-full py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded border border-stone-700 transition-colors disabled:opacity-50"
+              >
+                {{ qqBusy ? '处理中...' : '解除绑定' }}
+              </button>
+            </template>
+            <template v-else>
+              <p class="text-stone-500 text-sm mb-4">本账号还没有绑定 QQ。绑定后即可跳过账号密码，直接用 QQ 登录。</p>
+              <button
+                @click="startQQBind"
+                :disabled="qqBusy"
+                class="w-full py-2 bg-[#12B7F5]/90 hover:bg-[#12B7F5] text-black font-bold rounded transition-colors disabled:opacity-50"
+              >
+                {{ qqBusy ? '跳转中...' : '绑定 QQ' }}
+              </button>
+            </template>
+          </div>
+        </section>
+
         <!-- Game Management -->
         <section>
           <h3 class="flex items-center gap-2 text-stone-200 font-bold mb-3 text-lg">
@@ -113,6 +151,28 @@
           </div>
         </div>
       </transition>
+
+      <!-- QQ 解绑确认弹窗 -->
+      <transition name="modal">
+        <div v-if="showUnbindConfirm" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="showUnbindConfirm = false"></div>
+          <div class="relative w-full max-w-sm bg-[#141210] border border-stone-700 rounded-lg shadow-2xl p-6 animate-fade-in">
+            <h3 class="text-lg font-bold text-amber-500 mb-3">确认解除 QQ 绑定</h3>
+            <p class="text-stone-300 text-sm mb-2">解绑后这个 QQ 将无法登录本账号。</p>
+            <p class="text-stone-400 text-sm mb-6">请确认你记得本账号的账号密码，否则解绑后可能无法再进入游戏。</p>
+            <div class="flex justify-end gap-3">
+              <button
+                @click="showUnbindConfirm = false"
+                class="px-4 py-2 bg-stone-700 hover:bg-stone-600 text-stone-300 rounded transition-colors"
+              >取消</button>
+              <button
+                @click="doUnbind"
+                class="px-4 py-2 bg-red-700 hover:bg-red-600 text-red-100 rounded font-bold transition-colors"
+              >确认解绑</button>
+            </div>
+          </div>
+        </div>
+      </transition>
     </Teleport>
   </div>
 </template>
@@ -120,15 +180,18 @@
 <script setup>
 /**
  * 设置弹窗组件
- * 提供游戏设置、快捷键说明、关于信息等功能
+ * 提供账号绑定、游戏设置、快捷键说明、关于信息等功能
  */
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { usePlayerStore } from '../../stores/player'
+import { useUIStore } from '../../stores/ui'
+import { getQQAuthorizeUrl, getQQBinding, unbindQQ } from '../../api/auth'
 // 引入版本号，保证设置面板与更新日志版本一致（单一数据源）
 import { currentVersion } from '../../data/changelog'
 
 const emit = defineEmits(['close'])
 const playerStore = usePlayerStore()
+const uiStore = useUIStore()
 // 游戏版本（从 changelog 单一数据源读取，避免硬编码不同步）
 const gameVersion = currentVersion
 
@@ -150,6 +213,60 @@ const doLogout = () => {
   playerStore.logout()
   window.location.reload()
 }
+
+// ===== QQ 绑定 =====
+const qqEnabled = ref(false)
+const qqBinding = ref(null)
+const qqBusy = ref(false)
+const showUnbindConfirm = ref(false)
+
+const loadQQBinding = async () => {
+  try {
+    const res = await getQQBinding()
+    qqEnabled.value = !!res.data.enabled
+    qqBinding.value = res.data.binding
+  } catch (error) {
+    // 绑定状态读不到时保持入口隐藏，避免让玩家点了却没反应
+    qqEnabled.value = false
+  }
+}
+
+/**
+ * 发起绑定：整页跳去 QQ 授权，回调由后端处理后带参数回到首页，
+ * 届时 App.vue 会弹出"绑定成功"提示，本面板重开时再拉一次状态即可。
+ */
+const startQQBind = async () => {
+  qqBusy.value = true
+  try {
+    const res = await getQQAuthorizeUrl('bind')
+    window.location.href = res.data.url
+  } catch (error) {
+    uiStore.showToast(error.response?.data?.message || '无法发起 QQ 绑定，请稍后再试', 'error')
+    qqBusy.value = false
+  }
+}
+
+const doUnbind = async () => {
+  showUnbindConfirm.value = false
+  qqBusy.value = true
+  try {
+    await unbindQQ()
+    uiStore.showToast('已解除 QQ 绑定', 'success')
+    await loadQQBinding()
+  } catch (error) {
+    uiStore.showToast(error.response?.data?.message || '解绑失败，请稍后再试', 'error')
+  } finally {
+    qqBusy.value = false
+  }
+}
+
+const formatBoundAt = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+onMounted(loadQQBinding)
 </script>
 
 <style scoped>
