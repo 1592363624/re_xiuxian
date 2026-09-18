@@ -41,5 +41,213 @@
     "quality": "common",
     "description": "普普通通的资质。",
     "bonuses": {}
+  },
+  {
+    "id": "iron_wall",
+    "name": "铜墙铁壁",
+    "quality": "epic",
+    "description": "天生筋骨如铁，防御过人。",
+    "bonuses": {
+      "def_pct": 18
+    }
+  },
+  {
+    "id": "fierce_blade",
+    "name": "锋锐无匹",
+    "quality": "epic",
+    "description": "出手凌厉，攻势刚猛。",
+    "bonuses": {
+      "atk_pct": 18
+    }
+  },
+  {
+    "id": "profound_spirit",
+    "name": "神识过人",
+    "quality": "rare",
+    "description": "天生神识强横，感知敏锐。",
+    "bonuses": {
+      "sense_pct": 22
+    }
+  },
+  {
+    "id": "deep_breath",
+    "name": "气海如渊",
+    "quality": "rare",
+    "description": "丹田宽广，灵力雄厚。",
+    "bonuses": {
+      "mp_max_pct": 22
+    }
+  },
+  {
+    "id": "gale_body",
+    "name": "疾风之躯",
+    "quality": "rare",
+    "description": "身形矫捷，出手迅疾。",
+    "bonuses": {
+      "speed_pct": 20
+    }
+  },
+  {
+    "id": "lucky_star",
+    "name": "福缘深厚",
+    "quality": "legendary",
+    "description": "吉星高照，逢凶化吉。",
+    "bonuses": {
+      "luck_pct": 25
+    }
+  },
+  {
+    "id": "war_blood",
+    "name": "好战血脉",
+    "quality": "legendary",
+    "description": "越战越勇，攻伐果断。",
+    "bonuses": {
+      "atk_pct": 12,
+      "hp_max_pct": 12
+    }
+  },
+  {
+    "id": "wise_enlightened",
+    "name": "慧根通明",
+    "quality": "legendary",
+    "description": "慧根深种，闻一知十。",
+    "bonuses": {
+      "wisdom_pct": 25,
+      "cultivate_speed_pct": 10
+    }
+  },
+  {
+    "id": "sturdy_life",
+    "name": "长生之体",
+    "quality": "epic",
+    "description": "生机旺盛，气血绵长。",
+    "bonuses": {
+      "hp_max_pct": 25
+    }
+  },
+  {
+    "id": "void_affinity",
+    "name": "道体天成",
+    "quality": "mythic",
+    "description": "天生道体，修行一日千里。",
+    "bonuses": {
+      "cultivate_speed_pct": 35
+    }
+  },
+  {
+    "id": "battle_madness",
+    "name": "嗜战狂血",
+    "quality": "epic",
+    "description": "愈战愈勇，攻势不绝。",
+    "bonuses": {
+      "atk_pct": 15,
+      "speed_pct": 10
+    }
+  },
+  {
+    "id": "immortal_bone",
+    "name": "仙骨天成",
+    "quality": "mythic",
+    "description": "天生仙骨，道行猛进。",
+    "bonuses": {
+      "cultivate_speed_pct": 30,
+      "sense_pct": 10
+    }
+  },
+  {
+    "id": "thick_life",
+    "name": "长生厚命",
+    "quality": "legendary",
+    "description": "根基厚沃，气血悠长不衰。",
+    "bonuses": {
+      "hp_max_pct": 30
+    }
+  },
+  {
+    "id": "mind_sword",
+    "name": "心剑灵犀",
+    "quality": "legendary",
+    "description": "以神御剑，剑随心至。",
+    "bonuses": {
+      "atk_pct": 12,
+      "sense_pct": 18
+    }
+  },
+  {
+    "id": "stone_body",
+    "name": "磐石之躯",
+    "quality": "rare",
+    "description": "身躯如石，硬抗刀兵。",
+    "bonuses": {
+      "def_pct": 22,
+      "hp_max_pct": 8
+    }
+  },
+  {
+    "id": "ghost_walk",
+    "name": "鬼魅疾行",
+    "quality": "epic",
+    "description": "身法诡谲，来去如风。",
+    "bonuses": {
+      "speed_pct": 25
+    }
+  },
+  {
+    "id": "fate_blessed",
+    "name": "天命所归",
+    "quality": "mythic",
+    "description": "气运加身，逢凶化吉、遇难成祥。",
+    "bonuses": {
+      "luck_pct": 35
+    }
+  },
+  {
+    "id": "insight_master",
+    "name": "顿悟慧根",
+    "quality": "legendary",
+    "description": "闻一知十，触类旁通。",
+    "bonuses": {
+      "wisdom_pct": 30,
+      "cultivate_speed_pct": 8
+    }
+  },
+  {
+    "id": "pure_yang",
+    "name": "纯阳之体",
+    "quality": "epic",
+    "description": "阳气充盈，百邪不侵。",
+    "bonuses": {
+      "hp_max_pct": 12,
+      "atk_pct": 12
+    }
+  },
+  {
+    "id": "cold_yin",
+    "name": "玄阴之体",
+    "quality": "epic",
+    "description": "阴气内蕴，神识绵长。",
+    "bonuses": {
+      "mp_max_pct": 20,
+      "sense_pct": 12
+    }
+  },
+  {
+    "id": "steel_nerve",
+    "name": "心如铁石",
+    "quality": "rare",
+    "description": "道心坚定，不为外物所动。",
+    "bonuses": {
+      "sense_pct": 18,
+      "def_pct": 6
+    }
+  },
+  {
+    "id": "hungry_wolf",
+    "name": "贪狼之相",
+    "quality": "rare",
+    "description": "掠夺成性，出手狠辣。",
+    "bonuses": {
+      "atk_pct": 16
+    }
   }
 ]

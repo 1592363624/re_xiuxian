@@ -7,7 +7,9 @@
             "subtype": "healing",
             "quality": "common",
             "description": "恢复少量气血",
-            "effect": { "hp_restore": 10 },
+            "effect": {
+                "hp_restore": 10
+            },
             "price": 10,
             "usable_in_battle": true
         },
@@ -18,7 +20,9 @@
             "subtype": "healing",
             "quality": "uncommon",
             "description": "恢复中等气血",
-            "effect": { "hp_restore": 50 },
+            "effect": {
+                "hp_restore": 50
+            },
             "price": 50,
             "usable_in_battle": true
         },
@@ -29,7 +33,9 @@
             "subtype": "healing",
             "quality": "rare",
             "description": "恢复大量气血",
-            "effect": { "hp_restore": 100 },
+            "effect": {
+                "hp_restore": 100
+            },
             "price": 200,
             "usable_in_battle": true
         },
@@ -40,7 +46,9 @@
             "subtype": "mana",
             "quality": "common",
             "description": "恢复少量灵力",
-            "effect": { "mp_restore": 15 },
+            "effect": {
+                "mp_restore": 15
+            },
             "price": 15,
             "usable_in_battle": true
         },
@@ -51,7 +59,9 @@
             "subtype": "mana",
             "quality": "uncommon",
             "description": "恢复中等灵力",
-            "effect": { "mp_restore": 50 },
+            "effect": {
+                "mp_restore": 50
+            },
             "price": 80,
             "usable_in_battle": true
         },
@@ -62,7 +72,9 @@
             "subtype": "breakthrough",
             "quality": "rare",
             "description": "辅助突破筑基期",
-            "effect": { "breakthrough_bonus": 15 },
+            "effect": {
+                "breakthrough_bonus": 15
+            },
             "price": 1000
         },
         {
@@ -72,7 +84,9 @@
             "subtype": "breakthrough",
             "quality": "epic",
             "description": "辅助突破金丹期",
-            "effect": { "breakthrough_bonus": 20 },
+            "effect": {
+                "breakthrough_bonus": 20
+            },
             "price": 5000
         },
         {
@@ -82,7 +96,9 @@
             "subtype": "breakthrough",
             "quality": "legendary",
             "description": "辅助突破元婴期",
-            "effect": { "breakthrough_bonus": 25 },
+            "effect": {
+                "breakthrough_bonus": 25
+            },
             "price": 20000
         },
         {
@@ -92,7 +108,9 @@
             "subtype": "longevity",
             "quality": "uncommon",
             "description": "增加10年寿元",
-            "effect": { "longevity_add": 10 },
+            "effect": {
+                "longevity_add": 10
+            },
             "price": 500
         },
         {
@@ -102,7 +120,9 @@
             "subtype": "longevity",
             "quality": "rare",
             "description": "增加30年寿元",
-            "effect": { "longevity_add": 30 },
+            "effect": {
+                "longevity_add": 30
+            },
             "price": 2000
         },
         {
@@ -112,7 +132,9 @@
             "subtype": "longevity",
             "quality": "epic",
             "description": "增加100年寿元",
-            "effect": { "longevity_add": 100 },
+            "effect": {
+                "longevity_add": 100
+            },
             "price": 10000
         },
         {
@@ -122,7 +144,9 @@
             "subtype": "debuff",
             "quality": "common",
             "description": "清除5点丹毒",
-            "effect": { "toxicity_reduce": 5 },
+            "effect": {
+                "toxicity_reduce": 5
+            },
             "price": 20
         },
         {
@@ -132,7 +156,9 @@
             "subtype": "attribute",
             "quality": "uncommon",
             "description": "服下后灵气通脉，永久提升 30 点灵力上限",
-            "effect": { "mp_max": 30 },
+            "effect": {
+                "mp_max": 30
+            },
             "price": 300
         },
         {
@@ -142,7 +168,9 @@
             "subtype": "attribute",
             "quality": "uncommon",
             "description": "凝练元气护住根本，永久提升 60 点气血上限",
-            "effect": { "hp_max": 60 },
+            "effect": {
+                "hp_max": 60
+            },
             "price": 350
         },
         {
@@ -152,7 +180,10 @@
             "subtype": "attribute",
             "quality": "rare",
             "description": "借丹力打磨筋骨攻势，永久提升 25 点攻击、15 点防御",
-            "effect": { "atk": 25, "def": 15 },
+            "effect": {
+                "atk": 25,
+                "def": 15
+            },
             "price": 1500
         },
         {
@@ -162,7 +193,9 @@
             "subtype": "attribute",
             "quality": "epic",
             "description": "丹中暗藏玄机，服后神识清明，永久提升 20 点神识",
-            "effect": { "sense": 20 },
+            "effect": {
+                "sense": 20
+            },
             "price": 6000
         },
         {
@@ -172,7 +205,10 @@
             "subtype": "attribute",
             "quality": "legendary",
             "description": "婴成之后脱胎换骨，永久提升 300 点气血上限、50 点攻击",
-            "effect": { "hp_max": 300, "atk": 50 },
+            "effect": {
+                "hp_max": 300,
+                "atk": 50
+            },
             "price": 25000
         },
         {
@@ -182,7 +218,9 @@
             "subtype": "mana",
             "quality": "uncommon",
             "description": "采集地脉灵液炼化，恢复大量灵力",
-            "effect": { "mp_restore": 120 },
+            "effect": {
+                "mp_restore": 120
+            },
             "price": 120,
             "usable_in_battle": true
         },
@@ -193,7 +231,9 @@
             "subtype": "knowledge",
             "quality": "uncommon",
             "description": "战线军需司常备丹药，服用后获得 500 修为",
-            "effect": { "exp": 500 },
+            "effect": {
+                "exp": 500
+            },
             "price": 300
         },
         {
@@ -392,7 +432,9 @@
             "subtype": "knowledge",
             "quality": "uncommon",
             "description": "前人修仙心得札记，阅读后获得 500 修为",
-            "effect": { "exp": 500 },
+            "effect": {
+                "exp": 500
+            },
             "price": 300
         },
         {
@@ -402,7 +444,9 @@
             "subtype": "weapon",
             "quality": "common",
             "description": "入门弟子常用的桃木剑，略有灵气",
-            "effect": { "atk": 5 },
+            "effect": {
+                "atk": 5
+            },
             "price": 200,
             "required_realm_rank": 1
         },
@@ -413,7 +457,10 @@
             "subtype": "weapon",
             "quality": "uncommon",
             "description": "以灵钢锻造的长剑，锋利无匹",
-            "effect": { "atk": 20, "speed": 3 },
+            "effect": {
+                "atk": 20,
+                "speed": 3
+            },
             "price": 1500,
             "required_realm_rank": 3
         },
@@ -424,7 +471,10 @@
             "subtype": "weapon",
             "quality": "rare",
             "description": "封印天火之灵的长剑，斩敌如焚",
-            "effect": { "atk": 60, "speed": 8 },
+            "effect": {
+                "atk": 60,
+                "speed": 8
+            },
             "price": 8000,
             "required_realm_rank": 5
         },
@@ -435,7 +485,10 @@
             "subtype": "armor",
             "quality": "uncommon",
             "description": "以灵蚕丝编织的法袍，御敌于外",
-            "effect": { "def": 15, "hp_max": 50 },
+            "effect": {
+                "def": 15,
+                "hp_max": 50
+            },
             "price": 1200,
             "required_realm_rank": 2
         },
@@ -446,7 +499,10 @@
             "subtype": "armor",
             "quality": "rare",
             "description": "紫云宗秘传玄甲，刀枪不入",
-            "effect": { "def": 50, "hp_max": 200 },
+            "effect": {
+                "def": 50,
+                "hp_max": 200
+            },
             "price": 6000,
             "required_realm_rank": 4
         },
@@ -457,7 +513,10 @@
             "subtype": "accessory",
             "quality": "common",
             "description": "温润的玉佩，可护心脉",
-            "effect": { "hp_max": 30, "luck": 2 },
+            "effect": {
+                "hp_max": 30,
+                "luck": 2
+            },
             "price": 300,
             "required_realm_rank": 1
         },
@@ -468,7 +527,10 @@
             "subtype": "accessory",
             "quality": "rare",
             "description": "蕴含神识之力的戒指，提升感知",
-            "effect": { "sense": 15, "mp_max": 50 },
+            "effect": {
+                "sense": 15,
+                "mp_max": 50
+            },
             "price": 4500,
             "required_realm_rank": 4
         },
@@ -479,7 +541,9 @@
             "subtype": "boots",
             "quality": "uncommon",
             "description": "内嵌风行阵的靴子，行如踏云",
-            "effect": { "speed": 12 },
+            "effect": {
+                "speed": 12
+            },
             "price": 900,
             "required_realm_rank": 2
         },
@@ -490,7 +554,10 @@
             "subtype": "boots",
             "quality": "epic",
             "description": "以龙鳞炼制，瞬息千里",
-            "effect": { "speed": 35, "def": 10 },
+            "effect": {
+                "speed": 35,
+                "def": 10
+            },
             "price": 12000,
             "required_realm_rank": 5
         },
@@ -501,7 +568,11 @@
             "subtype": "dharma",
             "quality": "rare",
             "description": "辅助筑基修士修炼的本命法器",
-            "effect": { "mp_max": 100, "sense": 10, "cultivate_speed": 5 },
+            "effect": {
+                "mp_max": 100,
+                "sense": 10,
+                "cultivate_speed": 5
+            },
             "price": 5000,
             "required_realm_rank": 3
         },
@@ -512,7 +583,11 @@
             "subtype": "dharma",
             "quality": "epic",
             "description": "紫云宗镇宗法器，攻守兼备",
-            "effect": { "atk": 30, "def": 30, "mp_max": 150 },
+            "effect": {
+                "atk": 30,
+                "def": 30,
+                "mp_max": 150
+            },
             "price": 15000,
             "required_realm_rank": 5
         },
@@ -555,7 +630,9 @@
             "subtype": "alchemy",
             "quality": "uncommon",
             "description": "记载小还丹炼制方法的丹方，阅读后可学会炼制小还丹",
-            "effect": { "learn_recipe": "craft_mid_healing_pill" },
+            "effect": {
+                "learn_recipe": "craft_mid_healing_pill"
+            },
             "price": 200
         },
         {
@@ -565,7 +642,9 @@
             "subtype": "alchemy",
             "quality": "uncommon",
             "description": "记载聚灵丹炼制方法的丹方，阅读后可学会炼制聚灵丹",
-            "effect": { "learn_recipe": "craft_mid_mana_pill" },
+            "effect": {
+                "learn_recipe": "craft_mid_mana_pill"
+            },
             "price": 250
         },
         {
@@ -575,7 +654,9 @@
             "subtype": "alchemy",
             "quality": "rare",
             "description": "记载筑基丹炼制方法的丹方，阅读后可学会炼制筑基丹",
-            "effect": { "learn_recipe": "craft_foundation_pill" },
+            "effect": {
+                "learn_recipe": "craft_foundation_pill"
+            },
             "price": 2000
         },
         {
@@ -585,7 +666,9 @@
             "subtype": "refining",
             "quality": "uncommon",
             "description": "记载灵丝法袍炼制方法的图谱，阅读后可学会炼制灵丝法袍",
-            "effect": { "learn_recipe": "craft_spirit_robe" },
+            "effect": {
+                "learn_recipe": "craft_spirit_robe"
+            },
             "price": 500
         },
         {
@@ -595,7 +678,9 @@
             "subtype": "refining",
             "quality": "common",
             "description": "记载护身玉佩炼制方法的图谱，阅读后可学会炼制护身玉佩",
-            "effect": { "learn_recipe": "craft_jade_pendant" },
+            "effect": {
+                "learn_recipe": "craft_jade_pendant"
+            },
             "price": 150
         },
         {
@@ -605,7 +690,9 @@
             "subtype": "refining",
             "quality": "uncommon",
             "description": "记载踏云靴炼制方法的图谱，阅读后可学会炼制踏云靴",
-            "effect": { "learn_recipe": "craft_cloud_stepping_boots" },
+            "effect": {
+                "learn_recipe": "craft_cloud_stepping_boots"
+            },
             "price": 600
         },
         {
@@ -615,7 +702,9 @@
             "subtype": "ticket",
             "quality": "epic",
             "description": "掩月宗送出的婚仪请柬，持此帖方可闯入婚仪抢亲。每张仅可使用一次。",
-            "effect": { "dungeon_ticket": "yanyue" },
+            "effect": {
+                "dungeon_ticket": "yanyue"
+            },
             "price": 8000
         },
         {
@@ -625,7 +714,9 @@
             "subtype": "ticket",
             "quality": "legendary",
             "description": "刻有古昆吾纹路的青铜令牌，持此令方可踏入昆吾山·封魔塔秘境。每张仅可使用一次。",
-            "effect": { "dungeon_ticket": "kunwu" },
+            "effect": {
+                "dungeon_ticket": "kunwu"
+            },
             "price": 20000
         },
         {
@@ -734,7 +825,9 @@
             "subtype": "refining",
             "quality": "epic",
             "description": "记载多种法宝祭炼要诀的图谱，研习后可解锁高阶法宝祭炼",
-            "effect": { "learn_recipe": "craft_advanced_artifact" },
+            "effect": {
+                "learn_recipe": "craft_advanced_artifact"
+            },
             "price": 4000
         },
         {
@@ -762,7 +855,9 @@
             "subtype": "breakthrough",
             "quality": "epic",
             "description": "昆吾山化龙地脉中凝结的奇石，突破时使用可增加成功率",
-            "effect": { "breakthrough_bonus": 0.10 },
+            "effect": {
+                "breakthrough_bonus": 0.1
+            },
             "price": 5000
         },
         {
@@ -790,7 +885,11 @@
             "subtype": "fabao",
             "quality": "legendary",
             "description": "昆吾山古仙遗留的镇塔之宝，尺身刻八灵纹，可镇魔压邪",
-            "effect": { "atk": 180, "seal_bonus": 0.15, "divine_sense_bonus": 50 },
+            "effect": {
+                "atk": 180,
+                "seal_bonus": 0.15,
+                "divine_sense_bonus": 50
+            },
             "price": 80000,
             "required_realm_rank": 19
         },
@@ -801,7 +900,9 @@
             "subtype": "ticket",
             "quality": "legendary",
             "description": "以上古虚天灵尊残纹铸成的令牌，持此令方可开启虚天殿副本。4-6人组队，队长需元婴期，队员需结丹后期。",
-            "effect": { "dungeon_ticket": "xutian" },
+            "effect": {
+                "dungeon_ticket": "xutian"
+            },
             "price": 25000
         },
         {
@@ -856,7 +957,12 @@
             "subtype": "fabao",
             "quality": "legendary",
             "description": "上古虚天灵尊所造的顶阶法宝，鼎内蕴含乾蓝冰焰，可炼天地万物",
-            "effect": { "atk": 200, "def": 80, "divine_sense_bonus": 60, "alchemy_bonus": 0.20 },
+            "effect": {
+                "atk": 200,
+                "def": 80,
+                "divine_sense_bonus": 60,
+                "alchemy_bonus": 0.2
+            },
             "price": 100000,
             "required_realm_rank": 19
         },
@@ -867,7 +973,10 @@
             "subtype": "weapon",
             "quality": "legendary",
             "description": "上古血魔以怨血祭炼的魔剑，剑意森寒，嗜血而狂",
-            "effect": { "atk": 220, "hp_steal": 0.08 },
+            "effect": {
+                "atk": 220,
+                "hp_steal": 0.08
+            },
             "price": 50000,
             "required_realm_rank": 15
         },
@@ -878,7 +987,10 @@
             "subtype": "ticket",
             "quality": "rare",
             "description": "端午时节以灵米、雄黄、粽叶包制的粽子，既是节令美食，也是参与镇蛟的凭信。",
-            "effect": { "dungeon_ticket": "duanwu", "hp_restore": 200 },
+            "effect": {
+                "dungeon_ticket": "duanwu",
+                "hp_restore": 200
+            },
             "price": 1500
         },
         {
@@ -897,7 +1009,9 @@
             "subtype": "talisman",
             "quality": "epic",
             "description": "以沧龙江畔粽叶炼制的护身灵符，飞升失败时可保一份材料不陨。",
-            "effect": { "ascension_protect_material": 1 },
+            "effect": {
+                "ascension_protect_material": 1
+            },
             "price": 8000
         },
         {
@@ -907,7 +1021,9 @@
             "subtype": "gift",
             "quality": "rare",
             "description": "端午镇蛟后江神馈赠的红包，拆开可获得随机灵石奖励",
-            "effect": { "spirit_stones_random": "500~5000" },
+            "effect": {
+                "spirit_stones_random": "500~5000"
+            },
             "price": 1000
         },
         {
@@ -926,7 +1042,9 @@
             "subtype": "honor",
             "quality": "legendary",
             "description": "参与端午镇蛟并立下战功者方可获得，佩戴后全属性+5%",
-            "effect": { "all_stats_bonus": 0.05 },
+            "effect": {
+                "all_stats_bonus": 0.05
+            },
             "price": 0
         },
         {
@@ -1125,7 +1243,9 @@
             "subtype": "ticket",
             "quality": "legendary",
             "description": "上古苍坤真君留下的青铜令牌，刻有苍坤秘纹，持此令方可踏入苍坤洞府秘境。每张仅可使用一次。",
-            "effect": { "dungeon_ticket": "cangkun" },
+            "effect": {
+                "dungeon_ticket": "cangkun"
+            },
             "price": 15000
         },
         {
@@ -1243,7 +1363,9 @@
             "subtype": "ticket",
             "quality": "legendary",
             "description": "刻有血色符文的古铜令牌，血色试炼的入场凭证。传说持有者将进入血色禁地，与同道厮杀以求一线仙缘。每枚令牌仅可使用一次。",
-            "effect": { "dungeon_ticket": "xuese" },
+            "effect": {
+                "dungeon_ticket": "xuese"
+            },
             "price": 20000
         },
         {
@@ -1298,7 +1420,9 @@
             "subtype": "ticket",
             "quality": "legendary",
             "description": "刻有坠魔符文的玄铁令牌，坠魔谷的入场凭证。传说持有者将面对自身心魔考验，于杀伐与守道之间寻求突破。每枚令牌仅可使用一次。",
-            "effect": { "dungeon_ticket": "zhuimo" },
+            "effect": {
+                "dungeon_ticket": "zhuimo"
+            },
             "price": 25000
         },
         {
@@ -1353,7 +1477,9 @@
             "subtype": "ticket",
             "quality": "legendary",
             "description": "刻有黄龙纹路的玄铁令牌，黄龙山慕兰战线要塞的入场凭证。传说持有者将率同宗门弟子结阵抗击黄龙阵灵，于阵法与共鸣之间铸就宗门荣耀。每枚令牌仅可使用一次，需5名同宗门弟子共同驻守五大阵眼。",
-            "effect": { "dungeon_ticket": "huanglong" },
+            "effect": {
+                "dungeon_ticket": "huanglong"
+            },
             "price": 30000
         },
         {
@@ -1744,7 +1870,2772 @@
             "quality": "epic",
             "description": "一次性道具，使用后24小时内埋伏公开LDC红包，截走第一个/最后一个/最大份额。定向/副本限定红包不触发。鱼获伴生极小概率获得。",
             "price": 8000
+        },
+        {
+            "id": "qinglian_sword",
+            "name": "青莲剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "rare",
+            "description": "剑身隐现青莲纹路，剑气凛然，炼气后期弟子的称手兵刃。",
+            "effect": {
+                "atk": 120,
+                "speed": 12
+            },
+            "price": 12000,
+            "required_realm_rank": 7
+        },
+        {
+            "id": "zixiao_sword",
+            "name": "紫霄剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "epic",
+            "description": "吸纳紫霄剑气淬炼，出鞘时风雷隐隐，筑基方可驭使。",
+            "effect": {
+                "atk": 280,
+                "speed": 18
+            },
+            "price": 42000,
+            "required_realm_rank": 11
+        },
+        {
+            "id": "leyue_jian",
+            "name": "裂岳剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "epic",
+            "description": "一剑可裂山岳，金丹修士以真元温养的重兵。",
+            "effect": {
+                "atk": 560,
+                "speed": 24
+            },
+            "price": 120000,
+            "required_realm_rank": 15
+        },
+        {
+            "id": "tianming_jian",
+            "name": "天明剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "legendary",
+            "description": "剑光如破晓之明，斩暗除邪，元婴真人的护身利剑。",
+            "effect": {
+                "atk": 900,
+                "speed": 32,
+                "sense": 40
+            },
+            "price": 320000,
+            "required_realm_rank": 19
+        },
+        {
+            "id": "huntian_jian",
+            "name": "斩天剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "legendary",
+            "description": "剑意可斩苍天之兵，化神修士淬炼本命剑意的至宝。",
+            "effect": {
+                "atk": 1800,
+                "speed": 45
+            },
+            "price": 900000,
+            "required_realm_rank": 23
+        },
+        {
+            "id": "miekong_jian",
+            "name": "灭空剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "mythic",
+            "description": "剑出虚空崩灭，炼虚期大能方可执掌的凶兵。",
+            "effect": {
+                "atk": 3200,
+                "speed": 65
+            },
+            "price": 2400000,
+            "required_realm_rank": 28
+        },
+        {
+            "id": "xinghun_jian",
+            "name": "星魂剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "mythic",
+            "description": "熔炼星辰之魂铸成，剑鸣如万星齐陨，合道者执掌。",
+            "effect": {
+                "atk": 5600,
+                "speed": 85,
+                "sense": 200
+            },
+            "price": 6000000,
+            "required_realm_rank": 33
+        },
+        {
+            "id": "hongmeng_jian",
+            "name": "鸿蒙剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "mythic",
+            "description": "截取一缕鸿蒙之气炼成，大乘修士证道之器。",
+            "effect": {
+                "atk": 9800,
+                "speed": 110
+            },
+            "price": 15000000,
+            "required_realm_rank": 37
+        },
+        {
+            "id": "duyuan_shenjian",
+            "name": "混元斩仙剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "mythic",
+            "description": "传说中的斩仙飞剑，混元已成、剑指真仙，可诛仙灭神。",
+            "effect": {
+                "atk": 18000,
+                "speed": 150
+            },
+            "price": 40000000,
+            "required_realm_rank": 40
+        },
+        {
+            "id": "xuantie_armor",
+            "name": "玄铁甲",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "rare",
+            "description": "以百年玄铁锻成，沉厚坚实，炼气后期可抵御兵刃。",
+            "effect": {
+                "def": 110,
+                "hp_max": 400
+            },
+            "price": 11000,
+            "required_realm_rank": 7
+        },
+        {
+            "id": "yueshi_armor",
+            "name": "月石坚甲",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "epic",
+            "description": "嵌月魄神石炼就，筑基修士的护身宝甲。",
+            "effect": {
+                "def": 240,
+                "hp_max": 900
+            },
+            "price": 40000,
+            "required_realm_rank": 11
+        },
+        {
+            "id": "binglin_armor",
+            "name": "冰鳞宝甲",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "epic",
+            "description": "取寒蛟之鳞密缀，坚逾金石，金丹修士披挂。",
+            "effect": {
+                "def": 480,
+                "hp_max": 1800
+            },
+            "price": 115000,
+            "required_realm_rank": 15
+        },
+        {
+            "id": "jinwu_armor",
+            "name": "金乌羽衣",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "legendary",
+            "description": "集金乌遗羽织成，至阳护体，元婴真人不坏之衣。",
+            "effect": {
+                "def": 820,
+                "hp_max": 3600,
+                "mp_max": 1200
+            },
+            "price": 320000,
+            "required_realm_rank": 19
+        },
+        {
+            "id": "xuanwu_xia",
+            "name": "玄武宝甲",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "legendary",
+            "description": "承玄武龟蛇之象，稳如山岳，化神修士御劫护身。",
+            "effect": {
+                "def": 1700,
+                "hp_max": 8000
+            },
+            "price": 920000,
+            "required_realm_rank": 24
+        },
+        {
+            "id": "hujin_fubing",
+            "name": "混元覆冰甲",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "mythic",
+            "description": "以混元真气凝结覆冰成甲，炼虚、合体期大能的护命至宝。",
+            "effect": {
+                "def": 3400,
+                "hp_max": 18000
+            },
+            "price": 3200000,
+            "required_realm_rank": 30
+        },
+        {
+            "id": "wuxing_tiankai",
+            "name": "五行天铠",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "mythic",
+            "description": "五行本源交织而成的天铠，刀兵劫火不侵，证道者可凭此横渡雷劫。",
+            "effect": {
+                "def": 6200,
+                "hp_max": 32000,
+                "speed": 30
+            },
+            "price": 12000000,
+            "required_realm_rank": 38
+        },
+        {
+            "id": "xunfeng_boots",
+            "name": "寻风靴",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "rare",
+            "description": "靴底纳风纹，步履生风，炼气后期疾行如飞。",
+            "effect": {
+                "speed": 28
+            },
+            "price": 9000,
+            "required_realm_rank": 7
+        },
+        {
+            "id": "liuyun_boots",
+            "name": "流云靴",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "epic",
+            "description": "踏之如乘流云，筑基修士追逃利器。",
+            "effect": {
+                "speed": 48
+            },
+            "price": 36000,
+            "required_realm_rank": 11
+        },
+        {
+            "id": "jinguang_yun",
+            "name": "金光遁履",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "legendary",
+            "description": "遁光一起金光万里，金丹以上修士瞬息百里。",
+            "effect": {
+                "speed": 90,
+                "def": 60
+            },
+            "price": 260000,
+            "required_realm_rank": 17
+        },
+        {
+            "id": "suiyun_dun",
+            "name": "碎云靴",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "legendary",
+            "description": "一步碎云裂空，元婴真人缩地成寸的宝履。",
+            "effect": {
+                "speed": 160,
+                "sense": 40
+            },
+            "price": 700000,
+            "required_realm_rank": 22
+        },
+        {
+            "id": "xuankong_zu",
+            "name": "悬空仙履",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "mythic",
+            "description": "履踏虚空如履平地，化神以上大能凌空虚渡。",
+            "effect": {
+                "speed": 300,
+                "mp_max": 1500
+            },
+            "price": 2800000,
+            "required_realm_rank": 28
+        },
+        {
+            "id": "zongliu_boots",
+            "name": "纵地金光靴",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "mythic",
+            "description": "纵地金光一现已至天涯，渡劫飞升者的极速之履。",
+            "effect": {
+                "speed": 520
+            },
+            "price": 11000000,
+            "required_realm_rank": 39
+        },
+        {
+            "id": "juling_pei",
+            "name": "聚灵玉佩",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "uncommon",
+            "description": "温润聚灵玉雕成，静气凝神，炼气弟子随身佩戴。",
+            "effect": {
+                "mp_max": 120,
+                "sense": 8
+            },
+            "price": 1200,
+            "required_realm_rank": 3
+        },
+        {
+            "id": "cuijin_dai",
+            "name": "淬精佩",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "rare",
+            "description": "以精金淬炼的玉佩，通体灵光流转，稳固气机。",
+            "effect": {
+                "hp_max": 500,
+                "mp_max": 300
+            },
+            "price": 14000,
+            "required_realm_rank": 8
+        },
+        {
+            "id": "lingxi_guanyin",
+            "name": "灵犀佩",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "epic",
+            "description": "身无彩凤双飞翼，心有灵犀一点通——增进神识感知的灵佩。",
+            "effect": {
+                "sense": 80,
+                "luck": 5
+            },
+            "price": 48000,
+            "required_realm_rank": 12
+        },
+        {
+            "id": "zhanhun_dai",
+            "name": "斩魂佩",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "legendary",
+            "description": "佩上剑气隐现，可斩心魔、镇神魂，元婴修士温养。",
+            "effect": {
+                "atk": 300,
+                "sense": 120
+            },
+            "price": 340000,
+            "required_realm_rank": 19
+        },
+        {
+            "id": "tianping_dai",
+            "name": "天平玉印",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "legendary",
+            "description": "状如玉印，气息平和，稳定周身灵力运转，化神修士随身之物。",
+            "effect": {
+                "mp_max": 5000,
+                "def": 500
+            },
+            "price": 950000,
+            "required_realm_rank": 24
+        },
+        {
+            "id": "fayuan_xuan",
+            "name": "法源玄佩",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "mythic",
+            "description": "贴近大道本源的玄佩，修炼时灵台空明，事半功倍。",
+            "effect": {
+                "cultivate_speed": 120,
+                "sense": 300,
+                "mp_max": 12000
+            },
+            "price": 4200000,
+            "required_realm_rank": 31
+        },
+        {
+            "id": "dao_xin_yin",
+            "name": "道心玉印",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "mythic",
+            "description": "篆刻道纹的本源玉印，坚定道心、护持神识，渡劫飞升者随身至宝。",
+            "effect": {
+                "sense": 800,
+                "luck": 20,
+                "hp_max": 20000
+            },
+            "price": 14000000,
+            "required_realm_rank": 39
+        },
+        {
+            "id": "xuanyuan_jing",
+            "name": "轩辕镜",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "rare",
+            "description": "可照破幻邪的古镜，筑基修士祭炼的护身法器。",
+            "effect": {
+                "def": 150,
+                "sense": 60,
+                "mp_max": 400
+            },
+            "price": 30000,
+            "required_realm_rank": 11
+        },
+        {
+            "id": "dingfeng_zhu",
+            "name": "定风珠",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "epic",
+            "description": "含在口中可定八方风煞，金丹修士渡风劫的法宝。",
+            "effect": {
+                "speed": 60,
+                "def": 280,
+                "mp_max": 900
+            },
+            "price": 130000,
+            "required_realm_rank": 15
+        },
+        {
+            "id": "yingzhao_lu",
+            "name": "照妖镜",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "legendary",
+            "description": "镜光所照群邪辟易，元婴真人的本命镇魔法器。",
+            "effect": {
+                "sense": 320,
+                "atk": 480,
+                "mp_max": 2000
+            },
+            "price": 380000,
+            "required_realm_rank": 20
+        },
+        {
+            "id": "juren_shan",
+            "name": "聚仙幡",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "legendary",
+            "description": "招引天地灵气的古幡，修炼时灵潮汇聚，精进神速。",
+            "effect": {
+                "cultivate_speed": 60,
+                "mp_max": 4000,
+                "sense": 220
+            },
+            "price": 1000000,
+            "required_realm_rank": 25
+        },
+        {
+            "id": "hetu_luoshu",
+            "name": "河洛玉尺",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "mythic",
+            "description": "刻有河图洛书之理的灵尺，可推演天机、镇压气运。",
+            "effect": {
+                "sense": 900,
+                "atk": 1400,
+                "def": 1000
+            },
+            "price": 3600000,
+            "required_realm_rank": 32
+        },
+        {
+            "id": "hundong_zhong",
+            "name": "混沌钟",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "mythic",
+            "description": "开天混沌之气凝成的一枚小钟，钟声一响万法辟易，真仙亦忌惮三分。",
+            "effect": {
+                "atk": 4000,
+                "def": 4000,
+                "mp_max": 30000
+            },
+            "price": 16000000,
+            "required_realm_rank": 40
+        },
+        {
+            "id": "kunwu_shan",
+            "name": "昆吾扇",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "legendary",
+            "description": "以昆吾神铁为骨、灵禽之羽为面的宝扇，一扇之间烈焰腾空。",
+            "effect": {
+                "atk": 1200,
+                "speed": 40,
+                "mp_max": 2500
+            },
+            "price": 500000,
+            "required_realm_rank": 21
+        },
+        {
+            "id": "zhixian_jin",
+            "name": "捆仙绳",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "legendary",
+            "description": "祭起可捆仙缚神，擒敌于瞬息之间，化神修士的制敌法宝。",
+            "effect": {
+                "atk": 1800,
+                "sense": 400
+            },
+            "price": 1100000,
+            "required_realm_rank": 25
+        },
+        {
+            "id": "shanhao_fuyi",
+            "name": "山河社稷图",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "mythic",
+            "description": "图中自有一方山河天地，可纳须弥、困强敌，炼虚大能的护道至宝。",
+            "effect": {
+                "def": 3200,
+                "mp_max": 18000,
+                "sense": 600
+            },
+            "price": 4200000,
+            "required_realm_rank": 30
+        },
+        {
+            "id": "jiuli_lianhu",
+            "name": "九品净世金莲",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "mythic",
+            "description": "九品金莲托足，清净无染，万法不侵，合体期以上方现威能。",
+            "effect": {
+                "def": 5200,
+                "hp_max": 28000,
+                "cultivate_speed": 100
+            },
+            "price": 8000000,
+            "required_realm_rank": 34
+        },
+        {
+            "id": "panxi_li",
+            "name": "盘古幡·仿",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "mythic",
+            "description": "参悟上古残幡仿制之宝，卷起毁灭之威，大乘修士的证道重器。",
+            "effect": {
+                "atk": 9000,
+                "def": 3000,
+                "speed": 100
+            },
+            "price": 18000000,
+            "required_realm_rank": 38
+        },
+        {
+            "id": "top_healing_pill",
+            "name": "九转还魂丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "legendary",
+            "description": "九转炼成的还魂丹药，服之气血如潮，重伤立愈。",
+            "effect": {
+                "hp_restore": 5000
+            },
+            "price": 8000,
+            "usable_in_battle": true
+        },
+        {
+            "id": "supreme_healing_pill",
+            "name": "天源续命丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "mythic",
+            "description": "以天源灵液凝炼的续命神丹，纵濒死亦可拉回一线生机。",
+            "effect": {
+                "hp_restore": 60000
+            },
+            "price": 60000,
+            "usable_in_battle": true
+        },
+        {
+            "id": "top_mana_pill",
+            "name": "太清凝元丹",
+            "type": "consumable",
+            "subtype": "mana",
+            "quality": "epic",
+            "description": "太清门炼制的凝元大补之丹，一口真气绵长不绝。",
+            "effect": {
+                "mp_restore": 600
+            },
+            "price": 500,
+            "usable_in_battle": true
+        },
+        {
+            "id": "supreme_mana_pill",
+            "name": "混沌回天露",
+            "type": "consumable",
+            "subtype": "mana",
+            "quality": "legendary",
+            "description": "蕴含混沌灵机的回天甘露，饮之灵力沛然涌出。",
+            "effect": {
+                "mp_restore": 4000
+            },
+            "price": 4000,
+            "usable_in_battle": true
+        },
+        {
+            "id": "peiyuan_dan",
+            "name": "培元丹",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "uncommon",
+            "description": "培固本元的丹药，静服后修为稳步精进。",
+            "effect": {
+                "exp": 1200
+            },
+            "price": 600
+        },
+        {
+            "id": "ningshen_dan",
+            "name": "凝神丹",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "rare",
+            "description": "凝聚心神、炼化药力为修为，筑基修士常用。",
+            "effect": {
+                "exp": 5000
+            },
+            "price": 2000
+        },
+        {
+            "id": "huangu_dan",
+            "name": "换骨丹",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "epic",
+            "description": "脱胎换骨、伐毛洗髓，药力化开时修为暴涨。",
+            "effect": {
+                "exp": 25000
+            },
+            "price": 8000
+        },
+        {
+            "id": "tianshu_dan",
+            "name": "天枢造化丹",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "legendary",
+            "description": "夺天地造化的灵丹，服之如醍醐灌顶，金丹以上方能消受。",
+            "effect": {
+                "exp": 120000
+            },
+            "price": 40000
+        },
+        {
+            "id": "fayuan_dan",
+            "name": "法元紫霄丹",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "mythic",
+            "description": "凝紫霄之力炼成的无上灵丹，元婴大能闭关苦修所求。",
+            "effect": {
+                "exp": 600000
+            },
+            "price": 180000
+        },
+        {
+            "id": "gujin_dan",
+            "name": "固金丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "rare",
+            "description": "金行凝丹，久服筋骨愈坚，永久提升 120 点防御。",
+            "effect": {
+                "def": 120
+            },
+            "price": 3000
+        },
+        {
+            "id": "fuqing_dan",
+            "name": "扶青丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "rare",
+            "description": "木行生机之丹，永久提升 200 点气血上限。",
+            "effect": {
+                "hp_max": 200
+            },
+            "price": 3200
+        },
+        {
+            "id": "mingqi_dan",
+            "name": "明窍丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "epic",
+            "description": "开通灵窍、神光内蕴，永久提升 300 点灵力上限。",
+            "effect": {
+                "mp_max": 300
+            },
+            "price": 6000
+        },
+        {
+            "id": "lijin_dan",
+            "name": "厉筋丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "epic",
+            "description": "锻筋厉骨、发力无穷，永久提升 300 点攻击。",
+            "effect": {
+                "atk": 300
+            },
+            "price": 7000
+        },
+        {
+            "id": "shenfeng_dan",
+            "name": "身风丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "epic",
+            "description": "身轻体健、迅若疾风，永久提升 200 点速度。",
+            "effect": {
+                "speed": 200
+            },
+            "price": 6500
+        },
+        {
+            "id": "kaisu_dan",
+            "name": "开识丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "legendary",
+            "description": "神识大开、洞察秋毫，永久提升 400 点神识。",
+            "effect": {
+                "sense": 400
+            },
+            "price": 18000
+        },
+        {
+            "id": "tianzhu_dan",
+            "name": "天铸金身丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "legendary",
+            "description": "脱胎换骨、金身初成，永久提升 500 点气血上限与 200 点防御。",
+            "effect": {
+                "hp_max": 500,
+                "def": 200
+            },
+            "price": 30000
+        },
+        {
+            "id": "huashen_pill",
+            "name": "化神丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "legendary",
+            "description": "辅助冲击化神境的灵丹，稳固元婴凝练元神。",
+            "effect": {
+                "breakthrough_bonus": 30
+            },
+            "price": 80000
+        },
+        {
+            "id": "lianxu_pill",
+            "name": "炼虚丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "legendary",
+            "description": "炼神返虚之际助益心神的宝丹，可稍减堕虚之险。",
+            "effect": {
+                "breakthrough_bonus": 35
+            },
+            "price": 200000
+        },
+        {
+            "id": "heti_pill",
+            "name": "合体丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "mythic",
+            "description": "助元神与肉身合一道成的至宝，合体大关之依凭。",
+            "effect": {
+                "breakthrough_bonus": 40
+            },
+            "price": 500000
+        },
+        {
+            "id": "dasheng_pill",
+            "name": "大乘丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "mythic",
+            "description": "法力将满、冲击大乘果位时服之，事半功倍。",
+            "effect": {
+                "breakthrough_bonus": 45
+            },
+            "price": 1200000
+        },
+        {
+            "id": "dujie_pill",
+            "name": "渡劫丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "mythic",
+            "description": "九天雷劫临身前服下，护住心脉、稳住真元，博那一线飞升之机。",
+            "effect": {
+                "breakthrough_bonus": 50
+            },
+            "price": 3000000
+        },
+        {
+            "id": "small_fortune_pouch",
+            "name": "聚宝小囊",
+            "type": "consumable",
+            "subtype": "gift",
+            "quality": "rare",
+            "description": "打开后可得一笔灵石的聚宝囊，坊市偶有所售。",
+            "effect": {
+                "spirit_stones": 3000
+            },
+            "price": 2800
+        },
+        {
+            "id": "great_fortune_pouch",
+            "name": "聚宝大囊",
+            "type": "consumable",
+            "subtype": "gift",
+            "quality": "epic",
+            "description": "沉甸甸的聚宝大囊，启封可得厚赠。",
+            "effect": {
+                "spirit_stones": 20000
+            },
+            "price": 18000
+        },
+        {
+            "id": "azure_lotus",
+            "name": "青莲蕊",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "rare",
+            "description": "灵池深处绽放的青莲花蕊，凝练剑气、炼制中阶丹药的良材。",
+            "price": 400
+        },
+        {
+            "id": "starsteel_ore",
+            "name": "星陨精铁",
+            "type": "material",
+            "subtype": "ore",
+            "quality": "epic",
+            "description": "自陨星残骸中析出的精铁，炼器上品，坚韧非常。",
+            "price": 1500
+        },
+        {
+            "id": "taiyi_gold",
+            "name": "太乙精金",
+            "type": "material",
+            "subtype": "ore",
+            "quality": "legendary",
+            "description": "太乙矿脉深处孕育的灵金，祭炼顶阶法宝的主材。",
+            "price": 8000
+        },
+        {
+            "id": "dragonblood_grass",
+            "name": "龙血草",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "epic",
+            "description": "沾龙血而生的异草，气血旺盛，是疗伤与固元丹药的要料。",
+            "price": 2000
+        },
+        {
+            "id": "nine_yang_flower",
+            "name": "九阳花",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "legendary",
+            "description": "纯阳之地九朵同生的灵花，性烈至极，炼就阳属丹药的奇材。",
+            "price": 9000
+        },
+        {
+            "id": "cold_jade_heart",
+            "name": "寒玉髓",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "rare",
+            "description": "寒潭灵玉心尖的一点玉髓，清心凝神，丹器两宜。",
+            "price": 1200
+        },
+        {
+            "id": "wuji_wood",
+            "name": "无极神木",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "legendary",
+            "description": "寿越千年的无极灵木，木性通玄，炼制法器与延寿丹的主干。",
+            "price": 10000
+        },
+        {
+            "id": "heaven_silk",
+            "name": "天蚕灵丝",
+            "type": "material",
+            "subtype": "silk",
+            "quality": "epic",
+            "description": "天蚕吐就的灵丝，坚韧轻若无物，织就高阶法袍的上料。",
+            "price": 3000
+        },
+        {
+            "id": "xirang_clod",
+            "name": "九天息壤",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "mythic",
+            "description": "传说中生生不息的神土，见风即长，阵法与炼器的至宝。",
+            "price": 30000
+        },
+        {
+            "id": "hundong_stone",
+            "name": "混沌顽石",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "mythic",
+            "description": "未开混沌凝成的顽石，内蕴造化，祭炼开天法宝的稀世之材。",
+            "price": 50000
+        },
+        {
+            "id": "herb_seed_rare",
+            "name": "稀有灵种",
+            "type": "material",
+            "subtype": "seed",
+            "quality": "epic",
+            "description": "可于药园培育珍稀灵草的种子，成熟后多产高阶丹材。",
+            "price": 4000
+        },
+        {
+            "id": "recipe_top_healing_pill",
+            "name": "九转还魂丹丹方",
+            "type": "recipe_scroll",
+            "subtype": "alchemy",
+            "quality": "epic",
+            "description": "记载九转还魂丹炼制方法的丹方，阅读后可学会炼制九转还魂丹",
+            "effect": {
+                "learn_recipe": "craft_top_healing_pill"
+            },
+            "price": 4000
+        },
+        {
+            "id": "recipe_ningshen_dan",
+            "name": "凝神丹丹方",
+            "type": "recipe_scroll",
+            "subtype": "alchemy",
+            "quality": "rare",
+            "description": "记载凝神丹炼制方法的丹方，阅读后可学会炼制凝神丹",
+            "effect": {
+                "learn_recipe": "craft_ningshen_dan"
+            },
+            "price": 2500
+        },
+        {
+            "id": "recipe_qinglian_sword",
+            "name": "青莲剑图谱",
+            "type": "recipe_scroll",
+            "subtype": "refining",
+            "quality": "epic",
+            "description": "记载青莲剑锻造方法的图谱，阅读后可学会锻造青莲剑",
+            "effect": {
+                "learn_recipe": "craft_qinglian_sword"
+            },
+            "price": 5000
+        },
+        {
+            "id": "xuantian_jing",
+            "name": "玄天镜",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "rare",
+            "description": "可照破幻邪的玄天灵镜，镜光所及妖气遁形。",
+            "effect": {
+                "sense": 90,
+                "def": 140,
+                "mp_max": 500
+            },
+            "price": 26000,
+            "required_realm_rank": 9
+        },
+        {
+            "id": "zijin_ling",
+            "name": "紫金铃",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "epic",
+            "description": "摇之雷鸣火起的紫金宝铃，攻敌于无形。",
+            "effect": {
+                "atk": 480,
+                "speed": 20
+            },
+            "price": 90000,
+            "required_realm_rank": 13
+        },
+        {
+            "id": "yinyang_jing",
+            "name": "阴阳镜",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "epic",
+            "description": "一面分阴阳的古镜，翻转间生死立判。",
+            "effect": {
+                "atk": 300,
+                "def": 300,
+                "sense": 120
+            },
+            "price": 120000,
+            "required_realm_rank": 14
+        },
+        {
+            "id": "kunquan",
+            "name": "乾坤圈",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "legendary",
+            "description": "套天括地的金圈，祭起可困敌擒宝。",
+            "effect": {
+                "atk": 1000,
+                "speed": 40
+            },
+            "price": 360000,
+            "required_realm_rank": 19
+        },
+        {
+            "id": "wanli_jiangshan_tu",
+            "name": "万里江山图",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "legendary",
+            "description": "图中山河绵延万里，藏纳乾坤，遁逃困敌皆宜。",
+            "effect": {
+                "hp_max": 5000,
+                "mp_max": 4000,
+                "cultivate_speed": 40
+            },
+            "price": 520000,
+            "required_realm_rank": 21
+        },
+        {
+            "id": "wuhuo_shanyan_shan",
+            "name": "五火神焰扇",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "legendary",
+            "description": "扇出五色神焰，焚山煮海，化神修士的杀伐之宝。",
+            "effect": {
+                "atk": 2000,
+                "sense": 300
+            },
+            "price": 1100000,
+            "required_realm_rank": 24
+        },
+        {
+            "id": "tianlei_shengu",
+            "name": "天雷神鼓",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "legendary",
+            "description": "一击鼓声如九天雷落，震慑神魂，克尽群邪。",
+            "effect": {
+                "atk": 2200,
+                "def": 1200,
+                "sense": 400
+            },
+            "price": 1400000,
+            "required_realm_rank": 25
+        },
+        {
+            "id": "xingchen_ta",
+            "name": "星辰塔",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "塔分九层纳诸天星斗，镇压气运，困锁大敌。",
+            "effect": {
+                "def": 3400,
+                "hp_max": 20000,
+                "sense": 700
+            },
+            "price": 4200000,
+            "required_realm_rank": 30
+        },
+        {
+            "id": "taixu_ming_jing",
+            "name": "太虚明镜",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "高悬太虚，照见万里无邪，炼虚大能的护道灵镜。",
+            "effect": {
+                "sense": 1200,
+                "mp_max": 18000,
+                "def": 2200
+            },
+            "price": 4800000,
+            "required_realm_rank": 31
+        },
+        {
+            "id": "liuji_guishui_shenguang",
+            "name": "六极癸水神光",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "攒足六方癸水凝成的毁灭神光，射体穿心，合体期凶名赫赫。",
+            "effect": {
+                "atk": 6200,
+                "speed": 90
+            },
+            "price": 8000000,
+            "required_realm_rank": 34
+        },
+        {
+            "id": "zijin_liu_ding",
+            "name": "紫金琉璃鼎",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "炼化万物的紫金宝鼎，鼎中自有乾坤造化。",
+            "effect": {
+                "hp_max": 30000,
+                "mp_max": 30000,
+                "cultivate_speed": 90
+            },
+            "price": 9000000,
+            "required_realm_rank": 35
+        },
+        {
+            "id": "dayin_mo_zhong",
+            "name": "大隐魔钟",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "钟声一起群魔辟易，镇守一方的道门重宝。",
+            "effect": {
+                "def": 5200,
+                "sense": 900,
+                "atk": 3000
+            },
+            "price": 11000000,
+            "required_realm_rank": 36
+        },
+        {
+            "id": "jiuqu_huanghe_zhen",
+            "name": "九曲黄河阵图",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "蕴含九曲黄河大阵之理的阵图，入者迷失、削道灭性。",
+            "effect": {
+                "atk": 5200,
+                "def": 5200,
+                "sense": 1200
+            },
+            "price": 15000000,
+            "required_realm_rank": 38
+        },
+        {
+            "id": "lianhao_hu",
+            "name": "炼妖壶",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "可收纳炼化万妖的神壶，收妖炼魂、增進修为。",
+            "effect": {
+                "cultivate_speed": 120,
+                "sense": 1500,
+                "luck": 15
+            },
+            "price": 20000000,
+            "required_realm_rank": 39
+        },
+        {
+            "id": "kaiitian_fan",
+            "name": "开天残幡",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "一缕开天之力凝成的残幡，挥动可裂苍穹，真仙亦须避让。",
+            "effect": {
+                "atk": 20000,
+                "speed": 150
+            },
+            "price": 40000000,
+            "required_realm_rank": 40
+        },
+        {
+            "id": "liujin_dao",
+            "name": "柳叶刀",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "common",
+            "description": "薄如柳叶的精铁短刀，炼气初期弟子的护身兵刃。",
+            "effect": {
+                "atk": 12
+            },
+            "price": 150,
+            "required_realm_rank": 2
+        },
+        {
+            "id": "bintie_jian",
+            "name": "镔铁剑",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "uncommon",
+            "description": "百炼镔铁锻成的长剑，沉稳锋锐。",
+            "effect": {
+                "atk": 32,
+                "def": 8
+            },
+            "price": 900,
+            "required_realm_rank": 4
+        },
+        {
+            "id": "bingjing_chang",
+            "name": "冰晶枪",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "rare",
+            "description": "凝冰晶为锋的长戟，出枪带寒。",
+            "effect": {
+                "atk": 85,
+                "speed": 10
+            },
+            "price": 6000,
+            "required_realm_rank": 6
+        },
+        {
+            "id": "qianjia_gun",
+            "name": "千钧棍",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "epic",
+            "description": "重逾千钧的玄铁长棍，一击山崩。",
+            "effect": {
+                "atk": 400,
+                "hp_max": 800
+            },
+            "price": 100000,
+            "required_realm_rank": 14
+        },
+        {
+            "id": "piya_dao",
+            "name": "辟牙刀",
+            "type": "equipment",
+            "subtype": "weapon",
+            "quality": "legendary",
+            "description": "可斩妖裂魄的宝刀，刀光过处妖邪辟易。",
+            "effect": {
+                "atk": 1400,
+                "sense": 200
+            },
+            "price": 700000,
+            "required_realm_rank": 26
+        },
+        {
+            "id": "zhusha_pao",
+            "name": "朱砂道袍",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "uncommon",
+            "description": "以朱砂浸染的辟邪道袍，御邪护身。",
+            "effect": {
+                "def": 30,
+                "hp_max": 120
+            },
+            "price": 800,
+            "required_realm_rank": 4
+        },
+        {
+            "id": "xuanjia",
+            "name": "玄甲",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "rare",
+            "description": "玄铁叠锻的重甲，固若金汤。",
+            "effect": {
+                "def": 200,
+                "hp_max": 700
+            },
+            "price": 22000,
+            "required_realm_rank": 9
+        },
+        {
+            "id": "huojin_jia",
+            "name": "火纹金甲",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "epic",
+            "description": "甲面火纹流转，兼御刀兵火法。",
+            "effect": {
+                "def": 700,
+                "hp_max": 2600
+            },
+            "price": 180000,
+            "required_realm_rank": 17
+        },
+        {
+            "id": "xuanbing_pao",
+            "name": "玄冰法袍",
+            "type": "equipment",
+            "subtype": "armor",
+            "quality": "legendary",
+            "description": "以太寒玄冰蚕丝织就，法袍自寒，邪火不侵。",
+            "effect": {
+                "def": 1600,
+                "hp_max": 7000,
+                "mp_max": 3000
+            },
+            "price": 900000,
+            "required_realm_rank": 26
+        },
+        {
+            "id": "caoyue_xue",
+            "name": "草履",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "common",
+            "description": "灵草编织的云履，轻便合脚。",
+            "effect": {
+                "speed": 6
+            },
+            "price": 120,
+            "required_realm_rank": 1
+        },
+        {
+            "id": "bixie_xue",
+            "name": "辟邪短靴",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "uncommon",
+            "description": "绣有辟邪符纹的短靴，行走四方不逢邪祟。",
+            "effect": {
+                "speed": 18,
+                "def": 20
+            },
+            "price": 1200,
+            "required_realm_rank": 5
+        },
+        {
+            "id": "feitong_xue",
+            "name": "飞翀靴",
+            "type": "equipment",
+            "subtype": "boots",
+            "quality": "epic",
+            "description": "靴底嵌风雷石，疾行如飞翀掠空。",
+            "effect": {
+                "speed": 75
+            },
+            "price": 150000,
+            "required_realm_rank": 16
+        },
+        {
+            "id": "hushen_fu_dai",
+            "name": "护身符袋",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "common",
+            "description": "装着几张护身符的布囊，聊胜于无。",
+            "effect": {
+                "hp_max": 40,
+                "luck": 1
+            },
+            "price": 150,
+            "required_realm_rank": 1
+        },
+        {
+            "id": "bigu_ling",
+            "name": "辟谷铃",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "uncommon",
+            "description": "系于腰间的辟谷灵铃，久行不饥、凝神定气。",
+            "effect": {
+                "mp_max": 150,
+                "sense": 10
+            },
+            "price": 900,
+            "required_realm_rank": 5
+        },
+        {
+            "id": "daguan_ding",
+            "name": "大梵金刚镯",
+            "type": "equipment",
+            "subtype": "accessory",
+            "quality": "legendary",
+            "description": "梵文流转的金刚神镯，护体金罡不坏。",
+            "effect": {
+                "def": 900,
+                "hp_max": 4000,
+                "luck": 6
+            },
+            "price": 600000,
+            "required_realm_rank": 26
+        },
+        {
+            "id": "wuhun_qi",
+            "name": "五魂幡",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "rare",
+            "description": "招引五方游魂炼成的灵幡，可污人法宝。",
+            "effect": {
+                "atk": 220,
+                "sense": 90,
+                "mp_max": 600
+            },
+            "price": 30000,
+            "required_realm_rank": 13
+        },
+        {
+            "id": "dinghai_zhu",
+            "name": "定海珠",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "epic",
+            "description": "可定四海波涛的宝珠，祭起护住顶门。",
+            "effect": {
+                "def": 500,
+                "mp_max": 1500,
+                "sense": 150
+            },
+            "price": 160000,
+            "required_realm_rank": 16
+        },
+        {
+            "id": "zhusha_ding",
+            "name": "紫金铃铛鼎",
+            "type": "equipment",
+            "subtype": "dharma",
+            "quality": "legendary",
+            "description": "小鼎通体紫金，可温养法器、凝聚灵气。",
+            "effect": {
+                "cultivate_speed": 50,
+                "mp_max": 3000,
+                "def": 600
+            },
+            "price": 500000,
+            "required_realm_rank": 22
+        },
+        {
+            "id": "dabuxue_dan",
+            "name": "大补血丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "rare",
+            "description": "气血双补的丹药，服后伤口以肉眼可见之速愈合。",
+            "effect": {
+                "hp_restore": 800
+            },
+            "price": 600,
+            "usable_in_battle": true
+        },
+        {
+            "id": "huanjing_dan",
+            "name": "换精丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "epic",
+            "description": "枯木逢春、换骨回精，重伤垂死亦可拉回。",
+            "effect": {
+                "hp_restore": 3000
+            },
+            "price": 3000,
+            "usable_in_battle": true
+        },
+        {
+            "id": "huichun_dan",
+            "name": "九转回春丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "legendary",
+            "description": "九转炼就的回春奇丹，纵经脉俱损亦可续接。",
+            "effect": {
+                "hp_restore": 15000
+            },
+            "price": 20000,
+            "usable_in_battle": true
+        },
+        {
+            "id": "huiyuan_dan",
+            "name": "回元丹",
+            "type": "consumable",
+            "subtype": "mana",
+            "quality": "rare",
+            "description": "回复真元的丹药，力竭时服之沛然复盈。",
+            "effect": {
+                "mp_restore": 300
+            },
+            "price": 300,
+            "usable_in_battle": true
+        },
+        {
+            "id": "tianyuan_lu",
+            "name": "天源甘露",
+            "type": "consumable",
+            "subtype": "mana",
+            "quality": "legendary",
+            "description": "天源凝成的甘露，饮之真元如潮涌。",
+            "effect": {
+                "mp_restore": 3000
+            },
+            "price": 6000,
+            "usable_in_battle": true
+        },
+        {
+            "id": "xiaohuan_dan",
+            "name": "两仪还素丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "epic",
+            "description": "气血真元双补的两仪宝丹，力战之后回天转素。",
+            "effect": {
+                "hp_restore": 2000,
+                "mp_restore": 1200
+            },
+            "price": 2600,
+            "usable_in_battle": true
+        },
+        {
+            "id": "fuyuan_dan",
+            "name": "扶元大补丹",
+            "type": "consumable",
+            "subtype": "healing",
+            "quality": "legendary",
+            "description": "扶固本元、大补气血，元婴修士疗伤圣药。",
+            "effect": {
+                "hp_restore": 12000,
+                "mp_restore": 6000
+            },
+            "price": 16000,
+            "usable_in_battle": true
+        },
+        {
+            "id": "xijing_yanshou_dan",
+            "name": "洗髓延寿丹",
+            "type": "consumable",
+            "subtype": "longevity",
+            "quality": "rare",
+            "description": "伐毛洗髓、延人寿算，服之增二十载阳寿。",
+            "effect": {
+                "longevity_add": 20
+            },
+            "price": 1500
+        },
+        {
+            "id": "tianxiang_xuming_dan",
+            "name": "天香续命丹",
+            "type": "consumable",
+            "subtype": "longevity",
+            "quality": "epic",
+            "description": "异香不散、续命添寿，服之增一百载阳寿。",
+            "effect": {
+                "longevity_add": 100
+            },
+            "price": 15000
+        },
+        {
+            "id": "jiuqu_xian_dan",
+            "name": "九曲延寿仙丹",
+            "type": "consumable",
+            "subtype": "longevity",
+            "quality": "legendary",
+            "description": "以万灵参炼成的延寿仙丹，服之增五百载阳寿。",
+            "effect": {
+                "longevity_add": 500
+            },
+            "price": 80000
+        },
+        {
+            "id": "yousheng_buzheng_dan",
+            "name": "有生不增丹",
+            "type": "consumable",
+            "subtype": "longevity",
+            "quality": "mythic",
+            "description": "夺造化以续长生，服之增二千载阳寿，渡劫大能所求。",
+            "effect": {
+                "longevity_add": 2000
+            },
+            "price": 400000
+        },
+        {
+            "id": "huadu_dan",
+            "name": "化毒丹",
+            "type": "consumable",
+            "subtype": "debuff",
+            "quality": "uncommon",
+            "description": "化解体内丹毒药性，服之减十五点丹毒。",
+            "effect": {
+                "toxicity_reduce": 15
+            },
+            "price": 120
+        },
+        {
+            "id": "jiedu_shen_dan",
+            "name": "解毒神丹",
+            "type": "consumable",
+            "subtype": "debuff",
+            "quality": "rare",
+            "description": "神农尝百草所传之方，解诸般药毒，减四十点丹毒。",
+            "effect": {
+                "toxicity_reduce": 40
+            },
+            "price": 600
+        },
+        {
+            "id": "wanling_didu_dan",
+            "name": "万灵涤毒丹",
+            "type": "consumable",
+            "subtype": "debuff",
+            "quality": "epic",
+            "description": "借冰魄莲之力涤荡经脉沉疴，减一百点丹毒。",
+            "effect": {
+                "toxicity_reduce": 100
+            },
+            "price": 3000
+        },
+        {
+            "id": "xianlu_qingdu",
+            "name": "仙露清毒露",
+            "type": "consumable",
+            "subtype": "debuff",
+            "quality": "legendary",
+            "description": "灵眼泉与冰魄莲合炼的清毒灵露，涤尽丹毒，减三百点丹毒。",
+            "effect": {
+                "toxicity_reduce": 300
+            },
+            "price": 12000
+        },
+        {
+            "id": "tongmai_dan",
+            "name": "通脉丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "uncommon",
+            "description": "疏通经脉、通灵开窍，永久提升 50 点灵力上限。",
+            "effect": {
+                "mp_max": 50
+            },
+            "price": 500
+        },
+        {
+            "id": "xishui_dan",
+            "name": "洗髓丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "rare",
+            "description": "洗伐骨髓、强健体魄，永久提升 200 点气血上限。",
+            "effect": {
+                "hp_max": 200
+            },
+            "price": 3000
+        },
+        {
+            "id": "famao_dan",
+            "name": "伐毛丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "rare",
+            "description": "伐去凡毛、脱去浊质，永久提升 150 点攻击。",
+            "effect": {
+                "atk": 150
+            },
+            "price": 3200
+        },
+        {
+            "id": "zhuangfu_dan",
+            "name": "壮骨丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "rare",
+            "description": "壮骨强筋、坚逾金石，永久提升 150 点防御。",
+            "effect": {
+                "def": 150
+            },
+            "price": 3000
+        },
+        {
+            "id": "bailing_dan",
+            "name": "百灵丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "epic",
+            "description": "百窍通灵、神识清明，永久提升 400 点神识。",
+            "effect": {
+                "sense": 400
+            },
+            "price": 12000
+        },
+        {
+            "id": "jinshe_dan",
+            "name": "金身大补丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "legendary",
+            "description": "金身初铸、气血如海，永久提升 500 点气血上限与 300 点攻击。",
+            "effect": {
+                "hp_max": 500,
+                "atk": 300
+            },
+            "price": 26000
+        },
+        {
+            "id": "dayan_dan",
+            "name": "大衍凝真丹",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "legendary",
+            "description": "凝练大衍真元，永久提升 500 点灵力上限与 250 点神识。",
+            "effect": {
+                "mp_max": 500,
+                "sense": 250
+            },
+            "price": 30000
+        },
+        {
+            "id": "zhenji_dan",
+            "name": "镇基丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "uncommon",
+            "description": "稳固根基、凝神静气，突破筑基时略增机缘。",
+            "effect": {
+                "breakthrough_bonus": 8
+            },
+            "price": 400
+        },
+        {
+            "id": "peijin_dan",
+            "name": "培金丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "rare",
+            "description": "培固丹基，冲击金丹时稍增成功率。",
+            "effect": {
+                "breakthrough_bonus": 12
+            },
+            "price": 3000
+        },
+        {
+            "id": "ningshi_dan",
+            "name": "凝婴丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "epic",
+            "description": "凝聚元婴之胚，冲关化婴时助益心神。",
+            "effect": {
+                "breakthrough_bonus": 18
+            },
+            "price": 12000
+        },
+        {
+            "id": "butian_dan",
+            "name": "补天丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "mythic",
+            "description": "相传可补大道残缺的逆天神丹，渡劫飞升前服之，聊增一线生机。",
+            "effect": {
+                "breakthrough_bonus": 60
+            },
+            "price": 8000000
+        },
+        {
+            "id": "fortune_chest",
+            "name": "多宝囊",
+            "type": "consumable",
+            "subtype": "gift",
+            "quality": "legendary",
+            "description": "坊市巨贾遗失的聚宝囊，启封可得巨量灵石。",
+            "effect": {
+                "spirit_stones": 100000
+            },
+            "price": 80000
+        },
+        {
+            "id": "dao_book_qi",
+            "name": "炼气要诀",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "common",
+            "description": "前人炼气心得札记，研读后修为精进。",
+            "effect": {
+                "exp": 300
+            },
+            "price": 200
+        },
+        {
+            "id": "dao_book_zhu",
+            "name": "筑基真解",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "uncommon",
+            "description": "详述筑基关窍的道典，参悟后可获修为。",
+            "effect": {
+                "exp": 2000
+            },
+            "price": 1200
+        },
+        {
+            "id": "dao_book_jin",
+            "name": "金丹玉诀",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "rare",
+            "description": "记述结丹之法的玉诀道典，研读后增益修为。",
+            "effect": {
+                "exp": 8000
+            },
+            "price": 4000
+        },
+        {
+            "id": "dao_book_yuan",
+            "name": "元婴宝典",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "epic",
+            "description": "元婴大道汇聚之宝典，参之如醍醐灌顶。",
+            "effect": {
+                "exp": 30000
+            },
+            "price": 15000
+        },
+        {
+            "id": "dao_book_hua",
+            "name": "化神天书",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "legendary",
+            "description": "记载化神之道的天书残卷，字字珠玑。",
+            "effect": {
+                "exp": 100000
+            },
+            "price": 40000
+        },
+        {
+            "id": "dao_book_lianxu",
+            "name": "炼虚真经",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "legendary",
+            "description": "炼神返虚的无上真经，悟之大道昭然。",
+            "effect": {
+                "exp": 350000
+            },
+            "price": 120000
+        },
+        {
+            "id": "dao_book_heti",
+            "name": "合道紫篆",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "mythic",
+            "description": "以紫气书就的合道图篆，参悟者可窥天地至理。",
+            "effect": {
+                "exp": 1200000
+            },
+            "price": 400000
+        },
+        {
+            "id": "dao_book_dasheng",
+            "name": "大乘真解·残篇",
+            "type": "consumable",
+            "subtype": "knowledge",
+            "quality": "mythic",
+            "description": "大乘道果的残缺真解，每一字皆蕴含无边法力。",
+            "effect": {
+                "exp": 4000000
+            },
+            "price": 1200000
+        },
+        {
+            "id": "ningfu_guo",
+            "name": "凝附果",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "common",
+            "description": "山野常见灵果，药力温和，炼制低阶疗伤丹的辅材。",
+            "price": 12
+        },
+        {
+            "id": "huoshan_hua",
+            "name": "火珊瑚花",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "uncommon",
+            "description": "生于火山口的赤色灵花，性热，可入阳属丹药。",
+            "price": 60
+        },
+        {
+            "id": "bingpo_lian",
+            "name": "冰魄莲",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "rare",
+            "description": "寒潭中凝出的雪莲，清心降火，镇丹毒之引。",
+            "price": 500
+        },
+        {
+            "id": "xuanshu_cao",
+            "name": "玄枢草",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "rare",
+            "description": "疏通经脉的灵草，炼制通脉丹的主料。",
+            "price": 450
+        },
+        {
+            "id": "longxue_guo",
+            "name": "龙血果",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "epic",
+            "description": "传说沾过龙血的赤果，气血勃发，炼大补丹药的极品。",
+            "price": 2500
+        },
+        {
+            "id": "ziying_hua",
+            "name": "紫芝灵菌",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "epic",
+            "description": "紫气凝就的灵芝，补气养血，滋补圣品。",
+            "price": 2200
+        },
+        {
+            "id": "wanlian_shen",
+            "name": "万灵参",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "legendary",
+            "description": "聚万灵之气的老参，续命固本，延寿丹药的主干。",
+            "price": 9000
+        },
+        {
+            "id": "tiandao_lingzhi",
+            "name": "天道灵芝",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "mythic",
+            "description": "得天地道韵孕育的神芝，服之可窥造化，炼制顶阶灵丹。",
+            "price": 40000
+        },
+        {
+            "id": "chenting_sha",
+            "name": "辰铁砂",
+            "type": "material",
+            "subtype": "ore",
+            "quality": "uncommon",
+            "description": "含星辰之力的铁矿砂，炼器入门材料。",
+            "price": 70
+        },
+        {
+            "id": "xuanyou_tie",
+            "name": "玄阴铁",
+            "type": "material",
+            "subtype": "ore",
+            "quality": "rare",
+            "description": "至阴之地所产玄铁，阴寒刺骨，锻阴属法器。",
+            "price": 900
+        },
+        {
+            "id": "chijin_tong",
+            "name": "赤精铜",
+            "type": "material",
+            "subtype": "ore",
+            "quality": "rare",
+            "description": "赤红如血的灵铜，导热极快，炼火属法宝之材。",
+            "price": 1000
+        },
+        {
+            "id": "taixuan_xuanjin",
+            "name": "太玄玄金",
+            "type": "material",
+            "subtype": "ore",
+            "quality": "epic",
+            "description": "太玄矿脉深处的灵金，坚逾金刚，祭炼高阶法宝主材。",
+            "price": 5000
+        },
+        {
+            "id": "wuxing_jinmu",
+            "name": "五行金母",
+            "type": "material",
+            "subtype": "ore",
+            "quality": "legendary",
+            "description": "五行之金凝聚的母金，可衍万金，顶阶炼器奇材。",
+            "price": 12000
+        },
+        {
+            "id": "hanniao_xue",
+            "name": "寒髓冰晶",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "rare",
+            "description": "极寒髓眼凝结的冰晶，镇心魔、清丹毒。",
+            "price": 1100
+        },
+        {
+            "id": "xuanbing_po",
+            "name": "玄冰魄",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "epic",
+            "description": "万年玄冰之心，蕴含至寒冰魄，炼冰属法宝。",
+            "price": 4800
+        },
+        {
+            "id": "xuanshi_jing",
+            "name": "炫石髓",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "epic",
+            "description": "五彩灵石流出的石髓，折射灵光，法器镶嵌之材。",
+            "price": 4200
+        },
+        {
+            "id": "tianjing_shi",
+            "name": "天镜石",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "legendary",
+            "description": "可映照万法的奇石，磨制成镜，祭炼照妖镇邪之宝。",
+            "price": 14000
+        },
+        {
+            "id": "tengmu_duan",
+            "name": "腾云木",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "uncommon",
+            "description": "轻若烟云的灵木，伐之不减，制舟楫符剑。",
+            "price": 90
+        },
+        {
+            "id": "tiangou_teng",
+            "name": "天蚕神丝",
+            "type": "material",
+            "subtype": "silk",
+            "quality": "rare",
+            "description": "天蚕所吐神丝，韧可缚仙，织甲炼幡之料。",
+            "price": 1300
+        },
+        {
+            "id": "jiuqu_mu",
+            "name": "九曲灵木",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "epic",
+            "description": "纹理九曲通灵的神木，天生禁制纹路，炼幡印良材。",
+            "price": 4600
+        },
+        {
+            "id": "yaoshou_gu",
+            "name": "妖兽骨骼",
+            "type": "material",
+            "subtype": "bone",
+            "quality": "uncommon",
+            "description": "猎杀妖兽所得坚骨，打磨可制兵甲。",
+            "price": 80
+        },
+        {
+            "id": "lijin_shou_jia",
+            "name": "力金兽甲壳",
+            "type": "material",
+            "subtype": "shell",
+            "quality": "rare",
+            "description": "力金兽的厚重甲壳，天然御敌，锻甲上料。",
+            "price": 1000
+        },
+        {
+            "id": "yinlong_lin",
+            "name": "隐龙逆鳞",
+            "type": "material",
+            "subtype": "scale",
+            "quality": "epic",
+            "description": "潜龙之逆鳞，坚不可摧，炼制顶阶护身宝甲。",
+            "price": 5200
+        },
+        {
+            "id": "feng_huang_yu",
+            "name": "凤羽",
+            "type": "material",
+            "subtype": "feather",
+            "quality": "legendary",
+            "description": "火凤遗落的翎羽，浴火不焚，炼飞行法宝的至珍。",
+            "price": 13000
+        },
+        {
+            "id": "shen_hun_sha",
+            "name": "魂砂",
+            "type": "material",
+            "subtype": "soul",
+            "quality": "epic",
+            "description": "凝聚游魂的暗色灵砂，可温养神识、淬炼魂器。",
+            "price": 5500
+        },
+        {
+            "id": "yuanshen_lu",
+            "name": "元神露",
+            "type": "material",
+            "subtype": "liquid",
+            "quality": "legendary",
+            "description": "元神凝炼的澄澈灵露，壮大神魂，续命还元。",
+            "price": 12000
+        },
+        {
+            "id": "ling_yan_shui",
+            "name": "灵眼泉液",
+            "type": "material",
+            "subtype": "liquid",
+            "quality": "rare",
+            "description": "灵眼之泉涌出的泉水，滋养灵植、调和药性。",
+            "price": 1500
+        },
+        {
+            "id": "danxia_suipian",
+            "name": "丹霞碎片",
+            "type": "material",
+            "subtype": "mineral",
+            "quality": "uncommon",
+            "description": "丹脉中凝结的赤色矿屑，蕴含残余丹气，炼丹辅材。",
+            "price": 150
+        },
+        {
+            "id": "recipe_xijing_yanshou_dan",
+            "name": "洗髓延寿丹丹方",
+            "type": "recipe_scroll",
+            "subtype": "alchemy",
+            "quality": "rare",
+            "description": "记载洗髓延寿丹炼制之法的丹方，阅读后可学会炼制。",
+            "effect": {
+                "learn_recipe": "craft_xijing_yanshou_dan"
+            },
+            "price": 3000
+        },
+        {
+            "id": "recipe_tianxiang_xuming_dan",
+            "name": "天香续命丹丹方",
+            "type": "recipe_scroll",
+            "subtype": "alchemy",
+            "quality": "epic",
+            "description": "记载天香续命丹炼制之法的丹方，阅读后可学会炼制。",
+            "effect": {
+                "learn_recipe": "craft_tianxiang_xuming_dan"
+            },
+            "price": 12000
+        },
+        {
+            "id": "recipe_zijin_liu_ding",
+            "name": "紫金琉璃鼎祭炼图录",
+            "type": "recipe_scroll",
+            "subtype": "refining",
+            "quality": "mythic",
+            "description": "记载顶阶法宝紫金琉璃鼎祭炼要诀的图录，阅读后可学会祭炼。",
+            "effect": {
+                "learn_recipe": "craft_zijin_liu_ding"
+            },
+            "price": 200000
+        },
+        {
+            "id": "spirit_stone",
+            "name": "灵石",
+            "type": "currency",
+            "description": "修仙界流通的灵玉，蕴含天地灵气。",
+            "price": 1
+        },
+        {
+            "id": "spirit_stones",
+            "name": "灵石（一枚）",
+            "type": "currency",
+            "description": "单枚灵石的别称，坊市通用。",
+            "price": 1
+        },
+        {
+            "id": "low_grade_spirit_stone",
+            "name": "下品灵石",
+            "type": "currency",
+            "description": "灵气驳杂的下品灵石，散修常用。",
+            "price": 1
+        },
+        {
+            "id": "meat",
+            "name": "兽肉",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "common",
+            "description": "寻常走兽的肉，可充饥，亦能入药。",
+            "price": 6
+        },
+        {
+            "id": "snake_gall",
+            "name": "蛇胆",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "common",
+            "description": "毒蛇胆囊，清肝明目，炼制明目丹药的辅材。",
+            "price": 25
+        },
+        {
+            "id": "fish_meat",
+            "name": "鱼肉",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "common",
+            "description": "鲜活鱼类的嫩肉，蕴含微弱水灵之气。",
+            "price": 8
+        },
+        {
+            "id": "crab_shell",
+            "name": "蟹壳",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "common",
+            "description": "坚硬的海蟹甲壳，可磨粉炼器或制符。",
+            "price": 12
+        },
+        {
+            "id": "shark_fin",
+            "name": "鱼翅",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "uncommon",
+            "description": "鲨禽背鳍，宴席珍品，亦是滋补材料。",
+            "price": 60
+        },
+        {
+            "id": "wolf_fur",
+            "name": "狼皮",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "common",
+            "description": "野狼厚皮，鞣制后可缝制皮甲。",
+            "price": 15
+        },
+        {
+            "id": "bear_paw",
+            "name": "熊掌",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "uncommon",
+            "description": "黑熊厚掌，筋脉粗壮，滋补强力的食材。",
+            "price": 40
+        },
+        {
+            "id": "bear_fur",
+            "name": "熊皮",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "common",
+            "description": "黑熊长毛厚皮，御寒制甲皆宜。",
+            "price": 20
+        },
+        {
+            "id": "tiger_bone",
+            "name": "虎骨",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "uncommon",
+            "description": "猛虎骸骨，可淬炼壮骨丹、锻制兵刃。",
+            "price": 50
+        },
+        {
+            "id": "tiger_fur",
+            "name": "虎皮",
+            "type": "material",
+            "subtype": "beast",
+            "quality": "rare",
+            "description": "斑斓虎皮，威风凛凛，制甲上品。",
+            "price": 90
+        },
+        {
+            "id": "demon_core",
+            "name": "妖丹",
+            "type": "material",
+            "subtype": "core",
+            "quality": "rare",
+            "description": "妖魔内丹凝成的妖丹，蕴含精纯妖力。",
+            "price": 400
+        },
+        {
+            "id": "demon_blood",
+            "name": "妖魔精血",
+            "type": "material",
+            "subtype": "blood",
+            "quality": "uncommon",
+            "description": "妖魔周身精血，可炼血属法器或淬体。",
+            "price": 120
+        },
+        {
+            "id": "demon_king_core",
+            "name": "妖王内丹",
+            "type": "material",
+            "subtype": "core",
+            "quality": "epic",
+            "description": "妖王一身的修为结晶，妖力澎湃惊人。",
+            "price": 3000
+        },
+        {
+            "id": "mechanical_part",
+            "name": "机关零件",
+            "type": "material",
+            "subtype": "mechanism",
+            "quality": "uncommon",
+            "description": "傀儡机关脱落的精密部件，可修复或再造傀儡。",
+            "price": 60
+        },
+        {
+            "id": "monster_core",
+            "name": "妖兽内丹",
+            "type": "material",
+            "subtype": "core",
+            "quality": "uncommon",
+            "description": "寻常妖兽的内丹，炼器淬体的常备材料。",
+            "price": 150
+        },
+        {
+            "id": "monster_core_low",
+            "name": "低阶妖丹",
+            "type": "material",
+            "subtype": "core",
+            "quality": "common",
+            "description": "低阶妖兽结成的粗糙妖丹。",
+            "price": 40
+        },
+        {
+            "id": "monster_core_mid",
+            "name": "中阶妖丹",
+            "type": "material",
+            "subtype": "core",
+            "quality": "uncommon",
+            "description": "中阶妖兽妖力所凝，品质较纯。",
+            "price": 220
+        },
+        {
+            "id": "monster_core_high",
+            "name": "高阶妖丹",
+            "type": "material",
+            "subtype": "core",
+            "quality": "rare",
+            "description": "高阶妖兽毕生修为所聚，灵力充沛。",
+            "price": 900
+        },
+        {
+            "id": "huang_jing",
+            "name": "黄精",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "common",
+            "description": "深山所产灵根，补气养元，炼丹常见辅材。",
+            "price": 30
+        },
+        {
+            "id": "blood_ginseng",
+            "name": "血参",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "uncommon",
+            "description": "色如凝血的老参，大补气血。",
+            "price": 120
+        },
+        {
+            "id": "vermilion_fruit",
+            "name": "朱果",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "rare",
+            "description": "赤红如朱的灵果，蕴含至阳药力。",
+            "price": 400
+        },
+        {
+            "id": "blood_silk_silk",
+            "name": "血蚕丝",
+            "type": "material",
+            "subtype": "silk",
+            "quality": "rare",
+            "description": "血色灵蚕吐就的丝线，可织就血属法袍。",
+            "price": 500
+        },
+        {
+            "id": "ancient_sword_fragment",
+            "name": "古剑残片",
+            "type": "material",
+            "subtype": "weapon_part",
+            "quality": "rare",
+            "description": "上古剑器崩碎后的残刃，剑意不散。",
+            "price": 800
+        },
+        {
+            "id": "qingyuan_sword_fragment",
+            "name": "青元剑残片",
+            "type": "material",
+            "subtype": "weapon_part",
+            "quality": "epic",
+            "description": "青元子佩剑的断片，剑意通玄，可祭炼本命飞剑。",
+            "price": 2500
+        },
+        {
+            "id": "ancient_sword_manual_fragment",
+            "name": "古剑诀残篇",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "上古剑诀的残缺篇章，参悟可增益剑道造诣。",
+            "price": 3000
+        },
+        {
+            "id": "mulan_armor_fragment",
+            "name": "慕兰战甲残片",
+            "type": "material",
+            "subtype": "armor_part",
+            "quality": "rare",
+            "description": "慕兰战士战甲的残片，可回炉锻打战甲。",
+            "price": 700
+        },
+        {
+            "id": "ancient_inheritance_jade",
+            "name": "传承玉简",
+            "type": "material",
+            "subtype": "scroll",
+            "quality": "epic",
+            "description": "封存上古道统的玉简，蕴含前辈遗留的神通感悟。",
+            "price": 5000
+        },
+        {
+            "id": "inheritance_pearl",
+            "name": "传承明珠",
+            "type": "material",
+            "subtype": "gem",
+            "quality": "legendary",
+            "description": "承袭一脉衣钵的明珠，得之可接引前辈修为灌顶。",
+            "price": 12000
+        },
+        {
+            "id": "spirit_beast_blood",
+            "name": "灵兽精血",
+            "type": "material",
+            "subtype": "blood",
+            "quality": "epic",
+            "description": "灵兽血脉凝成的精血，可提纯灵兽血脉、觉醒神通。",
+            "price": 4000
+        },
+        {
+            "id": "ancient_monster_blood",
+            "name": "远古凶兽精血",
+            "type": "material",
+            "subtype": "blood",
+            "quality": "legendary",
+            "description": "远古凶兽遗留的霸血，气血澎湃，淬体圣品。",
+            "price": 9000
+        },
+        {
+            "id": "demon_blood_essence",
+            "name": "妖血精髓",
+            "type": "material",
+            "subtype": "blood",
+            "quality": "epic",
+            "description": "妖魔血脉最精纯的一滴，炼血系法宝的核心。",
+            "price": 4500
+        },
+        {
+            "id": "nine_turn_soul_pill_fragment",
+            "name": "九转魂丹残片",
+            "type": "material",
+            "subtype": "pill_fragment",
+            "quality": "epic",
+            "description": "九转魂丹崩解后的碎屑，犹带温魂之效。",
+            "price": 5000
+        },
+        {
+            "id": "magic_breaking_talisman",
+            "name": "破法符",
+            "type": "material",
+            "subtype": "charm",
+            "quality": "rare",
+            "description": "可破诸般法术护持的灵符，副本闯关的助力。",
+            "price": 1200
+        },
+        {
+            "id": "demon_sealing_talisman",
+            "name": "镇魔符",
+            "type": "material",
+            "subtype": "charm",
+            "quality": "rare",
+            "description": "镇压妖魔煞气的古符，可稳心神、镇心魔。",
+            "price": 1300
+        },
+        {
+            "id": "thunder_essence",
+            "name": "雷霆精髓",
+            "type": "material",
+            "subtype": "essence",
+            "quality": "epic",
+            "description": "九天雷霆凝成的雷髓，炼雷属法宝与钓竿升级之材。",
+            "price": 4200
+        },
+        {
+            "id": "ancient_thunder_essence",
+            "name": "上古雷髓",
+            "type": "material",
+            "subtype": "essence",
+            "quality": "legendary",
+            "description": "洪荒时代沉雷之髓，雷意纯至极，祭炼顶阶雷宝。",
+            "price": 11000
+        },
+        {
+            "id": "void_crystal",
+            "name": "虚空结晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "legendary",
+            "description": "虚空裂隙凝成的结晶，蕴含空间之力，飞升辅材。",
+            "price": 12000
+        },
+        {
+            "id": "heaven_dao_jade_liquid",
+            "name": "天道玉液",
+            "type": "material",
+            "subtype": "liquid",
+            "quality": "mythic",
+            "description": "得天地道韵孕化的琼浆，服之可窥大道一丝真意。",
+            "price": 40000
+        },
+        {
+            "id": "spirit_herb",
+            "name": "灵草",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "common",
+            "description": "泛指沾了灵气的草药，炼器炼丹的常见耗材。",
+            "price": 10
+        },
+        {
+            "id": "general_token",
+            "name": "将令",
+            "type": "material",
+            "subtype": "token",
+            "quality": "epic",
+            "description": "军中调兵遣将的信物，边战与宗门战中可换取军需。",
+            "price": 3000
+        },
+        {
+            "id": "dungeon_token_ch1",
+            "name": "秘境通行令·壹",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "rare",
+            "description": "通往第一重秘境的通行令牌，持此令方可入内历练。",
+            "effect": {
+                "dungeon_ticket": "ch1"
+            },
+            "price": 500
+        },
+        {
+            "id": "dungeon_token_ch2",
+            "name": "秘境通行令·贰",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "epic",
+            "description": "通往第二重秘境的通行令牌，内里凶险更胜一筹。",
+            "effect": {
+                "dungeon_ticket": "ch2"
+            },
+            "price": 1500
+        },
+        {
+            "id": "dungeon_token_ch3",
+            "name": "秘境通行令·叁",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "epic",
+            "description": "通往第三重秘境的通行令牌，非筑基不得轻入。",
+            "effect": {
+                "dungeon_ticket": "ch3"
+            },
+            "price": 4000
+        },
+        {
+            "id": "dungeon_token_ch4",
+            "name": "秘境通行令·肆",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "legendary",
+            "description": "通往第四重秘境的通行令牌，金丹以上方可涉猎。",
+            "effect": {
+                "dungeon_ticket": "ch4"
+            },
+            "price": 10000
+        },
+        {
+            "id": "dungeon_token_ch5",
+            "name": "秘境通行令·伍",
+            "type": "consumable",
+            "subtype": "ticket",
+            "quality": "legendary",
+            "description": "通往第五重秘境的通行令牌，深处藏有上古机缘。",
+            "effect": {
+                "dungeon_ticket": "ch5"
+            },
+            "price": 25000
+        },
+        {
+            "id": "high_mana_pill",
+            "name": "聚元大还丹",
+            "type": "consumable",
+            "subtype": "mana",
+            "quality": "rare",
+            "description": "高阶凝元丹药，一口真元沛然涌至。",
+            "effect": {
+                "mp_restore": 200
+            },
+            "price": 200,
+            "usable_in_battle": true
+        },
+        {
+            "id": "spirit_transformation_pill",
+            "name": "化神宝丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "legendary",
+            "description": "辅助冲击化神境、稳固元神的宝丹。",
+            "effect": {
+                "breakthrough_bonus": 30
+            },
+            "price": 80000
+        },
+        {
+            "id": "void_refining_pill",
+            "name": "炼虚宝丹",
+            "type": "consumable",
+            "subtype": "breakthrough",
+            "quality": "legendary",
+            "description": "助炼神返虚、稳固心神的宝丹。",
+            "effect": {
+                "breakthrough_bonus": 35
+            },
+            "price": 200000
+        },
+        {
+            "id": "five_element_wheel",
+            "name": "大五行幻世轮",
+            "type": "equipment",
+            "subtype": "fabao",
+            "quality": "mythic",
+            "description": "蕴含五行生克至理的幻世之轮，轮转间演化万法，攻守循环不息。",
+            "effect": {
+                "atk": 5000,
+                "def": 5000,
+                "mp_max": 20000,
+                "sense": 1000
+            },
+            "price": 20000000,
+            "required_realm_rank": 27
+        },
+        {
+            "id": "abyss_crystal",
+            "name": "渊晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "epic",
+            "description": "妖兽深渊中凝结的幽暗晶石，浸染煞气，可喂养凶兽或祭炼魔器。",
+            "price": 4000
+        },
+        {
+            "id": "void_fragment",
+            "name": "虚空残片",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "legendary",
+            "description": "自虚空裂隙剥落的碎晶，蕴含空间之力，为空间法则修行辅材。",
+            "price": 11000
+        },
+        {
+            "id": "chaos_essence",
+            "name": "混沌之精",
+            "type": "material",
+            "subtype": "essence",
+            "quality": "mythic",
+            "description": "未判混沌凝成的一缕本源之精，可点化灵兽开启灵智。",
+            "price": 35000
+        },
+        {
+            "id": "celestial_bone",
+            "name": "苍穹兽骨",
+            "type": "material",
+            "subtype": "bone",
+            "quality": "legendary",
+            "description": "翱翔九天的远古禽族骸骨，骨中犹带风雷，炼风属法宝之材。",
+            "price": 9000
+        },
+        {
+            "id": "tribulation_essence",
+            "name": "渡劫真元",
+            "type": "material",
+            "subtype": "essence",
+            "quality": "mythic",
+            "description": "大能渡劫时逸散、被灵木奇石吸收的真元精华，可提纯血脉、增益修为。",
+            "price": 30000
+        },
+        {
+            "id": "fire_spirit_stone",
+            "name": "火灵晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "rare",
+            "description": "地火之脉孕育的赤色灵晶，温兽御寒、炼制火属丹药皆宜。",
+            "price": 900
+        },
+        {
+            "id": "ice_crystal",
+            "name": "玄冰晶",
+            "type": "material",
+            "subtype": "crystal",
+            "quality": "rare",
+            "description": "极寒之地凝成的通透冰晶，可为火属灵兽镇煞降燥。",
+            "price": 900
+        },
+        {
+            "id": "ancient_spirit_wood",
+            "name": "上古灵木",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "epic",
+            "description": "亘古长存的灵木心材，木气充沛，滋养灵植与木属灵兽。",
+            "price": 4500
+        },
+        {
+            "id": "soul_nourishing_wood",
+            "name": "养魂木",
+            "type": "material",
+            "subtype": "wood",
+            "quality": "epic",
+            "description": "能温养魂魄的沉香灵木，稳固神识、安抚躁动兽魂。",
+            "price": 4200
+        },
+        {
+            "id": "ancient_fragment",
+            "name": "远古残片",
+            "type": "material",
+            "subtype": "relic",
+            "quality": "epic",
+            "description": "远古巨兽遗骸的碎块，浸透洪荒气息，是觉醒血脉的引子。",
+            "price": 3800
         }
     ]
 }
-

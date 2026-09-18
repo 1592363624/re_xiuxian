@@ -414,6 +414,20 @@ class InventoryService {
             applied.breakthrough_bonus = effect.breakthrough_bonus;
         }
 
+        // 增加寿元上限（延寿丹）：作用于玩家持久字段 lifespan_max，与 LifespanService 衰老/死亡判定同一字段
+        if (effect.longevity_add) {
+            const gain = Math.floor(effect.longevity_add * totalMultiplier);
+            player.lifespan_max = Number(player.lifespan_max || 0) + gain;
+            applied.longevity_add = gain;
+        }
+
+        // 清除丹毒（清心丹等）：作用于玩家持久字段 toxicity，钳制到非负
+        if (effect.toxicity_reduce) {
+            const reduce = Math.floor(effect.toxicity_reduce * totalMultiplier);
+            player.toxicity = Math.max(0, Number(player.toxicity || 0) - reduce);
+            applied.toxicity_reduce = reduce;
+        }
+
         // 永久属性上限加成（属性丹）：键名与数值由服务端配置 + 白名单 + 上限钳制决定，
         // 与 POST /api/attribute/use_pill 共用同一套解析逻辑，避免两条链路口径不一
         const AttributeMaxService = require('../core/AttributeMaxService');

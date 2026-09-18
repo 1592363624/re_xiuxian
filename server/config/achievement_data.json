@@ -5,11 +5,31 @@
     "auto_grant_on_login": true
   },
   "categories": {
-    "cultivation": { "name": "修炼", "color": "emerald", "icon": "🧘" },
-    "combat": { "name": "战斗", "color": "rose", "icon": "⚔️" },
-    "wealth": { "name": "财富", "color": "amber", "icon": "💰" },
-    "social": { "name": "交际", "color": "sky", "icon": "🤝" },
-    "explore": { "name": "探索", "color": "violet", "icon": "🧭" }
+    "cultivation": {
+      "name": "修炼",
+      "color": "emerald",
+      "icon": "🧘"
+    },
+    "combat": {
+      "name": "战斗",
+      "color": "rose",
+      "icon": "⚔️"
+    },
+    "wealth": {
+      "name": "财富",
+      "color": "amber",
+      "icon": "💰"
+    },
+    "social": {
+      "name": "交际",
+      "color": "sky",
+      "icon": "🤝"
+    },
+    "explore": {
+      "name": "探索",
+      "color": "violet",
+      "icon": "🧭"
+    }
   },
   "achievements": [
     {
@@ -19,7 +39,10 @@
       "description": "完成第一次闭关修炼",
       "metric": "seclusion_count",
       "target": 1,
-      "reward": { "spirit_stones": 100, "exp": 500 }
+      "reward": {
+        "spirit_stones": 100,
+        "exp": 500
+      }
     },
     {
       "id": "qi_refining",
@@ -28,7 +51,10 @@
       "description": "修为达到练气期",
       "metric": "realm_index",
       "target": 1,
-      "reward": { "spirit_stones": 500, "exp": 2000 }
+      "reward": {
+        "spirit_stones": 500,
+        "exp": 2000
+      }
     },
     {
       "id": "slay_demon",
@@ -37,7 +63,10 @@
       "description": "击败 10 个敌人",
       "metric": "kill_count",
       "target": 10,
-      "reward": { "spirit_stones": 800, "exp": 3000 }
+      "reward": {
+        "spirit_stones": 800,
+        "exp": 3000
+      }
     },
     {
       "id": "rich_man",
@@ -46,7 +75,10 @@
       "description": "累计获得 10000 灵石",
       "metric": "total_spirit_stones",
       "target": 10000,
-      "reward": { "spirit_stones": 2000, "exp": 1000 }
+      "reward": {
+        "spirit_stones": 2000,
+        "exp": 1000
+      }
     },
     {
       "id": "social_butterfly",
@@ -55,7 +87,10 @@
       "description": "拥有 5 名道侣或好友",
       "metric": "friend_count",
       "target": 5,
-      "reward": { "spirit_stones": 600, "exp": 1500 }
+      "reward": {
+        "spirit_stones": 600,
+        "exp": 1500
+      }
     },
     {
       "id": "explorer",
@@ -64,7 +99,346 @@
       "description": "探索 20 个秘境或地图",
       "metric": "explore_count",
       "target": 20,
-      "reward": { "spirit_stones": 1000, "exp": 2500 }
+      "reward": {
+        "spirit_stones": 1000,
+        "exp": 2500
+      }
+    },
+    {
+      "id": "qi_master_ach",
+      "category": "cultivation",
+      "name": "炼气圆满",
+      "description": "修为臻至炼气期巅峰（第10层）",
+      "metric": "realm_index",
+      "target": 10,
+      "reward": {
+        "spirit_stones": 2000,
+        "exp": 8000
+      }
+    },
+    {
+      "id": "foundation_ach",
+      "category": "cultivation",
+      "name": "筑基大道",
+      "description": "成就筑基期",
+      "metric": "realm_index",
+      "target": 11,
+      "reward": {
+        "spirit_stones": 8000,
+        "exp": 30000
+      }
+    },
+    {
+      "id": "golden_core_ach",
+      "category": "cultivation",
+      "name": "金丹大道",
+      "description": "凝练金丹",
+      "metric": "realm_index",
+      "target": 15,
+      "reward": {
+        "spirit_stones": 50000,
+        "exp": 200000
+      }
+    },
+    {
+      "id": "nascent_ach",
+      "category": "cultivation",
+      "name": "元婴老祖",
+      "description": "成就元婴期",
+      "metric": "realm_index",
+      "target": 19,
+      "reward": {
+        "spirit_stones": 200000,
+        "exp": 1000000
+      }
+    },
+    {
+      "id": "seclusion_100",
+      "category": "cultivation",
+      "name": "闭关百次",
+      "description": "完成 100 次闭关修炼",
+      "metric": "seclusion_count",
+      "target": 100,
+      "reward": {
+        "spirit_stones": 5000,
+        "exp": 20000
+      }
+    },
+    {
+      "id": "seclusion_1000",
+      "category": "cultivation",
+      "name": "枯坐千时",
+      "description": "完成 1000 次闭关修炼",
+      "metric": "seclusion_count",
+      "target": 1000,
+      "reward": {
+        "spirit_stones": 30000,
+        "exp": 150000
+      }
+    },
+    {
+      "id": "kill_100",
+      "category": "combat",
+      "name": "身经百战",
+      "description": "击败 100 个敌人",
+      "metric": "kill_count",
+      "target": 100,
+      "reward": {
+        "spirit_stones": 3000,
+        "exp": 12000
+      }
+    },
+    {
+      "id": "kill_1000",
+      "category": "combat",
+      "name": "千夫所指",
+      "description": "击败 1000 个敌人",
+      "metric": "kill_count",
+      "target": 1000,
+      "reward": {
+        "spirit_stones": 20000,
+        "exp": 90000
+      }
+    },
+    {
+      "id": "kill_10000",
+      "category": "combat",
+      "name": "万军辟易",
+      "description": "击败 10000 个敌人",
+      "metric": "kill_count",
+      "target": 10000,
+      "reward": {
+        "spirit_stones": 150000,
+        "exp": 600000
+      }
+    },
+    {
+      "id": "wealth_1m",
+      "category": "wealth",
+      "name": "富甲一方",
+      "description": "累计获得 100 万灵石",
+      "metric": "total_spirit_stones",
+      "target": 1000000,
+      "reward": {
+        "spirit_stones": 50000,
+        "exp": 100000
+      }
+    },
+    {
+      "id": "explore_100",
+      "category": "explore",
+      "name": "遍历山河",
+      "description": "探索 100 处秘境或地图",
+      "metric": "explore_count",
+      "target": 100,
+      "reward": {
+        "spirit_stones": 20000,
+        "exp": 80000
+      }
+    },
+    {
+      "id": "explore_500",
+      "category": "explore",
+      "name": "踏破铁鞋",
+      "description": "探索 500 处秘境或地图",
+      "metric": "explore_count",
+      "target": 500,
+      "reward": {
+        "spirit_stones": 120000,
+        "exp": 500000
+      }
+    },
+    {
+      "id": "exp_high",
+      "category": "cultivation",
+      "name": "道行深厚",
+      "description": "累计修为突破千万",
+      "metric": "exp",
+      "target": 10000000,
+      "reward": {
+        "spirit_stones": 100000,
+        "exp": 0
+      }
+    },
+    {
+      "id": "realm_foundation_perfect",
+      "category": "cultivation",
+      "name": "筑基圆满",
+      "description": "成就筑基大圆满",
+      "metric": "realm_index",
+      "target": 14,
+      "reward": {
+        "spirit_stones": 20000,
+        "exp": 100000
+      }
+    },
+    {
+      "id": "realm_gold_perfect",
+      "category": "cultivation",
+      "name": "金丹大成",
+      "description": "金丹大圆满",
+      "metric": "realm_index",
+      "target": 18,
+      "reward": {
+        "spirit_stones": 120000,
+        "exp": 500000
+      }
+    },
+    {
+      "id": "realm_nascent_perfect",
+      "category": "cultivation",
+      "name": "元婴圆满",
+      "description": "元婴大圆满",
+      "metric": "realm_index",
+      "target": 22,
+      "reward": {
+        "spirit_stones": 500000,
+        "exp": 2000000
+      }
+    },
+    {
+      "id": "realm_spirit",
+      "category": "cultivation",
+      "name": "化神真人",
+      "description": "踏入化神期",
+      "metric": "realm_index",
+      "target": 23,
+      "reward": {
+        "spirit_stones": 600000,
+        "exp": 3000000
+      }
+    },
+    {
+      "id": "realm_void",
+      "category": "cultivation",
+      "name": "炼虚仙师",
+      "description": "踏入炼虚期",
+      "metric": "realm_index",
+      "target": 27,
+      "reward": {
+        "spirit_stones": 2000000,
+        "exp": 10000000
+      }
+    },
+    {
+      "id": "realm_integration",
+      "category": "cultivation",
+      "name": "合体尊者",
+      "description": "踏入合体期",
+      "metric": "realm_index",
+      "target": 31,
+      "reward": {
+        "spirit_stones": 6000000,
+        "exp": 30000000
+      }
+    },
+    {
+      "id": "realm_vehicle",
+      "category": "cultivation",
+      "name": "大乘道祖",
+      "description": "踏入大乘期",
+      "metric": "realm_index",
+      "target": 35,
+      "reward": {
+        "spirit_stones": 20000000,
+        "exp": 80000000
+      }
+    },
+    {
+      "id": "realm_true_immortal",
+      "category": "cultivation",
+      "name": "白日飞升",
+      "description": "成就真仙果位",
+      "metric": "realm_index",
+      "target": 40,
+      "reward": {
+        "spirit_stones": 100000000,
+        "exp": 0
+      }
+    },
+    {
+      "id": "seclusion_5000",
+      "category": "cultivation",
+      "name": "五朝寒暑",
+      "description": "完成 5000 次闭关修炼",
+      "metric": "seclusion_count",
+      "target": 5000,
+      "reward": {
+        "spirit_stones": 120000,
+        "exp": 600000
+      }
+    },
+    {
+      "id": "seclusion_10000",
+      "category": "cultivation",
+      "name": "万念归一",
+      "description": "完成 10000 次闭关修炼",
+      "metric": "seclusion_count",
+      "target": 10000,
+      "reward": {
+        "spirit_stones": 400000,
+        "exp": 2000000
+      }
+    },
+    {
+      "id": "kill_50000",
+      "category": "combat",
+      "name": "尸山血海",
+      "description": "击败 50000 个敌人",
+      "metric": "kill_count",
+      "target": 50000,
+      "reward": {
+        "spirit_stones": 800000,
+        "exp": 3000000
+      }
+    },
+    {
+      "id": "wealth_10m",
+      "category": "wealth",
+      "name": "富可敌国",
+      "description": "累计获得 1000 万灵石",
+      "metric": "total_spirit_stones",
+      "target": 10000000,
+      "reward": {
+        "spirit_stones": 500000,
+        "exp": 1000000
+      }
+    },
+    {
+      "id": "wealth_100m",
+      "category": "wealth",
+      "name": "财源广进",
+      "description": "累计获得 1 亿灵石",
+      "metric": "total_spirit_stones",
+      "target": 100000000,
+      "reward": {
+        "spirit_stones": 3000000,
+        "exp": 5000000
+      }
+    },
+    {
+      "id": "explore_1000",
+      "category": "explore",
+      "name": "踏破铁鞋",
+      "description": "探索 1000 处秘境或地图",
+      "metric": "explore_count",
+      "target": 1000,
+      "reward": {
+        "spirit_stones": 500000,
+        "exp": 2000000
+      }
+    },
+    {
+      "id": "exp_immortal",
+      "category": "cultivation",
+      "name": "道高德厚",
+      "description": "累计修为突破一亿",
+      "metric": "exp",
+      "target": 100000000,
+      "reward": {
+        "spirit_stones": 2000000,
+        "exp": 0
+      }
     }
   ]
 }

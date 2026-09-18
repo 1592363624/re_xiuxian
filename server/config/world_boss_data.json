@@ -17,8 +17,16 @@
       "element": "metal",
       "spawn_schedule": "0 20 * * 2,5,0",
       "expire_hours": 4,
-      "phase_thresholds": [1.0, 0.6, 0.3],
-      "phase_multipliers": [1.0, 1.3, 1.8],
+      "phase_thresholds": [
+        1,
+        0.6,
+        0.3
+      ],
+      "phase_multipliers": [
+        1,
+        1.3,
+        1.8
+      ],
       "skills": [
         {
           "phase": 1,
@@ -27,7 +35,7 @@
               "name": "飞剑斩",
               "description": "青元子御剑施放的常规单体攻击，剑光凌厉直指要害",
               "type": "single_target_basic",
-              "damage_multiplier": 1.0,
+              "damage_multiplier": 1,
               "cooldown_seconds": 0,
               "effect": "none"
             },
@@ -56,7 +64,7 @@
               "name": "召唤剑灵",
               "description": "青元子以剑气凝聚出剑灵分身协助作战，分担玩家火力",
               "type": "summon",
-              "damage_multiplier": 0.0,
+              "damage_multiplier": 0,
               "cooldown_seconds": 30,
               "effect": "summon_minions"
             }
@@ -69,7 +77,7 @@
               "name": "剑意狂暴",
               "description": "青元子陷入剑意狂暴状态，攻击力与速度大幅提升",
               "type": "self_buff",
-              "damage_multiplier": 0.0,
+              "damage_multiplier": 0,
               "cooldown_seconds": 0,
               "effect": "self_buff_atk_up_50_percent"
             },
@@ -90,7 +98,7 @@
           "item_key": "spirit_stone",
           "quantity_min": 500,
           "quantity_max": 1000,
-          "drop_chance": 1.0
+          "drop_chance": 1
         },
         {
           "rarity": "rare",
@@ -112,6 +120,20 @@
           "quantity_min": 1,
           "quantity_max": 1,
           "drop_chance": 0.05
+        },
+        {
+          "rarity": "legendary",
+          "item_key": "tianming_jian",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.06
+        },
+        {
+          "rarity": "epic",
+          "item_key": "dao_book_jin",
+          "quantity_min": 1,
+          "quantity_max": 2,
+          "drop_chance": 0.15
         }
       ],
       "description": "上古元婴期剑修大能，因修炼走火入魔堕入魔道。手持青元古剑，剑意凛然，曾一剑斩灭三大宗门。如今重出江湖，意图血洗修仙界，唯有同道合力方可将其镇压。"
@@ -127,8 +149,16 @@
       "element": "earth",
       "spawn_schedule": "0 20 * * 1,4",
       "expire_hours": 4,
-      "phase_thresholds": [1.0, 0.6, 0.3],
-      "phase_multipliers": [1.0, 1.3, 1.8],
+      "phase_thresholds": [
+        1,
+        0.6,
+        0.3
+      ],
+      "phase_multipliers": [
+        1,
+        1.3,
+        1.8
+      ],
       "skills": [
         {
           "phase": 1,
@@ -137,7 +167,7 @@
               "name": "利爪撕咬",
               "description": "上古妖兽以利爪撕咬目标，凶残异常难以闪避",
               "type": "single_target_basic",
-              "damage_multiplier": 1.0,
+              "damage_multiplier": 1,
               "cooldown_seconds": 0,
               "effect": "none"
             },
@@ -166,7 +196,7 @@
               "name": "召唤妖兽幼崽",
               "description": "上古妖兽召唤幼崽协助作战，幼崽虽弱却数量众多",
               "type": "summon",
-              "damage_multiplier": 0.0,
+              "damage_multiplier": 0,
               "cooldown_seconds": 35,
               "effect": "summon_minions"
             }
@@ -179,7 +209,7 @@
               "name": "嗜血狂暴",
               "description": "上古妖兽进入嗜血狂暴状态，攻击力暴涨且每次攻击附带吸血",
               "type": "self_buff",
-              "damage_multiplier": 0.0,
+              "damage_multiplier": 0,
               "cooldown_seconds": 0,
               "effect": "self_buff_atk_up_60_percent_lifesteal"
             },
@@ -200,7 +230,7 @@
           "item_key": "spirit_stone",
           "quantity_min": 5000,
           "quantity_max": 10000,
-          "drop_chance": 1.0
+          "drop_chance": 1
         },
         {
           "rarity": "rare",
@@ -222,6 +252,27 @@
           "quantity_min": 1,
           "quantity_max": 1,
           "drop_chance": 0.05
+        },
+        {
+          "rarity": "legendary",
+          "item_key": "huntian_jian",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.05
+        },
+        {
+          "rarity": "legendary",
+          "item_key": "wuhuo_shanyan_shan",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.03
+        },
+        {
+          "rarity": "epic",
+          "item_key": "dao_book_hua",
+          "quantity_min": 1,
+          "quantity_max": 2,
+          "drop_chance": 0.12
         }
       ],
       "description": "上古时期封印于幽冥深处的洪荒妖兽，凶残嗜血，力大无穷。传闻其一声咆哮便可震碎山脉，所过之处生灵涂炭，唯有合力围攻方能将其镇压于九幽之下。"
@@ -237,8 +288,16 @@
       "element": "fire",
       "spawn_schedule": "0 20 * * 3,6",
       "expire_hours": 4,
-      "phase_thresholds": [1.0, 0.6, 0.3],
-      "phase_multipliers": [1.0, 1.3, 1.8],
+      "phase_thresholds": [
+        1,
+        0.6,
+        0.3
+      ],
+      "phase_multipliers": [
+        1,
+        1.3,
+        1.8
+      ],
       "skills": [
         {
           "phase": 1,
@@ -247,7 +306,7 @@
               "name": "长枪突刺",
               "description": "慕兰神将以玄天长枪突刺目标，枪势凌厉无匹",
               "type": "single_target_basic",
-              "damage_multiplier": 1.0,
+              "damage_multiplier": 1,
               "cooldown_seconds": 0,
               "effect": "none"
             },
@@ -276,7 +335,7 @@
               "name": "召唤神兵",
               "description": "慕兰神将召唤天庭神兵下凡协助作战，神兵个个法力高强",
               "type": "summon",
-              "damage_multiplier": 0.0,
+              "damage_multiplier": 0,
               "cooldown_seconds": 30,
               "effect": "summon_minions"
             }
@@ -289,7 +348,7 @@
               "name": "战神附体",
               "description": "慕兰神将陷入战神附体状态，攻击力暴涨且免疫控制",
               "type": "self_buff",
-              "damage_multiplier": 0.0,
+              "damage_multiplier": 0,
               "cooldown_seconds": 0,
               "effect": "self_buff_atk_up_70_percent_immune_control"
             },
@@ -297,7 +356,7 @@
               "name": "灭世神罚",
               "description": "慕兰神将引动天罚降下，神威覆盖全场对所有玩家造成毁灭性打击",
               "type": "ultimate_screen_wide",
-              "damage_multiplier": 3.0,
+              "damage_multiplier": 3,
               "cooldown_seconds": 60,
               "effect": "screen_wide_damage"
             }
@@ -310,7 +369,7 @@
           "item_key": "spirit_stone",
           "quantity_min": 50000,
           "quantity_max": 100000,
-          "drop_chance": 1.0
+          "drop_chance": 1
         },
         {
           "rarity": "rare",
@@ -332,6 +391,34 @@
           "quantity_min": 1,
           "quantity_max": 1,
           "drop_chance": 0.05
+        },
+        {
+          "rarity": "mythic",
+          "item_key": "xinghun_jian",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.05
+        },
+        {
+          "rarity": "mythic",
+          "item_key": "shanhao_fuyi",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.03
+        },
+        {
+          "rarity": "mythic",
+          "item_key": "five_element_wheel",
+          "quantity_min": 1,
+          "quantity_max": 1,
+          "drop_chance": 0.02
+        },
+        {
+          "rarity": "epic",
+          "item_key": "dao_book_lianxu",
+          "quantity_min": 1,
+          "quantity_max": 2,
+          "drop_chance": 0.12
         }
       ],
       "description": "慕兰神将乃上古天庭战将，因违逆天帝被贬下凡间。手持玄天长枪，法力通天，曾一人破百万魔军。如今因怨念深重化为魔神，无人能挡其锋芒，赛季制开启时方现人间。"

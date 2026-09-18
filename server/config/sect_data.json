@@ -15,14 +15,77 @@
         "gather_bonus": 0.15
       },
       "treasury": [
-        { "id": "luoyun_pill_1", "name": "落云培元丹", "item_key": "mid_healing_pill", "cost": 50, "description": "恢复中等气血" },
-        { "id": "luoyun_seed_1", "name": "灵眼树种子", "item_key": "spirit_seed", "cost": 200, "description": "洞府药园培育灵眼之树的材料" },
-        { "id": "luoyun_exp_book", "name": "落云道典", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
+        {
+          "id": "luoyun_pill_1",
+          "name": "落云培元丹",
+          "item_key": "mid_healing_pill",
+          "cost": 50,
+          "description": "恢复中等气血"
+        },
+        {
+          "id": "luoyun_seed_1",
+          "name": "灵眼树种子",
+          "item_key": "spirit_seed",
+          "cost": 200,
+          "description": "洞府药园培育灵眼之树的材料"
+        },
+        {
+          "id": "luoyun_exp_book",
+          "name": "落云道典",
+          "item_key": "exp_book_mid",
+          "cost": 300,
+          "description": "阅读后获得 500 修为"
+        },
+        {
+          "id": "luoyun_ex_wanlian_shen",
+          "name": "万年灵参",
+          "item_key": "wanlian_shen",
+          "cost": 500,
+          "description": "以宗门贡献兑换【万年灵参】"
+        },
+        {
+          "id": "luoyun_ex_xishui_dan",
+          "name": "洗髓丹",
+          "item_key": "xishui_dan",
+          "cost": 300,
+          "description": "以宗门贡献兑换【洗髓丹】"
+        },
+        {
+          "id": "luoyun_ex_dao_book_zhu",
+          "name": "筑基真解",
+          "item_key": "dao_book_zhu",
+          "cost": 400,
+          "description": "以宗门贡献兑换【筑基真解】"
+        }
       ],
       "quests": [
-        { "id": "luoyun_q1", "name": "灵树灌溉", "description": "为灵眼之树灌注灵力", "contribution": 20, "exp_reward": 100, "daily": true, "min_contribution": 0 },
-        { "id": "luoyun_q2", "name": "守山巡逻", "description": "巡视宗门山门", "contribution": 30, "exp_reward": 150, "daily": true, "min_contribution": 30 },
-        { "id": "luoyun_q3", "name": "采摘灵果", "description": "采摘成熟灵果上交宗门", "contribution": 50, "exp_reward": 200, "daily": true, "min_contribution": 80 }
+        {
+          "id": "luoyun_q1",
+          "name": "灵树灌溉",
+          "description": "为灵眼之树灌注灵力",
+          "contribution": 20,
+          "exp_reward": 100,
+          "daily": true,
+          "min_contribution": 0
+        },
+        {
+          "id": "luoyun_q2",
+          "name": "守山巡逻",
+          "description": "巡视宗门山门",
+          "contribution": 30,
+          "exp_reward": 150,
+          "daily": true,
+          "min_contribution": 30
+        },
+        {
+          "id": "luoyun_q3",
+          "name": "采摘灵果",
+          "description": "采摘成熟灵果上交宗门",
+          "contribution": 50,
+          "exp_reward": 200,
+          "daily": true,
+          "min_contribution": 80
+        }
       ]
     },
     {
@@ -40,14 +103,77 @@
         "breakthrough_bonus": 0.05
       },
       "treasury": [
-        { "id": "xinggong_star_1", "name": "星辰砂", "item_key": "star_sand", "cost": 150, "description": "炼器材料，蕴含星辉" },
-        { "id": "xinggong_pill_1", "name": "启星丹", "item_key": "mid_mana_pill", "cost": 80, "description": "恢复中等灵力" },
-        { "id": "xinggong_book", "name": "观星要术", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
+        {
+          "id": "xinggong_star_1",
+          "name": "星辰砂",
+          "item_key": "star_sand",
+          "cost": 150,
+          "description": "炼器材料，蕴含星辉"
+        },
+        {
+          "id": "xinggong_pill_1",
+          "name": "启星丹",
+          "item_key": "mid_mana_pill",
+          "cost": 80,
+          "description": "恢复中等灵力"
+        },
+        {
+          "id": "xinggong_book",
+          "name": "观星要术",
+          "item_key": "exp_book_mid",
+          "cost": 300,
+          "description": "阅读后获得 500 修为"
+        },
+        {
+          "id": "xinggong_ex_taiyi_gold",
+          "name": "太乙精金",
+          "item_key": "taiyi_gold",
+          "cost": 600,
+          "description": "以宗门贡献兑换【太乙精金】"
+        },
+        {
+          "id": "xinggong_ex_wuhun_qi",
+          "name": "五魂幡",
+          "item_key": "wuhun_qi",
+          "cost": 700,
+          "description": "以宗门贡献兑换【五魂幡】"
+        },
+        {
+          "id": "xinggong_ex_cuijin_dai",
+          "name": "淬精佩",
+          "item_key": "cuijin_dai",
+          "cost": 350,
+          "description": "以宗门贡献兑换【淬精佩】"
+        }
       ],
       "quests": [
-        { "id": "xinggong_q1", "name": "观星值守", "description": "观星台值守一夜", "contribution": 25, "exp_reward": 120, "daily": true, "min_contribution": 0 },
-        { "id": "xinggong_q2", "name": "牵引星辰", "description": "协助牵引星辰入盘", "contribution": 35, "exp_reward": 180, "daily": true, "min_contribution": 35 },
-        { "id": "xinggong_q3", "name": "维护星阵", "description": "维护周天星斗大阵", "contribution": 50, "exp_reward": 220, "daily": true, "min_contribution": 90 }
+        {
+          "id": "xinggong_q1",
+          "name": "观星值守",
+          "description": "观星台值守一夜",
+          "contribution": 25,
+          "exp_reward": 120,
+          "daily": true,
+          "min_contribution": 0
+        },
+        {
+          "id": "xinggong_q2",
+          "name": "牵引星辰",
+          "description": "协助牵引星辰入盘",
+          "contribution": 35,
+          "exp_reward": 180,
+          "daily": true,
+          "min_contribution": 35
+        },
+        {
+          "id": "xinggong_q3",
+          "name": "维护星阵",
+          "description": "维护周天星斗大阵",
+          "contribution": 50,
+          "exp_reward": 220,
+          "daily": true,
+          "min_contribution": 90
+        }
       ]
     },
     {
@@ -65,14 +191,77 @@
         "exp_multiplier": 1.05
       },
       "treasury": [
-        { "id": "tianxing_disk", "name": "命盘碎片", "item_key": "fate_disk", "cost": 200, "description": "推演命格材料" },
-        { "id": "tianxing_pill", "name": "清明丹", "item_key": "mid_mana_pill", "cost": 80, "description": "恢复中等灵力" },
-        { "id": "tianxing_book", "name": "天机诀", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
+        {
+          "id": "tianxing_disk",
+          "name": "命盘碎片",
+          "item_key": "fate_disk",
+          "cost": 200,
+          "description": "推演命格材料"
+        },
+        {
+          "id": "tianxing_pill",
+          "name": "清明丹",
+          "item_key": "mid_mana_pill",
+          "cost": 80,
+          "description": "恢复中等灵力"
+        },
+        {
+          "id": "tianxing_book",
+          "name": "天机诀",
+          "item_key": "exp_book_mid",
+          "cost": 300,
+          "description": "阅读后获得 500 修为"
+        },
+        {
+          "id": "tianxing_ex_juling_pei",
+          "name": "聚灵玉佩",
+          "item_key": "juling_pei",
+          "cost": 200,
+          "description": "以宗门贡献兑换【聚灵玉佩】"
+        },
+        {
+          "id": "tianxing_ex_bingpo_lian",
+          "name": "冰魄莲",
+          "item_key": "bingpo_lian",
+          "cost": 300,
+          "description": "以宗门贡献兑换【冰魄莲】"
+        },
+        {
+          "id": "tianxing_ex_dao_book_qi",
+          "name": "炼气要诀",
+          "item_key": "dao_book_qi",
+          "cost": 150,
+          "description": "以宗门贡献兑换【炼气要诀】"
+        }
       ],
       "quests": [
-        { "id": "tianxing_q1", "name": "观命推演", "description": "推演自身命格", "contribution": 25, "exp_reward": 120, "daily": true, "min_contribution": 0 },
-        { "id": "tianxing_q2", "name": "消劫护法", "description": "协助同门化解逆命劫", "contribution": 40, "exp_reward": 200, "daily": true, "min_contribution": 40 },
-        { "id": "tianxing_q3", "name": "定命修习", "description": "修习定命之法", "contribution": 50, "exp_reward": 220, "daily": true, "min_contribution": 100 }
+        {
+          "id": "tianxing_q1",
+          "name": "观命推演",
+          "description": "推演自身命格",
+          "contribution": 25,
+          "exp_reward": 120,
+          "daily": true,
+          "min_contribution": 0
+        },
+        {
+          "id": "tianxing_q2",
+          "name": "消劫护法",
+          "description": "协助同门化解逆命劫",
+          "contribution": 40,
+          "exp_reward": 200,
+          "daily": true,
+          "min_contribution": 40
+        },
+        {
+          "id": "tianxing_q3",
+          "name": "定命修习",
+          "description": "修习定命之法",
+          "contribution": 50,
+          "exp_reward": 220,
+          "daily": true,
+          "min_contribution": 100
+        }
       ]
     },
     {
@@ -90,14 +279,77 @@
         "mental_strength": 0.15
       },
       "treasury": [
-        { "id": "lingxiao_pill", "name": "问道丹", "item_key": "foundation_pill", "cost": 500, "description": "辅助突破筑基期" },
-        { "id": "lingxiao_heart", "name": "问心石", "item_key": "heart_stone", "cost": 180, "description": "稳固道心材料" },
-        { "id": "lingxiao_book", "name": "凌霄心法", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
+        {
+          "id": "lingxiao_pill",
+          "name": "问道丹",
+          "item_key": "foundation_pill",
+          "cost": 500,
+          "description": "辅助突破筑基期"
+        },
+        {
+          "id": "lingxiao_heart",
+          "name": "问心石",
+          "item_key": "heart_stone",
+          "cost": 180,
+          "description": "稳固道心材料"
+        },
+        {
+          "id": "lingxiao_book",
+          "name": "凌霄心法",
+          "item_key": "exp_book_mid",
+          "cost": 300,
+          "description": "阅读后获得 500 修为"
+        },
+        {
+          "id": "lingxiao_ex_peijin_dan",
+          "name": "培金丹",
+          "item_key": "peijin_dan",
+          "cost": 600,
+          "description": "以宗门贡献兑换【培金丹】"
+        },
+        {
+          "id": "lingxiao_ex_lingxi_guanyin",
+          "name": "灵犀佩",
+          "item_key": "lingxi_guanyin",
+          "cost": 800,
+          "description": "以宗门贡献兑换【灵犀佩】"
+        },
+        {
+          "id": "lingxiao_ex_nine_yang_flower",
+          "name": "九阳花",
+          "item_key": "nine_yang_flower",
+          "cost": 450,
+          "description": "以宗门贡献兑换【九阳花】"
+        }
       ],
       "quests": [
-        { "id": "lingxiao_q1", "name": "登天阶", "description": "攀登天阶磨砺道心", "contribution": 30, "exp_reward": 150, "daily": true, "min_contribution": 0 },
-        { "id": "lingxiao_q2", "name": "问心台试炼", "description": "在问心台接受心性考验", "contribution": 40, "exp_reward": 200, "daily": true, "min_contribution": 40 },
-        { "id": "lingxiao_q3", "name": "护法诵经", "description": "护持同门诵经修炼", "contribution": 50, "exp_reward": 220, "daily": true, "min_contribution": 100 }
+        {
+          "id": "lingxiao_q1",
+          "name": "登天阶",
+          "description": "攀登天阶磨砺道心",
+          "contribution": 30,
+          "exp_reward": 150,
+          "daily": true,
+          "min_contribution": 0
+        },
+        {
+          "id": "lingxiao_q2",
+          "name": "问心台试炼",
+          "description": "在问心台接受心性考验",
+          "contribution": 40,
+          "exp_reward": 200,
+          "daily": true,
+          "min_contribution": 40
+        },
+        {
+          "id": "lingxiao_q3",
+          "name": "护法诵经",
+          "description": "护持同门诵经修炼",
+          "contribution": 50,
+          "exp_reward": 220,
+          "daily": true,
+          "min_contribution": 100
+        }
       ]
     },
     {
@@ -115,14 +367,77 @@
         "dark_arts_bonus": 0.15
       },
       "treasury": [
-        { "id": "yinluo_banner", "name": "阴罗幡残片", "item_key": "soul_banner_fragment", "cost": 250, "description": "升级阴罗幡材料" },
-        { "id": "yinluo_pill", "name": "凝煞丹", "item_key": "high_healing_pill", "cost": 200, "description": "恢复大量气血" },
-        { "id": "yinluo_book", "name": "阴罗秘典", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
+        {
+          "id": "yinluo_banner",
+          "name": "阴罗幡残片",
+          "item_key": "soul_banner_fragment",
+          "cost": 250,
+          "description": "升级阴罗幡材料"
+        },
+        {
+          "id": "yinluo_pill",
+          "name": "凝煞丹",
+          "item_key": "high_healing_pill",
+          "cost": 200,
+          "description": "恢复大量气血"
+        },
+        {
+          "id": "yinluo_book",
+          "name": "阴罗秘典",
+          "item_key": "exp_book_mid",
+          "cost": 300,
+          "description": "阅读后获得 500 修为"
+        },
+        {
+          "id": "yinluo_ex_shen_hun_sha",
+          "name": "魂砂",
+          "item_key": "shen_hun_sha",
+          "cost": 500,
+          "description": "以宗门贡献兑换【魂砂】"
+        },
+        {
+          "id": "yinluo_ex_zhanhun_dai",
+          "name": "斩魂佩",
+          "item_key": "zhanhun_dai",
+          "cost": 1000,
+          "description": "以宗门贡献兑换【斩魂佩】"
+        },
+        {
+          "id": "yinluo_ex_dao_book_jin",
+          "name": "金丹玉诀",
+          "item_key": "dao_book_jin",
+          "cost": 800,
+          "description": "以宗门贡献兑换【金丹玉诀】"
+        }
       ],
       "quests": [
-        { "id": "yinluo_q1", "name": "收取魂魄", "description": "收集魂魄供奉阴罗幡", "contribution": 30, "exp_reward": 150, "daily": true, "min_contribution": 0 },
-        { "id": "yinluo_q2", "name": "安抚幡灵", "description": "安抚躁动的幡灵", "contribution": 40, "exp_reward": 200, "daily": true, "min_contribution": 40 },
-        { "id": "yinluo_q3", "name": "血洗山林", "description": "血洗山林获取煞气", "contribution": 60, "exp_reward": 250, "daily": true, "min_contribution": 100 }
+        {
+          "id": "yinluo_q1",
+          "name": "收取魂魄",
+          "description": "收集魂魄供奉阴罗幡",
+          "contribution": 30,
+          "exp_reward": 150,
+          "daily": true,
+          "min_contribution": 0
+        },
+        {
+          "id": "yinluo_q2",
+          "name": "安抚幡灵",
+          "description": "安抚躁动的幡灵",
+          "contribution": 40,
+          "exp_reward": 200,
+          "daily": true,
+          "min_contribution": 40
+        },
+        {
+          "id": "yinluo_q3",
+          "name": "血洗山林",
+          "description": "血洗山林获取煞气",
+          "contribution": 60,
+          "exp_reward": 250,
+          "daily": true,
+          "min_contribution": 100
+        }
       ]
     },
     {
@@ -140,14 +455,77 @@
         "mp_multiplier": 1.1
       },
       "treasury": [
-        { "id": "hehuan_pill", "name": "合欢散", "item_key": "high_mana_pill", "cost": 200, "description": "恢复大量灵力" },
-        { "id": "hehuan_heart", "name": "心印石", "item_key": "heart_seal_stone", "cost": 220, "description": "种下心印材料" },
-        { "id": "hehuan_book", "name": "合欢秘录", "item_key": "exp_book_mid", "cost": 300, "description": "阅读后获得 500 修为" }
+        {
+          "id": "hehuan_pill",
+          "name": "合欢散",
+          "item_key": "high_mana_pill",
+          "cost": 200,
+          "description": "恢复大量灵力"
+        },
+        {
+          "id": "hehuan_heart",
+          "name": "心印石",
+          "item_key": "heart_seal_stone",
+          "cost": 220,
+          "description": "种下心印材料"
+        },
+        {
+          "id": "hehuan_book",
+          "name": "合欢秘录",
+          "item_key": "exp_book_mid",
+          "cost": 300,
+          "description": "阅读后获得 500 修为"
+        },
+        {
+          "id": "hehuan_ex_huiyuan_dan",
+          "name": "回元丹",
+          "item_key": "huiyuan_dan",
+          "cost": 200,
+          "description": "以宗门贡献兑换【回元丹】"
+        },
+        {
+          "id": "hehuan_ex_cuijin_dai",
+          "name": "淬精佩",
+          "item_key": "cuijin_dai",
+          "cost": 400,
+          "description": "以宗门贡献兑换【淬精佩】"
+        },
+        {
+          "id": "hehuan_ex_dao_book_qi",
+          "name": "炼气要诀",
+          "item_key": "dao_book_qi",
+          "cost": 150,
+          "description": "以宗门贡献兑换【炼气要诀】"
+        }
       ],
       "quests": [
-        { "id": "hehuan_q1", "name": "魔音灌脑", "description": "修炼魔音之术", "contribution": 30, "exp_reward": 150, "daily": true, "min_contribution": 0 },
-        { "id": "hehuan_q2", "name": "红尘历练", "description": "入红尘历练心境", "contribution": 40, "exp_reward": 200, "daily": true, "min_contribution": 40 },
-        { "id": "hehuan_q3", "name": "采补修炼", "description": "采补天地灵气", "contribution": 60, "exp_reward": 250, "daily": true, "min_contribution": 100 }
+        {
+          "id": "hehuan_q1",
+          "name": "魔音灌脑",
+          "description": "修炼魔音之术",
+          "contribution": 30,
+          "exp_reward": 150,
+          "daily": true,
+          "min_contribution": 0
+        },
+        {
+          "id": "hehuan_q2",
+          "name": "红尘历练",
+          "description": "入红尘历练心境",
+          "contribution": 40,
+          "exp_reward": 200,
+          "daily": true,
+          "min_contribution": 40
+        },
+        {
+          "id": "hehuan_q3",
+          "name": "采补修炼",
+          "description": "采补天地灵气",
+          "contribution": 60,
+          "exp_reward": 250,
+          "daily": true,
+          "min_contribution": 100
+        }
       ]
     }
   ]

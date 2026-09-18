@@ -9,7 +9,6 @@
       "AI 剧情为可选增强：AI不可用时使用静态 narrative 字段"
     ]
   },
-
   "global": {
     "daily_challenge_limit": 3,
     "cooldown_seconds": 1800,
@@ -23,12 +22,29 @@
       "one_star_hp_ratio": 0.01
     },
     "difficulty_multipliers": {
-      "normal":    { "hp": 1.0,  "atk": 1.0,  "exp": 1.0,  "spirit_stones": 1.0, "drop_rate": 1.0 },
-      "hard":      { "hp": 1.6,  "atk": 1.4,  "exp": 1.8,  "spirit_stones": 1.6, "drop_rate": 1.5 },
-      "nightmare": { "hp": 2.5,  "atk": 2.0,  "exp": 3.0,  "spirit_stones": 2.5, "drop_rate": 2.2 }
+      "normal": {
+        "hp": 1,
+        "atk": 1,
+        "exp": 1,
+        "spirit_stones": 1,
+        "drop_rate": 1
+      },
+      "hard": {
+        "hp": 1.6,
+        "atk": 1.4,
+        "exp": 1.8,
+        "spirit_stones": 1.6,
+        "drop_rate": 1.5
+      },
+      "nightmare": {
+        "hp": 2.5,
+        "atk": 2,
+        "exp": 3,
+        "spirit_stones": 2.5,
+        "drop_rate": 2.2
+      }
     }
   },
-
   "chapters": [
     {
       "id": "ch1",
@@ -43,7 +59,10 @@
         "hp": 800,
         "attack": 80,
         "defense": 30,
-        "skills": ["毒雾喷吐", "利爪突袭"]
+        "skills": [
+          "毒雾喷吐",
+          "利爪突袭"
+        ]
       },
       "nodes": [
         {
@@ -65,7 +84,10 @@
             "attack": 30,
             "defense": 10
           },
-          "rewards": { "exp": 100, "spirit_stones": 20 },
+          "rewards": {
+            "exp": 100,
+            "spirit_stones": 20
+          },
           "next_node": "ch1_node3"
         },
         {
@@ -79,7 +101,16 @@
               "text": "左侧幽暗洞窟（灵气浓郁）",
               "result_text": "洞中藏有一株百年灵药『黄精』，却被毒蛛守护，激战得手，但损失部分HP。",
               "hp_cost_ratio": 0.15,
-              "rewards": { "exp": 50, "spirit_stones": 10, "items": [{ "item_key": "huang_jing", "quantity": 1 }] },
+              "rewards": {
+                "exp": 50,
+                "spirit_stones": 10,
+                "items": [
+                  {
+                    "item_key": "huang_jing",
+                    "quantity": 1
+                  }
+                ]
+              },
               "next_node": "ch1_node4"
             },
             {
@@ -87,7 +118,10 @@
               "text": "中央石板古道（看似安全）",
               "result_text": "苔藓下暗藏机关，触发陷阱损失HP，但发现前人遗留的灵石。",
               "hp_cost_ratio": 0.2,
-              "rewards": { "exp": 30, "spirit_stones": 50 },
+              "rewards": {
+                "exp": 30,
+                "spirit_stones": 50
+              },
               "next_node": "ch1_node4"
             },
             {
@@ -95,7 +129,9 @@
               "text": "右侧溪流小径（水声潺潺）",
               "result_text": "溪水滋养灵脉，途中静坐调息，恢复HP，并获得少量修为。",
               "hp_recover_ratio": 0.2,
-              "rewards": { "exp": 80 },
+              "rewards": {
+                "exp": 80
+              },
               "next_node": "ch1_node4"
             }
           ]
@@ -109,8 +145,22 @@
             "exp": 150,
             "spirit_stones": 80,
             "items": [
-              { "item_key": "qi_condensation_pill", "quantity": 2 },
-              { "item_key": "low_grade_spirit_stone", "quantity": 5 }
+              {
+                "item_key": "qi_condensation_pill",
+                "quantity": 2
+              },
+              {
+                "item_key": "low_grade_spirit_stone",
+                "quantity": 5
+              },
+              {
+                "item_key": "dao_book_qi",
+                "quantity": 1
+              },
+              {
+                "item_key": "peiyuan_dan",
+                "quantity": 1
+              }
             ]
           },
           "next_node": "ch1_node5"
@@ -125,8 +175,22 @@
             "exp": 500,
             "spirit_stones": 200,
             "items": [
-              { "item_key": "dungeon_token_ch1", "quantity": 1 },
-              { "item_key": "monster_core_low", "quantity": 2 }
+              {
+                "item_key": "dungeon_token_ch1",
+                "quantity": 1
+              },
+              {
+                "item_key": "monster_core_low",
+                "quantity": 2
+              },
+              {
+                "item_key": "juling_pei",
+                "quantity": 1
+              },
+              {
+                "item_key": "ningfu_guo",
+                "quantity": 3
+              }
             ]
           },
           "victory_text": "魔兽倒下，化为黑烟散去。它的巢穴中竟然真的藏有上古修士的传承玉简！",
@@ -134,7 +198,6 @@
         }
       ]
     },
-
     {
       "id": "ch2",
       "name": "血色禁地",
@@ -148,7 +211,11 @@
         "hp": 2500,
         "attack": 180,
         "defense": 80,
-        "skills": ["血蛛丝", "剧毒喷射", "幻影分身"]
+        "skills": [
+          "血蛛丝",
+          "剧毒喷射",
+          "幻影分身"
+        ]
       },
       "nodes": [
         {
@@ -170,7 +237,10 @@
             "attack": 90,
             "defense": 40
           },
-          "rewards": { "exp": 250, "spirit_stones": 60 },
+          "rewards": {
+            "exp": 250,
+            "spirit_stones": 60
+          },
           "next_node": "ch2_node3"
         },
         {
@@ -188,8 +258,14 @@
                 "exp": 400,
                 "spirit_stones": 100,
                 "items": [
-                  { "item_key": "blood_ginseng", "quantity": 1 },
-                  { "item_key": "vermilion_fruit", "quantity": 1 }
+                  {
+                    "item_key": "blood_ginseng",
+                    "quantity": 1
+                  },
+                  {
+                    "item_key": "vermilion_fruit",
+                    "quantity": 1
+                  }
                 ]
               },
               "next_node": "ch2_node4"
@@ -202,7 +278,12 @@
               "rewards": {
                 "exp": 200,
                 "spirit_stones": 150,
-                "items": [{ "item_key": "foundation_pill", "quantity": 1 }]
+                "items": [
+                  {
+                    "item_key": "foundation_pill",
+                    "quantity": 1
+                  }
+                ]
               },
               "next_node": "ch2_node4"
             }
@@ -219,7 +300,10 @@
             "attack": 130,
             "defense": 50
           },
-          "rewards": { "exp": 350, "spirit_stones": 80 },
+          "rewards": {
+            "exp": 350,
+            "spirit_stones": 80
+          },
           "next_node": "ch2_node5"
         },
         {
@@ -231,8 +315,22 @@
             "exp": 400,
             "spirit_stones": 200,
             "items": [
-              { "item_key": "ancient_sword_fragment", "quantity": 1 },
-              { "item_key": "qi_condensation_pill", "quantity": 5 }
+              {
+                "item_key": "ancient_sword_fragment",
+                "quantity": 1
+              },
+              {
+                "item_key": "qi_condensation_pill",
+                "quantity": 5
+              },
+              {
+                "item_key": "xishui_dan",
+                "quantity": 1
+              },
+              {
+                "item_key": "dabuxue_dan",
+                "quantity": 2
+              }
             ]
           },
           "next_node": "ch2_node6"
@@ -247,9 +345,26 @@
             "exp": 1500,
             "spirit_stones": 600,
             "items": [
-              { "item_key": "dungeon_token_ch2", "quantity": 1 },
-              { "item_key": "blood_silk_silk", "quantity": 3 },
-              { "item_key": "monster_core_mid", "quantity": 2 }
+              {
+                "item_key": "dungeon_token_ch2",
+                "quantity": 1
+              },
+              {
+                "item_key": "blood_silk_silk",
+                "quantity": 3
+              },
+              {
+                "item_key": "monster_core_mid",
+                "quantity": 2
+              },
+              {
+                "item_key": "qinglian_sword",
+                "quantity": 1
+              },
+              {
+                "item_key": "xuantian_jing",
+                "quantity": 1
+              }
             ]
           },
           "victory_text": "血蛛老祖发出凄厉嘶鸣，庞大的身躯轰然倒塌。它的内丹悬浮半空，散发出惊人灵气——这便是禁地的最大机缘！",
@@ -257,7 +372,6 @@
         }
       ]
     },
-
     {
       "id": "ch3",
       "name": "上古洞府",
@@ -271,7 +385,11 @@
         "hp": 8000,
         "attack": 400,
         "defense": 200,
-        "skills": ["金甲护体", "破空剑斩", "雷火符阵"]
+        "skills": [
+          "金甲护体",
+          "破空剑斩",
+          "雷火符阵"
+        ]
       },
       "nodes": [
         {
@@ -293,7 +411,9 @@
               "text": "『为求长生』",
               "result_text": "老者摇头：『执念长生，终成虚妄。』你被罚站一刻钟，损失少量HP，但获得『道心稳固』buff。",
               "hp_cost_ratio": 0.1,
-              "rewards": { "exp": 300 },
+              "rewards": {
+                "exp": 300
+              },
               "next_node": "ch3_node3"
             },
             {
@@ -303,7 +423,12 @@
               "hp_cost_ratio": 0,
               "rewards": {
                 "exp": 500,
-                "items": [{ "item_key": "xuanji_pill", "quantity": 1 }]
+                "items": [
+                  {
+                    "item_key": "xuanji_pill",
+                    "quantity": 1
+                  }
+                ]
               },
               "next_node": "ch3_node3"
             },
@@ -331,7 +456,10 @@
             "attack": 250,
             "defense": 150
           },
-          "rewards": { "exp": 800, "spirit_stones": 200 },
+          "rewards": {
+            "exp": 800,
+            "spirit_stones": 200
+          },
           "next_node": "ch3_node4"
         },
         {
@@ -348,7 +476,12 @@
               "rewards": {
                 "exp": 1200,
                 "spirit_stones": 300,
-                "items": [{ "item_key": "monster_core_high", "quantity": 2 }]
+                "items": [
+                  {
+                    "item_key": "monster_core_high",
+                    "quantity": 2
+                  }
+                ]
               },
               "next_node": "ch3_node5"
             },
@@ -360,7 +493,12 @@
               "mp_cost_ratio": 0.5,
               "rewards": {
                 "exp": 1500,
-                "items": [{ "item_key": "ancient_inheritance_jade", "quantity": 1 }]
+                "items": [
+                  {
+                    "item_key": "ancient_inheritance_jade",
+                    "quantity": 1
+                  }
+                ]
               },
               "next_node": "ch3_node5"
             },
@@ -371,7 +509,12 @@
               "hp_recover_ratio": 0.3,
               "rewards": {
                 "exp": 1000,
-                "items": [{ "item_key": "spirit_beast_blood", "quantity": 1 }]
+                "items": [
+                  {
+                    "item_key": "spirit_beast_blood",
+                    "quantity": 1
+                  }
+                ]
               },
               "next_node": "ch3_node5"
             }
@@ -386,8 +529,22 @@
             "exp": 2000,
             "spirit_stones": 500,
             "items": [
-              { "item_key": "inheritance_pearl", "quantity": 1 },
-              { "item_key": "foundation_pill", "quantity": 3 }
+              {
+                "item_key": "inheritance_pearl",
+                "quantity": 1
+              },
+              {
+                "item_key": "foundation_pill",
+                "quantity": 3
+              },
+              {
+                "item_key": "cuijin_dai",
+                "quantity": 1
+              },
+              {
+                "item_key": "wuhun_qi",
+                "quantity": 1
+              }
             ]
           },
           "next_node": "ch3_node6"
@@ -403,7 +560,10 @@
             "attack": 350,
             "defense": 280
           },
-          "rewards": { "exp": 1200, "spirit_stones": 300 },
+          "rewards": {
+            "exp": 1200,
+            "spirit_stones": 300
+          },
           "next_node": "ch3_node7"
         },
         {
@@ -416,9 +576,30 @@
             "exp": 5000,
             "spirit_stones": 2000,
             "items": [
-              { "item_key": "dungeon_token_ch3", "quantity": 1 },
-              { "item_key": "core_formation_pill", "quantity": 2 },
-              { "item_key": "ancient_sword_fragment", "quantity": 2 }
+              {
+                "item_key": "dungeon_token_ch3",
+                "quantity": 1
+              },
+              {
+                "item_key": "core_formation_pill",
+                "quantity": 2
+              },
+              {
+                "item_key": "ancient_sword_fragment",
+                "quantity": 2
+              },
+              {
+                "item_key": "zixiao_sword",
+                "quantity": 1
+              },
+              {
+                "item_key": "yinyang_jing",
+                "quantity": 1
+              },
+              {
+                "item_key": "dao_book_zhu",
+                "quantity": 1
+              }
             ]
           },
           "victory_text": "金甲武将化为光点消散，临去前留下一句：『主公传承，就交予你了...』洞府深处金光大盛，一枚金色玉简缓缓飞来——这便是上古大能的全部传承！",
@@ -426,7 +607,6 @@
         }
       ]
     },
-
     {
       "id": "ch4",
       "name": "乱星海魔灾",
@@ -440,7 +620,12 @@
         "hp": 25000,
         "attack": 1200,
         "defense": 500,
-        "skills": ["血煞大阵", "噬魂魔功", "万魂幡", "血遁术"]
+        "skills": [
+          "血煞大阵",
+          "噬魂魔功",
+          "万魂幡",
+          "血遁术"
+        ]
       },
       "nodes": [
         {
@@ -462,7 +647,10 @@
             "attack": 700,
             "defense": 300
           },
-          "rewards": { "exp": 2000, "spirit_stones": 500 },
+          "rewards": {
+            "exp": 2000,
+            "spirit_stones": 500
+          },
           "next_node": "ch4_node3"
         },
         {
@@ -480,8 +668,14 @@
               "rewards": {
                 "exp": 3000,
                 "items": [
-                  { "item_key": "nine_turn_soul_pill_fragment", "quantity": 1 },
-                  { "item_key": "magic_breaking_talisman", "quantity": 1 }
+                  {
+                    "item_key": "nine_turn_soul_pill_fragment",
+                    "quantity": 1
+                  },
+                  {
+                    "item_key": "magic_breaking_talisman",
+                    "quantity": 1
+                  }
                 ]
               },
               "next_node": "ch4_node4"
@@ -510,7 +704,10 @@
             "attack": 1000,
             "defense": 500
           },
-          "rewards": { "exp": 3500, "spirit_stones": 800 },
+          "rewards": {
+            "exp": 3500,
+            "spirit_stones": 800
+          },
           "next_node": "ch4_node5"
         },
         {
@@ -527,7 +724,12 @@
               "mp_cost_ratio": 0.3,
               "rewards": {
                 "exp": 5000,
-                "items": [{ "item_key": "dao_heart_crystal", "quantity": 1 }]
+                "items": [
+                  {
+                    "item_key": "dao_heart_crystal",
+                    "quantity": 1
+                  }
+                ]
               },
               "next_node": "ch4_node6"
             },
@@ -540,7 +742,12 @@
               "rewards": {
                 "exp": 6000,
                 "spirit_stones": 1000,
-                "items": [{ "item_key": "demon_blood_essence", "quantity": 1 }]
+                "items": [
+                  {
+                    "item_key": "demon_blood_essence",
+                    "quantity": 1
+                  }
+                ]
               },
               "next_node": "ch4_node6"
             }
@@ -555,8 +762,22 @@
             "exp": 4000,
             "spirit_stones": 2000,
             "items": [
-              { "item_key": "demon_sealing_talisman", "quantity": 2 },
-              { "item_key": "magic_breaking_talisman", "quantity": 1 }
+              {
+                "item_key": "demon_sealing_talisman",
+                "quantity": 2
+              },
+              {
+                "item_key": "magic_breaking_talisman",
+                "quantity": 1
+              },
+              {
+                "item_key": "lijin_dan",
+                "quantity": 1
+              },
+              {
+                "item_key": "huangu_dan",
+                "quantity": 1
+              }
             ]
           },
           "next_node": "ch4_node7"
@@ -571,9 +792,30 @@
             "exp": 15000,
             "spirit_stones": 6000,
             "items": [
-              { "item_key": "dungeon_token_ch4", "quantity": 1 },
-              { "item_key": "nascent_soul_pill", "quantity": 1 },
-              { "item_key": "blood_soul_crystal", "quantity": 3 }
+              {
+                "item_key": "dungeon_token_ch4",
+                "quantity": 1
+              },
+              {
+                "item_key": "nascent_soul_pill",
+                "quantity": 1
+              },
+              {
+                "item_key": "blood_soul_crystal",
+                "quantity": 3
+              },
+              {
+                "item_key": "leyue_jian",
+                "quantity": 1
+              },
+              {
+                "item_key": "kunquan",
+                "quantity": 1
+              },
+              {
+                "item_key": "dao_book_jin",
+                "quantity": 1
+              }
             ]
           },
           "victory_text": "血煞魔尊惨叫一声，肉身炸裂，元婴欲逃却被你一剑斩灭。万魂幡中的冤魂得以解脱，向你深深一拜后散去。修仙联盟长老赶到，将一枚『平魔印』交予你手——此战，你名震修仙界！",
@@ -581,7 +823,6 @@
         }
       ]
     },
-
     {
       "id": "ch5",
       "name": "天劫渡劫",
@@ -595,7 +836,12 @@
         "hp": 100000,
         "attack": 4000,
         "defense": 1500,
-        "skills": ["九霄神雷", "灭世劫火", "时空裂痕", "天道压制"]
+        "skills": [
+          "九霄神雷",
+          "灭世劫火",
+          "时空裂痕",
+          "天道压制"
+        ]
       },
       "nodes": [
         {
@@ -617,7 +863,10 @@
             "attack": 2500,
             "defense": 1000
           },
-          "rewards": { "exp": 10000, "spirit_stones": 3000 },
+          "rewards": {
+            "exp": 10000,
+            "spirit_stones": 3000
+          },
           "next_node": "ch5_node3"
         },
         {
@@ -634,7 +883,12 @@
               "hp_max_bonus_ratio": 0.2,
               "rewards": {
                 "exp": 15000,
-                "items": [{ "item_key": "thunder_essence", "quantity": 2 }]
+                "items": [
+                  {
+                    "item_key": "thunder_essence",
+                    "quantity": 2
+                  }
+                ]
               },
               "next_node": "ch5_node4"
             },
@@ -662,7 +916,10 @@
             "attack": 3500,
             "defense": 1200
           },
-          "rewards": { "exp": 20000, "spirit_stones": 5000 },
+          "rewards": {
+            "exp": 20000,
+            "spirit_stones": 5000
+          },
           "next_node": "ch5_node5"
         },
         {
@@ -679,8 +936,14 @@
               "rewards": {
                 "exp": 25000,
                 "items": [
-                  { "item_key": "ancient_thunder_essence", "quantity": 1 },
-                  { "item_key": "void_crystal", "quantity": 2 }
+                  {
+                    "item_key": "ancient_thunder_essence",
+                    "quantity": 1
+                  },
+                  {
+                    "item_key": "void_crystal",
+                    "quantity": 2
+                  }
                 ]
               },
               "next_node": "ch5_node6"
@@ -707,8 +970,22 @@
             "exp": 30000,
             "spirit_stones": 8000,
             "items": [
-              { "item_key": "heaven_dao_jade_liquid", "quantity": 1 },
-              { "item_key": "thunder_essence", "quantity": 3 }
+              {
+                "item_key": "heaven_dao_jade_liquid",
+                "quantity": 1
+              },
+              {
+                "item_key": "thunder_essence",
+                "quantity": 3
+              },
+              {
+                "item_key": "mingqi_dan",
+                "quantity": 1
+              },
+              {
+                "item_key": "tianshu_dan",
+                "quantity": 1
+              }
             ]
           },
           "next_node": "ch5_node7"
@@ -723,10 +1000,34 @@
             "exp": 80000,
             "spirit_stones": 30000,
             "items": [
-              { "item_key": "dungeon_token_ch5", "quantity": 1 },
-              { "item_key": "heaven_dao_jade_liquid", "quantity": 2 },
-              { "item_key": "void_crystal", "quantity": 5 },
-              { "item_key": "ancient_thunder_essence", "quantity": 2 }
+              {
+                "item_key": "dungeon_token_ch5",
+                "quantity": 1
+              },
+              {
+                "item_key": "heaven_dao_jade_liquid",
+                "quantity": 2
+              },
+              {
+                "item_key": "void_crystal",
+                "quantity": 5
+              },
+              {
+                "item_key": "ancient_thunder_essence",
+                "quantity": 2
+              },
+              {
+                "item_key": "huntian_jian",
+                "quantity": 1
+              },
+              {
+                "item_key": "wuhuo_shanyan_shan",
+                "quantity": 1
+              },
+              {
+                "item_key": "dao_book_yuan",
+                "quantity": 1
+              }
             ]
           },
           "victory_text": "劫魔在最后一击中化为漫天金光散去，你的元神得到空前淬炼。劫云散尽，金光照耀四方，你的修为突破了！这一刻，你终于踏入了更高的境界，俯瞰芸芸众生，仙途无量！",

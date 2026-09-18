@@ -56,5 +56,316 @@
       "hp_max": 1000,
       "cultivate_speed_pct": 10
     }
+  },
+  {
+    "id": "qi_master",
+    "name": "炼气宗师",
+    "quality": "uncommon",
+    "description": "将炼气之术臻于化境。",
+    "condition": "修为踏入筑基期",
+    "bonuses": {
+      "mp_max_pct": 10
+    }
+  },
+  {
+    "id": "foundation_taoist",
+    "name": "筑基道人",
+    "quality": "rare",
+    "description": "根基已固，仙路初成。",
+    "condition": "成就筑基大圆满",
+    "bonuses": {
+      "hp_max_pct": 12,
+      "cultivate_speed_pct": 8
+    }
+  },
+  {
+    "id": "golden_core_venerable",
+    "name": "金丹真人",
+    "quality": "epic",
+    "description": "一粒金丹吞入腹，始知我命不由天。",
+    "condition": "凝练金丹",
+    "bonuses": {
+      "atk_pct": 10,
+      "sense_pct": 10
+    }
+  },
+  {
+    "id": "nascent_patriarch",
+    "name": "元婴老祖",
+    "quality": "legendary",
+    "description": "婴成出窍，寿与天齐。",
+    "condition": "成就元婴期",
+    "bonuses": {
+      "atk_pct": 12,
+      "def_pct": 12,
+      "hp_max_pct": 12
+    }
+  },
+  {
+    "id": "spirit_sovereign",
+    "name": "化神真君",
+    "quality": "legendary",
+    "description": "法相天地，神游八极。",
+    "condition": "踏入化神期",
+    "bonuses": {
+      "sense_pct": 18,
+      "cultivate_speed_pct": 15
+    }
+  },
+  {
+    "id": "void_immortal",
+    "name": "炼虚仙尊",
+    "quality": "mythic",
+    "description": "炼神返虚，与道合真。",
+    "condition": "踏入炼虚期",
+    "bonuses": {
+      "atk_pct": 15,
+      "def_pct": 15,
+      "hp_max_pct": 15
+    }
+  },
+  {
+    "id": "slayer_king",
+    "name": "杀伐之主",
+    "quality": "epic",
+    "description": "尸山血海中走出的杀伐大能。",
+    "condition": "击杀5000个敌人",
+    "bonuses": {
+      "atk_pct": 15
+    }
+  },
+  {
+    "id": "million_slayer",
+    "name": "万人敌",
+    "quality": "legendary",
+    "description": "一夫当关，万夫莫开。",
+    "condition": "击杀10000个敌人",
+    "bonuses": {
+      "atk": 400,
+      "def": 200,
+      "speed": 30
+    }
+  },
+  {
+    "id": "reclusive_adept",
+    "name": "苦修尊者",
+    "quality": "epic",
+    "description": "枯坐寒暑，道心不迁。",
+    "condition": "完成5000次闭关修炼",
+    "bonuses": {
+      "cultivate_speed_pct": 18
+    }
+  },
+  {
+    "id": "grand_alchemist",
+    "name": "丹道宗师",
+    "quality": "legendary",
+    "description": "炉火纯青，点化灵药。",
+    "condition": "炼丹技艺臻至化境",
+    "bonuses": {
+      "sense": 150,
+      "luck": 8
+    }
+  },
+  {
+    "id": "tycoon",
+    "name": "富甲一方",
+    "quality": "rare",
+    "description": "灵石广进，家财万贯。",
+    "condition": "累计获得100万灵石",
+    "bonuses": {
+      "luck_pct": 10
+    }
+  },
+  {
+    "id": "roamer",
+    "name": "云游四海",
+    "quality": "epic",
+    "description": "踏遍青山人未老。",
+    "condition": "探索100处秘境",
+    "bonuses": {
+      "speed_pct": 12,
+      "sense_pct": 8
+    }
+  },
+  {
+    "id": "heaven_favored",
+    "name": "天道眷顾",
+    "quality": "mythic",
+    "description": "气运加身，福缘深厚。",
+    "condition": "幸运资质冠绝同侪",
+    "bonuses": {
+      "luck": 30,
+      "cultivate_speed_pct": 10
+    }
+  },
+  {
+    "id": "body_integration_zen",
+    "name": "合体尊者",
+    "quality": "mythic",
+    "description": "元神与肉身合一，威压一方天地。",
+    "condition": "踏入合体期",
+    "bonuses": {
+      "atk_pct": 18,
+      "def_pct": 18,
+      "hp_max_pct": 18
+    }
+  },
+  {
+    "id": "great_vehicle_ancestor",
+    "name": "大乘道祖",
+    "quality": "mythic",
+    "description": "法力通天，只待渡劫飞升。",
+    "condition": "踏入大乘期",
+    "bonuses": {
+      "atk_pct": 22,
+      "sense_pct": 22,
+      "cultivate_speed_pct": 15
+    }
+  },
+  {
+    "id": "tribulation_survivor",
+    "name": "渡劫尊者",
+    "quality": "mythic",
+    "description": "九天雷劫加身而不灭，半只脚踏入仙班。",
+    "condition": "踏入渡劫期",
+    "bonuses": {
+      "atk_pct": 25,
+      "def_pct": 25,
+      "hp_max_pct": 25,
+      "luck": 20
+    }
+  },
+  {
+    "id": "true_immortal_title",
+    "name": "真仙之尊",
+    "quality": "mythic",
+    "description": "飞升成真，与天地同寿，为万灵之表。",
+    "condition": "成就真仙",
+    "bonuses": {
+      "atk_pct": 30,
+      "def_pct": 30,
+      "hp_max_pct": 30,
+      "sense_pct": 30
+    }
+  },
+  {
+    "id": "alchemy_grandmaster",
+    "name": "丹道至尊",
+    "quality": "mythic",
+    "description": "点石成药、夺天地造化的一代丹尊。",
+    "condition": "丹道一途登峰造极",
+    "bonuses": {
+      "sense_pct": 20,
+      "luck_pct": 15
+    }
+  },
+  {
+    "id": "refining_sage",
+    "name": "炼器圣人",
+    "quality": "mythic",
+    "description": "炉火纯青，祭炼之宝可镇一方。",
+    "condition": "炼器一途登峰造极",
+    "bonuses": {
+      "atk_pct": 10,
+      "def_pct": 20
+    }
+  },
+  {
+    "id": "sword_heart",
+    "name": "剑心通明",
+    "quality": "legendary",
+    "description": "心中唯剑，剑光所指莫敢撄锋。",
+    "condition": "以剑证道",
+    "bonuses": {
+      "atk_pct": 20,
+      "speed_pct": 10
+    }
+  },
+  {
+    "id": "demonic_overlord",
+    "name": "魔道巨擘",
+    "quality": "legendary",
+    "description": "堕入魔道亦不改其志，凶名慑世。",
+    "condition": "魔功大成",
+    "bonuses": {
+      "atk_pct": 25,
+      "hp_max_pct": 10
+    }
+  },
+  {
+    "id": "righteous_path",
+    "name": "浩然正气",
+    "quality": "epic",
+    "description": "一身正气，群邪不侵。",
+    "condition": "持身极正、诛邪卫道",
+    "bonuses": {
+      "def_pct": 15,
+      "sense_pct": 10
+    }
+  },
+  {
+    "id": "lone_cultivator",
+    "name": "独步天下",
+    "quality": "legendary",
+    "description": "形单影只却打遍同阶无敌手。",
+    "condition": "以散修之身登顶斗法",
+    "bonuses": {
+      "atk_pct": 15,
+      "speed_pct": 15
+    }
+  },
+  {
+    "id": "gathering_master",
+    "name": "搜山探海",
+    "quality": "epic",
+    "description": "名山大川灵材尽入我手。",
+    "condition": "采集无数天材地宝",
+    "bonuses": {
+      "luck_pct": 18
+    }
+  },
+  {
+    "id": "beast_tamer",
+    "name": "驭兽宗师",
+    "quality": "epic",
+    "description": "万兽俯首，与灵兽心意相通。",
+    "condition": "御使灵兽登峰造极",
+    "bonuses": {
+      "hp_max_pct": 12,
+      "sense_pct": 10
+    }
+  },
+  {
+    "id": "seclusion_10k",
+    "name": "万念归一",
+    "quality": "mythic",
+    "description": "闭关万载、一念不生，道心坚如金石。",
+    "condition": "完成10000次闭关",
+    "bonuses": {
+      "cultivate_speed_pct": 25
+    }
+  },
+  {
+    "id": "wealth_nation",
+    "name": "富可敌国",
+    "quality": "epic",
+    "description": "灵石如山，气运所钟。",
+    "condition": "坐拥巨额财富",
+    "bonuses": {
+      "luck_pct": 20
+    }
+  },
+  {
+    "id": "thousand_battle",
+    "name": "身经千战",
+    "quality": "legendary",
+    "description": "百战不殆，杀伐果断。",
+    "condition": "在斗法中百战百胜",
+    "bonuses": {
+      "atk_pct": 12,
+      "def_pct": 12,
+      "speed_pct": 8
+    }
   }
 ]

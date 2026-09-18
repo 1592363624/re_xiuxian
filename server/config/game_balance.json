@@ -227,14 +227,16 @@
       "armor",
       "accessory",
       "boots",
-      "dharma"
+      "dharma",
+      "fabao"
     ],
     "slot_names": {
       "weapon": "武器",
       "armor": "护甲",
       "accessory": "饰品",
       "boots": "靴子",
-      "dharma": "法器"
+      "dharma": "法器",
+      "fabao": "法宝"
     },
     "durability": {
       "comment": "耐久度配置：装备初始最大耐久、战斗损耗、死亡损耗、破碎阈值",
