@@ -11,13 +11,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30  # 超时保护（含服务器本地构建时间）
     steps:
-      # 仅做一件事：SSH 到服务器执行 deploy.ps1
-      # 所有构建（前端 build、后端 npm install）都在 Windows 服务器本地完成
-      # 优势：
-      #   1. CI 耗时从 5 分钟降到 30 秒（只触发，不构建）
-      #   2. 避免跨平台构建问题（Ubuntu build -> Windows run）
-      #   3. 网络占用极低（git pull 增量传输）
-      #   4. 回滚简单（git reset --hard HEAD~1 即可）
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 为什么不直接在 workflow 里写一行 PowerShell（v2 的老做法）：
+      #   Windows OpenSSH 默认 shell 是 cmd.exe，多行脚本会被拆成多条命令执行，
+      #   只能压成一行，结果就是引号/转义地狱，日志里也没法读、没法调试。
+      # 现在的做法：
+      #   1. 真正的逻辑写在 scripts/deploy-bootstrap.ps1（可读、可本地测试、可行级注释）
+      #   2. 这里把它转成 UTF-16LE 再 base64，交给 powershell -EncodedCommand
+      #   3. base64 只含字母数字和 +/=，过 cmd.exe 完全不会被改写，也不需要引号
+      # 引导脚本来自本次 checkout（不是服务器上的旧副本），所以即使服务器上的
+      # deploy.ps1 已经坏了，下次 push 依然能拉到最新的引导逻辑并自愈。
+      # 约束：deploy-bootstrap.ps1 必须保持纯 ASCII 且足够短 —— cmd.exe 命令行上限 8191 字符。
+      - name: Encode bootstrap script
+        id: enc
+        run: |
+          set -euo pipefail
+          # .gitattributes forces CRLF for *.ps1 even on the Linux runner; CR is pure
+          # payload waste here (PowerShell accepts LF), and UTF-16LE doubles every byte.
+          b64=$(tr -d '\r' < scripts/deploy-bootstrap.ps1 | iconv -f UTF-8 -t UTF-16LE | base64 -w0)
+          if [ ${#b64} -gt 7000 ]; then
+            echo "::error::encoded bootstrap is ${#b64} chars (cmd.exe limit is 8191) - shorten scripts/deploy-bootstrap.ps1"
+            exit 1
+          fi
+          echo "b64=$b64" >> "$GITHUB_OUTPUT"
+          echo "encoded bootstrap: ${#b64} chars"
+
+      # 所有构建（前端 build、后端 npm install）都在 Windows 服务器本地完成：
+      #   CI 只做触发，耗时从 5 分钟降到 30 秒；避免 Ubuntu build -> Windows run 的跨平台问题；
+      #   git 增量拉取网络占用低；回滚只需 git reset --hard HEAD~1
+      # script_stop=true 保证脚本失败时 Action 报红（默认 false 会假绿）
       - name: Trigger Server-Side Deployment
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -25,37 +49,9 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           port: 22
-          # 关键：script_stop=true 确保脚本失败时 Action 报红色（默认 false 会假绿）
           script_stop: true
-          # debug=true 输出完整 SSH 会话日志（排查问题用）
-          debug: true
-          # SSH 命令超时设置（避免长时间构建被截断）
+          # 输出已全部改成 UTF-8 英文，不再需要 debug 转储（debug=true 会把整段 base64 打进日志）
+          debug: false
           timeout: 60s           # TCP 连接超时
           command_timeout: 30m   # 命令执行超时（含 npm install + build + 健康检查）
-          # 部署流程（自更新版 v2 - 修复 stderr NativeCommandError）：
-          # workflow 自己先拉最新代码（带重试+镜像），确保 deploy.ps1 是最新版，再执行它
-          # 这样 deploy.ps1 有 bug 时，下次 push 后 workflow 会先拉到新版 deploy.ps1 再执行
-          # 彻底消除"deploy.ps1 有 bug 需要手动到服务器拉代码"的痛点
-          #
-          # 为什么必须用 PowerShell 而不是 cmd:
-          #   1. git 不在 cmd 的 PATH 里（drone-ssh 走 cmd.exe 时 PATH 不完整）
-          #   2. cmd /c "a && b" 的 & 是 special char，引号被剥离，&& 被拆成多行执行（假绿）
-          #
-          # 关键修复（v1 失败根因）:
-          #   v1 用 $ErrorActionPreference='Stop'，导致 git fetch 写到 stderr 的进度信息
-          #   被 PowerShell 当成 NativeCommandError 终止错误，脚本异常中止。
-          #   git 把 fetch 进度写到 stderr 是正常行为（不是错误），不能用 Stop 偏好。
-          #   v2 改用 'Continue' + 显式 $LASTEXITCODE 检查 + & git ... 2>&1 捕获输出。
-          #
-          # 失败传播：
-          #   - $ErrorActionPreference='Continue' 让 stderr 不再触发终止
-          #   - 每个外部命令后显式检查 $LASTEXITCODE，非 0 则 exit 1
-          #   - Set-Location 后用 Test-Path '.git' 显式验证（替代 Stop 抛异常）
-          #
-          # 部署流程：
-          # 1. Set-Location + 验证 .git 存在
-          # 2. git fetch（带重试+镜像兜底，最多 6 次尝试）拉取最新代码
-          # 3. git reset --hard origin/main 同步代码（包括最新的 deploy.ps1）
-          # 4. 执行 deploy.ps1（内部会再次 fetch，幂等无害；然后做 npm/build/pm2/健康检查）
-          script: |
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Continue'; Set-Location 'C:\Users\Administrator\Desktop\re_xiuxian'; if(-not(Test-Path '.git')){Write-Host '[FATAL] Not a git repo';exit 1}; Write-Host '[INFO] PWD:'(Get-Location); $env:GIT_TERMINAL_PROMPT=0; $o=git remote get-url origin; if(-not $o){Write-Host '[FATAL] No git remote';exit 1}; $m=@('https://github.com','https://ghfast.top/https://github.com','https://ghproxy.net/https://github.com'); $f=$false; foreach($x in $m){ $u=$o -replace 'https://github\.com',$x; if($u -eq $o -and $x -ne 'https://github.com'){continue}; Write-Host '[TRY] Fetch via:'$x; for($i=1;$i -le 2;$i++){ try{ if($x -ne 'https://github.com'){git remote set-url origin $u 2>$null}; $output=& git fetch --all --prune 2>&1; $output|ForEach-Object{Write-Host $_}; if($x -ne 'https://github.com'){git remote set-url origin $o 2>$null}; if($LASTEXITCODE -eq 0){$f=$true;break} }catch{Write-Host '[WARN] Exception:'$($_.Exception.Message)}; if($i -lt 2){Write-Host '[WARN] Fetch attempt '$i' failed, retry in 5s';Start-Sleep -Seconds 5} }; if($f){break} }; if(-not $f){Write-Host '[FATAL] All fetch attempts failed';exit 1}; git reset --hard origin/main 2>&1|ForEach-Object{Write-Host $_}; if($LASTEXITCODE -ne 0){Write-Host '[FATAL] git reset failed';exit 1}; Write-Host '[INFO] HEAD:'(git rev-parse --short HEAD); & '.\scripts\deploy.ps1'; if($LASTEXITCODE -ne 0){Write-Host '[FATAL] deploy.ps1 failed';exit 1}"
+          script: "powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${{ steps.enc.outputs.b64 }}"

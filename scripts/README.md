@@ -4,8 +4,27 @@
 
 | 文件 | 用途 | 执行位置 | 触发方式 |
 |------|------|---------|---------|
-| `deploy.ps1` | 服务器端部署脚本（git pull + build + pm2 reload + 健康检查） | Windows 服务器 | GitHub Actions SSH 触发 / 手动执行 |
+| `deploy-bootstrap.ps1` | CI 引导脚本：修复 SSH 会话 PATH/编码 → 更新代码 → 调用 deploy.ps1 | Windows 服务器 | 仅 GitHub Actions（base64 后通过 `powershell -EncodedCommand` 执行） |
+| `deploy.ps1` | 服务器端部署脚本（git pull + build + pm2 restart + 健康检查） | Windows 服务器 | 由 deploy-bootstrap.ps1 调用 / 手动执行 |
 | `deploy.bat` | 手动部署触发器（调用 deploy.ps1） | Windows 服务器 | 双击运行 |
+
+## 常见故障
+
+### `[FAIL] git not on PATH`（或 deploy.ps1 报 `Tool(s) not found on PATH`）
+
+Windows 的 sshd 服务在**启动时**快照了一份环境变量，之后安装/升级的 Git、Node 不会出现在
+SSH 会话的 PATH 里（本地双击打开的终端却是好的）。deploy-bootstrap.ps1 会主动把常见安装目录
+补回 PATH，但要彻底解决，需要在服务器上把 Git/Node 加入**系统** PATH 后重启服务：
+
+```powershell
+Restart-Service sshd
+```
+
+### Actions 日志里出现乱码
+
+乱码有两个来源，都已修掉：PowerShell 按 OEM 代码页（简体中文为 936）输出、git 的 UTF-8 输出被
+错误解码。两个脚本开头统一设置 `[Console]::OutputEncoding = UTF8` 并把 CurrentUICulture 设为
+`en-US`，因此远程输出全部为 UTF-8 英文。若在服务器手动执行仍看到乱码，先执行 `chcp 65001`。
 
 ## 部署流程
 
@@ -14,8 +33,9 @@
 ```
 本地 git push origin main
   → GitHub Actions 触发
-  → SSH 到服务器执行 deploy.ps1
-  → git pull + npm install + build + pm2 reload + 健康检查
+  → SSH 到服务器执行 deploy-bootstrap.ps1（修复 PATH/编码 + 更新代码）
+  → deploy-bootstrap.ps1 调用 deploy.ps1
+  → git pull + npm install + build + pm2 restart + 健康检查
   → 完成
 ```
 

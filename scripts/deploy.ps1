@@ -14,8 +14,12 @@
     失败排查: 看 PM2 日志 pm2 logs xiuxian-server --lines 50
 #>
 
-# 强制 UTF-8 输出（仅控制台显示用，不影响脚本解析）
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+# 强制 UTF-8 输出 + 英文错误消息（仅影响显示，不影响脚本解析）
+# 不这么做的话：git 的 UTF-8 输出、PowerShell 自己的中文报错到了 Actions 日志里全是乱码
+try {
+    [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+    [Threading.Thread]::CurrentThread.CurrentUICulture = New-Object Globalization.CultureInfo('en-US')
+} catch { }
 # 关键：必须用 'Continue'，不能用 'Stop'
 # 原因: git/npm 等 native command 把进度/警告写到 stderr（不是错误），
 #        'Stop' 模式下 PowerShell 会把这些 stderr 当成 NativeCommandError 终止错误抛出，
@@ -33,6 +37,13 @@ $pm2AppName = "xiuxian-server"
 $healthCheckUrl = "http://localhost:5000/api/health"
 # ==================
 
+# 打印用的短 hash。origin/main 首次 fetch 前不存在，rev-parse 返回空，
+# 直接 .Substring(0,7) 会抛 .NET 异常终止整个脚本（老版本的隐性崩溃点）
+function Get-ShortHash([string]$hash) {
+    if ([string]::IsNullOrWhiteSpace($hash)) { return "none" }
+    return $hash.Substring(0, [Math]::Min(7, $hash.Length))
+}
+
 Set-Location $projectDir
 
 Write-Host ""
@@ -41,6 +52,21 @@ Write-Host "  XiuXian Deploy Start (v2 minimal)"
 Write-Host "  Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 Write-Host "  Dir: $projectDir"
 Write-Host "=================================================="
+
+# ========== 0. 工具链检查 ==========
+# 不先检查的话，git/npm/pm2 缺失时 PowerShell 会抛本地化（中文 + GBK）的
+# "无法将xxx项识别为 cmdlet" 错误，CI 日志里全是乱码，看不出真正缺什么。
+# CI 场景下 PATH 由 scripts/deploy-bootstrap.ps1 修复（sshd 会缓存启动时的 PATH 快照）
+$missingTools = @('git', 'node', 'npm', 'pm2') | Where-Object {
+    -not (Get-Command $_ -ErrorAction SilentlyContinue)
+}
+if ($missingTools) {
+    Write-Host "[FATAL] Tool(s) not found on PATH: $($missingTools -join ', ')"
+    Write-Host "[HINT] Install them, add to SYSTEM PATH, then run: Restart-Service sshd"
+    Write-Host "[HINT] Or run the CI bootstrap manually: powershell -ExecutionPolicy Bypass -File scripts\deploy-bootstrap.ps1"
+    Write-Host "[INFO] PATH = $env:Path"
+    exit 1
+}
 
 # ========== 1. 拉取最新代码（带重试 + 镜像兜底） ==========
 Write-Host ""
@@ -51,9 +77,8 @@ $env:GIT_TERMINAL_PROMPT = 0
 # 记录 fetch 前的 origin/main commit（用于验证 fetch 是否真的拉到新数据）
 # 为什么需要: 镜像可能返回缓存旧数据但 exit 0，导致"假成功"（v1 的根因之一）
 $preFetchCommit = git rev-parse "origin/$branch" 2>$null
-if (-not $preFetchCommit) { $preFetchCommit = "none" }
 # 注意：${branch} 必须用 {} 包裹，否则 PowerShell 把 "$branch:" 当成 drive 引用报错
-Write-Host "[INFO] Pre-fetch origin/${branch}: $($preFetchCommit.Substring(0,7))"
+Write-Host "[INFO] Pre-fetch origin/${branch}: $(Get-ShortHash $preFetchCommit)"
 
 # GitHub 镜像列表（按优先级，第一个可用的就用）
 # 为什么需要镜像: 中国服务器直连 GitHub 偶发连接重置（Recv failure: Connection was reset）
@@ -134,7 +159,7 @@ if (-not $postFetchCommit) {
     exit 1
 }
 # 注意：${branch} 必须用 {} 包裹，否则 "$branch:" 被当成 drive 引用导致语法错误
-Write-Host "[OK] Fetched via $usedMirror, origin/${branch}: $($postFetchCommit.Substring(0,7))"
+Write-Host "[OK] Fetched via $usedMirror, origin/${branch}: $(Get-ShortHash $postFetchCommit)"
 if ($preFetchCommit -eq $postFetchCommit) {
     Write-Host "[INFO] origin/${branch} unchanged (no new commits, or mirror cache hit)"
     # 不 fail：可能确实没新提交。如果是镜像缓存，下一步 reset 后 HEAD 不变也无害
