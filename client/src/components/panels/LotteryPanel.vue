@@ -8,12 +8,19 @@ import { ref, computed, onMounted } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import { getLotteryPanel, drawLottery } from '../../api/lottery'
+import { useAsyncTask } from '../../composables/useAsyncTask'
+import { formatCompact } from '../../utils/format'
+import PanelShell from '../ui/PanelShell.vue'
+import AppButton from '../ui/AppButton.vue'
+import Badge from '../ui/Badge.vue'
 
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
 
+const emit = defineEmits(['close'])
+
 const panel = ref<any>(null)
-const loading = ref(false)
+const { loading, error, run } = useAsyncTask({ fallback: '获取抽奖面板失败' })
 const busy = ref(false)
 const results = ref<any[]>([])
 const animationIdx = ref(-1)
@@ -28,18 +35,10 @@ const canSingle = computed(() => !busy.value && playerSS.value >= singleCost.val
 const canTen = computed(() => !busy.value && playerSS.value >= tenCost.value)
 
 /** 拉取面板 */
-const fetchPanel = async () => {
-  loading.value = true
-  try {
-    const res = await getLotteryPanel()
-    panel.value = res.data?.data || res.data || {}
-  } catch (err) {
-    console.error('获取抽奖面板失败:', err)
-    uiStore.showToast('获取抽奖面板失败', 'error')
-  } finally {
-    loading.value = false
-  }
-}
+const fetchPanel = () => run(async () => {
+  const res = await getLotteryPanel()
+  panel.value = res.data?.data || res.data || {}
+})
 
 const refreshResources = async () => {
   try { await playerStore.fetchPlayer() } catch (e) { /* 忽略 */ }
@@ -80,103 +79,88 @@ onMounted(fetchPanel)
 </script>
 
 <template>
-  <div class="panel-overlay panel-shell" @click.self="$emit('close')">
-    <div class="panel lottery-panel panel-body">
-      <div class="panel-header">
-        <h2>🎰 寻仙机缘</h2>
-        <button class="close-btn" @click="$emit('close')">✕</button>
+  <PanelShell
+    title="寻仙机缘"
+    hint="单次 · 十连 · 保底"
+    size="lg"
+    :loading="loading"
+    :error="error"
+    @close="emit('close')"
+    @retry="fetchPanel"
+  >
+    <template #header-actions>
+      <Badge tone="gold">保底剩余 {{ pityRemaining }} 抽</Badge>
+    </template>
+
+    <div class="space-y-4">
+      <!-- 玩家资源与保底进度 -->
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2 text-[13px] text-fg-secondary
+                  rounded-control border border-line-subtle bg-surface-raised">
+        <span>余额 <b class="text-gold-400 num" :title="playerSS">{{ formatCompact(playerSS) }}</b> 灵石</span>
+        <span>累计抽取 <b class="text-fg-primary num">{{ panel?.total_draws || 0 }}</b> 次</span>
       </div>
 
-      <div v-if="loading" class="loading">加载中…</div>
+      <!-- 抽取按钮 -->
+      <div class="flex gap-3">
+        <AppButton class="flex-1" variant="default" :disabled="!canSingle" @click="onDraw('single')">
+          单次（<span class="num">{{ formatCompact(singleCost) }}</span> 灵石）
+        </AppButton>
+        <AppButton class="flex-1" variant="primary" :disabled="!canTen" @click="onDraw('ten')">
+          十连（<span class="num">{{ formatCompact(tenCost) }}</span> 灵石）
+        </AppButton>
+      </div>
 
-      <div v-else class="panel-body">
-        <div class="info-row">
-          <span>余额：{{ playerSS }} 灵石</span>
-          <span>保底剩余：{{ pityRemaining }} 抽</span>
-          <span>累计抽取：{{ panel?.total_draws || 0 }}</span>
-        </div>
-
-        <div class="actions">
-          <button class="draw-btn single" :disabled="!canSingle" @click="onDraw('single')">
-            单次（{{ singleCost }} 灵石）
-          </button>
-          <button class="draw-btn ten" :disabled="!canTen" @click="onDraw('ten')">
-            十连（{{ tenCost }} 灵石）
-          </button>
-        </div>
-
-        <div v-if="results.length" class="result-grid">
-          <div
-            v-for="(r, i) in results"
-            :key="i"
-            class="result-card"
-            :class="['rank-' + r.rank, { show: i <= animationIdx }]"
-          >
-            <div class="r-rank">{{ r.rank_name }}</div>
-            <div class="r-name">{{ r.name }}</div>
-            <div class="r-reward">
-              {{ r.reward.spirit_stones ? r.reward.spirit_stones + ' 灵石' : '' }}
-              {{ r.reward.exp ? '、' + r.reward.exp + ' 修为' : '' }}
-            </div>
+      <!-- 抽取结果：rank 决定描边色，逐条揭示 -->
+      <div v-if="results.length" class="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2.5">
+        <div
+          v-for="(r, i) in results"
+          :key="i"
+          class="result-card rounded-control border border-line bg-surface-hover px-2.5 py-2.5 text-center"
+          :class="['rank-' + r.rank, { show: i <= animationIdx }]"
+        >
+          <div class="text-xs text-gold-400">{{ r.rank_name }}</div>
+          <div class="text-sm font-semibold text-fg-primary my-1">{{ r.name }}</div>
+          <div class="text-[11px] text-fg-muted">
+            <span v-if="r.reward.spirit_stones" class="num" :title="r.reward.spirit_stones">{{ formatCompact(r.reward.spirit_stones) }} 灵石</span>
+            <span v-if="r.reward.exp" class="num" :title="r.reward.exp">、{{ formatCompact(r.reward.exp) }} 修为</span>
           </div>
         </div>
+      </div>
 
-        <div class="pool-title">奖池预览</div>
-        <div class="pool-grid">
-          <div v-for="(p, i) in pool" :key="i" class="pool-item" :class="'rank-' + p.rank">
-            <span class="p-rank">{{ p.rank_name }}</span>
-            <span class="p-name">{{ p.name }}</span>
+      <!-- 奖池预览 -->
+      <div>
+        <h3 class="text-[13px] font-bold text-fg-secondary tracking-wide font-display mb-2">奖池预览</h3>
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
+          <div
+            v-for="(p, i) in pool"
+            :key="i"
+            class="flex items-center gap-1.5 px-2 py-2 rounded-control border border-line bg-surface-hover text-xs"
+            :class="'rank-' + p.rank"
+          >
+            <span class="text-gold-400 whitespace-nowrap">{{ p.rank_name }}</span>
+            <span class="text-fg-secondary truncate">{{ p.name }}</span>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
 
 <style scoped>
-.panel-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-  display: flex; align-items: center; justify-content: center; z-index: 50;
-}
-.panel {
-  width: min(760px, 94vw); max-height: 86vh; background: #1c1917; color: #e7e5e4;
-  border: 1px solid #44403c; border-radius: 12px; display: flex; flex-direction: column;
-}
-.panel-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; border-bottom: 1px solid #44403c;
-}
-.close-btn { background: transparent; border: none; color: #a8a29e; font-size: 18px; cursor: pointer; }
-.panel-body { padding: 16px 18px; overflow-y: auto; }
-.loading { padding: 40px; text-align: center; color: #a8a29e; }
-.info-row { display: flex; gap: 18px; font-size: 13px; color: #d6d3d1; margin-bottom: 14px; }
-.actions { display: flex; gap: 12px; margin-bottom: 16px; }
-.draw-btn {
-  flex: 1; padding: 12px; border-radius: 10px; border: none; cursor: pointer;
-  font-weight: 600; font-size: 14px;
-}
-.draw-btn.single { background: #0ea5e9; color: #06151f; }
-.draw-btn.ten { background: #f59e0b; color: #1c1917; }
-.draw-btn:disabled { background: #44403c; color: #78716c; cursor: not-allowed; }
-.result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-bottom: 18px; }
+/* 抽卡结果逐条揭示动画（结构与配色交给 Tailwind，这里只留动效） */
 .result-card {
-  border: 1px solid #44403c; border-radius: 8px; padding: 10px; text-align: center;
-  background: #292524; opacity: 0; transform: translateY(8px); transition: all .2s;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
 }
-.result-card.show { opacity: 1; transform: none; }
-.r-rank { font-size: 12px; color: #fbbf24; }
-.r-name { font-size: 14px; font-weight: 600; color: #f5f5f4; margin: 4px 0; }
-.r-reward { font-size: 11px; color: #a8a29e; }
-.rank-SSR { border-color: #f59e0b !important; box-shadow: 0 0 10px rgba(245,158,11,.4); }
-.rank-SR { border-color: #8b5cf6 !important; }
-.rank-R { border-color: #0ea5e9 !important; }
-.rank-N { border-color: #78716c !important; }
-.pool-title { font-size: 14px; color: #d6d3d1; margin: 8px 0; }
-.pool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-.pool-item {
-  display: flex; align-items: center; gap: 6px; padding: 8px; border-radius: 8px;
-  border: 1px solid #44403c; background: #292524; font-size: 12px;
+.result-card.show {
+  opacity: 1;
+  transform: none;
 }
-.p-rank { color: #fbbf24; white-space: nowrap; }
-.p-name { color: #d6d3d1; }
+
+/* 品阶描边：SSR 鎏金 / SR 紫 / R 青 / N 灰，是玩法信息，保留色相区分 */
+.rank-SSR { border-color: rgb(var(--gold-500)) !important; box-shadow: 0 0 10px rgb(var(--gold-500) / 0.4); }
+.rank-SR { border-color: rgb(139 92 246) !important; }
+.rank-R { border-color: rgb(14 165 233) !important; }
+.rank-N { border-color: rgb(var(--line)) !important; }
 </style>

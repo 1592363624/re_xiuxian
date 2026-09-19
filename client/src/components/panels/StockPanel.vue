@@ -3,25 +3,32 @@
  * 聚宝股市面板组件（玩家侧）
  *
  * 功能说明：
- *   - 弹窗式面板，参考 PawnshopPanel.vue 的设计风格
- *   - 标题区：展示账户余额、总资产、持仓市值、负债、保证金率
- *   - Tab 切换：行情 / 持仓 / 交易 / 融资
+ *   - 外壳统一走 ui/PanelShell（遮罩 / 关闭 / 右坞停靠），面板不再自写遮罩与外壳
+ *   - 账户余额、总资产、持仓市值、负债、保证金率做成常驻状态条
+ *   - Tab 切换走 ui/Tabs：行情 / 持仓 / 交易 / 融资
  *     · 行情 Tab：账户状态卡 + 12 只股票行情表（涨绿跌红，中国习惯）+ 点击行展开详情 Modal（K线区 + 事件 + 买卖按钮）
  *     · 持仓 Tab：持仓列表（股票/数量/可用/成本/现价/市值/浮动盈亏）+ 买入更多/卖出按钮
  *     · 交易 Tab：资金转入口 + 融资账户入口 + 交易历史表 + 分红历史表
  *     · 融资 Tab：融资账户详情 + 偿还操作 + 风险提示
- *   - 颜色风格：青色系（cyan-400/cyan-500）体现股市主题，涨绿跌红
+ *   - 颜色风格：青色（cyan-*）为行情数据主色，涨绿跌红（emerald / rose）保留色相对立
  *
  * 设计原则：
  *   - 所有业务逻辑在后端 StockMarketService 处理，前端仅做展示与接口调用
  *   - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
- *   - BIGINT 金额字段统一以字符串展示，避免 JS Number 精度问题
+ *   - BIGINT 金额/价格/成交量统一走 formatCompact 展示（hover 看精确值），避免 JS Number 精度问题
  *   - 所有手续费/印花税/市值由后端计算返回，前端不做任何业务计算
  *   - WebSocket 监听 stock:* 事件，实时刷新行情与持仓
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import Badge from '../ui/Badge.vue'
+import AppButton from '../ui/AppButton.vue'
+import PanelCard from '../ui/PanelCard.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import LoadingBlock from '../ui/LoadingBlock.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { socketService } from '../../services/socket'
@@ -47,8 +54,14 @@ const playerStore = usePlayerStore()
 
 /* ===================== 基础状态 ===================== */
 
-// 当前激活的 Tab：market=行情，holdings=持仓，trade=交易，margin=融资
+// 当前激活的 Tab：market=行情，holdings=持仓，trade=交易，margin=融资（key/label 契约见 ui/Tabs.vue）
 const activeTab = ref('market')
+const tabItems = [
+  { key: 'market', label: '行情' },
+  { key: 'holdings', label: '持仓' },
+  { key: 'trade', label: '交易' },
+  { key: 'margin', label: '融资' }
+]
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -138,9 +151,9 @@ const marginRatioText = computed(() => {
  * 保证金率颜色：低于 50% 红色，低于维持率（30%）深红，否则绿色
  */
 const marginRatioClass = computed(() => {
-  if (!status.value) return 'text-stone-300'
+  if (!status.value) return 'text-fg-secondary'
   const ratio = status.value.margin_ratio || 0
-  if (ratio < 0.3) return 'text-red-500 font-bold'
+  if (ratio < 0.3) return 'text-rose-500 font-bold'
   if (ratio < 0.5) return 'text-rose-400'
   return 'text-emerald-400'
 })
@@ -167,7 +180,7 @@ const estimatedAmount = computed(() => {
 const changeColorClass = (pct) => {
   if (pct > 0) return 'text-emerald-400'
   if (pct < 0) return 'text-rose-400'
-  return 'text-stone-400'
+  return 'text-fg-muted'
 }
 
 /**
@@ -187,7 +200,7 @@ const profitColorClass = (profit) => {
   const n = Number(profit || 0)
   if (n > 0) return 'text-emerald-400'
   if (n < 0) return 'text-rose-400'
-  return 'text-stone-400'
+  return 'text-fg-muted'
 }
 
 /**
@@ -264,8 +277,7 @@ const fetchStatus = async () => {
     status.value = res.data?.data || res.data || null
   } catch (error) {
     console.error('[StockPanel] 获取股市状态失败:', error)
-    const msg = error.response?.data?.message || '获取股市状态失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取股市状态失败')
   }
 }
 
@@ -279,8 +291,7 @@ const fetchStockList = async () => {
     stockList.value = res.data?.data || res.data || []
   } catch (error) {
     console.error('[StockPanel] 获取行情列表失败:', error)
-    const msg = error.response?.data?.message || '获取行情列表失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取行情列表失败')
   } finally {
     loading.value = false
   }
@@ -296,8 +307,7 @@ const fetchHoldings = async () => {
     holdings.value = res.data?.data || res.data || []
   } catch (error) {
     console.error('[StockPanel] 获取持仓失败:', error)
-    const msg = error.response?.data?.message || '获取持仓失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取持仓失败')
   } finally {
     holdingsLoading.value = false
   }
@@ -315,8 +325,7 @@ const fetchTransactions = async () => {
     txTotalPages.value = data.total_pages || 0
   } catch (error) {
     console.error('[StockPanel] 获取交易历史失败:', error)
-    const msg = error.response?.data?.message || '获取交易历史失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取交易历史失败')
   }
 }
 
@@ -332,8 +341,7 @@ const fetchDividends = async () => {
     divTotalPages.value = data.total_pages || 0
   } catch (error) {
     console.error('[StockPanel] 获取分红历史失败:', error)
-    const msg = error.response?.data?.message || '获取分红历史失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取分红历史失败')
   }
 }
 
@@ -346,8 +354,7 @@ const fetchMarginAccount = async () => {
     marginAccount.value = res.data?.data || res.data || null
   } catch (error) {
     console.error('[StockPanel] 获取融资账户失败:', error)
-    const msg = error.response?.data?.message || '获取融资账户失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取融资账户失败')
   }
 }
 
@@ -543,8 +550,7 @@ const confirmTrade = async () => {
     }
   } catch (error) {
     console.error('[StockPanel] 交易失败:', error)
-    const msg = error.response?.data?.message || error.response?.data?.error || '交易失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '交易失败')
   } finally {
     submitting.value = false
   }
@@ -622,8 +628,7 @@ const confirmTransfer = async () => {
     }
   } catch (error) {
     console.error('[StockPanel] 转账失败:', error)
-    const msg = error.response?.data?.message || error.response?.data?.error || '转账失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '转账失败')
   } finally {
     submitting.value = false
   }
@@ -652,8 +657,7 @@ const confirmOpenMargin = async () => {
     await Promise.all([fetchStatus(), fetchMarginAccount()])
   } catch (error) {
     console.error('[StockPanel] 开通融资失败:', error)
-    const msg = error.response?.data?.message || error.response?.data?.error || '开通融资失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '开通融资失败')
   } finally {
     submitting.value = false
   }
@@ -708,8 +712,7 @@ const confirmRepay = async () => {
     await Promise.all([fetchStatus(), fetchMarginAccount()])
   } catch (error) {
     console.error('[StockPanel] 偿还融资失败:', error)
-    const msg = error.response?.data?.message || error.response?.data?.error || '偿还融资失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '偿还融资失败')
   } finally {
     submitting.value = false
   }
@@ -819,105 +822,71 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-cyan-900/40 rounded-lg w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl shadow-cyan-900/20 overflow-hidden animate-fade-in panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-gradient-to-r from-cyan-950/40 to-[#1c1917]">
-        <h2 class="text-xl font-bold text-cyan-400 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 3v18h18"/>
-            <path d="m19 9-5 5-4-4-3 3"/>
-          </svg>
-          聚宝股市
-        </h2>
-        <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-
+  <PanelShell
+    title="聚宝股市"
+    hint="行情 · 持仓 · 融资"
+    size="2xl"
+    scoped-scroll
+    @close="emit('close')"
+  >
+    <div class="h-full flex flex-col min-h-0">
       <!-- 账户状态条 -->
-      <div v-if="status" class="grid grid-cols-3 md:grid-cols-6 gap-2 p-3 border-b border-stone-800 bg-[#0c0a09]">
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">账户余额</div>
-          <div class="text-sm font-bold text-cyan-300">{{ formatCompact(status.balance) }}</div>
+      <div v-if="status" class="shrink-0 grid grid-cols-3 md:grid-cols-6 gap-2 px-3 py-2.5 border-b border-line-subtle bg-surface-canvas">
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">账户余额</div>
+          <div class="text-sm font-bold text-cyan-300 num" :title="status.balance">{{ formatCompact(status.balance) }}</div>
         </div>
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">持仓市值</div>
-          <div class="text-sm font-bold text-cyan-300">{{ formatCompact(status.holdings_value) }}</div>
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">持仓市值</div>
+          <div class="text-sm font-bold text-cyan-300 num" :title="status.holdings_value">{{ formatCompact(status.holdings_value) }}</div>
         </div>
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">总资产</div>
-          <div class="text-sm font-bold text-amber-400">{{ formatCompact(status.total_assets) }}</div>
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">总资产</div>
+          <div class="text-sm font-bold text-gold-400 num" :title="status.total_assets">{{ formatCompact(status.total_assets) }}</div>
         </div>
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">融资负债</div>
-          <div class="text-sm font-bold" :class="Number(status.debt) > 0 ? 'text-rose-400' : 'text-stone-400'">{{ formatCompact(status.debt) }}</div>
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">融资负债</div>
+          <div class="text-sm font-bold num" :class="Number(status.debt) > 0 ? 'text-rose-400' : 'text-fg-muted'" :title="status.debt">{{ formatCompact(status.debt) }}</div>
         </div>
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">保证金率</div>
-          <div class="text-sm font-bold" :class="marginRatioClass">{{ marginRatioText }}</div>
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">保证金率</div>
+          <div class="text-sm font-bold num" :class="marginRatioClass">{{ marginRatioText }}</div>
         </div>
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">持仓数</div>
-          <div class="text-sm font-bold text-cyan-400">{{ status.holdings_count }}</div>
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">持仓数</div>
+          <div class="text-sm font-bold text-cyan-400 num">{{ status.holdings_count }}</div>
         </div>
       </div>
 
-      <!-- Tab 切换 -->
-      <div class="flex border-b border-stone-800 bg-[#1c1917]">
-        <button
-          v-for="tab in [
-            { id: 'market', name: '行情' },
-            { id: 'holdings', name: '持仓' },
-            { id: 'trade', name: '交易' },
-            { id: 'margin', name: '融资' }
-          ]"
-          :key="tab.id"
-          @click="switchTab(tab.id)"
-          class="flex-1 px-4 py-3 text-sm font-bold transition-colors relative"
-          :class="activeTab === tab.id ? 'text-cyan-400' : 'text-stone-500 hover:text-stone-300'"
-        >
-          {{ tab.name }}
-          <span v-if="activeTab === tab.id" class="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500"></span>
-        </button>
-      </div>
+      <!-- Tab 切换：切换时仍由 switchTab 拉取对应数据 -->
+      <Tabs :model-value="activeTab" :items="tabItems" class="shrink-0" @update:model-value="switchTab" />
 
       <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
-        <!-- 加载中 -->
-        <div v-if="loading" class="flex justify-center items-center h-64">
-          <svg class="animate-spin h-10 w-10 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
+      <div class="flex-1 min-h-0 overflow-y-auto p-4 scroll-thin">
+        <LoadingBlock v-if="loading" />
 
         <template v-else>
           <!-- ===================== 行情 Tab ===================== -->
           <div v-if="activeTab === 'market'">
             <!-- 账户被锁定提示 -->
-            <div v-if="status?.is_trading_locked" class="bg-rose-950/40 border border-rose-800/50 rounded-lg p-3 mb-3 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-rose-400 shrink-0">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span class="text-sm text-rose-300">您的股市账户已被锁定，无法进行交易，请联系 GM 解锁。</span>
-            </div>
+            <PanelCard v-if="status?.is_trading_locked" tone="danger" class="mb-3">
+              <div class="flex items-center gap-2 text-sm text-rose-300">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                您的股市账户已被锁定，无法进行交易，请联系 GM 解锁。
+              </div>
+            </PanelCard>
 
             <!-- 空状态 -->
-            <div v-if="stockList.length === 0" class="flex flex-col items-center justify-center h-48 text-stone-500">
-              <p>暂无行情数据</p>
-            </div>
+            <EmptyState v-if="stockList.length === 0" text="暂无行情数据" hint="开盘后这里会列出全部可交易的标的" />
 
             <!-- 行情表 -->
-            <div v-else class="bg-[#1c1917] border border-stone-800 rounded-lg overflow-hidden">
+            <div v-else class="bg-surface-raised border border-line-subtle rounded-panel overflow-hidden">
               <div class="overflow-x-auto">
                 <table class="w-full text-sm">
-                  <thead class="bg-stone-900/60 text-stone-400">
+                  <thead class="bg-surface-sunken text-fg-muted">
                     <tr>
                       <th class="px-3 py-2 text-left whitespace-nowrap">代码</th>
                       <th class="px-3 py-2 text-left whitespace-nowrap">名称</th>
@@ -933,33 +902,38 @@ onUnmounted(() => {
                     <tr
                       v-for="stock in stockList"
                       :key="stock.id"
-                      class="border-t border-stone-800 hover:bg-stone-900/40 transition-colors cursor-pointer"
+                      class="border-t border-line-subtle hover:bg-surface-hover/60 transition-colors cursor-pointer"
                       @click="openStockDetail(stock)"
                     >
-                      <td class="px-3 py-2 text-stone-400 font-mono">{{ stock.code }}</td>
-                      <td class="px-3 py-2 text-stone-200">{{ stock.name }}</td>
+                      <td class="px-3 py-2 text-fg-muted num">{{ stock.code }}</td>
+                      <td class="px-3 py-2 text-fg-primary">{{ stock.name }}</td>
                       <td class="px-3 py-2">
-                        <span class="text-xs px-2 py-0.5 rounded bg-stone-800 text-stone-400">{{ categoryLabel(stock.category) }}</span>
+                        <Badge tone="neutral">{{ categoryLabel(stock.category) }}</Badge>
                       </td>
-                      <td class="px-3 py-2 text-right text-cyan-300 font-bold">{{ stock.current_price }}</td>
-                      <td class="px-3 py-2 text-right font-bold" :class="changeColorClass(stock.daily_change_pct)">
+                      <td class="px-3 py-2 text-right text-cyan-300 font-bold num" :title="stock.current_price">
+                        {{ formatCompact(stock.current_price) }}
+                      </td>
+                      <td class="px-3 py-2 text-right font-bold num" :class="changeColorClass(stock.daily_change_pct)">
                         {{ changeText(stock.daily_change_pct) }}
                       </td>
-                      <td class="px-3 py-2 text-right text-stone-400">{{ stock.daily_volume }}</td>
+                      <td class="px-3 py-2 text-right text-fg-muted num" :title="stock.daily_volume">
+                        {{ formatCompact(stock.daily_volume) }}
+                      </td>
                       <td class="px-3 py-2 text-center">
-                        <span v-if="stock.is_trading_halted" class="text-xs px-2 py-0.5 rounded bg-rose-950/60 text-rose-400 border border-rose-800/50">熔断</span>
-                        <span v-else class="text-xs px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">交易中</span>
+                        <Badge :tone="stock.is_trading_halted ? 'danger' : 'success'">
+                          {{ stock.is_trading_halted ? '熔断' : '交易中' }}
+                        </Badge>
                       </td>
                       <td class="px-3 py-2 text-center whitespace-nowrap" @click.stop>
                         <button
                           @click="openTradeModal('buy', stock)"
                           :disabled="stock.is_trading_halted || status?.is_trading_locked"
-                          class="px-2 py-1 rounded bg-emerald-900/40 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 text-xs mr-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                          class="px-2 py-1 rounded-control bg-emerald-900/40 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 text-xs mr-1 disabled:opacity-30 disabled:cursor-not-allowed"
                         >买入</button>
                         <button
                           @click="openTradeModal('sell', stock)"
                           :disabled="stock.is_trading_halted || status?.is_trading_locked"
-                          class="px-2 py-1 rounded bg-rose-900/40 border border-rose-700/50 text-rose-400 hover:bg-rose-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                          class="px-2 py-1 rounded-control bg-rose-900/40 border border-rose-800 text-rose-300 hover:bg-rose-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                         >卖出</button>
                       </td>
                     </tr>
@@ -971,70 +945,62 @@ onUnmounted(() => {
 
           <!-- ===================== 持仓 Tab ===================== -->
           <div v-else-if="activeTab === 'holdings'">
-            <div v-if="holdingsLoading" class="flex justify-center items-center h-48">
-              <svg class="animate-spin h-8 w-8 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
+            <LoadingBlock v-if="holdingsLoading" />
             <!-- 空状态 -->
-            <div v-else-if="holdings.length === 0" class="flex flex-col items-center justify-center h-48 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-                <path d="M3 3v18h18"/>
-                <path d="m19 9-5 5-4-4-3 3"/>
-              </svg>
-              <p>暂无持仓</p>
-              <p class="text-xs mt-1">前往行情 Tab 买入股票开始持仓</p>
-            </div>
+            <EmptyState
+              v-else-if="holdings.length === 0"
+              text="暂无持仓"
+              hint="前往「行情」页签买入股票开始持仓"
+            />
             <!-- 持仓列表 -->
             <div v-else class="space-y-3">
               <div
                 v-for="holding in holdings"
                 :key="holding.id"
-                class="bg-[#1c1917] border border-stone-800 rounded-lg p-4 hover:border-cyan-800/50 transition-colors"
+                class="bg-surface-raised border border-line-subtle rounded-panel p-4 hover:border-cyan-800 transition-colors"
               >
                 <div class="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <div class="flex items-center gap-2 mb-1">
-                      <span class="text-base font-bold text-stone-200">{{ holding.name }}</span>
-                      <span class="text-xs text-stone-500 font-mono">{{ holding.code }}</span>
-                      <span class="text-xs px-2 py-0.5 rounded bg-stone-800 text-stone-400">{{ categoryLabel(holding.category) }}</span>
-                      <span v-if="holding.is_trading_halted" class="text-xs px-2 py-0.5 rounded bg-rose-950/60 text-rose-400 border border-rose-800/50">熔断</span>
+                      <span class="text-base font-bold text-fg-primary">{{ holding.name }}</span>
+                      <span class="text-xs text-fg-faint num">{{ holding.code }}</span>
+                      <Badge tone="neutral">{{ categoryLabel(holding.category) }}</Badge>
+                      <Badge v-if="holding.is_trading_halted" tone="danger">熔断</Badge>
                     </div>
-                    <div class="text-xs text-stone-600">
-                      持有 {{ holding.quantity }} · 可用 <span class="text-cyan-400">{{ holding.available_quantity }}</span>
-                      <span v-if="Number(holding.quantity) > Number(holding.available_quantity)" class="text-amber-500 ml-1">(T+1 冻结中)</span>
+                    <div class="text-xs text-fg-faint">
+                      持有 <span class="num">{{ holding.quantity }}</span> · 可用 <span class="text-cyan-400 num">{{ holding.available_quantity }}</span>
+                      <span v-if="Number(holding.quantity) > Number(holding.available_quantity)" class="text-gold-400 ml-1">(T+1 冻结中)</span>
                     </div>
                   </div>
                   <div class="flex gap-2">
                     <button
                       @click="openTradeModal('buy', holding)"
                       :disabled="holding.is_trading_halted || status?.is_trading_locked"
-                      class="px-3 py-1 rounded bg-emerald-900/40 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                      class="px-3 py-1 rounded-control bg-emerald-900/40 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                     >买入更多</button>
                     <button
                       @click="openTradeModal('sell', holding)"
                       :disabled="holding.is_trading_halted || Number(holding.available_quantity) <= 0 || status?.is_trading_locked"
-                      class="px-3 py-1 rounded bg-rose-900/40 border border-rose-700/50 text-rose-400 hover:bg-rose-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                      class="px-3 py-1 rounded-control bg-rose-900/40 border border-rose-800 text-rose-300 hover:bg-rose-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                     >卖出</button>
                   </div>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-xs">
                   <div class="flex items-center justify-between">
-                    <span class="text-stone-500">成本价</span>
-                    <span class="text-stone-300">{{ holding.average_cost }}</span>
+                    <span class="text-fg-faint">成本价</span>
+                    <span class="text-fg-secondary num" :title="holding.average_cost">{{ formatCompact(holding.average_cost) }}</span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-stone-500">现价</span>
-                    <span class="text-cyan-300 font-bold">{{ holding.current_price }}</span>
+                    <span class="text-fg-faint">现价</span>
+                    <span class="text-cyan-300 font-bold num" :title="holding.current_price">{{ formatCompact(holding.current_price) }}</span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-stone-500">市值</span>
-                    <span class="text-amber-400 font-bold">{{ formatCompact(holding.market_value) }}</span>
+                    <span class="text-fg-faint">市值</span>
+                    <span class="text-gold-400 font-bold num" :title="holding.market_value">{{ formatCompact(holding.market_value) }}</span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-stone-500">浮动盈亏</span>
-                    <span class="font-bold" :class="profitColorClass(holding.profit)">
+                    <span class="text-fg-faint">浮动盈亏</span>
+                    <span class="font-bold num" :class="profitColorClass(holding.profit)" :title="holding.profit">
                       {{ Number(holding.profit) >= 0 ? '+' : '' }}{{ formatCompact(holding.profit) }}
                       <span class="text-[10px] ml-1">({{ changeText(holding.profit_pct) }})</span>
                     </span>
@@ -1050,30 +1016,27 @@ onUnmounted(() => {
             <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
               <button
                 @click="openTransferModal('deposit')"
-                class="px-3 py-2 rounded bg-emerald-900/40 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 text-sm transition-colors"
+                class="px-3 py-2 rounded-control bg-emerald-900/40 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 text-sm transition-colors"
               >转入灵石</button>
               <button
                 @click="openTransferModal('withdraw')"
-                class="px-3 py-2 rounded bg-amber-900/40 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 text-sm transition-colors"
+                class="px-3 py-2 rounded-control bg-gold-900/40 border border-gold-700 text-gold-400 hover:bg-gold-800/50 text-sm transition-colors"
               >转出灵石</button>
               <button
                 @click="switchTab('margin')"
-                class="px-3 py-2 rounded bg-cyan-900/40 border border-cyan-700/50 text-cyan-400 hover:bg-cyan-800/50 text-sm transition-colors"
+                class="px-3 py-2 rounded-control bg-cyan-900/40 border border-cyan-800 text-cyan-300 hover:bg-cyan-800/50 text-sm transition-colors"
               >融资账户</button>
-              <button
-                @click="fetchTransactions(); fetchDividends()"
-                class="px-3 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:bg-stone-700 text-sm transition-colors"
-              >刷新</button>
+              <AppButton variant="default" @click="fetchTransactions(); fetchDividends()">刷新</AppButton>
             </div>
 
             <!-- 交易历史 -->
             <div class="mb-6">
-              <h3 class="text-sm font-bold text-cyan-400 mb-2">交易历史</h3>
-              <div v-if="transactions.length === 0" class="text-center text-stone-500 py-6 text-sm">暂无交易记录</div>
-              <div v-else class="bg-[#1c1917] border border-stone-800 rounded-lg overflow-hidden">
+              <h3 class="text-[13px] font-bold text-cyan-400 mb-2 font-display">交易历史</h3>
+              <EmptyState v-if="transactions.length === 0" text="暂无交易记录" />
+              <div v-else class="bg-surface-raised border border-line-subtle rounded-panel overflow-hidden">
                 <div class="overflow-x-auto">
                   <table class="w-full text-xs">
-                    <thead class="bg-stone-900/60 text-stone-400">
+                    <thead class="bg-surface-sunken text-fg-muted">
                       <tr>
                         <th class="px-2 py-2 text-left whitespace-nowrap">时间</th>
                         <th class="px-2 py-2 text-left whitespace-nowrap">股票</th>
@@ -1086,31 +1049,31 @@ onUnmounted(() => {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="tx in transactions" :key="tx.id" class="border-t border-stone-800">
-                        <td class="px-2 py-2 text-stone-400">{{ formatDateTime(tx.created_at) }}</td>
-                        <td class="px-2 py-2 text-stone-200">{{ tx.name }}</td>
+                      <tr v-for="tx in transactions" :key="tx.id" class="border-t border-line-subtle">
+                        <td class="px-2 py-2 text-fg-muted num">{{ formatDateTime(tx.created_at) }}</td>
+                        <td class="px-2 py-2 text-fg-primary">{{ tx.name }}</td>
                         <td class="px-2 py-2 text-center">
                           <span class="font-bold" :class="tradeTypeClass(tx.trade_type)">
                             {{ tradeTypeLabel(tx.trade_type) }}
                           </span>
-                          <span v-if="tx.is_margin" class="text-[10px] text-amber-500 ml-1">融</span>
+                          <span v-if="tx.is_margin" class="text-[10px] text-gold-400 ml-1">融</span>
                         </td>
-                        <td class="px-2 py-2 text-right text-stone-300">{{ tx.quantity }}</td>
-                        <td class="px-2 py-2 text-right text-stone-300">{{ tx.price }}</td>
-                        <td class="px-2 py-2 text-right text-cyan-300 font-bold">{{ formatCompact(tx.amount) }}</td>
-                        <td class="px-2 py-2 text-right text-rose-400">{{ tx.fee }}</td>
-                        <td class="px-2 py-2 text-right text-rose-400">{{ tx.tax }}</td>
+                        <td class="px-2 py-2 text-right text-fg-secondary num">{{ tx.quantity }}</td>
+                        <td class="px-2 py-2 text-right text-fg-secondary num" :title="tx.price">{{ formatCompact(tx.price) }}</td>
+                        <td class="px-2 py-2 text-right text-cyan-300 font-bold num" :title="tx.amount">{{ formatCompact(tx.amount) }}</td>
+                        <td class="px-2 py-2 text-right text-rose-400 num" :title="tx.fee">{{ formatCompact(tx.fee) }}</td>
+                        <td class="px-2 py-2 text-right text-rose-400 num" :title="tx.tax">{{ formatCompact(tx.tax) }}</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
                 <!-- 分页 -->
-                <div class="px-3 py-2 border-t border-stone-800 flex items-center justify-between text-xs">
-                  <span class="text-stone-600">共 {{ txTotal }} 条</span>
+                <div class="px-3 py-2 border-t border-line-subtle flex items-center justify-between text-xs">
+                  <span class="text-fg-faint">共 {{ txTotal }} 条</span>
                   <div class="flex items-center gap-2">
-                    <button @click="changeTxPage(-1)" :disabled="txPage <= 1" class="px-2 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-cyan-400 disabled:opacity-30 disabled:cursor-not-allowed">上一页</button>
-                    <span class="text-stone-400">{{ txPage }} / {{ txTotalPages }}</span>
-                    <button @click="changeTxPage(1)" :disabled="txPage >= txTotalPages" class="px-2 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-cyan-400 disabled:opacity-30 disabled:cursor-not-allowed">下一页</button>
+                    <AppButton size="xs" variant="default" :disabled="txPage <= 1" @click="changeTxPage(-1)">上一页</AppButton>
+                    <span class="text-fg-muted num">{{ txPage }} / {{ txTotalPages }}</span>
+                    <AppButton size="xs" variant="default" :disabled="txPage >= txTotalPages" @click="changeTxPage(1)">下一页</AppButton>
                   </div>
                 </div>
               </div>
@@ -1118,12 +1081,12 @@ onUnmounted(() => {
 
             <!-- 分红历史 -->
             <div>
-              <h3 class="text-sm font-bold text-cyan-400 mb-2">分红历史</h3>
-              <div v-if="dividends.length === 0" class="text-center text-stone-500 py-6 text-sm">暂无分红记录</div>
-              <div v-else class="bg-[#1c1917] border border-stone-800 rounded-lg overflow-hidden">
+              <h3 class="text-[13px] font-bold text-cyan-400 mb-2 font-display">分红历史</h3>
+              <EmptyState v-if="dividends.length === 0" text="暂无分红记录" hint="持有股票到派息日就会入账" />
+              <div v-else class="bg-surface-raised border border-line-subtle rounded-panel overflow-hidden">
                 <div class="overflow-x-auto">
                   <table class="w-full text-xs">
-                    <thead class="bg-stone-900/60 text-stone-400">
+                    <thead class="bg-surface-sunken text-fg-muted">
                       <tr>
                         <th class="px-2 py-2 text-left whitespace-nowrap">时间</th>
                         <th class="px-2 py-2 text-left whitespace-nowrap">股票</th>
@@ -1134,24 +1097,24 @@ onUnmounted(() => {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="div in dividends" :key="div.id" class="border-t border-stone-800">
-                        <td class="px-2 py-2 text-stone-400">{{ formatDateTime(div.created_at) }}</td>
-                        <td class="px-2 py-2 text-stone-200">{{ div.name }}</td>
-                        <td class="px-2 py-2 text-right text-stone-300">{{ div.quantity }}</td>
-                        <td class="px-2 py-2 text-right text-stone-300">{{ div.dividend_per_share }}</td>
-                        <td class="px-2 py-2 text-right text-emerald-400 font-bold">{{ div.total_dividend }}</td>
-                        <td class="px-2 py-2 text-center text-stone-400 text-[10px]">{{ dividendTypeLabel(div.dividend_type) }}</td>
+                      <tr v-for="div in dividends" :key="div.id" class="border-t border-line-subtle">
+                        <td class="px-2 py-2 text-fg-muted num">{{ formatDateTime(div.created_at) }}</td>
+                        <td class="px-2 py-2 text-fg-primary">{{ div.name }}</td>
+                        <td class="px-2 py-2 text-right text-fg-secondary num" :title="div.quantity">{{ formatCompact(div.quantity) }}</td>
+                        <td class="px-2 py-2 text-right text-fg-secondary num" :title="div.dividend_per_share">{{ formatCompact(div.dividend_per_share) }}</td>
+                        <td class="px-2 py-2 text-right text-emerald-400 font-bold num" :title="div.total_dividend">{{ formatCompact(div.total_dividend) }}</td>
+                        <td class="px-2 py-2 text-center text-fg-muted text-[10px]">{{ dividendTypeLabel(div.dividend_type) }}</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
                 <!-- 分页 -->
-                <div class="px-3 py-2 border-t border-stone-800 flex items-center justify-between text-xs">
-                  <span class="text-stone-600">共 {{ divTotal }} 条</span>
+                <div class="px-3 py-2 border-t border-line-subtle flex items-center justify-between text-xs">
+                  <span class="text-fg-faint">共 {{ divTotal }} 条</span>
                   <div class="flex items-center gap-2">
-                    <button @click="changeDivPage(-1)" :disabled="divPage <= 1" class="px-2 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-cyan-400 disabled:opacity-30 disabled:cursor-not-allowed">上一页</button>
-                    <span class="text-stone-400">{{ divPage }} / {{ divTotalPages }}</span>
-                    <button @click="changeDivPage(1)" :disabled="divPage >= divTotalPages" class="px-2 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-cyan-400 disabled:opacity-30 disabled:cursor-not-allowed">下一页</button>
+                    <AppButton size="xs" variant="default" :disabled="divPage <= 1" @click="changeDivPage(-1)">上一页</AppButton>
+                    <span class="text-fg-muted num">{{ divPage }} / {{ divTotalPages }}</span>
+                    <AppButton size="xs" variant="default" :disabled="divPage >= divTotalPages" @click="changeDivPage(1)">下一页</AppButton>
                   </div>
                 </div>
               </div>
@@ -1160,102 +1123,94 @@ onUnmounted(() => {
 
           <!-- ===================== 融资 Tab ===================== -->
           <div v-else-if="activeTab === 'margin'">
-            <div v-if="!marginAccount" class="flex justify-center items-center h-48">
-              <svg class="animate-spin h-8 w-8 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
+            <LoadingBlock v-if="!marginAccount" />
             <template v-else>
               <!-- 未开通融资账户 -->
-              <div v-if="!marginAccount.has_margin_account" class="bg-[#1c1917] border border-stone-800 rounded-lg p-6 text-center">
+              <div v-if="!marginAccount.has_margin_account" class="bg-surface-raised border border-line-subtle rounded-panel p-6 text-center">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-3 text-cyan-500 opacity-70">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                 </svg>
-                <p class="text-stone-300 mb-1">尚未开通融资账户</p>
-                <p class="text-xs text-stone-500 mb-4">{{ marginAccount.message || '开通融资账户后可使用杠杆放大收益' }}</p>
-                <button
-                  @click="openOpenMarginConfirm"
-                  :disabled="submitting"
-                  class="px-6 py-2 rounded bg-cyan-900/50 border border-cyan-700/50 text-cyan-300 hover:bg-cyan-800/60 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >开通融资账户</button>
+                <p class="text-fg-secondary mb-1">尚未开通融资账户</p>
+                <p class="text-xs text-fg-muted mb-4">{{ marginAccount.message || '开通融资账户后可使用杠杆放大收益' }}</p>
+                <AppButton variant="outline" :disabled="submitting" @click="openOpenMarginConfirm">开通融资账户</AppButton>
               </div>
 
               <!-- 已开通融资账户 -->
               <div v-else class="space-y-4">
                 <!-- 风险提示 -->
-                <div v-if="marginAccount.is_danger" class="bg-rose-950/40 border border-rose-800/50 rounded-lg p-3 flex items-start gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-rose-400 shrink-0 mt-0.5">
-                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                  <div>
-                    <p class="text-sm text-rose-300 font-bold">保证金率不足，有爆仓风险！</p>
-                    <p class="text-xs text-rose-400 mt-1">请及时追加保证金（转入灵石）或偿还融资负债，否则持仓将被强制平仓。</p>
+                <PanelCard v-if="marginAccount.is_danger" tone="danger" padded>
+                  <div class="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-rose-400 shrink-0 mt-0.5">
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                      <line x1="12" y1="9" x2="12" y2="13"/>
+                      <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <div>
+                      <p class="text-sm text-rose-300 font-bold">保证金率不足，有爆仓风险！</p>
+                      <p class="text-xs text-rose-400 mt-1">请及时追加保证金（转入灵石）或偿还融资负债，否则持仓将被强制平仓。</p>
+                    </div>
                   </div>
-                </div>
-                <div v-if="marginAccount.is_liquidated" class="bg-rose-950/60 border border-rose-700 rounded-lg p-3">
-                  <p class="text-sm text-rose-300 font-bold">⚠️ 融资账户已爆仓</p>
+                </PanelCard>
+                <PanelCard v-if="marginAccount.is_liquidated" tone="danger" padded>
+                  <p class="text-sm text-rose-300 font-bold">融资账户已爆仓</p>
                   <p class="text-xs text-rose-400 mt-1">您的持仓已被强制平仓，请偿还剩余负债后重新操作。</p>
-                </div>
+                </PanelCard>
 
                 <!-- 融资账户详情 -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
-                    <div class="text-xs text-stone-500 mb-1">总资产</div>
-                    <div class="text-lg font-bold text-amber-400">{{ marginAccount.total_assets }}</div>
+                  <div class="bg-surface-raised border border-line-subtle rounded-panel p-3">
+                    <div class="text-xs text-fg-faint mb-1">总资产</div>
+                    <div class="text-lg font-bold text-gold-400 num" :title="marginAccount.total_assets">{{ formatCompact(marginAccount.total_assets) }}</div>
                   </div>
-                  <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
-                    <div class="text-xs text-stone-500 mb-1">账户余额</div>
-                    <div class="text-lg font-bold text-cyan-300">{{ formatCompact(marginAccount.balance) }}</div>
+                  <div class="bg-surface-raised border border-line-subtle rounded-panel p-3">
+                    <div class="text-xs text-fg-faint mb-1">账户余额</div>
+                    <div class="text-lg font-bold text-cyan-300 num" :title="marginAccount.balance">{{ formatCompact(marginAccount.balance) }}</div>
                   </div>
-                  <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
-                    <div class="text-xs text-stone-500 mb-1">持仓市值</div>
-                    <div class="text-lg font-bold text-cyan-300">{{ marginAccount.holdings_value }}</div>
+                  <div class="bg-surface-raised border border-line-subtle rounded-panel p-3">
+                    <div class="text-xs text-fg-faint mb-1">持仓市值</div>
+                    <div class="text-lg font-bold text-cyan-300 num" :title="marginAccount.holdings_value">{{ formatCompact(marginAccount.holdings_value) }}</div>
                   </div>
-                  <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
-                    <div class="text-xs text-stone-500 mb-1">融资负债</div>
-                    <div class="text-lg font-bold text-rose-400">{{ formatCompact(marginAccount.debt) }}</div>
+                  <div class="bg-surface-raised border border-line-subtle rounded-panel p-3">
+                    <div class="text-xs text-fg-faint mb-1">融资负债</div>
+                    <div class="text-lg font-bold text-rose-400 num" :title="marginAccount.debt">{{ formatCompact(marginAccount.debt) }}</div>
                   </div>
-                  <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
-                    <div class="text-xs text-stone-500 mb-1">保证金率</div>
-                    <div class="text-lg font-bold" :class="marginAccount.is_danger ? 'text-rose-500' : 'text-emerald-400'">
+                  <div class="bg-surface-raised border border-line-subtle rounded-panel p-3">
+                    <div class="text-xs text-fg-faint mb-1">保证金率</div>
+                    <div class="text-lg font-bold num" :class="marginAccount.is_danger ? 'text-rose-500' : 'text-emerald-400'">
                       {{ ((marginAccount.margin_ratio || 0) * 100).toFixed(2) }}%
                     </div>
-                    <div class="text-[10px] text-stone-600 mt-1">维持率 {{ ((marginAccount.maintenance_margin_rate || 0.3) * 100).toFixed(0) }}%</div>
+                    <div class="text-[10px] text-fg-faint mt-1 num">维持率 {{ ((marginAccount.maintenance_margin_rate || 0.3) * 100).toFixed(0) }}%</div>
                   </div>
-                  <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
-                    <div class="text-xs text-stone-500 mb-1">最大可融额度</div>
-                    <div class="text-lg font-bold text-cyan-400">{{ marginAccount.max_credit }}</div>
+                  <div class="bg-surface-raised border border-line-subtle rounded-panel p-3">
+                    <div class="text-xs text-fg-faint mb-1">最大可融额度</div>
+                    <div class="text-lg font-bold text-cyan-400 num" :title="marginAccount.max_credit">{{ formatCompact(marginAccount.max_credit) }}</div>
                   </div>
-                  <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
-                    <div class="text-xs text-stone-500 mb-1">可用融资额度</div>
-                    <div class="text-lg font-bold text-cyan-400">{{ marginAccount.available_credit }}</div>
+                  <div class="bg-surface-raised border border-line-subtle rounded-panel p-3">
+                    <div class="text-xs text-fg-faint mb-1">可用融资额度</div>
+                    <div class="text-lg font-bold text-cyan-400 num" :title="marginAccount.available_credit">{{ formatCompact(marginAccount.available_credit) }}</div>
                   </div>
-                  <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
-                    <div class="text-xs text-stone-500 mb-1">最后检查</div>
-                    <div class="text-xs text-stone-400 mt-1">{{ formatDateTime(marginAccount.last_liquidation_check) }}</div>
+                  <div class="bg-surface-raised border border-line-subtle rounded-panel p-3">
+                    <div class="text-xs text-fg-faint mb-1">最后检查</div>
+                    <div class="text-xs text-fg-muted num mt-1">{{ formatDateTime(marginAccount.last_liquidation_check) }}</div>
                   </div>
                 </div>
 
                 <!-- 偿还融资 -->
-                <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-4">
-                  <h4 class="text-sm font-bold text-cyan-400 mb-3">偿还融资负债</h4>
+                <PanelCard title="偿还融资负债" padded>
                   <div class="flex items-center gap-3">
-                    <button
-                      @click="openRepayModal"
+                    <AppButton
+                      variant="danger"
                       :disabled="submitting || Number(marginAccount.debt) <= 0"
-                      class="px-4 py-2 rounded bg-rose-900/40 border border-rose-700/50 text-rose-300 hover:bg-rose-800/50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >偿还负债</button>
-                    <span class="text-xs text-stone-500">当前负债 {{ formatCompact(marginAccount.debt) }} 灵石</span>
+                      @click="openRepayModal"
+                    >偿还负债</AppButton>
+                    <span class="text-xs text-fg-faint num">当前负债 {{ formatCompact(marginAccount.debt) }} 灵石</span>
                   </div>
-                </div>
+                </PanelCard>
 
                 <!-- 风险提示 -->
-                <div class="bg-stone-900/40 border border-stone-800 rounded-lg p-4 text-xs text-stone-500 space-y-1">
-                  <p class="font-bold text-stone-400">融资融券风险提示：</p>
+                <div class="bg-surface-sunken border border-line-subtle rounded-panel p-4 text-xs text-fg-muted space-y-1">
+                  <p class="font-bold text-fg-secondary">融资融券风险提示：</p>
                   <p>· 融资买入可放大收益，但亏损也会同步放大</p>
                   <p>· 维持保证金率低于 {{ ((marginAccount.maintenance_margin_rate || 0.3) * 100).toFixed(0) }}% 时将触发强制平仓</p>
                   <p>· 卖出融资持仓所得优先偿还负债</p>
@@ -1272,67 +1227,63 @@ onUnmounted(() => {
     <Modal :isOpen="!!detailStock" title="股票详情" width="640px" @close="closeStockDetail">
       <div v-if="detailStock" class="space-y-4">
         <!-- 加载中 -->
-        <div v-if="detailLoading" class="flex justify-center py-8">
-          <svg class="animate-spin h-8 w-8 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
+        <LoadingBlock v-if="detailLoading" />
         <template v-else>
           <!-- 基本信息 -->
-          <div class="bg-[#0c0a09] border border-stone-800 rounded p-3">
+          <div class="bg-surface-canvas border border-line-subtle rounded-control p-3">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2">
-                <span class="text-lg font-bold text-stone-200">{{ detailStock.name }}</span>
-                <span class="text-xs text-stone-500 font-mono">{{ detailStock.code }}</span>
-                <span class="text-xs px-2 py-0.5 rounded bg-stone-800 text-stone-400">{{ categoryLabel(detailStock.category) }}</span>
+                <span class="text-lg font-bold text-fg-primary">{{ detailStock.name }}</span>
+                <span class="text-xs text-fg-faint num">{{ detailStock.code }}</span>
+                <Badge tone="neutral">{{ categoryLabel(detailStock.category) }}</Badge>
               </div>
-              <span v-if="detailStock.is_trading_halted" class="text-xs px-2 py-0.5 rounded bg-rose-950/60 text-rose-400 border border-rose-800/50">已熔断</span>
-              <span v-else class="text-xs px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">交易中</span>
+              <Badge :tone="detailStock.is_trading_halted ? 'danger' : 'success'">
+                {{ detailStock.is_trading_halted ? '已熔断' : '交易中' }}
+              </Badge>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-xs">
               <div class="flex items-center justify-between">
-                <span class="text-stone-500">当前价</span>
-                <span class="text-cyan-300 font-bold">{{ detailStock.current_price }}</span>
+                <span class="text-fg-faint">当前价</span>
+                <span class="text-cyan-300 font-bold num" :title="detailStock.current_price">{{ formatCompact(detailStock.current_price) }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-stone-500">今开</span>
-                <span class="text-stone-300">{{ detailStock.open_price }}</span>
+                <span class="text-fg-faint">今开</span>
+                <span class="text-fg-secondary num" :title="detailStock.open_price">{{ formatCompact(detailStock.open_price) }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-stone-500">昨收</span>
-                <span class="text-stone-300">{{ detailStock.yesterday_close_price }}</span>
+                <span class="text-fg-faint">昨收</span>
+                <span class="text-fg-secondary num" :title="detailStock.yesterday_close_price">{{ formatCompact(detailStock.yesterday_close_price) }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-stone-500">涨跌幅</span>
-                <span class="font-bold" :class="changeColorClass(detailStock.daily_change_pct)">{{ changeText(detailStock.daily_change_pct) }}</span>
+                <span class="text-fg-faint">涨跌幅</span>
+                <span class="font-bold num" :class="changeColorClass(detailStock.daily_change_pct)">{{ changeText(detailStock.daily_change_pct) }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-stone-500">成交量</span>
-                <span class="text-stone-300">{{ detailStock.daily_volume }}</span>
+                <span class="text-fg-faint">成交量</span>
+                <span class="text-fg-secondary num" :title="detailStock.daily_volume">{{ formatCompact(detailStock.daily_volume) }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-stone-500">总股本</span>
-                <span class="text-stone-300">{{ detailStock.total_shares }}</span>
+                <span class="text-fg-faint">总股本</span>
+                <span class="text-fg-secondary num" :title="detailStock.total_shares">{{ formatCompact(detailStock.total_shares) }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-stone-500">流通股</span>
-                <span class="text-stone-300">{{ detailStock.float_shares }}</span>
+                <span class="text-fg-faint">流通股</span>
+                <span class="text-fg-secondary num" :title="detailStock.float_shares">{{ formatCompact(detailStock.float_shares) }}</span>
               </div>
               <div v-if="detailStock.halt_until" class="flex items-center justify-between">
-                <span class="text-stone-500">恢复时间</span>
+                <span class="text-fg-faint">恢复时间</span>
                 <span class="text-rose-400">{{ formatFullTime(detailStock.halt_until) }}</span>
               </div>
             </div>
-            <p v-if="detailStock.description" class="text-xs text-stone-500 mt-3 pt-3 border-t border-stone-800">{{ detailStock.description }}</p>
+            <p v-if="detailStock.description" class="text-xs text-fg-faint mt-3 pt-3 border-t border-line-subtle">{{ detailStock.description }}</p>
           </div>
 
           <!-- K线区（简化展示，无图表库依赖） -->
-          <div v-if="detailStock.klines && detailStock.klines.length > 0" class="bg-[#0c0a09] border border-stone-800 rounded p-3">
-            <div class="text-xs text-stone-400 mb-2">近 {{ detailStock.klines.length }} 根 1h K线</div>
+          <div v-if="detailStock.klines && detailStock.klines.length > 0" class="bg-surface-canvas border border-line-subtle rounded-control p-3">
+            <div class="text-xs text-fg-muted mb-2">近 {{ detailStock.klines.length }} 根 1h K线</div>
             <div class="overflow-x-auto">
               <table class="w-full text-xs">
-                <thead class="text-stone-500">
+                <thead class="text-fg-faint">
                   <tr>
                     <th class="px-2 py-1 text-left">时间</th>
                     <th class="px-2 py-1 text-right">开盘</th>
@@ -1343,13 +1294,13 @@ onUnmounted(() => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(k, idx) in detailStock.klines.slice(0, 10)" :key="idx" class="text-stone-300">
-                    <td class="px-2 py-1 text-stone-400">{{ formatDateTime(k.period_start) }}</td>
-                    <td class="px-2 py-1 text-right">{{ k.open }}</td>
-                    <td class="px-2 py-1 text-right text-emerald-400">{{ k.high }}</td>
-                    <td class="px-2 py-1 text-right text-rose-400">{{ k.low }}</td>
-                    <td class="px-2 py-1 text-right">{{ k.close }}</td>
-                    <td class="px-2 py-1 text-right text-stone-400">{{ k.volume }}</td>
+                  <tr v-for="(k, idx) in detailStock.klines.slice(0, 10)" :key="idx" class="text-fg-secondary num">
+                    <td class="px-2 py-1 text-fg-muted">{{ formatDateTime(k.period_start) }}</td>
+                    <td class="px-2 py-1 text-right" :title="k.open">{{ formatCompact(k.open) }}</td>
+                    <td class="px-2 py-1 text-right text-emerald-400" :title="k.high">{{ formatCompact(k.high) }}</td>
+                    <td class="px-2 py-1 text-right text-rose-400" :title="k.low">{{ formatCompact(k.low) }}</td>
+                    <td class="px-2 py-1 text-right" :title="k.close">{{ formatCompact(k.close) }}</td>
+                    <td class="px-2 py-1 text-right text-fg-muted" :title="k.volume">{{ formatCompact(k.volume) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1357,14 +1308,14 @@ onUnmounted(() => {
           </div>
 
           <!-- 活跃事件 -->
-          <div v-if="detailStock.active_events && detailStock.active_events.length > 0" class="bg-[#0c0a09] border border-stone-800 rounded p-3">
-            <div class="text-xs text-stone-400 mb-2">活跃事件</div>
+          <div v-if="detailStock.active_events && detailStock.active_events.length > 0" class="bg-surface-canvas border border-line-subtle rounded-control p-3">
+            <div class="text-xs text-fg-muted mb-2">活跃事件</div>
             <div class="space-y-2">
               <div v-for="(evt, idx) in detailStock.active_events" :key="idx" class="flex items-center gap-2 text-xs">
-                <span class="px-2 py-0.5 rounded bg-amber-950/40 text-amber-400 border border-amber-800/40">{{ evt.event_type }}</span>
-                <span class="font-bold" :class="changeColorClass(evt.impact_pct)">{{ changeText(evt.impact_pct) }}</span>
-                <span class="text-stone-400 flex-1">{{ evt.description }}</span>
-                <span class="text-stone-600">{{ formatDateTime(evt.expire_at) }}</span>
+                <Badge tone="gold">{{ evt.event_type }}</Badge>
+                <span class="font-bold num" :class="changeColorClass(evt.impact_pct)">{{ changeText(evt.impact_pct) }}</span>
+                <span class="text-fg-muted flex-1">{{ evt.description }}</span>
+                <span class="text-fg-faint num">{{ formatDateTime(evt.expire_at) }}</span>
               </div>
             </div>
           </div>
@@ -1374,18 +1325,18 @@ onUnmounted(() => {
             <button
               @click="openTradeModal('buy', detailStock)"
               :disabled="detailStock.is_trading_halted || status?.is_trading_locked"
-              class="flex-1 py-2 rounded bg-emerald-900/40 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-800/50 text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+              class="flex-1 py-2 rounded-control bg-emerald-900/40 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 text-sm disabled:opacity-30 disabled:cursor-not-allowed"
             >买入</button>
             <button
               @click="openTradeModal('sell', detailStock)"
               :disabled="detailStock.is_trading_halted || status?.is_trading_locked"
-              class="flex-1 py-2 rounded bg-rose-900/40 border border-rose-700/50 text-rose-300 hover:bg-rose-800/50 text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+              class="flex-1 py-2 rounded-control bg-rose-900/40 border border-rose-800 text-rose-300 hover:bg-rose-800/50 text-sm disabled:opacity-30 disabled:cursor-not-allowed"
             >卖出</button>
           </div>
         </template>
       </div>
       <template #footer>
-        <button @click="closeStockDetail" class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 text-sm">关闭</button>
+        <AppButton variant="default" @click="closeStockDetail">关闭</AppButton>
       </template>
     </Modal>
 
@@ -1393,56 +1344,58 @@ onUnmounted(() => {
     <Modal :isOpen="tradeModal.show" :title="tradeModal.type === 'buy' ? '买入股票' : '卖出股票'" width="480px" @close="closeTradeModal">
       <div v-if="tradeModal.stock" class="space-y-3">
         <!-- 股票信息 -->
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3">
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-stone-200 font-bold">{{ tradeModal.stock.name }}</span>
-            <span class="text-xs text-stone-500 font-mono">{{ tradeModal.stock.code }}</span>
+            <span class="text-fg-primary font-bold">{{ tradeModal.stock.name }}</span>
+            <span class="text-xs text-fg-faint num">{{ tradeModal.stock.code }}</span>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">当前价</span>
-            <span class="text-cyan-300 font-bold">{{ tradeModal.stock.current_price }} 灵石</span>
+            <span class="text-fg-faint">当前价</span>
+            <span class="text-cyan-300 font-bold num" :title="tradeModal.stock.current_price">
+              {{ formatCompact(tradeModal.stock.current_price) }} 灵石
+            </span>
           </div>
         </div>
 
         <!-- 数量输入 -->
         <div>
-          <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">交易数量</label>
+          <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">交易数量</label>
           <div class="flex items-center gap-3">
-            <button @click="changeTradeQuantity(-1)" :disabled="tradeModal.quantity <= 1" class="w-10 h-10 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-xl font-bold disabled:opacity-30 disabled:cursor-not-allowed">-</button>
+            <button @click="changeTradeQuantity(-1)" :disabled="tradeModal.quantity <= 1" class="w-10 h-10 rounded-control bg-surface-hover hover:bg-surface-active text-fg-secondary text-xl font-bold disabled:opacity-30 disabled:cursor-not-allowed">-</button>
             <input
               v-model.number="tradeModal.quantity"
               type="number"
               min="1"
               @blur="handleTradeQuantityInput"
               @keyup.enter="handleTradeQuantityInput"
-              class="w-24 text-center bg-stone-900 border border-stone-700 rounded py-2 text-cyan-400 font-bold text-lg focus:outline-none focus:border-cyan-600"
+              class="w-24 text-center bg-surface-sunken border border-line rounded-control py-2 text-cyan-400 font-bold text-lg num focus:outline-none focus:border-cyan-700"
             />
-            <button @click="changeTradeQuantity(1)" class="w-10 h-10 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-xl font-bold">+</button>
+            <button @click="changeTradeQuantity(1)" class="w-10 h-10 rounded-control bg-surface-hover hover:bg-surface-active text-fg-secondary text-xl font-bold">+</button>
           </div>
-          <p class="text-xs text-stone-600 mt-1">
+          <p class="text-xs text-fg-faint mt-1 num">
             单笔范围 {{ status?.config?.min_trade_quantity || 1 }} - {{ status?.config?.max_trade_quantity || 1000 }} 股
           </p>
         </div>
 
         <!-- 卖出时显示可用数量 -->
-        <div v-if="tradeModal.type === 'sell'" class="text-xs text-stone-500">
+        <div v-if="tradeModal.type === 'sell'" class="text-xs text-fg-faint">
           可用数量：
-          <span class="text-cyan-400 font-bold">
+          <span class="text-cyan-400 font-bold num">
             {{ holdings.find(h => h.stock_id === tradeModal.stock.id)?.available_quantity || 0 }}
           </span>
           股
         </div>
 
         <!-- 买入时显示融资开关 -->
-        <div v-if="tradeModal.type === 'buy' && status?.has_margin_account" class="flex items-center justify-between bg-[#0c0a09] border border-stone-800 rounded p-3">
+        <div v-if="tradeModal.type === 'buy' && status?.has_margin_account" class="flex items-center justify-between bg-surface-canvas border border-line-subtle rounded-control p-3">
           <div>
-            <div class="text-sm text-stone-300">使用融资买入</div>
-            <div class="text-xs text-stone-500">杠杆放大收益与风险</div>
+            <div class="text-sm text-fg-secondary">使用融资买入</div>
+            <div class="text-xs text-fg-faint">杠杆放大收益与风险</div>
           </div>
           <button
             @click="tradeModal.useMargin = !tradeModal.useMargin"
             class="relative w-12 h-6 rounded-full transition-colors"
-            :class="tradeModal.useMargin ? 'bg-cyan-600' : 'bg-stone-700'"
+            :class="tradeModal.useMargin ? 'bg-cyan-600' : 'bg-surface-active'"
           >
             <span
               class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
@@ -1452,60 +1405,57 @@ onUnmounted(() => {
         </div>
 
         <!-- 预估金额（仅展示数量×单价，手续费以后端为准） -->
-        <div class="bg-cyan-950/20 border border-cyan-800/40 rounded p-3 space-y-2">
+        <div class="bg-surface-tint-arcane border border-line-subtle rounded-control p-3 space-y-2">
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-400">预估成交金额</span>
-            <span class="text-cyan-400 font-bold">{{ estimatedAmount }} 灵石</span>
+            <span class="text-fg-muted">预估成交金额</span>
+            <span class="text-cyan-400 font-bold num" :title="estimatedAmount">{{ formatCompact(estimatedAmount) }} 灵石</span>
           </div>
-          <p class="text-xs text-stone-600">实际手续费、印花税以确认为准（后端计算）</p>
+          <p class="text-xs text-fg-faint">实际手续费、印花税以确认为准（后端计算）</p>
         </div>
       </div>
       <template #footer>
-        <button @click="closeTradeModal" class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 text-sm">取消</button>
-        <button
-          @click="openTradeConfirmModal"
+        <AppButton variant="default" @click="closeTradeModal">取消</AppButton>
+        <AppButton
+          :variant="tradeModal.type === 'buy' ? 'primary' : 'danger'"
           :disabled="submitting"
-          class="px-4 py-2 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="tradeModal.type === 'buy'
-            ? 'bg-emerald-900/50 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-800/60'
-            : 'bg-rose-900/50 border border-rose-700/50 text-rose-300 hover:bg-rose-800/60'"
-        >确认{{ tradeModal.type === 'buy' ? '买入' : '卖出' }}</button>
+          @click="openTradeConfirmModal"
+        >确认{{ tradeModal.type === 'buy' ? '买入' : '卖出' }}</AppButton>
       </template>
     </Modal>
 
     <!-- ========== 买卖确认弹窗（二次确认） ========== -->
     <Modal :isOpen="tradeConfirmModal.show" title="确认交易" width="420px" @close="closeTradeConfirmModal">
       <div v-if="tradeModal.stock" class="space-y-3 text-sm">
-        <p class="text-stone-300">请确认以下交易：</p>
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2">
+        <p class="text-fg-secondary">请确认以下交易：</p>
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">操作</span>
+            <span class="text-fg-faint">操作</span>
             <span class="font-bold" :class="tradeModal.type === 'buy' ? 'text-emerald-400' : 'text-rose-400'">
               {{ tradeModal.type === 'buy' ? '买入' : '卖出' }}
             </span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">股票</span>
+            <span class="text-fg-faint">股票</span>
             <span class="text-cyan-300 font-bold">{{ tradeModal.stock.name }} ({{ tradeModal.stock.code }})</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">数量</span>
-            <span class="text-stone-200">{{ tradeModal.quantity }} 股</span>
+            <span class="text-fg-faint">数量</span>
+            <span class="text-fg-primary num">{{ tradeModal.quantity }} 股</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">价格</span>
-            <span class="text-stone-200">{{ tradeModal.stock.current_price }} 灵石</span>
+            <span class="text-fg-faint">价格</span>
+            <span class="text-fg-primary num" :title="tradeModal.stock.current_price">{{ formatCompact(tradeModal.stock.current_price) }} 灵石</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">预估金额</span>
-            <span class="text-cyan-400 font-bold">{{ estimatedAmount }} 灵石</span>
+            <span class="text-fg-faint">预估金额</span>
+            <span class="text-cyan-400 font-bold num" :title="estimatedAmount">{{ formatCompact(estimatedAmount) }} 灵石</span>
           </div>
           <div v-if="tradeModal.useMargin" class="flex items-center justify-between">
-            <span class="text-stone-500">融资买入</span>
-            <span class="text-amber-400">是</span>
+            <span class="text-fg-faint">融资买入</span>
+            <span class="text-gold-400">是</span>
           </div>
         </div>
-        <p class="text-xs text-stone-600">
+        <p class="text-xs text-fg-faint">
           提示：{{ tradeModal.type === 'buy'
             ? '买入后当日不可卖出（T+1 结算），手续费按 ' + ((status?.config?.trading_fee_buy || 0) * 100).toFixed(2) + '% 计算'
             : '卖出收取手续费与印花税 ' + ((status?.config?.stamp_tax_sell || 0) * 100).toFixed(2) + '%'
@@ -1513,36 +1463,32 @@ onUnmounted(() => {
         </p>
       </div>
       <template #footer>
-        <button @click="closeTradeConfirmModal" class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 text-sm">取消</button>
-        <button
-          @click="confirmTrade"
+        <AppButton variant="default" @click="closeTradeConfirmModal">取消</AppButton>
+        <AppButton
+          :variant="tradeModal.type === 'buy' ? 'primary' : 'danger'"
           :disabled="submitting"
-          class="px-4 py-2 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="tradeModal.type === 'buy'
-            ? 'bg-emerald-900/50 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-800/60'
-            : 'bg-rose-900/50 border border-rose-700/50 text-rose-300 hover:bg-rose-800/60'"
+          @click="confirmTrade"
         >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认{{ tradeModal.type === 'buy' ? '买入' : '卖出' }}</span>
-        </button>
+          {{ submitting ? '处理中…' : `确认${tradeModal.type === 'buy' ? '买入' : '卖出'}` }}
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 资金转入/转出弹窗 ========== -->
     <Modal :isOpen="transferModal.show" :title="transferModal.type === 'deposit' ? '转入灵石' : '转出灵石'" width="480px" @close="closeTransferModal">
       <div class="space-y-3">
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2 text-sm">
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2 text-sm">
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">灵石余额</span>
-            <span class="text-amber-300 font-bold">{{ formatCompact(playerStore.player?.spirit_stones) }}</span>
+            <span class="text-fg-faint">灵石余额</span>
+            <span class="text-gold-300 font-bold num" :title="playerStore.player?.spirit_stones">{{ formatCompact(playerStore.player?.spirit_stones) }}</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">股市账户余额</span>
-            <span class="text-cyan-300 font-bold">{{ formatCompact(status?.balance) }}</span>
+            <span class="text-fg-faint">股市账户余额</span>
+            <span class="text-cyan-300 font-bold num" :title="status?.balance">{{ formatCompact(status?.balance) }}</span>
           </div>
         </div>
         <div>
-          <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">
+          <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">
             {{ transferModal.type === 'deposit' ? '转入金额' : '转出金额' }}
           </label>
           <input
@@ -1550,10 +1496,10 @@ onUnmounted(() => {
             type="number"
             min="1"
             placeholder="请输入金额"
-            class="w-full bg-stone-900 border border-stone-700 rounded px-3 py-2 text-cyan-400 font-bold text-lg focus:outline-none focus:border-cyan-600"
+            class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-cyan-400 font-bold text-lg num focus:outline-none focus:border-cyan-700"
           />
         </div>
-        <p class="text-xs text-stone-600">
+        <p class="text-xs text-fg-faint">
           {{ transferModal.type === 'deposit'
             ? '将从灵石余额扣除，转入股市账户用于交易'
             : '将从股市账户转出至灵石余额（负债过高时不可转出）'
@@ -1561,169 +1507,120 @@ onUnmounted(() => {
         </p>
       </div>
       <template #footer>
-        <button @click="closeTransferModal" class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 text-sm">取消</button>
-        <button
-          @click="openTransferConfirmModal"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-cyan-900/50 border border-cyan-700/50 text-cyan-300 hover:bg-cyan-800/60 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >下一步</button>
+        <AppButton variant="default" @click="closeTransferModal">取消</AppButton>
+        <AppButton variant="primary" :disabled="submitting" @click="openTransferConfirmModal">下一步</AppButton>
       </template>
     </Modal>
 
     <!-- ========== 转入/转出确认弹窗 ========== -->
     <Modal :isOpen="transferConfirmModal.show" title="确认转账" width="420px" @close="closeTransferConfirmModal">
       <div class="space-y-3 text-sm">
-        <p class="text-stone-300">请确认以下操作：</p>
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2">
+        <p class="text-fg-secondary">请确认以下操作：</p>
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">操作</span>
-            <span class="font-bold" :class="transferModal.type === 'deposit' ? 'text-emerald-400' : 'text-amber-400'">
+            <span class="text-fg-faint">操作</span>
+            <span class="font-bold" :class="transferModal.type === 'deposit' ? 'text-emerald-400' : 'text-gold-400'">
               {{ transferModal.type === 'deposit' ? '转入股市账户' : '转出至灵石' }}
             </span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">金额</span>
-            <span class="text-cyan-400 font-bold">{{ formatCompact(transferModal.amount) }} 灵石</span>
+            <span class="text-fg-faint">金额</span>
+            <span class="text-cyan-400 font-bold num" :title="transferModal.amount">{{ formatCompact(transferModal.amount) }} 灵石</span>
           </div>
         </div>
       </div>
       <template #footer>
-        <button @click="closeTransferConfirmModal" class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 text-sm">取消</button>
-        <button
-          @click="confirmTransfer"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-cyan-900/50 border border-cyan-700/50 text-cyan-300 hover:bg-cyan-800/60 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认</span>
-        </button>
+        <AppButton variant="default" @click="closeTransferConfirmModal">取消</AppButton>
+        <AppButton variant="primary" :disabled="submitting" @click="confirmTransfer">
+          {{ submitting ? '处理中…' : '确认' }}
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 开通融资确认弹窗 ========== -->
     <Modal :isOpen="openMarginConfirmModal.show" title="开通融资账户" width="420px" @close="openMarginConfirmModal.show = false">
       <div class="space-y-3 text-sm">
-        <p class="text-stone-300">确定要开通融资账户吗？</p>
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2">
+        <p class="text-fg-secondary">确定要开通融资账户吗？</p>
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">最大杠杆倍数</span>
-            <span class="text-cyan-400 font-bold">{{ status?.config?.max_leverage || 2 }} 倍</span>
+            <span class="text-fg-faint">最大杠杆倍数</span>
+            <span class="text-cyan-400 font-bold num">{{ status?.config?.max_leverage || 2 }} 倍</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">维持保证金率</span>
-            <span class="text-stone-200">30%</span>
+            <span class="text-fg-faint">维持保证金率</span>
+            <span class="text-fg-primary num">30%</span>
           </div>
         </div>
-        <p class="text-xs text-amber-400">
+        <p class="text-xs text-gold-400">
           提示：融资买入可放大收益，但亏损同步放大。保证金率低于 30% 将触发强平，请谨慎操作。
         </p>
       </div>
       <template #footer>
-        <button @click="openMarginConfirmModal.show = false" class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 text-sm">取消</button>
-        <button
-          @click="confirmOpenMargin"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-cyan-900/50 border border-cyan-700/50 text-cyan-300 hover:bg-cyan-800/60 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认开通</span>
-        </button>
+        <AppButton variant="default" @click="openMarginConfirmModal.show = false">取消</AppButton>
+        <AppButton variant="primary" :disabled="submitting" @click="confirmOpenMargin">
+          {{ submitting ? '处理中…' : '确认开通' }}
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 偿还融资弹窗 ========== -->
     <Modal :isOpen="repayModal.show" title="偿还融资负债" width="480px" @close="closeRepayModal">
       <div v-if="marginAccount" class="space-y-3">
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2 text-sm">
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2 text-sm">
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">当前负债</span>
-            <span class="text-rose-400 font-bold">{{ formatCompact(marginAccount.debt) }} 灵石</span>
+            <span class="text-fg-faint">当前负债</span>
+            <span class="text-rose-400 font-bold num" :title="marginAccount.debt">{{ formatCompact(marginAccount.debt) }} 灵石</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">账户余额</span>
-            <span class="text-cyan-300 font-bold">{{ formatCompact(marginAccount.balance) }} 灵石</span>
+            <span class="text-fg-faint">账户余额</span>
+            <span class="text-cyan-300 font-bold num" :title="marginAccount.balance">{{ formatCompact(marginAccount.balance) }} 灵石</span>
           </div>
         </div>
         <div>
-          <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">偿还金额</label>
+          <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">偿还金额</label>
           <input
             v-model.number="repayModal.amount"
             type="number"
             min="1"
             placeholder="请输入偿还金额"
-            class="w-full bg-stone-900 border border-stone-700 rounded px-3 py-2 text-cyan-400 font-bold text-lg focus:outline-none focus:border-cyan-600"
+            class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-cyan-400 font-bold text-lg num focus:outline-none focus:border-cyan-700"
           />
         </div>
-        <button
-          @click="repayModal.amount = Number(marginAccount.debt)"
-          class="text-xs text-cyan-400 hover:text-cyan-300"
-        >全部偿还</button>
-        <p class="text-xs text-stone-600">将从股市账户余额扣除，偿还后减少融资负债</p>
+        <AppButton size="xs" variant="ghost" @click="repayModal.amount = Number(marginAccount.debt)">全部偿还</AppButton>
+        <p class="text-xs text-fg-faint">将从股市账户余额扣除，偿还后减少融资负债</p>
       </div>
       <template #footer>
-        <button @click="closeRepayModal" class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 text-sm">取消</button>
-        <button
-          @click="openRepayConfirmModal"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-rose-900/50 border border-rose-700/50 text-rose-300 hover:bg-rose-800/60 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >下一步</button>
+        <AppButton variant="default" @click="closeRepayModal">取消</AppButton>
+        <AppButton variant="danger" :disabled="submitting" @click="openRepayConfirmModal">下一步</AppButton>
       </template>
     </Modal>
 
     <!-- ========== 偿还确认弹窗 ========== -->
     <Modal :isOpen="repayConfirmModal.show" title="确认偿还" width="420px" @close="repayConfirmModal.show = false">
       <div class="space-y-3 text-sm">
-        <p class="text-stone-300">请确认以下偿还操作：</p>
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2">
+        <p class="text-fg-secondary">请确认以下偿还操作：</p>
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">偿还金额</span>
-            <span class="text-rose-400 font-bold">{{ formatCompact(repayModal.amount) }} 灵石</span>
+            <span class="text-fg-faint">偿还金额</span>
+            <span class="text-rose-400 font-bold num" :title="repayModal.amount">{{ formatCompact(repayModal.amount) }} 灵石</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-stone-500">偿还后剩余负债</span>
-            <span class="text-stone-200">{{ Math.max(0, Number(marginAccount?.debt || 0) - Number(repayModal.amount || 0)) }} 灵石</span>
+            <span class="text-fg-faint">偿还后剩余负债</span>
+            <span class="text-fg-primary num">{{ formatCompact(Math.max(0, Number(marginAccount?.debt || 0) - Number(repayModal.amount || 0))) }} 灵石</span>
           </div>
         </div>
       </div>
       <template #footer>
-        <button @click="repayConfirmModal.show = false" class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 text-sm">取消</button>
-        <button
-          @click="confirmRepay"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-rose-900/50 border border-rose-700/50 text-rose-300 hover:bg-rose-800/60 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认偿还</span>
-        </button>
+        <AppButton variant="default" @click="repayConfirmModal.show = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="submitting" @click="confirmRepay">
+          {{ submitting ? '处理中…' : '确认偿还' }}
+        </AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
 
 <style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* 自定义滚动条 */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #44403c;
-  border-radius: 2px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #57534e;
-}
-
 /* 隐藏 number 输入框的箭头 */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {

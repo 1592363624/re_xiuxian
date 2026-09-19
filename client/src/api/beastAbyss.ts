@@ -80,8 +80,6 @@ export interface AbyssFloorsData {
   max_duration_hours: number;
   /** 每日探渊次数上限 */
   daily_explore_limit: number;
-  /** 今日剩余探渊次数 */
-  daily_remaining: number;
 }
 
 /** POST /start 请求体 - 开始探渊 */
@@ -153,18 +151,30 @@ export interface AbyssStatusData {
     beast_id: number;
     /** 灵兽名称 */
     beast_name: string;
-    /** 探渊层数 */
-    floor: number;
+    /** 灵兽配置 key */
+    beast_key: string | null;
+    /** 派出时选择的起始层数 */
+    start_floor: number;
+    /** 当前已到达的最深层数（新派出时为 1，随遭遇推进增长） */
+    max_floor_reached: number;
+    /** 探渊时长（小时） */
+    duration_hours: number;
     /** 开始时间（ISO 字符串） */
     start_time: string;
     /** 结束时间（ISO 字符串） */
     end_time: string;
-    /** 剩余秒数（<0 表示已到期未召回） */
+    /** 剩余秒数（到期后为 0） */
     remaining_seconds: number;
     /** 是否已到期（true 表示可以召回结算） */
     is_expired: boolean;
+    /** 已消耗体力 */
+    stamina_used: number;
   }>;
-  /** 今日已探渊次数 */
+  /** 进行中探渊数量 */
+  active_count: number;
+  /** 同时可派出的最大灵兽数量 */
+  max_concurrent: number;
+  /** 今日已探渊次数（玩家级，按当日 0 点起统计） */
   daily_explores_today: number;
   /** 每日探渊次数上限 */
   daily_limit: number;
@@ -221,33 +231,81 @@ export interface AbyssHistoryData {
   page_size: number;
 }
 
-/** GET /encounters 响应数据 - 遭遇详情 */
+/** 遭遇掉落物品（items_gained 数组元素，字段沿用层配置 drops 的命名） */
+export interface AbyssEncounterItem {
+  /** 物品 key（配置表 item_id，如 wild_herb / spirit_stone） */
+  item_id: string;
+  /** 物品中文名 */
+  name: string;
+  /** 数量（后端字段名为 qty，不是 amount） */
+  qty: number;
+  /** 是否灵石类掉落：true 时后端直接加到玩家灵石、不入背包，灵石数值看 spirit_stones_gained */
+  is_spirit_stone?: boolean;
+}
+
+/**
+ * 遭遇详情 encounter_detail（JSON 列，是对象而不是字符串）
+ * 服务端仅怪物战斗分支 BeastAbyssService._battleMonster 构造该对象，
+ * PVP / 宝箱 / 陷阱分支均不构造。
+ */
+export interface AbyssEncounterDetail {
+  /** 怪物配置 key */
+  monster_key?: string;
+  /** 怪物中文名 */
+  monster_name?: string;
+  /** 怪物五行属性：metal/wood/water/fire/earth/dark */
+  monster_element?: string;
+  /** 怪物气血（已乘该层 monster_difficulty，可能带小数） */
+  monster_hp?: number;
+  /** 战斗回合数：胜=我方击杀怪物所需回合，败=怪物击杀我方所需回合 */
+  rounds?: number;
+}
+
+/** 单条遭遇日志（对应表 abyss_encounter_logs 的一行） */
+export interface AbyssEncounter {
+  /** 日志 ID */
+  log_id: number;
+  /** 遭遇所在层数（1-based）；后端没有「回合号」字段，一次探渊的层数可重复 */
+  floor: number;
+  /** 遭遇类型：monster=怪物 / pvp=PVP / treasure=宝箱 / trap=陷阱（后端无 event 类型） */
+  encounter_type: string;
+  /**
+   * 遭遇详情：JSON 对象，形态见 AbyssEncounterDetail。
+   * 注意后端写日志时（BeastAbyssService 结算流程的 events.push）漏传了该字段，
+   * 因此目前接口里恒为 null，展示方必须按「可能没有」处理。
+   */
+  encounter_detail: AbyssEncounterDetail | null;
+  /** 遭遇结果：victory=胜 / defeat=败 / triggered=非战斗类触发；列可空 */
+  result: string | null;
+  /** 遭遇后灵兽 HP 绝对值（不是变化量）；列可空 */
+  hp_after: number | null;
+  /** 遭遇后体力绝对值（不是变化量，同一层多条日志会重复）；列可空 */
+  stamina_after: number | null;
+  /** 本次遭遇获得经验（战败时为 0，无负值） */
+  exp_gained: number;
+  /** 本次遭遇获得物品列表（无奖励时为 null 或空数组） */
+  items_gained: AbyssEncounterItem[] | null;
+  /** 本次遭遇获得灵石 */
+  spirit_stones_gained: number;
+  /** 本次遭遇获得兽魂（后端兽魂按整次探渊汇总，单条日志恒为 0） */
+  beast_soul_gained: number;
+  /** PVP 对手玩家 ID（非 PVP 或本层未找到对手时为 null） */
+  opponent_player_id: number | null;
+  /** PVP 对手灵兽名（后端只有灵兽名，没有对手昵称/境界；非 PVP 时为 null） */
+  opponent_beast_name: string | null;
+  /** 遭遇写入时间（ISO 字符串） */
+  created_at: string;
+}
+
+/**
+ * GET /encounters 响应数据 - 遭遇详情
+ * 后端不落库 opponent_beast_id，故响应中无该字段
+ */
 export interface AbyssEncountersData {
-  /** 遭遇列表（按回合顺序） */
-  encounters: Array<{
-    /** 回合数（1-based） */
-    round: number;
-    /** 遭遇类型：monster=怪物 / pvp=玩家 / event=随机事件 / treasure=宝箱 / trap=陷阱 */
-    encounter_type: string;
-    /** 遭遇描述 */
-    description: string;
-    /** 结果描述（胜/负/触发效果） */
-    result: string;
-    /** HP 变化（负数表示掉血） */
-    hp_change: number;
-    /** 经验变化 */
-    exp_change: number;
-    /** 物品奖励列表 */
-    items?: Array<{ item_key: string; name: string; amount: number }>;
-    /** 灵石奖励 */
-    spirit_stones?: number;
-    /** PVP 对手信息（仅 pvp 类型存在） */
-    pvp_opponent?: {
-      player_id: number;
-      nickname: string;
-      realm: string;
-    } | null;
-  }>;
+  /** 所属探渊记录 ID */
+  explore_id: number;
+  /** 遭遇列表（后端按 created_at 升序返回，即探渊进行顺序，无分页） */
+  encounters: AbyssEncounter[];
 }
 
 /** GET /ranking 响应数据 - 排行榜 */

@@ -1,9 +1,9 @@
 <template>
   <div class="space-y-4">
     <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
-      <h3 class="text-lg font-bold text-white">操作日志</h3>
+      <h3 class="text-lg font-bold text-fg-primary">操作日志</h3>
       <div class="flex gap-2">
-        <select v-model="filter" @change="fetchLogs(1)" class="px-3 py-1 bg-gray-800 border border-gray-600 rounded text-white text-sm">
+        <select v-model="filter" @change="fetchLogs(1)" class="px-3 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600">
           <option value="">全部操作</option>
           <option value="time_travel">时间加速</option>
           <option value="ban_player">封禁玩家</option>
@@ -19,13 +19,13 @@
           <option value="update_cultivation_seclusion">修炼配置-闭关</option>
           <option value="update_cultivation_adventure">修炼配置-历练</option>
         </select>
-        <button @click="fetchLogs(1)" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新</button>
+        <AppButton variant="primary" size="sm" @click="fetchLogs(1)">刷新</AppButton>
       </div>
     </div>
 
     <div class="overflow-x-auto">
-      <table class="w-full text-left text-sm text-gray-300">
-        <thead class="bg-gray-800 text-gray-400 uppercase">
+      <table class="w-full text-left text-sm text-fg-secondary">
+        <thead class="bg-surface-raised text-fg-muted uppercase">
           <tr>
             <th class="px-4 py-3 whitespace-nowrap">时间</th>
             <th class="px-4 py-3 whitespace-nowrap">管理员ID</th>
@@ -35,34 +35,36 @@
             <th class="px-4 py-3 whitespace-nowrap">操作</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-700">
-          <tr v-for="log in logs" :key="log.id" class="hover:bg-gray-800/50">
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{ formatDateTime(log.createdAt) }}</td>
-            <td class="px-4 py-3 whitespace-nowrap">{{ log.admin_id }}</td>
+        <tbody class="divide-y divide-line-subtle">
+          <tr v-for="log in logs" :key="log.id" class="hover:bg-surface-hover">
+            <td class="px-4 py-3 whitespace-nowrap text-fg-faint num">{{ formatDateTime(log.createdAt) }}</td>
+            <td class="px-4 py-3 whitespace-nowrap num">{{ log.admin_id }}</td>
             <td class="px-4 py-3 whitespace-nowrap">
               <span class="px-2 py-0.5 rounded text-xs" :class="getActionClass(log.action)">{{ getActionName(log.action) }}</span>
             </td>
-            <td class="px-4 py-3 text-gray-400 max-w-md truncate">{{ formatDetailsPreview(log) }}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{ log.ip || '-' }}</td>
+            <td class="px-4 py-3 text-fg-muted max-w-md truncate">{{ formatDetailsPreview(log) }}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-fg-faint num">{{ log.ip || '-' }}</td>
             <td class="px-4 py-3 whitespace-nowrap">
               <!-- 修炼配置变更日志提供"查看 diff"按钮 -->
               <button
                 v-if="isCultivationConfigAction(log.action)"
+                type="button"
                 @click="openDiff(log)"
-                class="px-2 py-1 text-xs bg-cyan-700 hover:bg-cyan-600 text-white rounded"
+                class="focus-ring px-2 py-1 text-xs bg-cyan-700 hover:bg-cyan-600 text-fg-primary rounded-control transition-colors"
               >查看 diff</button>
               <!-- 其他日志显示原始 JSON（可展开） -->
-              <button
+              <AppButton
                 v-else
+                variant="default"
+                size="xs"
                 @click="toggleRaw(log.id)"
-                class="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
-              >{{ expandedRawIds.has(log.id) ? '收起' : '详情' }}</button>
+              >{{ expandedRawIds.has(log.id) ? '收起' : '详情' }}</AppButton>
             </td>
           </tr>
           <!-- 原始 JSON 展开行（非修炼配置日志） -->
-          <tr v-if="expandedRawIds.has(log.id)" v-for="log in logs" :key="`raw-${log.id}`" class="bg-gray-900/50">
+          <tr v-if="expandedRawIds.has(log.id)" v-for="log in logs" :key="`raw-${log.id}`" class="bg-surface-sunken/50">
             <td colspan="6" class="px-4 py-3">
-              <pre class="text-xs text-gray-400 whitespace-pre-wrap break-all font-mono">{{ formatRawDetails(log.details) }}</pre>
+              <pre class="text-xs text-fg-muted whitespace-pre-wrap break-all font-mono wrap-cjk">{{ formatRawDetails(log.details) }}</pre>
             </td>
           </tr>
         </tbody>
@@ -70,32 +72,34 @@
     </div>
 
     <div class="flex justify-center items-center gap-4 mt-4">
-      <button
+      <AppButton
+        variant="default"
+        size="sm"
         :disabled="pagination.currentPage === 1"
         @click="fetchLogs(pagination.currentPage - 1)"
-        class="px-3 py-1 bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600"
-      >上一页</button>
-      <span class="text-gray-400">第 {{ pagination.currentPage }} / {{ pagination.totalPages }} 页</span>
-      <button
+      >上一页</AppButton>
+      <span class="text-fg-muted num">第 {{ pagination.currentPage }} / {{ pagination.totalPages }} 页</span>
+      <AppButton
+        variant="default"
+        size="sm"
         :disabled="pagination.currentPage === pagination.totalPages"
         @click="fetchLogs(pagination.currentPage + 1)"
-        class="px-3 py-1 bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600"
-      >下一页</button>
+      >下一页</AppButton>
     </div>
 
     <!-- 修炼配置变更 diff 抽屉 -->
     <div v-if="diffDrawer.visible" class="fixed inset-0 z-[70] flex justify-end">
       <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="closeDiff"></div>
-      <div class="relative w-full max-w-3xl h-full bg-[#1c1917] border-l border-stone-700 shadow-2xl overflow-y-auto animate-slide-in-right">
+      <div class="relative w-full max-w-3xl h-full bg-surface-raised border-l border-line-strong shadow-2xl overflow-y-auto animate-slide-in-right">
         <!-- 头部 -->
-        <div class="sticky top-0 bg-[#0c0a09] border-b border-stone-800 px-5 py-4 flex justify-between items-center z-10">
+        <div class="sticky top-0 bg-surface-canvas border-b border-line-subtle px-5 py-4 flex justify-between items-center z-10">
           <div>
             <h3 class="text-base font-bold text-cyan-400">修炼配置变更详情</h3>
-            <p class="text-xs text-stone-500 mt-1">
+            <p class="text-xs text-fg-faint mt-1 num">
               {{ getActionName(diffDrawer.log?.action) }} · {{ formatDateTime(diffDrawer.log?.createdAt) }} · 管理员ID: {{ diffDrawer.log?.admin_id }}
             </p>
           </div>
-          <button @click="closeDiff" class="text-stone-500 hover:text-white">
+          <button type="button" @click="closeDiff" class="focus-ring text-fg-faint hover:text-fg-primary transition-colors" aria-label="关闭 diff 抽屉">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
             </svg>
@@ -105,7 +109,7 @@
         <!-- 内容 -->
         <div class="p-5 space-y-4">
           <!-- 加载中骨架：后端正在计算 diff -->
-          <div v-if="diffLoading" class="flex items-center justify-center py-12 text-stone-400">
+          <div v-if="diffLoading" class="flex items-center justify-center py-12 text-fg-muted">
             <svg class="animate-spin h-5 w-5 mr-3 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -117,7 +121,7 @@
           <div v-else-if="diffError" class="bg-rose-950/40 border border-rose-800/60 rounded p-4 text-sm">
             <div class="text-rose-400 font-bold mb-1">获取 diff 失败</div>
             <div class="text-rose-300 text-xs break-all">{{ diffError }}</div>
-            <button @click="openDiff(diffDrawer.log)" class="mt-3 px-3 py-1 text-xs bg-rose-800 hover:bg-rose-700 text-white rounded">重试</button>
+            <button type="button" @click="openDiff(diffDrawer.log)" class="focus-ring mt-3 px-3 py-1 text-xs bg-rose-800 hover:bg-rose-700 text-fg-primary rounded-control transition-colors">重试</button>
           </div>
 
           <!-- 正常展示 diff 结果 -->
@@ -129,16 +133,16 @@
             </div>
 
             <!-- 修改目标 -->
-            <div v-if="diffData.target" class="text-xs text-stone-400">
+            <div v-if="diffData.target" class="text-xs text-fg-muted">
               修改目标：<span class="text-amber-400 font-mono">{{ diffData.target }}</span>
             </div>
 
             <!-- 字段级 diff 表格 -->
             <div v-if="diffData.fields.length > 0">
-              <h4 class="text-sm font-bold text-stone-300 mb-2">字段级变更对比（{{ diffData.fields.length }} 项）</h4>
-              <div class="overflow-x-auto border border-stone-700 rounded">
+              <h4 class="text-sm font-bold text-fg-secondary mb-2">字段级变更对比（{{ diffData.fields.length }} 项）</h4>
+              <div class="overflow-x-auto border border-line-strong rounded">
                 <table class="w-full text-xs">
-                  <thead class="bg-stone-800 text-stone-400">
+                  <thead class="bg-surface-raised text-fg-muted">
                     <tr>
                       <th class="px-3 py-2 text-left">字段</th>
                       <th class="px-3 py-2 text-left">修改前</th>
@@ -146,16 +150,16 @@
                       <th class="px-3 py-2 text-left">变化</th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-stone-800">
-                    <tr v-for="field in diffData.fields" :key="field.path" class="hover:bg-stone-900/50">
-                      <td class="px-3 py-2 text-stone-300 font-mono whitespace-nowrap">{{ field.path }}</td>
-                      <td class="px-3 py-2 text-rose-400 font-mono">{{ formatValue(field.before) }}</td>
-                      <td class="px-3 py-2 text-emerald-400 font-mono">{{ formatValue(field.after) }}</td>
+                  <tbody class="divide-y divide-line-subtle">
+                    <tr v-for="field in diffData.fields" :key="field.path" class="hover:bg-surface-hover">
+                      <td class="px-3 py-2 text-fg-secondary font-mono whitespace-nowrap">{{ field.path }}</td>
+                      <td class="px-3 py-2 text-rose-400 font-mono num">{{ formatValue(field.before) }}</td>
+                      <td class="px-3 py-2 text-emerald-400 font-mono num">{{ formatValue(field.after) }}</td>
                       <td class="px-3 py-2">
                         <span v-if="field.changeType === 'added'" class="px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 text-[10px]">新增</span>
                         <span v-else-if="field.changeType === 'removed'" class="px-1.5 py-0.5 rounded bg-rose-950/60 text-rose-400 text-[10px]">删除</span>
                         <span v-else-if="field.changeType === 'modified'" class="px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-400 text-[10px]">修改</span>
-                        <span v-else class="px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 text-[10px]">未变</span>
+                        <span v-else class="px-1.5 py-0.5 rounded bg-surface-hover text-fg-faint text-[10px]">未变</span>
                       </td>
                     </tr>
                   </tbody>
@@ -164,14 +168,14 @@
             </div>
 
             <!-- 空数据提示：后端计算完成但无变化字段 -->
-            <div v-else class="text-center py-8 text-stone-500 text-sm">
+            <div v-else class="text-center py-8 text-fg-faint text-sm">
               该日志无字段变化
             </div>
 
             <!-- 原始 JSON 折叠区 -->
             <details class="mt-4">
-              <summary class="cursor-pointer text-xs text-stone-500 hover:text-stone-300">查看原始 JSON</summary>
-              <pre class="mt-2 text-xs text-stone-500 bg-stone-900/50 p-3 rounded overflow-x-auto font-mono">{{ formatRawDetails(diffDrawer.log?.details) }}</pre>
+              <summary class="cursor-pointer text-xs text-fg-faint hover:text-fg-secondary">查看原始 JSON</summary>
+              <pre class="mt-2 text-xs text-fg-faint bg-surface-sunken/50 p-3 rounded overflow-x-auto font-mono">{{ formatRawDetails(diffDrawer.log?.details) }}</pre>
             </details>
           </template>
         </div>
@@ -194,6 +198,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getLogs } from '../../../api/admin'
 import { getConfigDiff } from '../../../api/admin_cultivation'
+import AppButton from '../../ui/AppButton.vue'
 
 // 日志数据
 const logs = ref([])
@@ -386,7 +391,7 @@ const getActionClass = (action) => {
   if (action && (action.startsWith('give_') || action === 'add_exp')) return 'action-type-give'
   if (action === 'update_config') return 'action-type-config'
   if (action === 'update_cultivation_seclusion' || action === 'update_cultivation_adventure') return 'action-type-cultivation'
-  return 'bg-gray-700 text-gray-300'
+  return 'bg-surface-active text-fg-secondary'
 }
 
 /**
@@ -417,7 +422,10 @@ onMounted(() => {
 
 <style scoped>
 .action-type-time-travel {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  /* 鎏金渐变与令牌等值（gold-500 = #f59e0b / gold-600 = #d97706），取令牌；
+   * 下面几组语义渐变的 500/600 色阶在 tokens.css 中没有等值令牌
+   * （state-* 均为 400 色阶），替换会改变既有观感，故保留字面值。 */
+  background: linear-gradient(135deg, rgb(var(--gold-500)) 0%, rgb(var(--gold-600)) 100%);
   color: white;
 }
 

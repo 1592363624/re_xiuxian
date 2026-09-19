@@ -2,51 +2,51 @@
   <div class="space-y-6">
     <!-- 顶部：标题与操作按钮 -->
     <div class="flex justify-between items-center">
-      <h3 class="text-lg font-bold text-white">世界BOSS管理</h3>
+      <h3 class="text-lg font-bold text-fg-primary">世界BOSS管理</h3>
       <div class="flex space-x-2">
         <button @click="refreshCurrent"
-          class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新列表</button>
+          class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded-control text-fg-primary text-sm">刷新列表</button>
         <button @click="fetchMetrics"
-          class="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white text-sm">更新指标</button>
+          class="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded-control text-fg-primary text-sm">更新指标</button>
       </div>
     </div>
 
     <!-- 统计指标卡片（4列网格） -->
     <div v-if="metrics" class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <!-- 活跃BOSS数（红色，危险主题） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">活跃BOSS</div>
-        <div class="text-2xl font-bold text-red-400">{{ metrics.active_boss_count }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">当前待激活/战斗中BOSS数</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">活跃BOSS</div>
+        <div class="text-2xl font-bold text-red-400 num">{{ metrics.active_boss_count }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">当前待激活/战斗中BOSS数</div>
       </div>
       <!-- 历史击杀BOSS数（紫色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">历史击杀</div>
-        <div class="text-2xl font-bold text-purple-400">{{ metrics.total_bosses_killed }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">累计已击杀BOSS总数</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">历史击杀</div>
+        <div class="text-2xl font-bold text-purple-400 num">{{ metrics.total_bosses_killed }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">累计已击杀BOSS总数</div>
       </div>
       <!-- 活跃赛季数（青色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">活跃赛季</div>
-        <div class="text-2xl font-bold text-cyan-400">{{ metrics.active_season_count }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">当前进行中赛季数</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">活跃赛季</div>
+        <div class="text-2xl font-bold text-cyan-400 num">{{ metrics.active_season_count }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">当前进行中赛季数</div>
       </div>
       <!-- 总赛季数（橙色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">总赛季数</div>
-        <div class="text-2xl font-bold text-orange-400">{{ metrics.total_season_count }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">历史创建赛季总数</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">总赛季数</div>
+        <div class="text-2xl font-bold text-orange-400 num">{{ metrics.total_seasons }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">历史创建赛季总数</div>
       </div>
     </div>
 
     <!-- 子 Tab 切换：BOSS列表 / 赛季列表 -->
-    <div class="flex border-b border-gray-700 bg-gray-800/50">
+    <div class="flex border-b border-line bg-surface-raised/50">
       <button
         v-for="tab in subTabs"
         :key="tab.id"
         @click="switchTab(tab.id)"
         class="px-6 py-2 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
-        :class="currentSubTab === tab.id ? 'text-red-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'"
+        :class="currentSubTab === tab.id ? 'text-red-400' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-hover/50'"
       >
         {{ tab.name }}
         <div v-if="currentSubTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-red-500"></div>
@@ -56,31 +56,33 @@
     <!-- 子 Tab 1：BOSS列表 -->
     <div v-if="currentSubTab === 'bosses'">
       <!-- 筛选区 + 手动刷新BOSS入口 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2">
-            <label class="text-sm text-gray-400 whitespace-nowrap">状态：</label>
+            <label class="text-sm text-fg-muted whitespace-nowrap">状态：</label>
             <select v-model="bossSearchParams.status"
-              class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm">
+              class="px-3 py-1 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
               <option v-for="opt in BOSS_STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </div>
           <button @click="handleBossSearch"
-            class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">查询</button>
-          <button @click="resetBossSearch"
-            class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">重置</button>
+            class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded-control text-fg-primary text-sm">查询</button>
+          <AppButton variant="default" size="sm" @click="resetBossSearch">
+            重置
+          </AppButton>
           <div class="ml-auto">
-            <button @click="openSpawnModal"
-              class="px-3 py-1 bg-red-700 hover:bg-red-600 rounded text-white text-sm">手动刷新BOSS</button>
+            <AppButton variant="danger" size="sm" @click="openSpawnModal">
+              手动刷新BOSS
+            </AppButton>
           </div>
         </div>
       </div>
 
       <!-- BOSS列表表格 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden mt-3">
+      <div class="bg-surface-base rounded-lg border border-line overflow-hidden mt-3">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-gray-900 text-gray-400">
+            <thead class="bg-surface-raised text-fg-muted">
               <tr>
                 <th class="px-3 py-2 text-left whitespace-nowrap">BOSS ID</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">BOSS名称</th>
@@ -95,17 +97,17 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-if="bossLoading" class="text-center text-gray-500">
+              <tr v-if="bossLoading" class="text-center text-fg-faint">
                 <td colspan="10" class="px-3 py-6">加载中...</td>
               </tr>
-              <tr v-else-if="bossList.length === 0" class="text-center text-gray-500">
+              <tr v-else-if="bossList.length === 0" class="text-center text-fg-faint">
                 <td colspan="10" class="px-3 py-6">暂无数据</td>
               </tr>
-              <tr v-for="b in bossList" :key="b.boss_id" class="border-t border-gray-700 hover:bg-gray-750">
-                <td class="px-3 py-2 text-gray-400">{{ b.boss_id }}</td>
-                <td class="px-3 py-2 text-white">
+              <tr v-for="b in bossList" :key="b.boss_id" class="border-t border-line-subtle hover:bg-surface-hover">
+                <td class="px-3 py-2 text-fg-muted">{{ b.boss_id }}</td>
+                <td class="px-3 py-2 text-fg-primary">
                   {{ b.boss_name }}
-                  <div class="text-[10px] text-gray-500">{{ b.boss_key }}</div>
+                  <div class="text-[10px] text-fg-faint">{{ b.boss_key }}</div>
                 </td>
                 <td class="px-3 py-2">
                   <span :class="bossStatusClass(b.status)" class="px-2 py-0.5 rounded text-xs">
@@ -113,49 +115,52 @@
                   </span>
                 </td>
                 <td class="px-3 py-2">
-                  <!-- HP 数值与百分比进度条 -->
-                  <div class="text-xs text-gray-300 whitespace-nowrap">
+                  <!-- HP 数值与百分比进度条（百分比由 hp_current / hp_max 现算，算不出则隐藏进度条） -->
+                  <div class="text-xs text-fg-secondary whitespace-nowrap num">
                     {{ formatHp(b.hp_current) }} / {{ formatHp(b.hp_max) }}
                   </div>
-                  <div class="mt-1 w-32 h-2 bg-gray-900 rounded overflow-hidden">
-                    <div class="h-full transition-all duration-300"
-                      :class="hpBarClass(b.hp_percentage)"
-                      :style="{ width: `${b.hp_percentage}%` }"></div>
-                  </div>
-                  <div class="text-[10px] text-gray-500 mt-0.5">{{ b.hp_percentage }}%</div>
+                  <template v-if="hpPercentage(b) !== null">
+                    <div class="mt-1 w-32 h-2 bg-surface-sunken rounded overflow-hidden">
+                      <div class="h-full transition-all duration-300"
+                        :class="hpBarClass(hpPercentage(b))"
+                        :style="{ width: `${hpPercentage(b)}%` }"></div>
+                    </div>
+                    <div class="text-[10px] text-fg-faint mt-0.5">{{ hpPercentage(b) }}%</div>
+                  </template>
+                  <div v-else class="text-[10px] text-fg-faint mt-1">未知</div>
                 </td>
                 <td class="px-3 py-2 text-amber-300">{{ b.phase }}</td>
-                <td class="px-3 py-2 text-gray-300">#{{ b.season_id }}</td>
-                <td class="px-3 py-2 text-cyan-300">{{ b.attacker_count }}</td>
+                <td class="px-3 py-2 text-fg-secondary">#{{ b.season_id }}</td>
+                <td class="px-3 py-2 text-cyan-300">{{ b.participant_count }}</td>
                 <td class="px-3 py-2 text-xs">
                   <span v-if="b.killer_player_id" class="text-emerald-300">
                     {{ b.killer_nickname || ('#' + b.killer_player_id) }}
                   </span>
-                  <span v-else class="text-gray-500">-</span>
+                  <span v-else class="text-fg-faint">-</span>
                 </td>
-                <td class="px-3 py-2 text-xs text-gray-400 whitespace-nowrap">{{ formatDate(b.spawn_time) }}</td>
+                <td class="px-3 py-2 text-xs text-fg-muted whitespace-nowrap num">{{ formatDate(b.spawn_time) }}</td>
                 <td class="px-3 py-2 text-center whitespace-nowrap">
                   <!-- 强制过期按钮仅对 pending/active 显示 -->
-                  <button v-if="b.status === 'pending' || b.status === 'active'"
-                    @click="handleExpireBoss(b)"
-                    class="px-2 py-1 bg-rose-700 hover:bg-rose-600 rounded text-white text-xs">强制过期</button>
-                  <span v-else class="text-gray-600 text-xs">-</span>
+                  <AppButton variant="danger" size="xs" v-if="b.status === 'pending' || b.status === 'active'" @click="handleExpireBoss(b)">
+                    强制过期
+                  </AppButton>
+                  <span v-else class="text-fg-faint text-xs">-</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <!-- 分页 -->
-        <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between text-sm">
-          <div class="text-gray-400">共 {{ bossPagination.total }} 条记录</div>
+        <div class="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
+          <div class="text-fg-muted num">共 {{ bossPagination.total }} 条记录</div>
           <div class="flex items-center gap-2">
-            <button @click="fetchBossList(bossPagination.page - 1)"
-              :disabled="bossPagination.page <= 1 || bossLoading"
-              class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
-            <span class="text-gray-300">{{ bossPagination.page }} / {{ bossPagination.totalPages }}</span>
-            <button @click="fetchBossList(bossPagination.page + 1)"
-              :disabled="bossPagination.page >= bossPagination.totalPages || bossLoading"
-              class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
+            <AppButton variant="default" size="sm" :disabled="bossPagination.page <= 1 || bossLoading" @click="fetchBossList(bossPagination.page - 1)">
+              上一页
+            </AppButton>
+            <span class="text-fg-secondary num">{{ bossPagination.page }} / {{ bossPagination.totalPages }}</span>
+            <AppButton variant="default" size="sm" :disabled="bossPagination.page >= bossPagination.totalPages || bossLoading" @click="fetchBossList(bossPagination.page + 1)">
+              下一页
+            </AppButton>
           </div>
         </div>
       </div>
@@ -164,74 +169,69 @@
     <!-- 子 Tab 2：赛季列表 -->
     <div v-else-if="currentSubTab === 'seasons'">
       <!-- 顶部操作区：创建赛季入口 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="flex justify-end">
-          <button @click="openCreateSeasonModal"
-            class="px-3 py-1 bg-red-700 hover:bg-red-600 rounded text-white text-sm">创建赛季</button>
+          <AppButton variant="danger" size="sm" @click="openCreateSeasonModal">
+            创建赛季
+          </AppButton>
         </div>
       </div>
 
       <!-- 赛季列表表格 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden mt-3">
+      <div class="bg-surface-base rounded-lg border border-line overflow-hidden mt-3">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-gray-900 text-gray-400">
+            <thead class="bg-surface-raised text-fg-muted">
               <tr>
                 <th class="px-3 py-2 text-left whitespace-nowrap">赛季ID</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">赛季名称</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">状态</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">开始时间</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">结束时间</th>
-                <th class="px-3 py-2 text-left whitespace-nowrap">击杀BOSS/总数</th>
-                <th class="px-3 py-2 text-left whitespace-nowrap">参战玩家数</th>
+                <th class="px-3 py-2 text-left whitespace-nowrap">击杀BOSS数</th>
                 <th class="px-3 py-2 text-center whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="seasonLoading" class="text-center text-gray-500">
-                <td colspan="8" class="px-3 py-6">加载中...</td>
+              <tr v-if="seasonLoading" class="text-center text-fg-faint">
+                <td colspan="7" class="px-3 py-6">加载中...</td>
               </tr>
-              <tr v-else-if="seasonList.length === 0" class="text-center text-gray-500">
-                <td colspan="8" class="px-3 py-6">暂无数据</td>
+              <tr v-else-if="seasonList.length === 0" class="text-center text-fg-faint">
+                <td colspan="7" class="px-3 py-6">暂无数据</td>
               </tr>
-              <tr v-for="s in seasonList" :key="s.season_id" class="border-t border-gray-700 hover:bg-gray-750">
-                <td class="px-3 py-2 text-gray-400">{{ s.season_id }}</td>
-                <td class="px-3 py-2 text-white">{{ s.season_name }}</td>
+              <tr v-for="s in seasonList" :key="s.season_id" class="border-t border-line-subtle hover:bg-surface-hover">
+                <td class="px-3 py-2 text-fg-muted">{{ s.season_id }}</td>
+                <td class="px-3 py-2 text-fg-primary">{{ s.season_name }}</td>
                 <td class="px-3 py-2">
                   <span :class="seasonStatusClass(s.status)" class="px-2 py-0.5 rounded text-xs">
                     {{ seasonStatusLabel(s.status) }}
                   </span>
                 </td>
-                <td class="px-3 py-2 text-xs text-gray-400 whitespace-nowrap">{{ formatDate(s.start_date) }}</td>
-                <td class="px-3 py-2 text-xs text-gray-400 whitespace-nowrap">{{ formatDate(s.end_date) }}</td>
-                <td class="px-3 py-2">
-                  <span class="text-emerald-300">{{ s.total_bosses_killed }}</span>
-                  <span class="text-gray-500 mx-1">/</span>
-                  <span class="text-gray-300">{{ s.total_bosses }}</span>
-                </td>
-                <td class="px-3 py-2 text-cyan-300">{{ s.total_attackers }}</td>
+                <td class="px-3 py-2 text-xs text-fg-muted whitespace-nowrap num">{{ formatDate(s.start_date) }}</td>
+                <td class="px-3 py-2 text-xs text-fg-muted whitespace-nowrap num">{{ formatDate(s.end_date) }}</td>
+                <td class="px-3 py-2 text-emerald-300">{{ s.total_bosses_killed }}</td>
                 <td class="px-3 py-2 text-center whitespace-nowrap">
                   <!-- 强制结算按钮仅对 active 状态显示 -->
-                  <button v-if="s.status === 'active'"
-                    @click="handleSettleSeason(s)"
-                    class="px-2 py-1 bg-rose-700 hover:bg-rose-600 rounded text-white text-xs">强制结算</button>
-                  <span v-else class="text-gray-600 text-xs">-</span>
+                  <AppButton variant="danger" size="xs" v-if="s.status === 'active'" @click="handleSettleSeason(s)">
+                    强制结算
+                  </AppButton>
+                  <span v-else class="text-fg-faint text-xs">-</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <!-- 分页 -->
-        <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between text-sm">
-          <div class="text-gray-400">共 {{ seasonPagination.total }} 条记录</div>
+        <div class="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
+          <div class="text-fg-muted num">共 {{ seasonPagination.total }} 条记录</div>
           <div class="flex items-center gap-2">
-            <button @click="fetchSeasonList(seasonPagination.page - 1)"
-              :disabled="seasonPagination.page <= 1 || seasonLoading"
-              class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
-            <span class="text-gray-300">{{ seasonPagination.page }} / {{ seasonPagination.totalPages }}</span>
-            <button @click="fetchSeasonList(seasonPagination.page + 1)"
-              :disabled="seasonPagination.page >= seasonPagination.totalPages || seasonLoading"
-              class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
+            <AppButton variant="default" size="sm" :disabled="seasonPagination.page <= 1 || seasonLoading" @click="fetchSeasonList(seasonPagination.page - 1)">
+              上一页
+            </AppButton>
+            <span class="text-fg-secondary num">{{ seasonPagination.page }} / {{ seasonPagination.totalPages }}</span>
+            <AppButton variant="default" size="sm" :disabled="seasonPagination.page >= seasonPagination.totalPages || seasonLoading" @click="fetchSeasonList(seasonPagination.page + 1)">
+              下一页
+            </AppButton>
           </div>
         </div>
       </div>
@@ -241,30 +241,28 @@
     <Modal :isOpen="spawnModalShow" title="手动刷新BOSS" width="500px" @close="spawnModalShow = false">
       <div class="space-y-4 text-sm">
         <div>
-          <label class="block text-gray-400 mb-1">BOSS key <span class="text-rose-400">*</span></label>
+          <label class="block text-fg-muted mb-1">BOSS key <span class="text-rose-400">*</span></label>
           <select v-model="spawnForm.boss_key"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option value="" disabled>请选择BOSS</option>
             <option v-for="key in BOSS_KEY_LIST" :key="key" :value="key">{{ key }}</option>
           </select>
-          <p class="mt-1 text-xs text-gray-500">可选：qing_yuan_zi、xue_he_zhen_jun、xuan_wu_da_di</p>
+          <p class="mt-1 text-xs text-fg-faint">可选：qingyuanzi（青元子）、yaoshou（上古妖兽）、mulan（慕兰神将）</p>
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">自定义HP（可选）</label>
+          <label class="block text-fg-muted mb-1">自定义HP（可选）</label>
           <input v-model="spawnForm.custom_hp" type="text"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white"
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600"
             placeholder="留空则使用配置默认HP">
-          <p class="mt-1 text-xs text-gray-500">提示：HP为超大整数，请输入正整数字符串（如 1000000000000）</p>
+          <p class="mt-1 text-xs text-fg-faint">提示：HP为超大整数，请输入正整数字符串（如 1000000000000）</p>
         </div>
         <p class="text-amber-500 text-xs">⚠️ 手动刷新将立即生成一个新BOSS实例并加入当前活跃赛季。</p>
       </div>
       <template #footer>
-        <button @click="spawnModalShow = false"
-          class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
-        <button @click="submitSpawn" :disabled="operating"
-          class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded disabled:opacity-50">
+        <AppButton variant="ghost" @click="spawnModalShow = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="operating" @click="submitSpawn">
           {{ operating ? '刷新中...' : '确认刷新' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
@@ -272,30 +270,28 @@
     <Modal :isOpen="seasonModalShow" title="创建新赛季" width="500px" @close="seasonModalShow = false">
       <div class="space-y-4 text-sm">
         <div>
-          <label class="block text-gray-400 mb-1">赛季名称 <span class="text-rose-400">*</span></label>
+          <label class="block text-fg-muted mb-1">赛季名称 <span class="text-rose-400">*</span></label>
           <input v-model="seasonForm.season_name" type="text"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white"
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600"
             placeholder="例如：青元劫·第一赛季">
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">开始日期 <span class="text-rose-400">*</span></label>
+          <label class="block text-fg-muted mb-1">开始日期 <span class="text-rose-400">*</span></label>
           <input v-model="seasonForm.start_date" type="date"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">结束日期 <span class="text-rose-400">*</span></label>
+          <label class="block text-fg-muted mb-1">结束日期 <span class="text-rose-400">*</span></label>
           <input v-model="seasonForm.end_date" type="date"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <p class="text-amber-500 text-xs">⚠️ 创建赛季后将在开始日期自动激活；结束日期后将自动结算。</p>
       </div>
       <template #footer>
-        <button @click="seasonModalShow = false"
-          class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
-        <button @click="submitCreateSeason" :disabled="operating"
-          class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded disabled:opacity-50">
+        <AppButton variant="ghost" @click="seasonModalShow = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="operating" @click="submitCreateSeason">
           {{ operating ? '创建中...' : '确认创建' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
   </div>
@@ -317,6 +313,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
+import AppButton from '../../ui/AppButton.vue'
 import {
   getMetrics,
   getBossList,
@@ -334,10 +331,10 @@ const uiStore = useUIStore()
 // ====== 常量配置（避免硬编码） ======
 
 /**
- * BOSS key 列表（与后端 world_boss_config.json 配置保持一致）
+ * BOSS key 列表（与后端 config/world_boss_data.json 的 bosses[].boss_key 保持一致）
  * 用 select 下拉避免输入错误
  */
-const BOSS_KEY_LIST = ['qing_yuan_zi', 'xue_he_zhen_jun', 'xuan_wu_da_di']
+const BOSS_KEY_LIST = ['qingyuanzi', 'yaoshou', 'mulan']
 
 /**
  * BOSS 状态筛选选项（pending/active/defeated/expired）
@@ -431,7 +428,7 @@ const fetchMetrics = async () => {
     metrics.value = res.data?.data || res.data
   } catch (err) {
     console.error('获取世界BOSS指标失败:', err)
-    uiStore.showToast('获取指标失败', 'error')
+    uiStore.showApiError(err, '获取世界BOSS指标失败')
   }
 }
 
@@ -459,13 +456,15 @@ const fetchBossList = async (page = 1) => {
     const status = bossSearchParams.status || undefined
     const res = await getBossList(page, bossPagination.pageSize, status)
     const data = res.data?.data || res.data
-    bossList.value = data.list || []
+    bossList.value = data.bosses || []
     bossPagination.total = data.total || 0
     bossPagination.page = data.page || page
+    // 分页大小以后端回传的 limit 为准（否则页数会按本地 pageSize 误算）
+    if (data.limit) bossPagination.pageSize = data.limit
     bossPagination.totalPages = Math.max(1, Math.ceil(bossPagination.total / bossPagination.pageSize))
   } catch (err) {
     console.error('获取BOSS列表失败:', err)
-    uiStore.showToast('获取BOSS列表失败', 'error')
+    uiStore.showApiError(err, '获取BOSS列表失败')
   } finally {
     bossLoading.value = false
   }
@@ -482,13 +481,15 @@ const fetchSeasonList = async (page = 1) => {
   try {
     const res = await getSeasonList(page, seasonPagination.pageSize)
     const data = res.data?.data || res.data
-    seasonList.value = data.list || []
+    seasonList.value = data.seasons || []
     seasonPagination.total = data.total || 0
     seasonPagination.page = data.page || page
+    // 分页大小以后端回传的 limit 为准（否则页数会按本地 pageSize 误算）
+    if (data.limit) seasonPagination.pageSize = data.limit
     seasonPagination.totalPages = Math.max(1, Math.ceil(seasonPagination.total / seasonPagination.pageSize))
   } catch (err) {
     console.error('获取赛季列表失败:', err)
-    uiStore.showToast('获取赛季列表失败', 'error')
+    uiStore.showApiError(err, '获取赛季列表失败')
   } finally {
     seasonLoading.value = false
   }
@@ -627,11 +628,11 @@ const submitCreateSeason = async () => {
   }
   operating.value = true
   try {
-    // 后端期望 ISO 字符串，这里补全为当天起始/结束时间
+    // 后端 start_date/end_date 为 DATEONLY，只接受 YYYY-MM-DD（见 WorldBossService.createSeason）
     const params = {
       season_name: seasonForm.season_name.trim(),
-      start_date: new Date(seasonForm.start_date + 'T00:00:00').toISOString(),
-      end_date: new Date(seasonForm.end_date + 'T23:59:59').toISOString()
+      start_date: seasonForm.start_date,
+      end_date: seasonForm.end_date
     }
     const res = await createSeason(params)
     const data = res.data?.data || res.data
@@ -700,12 +701,12 @@ const bossStatusLabel = (status) => {
  */
 const bossStatusClass = (status) => {
   const map = {
-    pending: 'bg-gray-700 text-gray-300',
+    pending: 'bg-surface-hover text-fg-secondary',
     active: 'bg-red-900 text-red-300',
     defeated: 'bg-emerald-900 text-emerald-300',
     expired: 'bg-amber-900 text-amber-300'
   }
-  return map[status] || 'bg-gray-700 text-gray-300'
+  return map[status] || 'bg-surface-hover text-fg-secondary'
 }
 
 /**
@@ -729,11 +730,28 @@ const seasonStatusLabel = (status) => {
  */
 const seasonStatusClass = (status) => {
   const map = {
-    pending: 'bg-gray-700 text-gray-300',
+    pending: 'bg-surface-hover text-fg-secondary',
     active: 'bg-red-900 text-red-300',
     ended: 'bg-amber-900 text-amber-300'
   }
-  return map[status] || 'bg-gray-700 text-gray-300'
+  return map[status] || 'bg-surface-hover text-fg-secondary'
+}
+
+/**
+ * HP 剩余百分比（后端 GET /bosses 只回传 hp_max / hp_current 字符串，无 hp_percentage）
+ * 超大整数用 BigInt 计算；最大HP缺失或为 0 时返回 null，模板据此隐藏进度条并显示"未知"
+ * @param {Object} boss BOSS行数据
+ * @returns {number|null} 0-100 的整数百分比，无法计算返回 null
+ */
+const hpPercentage = (boss) => {
+  try {
+    const max = BigInt(String(boss?.hp_max ?? ''))
+    const cur = BigInt(String(boss?.hp_current ?? ''))
+    if (max <= 0n || cur < 0n) return null
+    return Math.min(100, Math.max(0, Number((cur * 100n) / max)))
+  } catch {
+    return null
+  }
 }
 
 /**

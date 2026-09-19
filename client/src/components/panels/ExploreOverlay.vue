@@ -14,7 +14,7 @@
 <template>
   <div class="relative z-30">
     <div
-      class="flex items-center gap-3 px-4 py-2.5 bg-[#1a1510]/95 border-b backdrop-blur-sm select-none"
+      class="flex items-center gap-3 px-4 py-2.5 bg-surface-base/95 border-b backdrop-blur-sm select-none"
       :class="isExpired ? 'border-red-900/60' : 'border-emerald-900/50'"
     >
       <!-- 左侧图标 + 标题 -->
@@ -50,7 +50,7 @@
 
       <!-- 中间进度条 + 剩余时间 -->
       <div class="flex-1 flex items-center gap-2 min-w-0">
-        <div class="flex-1 relative h-2 bg-stone-900/80 rounded-full overflow-hidden">
+        <div class="flex-1 relative h-2 bg-surface-raised/80 rounded-full overflow-hidden">
           <div
             class="absolute inset-y-0 left-0 transition-all duration-500 rounded-full"
             :class="isExpired ? 'bg-gradient-to-r from-red-600 to-rose-400' : 'bg-gradient-to-r from-emerald-600 to-teal-400'"
@@ -195,8 +195,7 @@ const handleComplete = async () => {
     // 刷新历练状态（应变为 is_adventuring: false）
     await store.fetchAdventureStatus()
   } catch (error) {
-    const msg = error?.response?.data?.message || '完成历练失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '完成历练失败')
   } finally {
     completing.value = false
   }

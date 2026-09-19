@@ -1,16 +1,26 @@
 <script setup>
+/**
+ * 游戏日志流
+ *
+ * 文游的主界面就是这一栏字。此前它用 font-mono 排版，而 mono 字体没有
+ * CJK 字形，中文逐字回退到宋体，整栏字距忽宽忽窄；类型样式还散在两份
+ * switch 里（一份管边框、一份管字色），没登记过的类型静默掉回普通灰字。
+ *
+ * 现在正文走 UI 字体 + 中文换行策略，类型样式统一由 data/logTypes.js 给。
+ */
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useUIStore } from '../../stores/ui'
-
-const props = defineProps({
-  player: {
-    type: Object,
-    default: () => ({ username: 'self' })
-  }
-})
+import { resolveLogKind, LOG_LABELLED } from '../../data/logTypes'
 
 const uiStore = useUIStore()
-const filterMode = ref('all') // all, self, system
+
+const FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'self', label: '我的' },
+  { key: 'system', label: '系统' },
+]
+
+const filterMode = ref('all')
 const logContainer = ref(null)
 
 // 玩家往上翻记录时暂停跟随，避免新日志把阅读位置强行拽回底部
@@ -31,7 +41,6 @@ const jumpToLatest = () => {
   hasNewBelow.value = false
 }
 
-// 监听日志变化，仅在已贴底时自动滚动
 watch(() => uiStore.logs.length, () => {
   if (!atBottom.value) {
     hasNewBelow.value = true
@@ -40,60 +49,22 @@ watch(() => uiStore.logs.length, () => {
   nextTick(jumpToLatest)
 })
 
-const getLogStyle = (type) => {
-  switch (type) {
-    case 'success': return 'border-emerald-800/60'
-    case 'warning': return 'border-amber-800/60'
-    case 'combat': return 'border-rose-800/60'
-    case 'system': return 'border-purple-800/60 bg-[#161318]'
-    case 'combat_damage': return 'border-red-900/60'
-    case 'combat_heal': return 'border-green-900/60'
-    case 'item': return 'border-amber-700/60'
-    case 'exp': return 'border-cyan-800/60'
-    case 'spirit_stone': return 'border-yellow-800/60'
-    case 'info': default: return 'border-stone-800/50'
-  }
-}
-
-// 根据日志类型获取文字颜色（支持更多颜色高亮）
-const getTextColor = (type) => {
-  switch (type) {
-    case 'success': return 'text-emerald-400'
-    case 'warning': return 'text-amber-400'
-    case 'combat': return 'text-rose-400'
-    case 'system': return 'text-purple-400 font-bold'
-    case 'combat_damage': return 'text-red-400'
-    case 'combat_heal': return 'text-green-400'
-    case 'item': return 'text-amber-300'
-    case 'exp': return 'text-cyan-400'
-    case 'spirit_stone': return 'text-yellow-400'
-    case 'info': default: return 'text-stone-300'
-  }
-}
-
-// 过滤逻辑
-const filteredLogs = computed(() => {
-  return uiStore.logs.filter(log => {
-    // 强制显示重要事件 (如突破、系统公告)
+// 「我的」只看自己发起的动作（后端以 actorId='self' 标记）；
+// 「系统」同时收 system 与 notice，两者都是全服播报。
+const filteredLogs = computed(() =>
+  uiStore.logs.filter(log => {
     if (log.isImportant) return true
-    
     if (filterMode.value === 'all') return true
-    
-    if (filterMode.value === 'self') {
-      // 显示自己的动作
-      return log.actorId === props.player?.username || log.actorId === 'self'
-    }
-    
-    if (filterMode.value === 'system') {
-      return log.type === 'system'
-    }
-    
+    if (filterMode.value === 'self') return log.actorId === 'self'
+    if (filterMode.value === 'system') return log.type === 'system' || log.type === 'notice'
     return true
   })
-})
+)
+
+const styleOf = (type) => resolveLogKind(type)
+const labelled = (type) => LOG_LABELLED.has(type)
 
 onMounted(() => {
-  // 1. 欢迎信息 (如果日志为空才显示，避免重复)
   if (uiStore.logs.length === 0) {
     uiStore.addLog({
       content: '欢迎来到凡人修仙传的世界！道友请开始你的修仙之旅。',
@@ -106,89 +77,67 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- 窄阅读栏：限宽并贴左锚定，避免 12px 文字横跨整个视口 -->
-  <div class="flex-1 w-full max-w-[680px] mr-2 ml-0 md:ml-2 my-1 flex flex-col bg-[#0c0a09] overflow-hidden relative min-h-[200px] border border-stone-800/50 rounded-lg">
-    <!-- 日志内容区 -->
-    <div ref="logContainer" @scroll="onLogScroll" class="flex-1 overflow-y-auto font-mono text-xs relative scroll-smooth bg-[#0c0a09] custom-scrollbar">
-      <div class="flex flex-col gap-1 px-2 py-2 relative z-10">
+  <!-- 窄阅读栏：限宽并贴左锚定，避免一行字横跨整个视口 -->
+  <div class="flex-1 w-full max-w-[680px] mr-2 ml-0 md:ml-2 my-1 flex flex-col bg-surface-canvas overflow-hidden relative min-h-[200px] border border-line-subtle rounded-panel">
+    <div
+      ref="logContainer"
+      @scroll="onLogScroll"
+      class="scroll-thin flex-1 overflow-y-auto relative scroll-smooth"
+      role="log"
+      aria-live="polite"
+      aria-label="修仙日志"
+    >
+      <div class="flex flex-col gap-0.5 px-2 py-2 relative z-10">
         <TransitionGroup name="scroll">
           <div
-            v-for="(log, index) in filteredLogs"
+            v-for="log in filteredLogs"
             :key="log.id"
-            class="flex items-start gap-2 px-2 py-1 rounded border-l-2 hover:bg-[#1a1a1a] transition-all duration-200"
-            :class="getLogStyle(log.type)"
+            class="group flex items-start gap-2 px-2 py-1 rounded-control border-l-2 wrap-cjk transition-colors hover:bg-surface-base"
+            :class="styleOf(log.type).accent"
           >
-            <span class="text-stone-600 text-[10px] mt-0.5 font-sans opacity-60 shrink-0">{{ log.time }}</span>
-            <span class="leading-snug break-words" :class="getTextColor(log.type)">{{ log.content }}</span>
+            <span class="text-fg-faint text-[10px] mt-[3px] num shrink-0 opacity-70 group-hover:opacity-100">{{ log.time }}</span>
+
+            <!-- 只在关键类型前行首打标签，普通叙述满屏徽标反而读不动 -->
+            <span
+              v-if="labelled(log.type)"
+              class="shrink-0 mt-[1px] px-1 rounded text-[10px] leading-[16px] border"
+              :class="[styleOf(log.type).text, styleOf(log.type).accent]"
+            >{{ styleOf(log.type).label }}</span>
+
+            <span
+              class="text-[13px] leading-[1.7] min-w-0"
+              :class="[styleOf(log.type).text, log.isImportant ? 'font-bold' : '']"
+            >{{ log.content }}</span>
           </div>
         </TransitionGroup>
 
-        <div v-if="filteredLogs.length === 0" class="text-stone-700 text-center mt-20 text-sm">
-          暂无相关日志...
+        <div v-if="filteredLogs.length === 0" class="text-fg-faint text-center mt-20 text-[13px]">
+          暂无相关日志
         </div>
       </div>
-      
-      <!-- 背景粒子层 -->
-      <div class="absolute inset-0 pointer-events-none overflow-hidden z-0 opacity-20">
-         <div class="absolute w-2 h-2 bg-emerald-500/30 rounded-full blur-[1px] animate-float top-1/4 left-1/4"></div>
-         <div class="absolute w-3 h-3 bg-cyan-500/20 rounded-full blur-[2px] animate-float top-3/4 left-1/3" style="animation-duration: 8s; animation-delay: 1s;"></div>
-         <div class="absolute w-1 h-1 bg-amber-500/40 rounded-full blur-[0px] animate-float top-1/2 left-2/3" style="animation-duration: 5s; animation-delay: 2s;"></div>
-         <div class="absolute w-4 h-4 bg-purple-500/10 rounded-full blur-[3px] animate-float top-1/3 left-3/4" style="animation-duration: 10s; animation-delay: 0.5s;"></div>
-      </div>
     </div>
-    
+
     <!-- 上翻阅读时提示有新日志，点击回到底部 -->
     <button
       v-if="hasNewBelow"
       @click="jumpToLatest"
-      class="absolute bottom-4 left-4 z-20 px-3 py-1.5 rounded-full bg-amber-900/80 border border-amber-600/60 text-amber-100 text-xs shadow-lg hover:bg-amber-800 transition-colors"
+      class="focus-ring absolute bottom-4 left-3 z-nav px-3 py-1.5 rounded-full bg-gold-900/90 border border-gold-700 text-gold-200 text-xs shadow-lg hover:bg-gold-800 transition-colors"
     >
       有新日志 · 回到底部
     </button>
 
-    <!-- 过滤按钮 (右下角悬浮) -->
-    <div class="absolute bottom-4 right-4 flex gap-2">
-      <button 
-        @click="filterMode = 'all'"
-        class="w-8 h-8 rounded-full flex items-center justify-center border transition-all shadow-lg"
-        :class="filterMode === 'all' ? 'bg-amber-900/80 border-amber-600 text-amber-100' : 'bg-stone-800 border-stone-700 text-stone-500 hover:text-stone-300'"
-        title="全部"
-      >
-        全
-      </button>
-      <button 
-        @click="filterMode = 'self'"
-        class="w-8 h-8 rounded-full flex items-center justify-center border transition-all shadow-lg"
-        :class="filterMode === 'self' ? 'bg-emerald-900/80 border-emerald-600 text-emerald-100' : 'bg-stone-800 border-stone-700 text-stone-500 hover:text-stone-300'"
-        title="我的"
-      >
-        我
-      </button>
-      <button 
-        @click="filterMode = 'system'"
-        class="w-8 h-8 rounded-full flex items-center justify-center border transition-all shadow-lg"
-        :class="filterMode === 'system' ? 'bg-purple-900/80 border-purple-600 text-purple-100' : 'bg-stone-800 border-stone-700 text-stone-500 hover:text-stone-300'"
-        title="系统"
-      >
-        系
-      </button>
+    <!-- 阅读过滤器：浮在右下角，不占正文行高 -->
+    <div class="absolute bottom-3 right-3 z-nav flex items-center gap-0.5 p-0.5 rounded-full bg-surface-base/90 border border-line-subtle backdrop-blur-sm">
+      <button
+        v-for="f in FILTERS"
+        :key="f.key"
+        @click="filterMode = f.key"
+        class="focus-ring px-2.5 py-1 rounded-full text-[11px] tracking-wide transition-colors"
+        :class="filterMode === f.key
+          ? 'bg-gold-800/80 text-gold-100 font-bold'
+          : 'text-fg-muted hover:text-fg-secondary'"
+        :aria-pressed="filterMode === f.key"
+      >{{ f.label }}</button>
     </div>
   </div>
 </template>
-
-<style scoped>
-/* 自定义滚动条样式（日志内容区） */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #44403c;
-  border-radius: 2px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #57534e;
-}
-</style>

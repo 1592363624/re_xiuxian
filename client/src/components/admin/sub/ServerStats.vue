@@ -1,44 +1,44 @@
 <template>
   <div class="space-y-6">
     <div class="flex justify-between items-center">
-      <h3 class="text-lg font-bold text-white">服务器统计</h3>
-      <button @click="fetchStats" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新</button>
+      <h3 class="text-lg font-bold text-fg-primary">服务器统计</h3>
+      <AppButton variant="primary" size="sm" @click="fetchStats">刷新</AppButton>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="bg-gray-800 p-4 rounded border border-gray-700 text-center">
-        <div class="text-3xl font-bold text-xiuxian-gold">{{ stats.total_players || 0 }}</div>
-        <div class="text-gray-400 text-sm mt-1">总玩家数</div>
+      <div class="bg-surface-base/50 p-4 rounded-panel border border-line text-center">
+        <div class="text-3xl font-bold text-gold-500 num">{{ stats.total_players || 0 }}</div>
+        <div class="text-fg-muted text-sm mt-1">总玩家数</div>
       </div>
-      <div class="bg-gray-800 p-4 rounded border border-gray-700 text-center">
-        <div class="text-3xl font-bold text-green-400">{{ stats.online_players || 0 }}</div>
-        <div class="text-gray-400 text-sm mt-1">在线玩家</div>
+      <div class="bg-surface-base/50 p-4 rounded-panel border border-line text-center">
+        <div class="text-3xl font-bold text-green-400 num">{{ stats.online_players || 0 }}</div>
+        <div class="text-fg-muted text-sm mt-1">在线玩家</div>
       </div>
-      <div class="bg-gray-800 p-4 rounded border border-gray-700 text-center">
-        <div class="text-3xl font-bold text-red-400">{{ stats.banned_count || 0 }}</div>
-        <div class="text-gray-400 text-sm mt-1">已封禁</div>
+      <div class="bg-surface-base/50 p-4 rounded-panel border border-line text-center">
+        <div class="text-3xl font-bold text-red-400 num">{{ stats.banned_count || 0 }}</div>
+        <div class="text-fg-muted text-sm mt-1">已封禁</div>
       </div>
-      <div class="bg-gray-800 p-4 rounded border border-gray-700 text-center">
-        <div class="text-3xl font-bold text-blue-400">{{ formatUptime(stats.server_uptime) }}</div>
-        <div class="text-gray-400 text-sm mt-1">服务器运行时间</div>
+      <div class="bg-surface-base/50 p-4 rounded-panel border border-line text-center">
+        <div class="text-3xl font-bold text-blue-400 num">{{ formatUptime(stats.server_uptime) }}</div>
+        <div class="text-fg-muted text-sm mt-1">服务器运行时间</div>
       </div>
     </div>
 
     <!-- 境界分布 -->
-    <div class="bg-gray-800 p-4 rounded border border-gray-700">
-      <h4 class="text-md font-bold text-white mb-4">境界分布</h4>
+    <div class="bg-surface-base/50 p-4 rounded-panel border border-line">
+      <h4 class="text-md font-bold text-fg-primary mb-4">境界分布</h4>
       <div class="space-y-2">
         <div v-for="realm in stats.realm_distribution" :key="realm.realm" class="flex items-center gap-3">
-          <span class="text-gray-300 w-24">{{ realm.realm }}</span>
-          <div class="flex-1 h-6 bg-gray-700 rounded overflow-hidden">
+          <span class="text-fg-secondary w-24">{{ realm.realm }}</span>
+          <div class="flex-1 h-6 bg-surface-sunken border border-line-subtle rounded overflow-hidden">
             <div
-              class="h-full bg-xiuxian-gold/50 transition-all duration-300"
+              class="h-full bg-gold-500/50 transition-all duration-300"
               :style="{ width: getRealmBarWidth(realm.count) + '%' }"
             ></div>
           </div>
-          <span class="text-gray-400 w-12 text-right">{{ realm.count }}</span>
+          <span class="text-fg-muted w-12 text-right num">{{ realm.count }}</span>
         </div>
-        <div v-if="!stats.realm_distribution?.length" class="text-gray-500 text-center py-4">暂无数据</div>
+        <div v-if="!stats.realm_distribution?.length" class="text-fg-faint text-center py-4">暂无数据</div>
       </div>
     </div>
   </div>
@@ -51,6 +51,7 @@
  */
 import { ref, onMounted } from 'vue'
 import { getStats } from '../../../api/admin'
+import AppButton from '../../ui/AppButton.vue'
 
 // 统计数据
 const stats = ref({

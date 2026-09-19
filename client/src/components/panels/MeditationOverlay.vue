@@ -16,7 +16,7 @@
   <div class="relative z-30">
     <!-- 浮动状态条 -->
     <div
-      class="flex items-center gap-3 px-4 py-2.5 bg-[#1a1510]/95 border-b backdrop-blur-sm select-none"
+      class="flex items-center gap-3 px-4 py-2.5 bg-surface-base/95 border-b backdrop-blur-sm select-none"
       :class="isDeep ? 'border-purple-900/50' : 'border-amber-900/40'"
     >
       <!-- 左侧图标 + 标题 -->
@@ -48,7 +48,7 @@
       </div>
 
       <!-- 中间数据区 -->
-      <div class="flex items-center gap-4 text-xs text-stone-400 flex-1 min-w-0">
+      <div class="flex items-center gap-4 text-xs text-fg-muted flex-1 min-w-0">
         <!-- 当前感悟值 -->
         <div class="flex items-center gap-1.5 shrink-0">
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500">
@@ -58,7 +58,7 @@
         </div>
         <!-- 已悟道时长 -->
         <div class="flex items-center gap-1.5 shrink-0">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-stone-500">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-fg-faint">
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 6v6l4 2"/>
           </svg>
@@ -66,12 +66,12 @@
         </div>
         <!-- 剩余时间 -->
         <div v-if="remainingSeconds > 0" class="hidden md:flex items-center gap-1.5 shrink-0">
-          <span class="text-stone-500">剩余</span>
+          <span class="text-fg-faint">剩余</span>
           <span class="font-mono" :class="isDeep ? 'text-purple-300' : 'text-amber-300'">{{ formatTime(remainingSeconds) }}</span>
         </div>
         <!-- 进度条 -->
         <div class="hidden lg:flex items-center gap-1.5 shrink-0 min-w-[80px]">
-          <div class="flex-1 h-1.5 bg-stone-800 rounded-full overflow-hidden">
+          <div class="flex-1 h-1.5 bg-surface-hover rounded-full overflow-hidden">
             <div
               class="h-full transition-all duration-1000"
               :class="isDeep
@@ -89,7 +89,7 @@
         <!-- 展开/收起按钮 -->
         <button
           @click="expanded = !expanded"
-          class="p-1.5 rounded text-stone-500 hover:text-amber-400 hover:bg-amber-950/30 transition-colors"
+          class="p-1.5 rounded text-fg-faint hover:text-amber-400 hover:bg-amber-950/30 transition-colors"
           :title="expanded ? '收起详情' : '展开详情'"
         >
           <svg
@@ -125,7 +125,7 @@
     <Transition name="meditation-panel">
       <div v-if="expanded" class="absolute top-full left-0 right-0 z-40">
         <div
-          class="bg-[#141210]/98 border-b backdrop-blur-md px-6 py-6"
+          class="bg-surface-base/98 border-b backdrop-blur-md px-6 py-6"
           :class="isDeep ? 'border-purple-900/40' : 'border-amber-900/30'"
         >
           <!-- 背景动画 -->
@@ -152,7 +152,7 @@
                   class="w-20 h-20 rounded-full border-2 flex items-center justify-center"
                   :class="isDeep
                     ? 'bg-gradient-to-b from-purple-950 to-black border-purple-500/50 shadow-[0_0_25px_rgba(168,85,247,0.3)]'
-                    : 'bg-gradient-to-b from-stone-900 to-black border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.25)]'"
+                    : 'bg-gradient-to-b from-surface-raised to-black border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.25)]'"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
                     :class="isDeep ? 'text-purple-400' : 'text-amber-400'">
@@ -180,30 +180,30 @@
 
             <!-- 统计数据 -->
             <div class="grid grid-cols-3 gap-4 mb-6">
-              <div class="bg-[#1c1917] rounded-lg p-3 border border-stone-800 text-center">
-                <div class="text-stone-500 text-xs mb-1.5">悟道时长</div>
+              <div class="bg-surface-raised rounded-lg p-3 border border-line-subtle text-center">
+                <div class="text-fg-faint text-xs mb-1.5">悟道时长</div>
                 <div class="text-xl font-mono text-white">{{ formatTime(elapsedSeconds) }}</div>
               </div>
-              <div class="bg-[#1c1917] rounded-lg p-3 border border-stone-800 text-center">
-                <div class="text-stone-500 text-xs mb-1.5">当前感悟</div>
+              <div class="bg-surface-raised rounded-lg p-3 border border-line-subtle text-center">
+                <div class="text-fg-faint text-xs mb-1.5">当前感悟</div>
                 <div
                   class="text-xl font-mono font-bold"
                   :class="isDeep ? 'text-purple-400' : 'text-amber-400'"
                 >{{ currentInsight }}</div>
               </div>
-              <div class="bg-[#1c1917] rounded-lg p-3 border border-stone-800 text-center">
-                <div class="text-stone-500 text-xs mb-1.5">剩余时间</div>
+              <div class="bg-surface-raised rounded-lg p-3 border border-line-subtle text-center">
+                <div class="text-fg-faint text-xs mb-1.5">剩余时间</div>
                 <div class="text-xl font-mono text-emerald-400">{{ formatTime(remainingSeconds) }}</div>
               </div>
             </div>
 
             <!-- 进度条 -->
             <div class="mb-6">
-              <div class="flex justify-between text-xs text-stone-500 mb-1.5">
+              <div class="flex justify-between text-xs text-fg-faint mb-1.5">
                 <span>悟道进度</span>
                 <span>{{ progressPercent }}% / 剩余 {{ formatTime(remainingSeconds) }}</span>
               </div>
-              <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
+              <div class="h-2 bg-surface-hover rounded-full overflow-hidden">
                 <div
                   class="h-full transition-all duration-1000"
                   :class="isDeep
@@ -220,7 +220,7 @@
                 <span class="text-rose-400">瓶颈进度</span>
                 <span class="text-rose-300">{{ bottleneckInsight }} / {{ bottleneckThreshold }}</span>
               </div>
-              <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
+              <div class="h-2 bg-surface-hover rounded-full overflow-hidden">
                 <div
                   class="h-full bg-gradient-to-r from-rose-700 to-amber-500 transition-all duration-500"
                   :style="{ width: `${bottleneckProgressPercent}%` }"
@@ -245,7 +245,7 @@
             <button
               @click="handleInterruptClick"
               :disabled="loading"
-              class="w-full py-2.5 bg-stone-900/80 border border-rose-700/60 text-rose-400 hover:text-rose-300 hover:border-rose-500/50 hover:bg-stone-800 transition-all duration-300 rounded-lg tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full py-2.5 bg-surface-raised/80 border border-rose-700/60 text-rose-400 hover:text-rose-300 hover:border-rose-500/50 hover:bg-surface-hover transition-all duration-300 rounded-lg tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span v-if="loading">结算中...</span>
               <span v-else>中断悟道（损失 {{ interruptPenaltyPercent }}）</span>
@@ -258,7 +258,7 @@
     <!-- 中断确认弹窗 -->
     <Modal :isOpen="confirmInterrupt" title="确认中断悟道" width="420px" @close="confirmInterrupt = false">
       <div class="space-y-3">
-        <p class="text-stone-300">确定要中断当前的悟道吗？</p>
+        <p class="text-fg-secondary">确定要中断当前的悟道吗？</p>
         <div class="bg-rose-950/20 border border-rose-900/40 rounded p-3 text-xs text-rose-300">
           <p>中断惩罚：</p>
           <ul class="mt-1 ml-4 list-disc space-y-0.5">
@@ -269,7 +269,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="confirmInterrupt = false" class="px-4 py-2 text-stone-400 hover:text-white transition-colors">取消</button>
+        <button @click="confirmInterrupt = false" class="px-4 py-2 text-fg-muted hover:text-white transition-colors">取消</button>
         <button @click="confirmInterruptAction" class="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded">确认中断</button>
       </template>
     </Modal>
@@ -438,8 +438,7 @@ const confirmInterruptAction = async () => {
     await fetchStatus()
   } catch (err) {
     console.error('中断悟道失败:', err)
-    const msg = err?.response?.data?.message || '中断悟道失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '中断悟道失败')
   } finally {
     loading.value = false
   }

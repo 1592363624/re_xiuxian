@@ -3,7 +3,7 @@
  * 宗门系统面板组件
  *
  * 功能说明：
- *   - 全屏遮罩 + 居中弹窗布局，emits('close') 关闭面板
+ *   - 外壳走 ui/PanelShell.vue（右坞停靠 + 遮罩 + Esc 关闭 + 加载态）
  *   - 顶部 Tab 切换：宗门列表 / 我的宗门（已加入宗门时默认显示"我的宗门"）
  *   - 宗门列表视图：展示 6 大宗门卡片，支持拜入（自定义 Modal 二次确认）
  *   - 我的宗门视图：宗门信息、每日点卯/传功（带冷却倒计时）、宗门任务、宝库兑换、叛出宗门
@@ -13,6 +13,12 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import Badge from '../ui/Badge.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import ErrorState from '../ui/ErrorState.vue'
+import AppButton from '../ui/AppButton.vue'
 import {
   getSectList,
   getMySect,
@@ -31,6 +37,7 @@ import {
   type TreasuryItem
 } from '../../api/sect'
 import { useUIStore } from '../../stores/ui'
+import { useAsyncTask } from '../../composables/useAsyncTask'
 import { usePlayerStore } from '../../stores/player'
 // 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
 import { formatNumber, formatCompact } from '../../utils/format'
@@ -40,7 +47,7 @@ const uiStore = useUIStore()
 const playerStore = usePlayerStore()
 
 // ====== 响应式状态 ======
-const loading = ref(true)                 // 整体加载状态
+const { loading, error, run } = useAsyncTask({ fallback: '加载宗门数据失败' })
 const operating = ref(false)             // 操作中状态锁，防止重复提交
 const activeTab = ref<'list' | 'my'>('list')  // 当前激活的 Tab
 const sects = ref<Sect[]>([])             // 所有宗门列表
@@ -69,6 +76,12 @@ const confirmModal = ref<{
  * 是否已加入宗门
  */
 const hasJoined = computed(() => !!mySect.value)
+
+/** 标签页定义（key/label 契约见 ui/Tabs.vue）；已入宗时给「我的宗门」挂一个圆点 */
+const tabItems = computed(() => [
+  { key: 'list', label: '宗门列表' },
+  { key: 'my', label: '我的宗门', badge: hasJoined.value ? '●' : undefined }
+])
 
 /**
  * 基于后端权威冷却剩余 + 本地 tick 递减计算点卯剩余冷却毫秒
@@ -112,34 +125,24 @@ const canTransfer = computed(() => transferRemainingMs.value === 0 && !operating
 /**
  * 初始化加载：并行获取宗门列表与我的宗门信息
  * 已加入宗门时默认切换到"我的宗门"Tab
+ * 失败由 useAsyncTask 记账：常驻错误态 + 重试入口，不再只 toast 一句就留白
  */
-const fetchAll = async () => {
-  loading.value = true
-  try {
-    await Promise.all([fetchSectList(), fetchMySect()])
-    // 已加入宗门则默认进入"我的宗门"视图
-    if (mySect.value) {
-      activeTab.value = 'my'
-    }
-  } catch (error) {
-    console.error('加载宗门数据失败:', error)
-    uiStore.showToast('加载宗门数据失败', 'error')
-  } finally {
-    loading.value = false
+const fetchAll = () => run(async () => {
+  await Promise.all([fetchSectList(), fetchMySect()])
+  // 已加入宗门则默认进入"我的宗门"视图
+  if (mySect.value) {
+    activeTab.value = 'my'
   }
-}
+})
 
 /**
  * 获取所有宗门列表
+ * 失败不再就地吞掉：交给 fetchAll 外层的 run() 统一播报并留痕
  */
 const fetchSectList = async () => {
-  try {
-    const res = await getSectList()
-    // 后端返回 { code, data: { sects: [...] } }
-    sects.value = res.data?.data?.sects || []
-  } catch (error) {
-    console.error('获取宗门列表失败:', error)
-  }
+  const res = await getSectList()
+  // 后端返回 { code, data: { sects: [...] } }
+  sects.value = res.data?.data?.sects || []
 }
 
 /**
@@ -482,35 +485,30 @@ const doExchange = async (item: TreasuryItem) => {
  */
 const getAlignmentCardClass = (alignment: string) => {
   if (alignment === '正道') {
-    return 'border-amber-700/50 hover:border-amber-500/80 hover:shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+    return 'border-gold-700/50 hover:border-gold-500/80 hover:shadow-[0_0_15px_rgb(var(--gold-500)/0.15)]'
   }
-  return 'border-purple-700/50 hover:border-purple-500/80 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)]'
+  return 'border-purple-700/50 hover:border-purple-500/80 hover:shadow-[0_0_15px_rgb(var(--state-arcane)/0.15)]'
 }
 
 /**
- * 获取阵营徽章样式
+ * 获取阵营标签色（ui/Badge.vue 的 tone）
  * @param alignment - 阵营
  */
-const getAlignmentBadgeClass = (alignment: string) => {
-  if (alignment === '正道') {
-    return 'bg-amber-900/30 text-amber-400 border-amber-700/50'
-  }
-  return 'bg-purple-900/30 text-purple-400 border-purple-700/50'
-}
+const getAlignmentTone = (alignment: string) => (alignment === '正道' ? 'gold' : 'arcane')
 
 /**
- * 获取五行属性徽章样式
+ * 获取五行属性标签色（ui/Badge.vue 的 tone）
  * @param element - 五行属性
  */
-const getElementBadgeClass = (element: string) => {
+const getElementTone = (element: string) => {
   const map: Record<string, string> = {
-    '金': 'bg-yellow-900/30 text-yellow-400 border-yellow-700/50',
-    '木': 'bg-emerald-900/30 text-emerald-400 border-emerald-700/50',
-    '水': 'bg-blue-900/30 text-blue-400 border-blue-700/50',
-    '火': 'bg-red-900/30 text-red-400 border-red-700/50',
-    '土': 'bg-amber-900/30 text-amber-600 border-amber-800/50'
+    '金': 'gold',
+    '木': 'success',
+    '水': 'info',
+    '火': 'danger',
+    '土': 'neutral'
   }
-  return map[element] || 'bg-stone-800 text-stone-400 border-stone-700'
+  return map[element] || 'neutral'
 }
 
 /**
@@ -612,6 +610,8 @@ const formatDate = (dateStr: string | null) => {
 
 // ====== 生命周期 ======
 onMounted(() => {
+  // 挂载即进入加载态：首屏在 fetchAll 落地前先亮 LoadingBlock（原先由 ref(true) 承担）
+  loading.value = true
   fetchAll()
   // 每秒更新当前时间，驱动冷却倒计时刷新
   timer = window.setInterval(() => {
@@ -628,407 +628,323 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <!-- 遮罩层：点击关闭面板 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
+  <PanelShell
+    title="宗门系统"
+    hint="拜入 · 点卯 · 传功 · 任务 · 宝库"
+    size="xl"
+    :loading="loading"
+    @close="emit('close')"
+  >
+    <!-- Tab 切换栏 -->
+    <Tabs v-model="activeTab" :items="tabItems" class="mb-4" />
 
-    <!-- 主容器 -->
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      <!-- 顶部标题栏 -->
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
-        <h2 class="text-xl font-bold text-violet-400 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 21h18"/>
-            <path d="M5 21V7l8-4 8 4v14"/>
-            <path d="M17 21v-8H7v8"/>
-          </svg>
-          宗门系统
-        </h2>
-        <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
+    <!-- ====== 宗门列表视图 ====== -->
+    <div v-if="activeTab === 'list'" class="space-y-4">
+      <!-- 拉取失败：错误态放在页签体内。
+           交给 PanelShell 的 :error 会整块替换插槽，连「宗门列表 / 我的宗门」页签一起藏掉。 -->
+      <ErrorState v-if="error" :message="error" @retry="fetchAll" />
+      <EmptyState v-else-if="sects.length === 0" text="暂无宗门信息" />
 
-      <!-- Tab 切换栏 -->
-      <div class="flex items-center gap-1 p-3 border-b border-stone-800 bg-[#0c0a09]">
-        <button
-          @click="activeTab = 'list'"
-          class="px-4 py-1.5 rounded text-sm whitespace-nowrap transition-colors"
-          :class="activeTab === 'list'
-            ? 'bg-violet-900/30 text-violet-400 border border-violet-700/50'
-            : 'text-stone-500 hover:text-stone-300 border border-transparent'"
+      <!-- 宗门卡片网格 -->
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div
+          v-for="sect in sects"
+          :key="sect.id"
+          class="bg-surface-raised border rounded-panel p-4 transition-all duration-300"
+          :class="getAlignmentCardClass(sect.alignment)"
         >
-          宗门列表
-        </button>
-        <button
-          @click="activeTab = 'my'"
-          class="px-4 py-1.5 rounded text-sm whitespace-nowrap transition-colors"
-          :class="activeTab === 'my'
-            ? 'bg-violet-900/30 text-violet-400 border border-violet-700/50'
-            : 'text-stone-500 hover:text-stone-300 border border-transparent'"
-        >
-          我的宗门
-          <span v-if="hasJoined" class="ml-1 text-xs text-emerald-400">●</span>
-        </button>
-      </div>
-
-      <!-- 内容区域 -->
-      <div class="flex-1 overflow-y-auto p-4">
-        <!-- 加载中 -->
-        <div v-if="loading" class="flex justify-center items-center h-64">
-          <svg class="animate-spin h-10 w-10 text-violet-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
-
-        <!-- ====== 宗门列表视图 ====== -->
-        <div v-else-if="activeTab === 'list'" class="space-y-4">
-          <div v-if="sects.length === 0" class="flex flex-col items-center justify-center h-64 text-stone-500">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-              <path d="M3 21h18"/>
-              <path d="M5 21V7l8-4 8 4v14"/>
-            </svg>
-            <p>暂无宗门信息</p>
+          <!-- 卡片头部：名称 + 阵营/五行徽章 -->
+          <div class="flex justify-between items-start mb-3">
+            <div>
+              <h3 class="text-lg font-bold flex items-center gap-2 font-display"
+                  :class="sect.alignment === '正道' ? 'text-gold-400' : 'text-purple-400'">
+                {{ sect.name }}
+              </h3>
+              <div class="flex gap-1.5 mt-1.5">
+                <Badge :tone="getAlignmentTone(sect.alignment)">{{ sect.alignment }}</Badge>
+                <Badge :tone="getElementTone(sect.element)">{{ sect.element }}行</Badge>
+              </div>
+            </div>
+            <!-- 已加入标记 -->
+            <Badge v-if="hasJoined && mySect?.sect_id === sect.id" tone="success" solid>已拜入</Badge>
           </div>
 
-          <!-- 宗门卡片网格 -->
-          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div
-              v-for="sect in sects"
-              :key="sect.id"
-              class="bg-[#1c1917] border rounded-lg p-4 transition-all duration-300"
-              :class="getAlignmentCardClass(sect.alignment)"
+          <!-- 宗门描述 -->
+          <p class="text-xs text-fg-muted leading-relaxed mb-3">{{ sect.description }}</p>
+
+          <!-- 加入要求 -->
+          <div class="bg-surface-canvas rounded-control p-2 border border-line-subtle mb-3">
+            <div class="text-xs text-fg-faint mb-1">拜入要求</div>
+            <div class="flex justify-between text-xs">
+              <span class="text-fg-secondary">境界: <span class="text-gold-400">{{ sect.join_requirement?.realm_min || '无' }}</span></span>
+              <span class="text-fg-secondary">灵石: <span class="text-yellow-500">{{ sect.join_requirement?.spirit_stones || 0 }}</span></span>
+            </div>
+          </div>
+
+          <!-- 宗门加成展示区：展示该宗门独有的加成特色（不同宗门字段不同） -->
+          <div v-if="getBonusList(sect.bonus).length > 0" class="bg-surface-canvas rounded-control p-2 border border-line-subtle mb-3">
+            <div class="text-xs text-fg-faint mb-1.5 flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-violet-500">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              宗门加成
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <span
+                v-for="item in getBonusList(sect.bonus)"
+                :key="item.label"
+                class="text-xs px-2 py-0.5 rounded bg-violet-900/20 border border-violet-700/40 text-violet-300"
+              >
+                {{ item.label }} <span class="text-emerald-400 font-bold">{{ item.value }}</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="flex justify-end">
+            <button
+              v-if="!hasJoined"
+              @click="handleJoin(sect)"
+              :disabled="operating"
+              class="px-4 py-1.5 rounded-control bg-violet-900/30 border border-violet-700/50 text-violet-400 hover:bg-violet-800/50 hover:text-violet-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
-              <!-- 卡片头部：名称 + 阵营/五行徽章 -->
-              <div class="flex justify-between items-start mb-3">
-                <div>
-                  <h3 class="text-lg font-bold flex items-center gap-2"
-                      :class="sect.alignment === '正道' ? 'text-amber-400' : 'text-purple-400'">
-                    {{ sect.name }}
-                  </h3>
-                  <div class="flex gap-1.5 mt-1.5">
-                    <span class="text-xs px-2 py-0.5 rounded border"
-                          :class="getAlignmentBadgeClass(sect.alignment)">
-                      {{ sect.alignment }}
-                    </span>
-                    <span class="text-xs px-2 py-0.5 rounded border"
-                          :class="getElementBadgeClass(sect.element)">
-                      {{ sect.element }}行
-                    </span>
-                  </div>
-                </div>
-                <!-- 已加入标记 -->
-                <div v-if="hasJoined && mySect?.sect_id === sect.id"
-                     class="text-xs px-2 py-1 rounded bg-emerald-900/30 border border-emerald-700/50 text-emerald-400">
-                  已拜入
-                </div>
+              拜入
+            </button>
+            <AppButton v-else-if="mySect?.sect_id === sect.id" variant="default" size="sm" disabled>
+              已加入
+            </AppButton>
+            <span v-else class="text-xs text-fg-faint">已加入其他宗门</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 我的宗门视图 ====== -->
+    <div v-else-if="activeTab === 'my'">
+      <!-- 未加入宗门提示 -->
+      <EmptyState v-if="!hasJoined" text="你尚未拜入任何宗门">
+        <AppButton variant="primary" size="sm" @click="activeTab = 'list'">前往宗门列表</AppButton>
+      </EmptyState>
+
+      <!-- 已加入宗门：展示完整信息 -->
+      <div v-else class="space-y-4">
+        <!-- 宗门信息卡片 -->
+        <div class="bg-surface-raised border rounded-panel p-4"
+             :class="mySect.alignment === '正道' ? 'border-gold-700/50' : 'border-purple-700/50'">
+          <div class="flex justify-between items-start mb-3">
+            <div>
+              <h3 class="text-xl font-bold flex items-center gap-2 font-display"
+                  :class="mySect.alignment === '正道' ? 'text-gold-400' : 'text-purple-400'">
+                {{ mySect.name }}
+                <Badge :tone="getAlignmentTone(mySect.alignment)">{{ mySect.alignment }}</Badge>
+                <Badge :tone="getElementTone(mySect.element)">{{ mySect.element }}行</Badge>
+              </h3>
+              <p class="text-xs text-fg-muted mt-1">{{ mySect.description }}</p>
+            </div>
+            <AppButton variant="danger" size="xs" :disabled="operating" @click="handleLeave">
+              叛出宗门
+            </AppButton>
+          </div>
+
+          <!-- 身份与贡献度统计 -->
+          <div class="grid grid-cols-3 gap-3 mt-3">
+            <div class="bg-surface-canvas rounded-control p-2 border border-line-subtle text-center">
+              <div class="text-xs text-fg-faint mb-1">身份</div>
+              <div class="text-sm font-bold text-violet-400">{{ getRoleName(mySect.role) }}</div>
+            </div>
+            <div class="bg-surface-canvas rounded-control p-2 border border-line-subtle text-center">
+              <div class="text-xs text-fg-faint mb-1">贡献度</div>
+              <div class="text-sm font-bold text-gold-400 num" :title="String(mySect.contribution)">
+                {{ formatCompact(mySect.contribution) }}
               </div>
+            </div>
+            <div class="bg-surface-canvas rounded-control p-2 border border-line-subtle text-center">
+              <div class="text-xs text-fg-faint mb-1">加入时间</div>
+              <div class="text-xs font-bold text-fg-secondary mt-1 num">{{ formatDate(mySect.joined_at) }}</div>
+            </div>
+          </div>
 
-              <!-- 宗门描述 -->
-              <p class="text-xs text-stone-400 leading-relaxed mb-3">{{ sect.description }}</p>
-
-              <!-- 加入要求 -->
-              <div class="bg-[#0c0a09] rounded p-2 border border-stone-800 mb-3">
-                <div class="text-xs text-stone-500 mb-1">拜入要求</div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-stone-300">境界: <span class="text-amber-400">{{ sect.join_requirement?.realm_min || '无' }}</span></span>
-                  <span class="text-stone-300">灵石: <span class="text-yellow-500">{{ sect.join_requirement?.spirit_stones || 0 }}</span></span>
-                </div>
-              </div>
-
-              <!-- 宗门加成展示区：展示该宗门独有的加成特色（不同宗门字段不同） -->
-              <div v-if="getBonusList(sect.bonus).length > 0" class="bg-[#0c0a09] rounded p-2 border border-stone-800 mb-3">
-                <div class="text-xs text-stone-500 mb-1.5 flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-violet-500">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                  </svg>
-                  宗门加成
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <span
-                    v-for="item in getBonusList(sect.bonus)"
-                    :key="item.label"
-                    class="text-xs px-2 py-0.5 rounded bg-violet-900/20 border border-violet-700/40 text-violet-300"
-                  >
-                    {{ item.label }} <span class="text-emerald-400 font-bold">{{ item.value }}</span>
-                  </span>
-                </div>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div class="flex justify-end">
-                <button
-                  v-if="!hasJoined"
-                  @click="handleJoin(sect)"
-                  :disabled="operating"
-                  class="px-4 py-1.5 rounded bg-violet-900/30 border border-violet-700/50 text-violet-400 hover:bg-violet-800/50 hover:text-violet-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  拜入
-                </button>
-                <button
-                  v-else-if="mySect?.sect_id === sect.id"
-                  disabled
-                  class="px-4 py-1.5 rounded bg-stone-900 border border-stone-700 text-stone-500 text-sm cursor-not-allowed"
-                >
-                  已加入
-                </button>
-                <span v-else class="text-xs text-stone-500">已加入其他宗门</span>
+          <!-- 宗门加成展示区：玩家已加入宗门后查看自身加成（紫色主题，与列表卡片保持一致） -->
+          <div v-if="getBonusList(mySect.bonus).length > 0" class="mt-3 bg-surface-canvas rounded-control p-3 border border-violet-800/40">
+            <div class="text-xs text-fg-muted mb-2 flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-violet-500">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              <span class="font-bold text-violet-400">宗门加成</span>
+              <span class="text-fg-faint font-normal">（入宗即享，永久生效）</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div
+                v-for="item in getBonusList(mySect.bonus)"
+                :key="item.label"
+                class="flex items-center justify-between px-2.5 py-1.5 rounded bg-violet-900/15 border border-violet-700/30"
+              >
+                <span class="text-xs text-violet-300">{{ item.label }}</span>
+                <span class="text-xs text-emerald-400 font-bold">{{ item.value }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- ====== 我的宗门视图 ====== -->
-        <div v-else-if="activeTab === 'my'">
-          <!-- 未加入宗门提示 -->
-          <div v-if="!hasJoined" class="flex flex-col items-center justify-center h-64 text-stone-500">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-              <path d="M3 21h18"/>
-              <path d="M5 21V7l8-4 8 4v14"/>
-            </svg>
-            <p class="mb-4">你尚未拜入任何宗门</p>
-            <button
-              @click="activeTab = 'list'"
-              class="px-4 py-2 rounded bg-violet-900/30 border border-violet-700/50 text-violet-400 hover:bg-violet-800/50 transition-colors text-sm"
+        <!-- 每日操作区：点卯 + 传功 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- 点卯卡片 -->
+          <div class="bg-surface-raised border border-line-subtle rounded-panel p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-bold text-fg-secondary flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gold-500">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                每日点卯
+              </h4>
+              <span v-if="mySect.last_check_in" class="text-xs text-fg-faint">
+                上次: {{ formatDate(mySect.last_check_in) }}
+              </span>
+            </div>
+            <p class="text-xs text-fg-faint mb-3">每日拜见师长，领取贡献与修为奖励</p>
+            <AppButton
+              block
+              size="sm"
+              :variant="canCheckIn ? 'primary' : 'default'"
+              :disabled="!canCheckIn"
+              @click="handleCheckIn"
             >
-              前往宗门列表
+              <span v-if="canCheckIn">点卯</span>
+              <span v-else class="num">冷却中 {{ formatCountdown(checkInRemainingMs) }}</span>
+            </AppButton>
+          </div>
+
+          <!-- 传功卡片 -->
+          <div class="bg-surface-raised border border-line-subtle rounded-panel p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-bold text-fg-secondary flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-500">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM2 9h4v12H2z"/>
+                </svg>
+                宗门传功
+              </h4>
+              <span v-if="mySect.last_transfer" class="text-xs text-fg-faint">
+                上次: {{ formatDate(mySect.last_transfer) }}
+              </span>
+            </div>
+            <p class="text-xs text-fg-faint mb-3">消耗灵石接受长辈传功，换取修为</p>
+            <button
+              @click="handleTransfer"
+              :disabled="!canTransfer"
+              class="w-full py-2 rounded-control border transition-colors text-sm"
+              :class="canTransfer
+                ? 'bg-cyan-900/30 border-cyan-700/50 text-cyan-400 hover:bg-cyan-800/50 hover:text-cyan-300'
+                : 'bg-surface-raised border-line text-fg-faint cursor-not-allowed'"
+            >
+              <span v-if="canTransfer">传功</span>
+              <span v-else class="num">冷却中 {{ formatCountdown(transferRemainingMs) }}</span>
             </button>
           </div>
+        </div>
 
-          <!-- 已加入宗门：展示完整信息 -->
-          <div v-else class="space-y-4">
-            <!-- 宗门信息卡片 -->
-            <div class="bg-[#1c1917] border rounded-lg p-4"
-                 :class="mySect.alignment === '正道' ? 'border-amber-700/50' : 'border-purple-700/50'">
-              <div class="flex justify-between items-start mb-3">
-                <div>
-                  <h3 class="text-xl font-bold flex items-center gap-2"
-                      :class="mySect.alignment === '正道' ? 'text-amber-400' : 'text-purple-400'">
-                    {{ mySect.name }}
-                    <span class="text-xs px-2 py-0.5 rounded border"
-                          :class="getAlignmentBadgeClass(mySect.alignment)">
-                      {{ mySect.alignment }}
-                    </span>
-                    <span class="text-xs px-2 py-0.5 rounded border"
-                          :class="getElementBadgeClass(mySect.element)">
-                      {{ mySect.element }}行
-                    </span>
-                  </h3>
-                  <p class="text-xs text-stone-400 mt-1">{{ mySect.description }}</p>
-                </div>
-                <button
-                  @click="handleLeave"
-                  :disabled="operating"
-                  class="px-3 py-1 rounded bg-rose-900/30 border border-rose-700/50 text-rose-400 hover:bg-rose-800/50 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  叛出宗门
-                </button>
-              </div>
+        <!-- 宗门任务列表 -->
+        <div class="bg-surface-raised border border-line-subtle rounded-panel p-4">
+          <h4 class="text-sm font-bold text-fg-secondary mb-3 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            宗门任务
+            <span class="text-xs text-fg-faint font-normal">（每日刷新）</span>
+          </h4>
 
-              <!-- 身份与贡献度统计 -->
-              <div class="grid grid-cols-3 gap-3 mt-3">
-                <div class="bg-[#0c0a09] rounded p-2 border border-stone-800 text-center">
-                  <div class="text-xs text-stone-500 mb-1">身份</div>
-                  <div class="text-sm font-bold text-violet-400">{{ getRoleName(mySect.role) }}</div>
+          <div v-if="quests.length === 0" class="text-center text-fg-faint text-sm py-4">
+            暂无可用任务
+          </div>
+
+          <div v-else class="space-y-2">
+            <div
+              v-for="quest in quests"
+              :key="quest.id"
+              class="bg-surface-canvas border border-line-subtle rounded-control p-3 flex justify-between items-center"
+              :class="{ 'opacity-60': quest.completed }"
+            >
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-sm font-bold text-fg-secondary">{{ quest.name }}</span>
+                  <Badge v-if="quest.daily" tone="neutral">日常</Badge>
+                  <Badge v-if="quest.completed" tone="success">已完成</Badge>
+                  <Badge v-else-if="quest.accepted" tone="info">进行中</Badge>
                 </div>
-                <div class="bg-[#0c0a09] rounded p-2 border border-stone-800 text-center">
-                  <div class="text-xs text-stone-500 mb-1">贡献度</div>
-                  <div class="text-sm font-bold text-amber-400">{{ formatCompact(mySect.contribution) }}</div>
-                </div>
-                <div class="bg-[#0c0a09] rounded p-2 border border-stone-800 text-center">
-                  <div class="text-xs text-stone-500 mb-1">加入时间</div>
-                  <div class="text-xs font-bold text-stone-300 mt-1">{{ formatDate(mySect.joined_at) }}</div>
+                <p class="text-xs text-fg-faint mb-1">{{ quest.description }}</p>
+                <div class="text-xs flex gap-3 num">
+                  <span class="text-gold-400" :title="String(quest.contribution)">贡献 +{{ formatCompact(quest.contribution) }}</span>
+                  <span class="text-cyan-400" :title="String(quest.exp_reward)">修为 +{{ formatCompact(quest.exp_reward) }}</span>
+                  <span v-if="(quest.min_contribution || 0) > 0" class="text-fg-faint">需要贡献 ≥{{ formatCompact(quest.min_contribution) }}</span>
                 </div>
               </div>
-
-              <!-- 宗门加成展示区：玩家已加入宗门后查看自身加成（紫色主题，与列表卡片保持一致） -->
-              <div v-if="getBonusList(mySect.bonus).length > 0" class="mt-3 bg-[#0c0a09] rounded p-3 border border-violet-800/40">
-                <div class="text-xs text-stone-400 mb-2 flex items-center gap-1.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-violet-500">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                  </svg>
-                  <span class="font-bold text-violet-400">宗门加成</span>
-                  <span class="text-stone-600 font-normal">（入宗即享，永久生效）</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <div
-                    v-for="item in getBonusList(mySect.bonus)"
-                    :key="item.label"
-                    class="flex items-center justify-between px-2.5 py-1.5 rounded bg-violet-900/15 border border-violet-700/30"
-                  >
-                    <span class="text-xs text-violet-300">{{ item.label }}</span>
-                    <span class="text-xs text-emerald-400 font-bold">{{ item.value }}</span>
-                  </div>
-                </div>
-              </div>
+              <!-- 按钮区：未接取显示"接取"，已接取未完成显示"提交"，已完成显示"已完成" -->
+              <button
+                v-if="!quest.completed && !quest.accepted"
+                @click="handleAcceptQuest(quest)"
+                :disabled="operating || (mySect?.contribution || 0) < (quest.min_contribution || 0)"
+                class="ml-3 px-3 py-1.5 rounded-control border text-xs whitespace-nowrap transition-colors"
+                :class="(mySect?.contribution || 0) < (quest.min_contribution || 0)
+                  ? 'bg-surface-raised border-line text-fg-faint cursor-not-allowed'
+                  : 'bg-cyan-900/30 border-cyan-700/50 text-cyan-400 hover:bg-cyan-800/50 hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed'"
+              >
+                {{ (mySect?.contribution || 0) < (quest.min_contribution || 0) ? '贡献不足' : '接取' }}
+              </button>
+              <button
+                v-else-if="quest.accepted && !quest.completed"
+                @click="handleSubmitQuest(quest)"
+                :disabled="operating"
+                class="ml-3 px-3 py-1.5 rounded-control border text-xs whitespace-nowrap transition-colors bg-emerald-900/30 border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                提交
+              </button>
+              <button
+                v-else
+                disabled
+                class="ml-3 px-3 py-1.5 rounded-control border text-xs whitespace-nowrap bg-surface-raised border-line text-fg-faint cursor-not-allowed"
+              >
+                已完成
+              </button>
             </div>
+          </div>
+        </div>
 
-            <!-- 每日操作区：点卯 + 传功 -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <!-- 点卯卡片 -->
-              <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-2">
-                  <h4 class="text-sm font-bold text-stone-200 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500">
-                      <circle cx="12" cy="12" r="10"/>
-                      <polyline points="12 6 12 12 16 14"/>
-                    </svg>
-                    每日点卯
-                  </h4>
-                  <span v-if="mySect.last_check_in" class="text-xs text-stone-500">
-                    上次: {{ formatDate(mySect.last_check_in) }}
-                  </span>
-                </div>
-                <p class="text-xs text-stone-500 mb-3">每日拜见师长，领取贡献与修为奖励</p>
+        <!-- 宝库兑换区 -->
+        <div class="bg-surface-raised border border-line-subtle rounded-panel p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-sm font-bold text-fg-secondary flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-500">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/>
+                <path d="M3 6h18"/>
+                <path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+              宗门宝库
+            </h4>
+            <span class="text-xs text-fg-faint">当前贡献: <span class="text-gold-400 font-bold num" :title="String(mySect.contribution)">{{ formatCompact(mySect.contribution) }}</span></span>
+          </div>
+
+          <div v-if="treasury.length === 0" class="text-center text-fg-faint text-sm py-4">
+            暂无宝库物品
+          </div>
+
+          <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div
+              v-for="item in treasury"
+              :key="item.id"
+              class="bg-surface-canvas border border-line-subtle rounded-control p-3"
+            >
+              <div class="text-sm font-bold text-fg-secondary mb-1">{{ item.name }}</div>
+              <p class="text-xs text-fg-faint mb-2 leading-relaxed">{{ item.description }}</p>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gold-400 num">{{ item.cost }} 贡献</span>
                 <button
-                  @click="handleCheckIn"
-                  :disabled="!canCheckIn"
-                  class="w-full py-2 rounded border transition-colors text-sm"
-                  :class="canCheckIn
-                    ? 'bg-amber-900/30 border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300'
-                    : 'bg-stone-900 border-stone-700 text-stone-500 cursor-not-allowed'"
+                  @click="handleExchange(item)"
+                  :disabled="operating || mySect.contribution < item.cost"
+                  class="px-2.5 py-1 rounded-control bg-yellow-900/30 border border-yellow-700/50 text-yellow-400 hover:bg-yellow-800/50 hover:text-yellow-300 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span v-if="canCheckIn">点卯</span>
-                  <span v-else>冷却中 {{ formatCountdown(checkInRemainingMs) }}</span>
+                  兑换
                 </button>
-              </div>
-
-              <!-- 传功卡片 -->
-              <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-2">
-                  <h4 class="text-sm font-bold text-stone-200 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-500">
-                      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM2 9h4v12H2z"/>
-                    </svg>
-                    宗门传功
-                  </h4>
-                  <span v-if="mySect.last_transfer" class="text-xs text-stone-500">
-                    上次: {{ formatDate(mySect.last_transfer) }}
-                  </span>
-                </div>
-                <p class="text-xs text-stone-500 mb-3">消耗灵石接受长辈传功，换取修为</p>
-                <button
-                  @click="handleTransfer"
-                  :disabled="!canTransfer"
-                  class="w-full py-2 rounded border transition-colors text-sm"
-                  :class="canTransfer
-                    ? 'bg-cyan-900/30 border-cyan-700/50 text-cyan-400 hover:bg-cyan-800/50 hover:text-cyan-300'
-                    : 'bg-stone-900 border-stone-700 text-stone-500 cursor-not-allowed'"
-                >
-                  <span v-if="canTransfer">传功</span>
-                  <span v-else>冷却中 {{ formatCountdown(transferRemainingMs) }}</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- 宗门任务列表 -->
-            <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-4">
-              <h4 class="text-sm font-bold text-stone-200 mb-3 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500">
-                  <path d="M9 11l3 3L22 4"/>
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                </svg>
-                宗门任务
-                <span class="text-xs text-stone-500 font-normal">（每日刷新）</span>
-              </h4>
-
-              <div v-if="quests.length === 0" class="text-center text-stone-500 text-sm py-4">
-                暂无可用任务
-              </div>
-
-              <div v-else class="space-y-2">
-                <div
-                  v-for="quest in quests"
-                  :key="quest.id"
-                  class="bg-[#0c0a09] border border-stone-800 rounded p-3 flex justify-between items-center"
-                  :class="{ 'opacity-60': quest.completed }"
-                >
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span class="text-sm font-bold text-stone-200">{{ quest.name }}</span>
-                      <span v-if="quest.daily" class="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-400">日常</span>
-                      <span v-if="quest.completed" class="text-xs px-1.5 py-0.5 rounded bg-emerald-900/30 text-emerald-400 border border-emerald-700/50">已完成</span>
-                      <span v-else-if="quest.accepted" class="text-xs px-1.5 py-0.5 rounded bg-cyan-900/30 text-cyan-400 border border-cyan-700/50">进行中</span>
-                    </div>
-                    <p class="text-xs text-stone-500 mb-1">{{ quest.description }}</p>
-                    <div class="text-xs flex gap-3">
-                      <span class="text-amber-400">贡献 +{{ quest.contribution }}</span>
-                      <span class="text-cyan-400">修为 +{{ quest.exp_reward }}</span>
-                      <span v-if="(quest.min_contribution || 0) > 0" class="text-stone-500">需要贡献 ≥{{ quest.min_contribution }}</span>
-                    </div>
-                  </div>
-                  <!-- 按钮区：未接取显示"接取"，已接取未完成显示"提交"，已完成显示"已完成" -->
-                  <button
-                    v-if="!quest.completed && !quest.accepted"
-                    @click="handleAcceptQuest(quest)"
-                    :disabled="operating || (mySect?.contribution || 0) < (quest.min_contribution || 0)"
-                    class="ml-3 px-3 py-1.5 rounded border text-xs whitespace-nowrap transition-colors"
-                    :class="(mySect?.contribution || 0) < (quest.min_contribution || 0)
-                      ? 'bg-stone-900 border-stone-700 text-stone-600 cursor-not-allowed'
-                      : 'bg-cyan-900/30 border-cyan-700/50 text-cyan-400 hover:bg-cyan-800/50 hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed'"
-                  >
-                    {{ (mySect?.contribution || 0) < (quest.min_contribution || 0) ? '贡献不足' : '接取' }}
-                  </button>
-                  <button
-                    v-else-if="quest.accepted && !quest.completed"
-                    @click="handleSubmitQuest(quest)"
-                    :disabled="operating"
-                    class="ml-3 px-3 py-1.5 rounded border text-xs whitespace-nowrap transition-colors bg-emerald-900/30 border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    提交
-                  </button>
-                  <button
-                    v-else
-                    disabled
-                    class="ml-3 px-3 py-1.5 rounded border text-xs whitespace-nowrap bg-stone-900 border-stone-700 text-stone-600 cursor-not-allowed"
-                  >
-                    已完成
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- 宝库兑换区 -->
-            <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-4">
-              <div class="flex justify-between items-center mb-3">
-                <h4 class="text-sm font-bold text-stone-200 flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-500">
-                    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/>
-                    <path d="M3 6h18"/>
-                    <path d="M16 10a4 4 0 0 1-8 0"/>
-                  </svg>
-                  宗门宝库
-                </h4>
-                <span class="text-xs text-stone-500">当前贡献: <span class="text-amber-400 font-bold">{{ formatCompact(mySect.contribution) }}</span></span>
-              </div>
-
-              <div v-if="treasury.length === 0" class="text-center text-stone-500 text-sm py-4">
-                暂无宝库物品
-              </div>
-
-              <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <div
-                  v-for="item in treasury"
-                  :key="item.id"
-                  class="bg-[#0c0a09] border border-stone-800 rounded p-3"
-                >
-                  <div class="text-sm font-bold text-stone-200 mb-1">{{ item.name }}</div>
-                  <p class="text-xs text-stone-500 mb-2 leading-relaxed">{{ item.description }}</p>
-                  <div class="flex justify-between items-center">
-                    <span class="text-xs text-amber-400">{{ item.cost }} 贡献</span>
-                    <button
-                      @click="handleExchange(item)"
-                      :disabled="operating || mySect.contribution < item.cost"
-                      class="px-2.5 py-1 rounded bg-yellow-900/30 border border-yellow-700/50 text-yellow-400 hover:bg-yellow-800/50 hover:text-yellow-300 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      兑换
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -1044,12 +960,12 @@ onUnmounted(() => {
       width="420px"
     >
       <div class="space-y-3" v-if="confirmModal.type === 'join' && confirmModal.payload">
-        <p class="text-stone-300">
+        <p class="text-fg-secondary">
           确定要拜入
-          <span class="font-bold text-amber-400">{{ (confirmModal.payload as Sect).name }}</span>
+          <span class="font-bold text-gold-400">{{ (confirmModal.payload as Sect).name }}</span>
           吗？
         </p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-xs text-fg-faint leading-relaxed">
           拜入后将消耗
           <span class="text-yellow-500">{{ (confirmModal.payload as Sect).join_requirement?.spirit_stones || 0 }}</span>
           灵石，且无法同时加入其他宗门。
@@ -1065,34 +981,31 @@ onUnmounted(() => {
           </svg>
           <p class="text-lg font-bold">叛出后贡献清零</p>
         </div>
-        <p class="text-stone-300">确定要叛出当前宗门吗？</p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-fg-secondary">确定要叛出当前宗门吗？</p>
+        <p class="text-xs text-fg-faint leading-relaxed">
           叛出后宗门贡献度将全部清空，且需要重新消耗灵石才能拜入其他宗门。
         </p>
       </div>
 
       <div class="space-y-3" v-else-if="confirmModal.type === 'exchange' && confirmModal.payload">
-        <p class="text-stone-300">
+        <p class="text-fg-secondary">
           确定要兑换
-          <span class="font-bold text-amber-400">{{ (confirmModal.payload as TreasuryItem).name }}</span>
+          <span class="font-bold text-gold-400">{{ (confirmModal.payload as TreasuryItem).name }}</span>
           吗？
         </p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-xs text-fg-faint leading-relaxed">
           将消耗
-          <span class="text-amber-400">{{ (confirmModal.payload as TreasuryItem).cost }}</span>
+          <span class="text-gold-400">{{ (confirmModal.payload as TreasuryItem).cost }}</span>
           贡献度，物品将存入储物袋。
         </p>
       </div>
 
       <template #footer>
-        <button
-          @click="closeConfirmModal"
-          class="px-4 py-2 bg-stone-700 hover:bg-stone-600 text-stone-200 rounded transition-colors text-sm"
-        >取消</button>
+        <AppButton variant="default" size="sm" @click="closeConfirmModal">取消</AppButton>
         <button
           @click="handleConfirm"
           :disabled="operating"
-          class="px-4 py-2 rounded text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-4 py-2 rounded-control text-fg-primary transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           :class="confirmModal.type === 'leave'
             ? 'bg-rose-600 hover:bg-rose-500'
             : 'bg-violet-600 hover:bg-violet-500'"
@@ -1102,15 +1015,5 @@ onUnmounted(() => {
         </button>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
-
-<style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-</style>

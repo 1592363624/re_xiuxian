@@ -6,125 +6,117 @@
     - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
     - 核心交互：参悟图谱 → 制造傀儡 → 出战/护法/淬炼/维修/回收
   -->
-  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm panel-shell" @click.self="emit('close')">
-    <div class="relative w-full max-w-4xl max-h-[92vh] mx-4 bg-gradient-to-b from-[#1c1917] to-[#0c0a09] border border-amber-900/50 rounded-2xl shadow-2xl shadow-amber-900/30 flex flex-col panel-body">
-      <!-- 头部 -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-amber-900/40 shrink-0">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-600 to-stone-700 flex items-center justify-center shadow-lg shadow-amber-900/50">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="text-amber-100">
-              <path d="M12 2v4"/><path d="M12 18v4"/><circle cx="12" cy="12" r="3"/>
-              <path d="M5 7l2 2"/><path d="M17 15l2 2"/><path d="M5 17l2-2"/><path d="M17 9l2-2"/>
-            </svg>
-          </div>
-          <div>
-            <h2 class="text-xl font-bold text-amber-200 tracking-wider">傀儡工坊</h2>
-            <p class="text-[11px] text-stone-500">大衍诀·控傀 · 制造出战护法 · 淬炼维修回收</p>
-          </div>
-        </div>
-        <button @click="emit('close')" class="text-stone-400 hover:text-rose-400 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-900/30">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
+  <PanelShell
+    title="傀儡工坊"
+    hint="大衍诀·控傀 · 制造出战护法 · 淬炼维修回收"
+    size="xl"
+    scoped-scroll
+    @close="emit('close')"
+  >
+    <template #header-actions>
+      <AppButton size="xs" variant="ghost" @click="loadData">刷新数据</AppButton>
+    </template>
 
-      <!-- 大衍诀层数提示条 -->
-      <div v-if="workshop" class="px-6 py-2 bg-amber-950/20 border-b border-amber-900/30 flex items-center justify-between text-[11px] shrink-0">
-        <span class="text-stone-400">
-          大衍诀层数：<span class="text-indigo-300 font-bold">{{ workshop.dayan_level }}</span>
-          <span class="text-stone-600">/ 最低需 {{ workshop.min_dayan_level }} 层·控傀</span>
-        </span>
-        <span class="text-stone-400">
-          傀儡：<span class="text-amber-300 font-bold">{{ workshop.puppet_count }}</span>
-          <span class="text-stone-600">/ {{ workshop.max_puppets }}</span>
-          <span class="text-stone-600 mx-1">|</span>
-          出战加成 <span class="text-emerald-300 font-bold">{{ (workshop.battle_stat_ratio * 100).toFixed(0) }}%</span>
-          <span class="text-stone-600 mx-1">|</span>
-          护法反击 <span class="text-rose-300 font-bold">{{ (workshop.guard_counter_ratio * 100).toFixed(0) }}%</span>
-        </span>
-      </div>
-
+    <div class="h-full flex flex-col">
       <!-- Tab 栏 -->
-      <div class="flex border-b border-amber-900/40 shrink-0">
-        <button v-for="tab in tabs" :key="tab.id" @click="switchTab(tab.id)"
-          :class="['flex-1 px-4 py-3 text-sm font-bold tracking-wider transition-all relative',
-                   activeTab === tab.id ? 'text-amber-200 bg-amber-900/20' : 'text-stone-500 hover:text-stone-300']">
-          {{ tab.name }}
-        </button>
-      </div>
+      <Tabs :model-value="activeTab" :items="tabs" class="shrink-0 px-4" @update:model-value="switchTab" />
 
       <!-- 内容区 -->
-      <div class="flex-1 overflow-y-auto p-6">
+      <div class="flex-1 min-h-0 overflow-y-auto scroll-thin px-4 py-4">
+        <!-- 大衍诀层数提示条 -->
+        <div v-if="workshop" class="bg-surface-tint-gold border border-line-subtle rounded-panel px-3 py-2 mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px]">
+          <span class="text-fg-secondary">
+            大衍诀层数：<span class="text-state-arcane font-bold num">{{ workshop.dayan_level }}</span>
+            <span class="text-fg-faint">/ 最低需 {{ workshop.min_dayan_level }} 层·控傀</span>
+          </span>
+          <span class="text-fg-secondary">
+            傀儡：<span class="text-gold-400 font-bold num">{{ workshop.puppet_count }}</span>
+            <span class="text-fg-faint num">/ {{ workshop.max_puppets }}</span>
+            <span class="text-fg-faint mx-1">|</span>
+            出战加成 <span class="text-state-success font-bold num">{{ (workshop.battle_stat_ratio * 100).toFixed(0) }}%</span>
+            <span class="text-fg-faint mx-1">|</span>
+            护法反击 <span class="text-state-danger font-bold num">{{ (workshop.guard_counter_ratio * 100).toFixed(0) }}%</span>
+          </span>
+        </div>
+
         <!-- 加载态 -->
-        <div v-if="loading && activeTab !== 'guide'" class="text-center py-10 text-stone-500">查询中...</div>
+        <LoadingBlock v-if="loading && activeTab !== 'guide'" text="查询中…" />
 
         <!-- ========== Tab 1: 工坊（傀儡列表） ========== -->
         <div v-else-if="activeTab === 'workshop'">
+          <!-- 工坊数据缺失（接口失败或尚未返回）：必须挡在列表分支之前，否则 v-else 会对 null 取 puppets -->
+          <EmptyState
+            v-if="!workshop"
+            text="傀儡工坊数据加载失败"
+            hint="请重新打开面板，或稍后再试"
+          />
+
           <!-- 未解锁提示 -->
-          <div v-if="workshop && workshop.dayan_level < workshop.min_dayan_level" class="text-center py-12">
-            <div class="text-4xl mb-3 opacity-50">🔒</div>
-            <div class="text-sm text-rose-300 mb-1">大衍诀层数不足，傀儡工坊尚未解锁</div>
-            <div class="text-[11px] text-stone-500">需将大衍诀修至第三层·控傀方可开启傀儡制造</div>
-          </div>
+          <EmptyState
+            v-else-if="workshop.dayan_level < workshop.min_dayan_level"
+            text="大衍诀层数不足，傀儡工坊尚未解锁"
+            hint="需将大衍诀修至第三层·控傀方可开启傀儡制造"
+          />
 
           <!-- 空列表提示 -->
-          <div v-else-if="workshop && workshop.puppets.length === 0" class="text-center py-12 text-stone-500 text-sm">
-            <div class="text-4xl mb-3 opacity-40">⚙</div>
-            <p>工坊中尚无傀儡</p>
-            <p class="text-[11px] mt-1">请前往「制造」Tab 参悟图谱并制造你的第一具傀儡</p>
-          </div>
+          <EmptyState
+            v-else-if="workshop.puppets.length === 0"
+            text="工坊中尚无傀儡"
+            hint="请前往「制造」页签参悟图谱并制造你的第一具傀儡"
+          />
 
           <!-- 傀儡卡片列表 -->
           <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div v-for="p in workshop.puppets" :key="p.id"
-                 :class="['rounded-xl border p-4 transition-all',
-                          p.status === 'battle' ? 'bg-emerald-950/20 border-emerald-700/50 shadow-lg shadow-emerald-900/20'
-                          : p.status === 'guard' ? 'bg-rose-950/20 border-rose-700/50 shadow-lg shadow-rose-900/20'
-                          : 'bg-stone-900/50 border-stone-700/50']">
+                 :class="['rounded-panel border p-4 transition-colors',
+                          p.status === 'battle' ? 'bg-surface-tint-jade border-state-success/50'
+                          : p.status === 'guard' ? 'bg-rose-950/20 border-state-danger/50'
+                          : 'bg-surface-sunken border-line']">
               <!-- 卡片头部：名称 + 状态 -->
               <div class="flex items-start justify-between mb-3">
-                <div class="flex items-center gap-2">
-                  <span class="w-8 h-8 rounded flex items-center justify-center text-xs font-bold"
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="w-8 h-8 rounded-control flex items-center justify-center text-xs font-bold shrink-0"
                         :class="qualityBgClass(p.quality)">★</span>
-                  <div>
-                    <div class="text-sm font-bold" :class="qualityTextClass(p.quality)">{{ p.name }}</div>
-                    <div class="text-[10px] text-stone-500">Lv.{{ p.level }} · {{ qualityLabel(p.quality) }}</div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold font-display" :class="qualityTextClass(p.quality)">{{ p.name }}</div>
+                    <div class="text-[10px] text-fg-muted num">Lv.{{ p.level }} · {{ qualityLabel(p.quality) }}</div>
                   </div>
                 </div>
                 <!-- 状态徽章 -->
-                <span v-if="p.status === 'battle'" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-800/60 text-emerald-200">出战中</span>
-                <span v-else-if="p.status === 'guard'" class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-800/60 text-rose-200">护法中</span>
-                <span v-else class="px-2 py-0.5 rounded text-[10px] font-bold bg-stone-700/60 text-stone-400">闲置</span>
+                <Badge v-if="p.status === 'battle'" tone="success" solid>出战中</Badge>
+                <Badge v-else-if="p.status === 'guard'" tone="danger" solid>护法中</Badge>
+                <Badge v-else tone="muted">闲置</Badge>
               </div>
 
               <!-- 属性栏 -->
               <div class="grid grid-cols-4 gap-2 mb-3 text-center">
-                <div class="bg-stone-950/40 rounded-lg py-1.5">
-                  <div class="text-[9px] text-stone-500">攻击</div>
-                  <div class="text-xs font-bold text-rose-300">{{ p.atk }}</div>
+                <div class="bg-surface-sunken rounded-control py-1.5 border border-line-subtle">
+                  <div class="text-[9px] text-fg-muted">攻击</div>
+                  <div class="text-xs font-bold text-state-danger num">{{ p.atk }}</div>
                 </div>
-                <div class="bg-stone-950/40 rounded-lg py-1.5">
-                  <div class="text-[9px] text-stone-500">防御</div>
-                  <div class="text-xs font-bold text-cyan-300">{{ p.def }}</div>
+                <div class="bg-surface-sunken rounded-control py-1.5 border border-line-subtle">
+                  <div class="text-[9px] text-fg-muted">防御</div>
+                  <div class="text-xs font-bold text-state-info num">{{ p.def }}</div>
                 </div>
-                <div class="bg-stone-950/40 rounded-lg py-1.5">
-                  <div class="text-[9px] text-stone-500">气血</div>
-                  <div class="text-xs font-bold text-emerald-300">{{ p.hp }}</div>
+                <div class="bg-surface-sunken rounded-control py-1.5 border border-line-subtle">
+                  <div class="text-[9px] text-fg-muted">气血</div>
+                  <div class="text-xs font-bold text-state-success num">{{ p.hp }}</div>
                 </div>
-                <div class="bg-stone-950/40 rounded-lg py-1.5">
-                  <div class="text-[9px] text-stone-500">速度</div>
-                  <div class="text-xs font-bold text-amber-300">{{ p.speed }}</div>
+                <div class="bg-surface-sunken rounded-control py-1.5 border border-line-subtle">
+                  <div class="text-[9px] text-fg-muted">速度</div>
+                  <div class="text-xs font-bold text-gold-400 num">{{ p.speed }}</div>
                 </div>
               </div>
 
               <!-- 耐久度条 -->
               <div class="mb-3">
                 <div class="flex items-center justify-between text-[10px] mb-1">
-                  <span class="text-stone-500">耐久度</span>
-                  <span :class="p.durability <= 20 ? 'text-rose-400' : 'text-stone-400'">{{ p.durability }} / {{ p.max_durability }}</span>
+                  <span class="text-fg-muted">耐久度</span>
+                  <span class="num" :class="p.durability <= 20 ? 'text-state-danger' : 'text-fg-secondary'">{{ p.durability }} / {{ p.max_durability }}</span>
                 </div>
-                <div class="w-full h-2 bg-stone-950 rounded-full overflow-hidden border border-stone-800">
+                <div class="w-full h-2 bg-surface-sunken rounded-full overflow-hidden border border-line">
                   <div class="h-full rounded-full transition-all duration-500"
-                       :class="p.durability <= 20 ? 'bg-rose-600' : p.durability <= 50 ? 'bg-amber-600' : 'bg-emerald-600'"
+                       :class="p.durability <= 20 ? 'bg-state-danger' : p.durability <= 50 ? 'bg-gold-500' : 'bg-state-success'"
                        :style="{ width: (p.durability / p.max_durability * 100) + '%' }"></div>
                 </div>
               </div>
@@ -132,62 +124,59 @@
               <!-- 操作按钮组 -->
               <div class="grid grid-cols-2 gap-2">
                 <!-- 出战/取消出战 -->
-                <button v-if="p.status !== 'battle'" @click="handleSetBattle(p)"
-                  :disabled="p.durability <= 0 || actionLoading === p.id"
-                  :class="['px-2 py-1.5 rounded text-[11px] font-bold transition-all',
-                           p.durability <= 0 ? 'bg-stone-800 text-stone-600 cursor-not-allowed'
-                           : 'bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-200']">
-                  {{ actionLoading === p.id ? '...' : '出战' }}
-                </button>
-                <button v-else @click="handleUnset(p)" :disabled="actionLoading === p.id"
-                  class="px-2 py-1.5 rounded text-[11px] font-bold bg-stone-700 hover:bg-stone-600 text-stone-200 transition-all">
-                  {{ actionLoading === p.id ? '...' : '取消出战' }}
-                </button>
+                <AppButton v-if="p.status !== 'battle'" block size="xs" variant="primary"
+                  :loading="actionLoading === p.id"
+                  :disabled="p.durability <= 0"
+                  @click="handleSetBattle(p)">
+                  出战
+                </AppButton>
+                <AppButton v-else block size="xs" variant="default"
+                  :loading="actionLoading === p.id"
+                  @click="handleUnset(p)">
+                  取消出战
+                </AppButton>
 
                 <!-- 护法/取消护法 -->
-                <button v-if="p.status !== 'guard'" @click="handleSetGuard(p)"
-                  :disabled="p.durability <= 0 || actionLoading === p.id"
-                  :class="['px-2 py-1.5 rounded text-[11px] font-bold transition-all',
-                           p.durability <= 0 ? 'bg-stone-800 text-stone-600 cursor-not-allowed'
-                           : 'bg-rose-800/60 hover:bg-rose-700/60 text-rose-200']">
-                  {{ actionLoading === p.id ? '...' : '护法' }}
-                </button>
-                <button v-else @click="handleUnset(p)" :disabled="actionLoading === p.id"
-                  class="px-2 py-1.5 rounded text-[11px] font-bold bg-stone-700 hover:bg-stone-600 text-stone-200 transition-all">
-                  {{ actionLoading === p.id ? '...' : '取消护法' }}
-                </button>
+                <AppButton v-if="p.status !== 'guard'" block size="xs" variant="danger"
+                  :loading="actionLoading === p.id"
+                  :disabled="p.durability <= 0"
+                  @click="handleSetGuard(p)">
+                  护法
+                </AppButton>
+                <AppButton v-else block size="xs" variant="default"
+                  :loading="actionLoading === p.id"
+                  @click="handleUnset(p)">
+                  取消护法
+                </AppButton>
 
                 <!-- 淬炼 -->
-                <button @click="openQuenchConfirm(p)"
-                  :disabled="p.level >= workshop.quench_config.max_level || p.durability <= 0 || actionLoading === p.id"
-                  :class="['px-2 py-1.5 rounded text-[11px] font-bold transition-all',
-                           (p.level >= workshop.quench_config.max_level || p.durability <= 0) ? 'bg-stone-800 text-stone-600 cursor-not-allowed'
-                           : 'bg-indigo-800/60 hover:bg-indigo-700/60 text-indigo-200']">
+                <AppButton block size="xs" variant="outline"
+                  :loading="actionLoading === p.id"
+                  :disabled="p.level >= workshop.quench_config.max_level || p.durability <= 0"
+                  @click="openQuenchConfirm(p)">
                   淬炼
-                </button>
+                </AppButton>
 
                 <!-- 维修 -->
-                <button @click="handleRepair(p)"
-                  :disabled="p.durability >= p.max_durability || actionLoading === p.id"
-                  :class="['px-2 py-1.5 rounded text-[11px] font-bold transition-all',
-                           p.durability >= p.max_durability ? 'bg-stone-800 text-stone-600 cursor-not-allowed'
-                           : 'bg-amber-800/60 hover:bg-amber-700/60 text-amber-200']">
-                  {{ actionLoading === p.id ? '...' : '维修' }}
-                </button>
+                <AppButton block size="xs" variant="default"
+                  :loading="actionLoading === p.id"
+                  :disabled="p.durability >= p.max_durability"
+                  @click="handleRepair(p)">
+                  维修
+                </AppButton>
 
                 <!-- 回收（仅闲置可回收） -->
-                <button @click="openRecyclePreview(p)"
-                  :disabled="p.status !== 'idle' || actionLoading === p.id"
-                  :class="['col-span-2 px-2 py-1.5 rounded text-[11px] font-bold transition-all',
-                           p.status !== 'idle' ? 'bg-stone-800 text-stone-600 cursor-not-allowed'
-                           : 'bg-stone-700/60 hover:bg-rose-800/60 text-stone-400 hover:text-rose-200']">
+                <AppButton class="col-span-2" block size="xs" variant="danger"
+                  :loading="actionLoading === p.id"
+                  :disabled="p.status !== 'idle'"
+                  @click="openRecyclePreview(p)">
                   回收
-                </button>
+                </AppButton>
               </div>
 
               <!-- 耐久度为0警告 -->
-              <div v-if="p.durability <= 0" class="mt-2 text-center text-[10px] text-rose-400">
-                ⚠ 耐久度为0，无法出战/护法/淬炼，请先维修
+              <div v-if="p.durability <= 0" class="mt-2 text-center text-[10px] text-state-danger">
+                耐久度为0，无法出战/护法/淬炼，请先维修
               </div>
             </div>
           </div>
@@ -195,14 +184,14 @@
 
         <!-- ========== Tab 2: 制造（图谱参悟 + 制造傀儡） ========== -->
         <div v-else-if="activeTab === 'manufacture'">
-          <div v-if="!workshop" class="text-center py-12 text-stone-500 text-sm">数据加载中...</div>
+          <LoadingBlock v-if="!workshop" text="数据加载中…" />
           <div v-else class="space-y-5">
             <!-- 已学图谱区 -->
             <div v-if="workshop.blueprints.length > 0">
-              <h3 class="text-sm font-bold text-amber-200 mb-2">◆ 已参悟图谱（{{ workshop.blueprints.length }}）</h3>
+              <h3 class="text-sm font-bold text-gold-400 mb-2 font-display">◆ 已参悟图谱（<span class="num">{{ workshop.blueprints.length }}</span>）</h3>
               <div class="flex flex-wrap gap-2">
                 <span v-for="bp in workshop.blueprints" :key="bp.blueprint_key"
-                      class="px-3 py-1 rounded-full text-[11px] bg-violet-900/30 border border-violet-700/40 text-violet-200">
+                      class="px-3 py-1 rounded-full text-[11px] bg-surface-tint-arcane border border-state-arcane/40 text-state-arcane">
                   {{ bp.blueprint_name }}
                 </span>
               </div>
@@ -210,27 +199,27 @@
 
             <!-- 可制造傀儡列表 -->
             <div>
-              <h3 class="text-sm font-bold text-amber-200 mb-3">◆ 傀儡制造</h3>
+              <h3 class="text-sm font-bold text-gold-400 mb-3 font-display">◆ 傀儡制造</h3>
               <div class="space-y-3">
                 <div v-for="m in workshop.manufacturable" :key="m.puppet_type"
-                     :class="['rounded-xl border p-4 transition-all',
-                              m.can_manufacture ? 'bg-stone-900/50 border-amber-700/40'
-                              : 'bg-stone-900/30 border-stone-800 opacity-60']">
-                  <div class="flex items-start justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                      <span class="w-8 h-8 rounded flex items-center justify-center text-xs font-bold"
+                     :class="['rounded-panel border p-4 transition-colors',
+                              m.can_manufacture ? 'bg-surface-sunken border-gold-800/60'
+                              : 'bg-surface-sunken border-line opacity-60']">
+                  <div class="flex items-start justify-between gap-3 mb-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="w-8 h-8 rounded-control flex items-center justify-center text-xs font-bold shrink-0"
                             :class="qualityBgClass(m.quality)">★</span>
-                      <div>
-                        <div class="text-sm font-bold" :class="qualityTextClass(m.quality)">{{ m.name }}</div>
-                        <div class="text-[10px] text-stone-500">{{ m.description }}</div>
+                      <div class="min-w-0">
+                        <div class="text-sm font-bold font-display" :class="qualityTextClass(m.quality)">{{ m.name }}</div>
+                        <div class="text-[10px] text-fg-muted wrap-cjk">{{ m.description }}</div>
                       </div>
                     </div>
                     <!-- 条件状态 -->
-                    <div class="text-right text-[10px]">
-                      <div :class="m.dayan_met ? 'text-emerald-300' : 'text-rose-400'">
-                        {{ m.dayan_met ? '✓' : '✕' }} 大衍诀 {{ m.required_dayan_level }} 层
+                    <div class="text-right text-[10px] shrink-0">
+                      <div :class="m.dayan_met ? 'text-state-success' : 'text-state-danger'">
+                        {{ m.dayan_met ? '✓' : '✕' }} 大衍诀 <span class="num">{{ m.required_dayan_level }}</span> 层
                       </div>
-                      <div :class="m.has_blueprint ? 'text-emerald-300' : 'text-rose-400'">
+                      <div :class="m.has_blueprint ? 'text-state-success' : 'text-state-danger'">
                         {{ m.has_blueprint ? '✓' : '✕' }} 已参悟图谱
                       </div>
                     </div>
@@ -238,21 +227,21 @@
 
                   <!-- 基础属性 -->
                   <div class="grid grid-cols-4 gap-2 mb-2 text-center text-[11px]">
-                    <div class="bg-stone-950/40 rounded px-1 py-1"><span class="text-stone-500">攻</span> <span class="text-rose-300 font-bold">{{ m.base_stats.atk }}</span></div>
-                    <div class="bg-stone-950/40 rounded px-1 py-1"><span class="text-stone-500">防</span> <span class="text-cyan-300 font-bold">{{ m.base_stats.def }}</span></div>
-                    <div class="bg-stone-950/40 rounded px-1 py-1"><span class="text-stone-500">血</span> <span class="text-emerald-300 font-bold">{{ m.base_stats.hp }}</span></div>
-                    <div class="bg-stone-950/40 rounded px-1 py-1"><span class="text-stone-500">速</span> <span class="text-amber-300 font-bold">{{ m.base_stats.speed }}</span></div>
+                    <div class="bg-surface-sunken rounded-control px-1 py-1 border border-line-subtle"><span class="text-fg-muted">攻</span> <span class="text-state-danger font-bold num">{{ m.base_stats.atk }}</span></div>
+                    <div class="bg-surface-sunken rounded-control px-1 py-1 border border-line-subtle"><span class="text-fg-muted">防</span> <span class="text-state-info font-bold num">{{ m.base_stats.def }}</span></div>
+                    <div class="bg-surface-sunken rounded-control px-1 py-1 border border-line-subtle"><span class="text-fg-muted">血</span> <span class="text-state-success font-bold num">{{ m.base_stats.hp }}</span></div>
+                    <div class="bg-surface-sunken rounded-control px-1 py-1 border border-line-subtle"><span class="text-fg-muted">速</span> <span class="text-gold-400 font-bold num">{{ m.base_stats.speed }}</span></div>
                   </div>
 
                   <!-- 制造消耗 -->
-                  <div class="bg-stone-950/40 rounded-lg p-2 mb-2 text-[11px]">
+                  <div class="bg-surface-sunken rounded-panel p-2 mb-2 text-[11px] border border-line-subtle">
                     <div class="flex items-center justify-between mb-1">
-                      <span class="text-stone-500">制造消耗</span>
-                      <span class="text-stone-600">图谱来源：{{ m.blueprint_source }}</span>
+                      <span class="text-fg-muted">制造消耗</span>
+                      <span class="text-fg-faint">图谱来源：{{ m.blueprint_source }}</span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                      <span class="text-amber-300">灵石 {{ formatCompact(m.manufacture_cost.spirit_stone) }}</span>
-                      <span v-for="(qty, mat) in m.manufacture_cost.materials" :key="mat" class="text-stone-400">
+                      <span class="text-gold-400 num" :title="String(m.manufacture_cost.spirit_stone)">灵石 {{ formatCompact(m.manufacture_cost.spirit_stone) }}</span>
+                      <span v-for="(qty, mat) in m.manufacture_cost.materials" :key="mat" class="text-fg-secondary num">
                         {{ materialName(mat) }} ×{{ qty }}
                       </span>
                     </div>
@@ -261,19 +250,18 @@
                   <!-- 操作按钮 -->
                   <div class="flex gap-2">
                     <!-- 参悟图谱按钮（未参悟时显示） -->
-                    <button v-if="!m.has_blueprint" @click="openLearnConfirm(m)"
-                      :disabled="actionLoading === ('learn_' + m.puppet_type)"
-                      class="flex-1 px-3 py-2 rounded-lg text-[11px] font-bold bg-violet-800/60 hover:bg-violet-700/60 text-violet-200 transition-all">
-                      {{ actionLoading === ('learn_' + m.puppet_type) ? '参悟中...' : '参悟图谱' }}
-                    </button>
+                    <AppButton v-if="!m.has_blueprint" block size="xs" variant="outline"
+                      :loading="actionLoading === ('learn_' + m.puppet_type)"
+                      @click="openLearnConfirm(m)">
+                      参悟图谱
+                    </AppButton>
                     <!-- 制造按钮 -->
-                    <button v-if="m.has_blueprint" @click="openManufactureConfirm(m)"
-                      :disabled="!m.can_manufacture || actionLoading === ('mfg_' + m.puppet_type)"
-                      :class="['flex-1 px-3 py-2 rounded-lg text-[11px] font-bold transition-all',
-                               m.can_manufacture ? 'bg-gradient-to-r from-amber-700 to-stone-700 hover:from-amber-600 hover:to-stone-600 text-amber-100'
-                               : 'bg-stone-800 text-stone-600 cursor-not-allowed']">
-                      {{ actionLoading === ('mfg_' + m.puppet_type) ? '制造中...' : (m.can_manufacture ? '制造傀儡' : '条件未满足') }}
-                    </button>
+                    <AppButton v-if="m.has_blueprint" block size="xs" variant="primary"
+                      :loading="actionLoading === ('mfg_' + m.puppet_type)"
+                      :disabled="!m.can_manufacture"
+                      @click="openManufactureConfirm(m)">
+                      {{ m.can_manufacture ? '制造傀儡' : '条件未满足' }}
+                    </AppButton>
                   </div>
                 </div>
               </div>
@@ -282,199 +270,191 @@
         </div>
 
         <!-- ========== Tab 3: 玩法说明 ========== -->
-        <div v-else-if="activeTab === 'guide'" class="space-y-4 text-sm text-stone-300 leading-relaxed">
-          <div class="bg-stone-900/50 border border-stone-700/50 rounded-xl p-4">
-            <h3 class="text-amber-300 font-bold mb-2">◆ 傀儡工坊简介</h3>
-            <p class="text-stone-400 text-[13px]">傀儡工坊是大衍诀第三层·控傀解锁的后期系统。玩家通过参悟图谱、消耗材料制造傀儡，为PVP/PVE战斗提供属性加成，或设置护法在闭关被袭时自动反击。傀儡可通过淬炼提升等级、维修恢复耐久、回收返还材料。</p>
+        <div v-else-if="activeTab === 'guide'" class="space-y-4 text-sm text-fg-secondary leading-relaxed">
+          <div class="bg-surface-sunken border border-line rounded-panel p-4">
+            <h3 class="text-gold-400 font-bold mb-2 font-display">◆ 傀儡工坊简介</h3>
+            <p class="text-[13px] text-fg-muted wrap-cjk">傀儡工坊是大衍诀第三层·控傀解锁的后期系统。玩家通过参悟图谱、消耗材料制造傀儡，为PVP/PVE战斗提供属性加成，或设置护法在闭关被袭时自动反击。傀儡可通过淬炼提升等级、维修恢复耐久、回收返还材料。</p>
           </div>
-          <div class="bg-stone-900/50 border border-stone-700/50 rounded-xl p-4">
-            <h3 class="text-amber-300 font-bold mb-2">◆ 五种傀儡</h3>
-            <ul class="text-stone-400 text-[13px] space-y-1">
-              <li>· <span class="text-stone-200">机关木傀</span>（稀有）：入门傀儡，属性均衡，大衍诀3层解锁</li>
-              <li>· <span class="text-stone-200">铁甲战傀</span>（史诗）：重装防御型，防御极高，大衍诀3层解锁</li>
-              <li>· <span class="text-stone-200">五行灵傀</span>（史诗）：法术型傀儡，攻防兼备，大衍诀3层解锁</li>
-              <li>· <span class="text-stone-200">影傀</span>（传说）：速度极快，擅长突袭，大衍诀4层·千机解锁</li>
-              <li>· <span class="text-stone-200">大衍灵傀</span>（神话）：终极傀儡，全属性卓越，大衍诀5层·衍神解锁</li>
+          <div class="bg-surface-sunken border border-line rounded-panel p-4">
+            <h3 class="text-gold-400 font-bold mb-2 font-display">◆ 五种傀儡</h3>
+            <ul class="text-[13px] text-fg-muted space-y-1">
+              <li>· <span class="text-fg-secondary">机关木傀</span>（稀有）：入门傀儡，属性均衡，大衍诀3层解锁</li>
+              <li>· <span class="text-fg-secondary">铁甲战傀</span>（史诗）：重装防御型，防御极高，大衍诀3层解锁</li>
+              <li>· <span class="text-fg-secondary">五行灵傀</span>（史诗）：法术型傀儡，攻防兼备，大衍诀3层解锁</li>
+              <li>· <span class="text-fg-secondary">影傀</span>（传说）：速度极快，擅长突袭，大衍诀4层·千机解锁</li>
+              <li>· <span class="text-fg-secondary">大衍灵傀</span>（神话）：终极傀儡，全属性卓越，大衍诀5层·衍神解锁</li>
             </ul>
           </div>
-          <div class="bg-stone-900/50 border border-stone-700/50 rounded-xl p-4">
-            <h3 class="text-amber-300 font-bold mb-2">◆ 图谱获取</h3>
-            <ul class="text-stone-400 text-[13px] space-y-1">
+          <div class="bg-surface-sunken border border-line rounded-panel p-4">
+            <h3 class="text-gold-400 font-bold mb-2 font-display">◆ 图谱获取</h3>
+            <ul class="text-[13px] text-fg-muted space-y-1">
               <li>· 机关木傀图谱：LDC商城购买 / 基础副本掉落</li>
               <li>· 铁甲战傀图谱：昆吾山·封魔塔副本掉落</li>
               <li>· 五行灵傀图谱：苍坤洞府副本掉落</li>
               <li>· 影傀图谱：虚天殿副本 / 玄骨高阶分支掉落</li>
               <li>· 大衍灵傀图谱：青元子世界Boss掉落（极稀有）</li>
             </ul>
-            <p class="text-[11px] text-stone-500 mt-2">获得图谱物品后，在「制造」Tab 参悟图谱即可解锁对应傀儡的制造权限。</p>
+            <p class="text-[11px] text-fg-faint mt-2">获得图谱物品后，在「制造」页签参悟图谱即可解锁对应傀儡的制造权限。</p>
           </div>
-          <div class="bg-stone-900/50 border border-stone-700/50 rounded-xl p-4">
-            <h3 class="text-amber-300 font-bold mb-2">◆ 出战与护法</h3>
-            <ul class="text-stone-400 text-[13px] space-y-1">
-              <li>· <span class="text-emerald-300">出战傀儡</span>：PVP/PVE战斗中提供 <span class="text-emerald-300 font-bold">30%</span> 属性加成（攻防血速）</li>
-              <li>· <span class="text-rose-300">护法傀儡</span>：闭关被袭击时自动反击，造成 <span class="text-rose-300 font-bold">50%</span> 攻击力伤害</li>
+          <div class="bg-surface-sunken border border-line rounded-panel p-4">
+            <h3 class="text-gold-400 font-bold mb-2 font-display">◆ 出战与护法</h3>
+            <ul class="text-[13px] text-fg-muted space-y-1">
+              <li>· <span class="text-state-success">出战傀儡</span>：PVP/PVE战斗中提供 <span class="text-state-success font-bold num">30%</span> 属性加成（攻防血速）</li>
+              <li>· <span class="text-state-danger">护法傀儡</span>：闭关被袭击时自动反击，造成 <span class="text-state-danger font-bold num">50%</span> 攻击力伤害</li>
               <li>· 同时只能设置 1 个出战 + 1 个护法傀儡</li>
               <li>· 耐久度为0时无法出战/护法，需先维修</li>
             </ul>
           </div>
-          <div class="bg-stone-900/50 border border-stone-700/50 rounded-xl p-4">
-            <h3 class="text-amber-300 font-bold mb-2">◆ 淬炼与维修</h3>
-            <ul class="text-stone-400 text-[13px] space-y-1">
-              <li>· <span class="text-indigo-300">淬炼</span>：消耗灵石+机关核心提升等级，属性按 8%/级 增长（速度3%/级）</li>
-              <li>· 淬炼成功率随等级递减（100% → 50%下限），失败材料消耗但等级不变</li>
+          <div class="bg-surface-sunken border border-line rounded-panel p-4">
+            <h3 class="text-gold-400 font-bold mb-2 font-display">◆ 淬炼与维修</h3>
+            <ul class="text-[13px] text-fg-muted space-y-1">
+              <li>· <span class="text-state-arcane">淬炼</span>：消耗灵石+机关核心提升等级，属性按 <span class="num">8%/级</span> 增长（速度<span class="num">3%/级</span>）</li>
+              <li>· 淬炼成功率随等级递减（<span class="num">100% → 50%</span> 下限），失败材料消耗但等级不变</li>
               <li>· 每次淬炼成功消耗 2 点耐久</li>
-              <li>· <span class="text-amber-300">维修</span>：消耗灵石（50/点）+机关核心×1，恢复满耐久</li>
-              <li>· 最高等级 20 级</li>
+              <li>· <span class="text-gold-400">维修</span>：消耗灵石（<span class="num">50/点</span>）+机关核心×1，恢复满耐久</li>
+              <li>· 最高等级 <span class="num">20</span> 级</li>
             </ul>
           </div>
-          <div class="bg-stone-900/50 border border-stone-700/50 rounded-xl p-4">
-            <h3 class="text-amber-300 font-bold mb-2">◆ 回收机制</h3>
-            <ul class="text-stone-400 text-[13px] space-y-1">
+          <div class="bg-surface-sunken border border-line rounded-panel p-4">
+            <h3 class="text-gold-400 font-bold mb-2 font-display">◆ 回收机制</h3>
+            <ul class="text-[13px] text-fg-muted space-y-1">
               <li>· 仅闲置状态傀儡可回收，出战/护法中需先取消</li>
-              <li>· 材料返还率 <span class="text-amber-300">50%</span>，灵石返还率 <span class="text-amber-300">30%</span>（含淬炼投入）</li>
+              <li>· 材料返还率 <span class="text-gold-400 num">50%</span>，灵石返还率 <span class="text-gold-400 num">30%</span>（含淬炼投入）</li>
               <li>· 回收需二次确认，先预览返还再执行</li>
             </ul>
           </div>
         </div>
       </div>
-
-      <!-- 底部刷新 -->
-      <div class="px-6 py-3 border-t border-amber-900/40 shrink-0 text-center">
-        <button @click="loadData" class="text-xs text-stone-500 hover:text-amber-300 transition-colors">
-          ↻ 刷新数据
-        </button>
-      </div>
     </div>
 
     <!-- 参悟图谱确认 Modal -->
     <Modal :isOpen="learnConfirmShow" @close="learnConfirmShow = false" title="确认参悟图谱" width="420px">
-      <div class="space-y-3 text-sm text-stone-300">
+      <div class="space-y-3 text-sm text-fg-secondary">
         <p>即将参悟图谱，本次将消耗：</p>
-        <div class="bg-stone-950/50 rounded-lg p-3 space-y-1 text-[13px]">
+        <div class="bg-surface-sunken rounded-panel p-3 space-y-1 text-[13px] border border-line-subtle">
           <div class="flex justify-between">
-            <span class="text-stone-500">消耗物品</span>
-            <span class="text-violet-300 font-bold">{{ pendingLearn?.name }}图谱 ×1</span>
+            <span class="text-fg-muted">消耗物品</span>
+            <span class="text-state-arcane font-bold">{{ pendingLearn?.name }}图谱 ×1</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-stone-500">解锁制造</span>
-            <span class="text-amber-300 font-bold">{{ pendingLearn?.name }}</span>
+            <span class="text-fg-muted">解锁制造</span>
+            <span class="text-gold-400 font-bold">{{ pendingLearn?.name }}</span>
           </div>
         </div>
-        <p class="text-[11px] text-stone-500">参悟后图谱物品将被消耗，解锁对应傀儡的制造权限。</p>
+        <p class="text-[11px] text-fg-muted">参悟后图谱物品将被消耗，解锁对应傀儡的制造权限。</p>
       </div>
       <template #footer>
-        <button @click="learnConfirmShow = false" class="px-4 py-2 text-sm text-stone-400 hover:text-stone-200 transition-colors">取消</button>
-        <button @click="executeLearn" :disabled="actionLoading === ('learn_' + pendingLearn?.puppet_type)"
-          class="px-4 py-2 text-sm bg-violet-700 hover:bg-violet-600 text-violet-100 rounded-lg font-bold transition-colors disabled:opacity-50">
-          {{ actionLoading === ('learn_' + pendingLearn?.puppet_type) ? '参悟中...' : '确认参悟' }}
-        </button>
+        <AppButton variant="default" @click="learnConfirmShow = false">取消</AppButton>
+        <AppButton variant="outline" :loading="actionLoading === ('learn_' + pendingLearn?.puppet_type)" @click="executeLearn">
+          确认参悟
+        </AppButton>
       </template>
     </Modal>
 
     <!-- 制造傀儡确认 Modal -->
     <Modal :isOpen="mfgConfirmShow" @close="mfgConfirmShow = false" title="确认制造傀儡" width="440px">
-      <div class="space-y-3 text-sm text-stone-300">
-        <p>即将制造 <span class="text-amber-300 font-bold">{{ pendingMfg?.name }}</span>，本次将消耗：</p>
-        <div class="bg-stone-950/50 rounded-lg p-3 space-y-1 text-[13px]">
+      <div class="space-y-3 text-sm text-fg-secondary">
+        <p>即将制造 <span class="text-gold-400 font-bold">{{ pendingMfg?.name }}</span>，本次将消耗：</p>
+        <div class="bg-surface-sunken rounded-panel p-3 space-y-1 text-[13px] border border-line-subtle">
           <div class="flex justify-between">
-            <span class="text-stone-500">灵石</span>
-            <span class="text-amber-300 font-bold">{{ formatCompact(pendingMfg?.manufacture_cost.spirit_stone) }}</span>
+            <span class="text-fg-muted">灵石</span>
+            <span
+              class="text-gold-400 font-bold num"
+              :title="String(pendingMfg?.manufacture_cost.spirit_stone)"
+            >{{ formatCompact(pendingMfg?.manufacture_cost.spirit_stone) }}</span>
           </div>
           <div v-for="(qty, mat) in pendingMfg?.manufacture_cost.materials" :key="mat" class="flex justify-between">
-            <span class="text-stone-500">{{ materialName(mat) }}</span>
-            <span class="text-rose-300 font-bold">×{{ qty }}</span>
+            <span class="text-fg-muted">{{ materialName(mat) }}</span>
+            <span class="text-state-danger font-bold num">×{{ qty }}</span>
           </div>
         </div>
-        <div class="bg-amber-950/30 border border-amber-800/40 rounded-lg p-3 text-[12px] text-amber-200">
-          ⚠ 制造消耗不可退还，请确认材料充足后继续。
+        <div class="bg-surface-tint-gold border border-gold-800/40 rounded-panel p-3 text-[12px] text-gold-300">
+          制造消耗不可退还，请确认材料充足后继续。
         </div>
       </div>
       <template #footer>
-        <button @click="mfgConfirmShow = false" class="px-4 py-2 text-sm text-stone-400 hover:text-stone-200 transition-colors">取消</button>
-        <button @click="executeManufacture" :disabled="actionLoading === ('mfg_' + pendingMfg?.puppet_type)"
-          class="px-4 py-2 text-sm bg-gradient-to-r from-amber-700 to-stone-700 hover:from-amber-600 hover:to-stone-600 text-amber-100 rounded-lg font-bold transition-colors disabled:opacity-50">
-          {{ actionLoading === ('mfg_' + pendingMfg?.puppet_type) ? '制造中...' : '确认制造' }}
-        </button>
+        <AppButton variant="default" @click="mfgConfirmShow = false">取消</AppButton>
+        <AppButton variant="primary" :loading="actionLoading === ('mfg_' + pendingMfg?.puppet_type)" @click="executeManufacture">
+          确认制造
+        </AppButton>
       </template>
     </Modal>
 
     <!-- 淬炼确认 Modal -->
     <Modal :isOpen="quenchConfirmShow" @close="quenchConfirmShow = false" title="确认淬炼傀儡" width="420px">
-      <div class="space-y-3 text-sm text-stone-300">
-        <p>即将淬炼 <span class="text-indigo-300 font-bold">{{ pendingQuench?.name }}</span>（当前 Lv.{{ pendingQuench?.level }}）</p>
-        <div class="bg-stone-950/50 rounded-lg p-3 space-y-1 text-[13px]">
+      <div class="space-y-3 text-sm text-fg-secondary">
+        <p>即将淬炼 <span class="text-state-arcane font-bold">{{ pendingQuench?.name }}</span>（当前 Lv.<span class="num">{{ pendingQuench?.level }}</span>）</p>
+        <div class="bg-surface-sunken rounded-panel p-3 space-y-1 text-[13px] border border-line-subtle">
           <div class="flex justify-between">
-            <span class="text-stone-500">消耗灵石</span>
-            <span class="text-amber-300 font-bold">{{ quenchCostStones }}</span>
+            <span class="text-fg-muted">消耗灵石</span>
+            <span class="text-gold-400 font-bold num" :title="String(quenchCostStones)">{{ formatCompact(quenchCostStones) }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-stone-500">消耗机关核心</span>
-            <span class="text-rose-300 font-bold">×1</span>
+            <span class="text-fg-muted">消耗机关核心</span>
+            <span class="text-state-danger font-bold num">×1</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-stone-500">耐久消耗</span>
-            <span class="text-stone-300">-2</span>
+            <span class="text-fg-muted">耐久消耗</span>
+            <span class="text-fg-secondary num">-2</span>
           </div>
         </div>
-        <div class="bg-indigo-950/30 border border-indigo-800/40 rounded-lg p-3 text-[12px] text-indigo-200">
-          ⚠ 淬炼存在失败风险，失败时材料消耗但等级不变。成功率随等级递减。
+        <div class="bg-surface-tint-arcane border border-state-arcane/40 rounded-panel p-3 text-[12px] text-state-arcane">
+          淬炼存在失败风险，失败时材料消耗但等级不变。成功率随等级递减。
         </div>
       </div>
       <template #footer>
-        <button @click="quenchConfirmShow = false" class="px-4 py-2 text-sm text-stone-400 hover:text-stone-200 transition-colors">取消</button>
-        <button @click="executeQuench" :disabled="actionLoading === pendingQuench?.id"
-          class="px-4 py-2 text-sm bg-indigo-700 hover:bg-indigo-600 text-indigo-100 rounded-lg font-bold transition-colors disabled:opacity-50">
-          {{ actionLoading === pendingQuench?.id ? '淬炼中...' : '确认淬炼' }}
-        </button>
+        <AppButton variant="default" @click="quenchConfirmShow = false">取消</AppButton>
+        <AppButton variant="outline" :loading="actionLoading === pendingQuench?.id" @click="executeQuench">
+          确认淬炼
+        </AppButton>
       </template>
     </Modal>
 
     <!-- 回收预览 Modal -->
     <Modal :isOpen="recyclePreviewShow" @close="recyclePreviewShow = false" title="回收预览" width="440px">
-      <div v-if="recycleData" class="space-y-3 text-sm text-stone-300">
-        <p>即将回收 <span class="text-rose-300 font-bold">{{ recycleData.puppet_name }}</span>（Lv.{{ recycleData.level }}）</p>
-        <div class="bg-stone-950/50 rounded-lg p-3 space-y-1 text-[13px]">
-          <div class="text-stone-500 mb-1">返还材料（{{ (recycleData.material_return_rate * 100).toFixed(0) }}% 返还率）：</div>
-          <div v-if="Object.keys(recycleData.material_returns).length === 0" class="text-stone-600 text-center py-1">无材料返还</div>
+      <div v-if="recycleData" class="space-y-3 text-sm text-fg-secondary">
+        <p>即将回收 <span class="text-state-danger font-bold">{{ recycleData.puppet_name }}</span>（Lv.<span class="num">{{ recycleData.level }}</span>）</p>
+        <div class="bg-surface-sunken rounded-panel p-3 space-y-1 text-[13px] border border-line-subtle">
+          <div class="text-fg-muted mb-1">返还材料（<span class="num">{{ (recycleData.material_return_rate * 100).toFixed(0) }}%</span> 返还率）：</div>
+          <div v-if="Object.keys(recycleData.material_returns).length === 0" class="text-fg-faint text-center py-1">无材料返还</div>
           <div v-for="(qty, mat) in recycleData.material_returns" :key="mat" class="flex justify-between">
-            <span class="text-stone-400">{{ materialName(mat) }}</span>
-            <span class="text-emerald-300 font-bold">×{{ qty }}</span>
+            <span class="text-fg-secondary">{{ materialName(mat) }}</span>
+            <span class="text-state-success font-bold num">×{{ qty }}</span>
           </div>
-          <div class="border-t border-stone-800 mt-2 pt-2 flex justify-between">
-            <span class="text-stone-500">返还灵石（{{ (recycleData.spirit_stone_return_rate * 100).toFixed(0) }}% 返还率）</span>
-            <span class="text-amber-300 font-bold">{{ formatCompact(recycleData.spirit_stone_return) }}</span>
+          <div class="border-t border-line mt-2 pt-2 flex justify-between">
+            <span class="text-fg-muted">返还灵石（<span class="num">{{ (recycleData.spirit_stone_return_rate * 100).toFixed(0) }}%</span> 返还率）</span>
+            <span class="text-gold-400 font-bold num" :title="String(recycleData.spirit_stone_return)">{{ formatCompact(recycleData.spirit_stone_return) }}</span>
           </div>
         </div>
-        <div class="bg-rose-950/30 border border-rose-800/40 rounded-lg p-3 text-[12px] text-rose-200">
-          ⚠ 回收后傀儡将被永久销毁，此操作不可撤销！
+        <div class="bg-rose-950/30 border border-state-danger/40 rounded-panel p-3 text-[12px] text-rose-200">
+          回收后傀儡将被永久销毁，此操作不可撤销！
         </div>
       </div>
       <template #footer>
-        <button @click="recyclePreviewShow = false" class="px-4 py-2 text-sm text-stone-400 hover:text-stone-200 transition-colors">取消</button>
-        <button @click="executeRecycle" :disabled="actionLoading === recycleData?.puppet_id"
-          class="px-4 py-2 text-sm bg-rose-800 hover:bg-rose-700 text-rose-100 rounded-lg font-bold transition-colors disabled:opacity-50">
-          {{ actionLoading === recycleData?.puppet_id ? '回收中...' : '确认回收' }}
-        </button>
+        <AppButton variant="default" @click="recyclePreviewShow = false">取消</AppButton>
+        <AppButton variant="danger" :loading="actionLoading === recycleData?.puppet_id" @click="executeRecycle">
+          确认回收
+        </AppButton>
       </template>
     </Modal>
 
     <!-- 操作结果 Modal -->
     <Modal :isOpen="resultShow" @close="resultShow = false" :title="resultData?.title || '操作结果'" width="400px">
-      <div class="space-y-3 text-sm text-stone-300 text-center">
-        <div class="text-4xl py-2">{{ resultData?.icon || '✦' }}</div>
-        <div :class="['text-base font-bold', resultData?.success ? 'text-emerald-300' : 'text-rose-400']">{{ resultData?.message }}</div>
-        <div v-if="resultData?.details" class="bg-stone-950/50 rounded-lg p-3 space-y-1 text-[13px] text-left">
+      <div class="space-y-3 text-sm text-fg-secondary text-center">
+        <div class="text-2xl py-2 text-gold-500" aria-hidden="true">{{ resultData?.icon || '✦' }}</div>
+        <div :class="['text-base font-bold', resultData?.success ? 'text-state-success' : 'text-state-danger']">{{ resultData?.message }}</div>
+        <div v-if="resultData?.details" class="bg-surface-sunken rounded-panel p-3 space-y-1 text-[13px] text-left border border-line-subtle">
           <div v-for="(val, key) in resultData.details" :key="key" class="flex justify-between">
-            <span class="text-stone-500">{{ key }}</span>
-            <span class="text-stone-300 font-bold">{{ val }}</span>
+            <span class="text-fg-muted">{{ key }}</span>
+            <span class="text-fg-secondary font-bold num">{{ val }}</span>
           </div>
         </div>
       </div>
       <template #footer>
-        <button @click="resultShow = false" class="px-4 py-2 text-sm bg-amber-700 hover:bg-amber-600 text-amber-100 rounded-lg font-bold transition-colors">知道了</button>
+        <AppButton variant="primary" @click="resultShow = false">知道了</AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup>
@@ -495,6 +475,12 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import AppButton from '../ui/AppButton.vue'
+import Badge from '../ui/Badge.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import LoadingBlock from '../ui/LoadingBlock.vue'
 import { useUIStore } from '../../stores/ui'
 import { formatCompact } from '../../utils/format'
 import {
@@ -514,11 +500,11 @@ import {
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 
-// ===== Tab 管理 =====
+// ===== Tab 管理（key/label 契约见 ui/Tabs.vue） =====
 const tabs = [
-  { id: 'workshop', name: '工坊' },
-  { id: 'manufacture', name: '制造' },
-  { id: 'guide', name: '说明' }
+  { key: 'workshop', label: '工坊' },
+  { key: 'manufacture', label: '制造' },
+  { key: 'guide', label: '说明' }
 ]
 const activeTab = ref('workshop')
 
@@ -572,30 +558,30 @@ const qualityLabel = (quality) => {
   return map[quality] || quality
 }
 
-/** 品质背景色 class */
+/** 品质背景色 class（暖色主题下的品阶梯度：石 → 翠 → 靛 → 紫 → 鎏金 → 神话渐变） */
 const qualityBgClass = (quality) => {
   const map = {
-    common: 'bg-stone-600 text-stone-200',
-    uncommon: 'bg-green-800 text-green-200',
-    rare: 'bg-blue-800 text-blue-200',
+    common: 'bg-surface-active text-fg-secondary',
+    uncommon: 'bg-emerald-800 text-emerald-200',
+    rare: 'bg-sky-800 text-sky-200',
     epic: 'bg-purple-800 text-purple-200',
-    legendary: 'bg-amber-700 text-amber-100',
-    mythic: 'bg-gradient-to-br from-amber-500 to-rose-600 text-white'
+    legendary: 'bg-gold-700 text-gold-200',
+    mythic: 'bg-gradient-to-br from-gold-500 to-rose-600 text-fg-primary'
   }
-  return map[quality] || 'bg-stone-600 text-stone-200'
+  return map[quality] || 'bg-surface-active text-fg-secondary'
 }
 
 /** 品质文字色 class */
 const qualityTextClass = (quality) => {
   const map = {
-    common: 'text-stone-300',
-    uncommon: 'text-green-300',
-    rare: 'text-blue-300',
+    common: 'text-fg-secondary',
+    uncommon: 'text-emerald-300',
+    rare: 'text-sky-300',
     epic: 'text-purple-300',
-    legendary: 'text-amber-300',
-    mythic: 'text-amber-200'
+    legendary: 'text-gold-300',
+    mythic: 'text-gold-200'
   }
-  return map[quality] || 'text-stone-300'
+  return map[quality] || 'text-fg-secondary'
 }
 
 // ===== 数据加载 =====
@@ -844,17 +830,3 @@ onMounted(() => {
   loadData()
 })
 </script>
-
-<style scoped>
-/* 自定义滚动条样式 */
-:deep(.custom-scrollbar)::-webkit-scrollbar {
-  width: 6px;
-}
-:deep(.custom-scrollbar)::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.2);
-}
-:deep(.custom-scrollbar)::-webkit-scrollbar-thumb {
-  background: rgba(120,113,108,0.4);
-  border-radius: 3px;
-}
-</style>

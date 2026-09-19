@@ -72,7 +72,7 @@ const fetchData = async () => {
     }
   } catch (error) {
     console.error('Failed to fetch map data:', error)
-    uiStore.showToast('获取地图数据失败', 'error')
+    uiStore.showApiError(error, 'Failed to fetch map data')
   } finally {
     loading.value = false
   }
@@ -168,8 +168,7 @@ const handleMove = async (targetMap) => {
     
     emit('close')
   } catch (error) {
-    const msg = error.response?.data?.error || '移动失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '移动失败')
   } finally {
     moving.value = false
   }
@@ -205,59 +204,50 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-    
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
-        <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          修仙界全图
-        </h2>
-        <div class="flex items-center gap-4">
-          <div class="text-xs text-stone-500">
-            当前境界: <span class="text-amber-400">{{ playerRealm }}</span> | 
-            速度: <span class="text-cyan-400">{{ playerSpeed }}</span>
-          </div>
-          <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
+  <!-- 这是「地图」面板里的一个页签，不是独立面板。
+       原先它自带一层 fixed 全屏遮罩和自己的标题栏：套在地图面板里等于
+       面板里又开一个面板（两个标题叠着显示），而且那个 ✕ 关闭的是
+       整个地图面板，不是回到上一个页签。外壳现在完全交给 MapPanel 的 PanelShell，
+       境界 / 速度两项信息挪进下面的信息条。 -->
+  <div class="h-full flex flex-col min-h-0">
+      <div class="shrink-0 flex items-center gap-4 px-4 py-2 border-b border-line-subtle bg-surface-raised text-xs text-fg-muted">
+        <span>当前境界: <b class="text-gold-400 num">{{ playerRealm }}</b></span>
+        <span>移动速度: <b class="text-cyan-400 num">{{ playerSpeed }}</b></span>
       </div>
 
-      <div class="p-4 border-b border-stone-800 bg-[#0c0a09]">
+      <div class="shrink-0 p-4 border-b border-line-subtle bg-surface-canvas">
         <div class="flex flex-wrap gap-4 items-center">
           <input 
             v-model="searchKeyword" 
             type="text" 
             placeholder="搜索地图名称..." 
-            class="px-3 py-1.5 bg-stone-900 border border-stone-700 rounded text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-600"
+            class="px-3 py-1.5 bg-surface-sunken border border-line rounded text-sm text-fg-secondary placeholder:text-fg-faint focus:outline-none focus:border-gold-600"
           />
-          <select v-model="filterType" class="px-3 py-1.5 bg-stone-900 border border-stone-700 rounded text-sm text-stone-200 focus:outline-none focus:border-amber-600">
+          <select v-model="filterType" class="px-3 py-1.5 bg-surface-sunken border border-line rounded text-sm text-fg-secondary focus:outline-none focus:border-gold-600">
             <option value="all">全部类型</option>
             <option v-for="(info, type) in mapTypeNameMap" :key="type" :value="type">{{ info.name }}</option>
           </select>
-          <select v-model="filterRealm" class="px-3 py-1.5 bg-stone-900 border border-stone-700 rounded text-sm text-stone-200 focus:outline-none focus:border-amber-600">
+          <select v-model="filterRealm" class="px-3 py-1.5 bg-surface-sunken border border-line rounded text-sm text-fg-secondary focus:outline-none focus:border-gold-600">
             <option value="all">全部境界</option>
             <option value="low">低阶地图</option>
             <option value="mid">中阶地图</option>
             <option value="high">高阶地图</option>
           </select>
-          <div class="text-xs text-stone-500 ml-auto">
-            共 <span class="text-amber-400">{{ filteredMaps.length }}</span> 个地图
+          <div class="text-xs text-fg-faint ml-auto">
+            共 <span class="text-gold-400">{{ filteredMaps.length }}</span> 个地图
           </div>
         </div>
       </div>
 
-      <div class="flex-1 overflow-y-auto p-6 bg-[#0a0908]">
+      <div class="flex-1 overflow-y-auto p-6 bg-surface-sunken">
         <div v-if="loading" class="flex justify-center items-center h-64">
-          <svg class="animate-spin h-10 w-10 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg class="animate-spin h-10 w-10 text-gold-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
         </div>
 
-        <div v-else-if="filteredMaps.length === 0" class="flex flex-col items-center justify-center h-64 text-stone-500">
+        <div v-else-if="filteredMaps.length === 0" class="flex flex-col items-center justify-center h-64 text-fg-faint">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
           <p>暂无符合条件的可到达地图</p>
         </div>
@@ -266,11 +256,11 @@ onMounted(() => {
           <div 
             v-for="map in filteredMaps" 
             :key="map.id"
-            class="group relative bg-[#1c1917] border rounded-lg p-4 transition-all duration-300"
+            class="group relative bg-surface-raised border rounded-lg p-4 transition-all duration-300"
             :class="[
               getEnterStatus(map).canEnter 
-                ? 'border-stone-800 hover:border-amber-700/50' 
-                : 'border-stone-900 bg-[#151412] opacity-75',
+                ? 'border-line-subtle hover:border-amber-700/50' 
+                : 'border-line-subtle bg-surface-base opacity-75',
               moving ? 'opacity-50' : ''
             ]"
           >
@@ -278,46 +268,46 @@ onMounted(() => {
               <div class="flex items-center gap-2">
                 <h4 class="text-lg font-bold transition-colors"
                     :class="getEnterStatus(map).canEnter 
-                      ? 'text-stone-200 group-hover:text-amber-500' 
-                      : 'text-stone-500'">
+                      ? 'text-fg-secondary group-hover:text-gold-500' 
+                      : 'text-fg-faint'">
                   {{ map.name }}
                 </h4>
                 <span class="text-[10px] px-1.5 py-0.5 rounded border"
                       :class="[getMapTypeStyle(map.type).class, getMapTypeStyle(map.type).bg, getMapTypeStyle(map.type).border]">
                   {{ getMapTypeStyle(map.type).name }}
                 </span>
-                <svg v-if="!getEnterStatus(map).canEnter" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-600">
+                <svg v-if="!getEnterStatus(map).canEnter" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-fg-faint">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                 </svg>
               </div>
-              <span class="text-[10px] px-1.5 py-0.5 rounded border border-stone-800 bg-stone-900"
+              <span class="text-[10px] px-1.5 py-0.5 rounded border border-line-subtle bg-surface-sunken"
                     :class="getSafetyStyle(map.danger_level).class">
                 {{ getSafetyStyle(map.danger_level).name }}
               </span>
             </div>
             
-            <p class="text-xs text-stone-500 line-clamp-2 mb-3">{{ map.description }}</p>
+            <p class="text-xs text-fg-faint line-clamp-2 mb-3">{{ map.description }}</p>
             
             <div class="flex flex-wrap gap-2 mb-3">
-              <span class="text-[10px] px-2 py-0.5 rounded bg-stone-900 border border-stone-800"
-                    :class="getEnterStatus(map).canEnter ? 'text-stone-400' : 'text-stone-500'">
+              <span class="text-[10px] px-2 py-0.5 rounded bg-surface-sunken border border-line-subtle"
+                    :class="getEnterStatus(map).canEnter ? 'text-fg-muted' : 'text-fg-faint'">
                 境界: {{ map.requiredRealm || '凡人' }}
               </span>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-stone-900 border border-stone-800 text-stone-400">
+              <span class="text-[10px] px-2 py-0.5 rounded bg-surface-sunken border border-line-subtle text-fg-muted">
                 危险: {{ map.danger_level }}
               </span>
             </div>
 
-            <div v-if="map.x !== undefined && getMoveCost(map).distance" class="text-xs text-stone-500 mb-3">
+            <div v-if="map.x !== undefined && getMoveCost(map).distance" class="text-xs text-fg-faint mb-3">
               距离: <span class="text-cyan-400">{{ formatDistance(getMoveCost(map).distance) }}</span>
             </div>
 
-            <div class="flex items-center justify-between text-xs mt-auto pt-2 border-t border-stone-800/50">
-              <div v-if="getEnterStatus(map).canEnter" class="text-stone-400">
+            <div class="flex items-center justify-between text-xs mt-auto pt-2 border-t border-line-subtle/50">
+              <div v-if="getEnterStatus(map).canEnter" class="text-fg-muted">
                 {{ getMoveCost(map).cost }} 灵力 · {{ formatTime(getMoveCost(map).time) }}
               </div>
-              <div v-else class="text-stone-500">
+              <div v-else class="text-fg-faint">
                 {{ getMoveCost(map).cost }} 灵力 · {{ formatTime(getMoveCost(map).time) }}
                 <span v-if="getEnterStatus(map).reason" class="text-amber-600 ml-2">
                   {{ getEnterStatus(map).reason }}
@@ -327,28 +317,18 @@ onMounted(() => {
                 v-if="getEnterStatus(map).canEnter"
                 @click="handleMove(map)"
                 :disabled="moving || Number(playerStore.player.mp_current) < getMoveCost(map).cost"
-                class="px-3 py-1 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-3 py-1 rounded bg-amber-900/30 border border-amber-700/50 text-gold-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span v-if="moving">移动中...</span>
                 <span v-else>前往</span>
               </button>
-              <div v-else class="text-xs text-stone-600 px-3 py-1">
+              <div v-else class="text-xs text-fg-faint px-3 py-1">
                 {{ getEnterStatus(map).reason || '境界不足' }}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
   </div>
 </template>
 
-<style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-</style>

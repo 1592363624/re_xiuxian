@@ -2,65 +2,67 @@
   <div class="space-y-6">
     <!-- 标题与操作按钮 -->
     <div class="flex flex-wrap justify-between items-center gap-2">
-      <h3 class="text-lg font-bold text-white">宗门战/领地争夺管理</h3>
+      <h3 class="text-lg font-bold text-fg-primary">宗门战/领地争夺管理</h3>
       <div class="flex flex-wrap space-x-2">
         <!-- 刷新当前 Tab 数据 -->
         <button @click="refreshCurrent"
-          class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新列表</button>
+          class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded-control text-fg-primary text-sm">刷新列表</button>
         <!-- 重新拉取统计指标 -->
         <button @click="fetchMetrics"
-          class="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white text-sm">更新指标</button>
+          class="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded-control text-fg-primary text-sm">更新指标</button>
         <!-- 打开创建赛季弹窗 -->
-        <button @click="openCreateSeasonModal"
-          class="px-3 py-1 bg-amber-600 hover:bg-amber-500 rounded text-white text-sm">创建赛季</button>
+        <AppButton variant="primary" size="sm" @click="openCreateSeasonModal">
+          创建赛季
+        </AppButton>
         <!-- 打开初始化资源点弹窗（手动输入赛季ID） -->
         <button @click="openInitTerritoryModal"
-          class="px-3 py-1 bg-fuchsia-700 hover:bg-fuchsia-600 rounded text-white text-sm">初始化资源点</button>
+          class="px-3 py-1 bg-fuchsia-700 hover:bg-fuchsia-600 rounded-control text-fg-primary text-sm">初始化资源点</button>
         <!-- 手动触发产出结算（二次确认） -->
-        <button @click="confirmSettleProduction" :disabled="operating"
-          class="px-3 py-1 bg-rose-700 hover:bg-rose-600 rounded text-white text-sm disabled:opacity-50">手动产出结算</button>
+        <AppButton variant="danger" size="sm" :disabled="operating" @click="confirmSettleProduction">
+          手动产出结算
+        </AppButton>
       </div>
     </div>
 
     <!-- 统计指标卡片（4列网格） -->
     <div v-if="metrics" class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <!-- 活跃战役数（红色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">活跃战役</div>
-        <div class="text-2xl font-bold text-red-400">{{ metrics.active_war_count }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">筹备+宣告+战斗中</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">活跃战役</div>
+        <div class="text-2xl font-bold text-red-400 num">{{ metrics.active_war_count }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">筹备+宣告+战斗中</div>
       </div>
       <!-- 资源点占领（紫色，显示 已占领/总数） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">资源点占领</div>
-        <div class="text-2xl font-bold text-purple-400">
-          {{ metrics.occupied_territory_count }}
-          <span class="text-sm text-gray-500">/ {{ metrics.total_territory_count }}</span>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">资源点占领</div>
+        <div class="text-2xl font-bold text-purple-400 num">
+          {{ metrics.owned_territories }}
+          <span class="text-sm text-fg-faint">/ {{ metrics.total_territories }}</span>
         </div>
-        <div class="text-[10px] text-gray-500 mt-1">已占领/总资源点</div>
+        <div class="text-[10px] text-fg-faint mt-1">已占领/总资源点</div>
       </div>
       <!-- 活跃赛季数（青色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">活跃赛季</div>
-        <div class="text-2xl font-bold text-cyan-400">{{ metrics.active_season_count }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">进行中的赛季数</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">活跃赛季</div>
+        <div class="text-2xl font-bold text-cyan-400 num">{{ metrics.active_season_count }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">进行中的赛季数</div>
       </div>
       <!-- 总赛季数（橙色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">总赛季数</div>
-        <div class="text-2xl font-bold text-orange-400">{{ metrics.total_season_count }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">历史赛季累计</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">总赛季数</div>
+        <div class="text-2xl font-bold text-orange-400 num">{{ metrics.total_seasons }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">历史赛季累计</div>
       </div>
     </div>
 
     <!-- 子 Tab 切换：战役列表 / 赛季列表 -->
-    <div class="flex border-b border-gray-700 bg-gray-800/50">
+    <div class="flex border-b border-line bg-surface-raised/50">
       <button
         v-for="tab in subTabs"
         :key="tab.id"
         @click="switchTab(tab.id)"
         class="px-6 py-2 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
-        :class="currentSubTab === tab.id ? 'text-purple-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'"
+        :class="currentSubTab === tab.id ? 'text-purple-400' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-hover/50'"
       >
         {{ tab.name }}
         <div v-if="currentSubTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-purple-500"></div>
@@ -70,31 +72,33 @@
     <!-- 子 Tab 1：战役列表 -->
     <div v-if="currentSubTab === 'wars'">
       <!-- 筛选区 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 mb-3">
+      <div class="bg-surface-raised rounded-lg border border-line p-4 mb-3">
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2">
-            <label class="text-sm text-gray-400 whitespace-nowrap">状态：</label>
+            <label class="text-sm text-fg-muted whitespace-nowrap">状态：</label>
             <select v-model="warSearchParams.status"
-              class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm">
+              class="px-3 py-1 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
               <option value="">全部</option>
               <option value="preparing">筹备中</option>
               <option value="announced">已宣告</option>
               <option value="active">战斗中</option>
               <option value="settled">已结算</option>
+              <option value="cancelled">已取消</option>
             </select>
           </div>
           <button @click="handleWarSearch"
-            class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">查询</button>
-          <button @click="resetWarSearch"
-            class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">重置</button>
+            class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded-control text-fg-primary text-sm">查询</button>
+          <AppButton variant="default" size="sm" @click="resetWarSearch">
+            重置
+          </AppButton>
         </div>
       </div>
 
       <!-- 战役列表表格 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+      <div class="bg-surface-base rounded-lg border border-line overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-gray-900 text-gray-400">
+            <thead class="bg-surface-raised text-fg-muted">
               <tr>
                 <th class="px-3 py-2 text-left whitespace-nowrap">战役ID</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">赛季ID</th>
@@ -110,60 +114,60 @@
             </thead>
             <tbody>
               <!-- 加载中提示 -->
-              <tr v-if="warLoading" class="text-center text-gray-500">
+              <tr v-if="warLoading" class="text-center text-fg-faint">
                 <td colspan="10" class="px-3 py-6">加载中...</td>
               </tr>
               <!-- 空数据提示 -->
-              <tr v-else-if="warList.length === 0" class="text-center text-gray-500">
+              <tr v-else-if="warList.length === 0" class="text-center text-fg-faint">
                 <td colspan="10" class="px-3 py-6">暂无数据</td>
               </tr>
               <!-- 数据行 -->
-              <tr v-for="w in warList" :key="w.war_id"
-                class="border-t border-gray-700 hover:bg-gray-750">
-                <td class="px-3 py-2 text-gray-400">{{ w.war_id }}</td>
-                <td class="px-3 py-2 text-gray-400">{{ w.season_id }}</td>
+              <tr v-for="w in warList" :key="w.id"
+                class="border-t border-line-subtle hover:bg-surface-hover">
+                <td class="px-3 py-2 text-fg-muted">{{ w.id }}</td>
+                <td class="px-3 py-2 text-fg-muted">{{ w.season_id }}</td>
                 <td class="px-3 py-2 text-cyan-300 text-xs">{{ w.attacker_sect_name || ('#' + w.attacker_sect_id) }}</td>
                 <td class="px-3 py-2 text-red-300 text-xs">{{ w.defender_sect_name || ('#' + w.defender_sect_id) }}</td>
                 <td class="px-3 py-2 text-amber-300 text-xs">
-                  <span v-if="w.target_territory_id">{{ w.target_territory_name || ('#' + w.target_territory_id) }}</span>
-                  <span v-else class="text-gray-600">-</span>
+                  <span v-if="w.target_territory_id">#{{ w.target_territory_id }}</span>
+                  <span v-else class="text-fg-faint">-</span>
                 </td>
                 <td class="px-3 py-2">
-                  <span :class="warStatusColor[w.status] || 'bg-gray-700 text-gray-300'"
+                  <span :class="warStatusColor[w.status] || 'bg-surface-hover text-fg-secondary'"
                     class="px-2 py-0.5 rounded text-xs">{{ warStatusLabel[w.status] || w.status }}</span>
                 </td>
                 <td class="px-3 py-2 text-xs">
-                  <span v-if="w.winner_sect_id === null" class="text-gray-600">-</span>
+                  <span v-if="w.winner_sect_id === null" class="text-fg-faint">-</span>
                   <span v-else-if="w.winner_sect_id === w.attacker_sect_id" class="text-cyan-400">攻方</span>
                   <span v-else class="text-red-400">守方</span>
                 </td>
-                <td class="px-3 py-2 text-xs text-gray-400 whitespace-nowrap">{{ formatDate(w.start_time) }}</td>
+                <td class="px-3 py-2 text-xs text-fg-muted whitespace-nowrap num">{{ formatDate(w.active_start_time) }}</td>
                 <td class="px-3 py-2 text-xs">
-                  <span class="text-cyan-300">{{ w.attacker_count }}</span>
-                  <span class="text-gray-600 mx-1">/</span>
-                  <span class="text-red-300">{{ w.defender_count }}</span>
+                  <span class="text-cyan-300">{{ w.attacker_participants }}</span>
+                  <span class="text-fg-faint mx-1">/</span>
+                  <span class="text-red-300">{{ w.defender_participants }}</span>
                 </td>
                 <td class="px-3 py-2 text-center whitespace-nowrap">
-                  <!-- 仅对 preparing/announced/active 显示推进按钮，settled 不显示 -->
-                  <button v-if="w.status !== 'settled'" @click="confirmAdvanceWar(w)"
-                    class="px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded text-white text-xs">推进状态</button>
-                  <span v-else class="text-gray-600 text-xs">-</span>
+                  <!-- 仅未结算且未取消的战役可手动推进（后端 advanceWarState 对 settled/cancelled 直接返回 null） -->
+                  <button v-if="w.status !== 'settled' && w.status !== 'cancelled'" @click="confirmAdvanceWar(w)"
+                    class="px-2 py-1 bg-purple-700 hover:bg-purple-600 rounded-control text-fg-primary text-xs">推进状态</button>
+                  <span v-else class="text-fg-faint text-xs">-</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <!-- 分页 -->
-        <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between text-sm">
-          <div class="text-gray-400">共 {{ warPagination.total }} 条记录</div>
+        <div class="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
+          <div class="text-fg-muted num">共 {{ warPagination.total }} 条记录</div>
           <div class="flex items-center gap-2">
-            <button @click="fetchWarList(warPagination.page - 1)"
-              :disabled="warPagination.page <= 1 || warLoading"
-              class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
-            <span class="text-gray-300">{{ warPagination.page }} / {{ warPagination.totalPages }}</span>
-            <button @click="fetchWarList(warPagination.page + 1)"
-              :disabled="warPagination.page >= warPagination.totalPages || warLoading"
-              class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
+            <AppButton variant="default" size="sm" :disabled="warPagination.page <= 1 || warLoading" @click="fetchWarList(warPagination.page - 1)">
+              上一页
+            </AppButton>
+            <span class="text-fg-secondary num">{{ warPagination.page }} / {{ warPagination.totalPages }}</span>
+            <AppButton variant="default" size="sm" :disabled="warPagination.page >= warPagination.totalPages || warLoading" @click="fetchWarList(warPagination.page + 1)">
+              下一页
+            </AppButton>
           </div>
         </div>
       </div>
@@ -172,72 +176,69 @@
     <!-- 子 Tab 2：赛季列表 -->
     <div v-else-if="currentSubTab === 'seasons'">
       <!-- 赛季列表表格 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+      <div class="bg-surface-base rounded-lg border border-line overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-gray-900 text-gray-400">
+            <thead class="bg-surface-raised text-fg-muted">
               <tr>
                 <th class="px-3 py-2 text-left whitespace-nowrap">赛季ID</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">赛季名称</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">状态</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">起止时间</th>
-                <th class="px-3 py-2 text-left whitespace-nowrap">战役进度(已结算/总数)</th>
-                <th class="px-3 py-2 text-left whitespace-nowrap">参战宗门数</th>
+                <th class="px-3 py-2 text-left whitespace-nowrap">战役总数</th>
                 <th class="px-3 py-2 text-center whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody>
               <!-- 加载中提示 -->
-              <tr v-if="seasonLoading" class="text-center text-gray-500">
-                <td colspan="7" class="px-3 py-6">加载中...</td>
+              <tr v-if="seasonLoading" class="text-center text-fg-faint">
+                <td colspan="6" class="px-3 py-6">加载中...</td>
               </tr>
               <!-- 空数据提示 -->
-              <tr v-else-if="seasonList.length === 0" class="text-center text-gray-500">
-                <td colspan="7" class="px-3 py-6">暂无数据</td>
+              <tr v-else-if="seasonList.length === 0" class="text-center text-fg-faint">
+                <td colspan="6" class="px-3 py-6">暂无数据</td>
               </tr>
               <!-- 数据行 -->
               <tr v-for="s in seasonList" :key="s.season_id"
-                class="border-t border-gray-700 hover:bg-gray-750">
-                <td class="px-3 py-2 text-gray-400">{{ s.season_id }}</td>
-                <td class="px-3 py-2 text-white">{{ s.season_name }}</td>
+                class="border-t border-line-subtle hover:bg-surface-hover">
+                <td class="px-3 py-2 text-fg-muted">{{ s.season_id }}</td>
+                <td class="px-3 py-2 text-fg-primary">{{ s.season_name }}</td>
                 <td class="px-3 py-2">
-                  <span :class="seasonStatusColor[s.status] || 'bg-gray-700 text-gray-300'"
+                  <span :class="seasonStatusColor[s.status] || 'bg-surface-hover text-fg-secondary'"
                     class="px-2 py-0.5 rounded text-xs">{{ seasonStatusLabel[s.status] || s.status }}</span>
                 </td>
-                <td class="px-3 py-2 text-xs text-gray-400 whitespace-nowrap">
+                <td class="px-3 py-2 text-xs text-fg-muted whitespace-nowrap num">
                   {{ formatDate(s.start_date) }} ~ {{ formatDate(s.end_date) }}
                 </td>
                 <td class="px-3 py-2 text-xs">
-                  <span class="text-emerald-300">{{ s.settled_wars }}</span>
-                  <span class="text-gray-600 mx-1">/</span>
-                  <span class="text-gray-300">{{ s.total_wars }}</span>
+                  <span class="text-fg-secondary">{{ s.total_wars }}</span>
                 </td>
-                <td class="px-3 py-2 text-amber-300">{{ s.total_sects }}</td>
                 <td class="px-3 py-2 text-center whitespace-nowrap">
                   <!-- 仅对 active 显示强制结算与初始化资源点按钮 -->
                   <template v-if="s.status === 'active'">
-                    <button @click="confirmSettleSeason(s)"
-                      class="px-2 py-1 bg-rose-700 hover:bg-rose-600 rounded text-white text-xs mr-1">强制结算</button>
+                    <AppButton variant="danger" size="xs" @click="confirmSettleSeason(s)" class="mr-1">
+                      强制结算
+                    </AppButton>
                     <button @click="confirmInitTerritoryFromRow(s)"
-                      class="px-2 py-1 bg-fuchsia-700 hover:bg-fuchsia-600 rounded text-white text-xs">初始化资源点</button>
+                      class="px-2 py-1 bg-fuchsia-700 hover:bg-fuchsia-600 rounded-control text-fg-primary text-xs">初始化资源点</button>
                   </template>
-                  <span v-else class="text-gray-600 text-xs">-</span>
+                  <span v-else class="text-fg-faint text-xs">-</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <!-- 分页 -->
-        <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between text-sm">
-          <div class="text-gray-400">共 {{ seasonPagination.total }} 条记录</div>
+        <div class="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
+          <div class="text-fg-muted num">共 {{ seasonPagination.total }} 条记录</div>
           <div class="flex items-center gap-2">
-            <button @click="fetchSeasonList(seasonPagination.page - 1)"
-              :disabled="seasonPagination.page <= 1 || seasonLoading"
-              class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
-            <span class="text-gray-300">{{ seasonPagination.page }} / {{ seasonPagination.totalPages }}</span>
-            <button @click="fetchSeasonList(seasonPagination.page + 1)"
-              :disabled="seasonPagination.page >= seasonPagination.totalPages || seasonLoading"
-              class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
+            <AppButton variant="default" size="sm" :disabled="seasonPagination.page <= 1 || seasonLoading" @click="fetchSeasonList(seasonPagination.page - 1)">
+              上一页
+            </AppButton>
+            <span class="text-fg-secondary num">{{ seasonPagination.page }} / {{ seasonPagination.totalPages }}</span>
+            <AppButton variant="default" size="sm" :disabled="seasonPagination.page >= seasonPagination.totalPages || seasonLoading" @click="fetchSeasonList(seasonPagination.page + 1)">
+              下一页
+            </AppButton>
           </div>
         </div>
       </div>
@@ -248,33 +249,31 @@
       <div class="space-y-3 text-sm">
         <!-- 赛季名称 -->
         <div>
-          <label class="block text-gray-400 mb-1">赛季名称 <span class="text-rose-400">*</span></label>
+          <label class="block text-fg-muted mb-1">赛季名称 <span class="text-rose-400">*</span></label>
           <input v-model="createSeasonForm.season_name" type="text" maxlength="64"
             placeholder="例如：甲辰年宗门大战"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <!-- 开始日期 -->
         <div>
-          <label class="block text-gray-400 mb-1">开始日期 <span class="text-rose-400">*</span></label>
+          <label class="block text-fg-muted mb-1">开始日期 <span class="text-rose-400">*</span></label>
           <input v-model="createSeasonForm.start_date" type="date"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
-          <div class="text-[10px] text-gray-500 mt-1">格式：YYYY-MM-DD</div>
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
+          <div class="text-[10px] text-fg-faint mt-1">格式：YYYY-MM-DD</div>
         </div>
         <!-- 结束日期 -->
         <div>
-          <label class="block text-gray-400 mb-1">结束日期 <span class="text-rose-400">*</span></label>
+          <label class="block text-fg-muted mb-1">结束日期 <span class="text-rose-400">*</span></label>
           <input v-model="createSeasonForm.end_date" type="date"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
-          <div class="text-[10px] text-gray-500 mt-1">格式：YYYY-MM-DD，必须晚于开始日期</div>
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
+          <div class="text-[10px] text-fg-faint mt-1">格式：YYYY-MM-DD，必须晚于开始日期</div>
         </div>
       </div>
       <template #footer>
-        <button @click="closeCreateSeasonModal"
-          class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
-        <button @click="submitCreateSeason" :disabled="operating"
-          class="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white rounded disabled:opacity-50">
+        <AppButton variant="ghost" @click="closeCreateSeasonModal">取消</AppButton>
+        <AppButton variant="primary" :disabled="operating" @click="submitCreateSeason">
           {{ operating ? '创建中...' : '确认创建' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
@@ -283,10 +282,10 @@
       <div class="space-y-3 text-sm">
         <!-- 赛季ID输入 -->
         <div>
-          <label class="block text-gray-400 mb-1">赛季ID <span class="text-rose-400">*</span></label>
+          <label class="block text-fg-muted mb-1">赛季ID <span class="text-rose-400">*</span></label>
           <input v-model.number="initTerritoryForm.season_id" type="number" min="1"
             placeholder="请输入要初始化资源点的赛季ID"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <!-- 警告提示 -->
         <p class="text-rose-400 text-xs mt-2">
@@ -294,10 +293,9 @@
         </p>
       </div>
       <template #footer>
-        <button @click="closeInitTerritoryModal"
-          class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
+        <AppButton variant="ghost" @click="closeInitTerritoryModal">取消</AppButton>
         <button @click="submitInitTerritory" :disabled="operating"
-          class="px-4 py-2 bg-fuchsia-700 hover:bg-fuchsia-600 text-white rounded disabled:opacity-50">
+          class="px-4 py-2 bg-fuchsia-700 hover:bg-fuchsia-600 text-fg-primary rounded-control disabled:opacity-50">
           {{ operating ? '执行中...' : '确认初始化' }}
         </button>
       </template>
@@ -314,6 +312,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
+import AppButton from '../../ui/AppButton.vue'
 import {
   getMetrics,
   getWarList,
@@ -333,12 +332,13 @@ const uiStore = useUIStore()
 
 // ====== 状态颜色与标签映射（避免重复 if/else，统一常量对象） ======
 
-/** 战役状态徽章颜色映射 */
+/** 战役状态徽章颜色映射（后端 SectWar.status：preparing/announced/active/settled/cancelled） */
 const warStatusColor = {
-  preparing: 'bg-gray-700 text-gray-300',
+  preparing: 'bg-surface-hover text-fg-secondary',
   announced: 'bg-yellow-900 text-yellow-300',
   active: 'bg-red-900 text-red-300',
-  settled: 'bg-green-900 text-green-300'
+  settled: 'bg-green-900 text-green-300',
+  cancelled: 'bg-surface-hover text-fg-muted'
 }
 
 /** 战役状态中文标签映射 */
@@ -346,12 +346,13 @@ const warStatusLabel = {
   preparing: '筹备中',
   announced: '已宣告',
   active: '战斗中',
-  settled: '已结算'
+  settled: '已结算',
+  cancelled: '已取消'
 }
 
 /** 赛季状态徽章颜色映射 */
 const seasonStatusColor = {
-  pending: 'bg-gray-700 text-gray-300',
+  pending: 'bg-surface-hover text-fg-secondary',
   active: 'bg-green-900 text-green-300',
   ended: 'bg-yellow-900 text-yellow-300'
 }
@@ -443,7 +444,7 @@ const fetchMetrics = async () => {
     metrics.value = res.data?.data || res.data
   } catch (err) {
     console.error('获取宗门战指标失败:', err)
-    uiStore.showToast('获取宗门战指标失败', 'error')
+    uiStore.showApiError(err, '获取宗门战指标失败')
   }
 }
 
@@ -463,10 +464,12 @@ const fetchWarList = async (page = 1) => {
     warList.value = data.list || data.items || []
     warPagination.total = data.total || 0
     warPagination.page = data.page || page
+    // 分页大小以后端回传的 limit 为准（否则页数会按本地 pageSize 误算）
+    if (data.limit) warPagination.pageSize = data.limit
     warPagination.totalPages = Math.ceil(warPagination.total / warPagination.pageSize) || 1
   } catch (err) {
     console.error('获取战役列表失败:', err)
-    uiStore.showToast('获取战役列表失败', 'error')
+    uiStore.showApiError(err, '获取战役列表失败')
   } finally {
     warLoading.value = false
   }
@@ -486,10 +489,12 @@ const fetchSeasonList = async (page = 1) => {
     seasonList.value = data.list || data.items || []
     seasonPagination.total = data.total || 0
     seasonPagination.page = data.page || page
+    // 分页大小以后端回传的 limit 为准（否则页数会按本地 pageSize 误算）
+    if (data.limit) seasonPagination.pageSize = data.limit
     seasonPagination.totalPages = Math.ceil(seasonPagination.total / seasonPagination.pageSize) || 1
   } catch (err) {
     console.error('获取赛季列表失败:', err)
-    uiStore.showToast('获取赛季列表失败', 'error')
+    uiStore.showApiError(err, '获取赛季列表失败')
   } finally {
     seasonLoading.value = false
   }
@@ -600,8 +605,7 @@ const submitCreateSeason = async () => {
     currentSubTab.value = 'seasons'
   } catch (err) {
     console.error('创建赛季失败:', err)
-    const msg = err?.response?.data?.message || '创建赛季失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '创建赛季失败')
   } finally {
     operating.value = false
   }
@@ -645,8 +649,7 @@ const submitInitTerritory = async () => {
     await fetchMetrics()
   } catch (err) {
     console.error('初始化资源点失败:', err)
-    const msg = err?.response?.data?.message || '初始化资源点失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '初始化资源点失败')
   } finally {
     operating.value = false
   }
@@ -660,10 +663,10 @@ const submitInitTerritory = async () => {
  * @param {Object} war 战役行数据
  */
 const confirmAdvanceWar = (war) => {
-  emit('showConfirm', '推进战役状态', `确定要手动推进战役 #${war.war_id}（${war.attacker_sect_name} vs ${war.defender_sect_name}）的状态吗？`, async () => {
+  emit('showConfirm', '推进战役状态', `确定要手动推进战役 #${war.id}（${war.attacker_sect_name} vs ${war.defender_sect_name}）的状态吗？`, async () => {
     operating.value = true
     try {
-      const res = await advanceWarStatus(war.war_id)
+      const res = await advanceWarStatus(war.id)
       const data = res.data?.data || res.data
       uiStore.showToast(data?.message || '战役状态已推进', 'success')
       // 推进后刷新战役列表与指标
@@ -671,8 +674,7 @@ const confirmAdvanceWar = (war) => {
       await fetchMetrics()
     } catch (err) {
       console.error('推进战役状态失败:', err)
-      const msg = err?.response?.data?.message || '推进战役状态失败'
-      uiStore.showToast(msg, 'error')
+      uiStore.showApiError(err, '推进战役状态失败')
     } finally {
       operating.value = false
     }
@@ -696,8 +698,7 @@ const confirmSettleSeason = (season) => {
       await fetchMetrics()
     } catch (err) {
       console.error('强制结算赛季失败:', err)
-      const msg = err?.response?.data?.message || '强制结算赛季失败'
-      uiStore.showToast(msg, 'error')
+      uiStore.showApiError(err, '强制结算赛季失败')
     } finally {
       operating.value = false
     }
@@ -720,8 +721,7 @@ const confirmInitTerritoryFromRow = (season) => {
       await fetchMetrics()
     } catch (err) {
       console.error('初始化资源点失败:', err)
-      const msg = err?.response?.data?.message || '初始化资源点失败'
-      uiStore.showToast(msg, 'error')
+      uiStore.showApiError(err, '初始化资源点失败')
     } finally {
       operating.value = false
     }
@@ -743,8 +743,7 @@ const confirmSettleProduction = () => {
       await fetchMetrics()
     } catch (err) {
       console.error('手动产出结算失败:', err)
-      const msg = err?.response?.data?.message || '手动产出结算失败'
-      uiStore.showToast(msg, 'error')
+      uiStore.showApiError(err, '手动产出结算失败')
     } finally {
       operating.value = false
     }

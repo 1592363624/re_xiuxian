@@ -1,30 +1,37 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-    <div class="bg-gray-900 border border-gray-700 w-full max-w-6xl h-[85vh] flex flex-col rounded-lg shadow-2xl">
+  <div class="fixed inset-0 z-system flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="bg-surface-base border border-line w-full max-w-6xl h-[85vh] flex flex-col rounded-panel shadow-2xl shadow-black/60">
       <!-- Header -->
-      <div class="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
-        <h2 class="text-xl font-bold text-xiuxian-gold">GM 管理后台</h2>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-white">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      <div class="flex items-center justify-between px-4 h-12 shrink-0 border-b border-line-subtle bg-surface-raised">
+        <h2 class="font-display text-[15px] font-bold text-gold-500 tracking-[0.08em] truncate">GM 管理后台</h2>
+        <button
+          type="button"
+          @click="$emit('close')"
+          class="focus-ring grid place-items-center w-7 h-7 -mr-1 rounded text-fg-muted hover:text-fg-primary hover:bg-surface-hover transition-colors"
+          aria-label="关闭管理后台"
+          title="关闭"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
         </button>
       </div>
 
       <!-- Tabs -->
-      <div class="flex border-b border-gray-700 bg-gray-800/50 overflow-x-auto">
+      <div class="flex shrink-0 border-b border-line bg-surface-raised/50 overflow-x-auto no-scrollbar">
         <button
           v-for="tab in tabs"
           :key="tab.id"
+          type="button"
           @click="currentTab = tab.id"
-          class="px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
-          :class="currentTab === tab.id ? 'text-xiuxian-gold' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'"
+          class="focus-ring px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
+          :class="currentTab === tab.id ? 'text-gold-500' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-hover/50'"
         >
           {{ tab.name }}
-          <div v-if="currentTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-xiuxian-gold"></div>
+          <div v-if="currentTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-gold-500"></div>
         </button>
       </div>
 
       <!-- Content -->
-      <div class="flex-1 overflow-auto p-4 custom-scrollbar">
+      <div class="flex-1 min-h-0 overflow-auto p-4 scroll-thin">
         <!-- 玩家管理 -->
         <PlayerManagement
           v-if="currentTab === 'players'"
@@ -109,36 +116,36 @@
       <div v-if="editingPlayer" class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm text-gray-400 mb-1">账号</label>
-            <input :value="editingPlayer.username" disabled class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-gray-500">
+            <label class="block text-sm text-fg-muted mb-1">账号</label>
+            <input :value="editingPlayer.username" disabled class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-faint">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">昵称</label>
-            <input v-model="editingPlayer.nickname" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            <label class="block text-sm text-fg-muted mb-1">昵称</label>
+            <input v-model="editingPlayer.nickname" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">修为 (Exp)</label>
-            <input v-model.number="editingPlayer.exp" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            <label class="block text-sm text-fg-muted mb-1">修为 (Exp)</label>
+            <input v-model.number="editingPlayer.exp" type="number" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">灵石</label>
-            <input v-model.number="editingPlayer.spirit_stones" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            <label class="block text-sm text-fg-muted mb-1">灵石</label>
+            <input v-model.number="editingPlayer.spirit_stones" type="number" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">境界</label>
-            <input v-model="editingPlayer.realm" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            <label class="block text-sm text-fg-muted mb-1">境界</label>
+            <input v-model="editingPlayer.realm" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">当前寿元</label>
-            <input v-model.number="editingPlayer.lifespan_current" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            <label class="block text-sm text-fg-muted mb-1">当前寿元</label>
+            <input v-model.number="editingPlayer.lifespan_current" type="number" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">最大寿元</label>
-            <input v-model.number="editingPlayer.lifespan_max" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            <label class="block text-sm text-fg-muted mb-1">最大寿元</label>
+            <input v-model.number="editingPlayer.lifespan_max" type="number" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">角色权限</label>
-            <select v-model="editingPlayer.role" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+            <label class="block text-sm text-fg-muted mb-1">角色权限</label>
+            <select v-model="editingPlayer.role" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
               <option value="user">普通用户</option>
               <option value="admin">管理员</option>
             </select>
@@ -146,38 +153,38 @@
         </div>
       </div>
       <template #footer>
-        <button @click="editingPlayer = null" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
-        <button @click="submitPlayerEdit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">保存</button>
+        <AppButton variant="ghost" @click="editingPlayer = null">取消</AppButton>
+        <AppButton variant="primary" @click="submitPlayerEdit">保存</AppButton>
       </template>
     </Modal>
 
     <!-- 封禁玩家弹窗 -->
     <Modal :isOpen="!!banningPlayer" title="封禁玩家" @close="banningPlayer = null">
       <div v-if="banningPlayer" class="space-y-4">
-        <p class="text-gray-300">封禁玩家: <span class="text-xiuxian-gold">{{ banningPlayer.nickname }}</span></p>
+        <p class="text-fg-secondary">封禁玩家: <span class="text-gold-500">{{ banningPlayer.nickname }}</span></p>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">封禁原因</label>
-          <input v-model="banReason" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white" placeholder="输入封禁原因">
+          <label class="block text-sm text-fg-muted mb-1">封禁原因</label>
+          <input v-model="banReason" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600" placeholder="输入封禁原因">
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">封禁天数 (-1表示永久)</label>
-          <input v-model.number="banDays" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+          <label class="block text-sm text-fg-muted mb-1">封禁天数 (-1表示永久)</label>
+          <input v-model.number="banDays" type="number" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
       <template #footer>
-        <button @click="banningPlayer = null" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
-        <button @click="confirmBan" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded">确认封禁</button>
+        <AppButton variant="ghost" @click="banningPlayer = null">取消</AppButton>
+        <AppButton variant="danger" @click="confirmBan">确认封禁</AppButton>
       </template>
     </Modal>
 
     <!-- 发放物品弹窗 -->
     <Modal :isOpen="!!givingPlayer" title="发放物品" @close="givingPlayer = null">
       <div v-if="givingPlayer" class="space-y-4">
-        <p class="text-gray-300">发放给: <span class="text-xiuxian-gold">{{ givingPlayer.nickname }}</span></p>
+        <p class="text-fg-secondary">发放给: <span class="text-gold-500">{{ givingPlayer.nickname }}</span></p>
 
         <div>
-          <label class="block text-sm text-gray-400 mb-1">发放类型</label>
-          <select v-model="giveType" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+          <label class="block text-sm text-fg-muted mb-1">发放类型</label>
+          <select v-model="giveType" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
             <option value="item">物品</option>
             <option value="spirit_stones">灵石</option>
             <option value="exp">修为</option>
@@ -185,42 +192,42 @@
         </div>
 
         <div v-if="giveType === 'item'">
-          <label class="block text-sm text-gray-400 mb-1">物品ID</label>
-          <input v-model="giveItemId" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white" placeholder="输入物品ID">
-          <p class="mt-1 text-xs text-gray-500">提示: 可用物品ID见 item_data.json 配置</p>
+          <label class="block text-sm text-fg-muted mb-1">物品ID</label>
+          <input v-model="giveItemId" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600" placeholder="输入物品ID">
+          <p class="mt-1 text-xs text-fg-faint">提示: 可用物品ID见 item_data.json 配置</p>
         </div>
 
         <div v-if="giveType === 'item'">
-          <label class="block text-sm text-gray-400 mb-1">数量</label>
-          <input v-model.number="giveQuantity" type="number" min="1" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+          <label class="block text-sm text-fg-muted mb-1">数量</label>
+          <input v-model.number="giveQuantity" type="number" min="1" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
         </div>
 
         <div v-if="giveType === 'spirit_stones'">
-          <label class="block text-sm text-gray-400 mb-1">灵石数量</label>
-          <input v-model.number="giveAmount" type="number" min="1" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+          <label class="block text-sm text-fg-muted mb-1">灵石数量</label>
+          <input v-model.number="giveAmount" type="number" min="1" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
         </div>
 
         <div v-if="giveType === 'exp'">
-          <label class="block text-sm text-gray-400 mb-1">修为数量</label>
-          <input v-model.number="giveAmount" type="number" min="1" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+          <label class="block text-sm text-fg-muted mb-1">修为数量</label>
+          <input v-model.number="giveAmount" type="number" min="1" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
       <template #footer>
-        <button @click="givingPlayer = null" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
-        <button @click="confirmGive" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded">确认发放</button>
+        <AppButton variant="ghost" @click="givingPlayer = null">取消</AppButton>
+        <AppButton variant="primary" @click="confirmGive">确认发放</AppButton>
       </template>
     </Modal>
 
     <!-- 确认对话框 -->
     <Modal :isOpen="confirmDialog.show" title="确认操作" @close="confirmDialog.show = false" width="400px">
-      <p class="text-gray-300 whitespace-pre-line">{{ confirmDialog.message }}</p>
+      <p class="text-fg-secondary whitespace-pre-line">{{ confirmDialog.message }}</p>
       <template #footer>
-        <button @click="confirmDialog.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">
+        <AppButton variant="default" @click="confirmDialog.show = false">
           取消
-        </button>
-        <button @click="handleConfirm" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded">
+        </AppButton>
+        <AppButton variant="danger" @click="handleConfirm">
           确认
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
@@ -229,13 +236,13 @@
       <div class="space-y-6 text-center py-4">
         <div class="text-6xl">🪦</div>
         <h3 class="text-2xl font-bold text-red-500">寿元已尽</h3>
-        <p class="text-gray-300 text-lg">{{ deathMessage }}</p>
-        <p class="text-gray-400">你的境界已跌落，请重新来过。</p>
+        <p class="text-fg-secondary text-lg">{{ deathMessage }}</p>
+        <p class="text-fg-muted">你的境界已跌落，请重新来过。</p>
       </div>
       <template #footer>
-        <button @click="showDeathModal = false" class="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">
+        <AppButton variant="default" block @click="showDeathModal = false">
           黯然接受
-        </button>
+        </AppButton>
       </template>
     </Modal>
   </div>
@@ -250,6 +257,7 @@ import { ref, reactive } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import Modal from '../common/Modal.vue'
+import AppButton from '../ui/AppButton.vue'
 import PlayerManagement from './sub/PlayerManagement.vue'
 import SystemConfig from './sub/SystemConfig.vue'
 import NotificationManagement from './sub/NotificationManagement.vue'
@@ -510,24 +518,3 @@ const handleTimeTravelComplete = async (result) => {
   }
 }
 </script>
-
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #1f2937;
-  border-radius: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
-}
-</style>

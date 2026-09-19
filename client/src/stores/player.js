@@ -9,6 +9,7 @@ import { getStatus as getSeclusionStatus, start as startSeclusionApi, end as end
 import { getConfig as getSystemConfig } from '../api/system'
 import { tryBreakthrough as tryBreakthroughApi } from '../api/breakthrough'
 import { getExploreStatus } from '../api/explore'
+import { getCombatStatus } from '../api/combat'
 import { socketService } from '../services/socket'
 
 export const usePlayerStore = defineStore('player', {
@@ -40,7 +41,11 @@ export const usePlayerStore = defineStore('player', {
       remainingSeconds: 0
     },
     // 大世界状态（World Map MVP：服务器权威连续坐标）
-    worldState: null
+    worldState: null,
+    // 进行中战斗（后端权威）。原先记在 GameLayout 的局部 ref 里，
+    // 于是 CombatPanel 要靠 prop 拿、"返回战斗"按钮要靠父组件判断；
+    // 收进 store 后面板自己读，GameLayout 不再为单个面板开例外。
+    activeBattleId: null
   }),
   
   actions: {
@@ -508,6 +513,33 @@ export const usePlayerStore = defineStore('player', {
      */
     updateRemainingTime(remainingSeconds) {
       this.movingState.remainingSeconds = remainingSeconds
+    },
+
+    /**
+     * 从后端同步进行中战斗
+     *
+     * 关闭战斗面板 / 刷新浏览器后，战斗还在服务端跑着，玩家却没有任何入口回去。
+     * 这里把 battle_id 落到 store，GameLayout 据此显示"返回战斗"，
+     * CombatPanel 据此恢复战场，两边读同一份事实。
+     */
+    async syncActiveBattle() {
+      try {
+        const res = await getCombatStatus()
+        const data = res.data?.in_battle ? res.data : (res.data?.data || {})
+        this.activeBattleId = data.in_battle && data.battle_id ? data.battle_id : null
+      } catch (e) {
+        // 同步失败不该打断主流程，也别把已有 id 清掉（可能只是网络抖了一下）
+        console.warn('同步进行中战斗失败:', e)
+      }
+      return this.activeBattleId
+    },
+
+    setActiveBattle(battleId) {
+      this.activeBattleId = battleId || null
+    },
+
+    clearActiveBattle() {
+      this.activeBattleId = null
     },
 
     /**

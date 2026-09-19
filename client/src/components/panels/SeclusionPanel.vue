@@ -11,340 +11,299 @@
  *   高阶或长线挂机可使用 .深度闭关
  */
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
-
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-stone-800 rounded-lg p-6 max-w-2xl w-full mx-4 shadow-2xl animate-fade-in max-h-[85vh] flex flex-col panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-bold text-cyan-400 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-          </svg>
-          闭关修炼
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
-
-      <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-        <!-- 今日次数总览（醒目展示，避免玩家点了开始才发现次数用尽） -->
-        <div class="grid grid-cols-2 gap-3 bg-[#292524] rounded-lg p-3 border border-stone-700">
+  <PanelShell
+    title="闭关修炼"
+    hint="常规闭关 · 深度闭关 · 每日次数与冷却"
+    size="md"
+    @close="emit('close')"
+  >
+    <div class="space-y-4">
+      <!-- 今日次数总览（醒目展示，避免玩家点了开始才发现次数用尽） -->
+      <PanelCard :padded="true">
+        <div class="grid grid-cols-2 gap-3">
           <div class="flex items-center justify-between">
-            <div class="text-xs text-stone-400">常规闭关</div>
+            <div class="text-xs text-fg-muted">常规闭关</div>
             <div class="flex items-center gap-2">
-              <div class="text-xs text-stone-500">今日剩余</div>
-              <div class="px-2 py-0.5 rounded text-xs font-bold"
-                :class="normalRemaining > 0
-                  ? 'bg-emerald-950/50 border border-emerald-800/60 text-emerald-400'
-                  : 'bg-rose-950/50 border border-rose-800/60 text-rose-400'">
+              <div class="text-xs text-fg-faint">今日剩余</div>
+              <Badge :tone="normalRemaining > 0 ? 'success' : 'danger'">
                 {{ normalRemaining }} / {{ normalConfig.daily_limit }}
-              </div>
+              </Badge>
             </div>
           </div>
           <div class="flex items-center justify-between">
-            <div class="text-xs text-stone-400">深度闭关</div>
+            <div class="text-xs text-fg-muted">深度闭关</div>
             <div class="flex items-center gap-2">
-              <div class="text-xs text-stone-500">今日剩余</div>
-              <div class="px-2 py-0.5 rounded text-xs font-bold"
-                :class="deepRemaining > 0
-                  ? 'bg-emerald-950/50 border border-emerald-800/60 text-emerald-400'
-                  : 'bg-rose-950/50 border border-rose-800/60 text-rose-400'">
+              <div class="text-xs text-fg-faint">今日剩余</div>
+              <Badge :tone="deepRemaining > 0 ? 'success' : 'danger'">
                 {{ deepRemaining }} / {{ deepConfig.daily_limit }}
-              </div>
+              </Badge>
             </div>
           </div>
         </div>
+      </PanelCard>
 
-        <!-- 冷却中提示（醒目红色 banner，避免玩家误以为系统故障） -->
-        <div v-if="cooldownRemainingText" class="bg-amber-950/30 border border-amber-800/50 rounded-lg p-2.5 text-xs text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span>闭关冷却中：{{ cooldownRemainingText }}</span>
-        </div>
+      <!-- 冷却中提示（醒目 banner，避免玩家误以为系统故障） -->
+      <PanelCard v-if="cooldownRemainingText" tone="gold" :padded="false" class="flex items-center gap-2 px-3 py-2.5 text-xs text-gold-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>闭关冷却中：{{ cooldownRemainingText }}</span>
+      </PanelCard>
 
-        <!-- 模式选择卡片 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- 常规闭关卡片 -->
-          <button
-            @click="selectMode('normal')"
-            :disabled="loading || !statusLoaded || normalRemaining <= 0 || isNormalCooldown"
-            class="text-left bg-[#292524] hover:bg-[#332b27] border rounded-lg p-5 transition-all duration-300 group relative disabled:opacity-60 disabled:cursor-not-allowed"
-            :class="selectedMode === 'normal'
-              ? 'border-cyan-600 ring-1 ring-cyan-600/30'
-              : 'border-stone-700 hover:border-cyan-700'"
-          >
-            <!-- 加载中锁标：与深度闭关保持一致 -->
-            <div v-if="!statusLoaded" class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-stone-950/40 border border-stone-700/50 text-stone-500 text-[10px]">
-              加载中
-            </div>
-            <!-- 次数已用尽锁标 -->
-            <div v-else-if="normalRemaining <= 0" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold">
-              今日已用尽
-            </div>
-            <!-- 图标 + 名称 -->
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <div class="w-10 h-10 rounded-full bg-cyan-950/40 border border-cyan-700/40 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                    <path d="M2 17l10 5 10-5"/>
-                    <path d="M2 12l10 5 10-5"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-base font-bold text-cyan-300">常规闭关</div>
-                  <div class="text-xs text-stone-500">日常修炼，随时可停</div>
-                </div>
-              </div>
-              <!-- 选中标识 -->
-              <div v-if="selectedMode === 'normal'" class="w-5 h-5 rounded-full bg-cyan-600 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </div>
-            </div>
-            <!-- 参数列表 -->
-            <ul class="text-xs text-stone-400 space-y-1.5 mb-3">
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">单次时长：</span>
-                <span class="text-stone-200">最长 {{ formatDuration(normalConfig.max_duration) }}</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">每日次数：</span>
-                <span class="text-stone-200">{{ normalConfig.daily_limit }} 次</span>
-                <!-- 剩余次数醒目徽章 -->
-                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold"
-                  :class="normalRemaining > 0
-                    ? 'bg-emerald-950/50 border border-emerald-800/60 text-emerald-400'
-                    : 'bg-rose-950/50 border border-rose-800/60 text-rose-400'">
-                  剩余 {{ normalRemaining }} 次
-                </span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">冷却时间：</span>
-                <span class="text-stone-200">{{ formatDuration(normalConfig.cooldown) }}</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">收益倍率：</span>
-                <span class="text-cyan-400">×{{ normalConfig.exp_rate }}</span>
-              </li>
-            </ul>
-            <!-- 时长滑块（常规闭关） -->
-            <div v-if="selectedMode === 'normal'" class="mt-3 pt-3 border-t border-stone-700">
-              <label class="text-xs text-stone-400 flex justify-between mb-1.5">
-                <span>闭关时长</span>
-                <span class="text-cyan-300 font-mono">{{ formatDuration(normalDuration) }}</span>
-              </label>
-              <input
-                type="range"
-                v-model.number="normalDuration"
-                min="60"
-                :max="normalConfig.max_duration"
-                step="60"
-                class="w-full accent-cyan-600"
-              />
-              <div class="flex justify-between text-[10px] text-stone-500 mt-1">
-                <span>1分钟</span>
-                <span>{{ formatDuration(normalConfig.max_duration) }}</span>
-              </div>
-            </div>
-          </button>
-
-          <!-- 深度闭关卡片 -->
-          <button
-            @click="selectMode('deep')"
-            :disabled="loading || !statusLoaded || !canDeep || deepRemaining <= 0 || isDeepCooldown"
-            class="text-left bg-[#292524] hover:bg-[#332b27] border rounded-lg p-5 transition-all duration-300 group relative disabled:opacity-60 disabled:cursor-not-allowed"
-            :class="selectedMode === 'deep'
-              ? 'border-purple-600 ring-1 ring-purple-600/30'
-              : 'border-stone-700 hover:border-purple-700'"
-          >
-            <!-- 加载中锁标：避免首次打开时误显示"境界不足" -->
-            <div v-if="!statusLoaded" class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-stone-950/40 border border-stone-700/50 text-stone-500 text-[10px]">
-              加载中
-            </div>
-            <!-- 次数已用尽锁标（明确标注重置时间，避免玩家误以为永久禁用） -->
-            <div v-else-if="deepRemaining <= 0" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold leading-tight text-right">
-              今日已用尽
-              <div class="text-[9px] text-rose-500/80 font-normal">明日0点重置</div>
-            </div>
-            <!-- 境界不足锁标 -->
-            <div v-else-if="!canDeep" class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-800/50 text-amber-500 text-[10px]">
-              需{{ deepConfig.min_realm }}
-            </div>
-            <!-- 图标 + 名称 -->
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <div class="w-10 h-10 rounded-full bg-purple-950/40 border border-purple-700/40 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                    <path d="M2 17l10 5 10-5"/>
-                    <path d="M2 12l10 5 10-5"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-base font-bold text-purple-300">深度闭关</div>
-                  <div class="text-xs text-stone-500">长线挂机，{{ deepConfig.exp_rate }}倍收益</div>
-                </div>
-              </div>
-              <div v-if="selectedMode === 'deep'" class="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </div>
-            </div>
-            <!-- 参数列表 -->
-            <ul class="text-xs text-stone-400 space-y-1.5 mb-3">
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">单次时长：</span>
-                <span class="text-stone-200">{{ formatDuration(deepConfig.min_duration) }} - {{ formatDuration(deepConfig.max_duration) }}</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">每日次数：</span>
-                <span class="text-stone-200">{{ deepConfig.daily_limit }} 次</span>
-                <!-- 剩余次数醒目徽章 -->
-                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold"
-                  :class="deepRemaining > 0
-                    ? 'bg-emerald-950/50 border border-emerald-800/60 text-emerald-400'
-                    : 'bg-rose-950/50 border border-rose-800/60 text-rose-400'">
-                  剩余 {{ deepRemaining }} 次
-                </span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">境界要求：</span>
-                <span class="text-stone-200">{{ deepConfig.min_realm }}</span>
-                <!-- 加载中时显示"加载中"，避免误显示"× 未达成" -->
-                <span v-if="!statusLoaded" class="text-stone-500">加载中</span>
-                <span v-else :class="canDeep ? 'text-emerald-400' : 'text-rose-400'">{{ canDeep ? '✓ 已达成' : '× 未达成' }}</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">收益倍率：</span>
-                <span class="text-purple-400">×{{ deepConfig.exp_rate }}</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">强行出关：</span>
-                <span class="text-amber-400">损失 {{ Math.round(deepConfig.forced_penalty * 100) }}% 收益</span>
-              </li>
-            </ul>
-            <!-- 时长滑块（深度闭关） -->
-            <div v-if="selectedMode === 'deep'" class="mt-3 pt-3 border-t border-stone-700">
-              <label class="text-xs text-stone-400 flex justify-between mb-1.5">
-                <span>闭关时长</span>
-                <span class="text-purple-300 font-mono">{{ formatDuration(deepDuration) }}</span>
-              </label>
-              <input
-                type="range"
-                v-model.number="deepDuration"
-                :min="deepConfig.min_duration"
-                :max="deepConfig.max_duration"
-                :step="1800"
-                class="w-full accent-purple-600"
-              />
-              <div class="flex justify-between text-[10px] text-stone-500 mt-1">
-                <span>{{ formatDuration(deepConfig.min_duration) }}</span>
-                <span>{{ formatDuration(deepConfig.max_duration) }}</span>
-              </div>
-            </div>
-          </button>
-        </div>
-
-        <!-- 深度闭关状态说明横幅（明确告知禁用原因，避免玩家误以为境界不足） -->
-        <div v-if="selectedMode === 'deep' && !canDeep" class="bg-rose-950/30 border border-rose-800/50 rounded-lg p-3 text-xs text-rose-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="15" y1="9" x2="9" y2="15"/>
-            <line x1="9" y1="9" x2="15" y2="15"/>
-          </svg>
-          <span>境界未达成：需达到 {{ deepConfig.min_realm }} 方可进行深度闭关，当前境界不足。</span>
-        </div>
-        <div v-else-if="selectedMode === 'deep' && deepRemaining <= 0" class="bg-amber-950/30 border border-amber-800/50 rounded-lg p-3 text-xs text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span>✓ 境界已达成，但今日深度闭关次数已用尽（每日 {{ deepConfig.daily_limit }} 次），明日 0:00 重置。</span>
-        </div>
-        <div v-else-if="selectedMode === 'deep' && isDeepCooldown" class="bg-amber-950/30 border border-amber-800/50 rounded-lg p-3 text-xs text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span>✓ 境界已达成，深度闭关冷却中，还需 {{ formatDuration(deepCooldownRemaining) }}。</span>
-        </div>
-
-        <!-- 风险提示 -->
-        <div v-if="selectedMode === 'deep'" class="bg-amber-950/20 border border-amber-900/40 rounded-lg p-3 text-xs text-amber-400">
-          <svg xmlns="http://www.w3.org/2000/svg" class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          深度闭关需达到 {{ deepConfig.min_realm }} 方可进行；若未达最短时长 {{ formatDuration(deepConfig.min_duration) }} 提前结束，将按强行出关处理，损失 {{ Math.round(deepConfig.forced_penalty * 100) }}% 收益。
-        </div>
-
-        <!-- 收益预估 -->
-        <div class="bg-[#292524] rounded-lg p-4 border border-stone-700">
-          <div class="text-xs text-stone-500 mb-2">收益预估</div>
-          <div class="grid grid-cols-2 gap-3">
-            <div class="text-center">
-              <div class="text-[10px] text-stone-500 mb-0.5">基础速率</div>
-              <div class="text-sm text-stone-300 font-mono">{{ baseExpRate }} /秒</div>
-            </div>
-            <div class="text-center">
-              <div class="text-[10px] text-stone-500 mb-0.5">预计获得修为</div>
-              <div
-                class="text-lg font-mono font-bold"
-                :class="selectedMode === 'deep' ? 'text-purple-400' : 'text-cyan-400'"
-              >+{{ estimatedExp }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 底部操作栏 -->
-      <div class="mt-4 flex gap-2">
+      <!-- 模式选择卡片 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 常规闭关卡片 -->
         <button
-          @click="$emit('close')"
-          class="px-4 py-2.5 text-sm text-stone-400 hover:text-white border border-stone-700 hover:border-stone-500 rounded-lg transition-colors"
+          @click="selectMode('normal')"
+          :disabled="loading || !statusLoaded || normalRemaining <= 0 || isNormalCooldown"
+          class="text-left bg-surface-hover hover:bg-surface-active border rounded-panel p-5 transition-all duration-300 group relative disabled:opacity-60 disabled:cursor-not-allowed"
+          :class="selectedMode === 'normal'
+            ? 'border-cyan-600 ring-1 ring-cyan-600/30'
+            : 'border-line hover:border-cyan-700'"
         >
-          取消
+          <!-- 加载中锁标：与深度闭关保持一致 -->
+          <Badge v-if="!statusLoaded" tone="muted" class="absolute top-2 right-2">加载中</Badge>
+          <!-- 次数已用尽锁标 -->
+          <Badge v-else-if="normalRemaining <= 0" tone="danger" class="absolute top-2 right-2">今日已用尽</Badge>
+          <!-- 图标 + 名称 -->
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 rounded-full bg-cyan-950/40 border border-cyan-700/40 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                  <path d="M2 17l10 5 10-5"/>
+                  <path d="M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-base font-bold text-cyan-300">常规闭关</div>
+                <div class="text-xs text-fg-faint">日常修炼，随时可停</div>
+              </div>
+            </div>
+            <!-- 选中标识 -->
+            <div v-if="selectedMode === 'normal'" class="w-5 h-5 rounded-full bg-cyan-600 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-fg-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+          </div>
+          <!-- 参数列表 -->
+          <ul class="text-xs text-fg-muted space-y-1.5 mb-3">
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">单次时长：</span>
+              <span class="text-fg-primary">最长 {{ formatDuration(normalConfig.max_duration) }}</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">每日次数：</span>
+              <span class="text-fg-primary">{{ normalConfig.daily_limit }} 次</span>
+              <!-- 剩余次数醒目徽章 -->
+              <Badge :tone="normalRemaining > 0 ? 'success' : 'danger'">剩余 {{ normalRemaining }} 次</Badge>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">冷却时间：</span>
+              <span class="text-fg-primary">{{ formatDuration(normalConfig.cooldown) }}</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">收益倍率：</span>
+              <span class="text-cyan-400">×{{ normalConfig.exp_rate }}</span>
+            </li>
+          </ul>
+          <!-- 时长滑块（常规闭关） -->
+          <div v-if="selectedMode === 'normal'" class="mt-3 pt-3 border-t border-line">
+            <label class="text-xs text-fg-muted flex justify-between mb-1.5">
+              <span>闭关时长</span>
+              <span class="text-cyan-300 font-mono">{{ formatDuration(normalDuration) }}</span>
+            </label>
+            <input
+              type="range"
+              v-model.number="normalDuration"
+              min="60"
+              :max="normalConfig.max_duration"
+              step="60"
+              class="w-full accent-cyan-600"
+            />
+            <div class="flex justify-between text-[10px] text-fg-faint mt-1">
+              <span>1分钟</span>
+              <span>{{ formatDuration(normalConfig.max_duration) }}</span>
+            </div>
+          </div>
         </button>
+
+        <!-- 深度闭关卡片 -->
         <button
-          @click="handleStart"
-          :disabled="loading || !statusLoaded || (selectedMode === 'deep' ? (!canDeep || deepRemaining <= 0 || isDeepCooldown) : (normalRemaining <= 0 || isNormalCooldown))"
-          class="flex-1 py-2.5 rounded-lg font-bold tracking-widest text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="selectMode('deep')"
+          :disabled="loading || !statusLoaded || !canDeep || deepRemaining <= 0 || isDeepCooldown"
+          class="text-left bg-surface-hover hover:bg-surface-active border rounded-panel p-5 transition-all duration-300 group relative disabled:opacity-60 disabled:cursor-not-allowed"
           :class="selectedMode === 'deep'
-            ? 'bg-purple-950/40 border border-purple-700 text-purple-300 hover:bg-purple-900/40 hover:border-purple-500'
-            : 'bg-cyan-950/40 border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-500'"
+            ? 'border-purple-600 ring-1 ring-purple-600/30'
+            : 'border-line hover:border-purple-700'"
         >
-          <span v-if="loading">正在进入...</span>
-          <!-- 状态加载中：避免 canDeep 默认 false 导致误显示"境界不足" -->
-          <span v-else-if="!statusLoaded">加载闭关状态中...</span>
-          <span v-else-if="selectedMode === 'deep' && !canDeep">境界不足·需{{ deepConfig.min_realm }}</span>
-          <span v-else-if="selectedMode === 'deep' && deepRemaining <= 0">今日深度闭关已用尽·明日0点重置</span>
-          <span v-else-if="selectedMode === 'normal' && normalRemaining <= 0">今日常规闭关已用尽·明日0点重置</span>
-          <span v-else-if="selectedMode === 'deep' && isDeepCooldown">深度闭关冷却中·还需{{ formatDuration(deepCooldownRemaining) }}</span>
-          <span v-else-if="selectedMode === 'normal' && isNormalCooldown">常规闭关冷却中·还需{{ formatDuration(normalCooldownRemaining) }}</span>
-          <span v-else>开始{{ selectedMode === 'deep' ? '深度' : '常规' }}闭关</span>
+          <!-- 加载中锁标：避免首次打开时误显示"境界不足" -->
+          <Badge v-if="!statusLoaded" tone="muted" class="absolute top-2 right-2">加载中</Badge>
+          <!-- 次数已用尽锁标（明确标注重置时间，避免玩家误以为永久禁用） -->
+          <Badge v-else-if="deepRemaining <= 0" tone="danger" class="absolute top-2 right-2 text-right">
+            今日已用尽
+            <span class="block text-[9px] font-normal opacity-80">明日0点重置</span>
+          </Badge>
+          <!-- 境界不足锁标 -->
+          <Badge v-else-if="!canDeep" tone="gold" class="absolute top-2 right-2">需{{ deepConfig.min_realm }}</Badge>
+          <!-- 图标 + 名称 -->
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 rounded-full bg-purple-950/40 border border-purple-700/40 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                  <path d="M2 17l10 5 10-5"/>
+                  <path d="M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-base font-bold text-purple-300">深度闭关</div>
+                <div class="text-xs text-fg-faint">长线挂机，{{ deepConfig.exp_rate }}倍收益</div>
+              </div>
+            </div>
+            <div v-if="selectedMode === 'deep'" class="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-fg-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+          </div>
+          <!-- 参数列表 -->
+          <ul class="text-xs text-fg-muted space-y-1.5 mb-3">
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">单次时长：</span>
+              <span class="text-fg-primary">{{ formatDuration(deepConfig.min_duration) }} - {{ formatDuration(deepConfig.max_duration) }}</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">每日次数：</span>
+              <span class="text-fg-primary">{{ deepConfig.daily_limit }} 次</span>
+              <!-- 剩余次数醒目徽章 -->
+              <Badge :tone="deepRemaining > 0 ? 'success' : 'danger'">剩余 {{ deepRemaining }} 次</Badge>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">境界要求：</span>
+              <span class="text-fg-primary">{{ deepConfig.min_realm }}</span>
+              <!-- 加载中时显示"加载中"，避免误显示"× 未达成" -->
+              <span v-if="!statusLoaded" class="text-fg-faint">加载中</span>
+              <span v-else :class="canDeep ? 'text-emerald-400' : 'text-rose-400'">{{ canDeep ? '✓ 已达成' : '× 未达成' }}</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">收益倍率：</span>
+              <span class="text-purple-400">×{{ deepConfig.exp_rate }}</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">强行出关：</span>
+              <span class="text-gold-400">损失 {{ Math.round(deepConfig.forced_penalty * 100) }}% 收益</span>
+            </li>
+          </ul>
+          <!-- 时长滑块（深度闭关） -->
+          <div v-if="selectedMode === 'deep'" class="mt-3 pt-3 border-t border-line">
+            <label class="text-xs text-fg-muted flex justify-between mb-1.5">
+              <span>闭关时长</span>
+              <span class="text-purple-300 font-mono">{{ formatDuration(deepDuration) }}</span>
+            </label>
+            <input
+              type="range"
+              v-model.number="deepDuration"
+              :min="deepConfig.min_duration"
+              :max="deepConfig.max_duration"
+              :step="1800"
+              class="w-full accent-purple-600"
+            />
+            <div class="flex justify-between text-[10px] text-fg-faint mt-1">
+              <span>{{ formatDuration(deepConfig.min_duration) }}</span>
+              <span>{{ formatDuration(deepConfig.max_duration) }}</span>
+            </div>
+          </div>
         </button>
       </div>
+
+      <!-- 深度闭关状态说明横幅（明确告知禁用原因，避免玩家误以为境界不足） -->
+      <PanelCard v-if="selectedMode === 'deep' && !canDeep" tone="danger" :padded="false" class="flex items-center gap-2 px-3 py-2.5 text-xs text-rose-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <span>境界未达成：需达到 {{ deepConfig.min_realm }} 方可进行深度闭关，当前境界不足。</span>
+      </PanelCard>
+      <PanelCard v-else-if="selectedMode === 'deep' && deepRemaining <= 0" tone="gold" :padded="false" class="flex items-center gap-2 px-3 py-2.5 text-xs text-gold-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>✓ 境界已达成，但今日深度闭关次数已用尽（每日 {{ deepConfig.daily_limit }} 次），明日 0:00 重置。</span>
+      </PanelCard>
+      <PanelCard v-else-if="selectedMode === 'deep' && isDeepCooldown" tone="gold" :padded="false" class="flex items-center gap-2 px-3 py-2.5 text-xs text-gold-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>✓ 境界已达成，深度闭关冷却中，还需 {{ formatDuration(deepCooldownRemaining) }}。</span>
+      </PanelCard>
+
+      <!-- 风险提示 -->
+      <PanelCard v-if="selectedMode === 'deep'" tone="gold" :padded="false" class="px-3 py-2.5 text-xs text-gold-400">
+        <svg xmlns="http://www.w3.org/2000/svg" class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        深度闭关需达到 {{ deepConfig.min_realm }} 方可进行；若未达最短时长 {{ formatDuration(deepConfig.min_duration) }} 提前结束，将按强行出关处理，损失 {{ Math.round(deepConfig.forced_penalty * 100) }}% 收益。
+      </PanelCard>
+
+      <!-- 收益预估 -->
+      <PanelCard title="收益预估">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="text-center">
+            <div class="text-[10px] text-fg-faint mb-0.5">基础速率</div>
+            <div class="text-sm text-fg-secondary font-num">{{ baseExpRate }} /秒</div>
+          </div>
+          <div class="text-center">
+            <div class="text-[10px] text-fg-faint mb-0.5">预计获得修为</div>
+            <div
+              class="text-lg font-num font-bold"
+              :class="selectedMode === 'deep' ? 'text-purple-400' : 'text-cyan-400'"
+            >+{{ estimatedExp }}</div>
+          </div>
+        </div>
+      </PanelCard>
     </div>
-  </div>
+
+    <!-- 底部操作栏 -->
+    <template #footer>
+      <AppButton variant="outline" @click="emit('close')">取消</AppButton>
+      <button
+        @click="handleStart"
+        :disabled="loading || !statusLoaded || (selectedMode === 'deep' ? (!canDeep || deepRemaining <= 0 || isDeepCooldown) : (normalRemaining <= 0 || isNormalCooldown))"
+        class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
+        :class="selectedMode === 'deep'
+          ? 'bg-purple-950/40 border border-purple-700 text-purple-300 hover:bg-purple-900/40 hover:border-purple-500'
+          : 'bg-cyan-950/40 border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-500'"
+      >
+        <span v-if="loading">正在进入...</span>
+        <!-- 状态加载中：避免 canDeep 默认 false 导致误显示"境界不足" -->
+        <span v-else-if="!statusLoaded">加载闭关状态中...</span>
+        <span v-else-if="selectedMode === 'deep' && !canDeep">境界不足·需{{ deepConfig.min_realm }}</span>
+        <span v-else-if="selectedMode === 'deep' && deepRemaining <= 0">今日深度闭关已用尽·明日0点重置</span>
+        <span v-else-if="selectedMode === 'normal' && normalRemaining <= 0">今日常规闭关已用尽·明日0点重置</span>
+        <span v-else-if="selectedMode === 'deep' && isDeepCooldown">深度闭关冷却中·还需{{ formatDuration(deepCooldownRemaining) }}</span>
+        <span v-else-if="selectedMode === 'normal' && isNormalCooldown">常规闭关冷却中·还需{{ formatDuration(normalCooldownRemaining) }}</span>
+        <span v-else>开始{{ selectedMode === 'deep' ? '深度' : '常规' }}闭关</span>
+      </button>
+    </template>
+  </PanelShell>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
+import PanelShell from '../ui/PanelShell.vue'
+import PanelCard from '../ui/PanelCard.vue'
+import Badge from '../ui/Badge.vue'
+import AppButton from '../ui/AppButton.vue'
 
 const emit = defineEmits(['close'])
 
@@ -558,8 +517,7 @@ const handleStart = async () => {
     emit('close')
   } catch (error) {
     console.error('开始闭关失败:', error)
-    const msg = error?.response?.data?.message || error?.response?.data?.error || '开始闭关失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '开始闭关失败')
   } finally {
     loading.value = false
   }
@@ -585,20 +543,3 @@ onUnmounted(() => {
   }
 })
 </script>
-
-<style scoped>
-/* 滚动条样式 */
-.overflow-y-auto::-webkit-scrollbar {
-  width: 4px;
-}
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: transparent;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #44403c;
-  border-radius: 2px;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #57534e;
-}
-</style>

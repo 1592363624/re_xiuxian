@@ -13,14 +13,20 @@
  */
 import apiClient from './index';
 
-/** 留言信息 */
+/**
+ * 留言（GET /cave-social/messages 的 data.messages 元素）
+ * 后端按访客身份下发，字段名以 CaveSocialService.getMessages 为准：
+ * 是 visitor_id / visitor_nickname / visitor_realm_rank，不是 sender_*，也没有境界中文名
+ */
 export interface CaveMessage {
   /** 留言 ID */
   id: number;
   /** 留言者 ID */
-  sender_id: number;
+  visitor_id: number;
   /** 留言者昵称 */
-  sender_nickname: string;
+  visitor_nickname: string;
+  /** 留言者境界等阶（数字） */
+  visitor_realm_rank: number;
   /** 留言内容 */
   content: string;
   /** 留言时间 */

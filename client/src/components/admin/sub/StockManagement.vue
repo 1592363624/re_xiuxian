@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <!-- 标题与操作按钮 -->
     <div class="flex justify-between items-center">
-      <h3 class="text-lg font-bold text-white flex items-center gap-2">
+      <h3 class="text-lg font-bold text-fg-primary flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400">
           <path d="M3 3v18h18"/>
           <path d="m19 9-5 5-4-4-3 3"/>
@@ -10,49 +10,49 @@
         聚宝股市管理
       </h3>
       <div class="flex space-x-2">
-        <button @click="fetchStocks(pagination.page)" class="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-sm">刷新股票</button>
-        <button @click="fetchMetrics" class="px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded text-white text-sm">更新指标</button>
+        <button @click="fetchStocks(pagination.page)" class="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 rounded-control text-fg-primary text-sm">刷新股票</button>
+        <button @click="fetchMetrics" class="px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded-control text-fg-primary text-sm">更新指标</button>
       </div>
     </div>
 
     <!-- 统计指标卡片 -->
     <div v-if="metrics" class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <!-- 活跃股票数 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">活跃股票</div>
-        <div class="text-2xl font-bold text-cyan-400">{{ metrics.stocks.active }}</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">活跃股票</div>
+        <div class="text-2xl font-bold text-cyan-400 num">{{ metrics.stocks.active }}</div>
         <div class="text-[10px] text-rose-400 mt-1">熔断中 {{ metrics.stocks.halted }}</div>
       </div>
       <!-- 持仓玩家数 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">持仓玩家数</div>
-        <div class="text-2xl font-bold text-cyan-400">{{ metrics.holders_count }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">总市值 {{ metrics.total_holdings_value }}</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">持仓玩家数</div>
+        <div class="text-2xl font-bold text-cyan-400 num">{{ metrics.holders_count }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">总市值 {{ metrics.total_holdings_value }}</div>
       </div>
       <!-- 今日交易 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">今日交易</div>
-        <div class="text-2xl font-bold text-amber-400">{{ metrics.today_transactions.count }} 笔</div>
-        <div class="text-[10px] text-gray-500 mt-1">
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">今日交易</div>
+        <div class="text-2xl font-bold text-amber-400 num">{{ metrics.today_transactions.count }} 笔</div>
+        <div class="text-[10px] text-fg-faint mt-1">
           买 {{ metrics.today_transactions.buy_amount }} · 卖 {{ metrics.today_transactions.sell_amount }}
         </div>
       </div>
       <!-- 融资账户 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">融资账户</div>
-        <div class="text-2xl font-bold text-amber-400">{{ metrics.margin.accounts_count }}</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">融资账户</div>
+        <div class="text-2xl font-bold text-amber-400 num">{{ metrics.margin.accounts_count }}</div>
         <div class="text-[10px] text-rose-400 mt-1">已爆仓 {{ metrics.margin.liquidated_count }} · 总负债 {{ metrics.margin.total_debt }}</div>
       </div>
     </div>
 
     <!-- 子 Tab 切换 -->
-    <div class="flex border-b border-gray-700 bg-gray-800/50">
+    <div class="flex border-b border-line bg-surface-raised/50">
       <button
         v-for="tab in subTabs"
         :key="tab.id"
         @click="switchSubTab(tab.id)"
         class="px-4 py-2 text-sm font-medium transition-colors relative whitespace-nowrap"
-        :class="activeSubTab === tab.id ? 'text-cyan-400' : 'text-gray-400 hover:text-white'"
+        :class="activeSubTab === tab.id ? 'text-cyan-400' : 'text-fg-muted hover:text-fg-primary'"
       >
         {{ tab.name }}
         <div v-if="activeSubTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-500"></div>
@@ -62,13 +62,13 @@
     <!-- ===================== 股票管理 Tab ===================== -->
     <div v-if="activeSubTab === 'stocks'">
       <!-- 筛选 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3 mb-3">
+      <div class="bg-surface-raised rounded-lg border border-line p-3 mb-3">
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2">
-            <label class="text-sm text-gray-400 whitespace-nowrap">分类：</label>
+            <label class="text-sm text-fg-muted whitespace-nowrap">分类：</label>
             <select
               v-model="stockParams.category"
-              class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+              class="px-3 py-1 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600"
               @change="fetchStocks(1)"
             >
               <option value="">全部</option>
@@ -78,15 +78,15 @@
               <option value="event">事件</option>
             </select>
           </div>
-          <button @click="fetchStocks(pagination.page)" class="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-sm">查询</button>
+          <button @click="fetchStocks(pagination.page)" class="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 rounded-control text-fg-primary text-sm">查询</button>
         </div>
       </div>
 
       <!-- 股票列表 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+      <div class="bg-surface-base rounded-lg border border-line overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-gray-900 text-gray-400">
+            <thead class="bg-surface-raised text-fg-muted">
               <tr>
                 <th class="px-3 py-2 text-left whitespace-nowrap">代码</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">名称</th>
@@ -99,86 +99,88 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading" class="text-center text-gray-500">
+              <tr v-if="loading" class="text-center text-fg-faint">
                 <td colspan="8" class="px-3 py-6">加载中...</td>
               </tr>
-              <tr v-else-if="stockList.length === 0" class="text-center text-gray-500">
+              <tr v-else-if="stockList.length === 0" class="text-center text-fg-faint">
                 <td colspan="8" class="px-3 py-6">暂无数据</td>
               </tr>
-              <tr v-for="stock in stockList" :key="stock.id" class="border-t border-gray-700 hover:bg-gray-750">
-                <td class="px-3 py-2 text-gray-400 font-mono">{{ stock.code }}</td>
-                <td class="px-3 py-2 text-gray-200">{{ stock.name }}</td>
-                <td class="px-3 py-2 text-gray-400">{{ categoryLabel(stock.category) }}</td>
-                <td class="px-3 py-2 text-right text-cyan-400 font-bold">{{ stock.current_price }}</td>
-                <td class="px-3 py-2 text-right font-bold" :class="changeColorClass(stock.daily_change_pct)">
+              <tr v-for="stock in stockList" :key="stock.id" class="border-t border-line-subtle hover:bg-surface-hover">
+                <td class="px-3 py-2 text-fg-muted font-mono">{{ stock.code }}</td>
+                <td class="px-3 py-2 text-fg-primary">{{ stock.name }}</td>
+                <td class="px-3 py-2 text-fg-muted">{{ categoryLabel(stock.category) }}</td>
+                <td class="px-3 py-2 text-right text-cyan-400 font-bold num">{{ stock.current_price }}</td>
+                <td class="px-3 py-2 text-right font-bold num" :class="changeColorClass(stock.daily_change_pct)">
                   {{ changeText(stock.daily_change_pct) }}
                 </td>
-                <td class="px-3 py-2 text-right text-gray-400">{{ stock.daily_volume }}</td>
+                <td class="px-3 py-2 text-right text-fg-muted num">{{ stock.daily_volume }}</td>
                 <td class="px-3 py-2 text-center">
                   <span v-if="stock.is_trading_halted" class="px-2 py-0.5 rounded text-xs bg-rose-900 text-rose-300">熔断</span>
-                  <span v-else-if="!stock.is_active" class="px-2 py-0.5 rounded text-xs bg-gray-700 text-gray-300">已停用</span>
+                  <span v-else-if="!stock.is_active" class="px-2 py-0.5 rounded text-xs bg-surface-hover text-fg-secondary">已停用</span>
                   <span v-else class="px-2 py-0.5 rounded text-xs bg-emerald-900 text-emerald-300">交易中</span>
                 </td>
                 <td class="px-3 py-2 text-center whitespace-nowrap">
-                  <button @click="openAdjustPriceModal(stock)" class="px-2 py-1 bg-amber-600 hover:bg-amber-500 rounded text-white text-xs mr-1">调价</button>
-                  <button v-if="!stock.is_trading_halted" @click="openHaltModal(stock)" class="px-2 py-1 bg-rose-700 hover:bg-rose-600 rounded text-white text-xs mr-1">暂停</button>
-                  <button v-else @click="openResumeModal(stock)" class="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-white text-xs mr-1">恢复</button>
-                  <button @click="openTriggerEventModal(stock)" class="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white text-xs">事件</button>
+                  <AppButton variant="primary" size="xs" @click="openAdjustPriceModal(stock)" class="mr-1">调价</AppButton>
+                  <AppButton variant="danger" size="xs" v-if="!stock.is_trading_halted" @click="openHaltModal(stock)" class="mr-1">暂停</AppButton>
+                  <AppButton variant="primary" size="xs" v-else @click="openResumeModal(stock)" class="mr-1">恢复</AppButton>
+                  <button @click="openTriggerEventModal(stock)" class="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded-control text-fg-primary text-xs">事件</button>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <!-- 分页 -->
-        <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between text-sm">
-          <div class="text-gray-400">共 {{ pagination.total }} 条记录</div>
+        <div class="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
+          <div class="text-fg-muted num">共 {{ pagination.total }} 条记录</div>
           <div class="flex items-center gap-2">
-            <button @click="fetchStocks(pagination.page - 1)" :disabled="pagination.page <= 1 || loading" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
-            <span class="text-gray-300">{{ pagination.page }} / {{ pagination.totalPages }}</span>
-            <button @click="fetchStocks(pagination.page + 1)" :disabled="pagination.page >= pagination.totalPages || loading" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
+            <AppButton variant="default" size="sm" :disabled="pagination.page <= 1 || loading" @click="fetchStocks(pagination.page - 1)">上一页</AppButton>
+            <span class="text-fg-secondary num">{{ pagination.page }} / {{ pagination.totalPages }}</span>
+            <AppButton variant="default" size="sm" :disabled="pagination.page >= pagination.totalPages || loading" @click="fetchStocks(pagination.page + 1)">
+              下一页
+            </AppButton>
           </div>
         </div>
       </div>
 
       <!-- 触发事件入口（全市场事件） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <h4 class="text-sm font-bold text-purple-400 mb-3">触发全市场事件</h4>
-        <p class="text-xs text-gray-500 mb-3">不指定股票时，事件将影响所有股票（如天劫降临、灵气复苏等）</p>
-        <button @click="openGlobalEventModal" class="px-4 py-1 bg-purple-700 hover:bg-purple-600 rounded text-white text-sm">触发全市场事件</button>
+        <p class="text-xs text-fg-faint mb-3">不指定股票时，事件将影响所有股票（如天劫降临、灵气复苏等）</p>
+        <button @click="openGlobalEventModal" class="px-4 py-1 bg-purple-700 hover:bg-purple-600 rounded-control text-fg-primary text-sm">触发全市场事件</button>
       </div>
     </div>
 
     <!-- ===================== 交易流水 Tab ===================== -->
     <div v-if="activeSubTab === 'transactions'">
       <!-- 筛选 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3 mb-3">
+      <div class="bg-surface-raised rounded-lg border border-line p-3 mb-3">
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2">
-            <label class="text-sm text-gray-400 whitespace-nowrap">玩家ID：</label>
-            <input v-model.number="txParams.player_id" type="number" min="1" placeholder="按玩家ID筛选" class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm w-32" @keyup.enter="fetchTransactions" />
+            <label class="text-sm text-fg-muted whitespace-nowrap">玩家ID：</label>
+            <input v-model.number="txParams.player_id" type="number" min="1" placeholder="按玩家ID筛选" class="px-3 py-1 text-sm w-32 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" @keyup.enter="fetchTransactions" />
           </div>
           <div class="flex items-center gap-2">
-            <label class="text-sm text-gray-400 whitespace-nowrap">股票ID：</label>
-            <input v-model.number="txParams.stock_id" type="number" min="1" placeholder="按股票ID筛选" class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm w-32" @keyup.enter="fetchTransactions" />
+            <label class="text-sm text-fg-muted whitespace-nowrap">股票ID：</label>
+            <input v-model.number="txParams.stock_id" type="number" min="1" placeholder="按股票ID筛选" class="px-3 py-1 text-sm w-32 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" @keyup.enter="fetchTransactions" />
           </div>
           <div class="flex items-center gap-2">
-            <label class="text-sm text-gray-400 whitespace-nowrap">类型：</label>
-            <select v-model="txParams.trade_type" class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm" @change="fetchTransactions">
+            <label class="text-sm text-fg-muted whitespace-nowrap">类型：</label>
+            <select v-model="txParams.trade_type" class="px-3 py-1 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" @change="fetchTransactions">
               <option value="">全部</option>
               <option value="buy">买入</option>
               <option value="sell">卖出</option>
             </select>
           </div>
-          <button @click="fetchTransactions" class="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-sm">查询</button>
-          <button @click="resetTxSearch" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">重置</button>
+          <button @click="fetchTransactions" class="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 rounded-control text-fg-primary text-sm">查询</button>
+          <AppButton variant="default" size="sm" @click="resetTxSearch">重置</AppButton>
         </div>
       </div>
 
       <!-- 流水表 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+      <div class="bg-surface-base rounded-lg border border-line overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-gray-900 text-gray-400">
+            <thead class="bg-surface-raised text-fg-muted">
               <tr>
                 <th class="px-3 py-2 text-left whitespace-nowrap">时间</th>
                 <th class="px-3 py-2 text-left whitespace-nowrap">玩家</th>
@@ -192,21 +194,21 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-if="txLoading" class="text-center text-gray-500">
+              <tr v-if="txLoading" class="text-center text-fg-faint">
                 <td colspan="9" class="px-3 py-6">加载中...</td>
               </tr>
-              <tr v-else-if="txList.length === 0" class="text-center text-gray-500">
+              <tr v-else-if="txList.length === 0" class="text-center text-fg-faint">
                 <td colspan="9" class="px-3 py-6">暂无数据</td>
               </tr>
-              <tr v-for="tx in txList" :key="tx.id" class="border-t border-gray-700 hover:bg-gray-750">
-                <td class="px-3 py-2 text-xs text-gray-400">{{ formatDate(tx.created_at) }}</td>
+              <tr v-for="tx in txList" :key="tx.id" class="border-t border-line-subtle hover:bg-surface-hover">
+                <td class="px-3 py-2 text-xs text-fg-muted num">{{ formatDate(tx.created_at) }}</td>
                 <td class="px-3 py-2">
-                  <div class="text-white">{{ tx.player_nickname }}</div>
-                  <div class="text-xs text-gray-500">ID: {{ tx.player_id }} · {{ tx.player_realm }}</div>
+                  <div class="text-fg-primary">{{ tx.player_nickname }}</div>
+                  <div class="text-xs text-fg-faint">ID: {{ tx.player_id }} · {{ tx.player_realm }}</div>
                 </td>
                 <td class="px-3 py-2">
                   <div class="text-cyan-300">{{ tx.stock_name }}</div>
-                  <div class="text-xs text-gray-500 font-mono">{{ tx.stock_code }}</div>
+                  <div class="text-xs text-fg-faint font-mono">{{ tx.stock_code }}</div>
                 </td>
                 <td class="px-3 py-2 text-center">
                   <span class="font-bold" :class="tx.trade_type === 'buy' ? 'text-emerald-400' : 'text-rose-400'">
@@ -214,22 +216,26 @@
                   </span>
                   <span v-if="tx.is_margin" class="text-[10px] text-amber-500 ml-1">融</span>
                 </td>
-                <td class="px-3 py-2 text-right text-gray-300">{{ tx.quantity }}</td>
-                <td class="px-3 py-2 text-right text-gray-300">{{ tx.price }}</td>
-                <td class="px-3 py-2 text-right text-cyan-400 font-bold">{{ tx.amount }}</td>
-                <td class="px-3 py-2 text-right text-rose-400">{{ tx.fee }}</td>
-                <td class="px-3 py-2 text-right text-rose-400">{{ tx.tax }}</td>
+                <td class="px-3 py-2 text-right text-fg-secondary num">{{ tx.quantity }}</td>
+                <td class="px-3 py-2 text-right text-fg-secondary num">{{ tx.price }}</td>
+                <td class="px-3 py-2 text-right text-cyan-400 font-bold num">{{ tx.amount }}</td>
+                <td class="px-3 py-2 text-right text-rose-400 num">{{ tx.fee }}</td>
+                <td class="px-3 py-2 text-right text-rose-400 num">{{ tx.tax }}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <!-- 分页 -->
-        <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between text-sm">
-          <div class="text-gray-400">共 {{ txPagination.total }} 条记录</div>
+        <div class="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
+          <div class="text-fg-muted num">共 {{ txPagination.total }} 条记录</div>
           <div class="flex items-center gap-2">
-            <button @click="fetchTransactions(txPagination.page - 1)" :disabled="txPagination.page <= 1 || txLoading" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
-            <span class="text-gray-300">{{ txPagination.page }} / {{ txPagination.totalPages }}</span>
-            <button @click="fetchTransactions(txPagination.page + 1)" :disabled="txPagination.page >= txPagination.totalPages || txLoading" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
+            <AppButton variant="default" size="sm" :disabled="txPagination.page <= 1 || txLoading" @click="fetchTransactions(txPagination.page - 1)">
+              上一页
+            </AppButton>
+            <span class="text-fg-secondary num">{{ txPagination.page }} / {{ txPagination.totalPages }}</span>
+            <AppButton variant="default" size="sm" :disabled="txPagination.page >= txPagination.totalPages || txLoading" @click="fetchTransactions(txPagination.page + 1)">
+              下一页
+            </AppButton>
           </div>
         </div>
       </div>
@@ -238,27 +244,27 @@
     <!-- ===================== 融资管理 Tab ===================== -->
     <div v-if="activeSubTab === 'margin'">
       <!-- 手动分红入口 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 mb-3">
+      <div class="bg-surface-raised rounded-lg border border-line p-4 mb-3">
         <h4 class="text-sm font-bold text-emerald-400 mb-3">手动触发分红</h4>
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2">
-            <label class="text-sm text-gray-400 whitespace-nowrap">股票ID：</label>
-            <input v-model.number="dividendForm.stock_id" type="number" min="1" placeholder="股票ID" class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm w-32" />
+            <label class="text-sm text-fg-muted whitespace-nowrap">股票ID：</label>
+            <input v-model.number="dividendForm.stock_id" type="number" min="1" placeholder="股票ID" class="px-3 py-1 text-sm w-32 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
           </div>
           <div class="flex items-center gap-2">
-            <label class="text-sm text-gray-400 whitespace-nowrap">原因：</label>
-            <input v-model="dividendForm.reason" type="text" placeholder="操作原因（选填）" class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm w-64" />
+            <label class="text-sm text-fg-muted whitespace-nowrap">原因：</label>
+            <input v-model="dividendForm.reason" type="text" placeholder="操作原因（选填）" class="px-3 py-1 text-sm w-64 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
           </div>
-          <button @click="openDividendConfirmModal" :disabled="operating" class="px-4 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed">触发分红</button>
+          <AppButton variant="primary" size="sm" :disabled="operating" @click="openDividendConfirmModal">触发分红</AppButton>
         </div>
-        <p class="text-xs text-gray-500 mt-2">将向该股票所有持仓玩家派发分红（金额由后端计算）</p>
+        <p class="text-xs text-fg-faint mt-2">将向该股票所有持仓玩家派发分红（金额由后端计算）</p>
       </div>
 
       <!-- 融资账户列表 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+      <div class="bg-surface-base rounded-lg border border-line overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-gray-900 text-gray-400">
+            <thead class="bg-surface-raised text-fg-muted">
               <tr>
                 <th class="px-3 py-2 text-left whitespace-nowrap">玩家</th>
                 <th class="px-3 py-2 text-right whitespace-nowrap">总资产</th>
@@ -269,20 +275,20 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-if="marginLoading" class="text-center text-gray-500">
+              <tr v-if="marginLoading" class="text-center text-fg-faint">
                 <td colspan="6" class="px-3 py-6">加载中...</td>
               </tr>
-              <tr v-else-if="marginList.length === 0" class="text-center text-gray-500">
+              <tr v-else-if="marginList.length === 0" class="text-center text-fg-faint">
                 <td colspan="6" class="px-3 py-6">暂无数据</td>
               </tr>
-              <tr v-for="acc in marginList" :key="acc.id" class="border-t border-gray-700 hover:bg-gray-750">
+              <tr v-for="acc in marginList" :key="acc.id" class="border-t border-line-subtle hover:bg-surface-hover">
                 <td class="px-3 py-2">
-                  <div class="text-white">{{ acc.player_nickname }}</div>
-                  <div class="text-xs text-gray-500">ID: {{ acc.player_id }} · {{ acc.player_realm }}</div>
+                  <div class="text-fg-primary">{{ acc.player_nickname }}</div>
+                  <div class="text-xs text-fg-faint">ID: {{ acc.player_id }} · {{ acc.player_realm }}</div>
                 </td>
-                <td class="px-3 py-2 text-right text-amber-400 font-bold">{{ acc.total_assets }}</td>
-                <td class="px-3 py-2 text-right text-rose-400">{{ acc.debt }}</td>
-                <td class="px-3 py-2 text-right">
+                <td class="px-3 py-2 text-right text-amber-400 font-bold num">{{ acc.total_assets }}</td>
+                <td class="px-3 py-2 text-right text-rose-400 num">{{ acc.debt }}</td>
+                <td class="px-3 py-2 text-right num">
                   <span class="font-bold" :class="(acc.margin_ratio || 0) < 0.3 ? 'text-rose-500' : ((acc.margin_ratio || 0) < 0.5 ? 'text-amber-400' : 'text-emerald-400')">
                     {{ ((acc.margin_ratio || 0) * 100).toFixed(2) }}%
                   </span>
@@ -293,19 +299,23 @@
                   <span v-else class="px-2 py-0.5 rounded text-xs bg-emerald-900 text-emerald-300">正常</span>
                 </td>
                 <td class="px-3 py-2 text-center whitespace-nowrap">
-                  <button @click="openForceLiquidateModal(acc)" class="px-2 py-1 bg-rose-700 hover:bg-rose-600 rounded text-white text-xs">强制平仓</button>
+                  <AppButton variant="danger" size="xs" @click="openForceLiquidateModal(acc)">强制平仓</AppButton>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <!-- 分页 -->
-        <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between text-sm">
-          <div class="text-gray-400">共 {{ marginPagination.total }} 条记录</div>
+        <div class="px-4 py-3 border-t border-line flex items-center justify-between text-sm">
+          <div class="text-fg-muted num">共 {{ marginPagination.total }} 条记录</div>
           <div class="flex items-center gap-2">
-            <button @click="fetchMarginList(marginPagination.page - 1)" :disabled="marginPagination.page <= 1 || marginLoading" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>
-            <span class="text-gray-300">{{ marginPagination.page }} / {{ marginPagination.totalPages }}</span>
-            <button @click="fetchMarginList(marginPagination.page + 1)" :disabled="marginPagination.page >= marginPagination.totalPages || marginLoading" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>
+            <AppButton variant="default" size="sm" :disabled="marginPagination.page <= 1 || marginLoading" @click="fetchMarginList(marginPagination.page - 1)">
+              上一页
+            </AppButton>
+            <span class="text-fg-secondary num">{{ marginPagination.page }} / {{ marginPagination.totalPages }}</span>
+            <AppButton variant="default" size="sm" :disabled="marginPagination.page >= marginPagination.totalPages || marginLoading" @click="fetchMarginList(marginPagination.page + 1)">
+              下一页
+            </AppButton>
           </div>
         </div>
       </div>
@@ -314,80 +324,80 @@
     <!-- ========== 调价弹窗 ========== -->
     <Modal :isOpen="adjustPriceModal.show" title="调整股价" width="480px" @close="adjustPriceModal.show = false">
       <div v-if="adjustPriceModal.stock" class="space-y-3 text-sm">
-        <div class="bg-gray-900 rounded p-3 border border-gray-700 space-y-2">
+        <div class="bg-surface-sunken rounded p-3 border border-line space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-gray-500">股票</span>
+            <span class="text-fg-faint">股票</span>
             <span class="text-cyan-300 font-bold">{{ adjustPriceModal.stock.name }} ({{ adjustPriceModal.stock.code }})</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-gray-500">当前价</span>
+            <span class="text-fg-faint">当前价</span>
             <span class="text-cyan-400 font-bold">{{ adjustPriceModal.stock.current_price }} 灵石</span>
           </div>
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">新价格（灵石）</label>
-          <input v-model.number="adjustPriceModal.new_price" type="number" min="1" placeholder="新价格" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white" />
+          <label class="block text-fg-muted mb-1">新价格（灵石）</label>
+          <input v-model.number="adjustPriceModal.new_price" type="number" min="1" placeholder="新价格" class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">操作原因（必填）</label>
-          <textarea v-model="adjustPriceModal.reason" rows="3" placeholder="请填写调价原因，将记录到审计日志" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white"></textarea>
+          <label class="block text-fg-muted mb-1">操作原因（必填）</label>
+          <textarea v-model="adjustPriceModal.reason" rows="3" placeholder="请填写调价原因，将记录到审计日志" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600"></textarea>
         </div>
         <p class="text-xs text-amber-400">提示：调价会立即生效，并触发涨跌幅重算与可能的熔断。</p>
       </div>
       <template #footer>
-        <button @click="adjustPriceModal.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">取消</button>
-        <button @click="confirmAdjustPrice" :disabled="operating" class="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+        <AppButton variant="default" @click="adjustPriceModal.show = false">取消</AppButton>
+        <AppButton variant="primary" :disabled="operating" @click="confirmAdjustPrice">
           {{ operating ? '执行中...' : '确认调价' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 暂停交易弹窗 ========== -->
     <Modal :isOpen="haltModal.show" title="暂停股票交易" width="480px" @close="haltModal.show = false">
       <div v-if="haltModal.stock" class="space-y-3 text-sm">
-        <div class="bg-gray-900 rounded p-3 border border-gray-700 space-y-2">
+        <div class="bg-surface-sunken rounded p-3 border border-line space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-gray-500">股票</span>
+            <span class="text-fg-faint">股票</span>
             <span class="text-cyan-300 font-bold">{{ haltModal.stock.name }} ({{ haltModal.stock.code }})</span>
           </div>
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">暂停时长（分钟）</label>
-          <input v-model.number="haltModal.duration_minutes" type="number" min="1" placeholder="如 60" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white" />
+          <label class="block text-fg-muted mb-1">暂停时长（分钟）</label>
+          <input v-model.number="haltModal.duration_minutes" type="number" min="1" placeholder="如 60" class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">操作原因（必填）</label>
-          <textarea v-model="haltModal.reason" rows="3" placeholder="请填写暂停原因，将记录到审计日志" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white"></textarea>
+          <label class="block text-fg-muted mb-1">操作原因（必填）</label>
+          <textarea v-model="haltModal.reason" rows="3" placeholder="请填写暂停原因，将记录到审计日志" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600"></textarea>
         </div>
       </div>
       <template #footer>
-        <button @click="haltModal.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">取消</button>
-        <button @click="confirmHalt" :disabled="operating" class="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+        <AppButton variant="default" @click="haltModal.show = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="operating" @click="confirmHalt">
           {{ operating ? '执行中...' : '确认暂停' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 恢复交易确认弹窗（替代浏览器 confirm） ========== -->
     <Modal :isOpen="resumeModal.show" title="恢复交易确认" width="420px" @close="resumeModal.show = false">
       <div v-if="resumeModal.stock" class="space-y-3 text-sm">
-        <p class="text-gray-300">确认恢复股票 <span class="text-cyan-300 font-bold">{{ resumeModal.stock.name }} ({{ resumeModal.stock.code }})</span> 的交易？</p>
+        <p class="text-fg-secondary">确认恢复股票 <span class="text-cyan-300 font-bold">{{ resumeModal.stock.name }} ({{ resumeModal.stock.code }})</span> 的交易？</p>
         <p class="text-xs text-emerald-400">恢复后该股票即可正常买卖。</p>
       </div>
       <template #footer>
-        <button @click="resumeModal.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">取消</button>
-        <button @click="confirmResumeStock" :disabled="operating" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+        <AppButton variant="default" @click="resumeModal.show = false">取消</AppButton>
+        <AppButton variant="primary" :disabled="operating" @click="confirmResumeStock">
           {{ operating ? '执行中...' : '确认恢复' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 触发事件弹窗（单股票或全市场） ========== -->
     <Modal :isOpen="eventModal.show" :title="eventModal.isGlobal ? '触发全市场事件' : '触发股价事件'" width="520px" @close="eventModal.show = false">
       <div class="space-y-3 text-sm">
-        <div v-if="eventModal.stock" class="bg-gray-900 rounded p-3 border border-gray-700">
+        <div v-if="eventModal.stock" class="bg-surface-sunken rounded p-3 border border-line">
           <div class="flex items-center justify-between">
-            <span class="text-gray-500">目标股票</span>
+            <span class="text-fg-faint">目标股票</span>
             <span class="text-cyan-300 font-bold">{{ eventModal.stock.name }} ({{ eventModal.stock.code }})</span>
           </div>
         </div>
@@ -395,8 +405,8 @@
           全市场事件：将影响所有股票
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">事件类型</label>
-          <select v-model="eventForm.event_type" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+          <label class="block text-fg-muted mb-1">事件类型</label>
+          <select v-model="eventForm.event_type" class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option value="positive">利好（positive）</option>
             <option value="negative">利空（negative）</option>
             <option value="volatility">波动（volatility）</option>
@@ -405,23 +415,23 @@
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-gray-400 mb-1">影响百分比（%）</label>
-            <input v-model.number="eventForm.impact_pct" type="number" step="0.01" placeholder="如 5 表示 +5%" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white" />
-            <p class="text-xs text-gray-500 mt-1">实际影响 = impact_pct / 100</p>
+            <label class="block text-fg-muted mb-1">影响百分比（%）</label>
+            <input v-model.number="eventForm.impact_pct" type="number" step="0.01" placeholder="如 5 表示 +5%" class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+            <p class="text-xs text-fg-faint mt-1">实际影响 = impact_pct / 100</p>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">持续时间（小时）</label>
-            <input v-model.number="eventForm.duration_hours" type="number" min="1" placeholder="如 24" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white" />
+            <label class="block text-fg-muted mb-1">持续时间（小时）</label>
+            <input v-model.number="eventForm.duration_hours" type="number" min="1" placeholder="如 24" class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
           </div>
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">事件描述</label>
-          <textarea v-model="eventForm.description" rows="3" placeholder="如：天劫降临，宗门股票全线下挫" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white"></textarea>
+          <label class="block text-fg-muted mb-1">事件描述</label>
+          <textarea v-model="eventForm.description" rows="3" placeholder="如：天劫降临，宗门股票全线下挫" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600"></textarea>
         </div>
       </div>
       <template #footer>
-        <button @click="eventModal.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">取消</button>
-        <button @click="confirmTriggerEvent" :disabled="operating" class="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+        <AppButton variant="default" @click="eventModal.show = false">取消</AppButton>
+        <button @click="confirmTriggerEvent" :disabled="operating" class="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-fg-primary rounded-control disabled:opacity-50 disabled:cursor-not-allowed">
           {{ operating ? '执行中...' : '触发事件' }}
         </button>
       </template>
@@ -431,48 +441,48 @@
     <Modal :isOpen="forceLiquidateModal.show" title="强制平仓确认" width="480px" @close="forceLiquidateModal.show = false">
       <div v-if="forceLiquidateModal.account" class="space-y-3 text-sm">
         <p class="text-rose-300 font-bold">⚠️ 警告：强制平仓将卖出玩家所有持仓偿还负债！</p>
-        <div class="bg-gray-900 rounded p-3 border border-gray-700 space-y-2">
+        <div class="bg-surface-sunken rounded p-3 border border-line space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-gray-500">玩家</span>
-            <span class="text-white">{{ forceLiquidateModal.account.player_nickname }} (ID: {{ forceLiquidateModal.account.player_id }})</span>
+            <span class="text-fg-faint">玩家</span>
+            <span class="text-fg-primary">{{ forceLiquidateModal.account.player_nickname }} (ID: {{ forceLiquidateModal.account.player_id }})</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-gray-500">总资产</span>
+            <span class="text-fg-faint">总资产</span>
             <span class="text-amber-400 font-bold">{{ forceLiquidateModal.account.total_assets }} 灵石</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-gray-500">负债</span>
+            <span class="text-fg-faint">负债</span>
             <span class="text-rose-400 font-bold">{{ forceLiquidateModal.account.debt }} 灵石</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-gray-500">保证金率</span>
+            <span class="text-fg-faint">保证金率</span>
             <span class="font-bold">{{ ((forceLiquidateModal.account.margin_ratio || 0) * 100).toFixed(2) }}%</span>
           </div>
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">操作原因（必填）</label>
-          <textarea v-model="forceLiquidateModal.reason" rows="3" placeholder="请填写强制平仓原因，将记录到审计日志" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white"></textarea>
+          <label class="block text-fg-muted mb-1">操作原因（必填）</label>
+          <textarea v-model="forceLiquidateModal.reason" rows="3" placeholder="请填写强制平仓原因，将记录到审计日志" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600"></textarea>
         </div>
       </div>
       <template #footer>
-        <button @click="forceLiquidateModal.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">取消</button>
-        <button @click="confirmForceLiquidate" :disabled="operating" class="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+        <AppButton variant="default" @click="forceLiquidateModal.show = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="operating" @click="confirmForceLiquidate">
           {{ operating ? '执行中...' : '确认平仓' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 分红确认弹窗 ========== -->
     <Modal :isOpen="dividendConfirmModal.show" title="确认触发分红" width="420px" @close="dividendConfirmModal.show = false">
       <div class="space-y-3 text-sm">
-        <p class="text-gray-300">确认对股票 ID {{ dividendForm.stock_id }} 触发分红？</p>
+        <p class="text-fg-secondary">确认对股票 ID {{ dividendForm.stock_id }} 触发分红？</p>
         <p class="text-xs text-amber-400">分红金额由后端根据持仓与分红率计算，将派发给所有持仓玩家。</p>
       </div>
       <template #footer>
-        <button @click="dividendConfirmModal.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">取消</button>
-        <button @click="confirmDistributeDividend" :disabled="operating" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed">
+        <AppButton variant="default" @click="dividendConfirmModal.show = false">取消</AppButton>
+        <AppButton variant="primary" :disabled="operating" @click="confirmDistributeDividend">
           {{ operating ? '执行中...' : '确认分红' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
   </div>
@@ -494,6 +504,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
+import AppButton from '../../ui/AppButton.vue'
 // 注意：resumeStock / haltStock 等API函数使用别名导入，避免与本地处理函数重名递归
 import {
   getMetrics,
@@ -638,7 +649,7 @@ const fetchMetrics = async () => {
     metrics.value = res.data?.data || res.data
   } catch (err) {
     console.error('[StockManagement] 获取指标失败:', err)
-    uiStore.showToast('获取指标失败', 'error')
+    uiStore.showApiError(err, '[StockManagement] 获取指标失败')
   }
 }
 
@@ -663,8 +674,7 @@ const fetchStocks = async (page = 1) => {
     pagination.totalPages = data.total_pages || 1
   } catch (err) {
     console.error('[StockManagement] 获取股票列表失败:', err)
-    const msg = err?.response?.data?.message || '获取股票列表失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '获取股票列表失败')
   } finally {
     loading.value = false
   }
@@ -693,8 +703,7 @@ const fetchTransactions = async (page = 1) => {
     txPagination.totalPages = data.total_pages || 1
   } catch (err) {
     console.error('[StockManagement] 获取流水失败:', err)
-    const msg = err?.response?.data?.message || '获取流水失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '获取流水失败')
   } finally {
     txLoading.value = false
   }
@@ -726,8 +735,7 @@ const fetchMarginList = async (page = 1) => {
     marginPagination.totalPages = data.total_pages || 1
   } catch (err) {
     console.error('[StockManagement] 获取融资账户失败:', err)
-    const msg = err?.response?.data?.message || '获取融资账户失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '获取融资账户失败')
   } finally {
     marginLoading.value = false
   }
@@ -772,8 +780,7 @@ const confirmAdjustPrice = async () => {
     await Promise.all([fetchStocks(pagination.page), fetchMetrics()])
   } catch (err) {
     console.error('[StockManagement] 调价失败:', err)
-    const msg = err?.response?.data?.message || '调价失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '调价失败')
   } finally {
     operating.value = false
   }
@@ -818,8 +825,7 @@ const confirmHalt = async () => {
     await fetchStocks(pagination.page)
   } catch (err) {
     console.error('[StockManagement] 暂停失败:', err)
-    const msg = err?.response?.data?.message || '暂停失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '暂停失败')
   } finally {
     operating.value = false
   }
@@ -853,8 +859,7 @@ const confirmResumeStock = async () => {
     await fetchStocks(pagination.page)
   } catch (err) {
     console.error('[StockManagement] 恢复失败:', err)
-    const msg = err?.response?.data?.message || '恢复失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '恢复失败')
   } finally {
     operating.value = false
   }
@@ -927,8 +932,7 @@ const confirmTriggerEvent = async () => {
     await fetchMetrics()
   } catch (err) {
     console.error('[StockManagement] 触发事件失败:', err)
-    const msg = err?.response?.data?.message || '触发事件失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '触发事件失败')
   } finally {
     operating.value = false
   }
@@ -968,8 +972,7 @@ const confirmForceLiquidate = async () => {
     await Promise.all([fetchMarginList(marginPagination.page), fetchMetrics()])
   } catch (err) {
     console.error('[StockManagement] 强制平仓失败:', err)
-    const msg = err?.response?.data?.message || '强制平仓失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '强制平仓失败')
   } finally {
     operating.value = false
   }
@@ -1004,8 +1007,7 @@ const confirmDistributeDividend = async () => {
     await fetchMetrics()
   } catch (err) {
     console.error('[StockManagement] 触发分红失败:', err)
-    const msg = err?.response?.data?.message || '触发分红失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '触发分红失败')
   } finally {
     operating.value = false
   }
@@ -1020,7 +1022,7 @@ const confirmDistributeDividend = async () => {
 const changeColorClass = (pct) => {
   if (pct > 0) return 'text-emerald-400'
   if (pct < 0) return 'text-rose-400'
-  return 'text-gray-400'
+  return 'text-fg-muted'
 }
 
 /**

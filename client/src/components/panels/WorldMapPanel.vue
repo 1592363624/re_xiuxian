@@ -16,7 +16,7 @@ import { socketService } from '../../services/socket'
 import { getWorldState, moveWorld, getWorldPlayers } from '../../api/world'
 import { getMapConfig } from '../../api/map'
 import { getGameBalancePublic } from '../../api/config'
-import { buildMapTypeNameMap } from '../../utils/mapStyles'
+import { buildMapTypeNameMap, getMapTypeColor, themeColor, MAP_CANVAS_ACCENT } from '../../utils/mapStyles'
 
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
@@ -42,6 +42,12 @@ const worldBounds = reactive({ minX: -340, maxX: 340, minY: -190, maxY: 190 })
 const players = ref([])
 const selfEntity = reactive({ id: null, x: 0, y: 0, targetX: 0, targetY: 0, name: '', realm: '', visible: false })
 
+// canvas 的 font 只吃字体串，不能写 Tailwind 类；从令牌里读，保证和 DOM 用同一套字
+const CANVAS_FONT = (name, fallback) =>
+  (getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback).split(',')[0].replace(/^[\s'"]+|[\s'"]+$/g, '')
+const CANVAS_SERIF = `${CANVAS_FONT('--font-display', 'serif')}, serif`
+const CANVAS_UI = `${CANVAS_FONT('--font-ui', 'sans-serif')}, sans-serif`
+
 const MOVE_THROTTLE_MS = 350
 const INTERP_SPEED = 5
 let lastMoveAt = 0
@@ -49,15 +55,7 @@ let rafId = null
 let dragState = null
 let canvasSize = { w: 0, h: 0 }
 
-// ===== 地图节点样式 =====
-const typeColors = {
-  country: '#34d399',
-  sect: '#38bdf8',
-  mountain: '#fbbf24',
-  ocean: '#22d3ee',
-  talent: '#c084fc',
-  world: '#fb7185'
-}
+// ===== 地图节点样式：色板与 DOM 侧同源，见 utils/mapStyles =====
 const typeNames = computed(() => mapTypeNameMap.value)
 
 // ===== 数据加载 =====
@@ -183,8 +181,7 @@ const tryMove = async (worldX, worldY) => {
       playerStore.worldState = worldState.value
     }
   } catch (error) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '移动失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '移动失败')
   } finally {
     moving.value = false
   }
@@ -270,7 +267,7 @@ const draw = () => {
   ctx.clearRect(0, 0, w, h)
 
   // 背景
-  ctx.fillStyle = '#0c0a09'
+  ctx.fillStyle = themeColor('surface-canvas')
   ctx.fillRect(0, 0, w, h)
 
   // 网格（随缩放调整密度）
@@ -338,7 +335,7 @@ const draw = () => {
   // 地图节点
   for (const m of maps.value) {
     const { sx, sy } = worldToScreen(m.x || 0, m.y || 0)
-    const color = typeColors[m.type] || '#a8a29e'
+    const color = getMapTypeColor(m.type)
     const isCurrent = worldState.value && Number(m.id) === Number(worldState.value.map_id)
     const radius = (isCurrent ? 7 : 5.5)
 
@@ -352,8 +349,8 @@ const draw = () => {
     ctx.fill()
 
     // 节点主体
-    ctx.fillStyle = m.can_enter ? color : '#57534e'
-    ctx.strokeStyle = m.can_enter ? color : '#44403c'
+    ctx.fillStyle = m.can_enter ? color : themeColor('line-strong')
+    ctx.strokeStyle = m.can_enter ? color : themeColor('line')
     ctx.lineWidth = 1.5
     ctx.beginPath()
     ctx.arc(sx, sy, radius, 0, Math.PI * 2)
@@ -362,7 +359,7 @@ const draw = () => {
 
     // 当前地图高亮圈
     if (isCurrent) {
-      ctx.strokeStyle = '#fbbf24'
+      ctx.strokeStyle = MAP_CANVAS_ACCENT.self
       ctx.lineWidth = 1.5
       ctx.setLineDash([3, 3])
       ctx.beginPath()
@@ -373,15 +370,15 @@ const draw = () => {
 
     // 节点名称
     if (view.scale > 0.35) {
-      ctx.font = `${Math.max(9, 11 / Math.sqrt(view.scale))}px "Noto Serif SC", serif`
-      ctx.fillStyle = m.can_enter ? '#d6d3d1' : '#78716c'
+      ctx.font = `${Math.max(9, 11 / Math.sqrt(view.scale))}px ${CANVAS_SERIF}`
+      ctx.fillStyle = m.can_enter ? themeColor('fg-secondary') : themeColor('fg-faint')
       ctx.textAlign = 'center'
       ctx.textBaseline = 'top'
       const label = m.can_enter ? m.name : `${m.name}(未达境界)`
       ctx.fillText(label, sx, sy + radius + 4)
       if (view.scale > 0.8) {
-        ctx.font = `${8 / Math.sqrt(view.scale)}px sans-serif`
-        ctx.fillStyle = '#78716c'
+        ctx.font = `${8 / Math.sqrt(view.scale)}px ${CANVAS_UI}`
+        ctx.fillStyle = themeColor('fg-faint')
         const tname = (typeNames.value[m.type] && typeNames.value[m.type].name) || m.type
         ctx.fillText(tname, sx, sy + radius + 16)
       }
@@ -393,15 +390,15 @@ const draw = () => {
     const { sx, sy } = worldToScreen(p.x, p.y)
     const isHover = hoveringPlayer.value && hoveringPlayer.value.id === p.id
     const isSelected = selectedPlayer.value && selectedPlayer.value.id === p.id
-    ctx.fillStyle = isHover || isSelected ? '#7dd3fc' : '#38bdf8'
-    ctx.strokeStyle = '#0ea5e9'
+    ctx.fillStyle = isHover || isSelected ? MAP_CANVAS_ACCENT.playerActive : MAP_CANVAS_ACCENT.player
+    ctx.strokeStyle = MAP_CANVAS_ACCENT.playerRing
     ctx.lineWidth = 1.5
     ctx.beginPath()
     ctx.arc(sx, sy, 5, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
-    ctx.font = '10px sans-serif'
-    ctx.fillStyle = isHover || isSelected ? '#e0f2fe' : '#a8a29e'
+    ctx.font = `10px ${CANVAS_UI}`
+    ctx.fillStyle = isHover || isSelected ? MAP_CANVAS_ACCENT.playerNameActive : themeColor('fg-muted')
     ctx.textAlign = 'center'
     ctx.textBaseline = 'bottom'
     ctx.fillText(p.name, sx, sy - 6)
@@ -423,15 +420,15 @@ const draw = () => {
     ctx.beginPath()
     ctx.arc(sx, sy, 18, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = '#fbbf24'
-    ctx.strokeStyle = '#f59e0b'
+    ctx.fillStyle = MAP_CANVAS_ACCENT.self
+    ctx.strokeStyle = MAP_CANVAS_ACCENT.selfRing
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.arc(sx, sy, 6, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
-    ctx.font = 'bold 11px "Noto Serif SC", serif'
-    ctx.fillStyle = '#fbbf24'
+    ctx.font = `bold 11px ${CANVAS_SERIF}`
+    ctx.fillStyle = MAP_CANVAS_ACCENT.self
     ctx.textAlign = 'center'
     ctx.textBaseline = 'bottom'
     ctx.fillText(`${selfEntity.name}(我)`, sx, sy - 8)
@@ -578,26 +575,26 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative w-full h-full bg-[#0c0a09] overflow-hidden flex flex-col">
+  <div class="relative w-full h-full bg-surface-canvas overflow-hidden flex flex-col">
     <!-- 顶栏：玩家状态 + 图例 -->
-    <div class="flex items-center justify-between px-4 py-2 border-b border-stone-800 bg-[#141210] shrink-0 gap-2">
-      <div class="flex items-center gap-2 text-xs text-stone-400 min-w-0">
+    <div class="flex items-center justify-between px-4 py-2 border-b border-line-subtle bg-surface-base shrink-0 gap-2">
+      <div class="flex items-center gap-2 text-xs text-fg-muted min-w-0">
         <span class="text-amber-500 font-bold shrink-0">大世界</span>
         <template v-if="worldState">
-          <span class="bg-stone-800 border border-stone-700 rounded px-2 py-0.5 text-stone-300 truncate">
+          <span class="bg-surface-hover border border-line rounded px-2 py-0.5 text-fg-secondary truncate">
             📍 {{ worldState.map_name }}
           </span>
-          <span class="hidden sm:inline text-stone-500">
+          <span class="hidden sm:inline text-fg-faint">
             ({{ worldState.pos_x }}, {{ worldState.pos_y }})
           </span>
           <span class="text-sky-400 hidden md:inline">● {{ players.length }} 名道友同在</span>
         </template>
-        <span v-else class="text-stone-500">加载中...</span>
+        <span v-else class="text-fg-faint">加载中...</span>
       </div>
-      <div class="flex items-center gap-3 text-[10px] text-stone-500 shrink-0">
-        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#fbbf24] inline-block"></span>自己</span>
-        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#38bdf8] inline-block"></span>道友</span>
-        <span class="hidden sm:inline text-stone-600">滚轮缩放 · 拖拽平移 · 点击移动</span>
+      <div class="flex items-center gap-3 text-[10px] text-fg-faint shrink-0">
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gold-400 inline-block"></span>自己</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400 inline-block"></span>道友</span>
+        <span class="hidden sm:inline text-fg-faint">滚轮缩放 · 拖拽平移 · 点击移动</span>
       </div>
     </div>
 
@@ -616,37 +613,37 @@ onUnmounted(() => {
       ></canvas>
 
       <!-- 加载遮罩 -->
-      <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-[#0c0a09]/80">
+      <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-surface-canvas/80">
         <div class="flex flex-col items-center gap-3">
           <svg class="animate-spin h-8 w-8 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <span class="text-stone-400 text-sm">观星定位中...</span>
+          <span class="text-fg-muted text-sm">观星定位中...</span>
         </div>
       </div>
 
       <!-- 选中玩家信息卡 -->
       <div v-if="selectedPlayer && !loading"
-           class="absolute bottom-3 left-3 bg-[#1c1917]/95 border border-sky-800/50 rounded-lg px-4 py-3 shadow-xl backdrop-blur animate-fade-in">
+           class="absolute bottom-3 left-3 bg-surface-raised/95 border border-sky-800/50 rounded-lg px-4 py-3 shadow-xl backdrop-blur animate-fade-in">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-full bg-sky-900/40 border border-sky-700/50 flex items-center justify-center text-sky-300 text-xs font-bold">
             {{ (selectedPlayer.name || '?').slice(0, 1) }}
           </div>
           <div>
-            <div class="text-stone-200 font-bold text-sm">{{ selectedPlayer.name }}</div>
+            <div class="text-fg-primary font-bold text-sm">{{ selectedPlayer.name }}</div>
             <div class="text-xs text-sky-400">{{ selectedPlayer.realm || '未知境界' }}</div>
             <div v-if="selectedPlayer.sect_name" class="text-[10px] text-amber-600">宗门：{{ selectedPlayer.sect_name }}</div>
           </div>
-          <button @click="selectedPlayer = null" class="ml-2 text-stone-600 hover:text-stone-300 px-1">
+          <button @click="selectedPlayer = null" class="ml-2 text-fg-faint hover:text-fg-secondary px-1">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <div class="text-[10px] text-stone-500 mt-1.5">后续版本将支持切磋/拜访等交互</div>
+        <div class="text-[10px] text-fg-faint mt-1.5">后续版本将支持切磋/拜访等交互</div>
       </div>
 
       <!-- 底部操作提示 -->
-      <div class="absolute bottom-2 right-3 text-[10px] text-stone-600 pointer-events-none">
+      <div class="absolute bottom-2 right-3 text-[10px] text-fg-faint pointer-events-none">
         当前位置（{{ worldState ? Math.round(worldState.pos_x * 10) / 10 : '-' }}, {{ worldState ? Math.round(worldState.pos_y * 10) / 10 : '-' }}）
       </div>
     </div>

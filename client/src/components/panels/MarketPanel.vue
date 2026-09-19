@@ -6,8 +6,8 @@
  * 万宝楼为换物系统：卖家上架物品 A，标价换取物品 B，买家用 B 换走 A。
  *
  * 设计说明：
- *   - 全屏遮罩 + 居中弹窗布局，点击遮罩或关闭按钮 emit('close')
- *   - 顶部 Tab 切换：万宝楼（浏览挂单）/ 我的货摊（管理个人挂单）
+ *   - 外壳统一走 ui/PanelShell（遮罩 / 关闭 / 右坞停靠），点击遮罩或关闭按钮 emit('close')
+ *   - Tab 切换走 ui/Tabs：万宝楼（浏览挂单）/ 我的货摊（管理个人挂单）
  *   - 所有确认操作（购买/下架/上架）均使用自定义 Modal 组件，禁用浏览器原生弹窗
  *   - 业务逻辑全部通过 API 调用后端，前端只做展示与交互
  */
@@ -24,14 +24,24 @@ import {
 } from '../../api/market'
 import { getGameBalancePublic } from '../../api/config'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import Badge from '../ui/Badge.vue'
+import AppButton from '../ui/AppButton.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import LoadingBlock from '../ui/LoadingBlock.vue'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 
 /* ===================== 视图与列表状态 ===================== */
 
-// 当前激活的 Tab：market=万宝楼，mine=我的货摊
+// 当前激活的 Tab：market=万宝楼，mine=我的货摊（key/label 契约见 ui/Tabs.vue）
 const activeTab = ref('market')
+const tabItems = [
+  { key: 'market', label: '万宝楼' },
+  { key: 'mine', label: '我的货摊' }
+]
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -140,7 +150,7 @@ const fetchListings = async () => {
     marketTotalPages.value = data.total_pages || 0
   } catch (error) {
     console.error('获取坊市挂单失败:', error)
-    uiStore.showToast('获取坊市挂单失败', 'error')
+    uiStore.showApiError(error, '获取坊市挂单失败')
   } finally {
     loading.value = false
   }
@@ -159,7 +169,7 @@ const fetchMyListings = async () => {
     mineTotalPages.value = data.total_pages || 0
   } catch (error) {
     console.error('获取我的货摊失败:', error)
-    uiStore.showToast('获取我的货摊失败', 'error')
+    uiStore.showApiError(error, '获取我的货摊失败')
   } finally {
     loading.value = false
   }
@@ -258,8 +268,7 @@ const confirmBuy = async () => {
     // 刷新万宝楼列表
     await fetchListings()
   } catch (error) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '换物失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '换物失败')
   } finally {
     submitting.value = false
   }
@@ -288,8 +297,7 @@ const confirmCancel = async () => {
     // 刷新我的货摊列表
     await fetchMyListings()
   } catch (error) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '下架失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '下架失败')
   } finally {
     submitting.value = false
   }
@@ -314,7 +322,7 @@ const openCreateModal = async () => {
     allItems.value = itemsRes.data.data?.items || []
   } catch (error) {
     console.error('获取背包/物品配置失败:', error)
-    uiStore.showToast('获取背包信息失败', 'error')
+    uiStore.showApiError(error, '获取背包/物品配置失败')
     createModal.value.show = false
   } finally {
     createModal.value.loading = false
@@ -370,8 +378,7 @@ const confirmCreate = async () => {
     minePage.value = 1
     await fetchMyListings()
   } catch (error) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '上架失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '上架失败')
   } finally {
     submitting.value = false
   }
@@ -400,14 +407,14 @@ const statusLabel = (status) => {
 }
 
 /**
- * 挂单状态标签样式类（active绿/sold灰/cancelled红）
+ * 挂单状态标签色（active绿/sold灰/cancelled红），取值契约见 ui/Badge.vue
  */
-const statusClass = (status) => {
+const statusTone = (status) => {
   switch (status) {
-    case 'active': return 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50'
-    case 'sold': return 'bg-stone-800 text-stone-400 border-stone-700'
-    case 'cancelled': return 'bg-red-900/40 text-red-300 border-red-700/50'
-    default: return 'bg-stone-800 text-stone-400 border-stone-700'
+    case 'active': return 'success'
+    case 'sold': return 'muted'
+    case 'cancelled': return 'danger'
+    default: return 'neutral'
   }
 }
 
@@ -439,52 +446,20 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-
-    <!-- 弹窗主体 -->
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      <!-- 头部 -->
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
-        <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M9 22V12h6v10"/><path d="M2 9h20"/></svg>
-          万宝楼
-        </h2>
-        <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-
-      <!-- Tab 切换 -->
-      <div class="flex border-b border-stone-800 bg-[#1c1917]">
-        <button
-          @click="switchTab('market')"
-          class="flex-1 px-4 py-3 text-sm font-bold transition-colors relative"
-          :class="activeTab === 'market' ? 'text-amber-500' : 'text-stone-500 hover:text-stone-300'"
-        >
-          万宝楼
-          <span v-if="activeTab === 'market'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500"></span>
-        </button>
-        <button
-          @click="switchTab('mine')"
-          class="flex-1 px-4 py-3 text-sm font-bold transition-colors relative"
-          :class="activeTab === 'mine' ? 'text-amber-500' : 'text-stone-500 hover:text-stone-300'"
-        >
-          我的货摊
-          <span v-if="activeTab === 'mine'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500"></span>
-        </button>
-      </div>
+  <PanelShell
+    title="万宝楼"
+    hint="挂单 · 换物 · 货摊"
+    size="xl"
+    scoped-scroll
+    @close="emit('close')"
+  >
+    <div class="h-full flex flex-col min-h-0">
+      <!-- Tab 切换：切换时仍由 switchTab 拉取对应列表 -->
+      <Tabs :model-value="activeTab" :items="tabItems" class="shrink-0" @update:model-value="switchTab" />
 
       <!-- 内容区 -->
-      <div class="flex-1 overflow-y-auto p-4">
-        <!-- 加载中 -->
-        <div v-if="loading" class="flex justify-center items-center h-64">
-          <svg class="animate-spin h-10 w-10 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
+      <div class="flex-1 min-h-0 overflow-y-auto p-4">
+        <LoadingBlock v-if="loading" />
 
         <template v-else>
           <!-- ========== 万宝楼视图 ========== -->
@@ -496,82 +471,70 @@ onMounted(() => {
                   v-model="searchKeyword"
                   type="text"
                   placeholder="按物品名称搜索（出售或换取物品）"
-                  class="w-full bg-[#0c0a09] border border-stone-700 rounded px-3 py-2 pl-9 text-sm text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600"
+                  class="w-full bg-surface-canvas border border-line rounded-control px-3 py-2 pl-9 text-sm text-fg-primary placeholder-fg-faint focus:outline-none focus:border-gold-700"
                   @keyup.enter="handleSearch"
                 />
-                <svg class="absolute left-2.5 top-2.5 w-4 h-4 text-stone-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <svg class="absolute left-2.5 top-2.5 w-4 h-4 text-fg-faint" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               </div>
               <select
                 v-model="filterType"
                 @change="handleTypeChange"
                 :disabled="!!searchKeyword.trim()"
-                class="bg-[#0c0a09] border border-stone-700 rounded px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-600 disabled:opacity-50"
+                class="bg-surface-canvas border border-line rounded-control px-3 py-2 text-sm text-fg-primary focus:outline-none focus:border-gold-700 disabled:opacity-50"
               >
                 <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
-              <button
-                @click="handleSearch"
-                class="px-4 py-2 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors text-sm"
-              >
-                搜索
-              </button>
-              <button
-                v-if="searchKeyword.trim()"
-                @click="clearSearch"
-                class="px-3 py-2 rounded bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-200 transition-colors text-sm"
-              >
-                清除
-              </button>
+              <AppButton variant="primary" @click="handleSearch">搜索</AppButton>
+              <AppButton v-if="searchKeyword.trim()" variant="default" @click="clearSearch">清除</AppButton>
             </div>
 
             <!-- 搜索模式提示 -->
-            <div v-if="searchKeyword.trim()" class="mb-3 text-xs text-stone-500">
+            <div v-if="searchKeyword.trim()" class="mb-3 text-xs text-fg-faint">
               搜索模式：匹配「{{ searchKeyword }}」，物品类型筛选已禁用
             </div>
 
             <!-- 空状态 -->
-            <div v-if="listings.length === 0" class="flex flex-col items-center justify-center h-48 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50"><path d="M3 9l1-5h16l1 5"/><path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/></svg>
-              <p>坊市暂无挂单</p>
-            </div>
+            <EmptyState
+              v-if="listings.length === 0"
+              text="坊市暂无挂单"
+              hint="换个关键词或物品类型再筛一次，也可以去「我的货摊」上架第一件"
+            />
 
             <!-- 挂单列表 -->
             <div v-else class="space-y-3">
               <div
                 v-for="listing in listings"
                 :key="listing.id"
-                class="bg-[#1c1917] border border-stone-800 rounded-lg p-4 hover:border-stone-700 transition-colors"
+                class="bg-surface-raised border border-line-subtle rounded-panel p-4 hover:border-line transition-colors"
               >
                 <div class="flex items-start justify-between gap-3">
                   <!-- 出售物品信息 -->
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1">
-                      <span class="text-base font-bold text-amber-300">{{ listing.item_name }}</span>
-                      <span class="text-xs px-2 py-0.5 rounded bg-amber-900/30 border border-amber-700/40 text-amber-400">出售</span>
-                      <span class="text-xs text-stone-500">x{{ listing.quantity }}</span>
+                      <span class="text-base font-bold text-gold-300">{{ listing.item_name }}</span>
+                      <Badge tone="gold">出售</Badge>
+                      <span class="text-xs text-fg-faint">x{{ listing.quantity }}</span>
                     </div>
                     <!-- 换取物品 -->
                     <div class="flex items-center gap-2 text-sm">
-                      <svg class="w-3.5 h-3.5 text-stone-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                      <svg class="w-3.5 h-3.5 text-fg-faint" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                       <span class="text-cyan-300">{{ listing.want_item_name }}</span>
-                      <span class="text-xs text-stone-500">x{{ listing.want_quantity }}</span>
+                      <span class="text-xs text-fg-faint">x{{ listing.want_quantity }}</span>
                     </div>
                     <!-- 卖家与时间 -->
-                    <div class="text-xs text-stone-600 mt-2 flex items-center gap-3">
+                    <div class="text-xs text-fg-faint mt-2 flex items-center gap-3">
                       <span>卖家 #{{ listing.seller_id }}</span>
                       <span>挂单时间 {{ formatTime(listing.createdAt) }}</span>
                     </div>
                   </div>
                   <!-- 操作区 -->
                   <div class="flex flex-col items-end gap-2">
-                    <span class="text-xs px-2 py-0.5 rounded border" :class="statusClass(listing.status)">
-                      {{ statusLabel(listing.status) }}
-                    </span>
+                    <Badge :tone="statusTone(listing.status)">{{ statusLabel(listing.status) }}</Badge>
                     <button
                       v-if="listing.status === 'active'"
                       @click="openBuyModal(listing)"
                       :disabled="submitting"
-                      class="px-4 py-1.5 rounded bg-emerald-900/30 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
+                      class="px-4 py-1.5 rounded-control bg-emerald-900/30 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 hover:text-emerald-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
                     >
                       换物
                     </button>
@@ -581,23 +544,15 @@ onMounted(() => {
 
               <!-- 分页 -->
               <div class="flex items-center justify-between pt-2">
-                <span class="text-xs text-stone-600">共 {{ marketTotal }} 条</span>
+                <span class="text-xs text-fg-faint">共 {{ marketTotal }} 条</span>
                 <div class="flex items-center gap-2">
-                  <button
-                    @click="changeMarketPage(-1)"
-                    :disabled="marketPage <= 1"
-                    class="px-3 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                  >
+                  <AppButton size="sm" variant="default" :disabled="marketPage <= 1" @click="changeMarketPage(-1)">
                     上一页
-                  </button>
-                  <span class="text-xs text-stone-400">{{ marketPage }} / {{ marketTotalPages }}</span>
-                  <button
-                    @click="changeMarketPage(1)"
-                    :disabled="marketPage >= marketTotalPages"
-                    class="px-3 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                  >
+                  </AppButton>
+                  <span class="text-xs text-fg-muted num">{{ marketPage }} / {{ marketTotalPages }}</span>
+                  <AppButton size="sm" variant="default" :disabled="marketPage >= marketTotalPages" @click="changeMarketPage(1)">
                     下一页
-                  </button>
+                  </AppButton>
                 </div>
               </div>
             </div>
@@ -607,82 +562,73 @@ onMounted(() => {
           <div v-else>
             <!-- 顶部操作栏 -->
             <div class="flex items-center justify-between mb-4">
-              <div class="text-sm text-stone-500">管理你的坊市挂单</div>
-              <button
-                @click="openCreateModal"
-                class="px-4 py-2 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors text-sm flex items-center gap-1.5"
-              >
-                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <div class="text-sm text-fg-faint">管理你的坊市挂单</div>
+              <AppButton variant="primary" @click="openCreateModal">
+                <template #icon>
+                  <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </template>
                 上架物品
-              </button>
+              </AppButton>
             </div>
 
             <!-- 空状态 -->
-            <div v-if="myListings.length === 0" class="flex flex-col items-center justify-center h-48 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50"><path d="M3 9l1-5h16l1 5"/><path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/></svg>
-              <p>你的货摊空空如也，点击「上架物品」摆摊吧</p>
-            </div>
+            <EmptyState
+              v-if="myListings.length === 0"
+              text="你的货摊空空如也"
+              hint="点击「上架物品」摆出第一件，换回真正需要的东西"
+            />
 
             <!-- 我的挂单列表 -->
             <div v-else class="space-y-3">
               <div
                 v-for="listing in myListings"
                 :key="listing.id"
-                class="bg-[#1c1917] border border-stone-800 rounded-lg p-4"
+                class="bg-surface-raised border border-line-subtle rounded-panel p-4"
               >
                 <div class="flex items-start justify-between gap-3">
                   <!-- 物品信息 -->
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1">
-                      <span class="text-base font-bold text-amber-300">{{ listing.item_name }}</span>
-                      <span class="text-xs text-stone-500">x{{ listing.quantity }}</span>
+                      <span class="text-base font-bold text-gold-300">{{ listing.item_name }}</span>
+                      <span class="text-xs text-fg-faint">x{{ listing.quantity }}</span>
                     </div>
                     <div class="flex items-center gap-2 text-sm">
-                      <span class="text-xs text-stone-600">换取</span>
+                      <span class="text-xs text-fg-faint">换取</span>
                       <span class="text-cyan-300">{{ listing.want_item_name }}</span>
-                      <span class="text-xs text-stone-500">x{{ listing.want_quantity }}</span>
+                      <span class="text-xs text-fg-faint">x{{ listing.want_quantity }}</span>
                     </div>
-                    <div class="text-xs text-stone-600 mt-2 flex items-center gap-3">
+                    <div class="text-xs text-fg-faint mt-2 flex items-center gap-3">
                       <span v-if="listing.status === 'sold'">买家 #{{ listing.buyer_id }}</span>
                       <span>{{ listing.status === 'sold' ? '成交' : '挂单' }}时间 {{ formatTime(listing.status === 'sold' ? listing.sold_at : listing.createdAt) }}</span>
                     </div>
                   </div>
                   <!-- 操作区 -->
                   <div class="flex flex-col items-end gap-2">
-                    <span class="text-xs px-2 py-0.5 rounded border" :class="statusClass(listing.status)">
-                      {{ statusLabel(listing.status) }}
-                    </span>
-                    <button
+                    <Badge :tone="statusTone(listing.status)">{{ statusLabel(listing.status) }}</Badge>
+                    <AppButton
                       v-if="listing.status === 'active'"
-                      @click="openCancelModal(listing)"
+                      size="sm"
+                      variant="danger"
                       :disabled="submitting"
-                      class="px-4 py-1.5 rounded bg-red-900/30 border border-red-700/50 text-red-400 hover:bg-red-800/50 hover:text-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
+                      @click="openCancelModal(listing)"
                     >
                       下架
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
               </div>
 
               <!-- 分页 -->
               <div class="flex items-center justify-between pt-2">
-                <span class="text-xs text-stone-600">共 {{ mineTotal }} 条</span>
+                <span class="text-xs text-fg-faint">共 {{ mineTotal }} 条</span>
                 <div class="flex items-center gap-2">
-                  <button
-                    @click="changeMinePage(-1)"
-                    :disabled="minePage <= 1"
-                    class="px-3 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                  >
+                  <AppButton size="sm" variant="default" :disabled="minePage <= 1" @click="changeMinePage(-1)">
                     上一页
-                  </button>
-                  <span class="text-xs text-stone-400">{{ minePage }} / {{ mineTotalPages }}</span>
-                  <button
-                    @click="changeMinePage(1)"
-                    :disabled="minePage >= mineTotalPages"
-                    class="px-3 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                  >
+                  </AppButton>
+                  <span class="text-xs text-fg-muted num">{{ minePage }} / {{ mineTotalPages }}</span>
+                  <AppButton size="sm" variant="default" :disabled="minePage >= mineTotalPages" @click="changeMinePage(1)">
                     下一页
-                  </button>
+                  </AppButton>
                 </div>
               </div>
             </div>
@@ -694,109 +640,84 @@ onMounted(() => {
     <!-- ========== 购买确认弹窗 ========== -->
     <Modal :isOpen="buyModal.show" title="确认换物" width="480px" @close="buyModal.show = false">
       <div v-if="buyModal.listing" class="space-y-3">
-        <p class="text-sm text-stone-300">即将与卖家完成换物交易：</p>
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2">
+        <p class="text-sm text-fg-secondary">即将与卖家完成换物交易：</p>
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2">
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">你将付出</span>
+            <span class="text-fg-faint">你将付出</span>
             <span class="text-cyan-300 font-bold">{{ buyModal.listing.want_item_name }} x{{ buyModal.listing.want_quantity }}</span>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">你将获得</span>
-            <span class="text-amber-300 font-bold">{{ buyModal.listing.item_name }} x{{ buyModal.listing.quantity }}</span>
+            <span class="text-fg-faint">你将获得</span>
+            <span class="text-gold-300 font-bold">{{ buyModal.listing.item_name }} x{{ buyModal.listing.quantity }}</span>
           </div>
         </div>
-        <p class="text-xs text-stone-600">提示：换物后物品即时到账，请确认你的储物袋中有足够的换取物品。</p>
+        <p class="text-xs text-fg-faint">提示：换物后物品即时到账，请确认你的储物袋中有足够的换取物品。</p>
       </div>
       <template #footer>
-        <button
-          @click="buyModal.show = false"
-          class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 transition-colors text-sm"
-        >
-          取消
-        </button>
-        <button
-          @click="confirmBuy"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-emerald-900/50 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-800/60 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认换物</span>
-        </button>
+        <AppButton variant="default" @click="buyModal.show = false">取消</AppButton>
+        <AppButton variant="primary" :disabled="submitting" @click="confirmBuy">
+          {{ submitting ? '处理中…' : '确认换物' }}
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 下架确认弹窗 ========== -->
     <Modal :isOpen="cancelModal.show" title="确认下架" width="480px" @close="cancelModal.show = false">
       <div v-if="cancelModal.listing" class="space-y-3">
-        <p class="text-sm text-stone-300">确认下架该挂单？下架后物品将退回你的储物袋。</p>
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3">
+        <p class="text-sm text-fg-secondary">确认下架该挂单？下架后物品将退回你的储物袋。</p>
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3">
           <div class="text-sm">
-            <span class="text-amber-300 font-bold">{{ cancelModal.listing.item_name }}</span>
-            <span class="text-stone-500"> x{{ cancelModal.listing.quantity }}</span>
+            <span class="text-gold-300 font-bold">{{ cancelModal.listing.item_name }}</span>
+            <span class="text-fg-faint"> x{{ cancelModal.listing.quantity }}</span>
           </div>
         </div>
       </div>
       <template #footer>
-        <button
-          @click="cancelModal.show = false"
-          class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 transition-colors text-sm"
-        >
-          取消
-        </button>
-        <button
-          @click="confirmCancel"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-red-900/50 border border-red-700/50 text-red-300 hover:bg-red-800/60 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认下架</span>
-        </button>
+        <AppButton variant="default" @click="cancelModal.show = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="submitting" @click="confirmCancel">
+          {{ submitting ? '处理中…' : '确认下架' }}
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 上架弹窗 ========== -->
     <Modal :isOpen="createModal.show" title="上架物品" width="540px" @close="createModal.show = false">
-      <div v-if="createModal.loading" class="flex justify-center items-center h-40">
-        <svg class="animate-spin h-8 w-8 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-      </div>
+      <LoadingBlock v-if="createModal.loading" />
       <div v-else class="space-y-4">
         <!-- 出售物品 -->
         <div>
-          <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">出售物品</label>
+          <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">出售物品</label>
           <select
             v-model="createForm.item_key"
             @change="handleSellItemChange"
-            class="w-full bg-[#0c0a09] border border-stone-700 rounded px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-600"
+            class="w-full bg-surface-canvas border border-line rounded-control px-3 py-2 text-sm text-fg-primary focus:outline-none focus:border-gold-700"
           >
             <option value="">请选择储物袋中的物品</option>
             <option v-for="item in inventoryItems" :key="item.item_key" :value="item.item_key">
               {{ item.name }} x{{ item.quantity }}（{{ getItemTypeLabel(item.type) }}）
             </option>
           </select>
-          <p v-if="selectedSellItem" class="text-xs text-stone-600 mt-1">持有数量：{{ maxSellQuantity }}</p>
+          <p v-if="selectedSellItem" class="text-xs text-fg-faint mt-1">持有数量：{{ maxSellQuantity }}</p>
         </div>
 
         <!-- 出售数量 -->
         <div>
-          <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">出售数量</label>
+          <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">出售数量</label>
           <input
             v-model.number="createForm.quantity"
             type="number"
             min="1"
             :max="maxSellQuantity || undefined"
-            class="w-full bg-[#0c0a09] border border-stone-700 rounded px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-600"
+            class="w-full bg-surface-canvas border border-line rounded-control px-3 py-2 text-sm text-fg-primary focus:outline-none focus:border-gold-700"
           />
         </div>
 
         <!-- 换取物品 -->
         <div>
-          <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">换取物品</label>
+          <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">换取物品</label>
           <select
             v-model="createForm.want_item_key"
-            class="w-full bg-[#0c0a09] border border-stone-700 rounded px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-600"
+            class="w-full bg-surface-canvas border border-line rounded-control px-3 py-2 text-sm text-fg-primary focus:outline-none focus:border-gold-700"
           >
             <option value="">请选择想换取的物品</option>
             <option v-for="item in allItems" :key="item.id" :value="item.id">
@@ -807,57 +728,37 @@ onMounted(() => {
 
         <!-- 换取数量 -->
         <div>
-          <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">换取数量</label>
+          <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">换取数量</label>
           <input
             v-model.number="createForm.want_quantity"
             type="number"
             min="1"
-            class="w-full bg-[#0c0a09] border border-stone-700 rounded px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-600"
+            class="w-full bg-surface-canvas border border-line rounded-control px-3 py-2 text-sm text-fg-primary focus:outline-none focus:border-gold-700"
           />
         </div>
 
         <!-- 预览 -->
-        <div v-if="createForm.item_key && createForm.want_item_key" class="bg-[#0c0a09] border border-stone-800 rounded p-3">
-          <div class="text-xs text-stone-600 mb-1">交易预览</div>
+        <div v-if="createForm.item_key && createForm.want_item_key" class="bg-surface-canvas border border-line-subtle rounded-control p-3">
+          <div class="text-xs text-fg-faint mb-1">交易预览</div>
           <div class="flex items-center gap-3 text-sm">
             <div>
-              <span class="text-amber-300 font-bold">{{ getSelectedItemName(createForm.item_key, inventoryItems, 'item_key') }}</span>
-              <span class="text-stone-500"> x{{ createForm.quantity }}</span>
+              <span class="text-gold-300 font-bold">{{ getSelectedItemName(createForm.item_key, inventoryItems, 'item_key') }}</span>
+              <span class="text-fg-faint"> x{{ createForm.quantity }}</span>
             </div>
-            <svg class="w-4 h-4 text-stone-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            <svg class="w-4 h-4 text-fg-faint" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             <div>
               <span class="text-cyan-300 font-bold">{{ getSelectedItemName(createForm.want_item_key, allItems, 'id') }}</span>
-              <span class="text-stone-500"> x{{ createForm.want_quantity }}</span>
+              <span class="text-fg-faint"> x{{ createForm.want_quantity }}</span>
             </div>
           </div>
         </div>
       </div>
       <template #footer>
-        <button
-          @click="createModal.show = false"
-          class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 transition-colors text-sm"
-        >
-          取消
-        </button>
-        <button
-          @click="confirmCreate"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-amber-900/50 border border-amber-700/50 text-amber-300 hover:bg-amber-800/60 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认上架</span>
-        </button>
+        <AppButton variant="default" @click="createModal.show = false">取消</AppButton>
+        <AppButton variant="primary" :disabled="submitting" @click="confirmCreate">
+          {{ submitting ? '处理中…' : '确认上架' }}
+        </AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
-
-<style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-</style>

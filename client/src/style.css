@@ -1,21 +1,23 @@
+@import './styles/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  background-color: #0f172a;
-  color: #e2e8f0;
-}
+/* 注意：这里不再重复声明 :root 背景与文字色。
+ * 改造前本文件顶部残留着脚手架默认的 #0f172a / #e2e8f0（冷 slate），
+ * 与全站实际使用的暖深色 #0c0a09 相互打架，白色滚动条区域就出自这里。
+ * 主题值统一由 styles/tokens.css 提供。 */
 
 @layer utilities {
   .animate-shake {
     animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
   }
-  
+
   .animate-glow {
     animation: glow 2s ease-in-out infinite alternate;
   }
-  
+
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -29,8 +31,8 @@
 }
 
 @keyframes glow {
-  from { box-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #e60073, 0 0 20px #e60073; }
-  to { box-shadow: 0 0 10px #fff, 0 0 20px #ff4da6, 0 0 30px #ff4da6, 0 0 40px #ff4da6; }
+  from { box-shadow: 0 0 5px rgb(var(--gold-500) / .35), 0 0 12px rgb(var(--gold-500) / .25); }
+  to { box-shadow: 0 0 12px rgb(var(--gold-400) / .55), 0 0 26px rgb(var(--gold-500) / .3); }
 }
 
 @keyframes float {
@@ -83,7 +85,7 @@
 /* ============================================================
  * 面板停靠（右坞）
  *
- * 42 个功能面板的根节点统一带 .panel-shell、遮罩层带 .panel-backdrop、
+ * 功能面板的根节点统一带 .panel-shell、遮罩层带 .panel-backdrop、
  * 主体带 .panel-body。窄屏保持原来的全屏 modal 不变；xl 以上把
  * .panel-shell 的矩形改成 FeatureDock 通过 ResizeObserver 发布的
  * 停靠面坐标，面板就落在右坞里，左侧日志继续滚动。
@@ -91,8 +93,9 @@
  * 断点与 FeatureDock 的 hidden xl:flex 必须一致，否则面板会停靠到一个
  * 并不存在的坞上。
  *
- * 这里用 !important 是因为 AchievementPanel / LotteryPanel 的
- * .panel-overlay / .panel 定义在 <style scoped> 中，特异度高于本文件。
+ * 这里用 !important 是因为部分面板的 .panel-overlay / .panel 定义在
+ * <style scoped> 中，特异度高于本文件。新面板请直接用 ui/PanelShell.vue，
+ * 不要再写自己的一份遮罩与外壳。
  * ============================================================ */
 @media (min-width: 1280px) {
   .panel-shell {
@@ -116,7 +119,7 @@
   .panel-body {
     width: 100% !important;
     /* 超宽屏上不让表格型面板被拉散，与右坞卡片视图同一档上限 */
-    max-width: 1200px !important;
+    max-width: var(--dock-width-cap) !important;
     height: 100% !important;
     max-height: none !important;
     border-radius: 0 !important;
@@ -124,3 +127,18 @@
   }
 }
 
+/* 动效偏好：晕动症用户可关掉装饰性动画，功能性进度反馈保留 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .progress-flow::after {
+    display: none;
+  }
+}

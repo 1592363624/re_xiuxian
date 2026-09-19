@@ -110,7 +110,7 @@ export function getMetrics() {
  * @param status 状态过滤（可选）
  */
 export function getWarList(page: number = 1, pageSize: number = 20, status?: string) {
-  const params: any = { page, page_size: pageSize };
+  const params: any = { page, limit: pageSize };
   if (status) params.status = status;
   return apiClient.get('/admin/sect-war/wars', { params });
 }
@@ -122,7 +122,7 @@ export function getWarList(page: number = 1, pageSize: number = 20, status?: str
  * @param pageSize 每页数量
  */
 export function getSeasonList(page: number = 1, pageSize: number = 20) {
-  return apiClient.get('/admin/sect-war/seasons', { params: { page, page_size: pageSize } });
+  return apiClient.get('/admin/sect-war/seasons', { params: { page, limit: pageSize } });
 }
 
 /**

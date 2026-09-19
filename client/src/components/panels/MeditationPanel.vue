@@ -19,188 +19,163 @@
  *   - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
  */
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
+  <PanelShell
+    title="静思悟道"
+    hint="积累感悟 · 破除瓶颈 · 每日次数与冷却"
+    size="md"
+    @close="emit('close')"
+  >
+    <div class="space-y-4">
+      <!-- 瓶颈状态展示（仅在处于瓶颈期时显示） -->
+      <PanelCard v-if="bottleneckActive" tone="danger" :padded="false" class="px-3.5 py-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span class="text-rose-300 font-bold">瓶颈期</span>
+          </div>
+          <Badge tone="danger">感悟 {{ bottleneckInsight }} / {{ bottleneckThreshold }}</Badge>
+        </div>
+        <!-- 瓶颈进度 -->
+        <StatBar :value="bottleneckInsight" :max="bottleneckThreshold" tone="blood" :show-value="false" height="h-2" />
+        <div class="mt-2 text-xs text-rose-300/80">
+          需积累 {{ bottleneckThreshold - bottleneckInsight }} 点感悟方可破除瓶颈
+        </div>
+      </PanelCard>
 
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-stone-800 rounded-lg p-6 max-w-2xl w-full mx-4 shadow-2xl animate-fade-in max-h-[85vh] flex flex-col panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-bold text-amber-400 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 6v6l4 2"/>
-          </svg>
-          静思悟道
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
+      <!-- 今日次数总览 -->
+      <PanelCard>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex items-center justify-between">
+            <div class="text-xs text-fg-muted">常规悟道</div>
+            <div class="flex items-center gap-2">
+              <div class="text-xs text-fg-faint">今日剩余</div>
+              <Badge :tone="normalRemaining > 0 ? 'success' : 'danger'">
+                {{ normalRemaining }} / {{ config?.daily_normal_limit || 10 }}
+              </Badge>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="text-xs text-fg-muted">深度悟道</div>
+            <div class="flex items-center gap-2">
+              <div class="text-xs text-fg-faint">今日剩余</div>
+              <Badge :tone="deepRemaining > 0 ? 'success' : 'danger'">
+                {{ deepRemaining }} / {{ config?.daily_deep_limit || 2 }}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </PanelCard>
 
-      <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-        <!-- 瓶颈状态展示（仅在处于瓶颈期时显示） -->
-        <div v-if="bottleneckActive" class="bg-rose-950/30 border border-rose-800/50 rounded-lg p-4">
+      <!-- 冷却中提示 -->
+      <PanelCard v-if="cooldownRemainingText" tone="gold" :padded="false" class="flex items-center gap-2 px-3 py-2.5 text-xs text-gold-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>悟道冷却中：{{ cooldownRemainingText }}</span>
+      </PanelCard>
+
+      <!-- 时长类型选择卡片 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <button
+          v-for="(item, key) in durationTypeList"
+          :key="key"
+          @click="selectType(key)"
+          :disabled="loading || !isTypeAvailable(key)"
+          class="text-left bg-surface-hover hover:bg-surface-active border rounded-panel p-4 transition-all duration-300 relative disabled:opacity-60 disabled:cursor-not-allowed"
+          :class="selectedType === key
+            ? 'border-gold-600 ring-1 ring-gold-600/30'
+            : 'border-line hover:border-gold-700'"
+        >
+          <!-- 锁标：今日已用尽 / 冷却中 / 需在瓶颈期 -->
+          <Badge v-if="!isTypeAvailable(key)" tone="danger" class="absolute top-2 right-2">
+            {{ getTypeLockReason(key) }}
+          </Badge>
+          <!-- 名称行 -->
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-              <span class="text-rose-300 font-bold">瓶颈期</span>
-            </div>
-            <span class="text-xs text-rose-400">感悟 {{ bottleneckInsight }} / {{ bottleneckThreshold }}</span>
-          </div>
-          <!-- 瓶颈进度条 -->
-          <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
-            <div
-              class="h-full bg-gradient-to-r from-rose-700 to-amber-500 transition-all duration-500"
-              :style="{ width: `${bottleneckProgress}%` }"
-            ></div>
-          </div>
-          <div class="mt-2 text-xs text-rose-300/80">
-            需积累 {{ bottleneckThreshold - bottleneckInsight }} 点感悟方可破除瓶颈
-          </div>
-        </div>
-
-        <!-- 今日次数总览 -->
-        <div class="grid grid-cols-2 gap-3 bg-[#292524] rounded-lg p-3 border border-stone-700">
-          <div class="flex items-center justify-between">
-            <div class="text-xs text-stone-400">常规悟道</div>
-            <div class="flex items-center gap-2">
-              <div class="text-xs text-stone-500">今日剩余</div>
-              <div class="px-2 py-0.5 rounded text-xs font-bold"
-                :class="normalRemaining > 0
-                  ? 'bg-emerald-950/50 border border-emerald-800/60 text-emerald-400'
-                  : 'bg-rose-950/50 border border-rose-800/60 text-rose-400'">
-                {{ normalRemaining }} / {{ config?.daily_normal_limit || 10 }}
-              </div>
-            </div>
-          </div>
-          <div class="flex items-center justify-between">
-            <div class="text-xs text-stone-400">深度悟道</div>
-            <div class="flex items-center gap-2">
-              <div class="text-xs text-stone-500">今日剩余</div>
-              <div class="px-2 py-0.5 rounded text-xs font-bold"
-                :class="deepRemaining > 0
-                  ? 'bg-emerald-950/50 border border-emerald-800/60 text-emerald-400'
-                  : 'bg-rose-950/50 border border-rose-800/60 text-rose-400'">
-                {{ deepRemaining }} / {{ config?.daily_deep_limit || 2 }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 冷却中提示 -->
-        <div v-if="cooldownRemainingText" class="bg-amber-950/30 border border-amber-800/50 rounded-lg p-2.5 text-xs text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span>悟道冷却中：{{ cooldownRemainingText }}</span>
-        </div>
-
-        <!-- 时长类型选择卡片 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button
-            v-for="(item, key) in durationTypeList"
-            :key="key"
-            @click="selectType(key)"
-            :disabled="loading || !isTypeAvailable(key)"
-            class="text-left bg-[#292524] hover:bg-[#332b27] border rounded-lg p-4 transition-all duration-300 relative disabled:opacity-60 disabled:cursor-not-allowed"
-            :class="selectedType === key
-              ? 'border-amber-600 ring-1 ring-amber-600/30'
-              : 'border-stone-700 hover:border-amber-700'"
-          >
-            <!-- 锁标：今日已用尽 -->
-            <div v-if="!isTypeAvailable(key)" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-950/60 border border-rose-800/60 text-rose-400 text-[10px] font-bold">
-              {{ getTypeLockReason(key) }}
-            </div>
-            <!-- 名称行 -->
-            <div class="flex items-center justify-between mb-2">
-              <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center"
-                  :class="key === 'deep' ? 'bg-purple-950/40 border border-purple-700/40' : 'bg-amber-950/30 border border-amber-700/30'">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4"
-                    :class="key === 'deep' ? 'text-purple-400' : 'text-amber-400'"
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 6v6l4 2"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-sm font-bold"
-                    :class="key === 'deep' ? 'text-purple-300' : 'text-amber-300'">
-                    {{ item.label }}
-                  </div>
-                  <div class="text-[10px] text-stone-500">{{ formatDuration(item.duration) }}</div>
-                </div>
-              </div>
-              <div v-if="selectedType === key" class="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"/>
+              <div class="w-8 h-8 rounded-full flex items-center justify-center"
+                :class="key === 'deep' ? 'bg-purple-950/40 border border-purple-700/40' : 'bg-amber-950/30 border border-gold-700/30'">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4"
+                  :class="key === 'deep' ? 'text-purple-400' : 'text-gold-400'"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
                 </svg>
               </div>
+              <div>
+                <div class="text-sm font-bold"
+                  :class="key === 'deep' ? 'text-purple-300' : 'text-gold-300'">
+                  {{ item.label }}
+                </div>
+                <div class="text-[10px] text-fg-faint">{{ formatDuration(item.duration) }}</div>
+              </div>
             </div>
-            <!-- 参数列表 -->
-            <ul class="text-xs text-stone-400 space-y-1">
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">基础感悟：</span>
-                <span class="text-stone-200">{{ item.insight_base }} + {{ item.insight_random }}</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-stone-500">修为奖励：</span>
-                <span class="text-stone-200">{{ (item.exp_reward_rate * 100).toFixed(1) }}% 当前修为</span>
-              </li>
-              <li v-if="key === 'deep'" class="flex items-center gap-2">
-                <span class="text-stone-500">深度悟道：</span>
-                <span class="text-purple-400">瓶颈期可用，3倍感悟加成</span>
-              </li>
-            </ul>
-          </button>
-        </div>
-
-        <!-- 深度悟道说明 -->
-        <div v-if="selectedType === 'deep'" class="bg-purple-950/20 border border-purple-900/40 rounded-lg p-3 text-xs text-purple-300">
-          <svg xmlns="http://www.w3.org/2000/svg" class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="16" x2="12" y2="12"/>
-            <line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-          深度悟道为高阶玩法，需筑基期以上且处于瓶颈期方可进行；中断时损失 50% 感悟值，请确保有完整时间。
-        </div>
+            <div v-if="selectedType === key" class="w-5 h-5 rounded-full bg-gold-600 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-fg-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+          </div>
+          <!-- 参数列表 -->
+          <ul class="text-xs text-fg-muted space-y-1">
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">基础感悟：</span>
+              <span class="text-fg-primary">{{ item.insight_base }} + {{ item.insight_random }}</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">修为奖励：</span>
+              <span class="text-fg-primary">{{ (item.exp_reward_rate * 100).toFixed(1) }}% 当前修为</span>
+            </li>
+            <li v-if="key === 'deep'" class="flex items-center gap-2">
+              <span class="text-fg-faint">深度悟道：</span>
+              <span class="text-purple-400">瓶颈期可用，3倍感悟加成</span>
+            </li>
+          </ul>
+        </button>
       </div>
 
-      <!-- 底部操作栏 -->
-      <div class="mt-4 flex gap-2">
-        <button
-          @click="$emit('close')"
-          class="px-4 py-2.5 text-sm text-stone-400 hover:text-white border border-stone-700 hover:border-stone-500 rounded-lg transition-colors"
-        >
-          取消
-        </button>
-        <button
-          @click="handleStart"
-          :disabled="loading || !selectedType || !isTypeAvailable(selectedType)"
-          class="flex-1 py-2.5 rounded-lg font-bold tracking-widest text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-amber-950/40 border border-amber-700 text-amber-300 hover:bg-amber-900/40 hover:border-amber-500"
-        >
-          <span v-if="loading">正在进入...</span>
-          <span v-else-if="!selectedType">请选择时长类型</span>
-          <span v-else-if="!isTypeAvailable(selectedType)">{{ getTypeLockReason(selectedType) }}</span>
-          <span v-else>开始悟道</span>
-        </button>
+      <!-- 深度悟道说明（紫调信息块，保留原有色相） -->
+      <div v-if="selectedType === 'deep'" class="bg-purple-950/20 border border-purple-900/40 rounded-panel p-3 text-xs text-purple-300 flex items-start gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <span>深度悟道为高阶玩法，需筑基期以上且处于瓶颈期方可进行；中断时损失 50% 感悟值，请确保有完整时间。</span>
       </div>
     </div>
-  </div>
+
+    <!-- 底部操作栏 -->
+    <template #footer>
+      <AppButton variant="outline" @click="emit('close')">取消</AppButton>
+      <button
+        @click="handleStart"
+        :disabled="loading || !selectedType || !isTypeAvailable(selectedType)"
+        class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none bg-amber-950/40 border border-gold-700 text-gold-300 hover:bg-gold-900/40 hover:border-gold-500"
+      >
+        <span v-if="loading">正在进入...</span>
+        <span v-else-if="!selectedType">请选择时长类型</span>
+        <span v-else-if="!isTypeAvailable(selectedType)">{{ getTypeLockReason(selectedType) }}</span>
+        <span v-else>开始悟道</span>
+      </button>
+    </template>
+  </PanelShell>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
 import { formatTime } from '../../utils/format'
+import PanelShell from '../ui/PanelShell.vue'
+import PanelCard from '../ui/PanelCard.vue'
+import Badge from '../ui/Badge.vue'
+import AppButton from '../ui/AppButton.vue'
+import StatBar from '../ui/StatBar.vue'
 import {
   getStatus,
   getConfig,
@@ -291,15 +266,6 @@ const bottleneckThreshold = computed(() => {
 })
 
 /**
- * 瓶颈进度百分比
- */
-const bottleneckProgress = computed(() => {
-  const threshold = bottleneckThreshold.value || 100
-  const insight = bottleneckInsight.value || 0
-  return Math.min(100, Math.floor((insight / threshold) * 100))
-})
-
-/**
  * 判断指定时长类型是否可用
  * - short/medium/long：检查剩余次数 + 冷却
  * - deep：检查剩余次数 + 冷却 + 境界要求 + 瓶颈期
@@ -372,8 +338,7 @@ const handleStart = async () => {
     emit('close')
   } catch (error) {
     console.error('开始悟道失败:', error)
-    const msg = error?.response?.data?.message || '开始悟道失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '开始悟道失败')
   } finally {
     loading.value = false
   }
@@ -424,19 +389,3 @@ onUnmounted(() => {
   }
 })
 </script>
-
-<style scoped>
-.overflow-y-auto::-webkit-scrollbar {
-  width: 4px;
-}
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: transparent;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #44403c;
-  border-radius: 2px;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #57534e;
-}
-</style>

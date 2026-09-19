@@ -70,12 +70,12 @@ const redPacketDetail = reactive({
 // 品质颜色映射（复用 InventoryPanel.vue 的 qualityColorMap 配置）
 // common 白 / uncommon 绿 / rare 蓝 / epic 紫 / legendary 橙
 const qualityColorMap = {
-  common: { border: 'border-stone-600', text: 'text-stone-300', label: '普通' },
+  common: { border: 'border-line-strong', text: 'text-fg-secondary', label: '普通' },
   uncommon: { border: 'border-emerald-600', text: 'text-emerald-400', label: '非凡' },
   rare: { border: 'border-blue-600', text: 'text-blue-400', label: '稀有' },
   epic: { border: 'border-purple-600', text: 'text-purple-400', label: '史诗' },
-  legendary: { border: 'border-amber-600', text: 'text-amber-400', label: '传说' },
-  unknown: { border: 'border-stone-700', text: 'text-stone-500', label: '未知' }
+  legendary: { border: 'border-gold-600', text: 'text-gold-400', label: '传说' },
+  unknown: { border: 'border-line', text: 'text-fg-faint', label: '未知' }
 }
 
 // 物品类型中文名映射
@@ -271,15 +271,17 @@ const sendMessageAction = async () => {
 
   try {
     const res = await sendMessage(content)
+    // 后端返回 { code: 201, data: message }，业务字段在 data 里
+    const created = res.data?.data
     // 立即将新消息添加到本地列表，确保UI即时响应
-    if (res.data) {
+    if (created) {
       const message = {
-        id: res.data.id,
-        sender: res.data.sender,
-        content: res.data.content,
+        id: created.id,
+        sender: created.sender,
+        content: created.content,
         type: 'self',
         messageType: 'player',
-        createdAt: new Date(res.data.createdAt)
+        createdAt: new Date(created.createdAt)
       }
       messages.value.push(message)
     }
@@ -710,46 +712,46 @@ onUnmounted(() => {
   <!-- 顶部通知组件 -->
   <div
     v-if="topNotification.visible"
-    class="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-black/80 text-amber-400 border border-amber-500/30 px-4 py-2 rounded-lg shadow-lg transition-all duration-300 animate-fade-in-down"
+    class="fixed top-4 left-1/2 -translate-x-1/2 z-companion bg-black/80 text-gold-400 border border-gold-500/30 px-4 py-2 rounded-lg shadow-lg transition-all duration-300 animate-fade-in-down"
     style="max-width: 60%; text-align: center;"
   >
     {{ topNotification.content }}
   </div>
 
   <div
-    class="fixed z-50 flex flex-col items-end"
+    class="fixed z-companion flex flex-col items-end"
     :style="{ bottom: chatPosition.bottom + 'px', right: chatPosition.right + 'px' }"
   >
     <!-- Chat Window -->
     <div
       v-if="isOpen"
-      class="mb-4 w-80 h-96 bg-[#14100d] border border-amber-500/40 rounded-2xl shadow-[0_0_25px_rgba(180,119,37,0.35)] flex flex-col backdrop-blur-sm overflow-hidden transition-all duration-300 origin-bottom-right animate-fade-in-up select-none"
+      class="mb-4 w-80 h-96 bg-surface-base border border-gold-500/40 rounded-2xl shadow-[0_0_25px_rgba(180,119,37,0.35)] flex flex-col backdrop-blur-sm overflow-hidden transition-all duration-300 origin-bottom-right animate-fade-in-up select-none"
     >
       <!-- Header -->
-      <div class="h-12 bg-[#14100d] border-b border-amber-500/20 flex items-center justify-between px-4 shrink-0 cursor-move" @mousedown="onMouseDown">
-        <div class="flex items-center gap-2 text-amber-300 font-semibold tracking-widest pointer-events-none">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400"><path d="M13 10V3a1 1 0 0 0-2 0v7"></path><path d="M18 10a6 6 0 0 0-12 0v4"></path><path d="M4 19h16"></path><path d="M9 22h6"></path></svg>
+      <div class="h-12 bg-surface-base border-b border-gold-500/20 flex items-center justify-between px-4 shrink-0 cursor-move" @mousedown="onMouseDown">
+        <div class="flex items-center gap-2 text-gold-300 font-semibold tracking-widest pointer-events-none font-display">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gold-400"><path d="M13 10V3a1 1 0 0 0-2 0v7"></path><path d="M18 10a6 6 0 0 0-12 0v4"></path><path d="M4 19h16"></path><path d="M9 22h6"></path></svg>
           <span>千里传音</span>
         </div>
-        <div class="text-xs text-amber-900/70 flex items-center gap-1 pointer-events-none">
+        <div class="text-xs text-gold-900/70 flex items-center gap-1 pointer-events-none">
           在线参与中
         </div>
       </div>
 
       <!-- Messages -->
-      <div ref="messagesContainer" class="flex-1 overflow-y-auto px-4 py-3 space-y-4 custom-scrollbar bg-[#0f0b08]">
+      <div ref="messagesContainer" class="flex-1 overflow-y-auto px-4 py-3 space-y-4 scroll-thin bg-surface-canvas">
         <!-- 顶部分割线 -->
-        <div class="w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent mx-auto"></div>
+        <div class="w-full h-px bg-gradient-to-r from-transparent via-gold-500/40 to-transparent mx-auto"></div>
 
         <!-- 欢迎词，放在消息列表顶部 -->
         <div class="flex items-center justify-center">
-          <div class="bg-[#1c130d] text-amber-500 border border-amber-500/20 px-4 py-2 rounded-full text-sm font-serif">
+          <div class="bg-surface-tint-gold text-gold-500 border border-gold-500/20 px-4 py-2 rounded-full text-sm font-display">
             ✨ 欢迎来到修仙世界！ ✨
           </div>
         </div>
 
         <!-- 底部分割线 -->
-        <div class="w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent mx-auto"></div>
+        <div class="w-full h-px bg-gradient-to-r from-transparent via-gold-500/40 to-transparent mx-auto"></div>
 
         <!-- 消息列表 -->
         <div
@@ -759,11 +761,12 @@ onUnmounted(() => {
           :class="msg.type === 'self' ? 'items-end' : (msg.type === 'system' ? 'items-center' : 'items-start')"
         >
           <!-- 发送者信息，包含名字和时间 -->
-          <div v-if="msg.type !== 'system'" class="flex items-center gap-2 text-[10px] text-gray-500 mb-0.5 px-1">
+          <div v-if="msg.type !== 'system'" class="flex items-center gap-2 text-[10px] text-fg-faint mb-0.5 px-1">
             <span v-if="msg.type !== 'self'">
               {{ msg.sender }}
             </span>
             <span
+              class="num"
               :class="msg.type === 'self' ? 'order-first' : ''"
             >
               {{ new Date(msg.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
@@ -777,7 +780,7 @@ onUnmounted(() => {
             class="w-[90%] max-w-[260px] cursor-pointer rounded-lg overflow-hidden border border-red-500/40 hover:border-red-400/70 transition-all hover:shadow-[0_0_15px_rgba(239,68,68,0.35)] active:scale-[0.98]"
           >
             <!-- 红包顶部红色区域 -->
-            <div class="bg-gradient-to-r from-red-900/80 to-amber-900/80 px-3 py-2.5 flex items-center gap-2.5">
+            <div class="bg-gradient-to-r from-red-900/80 to-gold-900/80 px-3 py-2.5 flex items-center gap-2.5">
               <!-- 红包图标 -->
               <div class="w-8 h-8 rounded-full bg-red-500/30 border border-red-400/50 flex items-center justify-center shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-300">
@@ -788,16 +791,16 @@ onUnmounted(() => {
               </div>
               <!-- 红包信息 -->
               <div class="flex-1 min-w-0">
-                <div class="text-xs font-bold text-amber-200 truncate">
+                <div class="text-xs font-bold text-gold-200 truncate">
                   {{ msg.redPacketInfo.message || '仙友发了一个红包' }}
                 </div>
-                <div class="text-[10px] text-amber-400/70 mt-0.5">
+                <div class="text-[10px] text-gold-400/70 mt-0.5 num">
                   {{ redPacketTypeLabel(msg.redPacketInfo.packet_type) }} · {{ msg.redPacketInfo.total_count }}个
                 </div>
               </div>
             </div>
             <!-- 红包底部提示 -->
-            <div class="bg-[#1c130d] px-3 py-1 text-[10px] text-amber-500/60 text-center">
+            <div class="bg-surface-tint-gold px-3 py-1 text-[10px] text-gold-500/60 text-center">
               点击领取红包
             </div>
           </div>
@@ -810,7 +813,7 @@ onUnmounted(() => {
             :class="getQualityStyle(msg.itemShowInfo.quality).border"
           >
             <!-- 物品顶部区域（品质色背景） -->
-            <div class="bg-gradient-to-r from-[#1c130d] to-[#292014] px-3 py-2.5 flex items-center gap-2.5">
+            <div class="bg-gradient-to-r from-surface-tint-gold to-surface-tint-gold-strong px-3 py-2.5 flex items-center gap-2.5">
               <!-- 物品图标（包裹图标，品质色边框） -->
               <div
                 class="w-8 h-8 rounded flex items-center justify-center shrink-0 border"
@@ -827,17 +830,17 @@ onUnmounted(() => {
                 <div class="text-xs font-bold truncate" :class="getQualityStyle(msg.itemShowInfo.quality).text">
                   {{ msg.itemShowInfo.item_name }}
                 </div>
-                <div class="text-[10px] text-stone-400 mt-0.5 flex items-center gap-1">
+                <div class="text-[10px] text-fg-muted mt-0.5 flex items-center gap-1">
                   <span class="px-1 rounded border" :class="getQualityStyle(msg.itemShowInfo.quality).border">
                     {{ getQualityStyle(msg.itemShowInfo.quality).label }}
                   </span>
                   <span>{{ getItemTypeLabel(msg.itemShowInfo.type) }}</span>
-                  <span v-if="msg.itemShowInfo.quantity > 1" class="text-amber-500/70">×{{ msg.itemShowInfo.quantity }}</span>
+                  <span v-if="msg.itemShowInfo.quantity > 1" class="text-gold-500/70 num">×{{ msg.itemShowInfo.quantity }}</span>
                 </div>
               </div>
             </div>
             <!-- 物品底部提示 -->
-            <div class="bg-[#1c130d] px-3 py-1 text-[10px] text-stone-500 text-center">
+            <div class="bg-surface-tint-gold px-3 py-1 text-[10px] text-fg-faint text-center">
               点击查看详情
             </div>
           </div>
@@ -847,32 +850,34 @@ onUnmounted(() => {
             v-else
             class="text-sm tracking-wide max-w-[90%] px-3 py-1.5 rounded break-words"
             :class="{
-              'text-amber-300 font-serif text-center': msg.type === 'system',
-              'bg-[#1c130d] text-amber-50 border border-amber-500/20': msg.type === 'player',
-              'bg-[#1b2516] text-emerald-50 border border-emerald-500/25': msg.type === 'self'
+              'text-gold-300 font-display text-center': msg.type === 'system',
+              'bg-surface-tint-gold text-amber-50 border border-gold-500/20': msg.type === 'player',
+              'bg-surface-tint-jade text-emerald-50 border border-emerald-500/25': msg.type === 'self'
             }"
           >
             {{ msg.content }}
           </div>
 
           <!-- 系统消息显示时间 -->
-          <span v-if="msg.type === 'system'" class="text-[10px] text-gray-500 mt-0.5 px-1">
+          <span v-if="msg.type === 'system'" class="text-[10px] text-fg-faint mt-0.5 px-1 num">
             {{ new Date(msg.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
           </span>
 
           <!-- Divider for system msgs -->
-          <div v-if="msg.type === 'system'" class="w-16 h-px bg-gradient-to-r from-transparent via-amber-700/60 to-transparent mx-auto mt-2"></div>
+          <div v-if="msg.type === 'system'" class="w-16 h-px bg-gradient-to-r from-transparent via-gold-700/60 to-transparent mx-auto mt-2"></div>
         </div>
       </div>
 
       <!-- Input -->
-      <div class="p-3 bg-[#14100d] border-t border-amber-500/20 shrink-0">
-        <div class="relative rounded-2xl border border-amber-500/30 bg-[#130f0b] px-3 py-1.5 flex items-center gap-2">
+      <div class="p-3 bg-surface-base border-t border-gold-500/20 shrink-0">
+        <div class="relative rounded-2xl border border-gold-500/30 bg-surface-sunken px-3 py-1.5 flex items-center gap-2">
           <!-- 红包按钮 -->
           <button
+            type="button"
             @click="openRedPacketModal"
-            class="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-red-900/40 text-red-300 border border-red-700/40 hover:bg-red-800/50 hover:text-red-200 transition-colors active:scale-95"
+            class="focus-ring shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-red-900/40 text-red-300 border border-red-700/40 hover:bg-red-800/50 hover:text-red-200 transition-colors active:scale-95"
             title="发红包"
+            aria-label="发红包"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="5" width="20" height="14" rx="2"/>
@@ -882,9 +887,11 @@ onUnmounted(() => {
           </button>
           <!-- 展示物品按钮 -->
           <button
+            type="button"
             @click="openItemSelectModal"
-            class="shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-amber-900/40 text-amber-300 border border-amber-700/40 hover:bg-amber-800/50 hover:text-amber-200 transition-colors active:scale-95"
+            class="focus-ring shrink-0 w-7 h-7 rounded-full flex items-center justify-center bg-gold-900/40 text-gold-300 border border-gold-700/40 hover:bg-gold-800/50 hover:text-gold-200 transition-colors active:scale-95"
             title="展示物品"
+            aria-label="展示物品"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -897,11 +904,13 @@ onUnmounted(() => {
             @keyup.enter="sendMessageAction"
             type="text"
             placeholder="切磋武艺，交流感悟..."
-            class="flex-1 bg-transparent outline-none border-none text-sm text-amber-50 placeholder-amber-900/60 min-w-0"
+            class="flex-1 bg-transparent outline-none border-none text-sm text-amber-50 placeholder-gold-900/60 min-w-0"
           >
           <button
+            type="button"
             @click="sendMessageAction"
-            class="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-amber-500 text-[#130f0b] shadow-[0_0_14px_rgba(251,191,36,0.65)] hover:bg-amber-400 active:scale-95 transition-transform transition-colors"
+            class="focus-ring shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gold-500 text-surface-sunken shadow-[0_0_14px_rgba(251,191,36,0.65)] hover:bg-gold-400 active:scale-95 transition-transform transition-colors"
+            aria-label="发送消息"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
@@ -911,18 +920,20 @@ onUnmounted(() => {
 
     <!-- Toggle Button -->
     <button
+      type="button"
       @mousedown="onMouseDown"
       @click="toggleChat"
-      class="w-12 h-12 rounded-full bg-[#14100d] border border-amber-500/70 text-amber-300 hover:text-amber-100 hover:border-amber-400 flex items-center justify-center shadow-[0_0_18px_rgba(251,191,36,0.45)] transition-all relative group active:scale-95 cursor-move"
-      :class="{'ring-2 ring-amber-500/70': isDragging}"
+      class="focus-ring w-12 h-12 rounded-full bg-surface-base border border-gold-500/70 text-gold-300 hover:text-amber-100 hover:border-gold-400 flex items-center justify-center shadow-[0_0_18px_rgba(251,191,36,0.45)] transition-all relative group active:scale-95 cursor-move"
+      :class="{'ring-2 ring-gold-500/70': isDragging}"
+      :aria-label="isOpen ? '关闭千里传音' : '打开千里传音'"
     >
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
 
       <!-- Notification Dot -->
-      <span v-if="!isOpen && unreadCount > 0" class="absolute top-0 right-0 w-3 h-3 bg-red-600 rounded-full border-2 border-gray-900"></span>
+      <span v-if="!isOpen && unreadCount > 0" class="absolute top-0 right-0 w-3 h-3 bg-red-600 rounded-full border-2 border-surface-raised"></span>
 
       <!-- Tooltip -->
-      <div v-if="!isDragging" class="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 bg-black/80 text-xs text-amber-500 rounded border border-amber-900/30 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+      <div v-if="!isDragging" class="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 bg-black/80 text-xs text-gold-500 rounded border border-gold-900/30 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
         千里传音
       </div>
     </button>
@@ -932,13 +943,13 @@ onUnmounted(() => {
     <!-- ============================================================ -->
     <div
       v-if="redPacketModal.visible"
-      class="fixed inset-0 z-[60] flex items-center justify-center"
+      class="fixed inset-0 z-dialog flex items-center justify-center"
     >
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="closeRedPacketModal"></div>
-      <div class="relative bg-[#1c130d] border border-red-500/40 rounded-lg p-5 w-72 mx-4 shadow-2xl shadow-red-900/20 animate-fade-in-up">
+      <div class="relative bg-surface-tint-gold border border-red-500/40 rounded-lg p-5 w-72 mx-4 shadow-2xl shadow-red-900/20 animate-fade-in-up" role="dialog" aria-label="发放红包">
         <!-- 标题 -->
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-base font-bold text-red-300 flex items-center gap-1.5">
+          <h3 class="text-base font-bold text-red-300 flex items-center gap-1.5 font-display">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="5" width="20" height="14" rx="2"/>
               <path d="M2 10h20"/>
@@ -946,7 +957,7 @@ onUnmounted(() => {
             </svg>
             发放红包
           </h3>
-          <button @click="closeRedPacketModal" class="text-stone-500 hover:text-white transition-colors">
+          <button type="button" @click="closeRedPacketModal" class="focus-ring rounded-control text-fg-faint hover:text-fg-primary transition-colors" aria-label="关闭">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
@@ -954,20 +965,24 @@ onUnmounted(() => {
         <!-- 红包类型切换 -->
         <div class="flex gap-1.5 mb-3">
           <button
+            type="button"
             @click="redPacketModal.type = 'lucky'"
             :class="redPacketModal.type === 'lucky'
               ? 'bg-red-900/50 text-red-200 border-red-500/60'
-              : 'bg-[#292524] text-stone-400 border-stone-700 hover:text-stone-200'"
+              : 'bg-surface-hover text-fg-muted border-line hover:text-fg-primary'"
             class="flex-1 px-2 py-1.5 text-xs rounded border transition-colors"
+            :aria-pressed="redPacketModal.type === 'lucky'"
           >
             🎊 拼手气
           </button>
           <button
+            type="button"
             @click="redPacketModal.type = 'equal'"
             :class="redPacketModal.type === 'equal'
               ? 'bg-red-900/50 text-red-200 border-red-500/60'
-              : 'bg-[#292524] text-stone-400 border-stone-700 hover:text-stone-200'"
+              : 'bg-surface-hover text-fg-muted border-line hover:text-fg-primary'"
             class="flex-1 px-2 py-1.5 text-xs rounded border transition-colors"
+            :aria-pressed="redPacketModal.type === 'equal'"
           >
             📦 普通均分
           </button>
@@ -975,51 +990,51 @@ onUnmounted(() => {
 
         <!-- 金额输入 -->
         <div class="mb-3">
-          <label class="text-xs text-stone-400 mb-1 block">总金额（灵石）</label>
+          <label class="text-xs text-fg-muted mb-1 block">总金额（灵石）</label>
           <input
             v-model="redPacketModal.amount"
             type="number"
             min="10"
             placeholder="至少 10 灵石"
-            class="w-full bg-[#130f0b] border border-red-500/30 rounded px-3 py-2 text-sm text-amber-50 outline-none focus:border-red-400/60"
+            class="w-full bg-surface-sunken border border-red-500/30 rounded px-3 py-2 text-sm text-amber-50 num outline-none focus:border-red-400/60"
           >
         </div>
 
         <!-- 个数输入 -->
         <div class="mb-3">
-          <label class="text-xs text-stone-400 mb-1 block">红包个数</label>
+          <label class="text-xs text-fg-muted mb-1 block">红包个数</label>
           <input
             v-model="redPacketModal.count"
             type="number"
             min="1"
             max="100"
             placeholder="1 ~ 100"
-            class="w-full bg-[#130f0b] border border-red-500/30 rounded px-3 py-2 text-sm text-amber-50 outline-none focus:border-red-400/60"
+            class="w-full bg-surface-sunken border border-red-500/30 rounded px-3 py-2 text-sm text-amber-50 num outline-none focus:border-red-400/60"
           >
         </div>
 
         <!-- 留言输入 -->
         <div class="mb-3">
-          <label class="text-xs text-stone-400 mb-1 block">附言（可选）</label>
+          <label class="text-xs text-fg-muted mb-1 block">附言（可选）</label>
           <input
             v-model="redPacketModal.message"
             type="text"
             maxlength="100"
             placeholder="仙道昌隆，广结善缘"
-            class="w-full bg-[#130f0b] border border-red-500/30 rounded px-3 py-2 text-sm text-amber-50 outline-none focus:border-red-400/60"
+            class="w-full bg-surface-sunken border border-red-500/30 rounded px-3 py-2 text-sm text-amber-50 outline-none focus:border-red-400/60"
           >
         </div>
 
         <!-- 消耗预览 -->
-        <div class="text-xs text-stone-500 mb-3 text-center">
-          消耗 <span class="text-red-300 font-bold">{{ formatCompact(redPacketPreview) }}</span> 灵石
+        <div class="text-xs text-fg-faint mb-3 text-center">
+          消耗 <span class="text-red-300 font-bold num">{{ formatCompact(redPacketPreview) }}</span> 灵石
         </div>
 
         <!-- 发送按钮 -->
         <button
           @click="confirmSendRedPacket"
           :disabled="redPacketModal.sending"
-          class="w-full py-2 rounded bg-gradient-to-r from-red-700 to-amber-700 text-amber-50 font-bold text-sm hover:from-red-600 hover:to-amber-600 transition-all disabled:opacity-50 active:scale-[0.98]"
+          class="w-full py-2 rounded bg-gradient-to-r from-red-700 to-gold-700 text-amber-50 font-bold text-sm hover:from-red-600 hover:to-gold-600 transition-all disabled:opacity-50 active:scale-[0.98]"
         >
           {{ redPacketModal.sending ? '发送中...' : '发送红包' }}
         </button>
@@ -1031,27 +1046,27 @@ onUnmounted(() => {
     <!-- ============================================================ -->
     <div
       v-if="redPacketDetail.visible"
-      class="fixed inset-0 z-[60] flex items-center justify-center"
+      class="fixed inset-0 z-dialog flex items-center justify-center"
     >
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="closeRedPacketDetail"></div>
-      <div class="relative bg-[#1c130d] border border-red-500/40 rounded-lg p-5 w-80 mx-4 shadow-2xl shadow-red-900/20 animate-fade-in-up max-h-[80vh] flex flex-col">
+      <div class="relative bg-surface-tint-gold border border-red-500/40 rounded-lg p-5 w-80 mx-4 shadow-2xl shadow-red-900/20 animate-fade-in-up max-h-[80vh] flex flex-col" role="dialog" aria-label="红包详情">
         <!-- 标题 -->
         <div class="flex items-center justify-between mb-3 shrink-0">
-          <h3 class="text-base font-bold text-red-300">红包详情</h3>
-          <button @click="closeRedPacketDetail" class="text-stone-500 hover:text-white transition-colors">
+          <h3 class="text-base font-bold text-red-300 font-display">红包详情</h3>
+          <button type="button" @click="closeRedPacketDetail" class="focus-ring rounded-control text-fg-faint hover:text-fg-primary transition-colors" aria-label="关闭">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
 
         <!-- 加载中 -->
-        <div v-if="redPacketDetail.loading" class="text-center text-stone-500 py-10">
+        <div v-if="redPacketDetail.loading" class="text-center text-fg-faint py-10">
           正在查阅红包...
         </div>
 
         <!-- 红包详情内容 -->
         <div v-else-if="redPacketDetail.data" class="flex-1 overflow-y-auto">
           <!-- 红包概览 -->
-          <div class="bg-gradient-to-r from-red-900/50 to-amber-900/50 rounded-lg p-3 mb-3 border border-red-500/30">
+          <div class="bg-gradient-to-r from-red-900/50 to-gold-900/50 rounded-lg p-3 mb-3 border border-red-500/30">
             <div class="flex items-center gap-2 mb-2">
               <div class="w-10 h-10 rounded-full bg-red-500/30 border border-red-400/50 flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-300">
@@ -1061,24 +1076,24 @@ onUnmounted(() => {
                 </svg>
               </div>
               <div class="flex-1">
-                <div class="text-sm font-bold text-amber-200">{{ redPacketDetail.data.sender.nickname }}</div>
-                <div class="text-[10px] text-amber-400/70">
+                <div class="text-sm font-bold text-gold-200">{{ redPacketDetail.data.sender.nickname }}</div>
+                <div class="text-[10px] text-gold-400/70">
                   {{ redPacketTypeLabel(redPacketDetail.data.packet_type) }} ·
                   {{ redPacketStatusLabel(redPacketDetail.data.status) }}
                 </div>
               </div>
             </div>
-            <div v-if="redPacketDetail.data.message" class="text-xs text-amber-300/80 italic mb-1">
+            <div v-if="redPacketDetail.data.message" class="text-xs text-gold-300/80 italic mb-1">
               "{{ redPacketDetail.data.message }}"
             </div>
-            <div class="text-2xl font-bold text-amber-300 text-center py-1">
+            <div class="text-2xl font-bold text-gold-300 text-center py-1 num">
               {{ formatCompact(redPacketDetail.data.total_amount) }}
-              <span class="text-xs text-amber-500/60">灵石 / {{ redPacketDetail.data.total_count }}个</span>
+              <span class="text-xs text-gold-500/60">灵石 / {{ redPacketDetail.data.total_count }}个</span>
             </div>
             <!-- 我的领取信息 -->
             <div v-if="redPacketDetail.data.my_claim" class="text-center text-xs text-emerald-300 mt-1">
               你已领取 {{ formatCompact(redPacketDetail.data.my_claim.amount) }} 灵石
-              <span v-if="redPacketDetail.data.my_claim.is_lucky_king" class="text-amber-300 font-bold ml-1">👑 手气最佳</span>
+              <span v-if="redPacketDetail.data.my_claim.is_lucky_king" class="text-gold-300 font-bold ml-1">👑 手气最佳</span>
             </div>
           </div>
 
@@ -1087,7 +1102,7 @@ onUnmounted(() => {
             v-if="!redPacketDetail.data.my_claim && redPacketDetail.data.status === 'active' && redPacketDetail.data.remain_count > 0"
             @click="handleClaimRedPacket"
             :disabled="redPacketDetail.claiming"
-            class="w-full py-2 mb-3 rounded bg-gradient-to-r from-red-700 to-amber-700 text-amber-50 font-bold text-sm hover:from-red-600 hover:to-amber-600 transition-all disabled:opacity-50 active:scale-[0.98] shrink-0"
+            class="w-full py-2 mb-3 rounded bg-gradient-to-r from-red-700 to-gold-700 text-amber-50 font-bold text-sm hover:from-red-600 hover:to-gold-600 transition-all disabled:opacity-50 active:scale-[0.98] shrink-0"
           >
             {{ redPacketDetail.claiming ? '领取中...' : '🧧 领取红包' }}
           </button>
@@ -1095,37 +1110,37 @@ onUnmounted(() => {
           <!-- 已领完/过期提示 -->
           <div
             v-if="redPacketDetail.data.status !== 'active' || (redPacketDetail.data.remain_count === 0 && !redPacketDetail.data.my_claim)"
-            class="text-center text-xs text-stone-500 mb-3"
+            class="text-center text-xs text-fg-faint mb-3"
           >
             {{ redPacketStatusLabel(redPacketDetail.data.status) }}
           </div>
 
           <!-- 领取记录列表 -->
           <div v-if="redPacketDetail.data.claims && redPacketDetail.data.claims.length > 0">
-            <div class="text-xs text-stone-400 mb-2 flex items-center justify-between">
+            <div class="text-xs text-fg-muted mb-2 flex items-center justify-between">
               <span>领取记录</span>
-              <span class="text-stone-500">{{ redPacketDetail.data.claims.length }}/{{ redPacketDetail.data.total_count }}</span>
+              <span class="text-fg-faint num">{{ redPacketDetail.data.claims.length }}/{{ redPacketDetail.data.total_count }}</span>
             </div>
             <div class="space-y-1.5">
               <div
                 v-for="(claim, idx) in redPacketDetail.data.claims"
                 :key="idx"
-                class="flex items-center justify-between bg-[#292524] rounded px-2.5 py-1.5 border border-stone-700"
+                class="flex items-center justify-between bg-surface-hover rounded px-2.5 py-1.5 border border-line"
               >
                 <div class="flex items-center gap-1.5 min-w-0">
-                  <span class="text-xs text-stone-300 truncate">{{ claim.receiver.nickname }}</span>
-                  <span v-if="claim.is_lucky_king" class="text-[10px] text-amber-400">👑</span>
+                  <span class="text-xs text-fg-secondary truncate">{{ claim.receiver.nickname }}</span>
+                  <span v-if="claim.is_lucky_king" class="text-[10px] text-gold-400">👑</span>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
-                  <span class="text-xs text-amber-300 font-bold">{{ formatCompact(claim.amount) }}</span>
-                  <span class="text-[10px] text-stone-500">{{ new Date(claim.claimed_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                  <span class="text-xs text-gold-300 font-bold num">{{ formatCompact(claim.amount) }}</span>
+                  <span class="text-[10px] text-fg-faint num">{{ new Date(claim.claimed_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</span>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- 无领取记录 -->
-          <div v-else-if="redPacketDetail.data.status === 'active'" class="text-center text-xs text-stone-500 py-2">
+          <div v-else-if="redPacketDetail.data.status === 'active'" class="text-center text-xs text-fg-faint py-2">
             暂无人领取，快抢头彩！
           </div>
         </div>
@@ -1137,13 +1152,13 @@ onUnmounted(() => {
     <!-- ============================================================ -->
     <div
       v-if="itemSelectModal.visible"
-      class="fixed inset-0 z-[60] flex items-center justify-center"
+      class="fixed inset-0 z-dialog flex items-center justify-center"
     >
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="closeItemSelectModal"></div>
-      <div class="relative bg-[#1c130d] border border-amber-500/40 rounded-lg p-5 w-80 mx-4 shadow-2xl shadow-amber-900/20 animate-fade-in-up max-h-[80vh] flex flex-col">
+      <div class="relative bg-surface-tint-gold border border-gold-500/40 rounded-lg p-5 w-80 mx-4 shadow-2xl shadow-gold-900/20 animate-fade-in-up max-h-[80vh] flex flex-col" role="dialog" aria-label="展示物品">
         <!-- 标题 -->
         <div class="flex items-center justify-between mb-3 shrink-0">
-          <h3 class="text-base font-bold text-amber-300 flex items-center gap-1.5">
+          <h3 class="text-base font-bold text-gold-300 flex items-center gap-1.5 font-display">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
               <path d="M3.27 6.96 12 12.01l8.73-5.05"/>
@@ -1151,20 +1166,20 @@ onUnmounted(() => {
             </svg>
             展示物品
           </h3>
-          <button @click="closeItemSelectModal" class="text-stone-500 hover:text-white transition-colors">
+          <button type="button" @click="closeItemSelectModal" class="focus-ring rounded-control text-fg-faint hover:text-fg-primary transition-colors" aria-label="关闭">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
 
         <!-- 加载中 -->
-        <div v-if="itemSelectModal.loading" class="text-center text-stone-500 py-10">
+        <div v-if="itemSelectModal.loading" class="text-center text-fg-faint py-10">
           正在查阅储物袋...
         </div>
 
         <!-- 物品列表 -->
-        <div v-else class="flex-1 overflow-y-auto custom-scrollbar">
+        <div v-else class="flex-1 overflow-y-auto scroll-thin">
           <!-- 空背包 -->
-          <div v-if="itemSelectModal.items.length === 0" class="text-center text-stone-500 py-8 text-sm">
+          <div v-if="itemSelectModal.items.length === 0" class="text-center text-fg-faint py-8 text-sm">
             储物袋空空如也
           </div>
 
@@ -1183,12 +1198,12 @@ onUnmounted(() => {
                 {{ item.name }}
               </div>
               <!-- 品质+类型 -->
-              <div class="text-[10px] text-stone-400 flex items-center gap-1 mb-0.5">
+              <div class="text-[10px] text-fg-muted flex items-center gap-1 mb-0.5">
                 <span :class="getQualityStyle(item.quality).text">{{ getQualityStyle(item.quality).label }}</span>
                 <span>· {{ getItemTypeLabel(item.type) }}</span>
               </div>
               <!-- 数量 -->
-              <div class="text-[10px] text-amber-500/70">
+              <div class="text-[10px] text-gold-500/70 num">
                 ×{{ item.quantity }}
               </div>
             </button>
@@ -1196,7 +1211,7 @@ onUnmounted(() => {
         </div>
 
         <!-- 底部提示 -->
-        <div class="mt-3 text-center text-[10px] text-stone-500 shrink-0">
+        <div class="mt-3 text-center text-[10px] text-fg-faint shrink-0">
           选择物品展示到聊天频道
         </div>
       </div>
@@ -1207,12 +1222,12 @@ onUnmounted(() => {
     <!-- ============================================================ -->
     <div
       v-if="itemDetailModal.visible && itemDetailModal.data"
-      class="fixed inset-0 z-[60] flex items-center justify-center"
+      class="fixed inset-0 z-dialog flex items-center justify-center"
     >
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="closeItemDetail"></div>
-      <div class="relative bg-[#1c130d] border rounded-lg p-5 w-72 mx-4 shadow-2xl animate-fade-in-up" :class="getQualityStyle(itemDetailModal.data.quality).border">
+      <div class="relative bg-surface-tint-gold border rounded-lg p-5 w-72 mx-4 shadow-2xl animate-fade-in-up" :class="getQualityStyle(itemDetailModal.data.quality).border" role="dialog" aria-label="物品详情">
         <!-- 关闭按钮 -->
-        <button @click="closeItemDetail" class="absolute top-3 right-3 text-stone-500 hover:text-white transition-colors">
+        <button type="button" @click="closeItemDetail" class="focus-ring absolute top-3 right-3 rounded-control text-fg-faint hover:text-fg-primary transition-colors" aria-label="关闭">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
 
@@ -1240,33 +1255,33 @@ onUnmounted(() => {
           <span class="text-xs px-2 py-0.5 rounded border" :class="getQualityStyle(itemDetailModal.data.quality).border + ' ' + getQualityStyle(itemDetailModal.data.quality).text">
             {{ getQualityStyle(itemDetailModal.data.quality).label }}
           </span>
-          <span class="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-400">
+          <span class="text-xs px-2 py-0.5 rounded border border-line text-fg-muted">
             {{ getItemTypeLabel(itemDetailModal.data.type) }}
           </span>
         </div>
 
         <!-- 物品描述 -->
-        <div class="bg-[#0f0b08] rounded p-2.5 border border-stone-800 mb-3">
-          <div class="text-[10px] text-stone-500 mb-1">物品描述</div>
-          <div class="text-xs text-stone-300 leading-relaxed">
+        <div class="bg-surface-canvas rounded p-2.5 border border-line-subtle mb-3">
+          <div class="text-[10px] text-fg-faint mb-1">物品描述</div>
+          <div class="text-xs text-fg-secondary leading-relaxed">
             {{ itemDetailModal.data.description || '暂无描述' }}
           </div>
         </div>
 
         <!-- 物品属性 -->
         <div class="grid grid-cols-2 gap-2 mb-3">
-          <div class="bg-[#0f0b08] rounded p-2 border border-stone-800 text-center">
-            <div class="text-[10px] text-stone-500 mb-0.5">售价</div>
-            <div class="text-xs font-bold text-amber-400">{{ itemDetailModal.data.price || 0 }} 灵石</div>
+          <div class="bg-surface-canvas rounded p-2 border border-line-subtle text-center">
+            <div class="text-[10px] text-fg-faint mb-0.5">售价</div>
+            <div class="text-xs font-bold text-gold-400 num">{{ itemDetailModal.data.price || 0 }} 灵石</div>
           </div>
-          <div class="bg-[#0f0b08] rounded p-2 border border-stone-800 text-center">
-            <div class="text-[10px] text-stone-500 mb-0.5">展示时持有</div>
-            <div class="text-xs font-bold text-amber-400">×{{ itemDetailModal.data.quantity || 1 }}</div>
+          <div class="bg-surface-canvas rounded p-2 border border-line-subtle text-center">
+            <div class="text-[10px] text-fg-faint mb-0.5">展示时持有</div>
+            <div class="text-xs font-bold text-gold-400 num">×{{ itemDetailModal.data.quantity || 1 }}</div>
           </div>
         </div>
 
         <!-- 底部说明 -->
-        <div class="text-center text-[10px] text-stone-500">
+        <div class="text-center text-[10px] text-fg-faint">
           此物品由仙友在聊天中展示
         </div>
       </div>
@@ -1275,20 +1290,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(180, 83, 9, 0.2);
-  border-radius: 2px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(180, 83, 9, 0.4);
-}
-
 @keyframes fade-in-up {
   from {
     opacity: 0;

@@ -1,7 +1,6 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import apiClient from './api'
-import GameLayout from './components/layout/GameLayout.vue'
 import Login from './views/Login.vue'
 import ToastContainer from './components/common/ToastContainer.vue'
 import { usePlayerStore } from './stores/player'
@@ -11,9 +10,6 @@ import { currentVersion } from './data/changelog'
 import { exchangeQQTicket } from './api/auth'
 import { readQQRedirect } from './utils/qqAuth'
 
-const serverStatus = ref('正在连接...')
-const dbStatus = ref('检查中...')
-const ping = ref(0)
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
 const showChangelog = ref(false)
@@ -23,21 +19,10 @@ const currentPlayer = computed(() => playerStore.player)
 
 const isInitialized = ref(false)
 
-const checkStatus = async () => {
-  const start = performance.now()
-  try {
-    // 添加时间戳防止缓存
-    const res = await apiClient.get(`/system/stats?t=${Date.now()}`)
-    const end = performance.now()
-    ping.value = Math.round(end - start)
-    serverStatus.value = res.data.message
-    dbStatus.value = '连接正常'
-  } catch (error) {
-    serverStatus.value = '连接失败'
-    dbStatus.value = error.message
-    ping.value = -1
-  }
-}
+// 原先这里每 5 秒打一次 /system/stats 测延迟，把 serverStatus / dbStatus / ping
+// 三个值传给 GameLayout —— 而 GameLayout 的模板从头到尾没有渲染过它们，
+// 等于每个在线玩家每 5 秒白白发一个请求。要恢复在线状态展示，
+// 请连同展示位一起做，不要再留只写不读的通道。
 
 // 监听登录成功事件
 const handleLoginSuccess = async () => {
@@ -80,13 +65,7 @@ const handleQQRedirect = async () => {
   }
 }
 
-let pingInterval
-
 onMounted(async () => {
-  checkStatus()
-  // 每5秒检查一次状态和延迟
-  pingInterval = setInterval(checkStatus, 5000)
-  
   // 检查版本更新
   const lastVersion = localStorage.getItem('app_version')
   if (lastVersion !== currentVersion) {
@@ -115,30 +94,22 @@ onMounted(async () => {
   
   isInitialized.value = true
 })
-
-onUnmounted(() => {
-  if (pingInterval) clearInterval(pingInterval)
-})
 </script>
 
 <template>
   <!-- 全局初始化加载状态 -->
-  <div v-if="!isInitialized" class="min-h-screen flex flex-col items-center justify-center bg-xiuxian-dark text-xiuxian-gold">
-    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-xiuxian-gold mb-4"></div>
-    <div class="text-lg font-serif tracking-widest">正在通往修仙世界...</div>
+  <div v-if="!isInitialized" class="min-h-screen flex flex-col items-center justify-center bg-surface-canvas text-gold-500">
+    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-500 mb-4"></div>
+    <div class="text-lg font-display tracking-widest">正在通往修仙世界...</div>
   </div>
 
   <template v-else>
     <div v-if="!currentPlayer">
       <Login @login-success="handleLoginSuccess" />
     </div>
-    <GameLayout 
-      v-else
-      :serverStatus="serverStatus" 
-      :dbStatus="dbStatus"
-      :ping="ping"
-      :player="currentPlayer"
-    />
+    <!-- 游戏主体由路由渲染（/ 总览，/p/<panelId> 展开中的面板）。
+         两条路由指向同一个 GameLayout，所以这里不需要 <component :is>。 -->
+    <RouterView v-else :player="currentPlayer" />
   </template>
   <ToastContainer />
   <ChangelogModal :isOpen="showChangelog" @close="handleChangelogClose" />

@@ -18,17 +18,20 @@ import { getMapInfo } from '../../api/map'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { formatCompact } from '../../utils/format'
-
-const props = defineProps({
-  initialBattleId: {
-    type: String,
-    default: null
-  }
-})
+import PanelShell from '../ui/PanelShell.vue'
+import PanelCard from '../ui/PanelCard.vue'
+import StatBar from '../ui/StatBar.vue'
+import Badge from '../ui/Badge.vue'
+import AppButton from '../ui/AppButton.vue'
+import EmptyState from '../ui/EmptyState.vue'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+
+// 进行中战斗的事实来源是 store（由 /combat/status 同步），
+// 面板自己读，不再由 GameLayout 逐层传 prop。
+const battleId = computed(() => playerStore.activeBattleId)
 
 const loading = ref(true)
 const combatLoading = ref(false)
@@ -40,15 +43,26 @@ const combatStats = ref(null)
 const skillMpCost = ref(20) // 默认值，由后端返回
 
 /**
+ * 战斗收尾
+ *
+ * 本地 currentBattle 清掉的同时必须抹掉 store 里的进行中战斗，
+ * 否则 GameLayout 的「返回战斗」按钮会继续挂在一场已经不存在的战斗上。
+ */
+const endBattle = () => {
+  currentBattle.value = null
+  playerStore.clearActiveBattle()
+}
+
+/**
  * 获取战斗数据
  */
 const fetchData = async () => {
   loading.value = true
   let battleRes = null
   
-  if (props.initialBattleId) {
+  if (battleId.value) {
     try {
-      battleRes = await getCombatStatus(props.initialBattleId)
+      battleRes = await getCombatStatus(battleId.value)
       if (battleRes.data.in_battle) {
         currentBattle.value = battleRes.data
       }
@@ -78,7 +92,7 @@ const fetchData = async () => {
     if (error.response?.status === 404) {
       monsters.value = []
     } else {
-      uiStore.showToast('获取战斗数据失败', 'error')
+      uiStore.showApiError(error, '操作失败')
     }
   } finally {
     loading.value = false
@@ -96,6 +110,8 @@ const handleEncounter = async (monster) => {
     const res = await encounter(monster.id)
     
     currentBattle.value = res.data.battle
+    // 新战斗的 battle_id 只有后端知道，直接回读一次，别在前端猜返回字段名
+    await playerStore.syncActiveBattle()
     uiStore.addLog({
       content: `你遭遇了 ${monster.name}！`,
       type: 'combat',
@@ -104,8 +120,7 @@ const handleEncounter = async (monster) => {
     
     await fetchData()
   } catch (error) {
-    const msg = error.response?.data?.error || '遭遇失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '遭遇失败')
   } finally {
     combatLoading.value = false
   }
@@ -135,10 +150,10 @@ const handleAttack = async () => {
         type: 'combat',
         actorId: 'self'
       })
-      currentBattle.value = null
+      endBattle()
     } else if (result.defeat) {
       uiStore.showToast(`战斗失败，扣除 ${result.penalty_exp || 0} 修为`, 'error')
-      currentBattle.value = null
+      endBattle()
     } else {
       uiStore.addLog({
         content: `你对 ${currentBattle.value.monster.name} 造成了 ${result.damage} 点伤害。`,
@@ -162,8 +177,7 @@ const handleAttack = async () => {
 
     await refreshStats()
   } catch (error) {
-    const msg = error.response?.data?.error || '攻击失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '攻击失败')
   } finally {
     combatLoading.value = false
   }
@@ -188,10 +202,10 @@ const handleUseSkill = async (skillIndex) => {
         type: 'combat',
         actorId: 'self'
       })
-      currentBattle.value = null
+      endBattle()
     } else if (result.defeat) {
       uiStore.showToast(`战斗失败，扣除 ${result.penalty_exp || 0} 修为`, 'error')
-      currentBattle.value = null
+      endBattle()
     } else {
       uiStore.addLog({
         content: `你对 ${currentBattle.value.monster.name} 使用了技能，造成 ${result.damage} 点伤害。`,
@@ -217,8 +231,7 @@ const handleUseSkill = async (skillIndex) => {
 
     await refreshStats()
   } catch (error) {
-    const msg = error.response?.data?.error || '技能使用失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '技能使用失败')
   } finally {
     combatLoading.value = false
   }
@@ -243,7 +256,7 @@ const handleEscape = async () => {
         type: 'combat',
         actorId: 'self'
       })
-      currentBattle.value = null
+      endBattle()
     } else {
       // 逃跑失败，怪物获得回合
       uiStore.showToast('逃跑失败！', 'warn')
@@ -256,8 +269,7 @@ const handleEscape = async () => {
     }
     await refreshStats()
   } catch (error) {
-    const msg = error.response?.data?.error || '逃跑失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '逃跑失败')
   } finally {
     combatLoading.value = false
   }
@@ -278,11 +290,10 @@ const handleAbandon = async () => {
       type: 'combat',
       actorId: 'self'
     })
-    currentBattle.value = null
+    endBattle()
     await refreshStats()
   } catch (error) {
-    const msg = error.response?.data?.error || '放弃战斗失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '放弃战斗失败')
   } finally {
     combatLoading.value = false
   }
@@ -302,28 +313,16 @@ const refreshStats = async () => {
 
 /**
  * 获取怪物难度
- * 使用后端返回的难度标签，避免前端硬编码境界顺序
+ * 使用后端返回的难度标签，避免前端硬编码境界顺序；
+ * 呈现只看 name/safe 两个字段，样式由 Badge 的 tone 决定。
  */
 const getMonsterDifficulty = (monster) => {
   if (monster.difficulty) return monster.difficulty
-  // 兜底：如果后端未返回，显示默认
-  return { class: 'text-stone-400', name: '未知', safe: false }
+  return { name: '未知', safe: false }
 }
 
-const getMonsterHpPercent = (battle) => {
-  if (!battle) return 0
-  return Math.max(0, Math.min(100, (battle.monster.hp / battle.monster.max_hp) * 100))
-}
 
-const getPlayerHpPercent = (battle) => {
-  if (!battle) return 0
-  return Math.max(0, Math.min(100, (battle.player.hp / battle.player.max_hp) * 100))
-}
 
-const getPlayerMpPercent = (battle) => {
-  if (!battle) return 0
-  return Math.max(0, Math.min(100, (battle.player.mp / battle.player.max_mp) * 100))
-}
 
 onMounted(() => {
   fetchData()
@@ -331,235 +330,162 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-    
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
-        <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4"/><path d="M6 12H3"/><path d="M15 6h5a3 3 0 0 1 3 3 3 3 0 0 1-3 3h-3"/><path d="M18 12l-4-6"/><path d="M18 12l4 6"/><circle cx="18" cy="18" r="3"/><path d="M6 8v8"/></svg>
-          战斗系统
-        </h2>
-        <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
+  <PanelShell title="战斗" :hint="currentMap?.name" size="xl" :loading="loading" scoped-scroll @close="emit('close')">
+    <div class="flex flex-col md:flex-row h-full min-h-0">
+      <!-- 左：当前战斗。窄屏（面板是全屏 modal）先看战场，怪物列表往下排 -->
+      <div class="w-full md:w-1/2 flex flex-col md:border-r border-line-subtle border-b md:border-b-0">
+        <div class="shrink-0 px-4 py-2.5 border-b border-line-subtle bg-surface-canvas">
+          <h3 class="text-xs font-bold text-fg-muted tracking-[0.15em]">当前战斗</h3>
+        </div>
 
-      <div class="flex-1 overflow-hidden flex">
-        <div class="w-1/2 flex flex-col border-r border-stone-800">
-          <div class="p-4 border-b border-stone-800 bg-[#0c0a09]">
-            <h3 class="text-sm font-bold text-stone-400 uppercase tracking-wider">当前战斗</h3>
-          </div>
-          
-          <div class="flex-1 overflow-y-auto p-4">
-            <div v-if="loading" class="flex justify-center items-center h-64">
-              <svg class="animate-spin h-10 w-10 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+        <div class="flex-1 min-h-0 overflow-y-auto p-4">
+          <EmptyState
+            v-if="!currentBattle"
+            text="当前没有战斗"
+            hint="从右侧选择怪物遭遇，开始一场斗法"
+          />
+
+          <div v-else class="space-y-4">
+            <PanelCard>
+              <div class="flex justify-between items-center mb-3 gap-2">
+                <h4 class="text-lg font-bold text-rose-400 truncate">{{ currentBattle.monster.name }}</h4>
+                <Badge tone="danger">{{ currentBattle.monster.realm }}</Badge>
+              </div>
+
+              <StatBar
+                label="怪物气血"
+                tone="blood"
+                :value="currentBattle.monster.hp"
+                :max="currentBattle.monster.max_hp"
+                height="h-2.5"
+              />
+
+              <div class="grid grid-cols-3 gap-2 text-center mt-3">
+                <div class="bg-surface-sunken rounded-control p-2">
+                  <div class="text-[10px] text-fg-faint">攻击力</div>
+                  <div class="text-sm font-bold text-rose-400 num" :title="String(currentBattle.monster.atk)">{{ formatCompact(currentBattle.monster.atk || 0) }}</div>
+                </div>
+                <div class="bg-surface-sunken rounded-control p-2">
+                  <div class="text-[10px] text-fg-faint">防御力</div>
+                  <div class="text-sm font-bold text-gold-400 num" :title="String(currentBattle.monster.def)">{{ formatCompact(currentBattle.monster.def || 0) }}</div>
+                </div>
+                <div class="bg-surface-sunken rounded-control p-2">
+                  <div class="text-[10px] text-fg-faint">经验奖励</div>
+                  <div class="text-sm font-bold text-emerald-400 num">{{ formatCompact(currentBattle.monster.exp_reward) }}</div>
+                </div>
+              </div>
+            </PanelCard>
+
+            <PanelCard title="你的状态">
+              <StatBar
+                class="mb-2"
+                tone="blood"
+                :value="currentBattle.player.hp"
+                :max="currentBattle.player.max_hp"
+              />
+              <StatBar
+                tone="azure"
+                :value="currentBattle.player.mp"
+                :max="currentBattle.player.max_mp"
+              />
+            </PanelCard>
+
+            <div class="grid grid-cols-3 gap-2">
+              <AppButton
+                variant="danger"
+                :disabled="combatLoading"
+                :loading="combatLoading"
+                @click="handleAttack"
+              >普通攻击</AppButton>
+              <AppButton
+                variant="outline"
+                :disabled="combatLoading || currentBattle.player.mp < skillMpCost"
+                @click="handleUseSkill(0)"
+              >技能 · {{ skillMpCost }}灵力</AppButton>
+              <AppButton
+                :disabled="combatLoading"
+                @click="handleEscape"
+              >逃跑</AppButton>
             </div>
 
-            <div v-else-if="!currentBattle" class="flex flex-col items-center justify-center h-64 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-4 opacity-50"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-              <p class="text-lg mb-2">当前没有战斗</p>
-              <p class="text-sm opacity-70">选择右侧的怪物进行遭遇</p>
-            </div>
-
-            <div v-else class="space-y-6">
-              <div class="bg-[#1c1917] rounded-lg p-4 border border-stone-800">
-                <div class="flex justify-between items-center mb-3">
-                  <h4 class="text-lg font-bold text-red-400">{{ currentBattle.monster.name }}</h4>
-                  <span class="text-xs px-2 py-0.5 rounded bg-red-900/30 border border-red-700/50 text-red-400">
-                    {{ currentBattle.monster.realm }}
-                  </span>
-                </div>
-                
-                <div class="mb-2 flex justify-between text-xs text-stone-500">
-                  <span>怪物气血</span>
-                  <span>{{ formatCompact(currentBattle.monster.hp) }} / {{ formatCompact(currentBattle.monster.max_hp) }}</span>
-                </div>
-                <div class="h-3 bg-stone-900 rounded-full overflow-hidden mb-4">
-                  <div 
-                    class="h-full bg-gradient-to-r from-red-700 to-red-500 transition-all duration-300"
-                    :style="{ width: getMonsterHpPercent(currentBattle) + '%' }"
-                  ></div>
-                </div>
-
-                <div class="grid grid-cols-3 gap-4 text-center">
-                  <div class="bg-stone-900/50 rounded p-2">
-                    <div class="text-xs text-stone-500">攻击力</div>
-                    <div class="text-sm font-bold text-red-400">{{ currentBattle.monster.atk }}</div>
-                  </div>
-                  <div class="bg-stone-900/50 rounded p-2">
-                    <div class="text-xs text-stone-500">防御力</div>
-                    <div class="text-sm font-bold text-amber-400">{{ currentBattle.monster.def }}</div>
-                  </div>
-                  <div class="bg-stone-900/50 rounded p-2">
-                    <div class="text-xs text-stone-500">经验奖励</div>
-                    <div class="text-sm font-bold text-emerald-400">{{ formatCompact(currentBattle.monster.exp_reward) }}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="bg-[#1c1917] rounded-lg p-4 border border-stone-800">
-                <div class="flex justify-between items-center mb-3">
-                  <h4 class="text-lg font-bold text-stone-200">你的状态</h4>
-                </div>
-                
-                <div class="mb-2 flex justify-between text-xs text-stone-500">
-                  <span>气血</span>
-                  <span>{{ formatCompact(currentBattle.player.hp) }} / {{ formatCompact(currentBattle.player.max_hp) }}</span>
-                </div>
-                <div class="h-2 bg-stone-900 rounded-full overflow-hidden mb-2">
-                  <div 
-                    class="h-full bg-gradient-to-r from-red-700 to-red-500 transition-all duration-300"
-                    :style="{ width: getPlayerHpPercent(currentBattle) + '%' }"
-                  ></div>
-                </div>
-
-                <div class="mb-2 flex justify-between text-xs text-stone-500">
-                  <span>灵力</span>
-                  <span>{{ formatCompact(currentBattle.player.mp) }} / {{ formatCompact(currentBattle.player.max_mp) }}</span>
-                </div>
-                <div class="h-2 bg-stone-900 rounded-full overflow-hidden">
-                  <div 
-                    class="h-full bg-gradient-to-r from-cyan-700 to-cyan-500 transition-all duration-300"
-                    :style="{ width: getPlayerMpPercent(currentBattle) + '%' }"
-                  ></div>
-                </div>
-              </div>
-
-              <div class="flex gap-2">
-                <button
-                  @click="handleAttack"
-                  :disabled="combatLoading"
-                  class="flex-1 py-3 rounded bg-red-900/30 border border-red-700/50 text-red-400 hover:bg-red-800/50 hover:text-red-300 transition-colors disabled:opacity-50"
-                >
-                  <span v-if="combatLoading">战斗中...</span>
-                  <span v-else>普通攻击</span>
-                </button>
-                <button
-                  @click="handleUseSkill(0)"
-                  :disabled="combatLoading || currentBattle.player.mp < skillMpCost"
-                  class="flex-1 py-3 rounded bg-purple-900/30 border border-purple-700/50 text-purple-400 hover:bg-purple-800/50 hover:text-purple-300 transition-colors disabled:opacity-50"
-                >
-                  <span>技能 ({{ skillMpCost }}灵力)</span>
-                </button>
-                <button
-                  @click="handleEscape"
-                  :disabled="combatLoading"
-                  class="flex-1 py-3 rounded bg-stone-800 border border-stone-700 text-stone-400 hover:bg-stone-700 hover:text-stone-300 transition-colors disabled:opacity-50"
-                >
-                  逃跑
-                </button>
-              </div>
-
-              <!-- 放弃战斗按钮：小号灰色，避免误点，用于清理卡死的遗留战斗 -->
-              <div class="mt-2 text-center">
-                <button
-                  @click="handleAbandon"
-                  :disabled="combatLoading"
-                  class="text-xs text-stone-600 hover:text-stone-400 underline transition-colors disabled:opacity-50"
-                  title="放弃战斗会直接结束当前战斗，无惩罚但也不获得奖励"
-                >
-                  放弃战斗
-                </button>
-              </div>
+            <!-- 放弃战斗：用于清理卡死的遗留战斗，做得不起眼以免误点 -->
+            <div class="text-center">
+              <AppButton
+                variant="ghost"
+                size="xs"
+                :disabled="combatLoading"
+                title="放弃战斗会直接结束当前战斗，无惩罚但也不获得奖励"
+                @click="handleAbandon"
+              >放弃战斗</AppButton>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="w-1/2 flex flex-col">
-          <div class="p-4 border-b border-stone-800 bg-[#0c0a09]">
-            <h3 class="text-sm font-bold text-stone-400 uppercase tracking-wider">遭遇列表</h3>
-          </div>
-          
-          <div class="flex-1 overflow-y-auto p-4">
-            <div v-if="loading" class="flex justify-center items-center h-64">
-              <svg class="animate-spin h-8 w-8 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+      <!-- 右：遭遇列表 + 战斗统计 -->
+      <div class="w-full md:w-1/2 flex flex-col min-h-0">
+        <div class="shrink-0 px-4 py-2.5 border-b border-line-subtle bg-surface-canvas">
+          <h3 class="text-xs font-bold text-fg-muted tracking-[0.15em]">遭遇列表</h3>
+        </div>
+
+        <div class="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+          <EmptyState
+            v-if="monsters.length === 0"
+            :text="`${currentMap?.name || '当前区域'} 暂无怪物`"
+            hint="换个区域历练，或等待怪物刷新"
+          />
+
+          <PanelCard
+            v-for="monster in monsters"
+            :key="monster.id"
+            class="transition-colors hover:border-line-strong"
+          >
+            <div class="flex justify-between items-start mb-2 gap-2">
+              <div class="min-w-0">
+                <h4 class="font-bold text-fg-primary truncate">{{ monster.name }}</h4>
+                <p class="text-xs text-fg-faint">{{ monster.realm }}</p>
+              </div>
+              <Badge :tone="getMonsterDifficulty(monster).safe ? 'success' : 'danger'">
+                {{ getMonsterDifficulty(monster).name }}
+              </Badge>
             </div>
 
-            <div v-else-if="monsters.length === 0" class="flex flex-col items-center justify-center h-64 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-              <p>{{ currentMap?.name || '当前区域' }} 暂无怪物</p>
+            <div class="flex justify-between text-xs text-fg-faint num mb-3">
+              <span>EXP <span class="text-emerald-400">{{ formatCompact(monster.exp) }}</span></span>
+              <span>ATK <span class="text-rose-400">{{ monster.atk || '?' }}</span></span>
+              <span>DEF <span class="text-gold-400">{{ monster.def || '?' }}</span></span>
             </div>
 
-            <div v-else class="space-y-3">
-              <div 
-                v-for="monster in monsters" 
-                :key="monster.id"
-                class="bg-[#1c1917] border border-stone-800 rounded-lg p-3 transition-all hover:border-stone-700"
-              >
-                <div class="flex justify-between items-start mb-2">
-                  <div>
-                    <h4 class="font-bold text-stone-200">{{ monster.name }}</h4>
-                    <p class="text-xs text-stone-500">{{ monster.realm }}</p>
-                  </div>
-                  <span 
-                    class="text-xs px-2 py-0.5 rounded border"
-                    :class="getMonsterDifficulty(monster).safe 
-                      ? 'bg-emerald-900/20 border-emerald-700/50 text-emerald-400' 
-                      : 'bg-red-900/20 border-red-700/50 text-red-400'"
-                  >
-                    {{ getMonsterDifficulty(monster).name }}
-                  </span>
-                </div>
-                
-                <div class="flex justify-between text-xs text-stone-500 mb-3">
-                  <span>EXP: <span class="text-emerald-400">{{ formatCompact(monster.exp) }}</span></span>
-                  <span>ATK: <span class="text-red-400">{{ monster.atk || '?' }}</span></span>
-                  <span>DEF: <span class="text-amber-400">{{ monster.def || '?' }}</span></span>
-                </div>
+            <AppButton
+              block
+              :disabled="combatLoading || !getMonsterDifficulty(monster).safe"
+              @click="handleEncounter(monster)"
+            >遭遇</AppButton>
+          </PanelCard>
 
-                <button 
-                  @click="handleEncounter(monster)"
-                  :disabled="combatLoading || !getMonsterDifficulty(monster).safe"
-                  class="w-full py-2 rounded bg-stone-800 border border-stone-700 text-stone-400 hover:bg-stone-700 hover:text-stone-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  遭遇
-                </button>
+          <PanelCard title="战斗统计" v-if="combatStats">
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="bg-surface-sunken rounded-control p-2">
+                <div class="text-lg font-bold text-emerald-400 num">{{ combatStats.victories || 0 }}</div>
+                <div class="text-[10px] text-fg-faint">胜利</div>
+              </div>
+              <div class="bg-surface-sunken rounded-control p-2">
+                <div class="text-lg font-bold text-rose-400 num">{{ combatStats.defeats || 0 }}</div>
+                <div class="text-[10px] text-fg-faint">失败</div>
+              </div>
+              <div class="bg-surface-sunken rounded-control p-2">
+                <div class="text-lg font-bold text-gold-400 num">{{ combatStats.escapes || 0 }}</div>
+                <div class="text-[10px] text-fg-faint">逃跑</div>
               </div>
             </div>
-
-            <div class="mt-6 p-4 bg-[#1c1917] rounded-lg border border-stone-800">
-              <h4 class="text-sm font-bold text-stone-400 mb-3 uppercase tracking-wider">战斗统计</h4>
-              <div class="grid grid-cols-3 gap-3 text-center">
-                <div class="bg-stone-900/50 rounded p-2">
-                  <div class="text-lg font-bold text-emerald-400">{{ combatStats?.victories || 0 }}</div>
-                  <div class="text-[10px] text-stone-500">胜利</div>
-                </div>
-                <div class="bg-stone-900/50 rounded p-2">
-                  <div class="text-lg font-bold text-red-400">{{ combatStats?.defeats || 0 }}</div>
-                  <div class="text-[10px] text-stone-500">失败</div>
-                </div>
-                <div class="bg-stone-900/50 rounded p-2">
-                  <div class="text-lg font-bold text-yellow-400">{{ combatStats?.escapes || 0 }}</div>
-                  <div class="text-[10px] text-stone-500">逃跑</div>
-                </div>
-              </div>
-              <div class="mt-3 pt-3 border-t border-stone-800">
-                <div class="flex justify-between text-xs">
-                  <span class="text-stone-500">总获得修为</span>
-                  <span class="text-amber-400 font-bold">{{ formatCompact(combatStats?.total_exp || 0) }}</span>
-                </div>
-              </div>
+            <div class="mt-3 pt-3 border-t border-line-subtle flex justify-between text-xs">
+              <span class="text-fg-faint">总获得修为</span>
+              <span class="text-gold-400 font-bold num">{{ formatCompact(combatStats.total_exp || 0) }}</span>
             </div>
-          </div>
+          </PanelCard>
         </div>
       </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
 
-<style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-</style>

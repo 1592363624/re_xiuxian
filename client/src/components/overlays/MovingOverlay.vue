@@ -7,43 +7,45 @@
   <div v-if="show" class="relative z-30">
     <!-- 浮动状态条（始终可见） -->
     <div
-      class="flex items-center gap-3 px-4 py-2.5 bg-[#1a1510]/95 border-b border-amber-900/40 backdrop-blur-sm select-none"
+      class="flex items-center gap-3 px-4 py-2.5 bg-surface-base/95 border-b border-gold-900/40 backdrop-blur-sm select-none"
     >
       <!-- 左侧图标 + 标题 -->
       <div class="flex items-center gap-2.5 shrink-0">
         <div class="relative w-7 h-7 flex items-center justify-center">
           <!-- 脉冲光环 -->
-          <div class="absolute inset-0 border border-amber-500/30 rounded-full animate-ping" style="animation-duration: 2s;"></div>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400">
+          <div class="absolute inset-0 border border-gold-500/30 rounded-full animate-ping" style="animation-duration: 2s;"></div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gold-400">
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 6v6l4 2"/>
           </svg>
         </div>
-        <span class="text-sm font-bold text-amber-400 tracking-wider hidden sm:inline">正在赶路</span>
-        <span class="text-sm font-bold text-amber-400 tracking-wider sm:hidden">赶路</span>
+        <span class="text-sm font-bold text-gold-400 tracking-wider hidden sm:inline">正在赶路</span>
+        <span class="text-sm font-bold text-gold-400 tracking-wider sm:hidden">赶路</span>
       </div>
 
       <!-- 中间路线信息 -->
       <div class="flex items-center gap-2 text-xs flex-1 min-w-0">
-        <span class="text-stone-300 truncate">{{ fromMapName }}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500 shrink-0">
+        <span class="text-fg-secondary truncate">{{ fromMapName }}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gold-500 shrink-0">
           <line x1="5" y1="12" x2="19" y2="12"/>
           <polyline points="12 5 19 12 12 19"/>
         </svg>
-        <span class="text-amber-400 font-bold truncate">{{ toMapName }}</span>
+        <span class="text-gold-400 font-bold truncate">{{ toMapName }}</span>
       </div>
 
       <!-- 右侧进度 + 操作 -->
       <div class="flex items-center gap-3 shrink-0">
         <!-- 进度百分比（移动端隐藏） -->
-        <span class="hidden sm:inline text-xs font-mono text-amber-400 w-10 text-right">{{ progressText }}</span>
+        <span class="hidden sm:inline text-xs num text-gold-400 w-10 text-right">{{ progressText }}</span>
         <!-- 剩余时间 -->
-        <span class="text-xs font-mono text-stone-400 w-16 text-right">{{ formattedTime }}</span>
+        <span class="text-xs num text-fg-muted w-16 text-right">{{ formattedTime }}</span>
         <!-- 展开/收起按钮 -->
         <button
           @click="expanded = !expanded"
-          class="p-1.5 rounded text-stone-500 hover:text-amber-400 hover:bg-amber-950/30 transition-colors"
+          class="focus-ring p-1.5 rounded-control text-fg-faint hover:text-gold-400 hover:bg-surface-tint-gold transition-colors"
           :title="expanded ? '收起详情' : '展开详情'"
+          :aria-label="expanded ? '收起详情' : '展开详情'"
+          :aria-expanded="expanded"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -62,28 +64,30 @@
           </svg>
         </button>
         <!-- 取消移动按钮 -->
-        <button
+        <AppButton
           @click="cancelMoveAction"
           :disabled="cancelling"
-          class="px-3 py-1 text-xs rounded border border-stone-700 text-stone-400 hover:text-stone-300 hover:border-stone-500 hover:bg-stone-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed tracking-wider"
+          variant="outline"
+          size="sm"
+          class="tracking-wider"
         >
           <span v-if="cancelling">取消中...</span>
           <span v-else>取消</span>
-        </button>
+        </AppButton>
       </div>
     </div>
 
     <!-- 展开详情面板 -->
     <Transition name="moving-panel">
       <div v-if="expanded" class="absolute top-full left-0 right-0 z-40">
-        <div class="bg-[#141210]/98 border-b border-amber-900/30 backdrop-blur-md px-6 py-6">
+        <div class="bg-surface-base/98 border-b border-gold-900/30 backdrop-blur-md px-6 py-6">
           <div class="relative z-10 max-w-lg mx-auto">
             <!-- 核心图标 -->
             <div class="flex justify-center mb-6">
               <div class="relative">
-                <div class="absolute inset-0 -m-6 border border-amber-500/15 rounded-full animate-[spin_10s_linear_infinite]"></div>
-                <div class="w-20 h-20 bg-gradient-to-b from-stone-900 to-black rounded-full border-2 border-amber-700/40 flex items-center justify-center shadow-[0_0_25px_rgba(180,83,9,0.2)]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400 animate-pulse">
+                <div class="absolute inset-0 -m-6 border border-gold-500/15 rounded-full animate-[spin_10s_linear_infinite]"></div>
+                <div class="w-20 h-20 bg-gradient-to-b from-surface-raised to-black rounded-full border-2 border-gold-700/40 flex items-center justify-center shadow-[0_0_25px_rgba(180,83,9,0.2)]">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gold-400 animate-pulse">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M12 6v6l4 2"/>
                   </svg>
@@ -93,25 +97,25 @@
 
             <!-- 标题 -->
             <div class="text-center mb-6">
-              <h3 class="text-lg font-bold tracking-[0.3em] text-amber-400 mb-2">正在赶路中</h3>
-              <p class="text-sm text-stone-500">请耐心等待到达目的地</p>
+              <h3 class="text-lg font-bold tracking-[0.3em] text-gold-400 mb-2 font-display">正在赶路中</h3>
+              <p class="text-sm text-fg-faint">请耐心等待到达目的地</p>
             </div>
 
             <!-- 路线信息 -->
             <div class="flex items-center justify-center gap-4 text-lg mb-6">
-              <span class="text-stone-300 font-bold">{{ fromMapName }}</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500">
+              <span class="text-fg-secondary font-bold">{{ fromMapName }}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gold-500">
                 <line x1="5" y1="12" x2="19" y2="12"/>
                 <polyline points="12 5 19 12 12 19"/>
               </svg>
-              <span class="text-amber-400 font-bold">{{ toMapName }}</span>
+              <span class="text-gold-400 font-bold">{{ toMapName }}</span>
             </div>
 
             <!-- 进度条 -->
             <div class="mb-6">
-              <div class="relative h-5 bg-stone-900 rounded-full overflow-hidden border border-stone-700">
+              <div class="relative h-5 bg-surface-raised rounded-full overflow-hidden border border-line">
                 <div
-                  class="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-700 to-amber-500 transition-all duration-1000 ease-linear rounded-full"
+                  class="absolute inset-y-0 left-0 bg-gradient-to-r from-gold-700 to-gold-500 transition-all duration-1000 ease-linear rounded-full"
                   :style="{ width: progress + '%' }"
                 ></div>
                 <div class="absolute inset-0 flex items-center justify-center">
@@ -122,13 +126,13 @@
 
             <!-- 剩余时间 -->
             <div class="text-center mb-6">
-              <div class="text-3xl font-mono font-bold text-amber-400 mb-1">{{ formattedTime }}</div>
-              <div class="text-xs text-stone-500">预计剩余时间</div>
+              <div class="text-3xl num font-bold text-gold-400 mb-1">{{ formattedTime }}</div>
+              <div class="text-xs text-fg-faint">预计剩余时间</div>
             </div>
 
             <!-- 提示 + 取消按钮 -->
-            <div class="pt-4 border-t border-stone-800">
-              <div class="flex items-center justify-center gap-2 text-xs text-stone-500 mb-4">
+            <div class="pt-4 border-t border-line-subtle">
+              <div class="flex items-center justify-center gap-2 text-xs text-fg-faint mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M12 16v-4"/>
@@ -136,14 +140,17 @@
                 </svg>
                 <span>移动期间无法进行其他操作</span>
               </div>
-              <button
+              <AppButton
                 @click="cancelMoveAction"
                 :disabled="cancelling"
-                class="w-full py-2.5 px-4 rounded bg-stone-800 border border-stone-700 text-stone-400 hover:bg-stone-700 hover:text-stone-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed tracking-wider"
+                variant="default"
+                size="md"
+                block
+                class="tracking-wider"
               >
                 <span v-if="cancelling">取消中...</span>
                 <span v-else>取消移动</span>
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -157,6 +164,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import { cancelMove } from '../../api/map'
+import AppButton from '../ui/AppButton.vue'
 
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
@@ -264,7 +272,7 @@ const cancelMoveAction = async () => {
     })
     emit('complete')
   } catch (error) {
-    uiStore.showToast(error.response?.data?.message || '取消失败', 'error')
+    uiStore.showApiError(error, '取消失败')
   } finally {
     cancelling.value = false
   }

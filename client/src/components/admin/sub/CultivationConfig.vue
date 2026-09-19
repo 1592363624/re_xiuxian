@@ -3,10 +3,10 @@
     <!-- 顶部操作栏 -->
     <div class="flex justify-between items-center">
       <div>
-        <h3 class="text-lg font-bold text-white">修炼参数配置</h3>
-        <p class="text-xs text-gray-500 mt-0.5">闭关（常规/深度）与历练（时长分级）参数，修改后热加载无需重启</p>
+        <h3 class="text-lg font-bold text-fg-primary">修炼参数配置</h3>
+        <p class="text-xs text-fg-faint mt-0.5">闭关（常规/深度）与历练（时长分级）参数，修改后热加载无需重启</p>
       </div>
-      <button @click="fetchConfig" :disabled="loading" class="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 rounded text-white text-sm flex items-center gap-1">
+      <button @click="fetchConfig" :disabled="loading" class="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 rounded-control text-fg-primary text-sm flex items-center gap-1">
         <svg v-if="loading" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -16,7 +16,7 @@
     </div>
 
     <!-- 闭关配置区 -->
-    <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+    <div class="bg-surface-raised/50 rounded-lg p-4 border border-line">
       <h4 class="text-md font-bold text-cyan-400 mb-4 flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
@@ -26,94 +26,94 @@
 
       <!-- 基础修为速率 -->
       <div class="mb-4">
-        <label class="block text-sm text-gray-400 mb-1.5">基础修为速率（每秒）</label>
+        <label class="block text-sm text-fg-muted mb-1.5">基础修为速率（每秒）</label>
         <div class="flex items-center gap-2">
           <input v-model.number="form.seclusion.base_exp_rate" type="number" step="0.1" min="0.1" max="100"
-            class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none" />
-          <span class="text-xs text-gray-500">修为/秒</span>
+            class="flex-1 px-3 py-2 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+          <span class="text-xs text-fg-faint">修为/秒</span>
         </div>
-        <p class="mt-1 text-xs text-gray-500">所有闭关的公共基础速率，最终收益 = 基础速率 × 时长 × 模式倍率 × 境界加成</p>
+        <p class="mt-1 text-xs text-fg-faint">所有闭关的公共基础速率，最终收益 = 基础速率 × 时长 × 模式倍率 × 境界加成</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- 常规闭关 -->
-        <div class="bg-gray-900/50 rounded p-3 border border-cyan-900/40">
+        <div class="bg-surface-sunken/50 rounded p-3 border border-cyan-900/40">
           <h5 class="text-sm font-bold text-cyan-300 mb-3 flex items-center justify-between">
             <span>常规闭关（normal）</span>
-            <span class="text-[10px] text-gray-500">日常修炼</span>
+            <span class="text-[10px] text-fg-faint">日常修炼</span>
           </h5>
           <div class="space-y-3">
             <div>
-              <label class="block text-xs text-gray-400 mb-1">单次最长时长（秒）</label>
+              <label class="block text-xs text-fg-muted mb-1">单次最长时长（秒）</label>
               <input v-model.number="form.seclusion.normal.max_duration" type="number" min="60" max="7200" step="60"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-cyan-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">建议 60-7200，当前：{{ formatDuration(form.seclusion.normal.max_duration) }}</p>
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5 num">建议 60-7200，当前：{{ formatDuration(form.seclusion.normal.max_duration) }}</p>
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">每日次数上限</label>
+              <label class="block text-xs text-fg-muted mb-1">每日次数上限</label>
               <input v-model.number="form.seclusion.normal.daily_limit" type="number" min="1" max="100" step="1"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-cyan-500 focus:outline-none" />
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">冷却时间（秒）</label>
+              <label class="block text-xs text-fg-muted mb-1">冷却时间（秒）</label>
               <input v-model.number="form.seclusion.normal.cooldown" type="number" min="0" max="86400" step="60"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-cyan-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">当前：{{ formatDuration(form.seclusion.normal.cooldown) }}</p>
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5 num">当前：{{ formatDuration(form.seclusion.normal.cooldown) }}</p>
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">收益倍率</label>
+              <label class="block text-xs text-fg-muted mb-1">收益倍率</label>
               <input v-model.number="form.seclusion.normal.exp_rate" type="number" min="0.1" max="100" step="0.1"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-cyan-500 focus:outline-none" />
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
             </div>
           </div>
         </div>
 
         <!-- 深度闭关 -->
-        <div class="bg-gray-900/50 rounded p-3 border border-purple-900/40">
+        <div class="bg-surface-sunken/50 rounded p-3 border border-purple-900/40">
           <h5 class="text-sm font-bold text-purple-300 mb-3 flex items-center justify-between">
             <span>深度闭关（deep）</span>
-            <span class="text-[10px] text-gray-500">长线挂机 2 倍收益</span>
+            <span class="text-[10px] text-fg-faint">长线挂机 2 倍收益</span>
           </h5>
           <div class="space-y-3">
             <div>
-              <label class="block text-xs text-gray-400 mb-1">最短时长（秒）</label>
+              <label class="block text-xs text-fg-muted mb-1">最短时长（秒）</label>
               <input v-model.number="form.seclusion.deep.min_duration" type="number" min="600" max="86400" step="600"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-purple-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">未达此时长提前结束按强行出关处理</p>
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5">未达此时长提前结束按强行出关处理</p>
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">最长时长（秒）</label>
+              <label class="block text-xs text-fg-muted mb-1">最长时长（秒）</label>
               <input v-model.number="form.seclusion.deep.max_duration" type="number" min="600" max="172800" step="600"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-purple-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">当前：{{ formatDuration(form.seclusion.deep.max_duration) }}</p>
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5 num">当前：{{ formatDuration(form.seclusion.deep.max_duration) }}</p>
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">每日次数上限</label>
+              <label class="block text-xs text-fg-muted mb-1">每日次数上限</label>
               <input v-model.number="form.seclusion.deep.daily_limit" type="number" min="1" max="50" step="1"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-purple-500 focus:outline-none" />
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">冷却时间（秒）</label>
+              <label class="block text-xs text-fg-muted mb-1">冷却时间（秒）</label>
               <input v-model.number="form.seclusion.deep.cooldown" type="number" min="0" max="172800" step="60"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-purple-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">当前：{{ formatDuration(form.seclusion.deep.cooldown) }}</p>
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5 num">当前：{{ formatDuration(form.seclusion.deep.cooldown) }}</p>
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">收益倍率</label>
+              <label class="block text-xs text-fg-muted mb-1">收益倍率</label>
               <input v-model.number="form.seclusion.deep.exp_rate" type="number" min="0.1" max="100" step="0.1"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-purple-500 focus:outline-none" />
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">境界要求</label>
+              <label class="block text-xs text-fg-muted mb-1">境界要求</label>
               <input v-model="form.seclusion.deep.min_realm" type="text"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-purple-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">如：筑基期、金丹期、元婴期等</p>
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5">如：筑基期、金丹期、元婴期等</p>
             </div>
             <div>
-              <label class="block text-xs text-gray-400 mb-1">强行出关损失比例（0-1）</label>
+              <label class="block text-xs text-fg-muted mb-1">强行出关损失比例（0-1）</label>
               <input v-model.number="form.seclusion.deep.forced_penalty" type="number" min="0" max="1" step="0.1"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-purple-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">0.5 = 损失 50% 收益</p>
+                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5">0.5 = 损失 50% 收益</p>
             </div>
           </div>
         </div>
@@ -122,7 +122,7 @@
       <!-- 闭关保存按钮 -->
       <div class="mt-4 flex justify-end">
         <button @click="saveSeclusion" :disabled="savingSeclusion"
-          class="px-5 py-2 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 rounded text-white text-sm font-bold flex items-center gap-2">
+          class="px-5 py-2 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 rounded-control text-fg-primary text-sm font-bold flex items-center gap-2">
           <svg v-if="savingSeclusion" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -133,7 +133,7 @@
     </div>
 
     <!-- 历练配置区 -->
-    <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+    <div class="bg-surface-raised/50 rounded-lg p-4 border border-line">
       <h4 class="text-md font-bold text-amber-400 mb-4 flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
@@ -144,59 +144,59 @@
       <!-- 全局参数 -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
         <div>
-          <label class="block text-xs text-gray-400 mb-1">默认时长类型</label>
+          <label class="block text-xs text-fg-muted mb-1">默认时长类型</label>
           <select v-model="form.adventure.default_duration_type"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-amber-500 focus:outline-none">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option value="short">短时（short）</option>
             <option value="medium">中时（medium）</option>
             <option value="long">长时（long）</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">提前结束惩罚比例（0-1）</label>
+          <label class="block text-xs text-fg-muted mb-1">提前结束惩罚比例（0-1）</label>
           <input v-model.number="form.adventure.early_finish_penalty" type="number" min="0" max="1" step="0.1"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm focus:border-amber-500 focus:outline-none" />
-          <p class="text-[10px] text-gray-500 mt-0.5">0.5 = 提前结束时再扣 50% 收益，无保底</p>
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+          <p class="text-[10px] text-fg-faint mt-0.5">0.5 = 提前结束时再扣 50% 收益，无保底</p>
         </div>
       </div>
 
       <!-- 三档时长配置 -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div v-for="type in ['short', 'medium', 'long']" :key="type"
-          class="bg-gray-900/50 rounded p-3 border"
-          :class="type === 'medium' ? 'border-amber-700/60' : 'border-gray-700'">
+          class="bg-surface-sunken/50 rounded p-3 border"
+          :class="type === 'medium' ? 'border-amber-700/60' : 'border-line'">
           <h5 class="text-sm font-bold mb-3 flex items-center justify-between"
             :class="type === 'medium' ? 'text-amber-300' : (type === 'short' ? 'text-green-300' : 'text-red-300')">
             <span>{{ form.adventure.duration_types[type].label }}</span>
-            <span class="text-[10px] text-gray-500">{{ type }}</span>
+            <span class="text-[10px] text-fg-faint">{{ type }}</span>
           </h5>
           <div class="space-y-2.5">
             <div>
-              <label class="block text-[11px] text-gray-400 mb-0.5">显示标签</label>
+              <label class="block text-[11px] text-fg-muted mb-0.5">显示标签</label>
               <input v-model="form.adventure.duration_types[type].label" type="text"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-xs focus:border-amber-500 focus:outline-none" />
+                class="w-full px-2 py-1 text-xs bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
             </div>
             <div>
-              <label class="block text-[11px] text-gray-400 mb-0.5">时长（秒）</label>
+              <label class="block text-[11px] text-fg-muted mb-0.5">时长（秒）</label>
               <input v-model.number="form.adventure.duration_types[type].duration" type="number" min="10" max="3600" step="10"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-xs focus:border-amber-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">{{ formatDuration(form.adventure.duration_types[type].duration) }}</p>
+                class="w-full px-2 py-1 text-xs bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5 num">{{ formatDuration(form.adventure.duration_types[type].duration) }}</p>
             </div>
             <div>
-              <label class="block text-[11px] text-gray-400 mb-0.5">奖励倍率</label>
+              <label class="block text-[11px] text-fg-muted mb-0.5">奖励倍率</label>
               <input v-model.number="form.adventure.duration_types[type].reward_multiplier" type="number" min="0.1" max="10" step="0.1"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-xs focus:border-amber-500 focus:outline-none" />
+                class="w-full px-2 py-1 text-xs bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
             </div>
             <div>
-              <label class="block text-[11px] text-gray-400 mb-0.5">受伤概率（0-1）</label>
+              <label class="block text-[11px] text-fg-muted mb-0.5">受伤概率（0-1）</label>
               <input v-model.number="form.adventure.duration_types[type].injury_chance" type="number" min="0" max="1" step="0.01"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-xs focus:border-amber-500 focus:outline-none" />
-              <p class="text-[10px] text-gray-500 mt-0.5">{{ Math.round(form.adventure.duration_types[type].injury_chance * 100) }}% 概率受伤</p>
+                class="w-full px-2 py-1 text-xs bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+              <p class="text-[10px] text-fg-faint mt-0.5">{{ Math.round(form.adventure.duration_types[type].injury_chance * 100) }}% 概率受伤</p>
             </div>
             <div>
-              <label class="block text-[11px] text-gray-400 mb-0.5">受伤气血损失比例（0-1）</label>
+              <label class="block text-[11px] text-fg-muted mb-0.5">受伤气血损失比例（0-1）</label>
               <input v-model.number="form.adventure.duration_types[type].injury_hp_loss_rate" type="number" min="0" max="1" step="0.01"
-                class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-xs focus:border-amber-500 focus:outline-none" />
+                class="w-full px-2 py-1 text-xs bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
             </div>
           </div>
         </div>
@@ -205,7 +205,7 @@
       <!-- 历练保存按钮 -->
       <div class="mt-4 flex justify-end">
         <button @click="saveAdventure" :disabled="savingAdventure"
-          class="px-5 py-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 rounded text-white text-sm font-bold flex items-center gap-2">
+          class="px-5 py-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 rounded-control text-fg-primary text-sm font-bold flex items-center gap-2">
           <svg v-if="savingAdventure" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -216,7 +216,7 @@
     </div>
 
     <!-- 配置历史版本区（一键回滚） -->
-    <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+    <div class="bg-surface-raised/50 rounded-lg p-4 border border-line">
       <div class="flex justify-between items-center mb-3">
         <h4 class="text-md font-bold text-rose-400 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -227,13 +227,13 @@
         </h4>
         <div class="flex items-center gap-2">
           <!-- 类型筛选 -->
-          <select v-model="backupFilter" @change="fetchBackups" class="px-2 py-1 bg-gray-900 border border-gray-600 rounded text-white text-xs">
+          <select v-model="backupFilter" @change="fetchBackups" class="px-2 py-1 text-xs bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option value="">全部</option>
             <option value="seclusion">闭关配置</option>
             <option value="game_balance">游戏平衡（含历练）</option>
           </select>
           <button @click="fetchBackups" :disabled="loadingBackups"
-            class="px-3 py-1 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 rounded text-white text-xs flex items-center gap-1">
+            class="px-3 py-1 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 rounded-control text-fg-primary text-xs flex items-center gap-1">
             <svg v-if="loadingBackups" class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -242,15 +242,15 @@
           </button>
         </div>
       </div>
-      <p class="text-xs text-gray-500 mb-3">每次修改配置时会自动备份到 server/config/backup/ 目录，可在此查看历史版本并一键回滚。回滚前会再次备份当前版本，形成回滚链，避免误操作不可逆。</p>
+      <p class="text-xs text-fg-faint mb-3">每次修改配置时会自动备份到 server/config/backup/ 目录，可在此查看历史版本并一键回滚。回滚前会再次备份当前版本，形成回滚链，避免误操作不可逆。</p>
 
       <!-- 备份列表 -->
-      <div v-if="backups.length === 0 && !loadingBackups" class="text-center text-gray-500 text-sm py-6">
+      <div v-if="backups.length === 0 && !loadingBackups" class="text-center text-fg-faint text-sm py-6">
         暂无历史版本
       </div>
-      <div v-else class="overflow-x-auto border border-gray-700 rounded">
+      <div v-else class="overflow-x-auto border border-line rounded">
         <table class="w-full text-xs">
-          <thead class="bg-gray-900 text-gray-400">
+          <thead class="bg-surface-raised text-fg-muted">
             <tr>
               <th class="px-3 py-2 text-left">备份时间</th>
               <th class="px-3 py-2 text-left">配置类型</th>
@@ -259,9 +259,9 @@
               <th class="px-3 py-2 text-left">操作</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-700">
-            <tr v-for="backup in backups" :key="backup.filename" class="hover:bg-gray-900/50">
-              <td class="px-3 py-2 text-gray-300 whitespace-nowrap">{{ formatBackupTime(backup.mtime) }}</td>
+          <tbody class="divide-y divide-line">
+            <tr v-for="backup in backups" :key="backup.filename" class="border-t border-line-subtle hover:bg-surface-hover">
+              <td class="px-3 py-2 text-fg-secondary whitespace-nowrap num">{{ formatBackupTime(backup.mtime) }}</td>
               <td class="px-3 py-2">
                 <span class="px-1.5 py-0.5 rounded text-[10px] font-bold"
                   :class="backup.configType === 'seclusion'
@@ -270,14 +270,12 @@
                   {{ backup.configLabel }}
                 </span>
               </td>
-              <td class="px-3 py-2 text-gray-500 font-mono text-[10px] max-w-xs truncate" :title="backup.filename">{{ backup.filename }}</td>
-              <td class="px-3 py-2 text-gray-400">{{ backup.sizeText }}</td>
+              <td class="px-3 py-2 text-fg-faint font-mono text-[10px] max-w-xs truncate" :title="backup.filename">{{ backup.filename }}</td>
+              <td class="px-3 py-2 text-fg-muted">{{ backup.sizeText }}</td>
               <td class="px-3 py-2">
-                <button
-                  @click="confirmRollback(backup)"
-                  :disabled="rollingBack"
-                  class="px-2 py-1 bg-rose-700 hover:bg-rose-600 disabled:opacity-50 text-white rounded text-[11px] font-bold"
-                >回滚至此版本</button>
+                <AppButton variant="danger" size="xs" :disabled="rollingBack" @click="confirmRollback(backup)">
+                  回滚至此版本
+                </AppButton>
               </td>
             </tr>
           </tbody>
@@ -288,12 +286,12 @@
     <!-- 自定义确认弹窗 -->
     <div v-if="confirmVisible" class="fixed inset-0 z-[70] flex items-center justify-center">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="confirmVisible = false"></div>
-      <div class="relative bg-gray-900 border border-gray-700 rounded-lg p-5 max-w-md w-full mx-4 shadow-2xl">
+      <div class="relative bg-surface-sunken border border-line rounded-lg p-5 max-w-md w-full mx-4 shadow-2xl">
         <h3 class="text-base font-bold text-amber-400 mb-2">{{ confirmTitle }}</h3>
-        <p class="text-sm text-gray-300 mb-4 whitespace-pre-line">{{ confirmMessage }}</p>
+        <p class="text-sm text-fg-secondary mb-4 whitespace-pre-line">{{ confirmMessage }}</p>
         <div class="flex justify-end gap-2">
-          <button @click="confirmVisible = false" class="px-4 py-1.5 text-sm border border-gray-600 text-gray-300 rounded hover:bg-gray-800">取消</button>
-          <button @click="confirmAction" class="px-4 py-1.5 text-sm bg-amber-700 hover:bg-amber-600 text-white rounded font-bold">确认</button>
+          <AppButton variant="outline" size="sm" @click="confirmVisible = false">取消</AppButton>
+          <AppButton variant="primary" size="sm" @click="confirmAction">确认</AppButton>
         </div>
       </div>
     </div>
@@ -312,6 +310,7 @@
  */
 import { reactive, ref, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
+import AppButton from '../../ui/AppButton.vue'
 import {
   getCultivationConfig,
   updateSeclusionConfig,
@@ -399,7 +398,7 @@ const fetchConfig = async () => {
     }
   } catch (error) {
     console.error('拉取修炼配置失败:', error)
-    uiStore.showToast('拉取修炼配置失败', 'error')
+    uiStore.showApiError(error, '拉取修炼配置失败')
   } finally {
     loading.value = false
   }
@@ -439,8 +438,7 @@ const doSaveSeclusion = async () => {
     fetchBackups()
   } catch (error) {
     console.error('保存闭关配置失败:', error)
-    const msg = error.response?.data?.message || '保存闭关配置失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '保存闭关配置失败')
   } finally {
     savingSeclusion.value = false
   }
@@ -478,8 +476,7 @@ const doSaveAdventure = async () => {
     fetchBackups()
   } catch (error) {
     console.error('保存历练配置失败:', error)
-    const msg = error.response?.data?.message || '保存历练配置失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '保存历练配置失败')
   } finally {
     savingAdventure.value = false
   }
@@ -495,7 +492,7 @@ const fetchBackups = async () => {
     backups.value = res.data?.data || []
   } catch (error) {
     console.error('获取历史版本失败:', error)
-    uiStore.showToast('获取历史版本失败', 'error')
+    uiStore.showApiError(error, '获取历史版本失败')
   } finally {
     loadingBackups.value = false
   }
@@ -528,8 +525,7 @@ const doRollback = async (backup) => {
     fetchBackups()
   } catch (error) {
     console.error('回滚失败:', error)
-    const msg = error.response?.data?.message || '回滚失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '回滚失败')
   } finally {
     rollingBack.value = false
   }

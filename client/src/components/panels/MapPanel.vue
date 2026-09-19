@@ -4,6 +4,9 @@ import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import FullMapList from './FullMapList.vue'
 import WorldMapPanel from './WorldMapPanel.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import EmptyState from '../ui/EmptyState.vue'
 import { getMapInfo, getMapConfig, startMove } from '../../api/map'
 import { getGameBalancePublic } from '../../api/config'
 import { buildMapTypeNameMap, buildSafetyLevelNameMap, getMapTypeStyle as getMapTypeStyleUtil, getSafetyStyle as getSafetyStyleUtil } from '../../utils/mapStyles'
@@ -18,6 +21,13 @@ const currentMap = ref(null)
 const connectedMaps = ref([])
 const mapConfigs = ref({})
 const activeTab = ref('connected') // 'connected' 或 'all'
+
+/** 页签定义（key/label 契约见 ui/Tabs.vue） */
+const tabItems = [
+  { key: 'connected', label: '可行路径' },
+  { key: 'all', label: '全部地图' },
+  { key: 'world', label: '大世界' }
+]
 
 // ====== 地图类型与危险等级映射（从后端拉取中文名，样式由 utils/mapStyles 提供） ======
 // 后端配置：game_balance.map_types / safety_levels
@@ -52,7 +62,7 @@ const fetchMapInfo = async () => {
     connectedMaps.value = res.data.data?.connected_maps
   } catch (error) {
     console.error('Fetch map info failed:', error)
-    uiStore.showToast('获取地图信息失败', 'error')
+    uiStore.showApiError(error, 'Fetch map info failed')
   } finally {
     loading.value = false
   }
@@ -114,8 +124,7 @@ const handleMove = async (targetMap) => {
     await fetchMapInfo()
     emit('close')
   } catch (error) {
-    const msg = error.response?.data?.error || '移动失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '移动失败')
   } finally {
     moving.value = false
   }
@@ -144,150 +153,138 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-40 flex items-center justify-center p-4 panel-shell">
-    <!-- 遮罩 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-    
-    <!-- 面板 -->
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
-        <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-          修仙界地图
-        </h2>
-        <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-
+  <PanelShell
+    title="修仙界地图"
+    hint="可行路径 · 全部地图 · 大世界"
+    size="xl"
+    :loading="loading"
+    scoped-scroll
+    @close="emit('close')"
+  >
+    <div class="h-full flex flex-col">
       <!-- 标签页切换 -->
-      <div class="flex border-b border-stone-800 bg-[#1c1917]">
-        <button 
-          v-for="tab in ['connected', 'all', 'world']" 
-          :key="tab"
-          @click="activeTab = tab"
-          class="flex-1 py-3 px-4 text-center text-sm font-medium transition-colors"
-          :class="activeTab === tab 
-            ? 'text-amber-500 border-b-2 border-amber-700' 
-            : 'text-stone-500 hover:text-stone-300 border-b-2 border-transparent hover:border-stone-700'"
-        >
-          {{ tab === 'connected' ? '可行路径' : (tab === 'all' ? '全部地图' : '大世界') }}
-        </button>
-      </div>
-      
-      <!-- 内容区 -->
-      <div class="flex-1 overflow-hidden flex flex-col md:flex-row">
+      <Tabs v-model="activeTab" :items="tabItems" class="shrink-0 bg-surface-raised" />
+
+      <!-- 内容区：左侧当前位置 + 右侧地图列表（各自内部滚动，故外壳不再包一层） -->
+      <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
         <!-- 左侧：当前位置信息 (仅在可行路径标签显示) -->
-        <div v-if="activeTab === 'connected'" class="w-full md:w-1/3 p-6 border-b md:border-b-0 md:border-r border-stone-800 bg-[#0c0a09] flex flex-col gap-6 overflow-y-auto">
-          <div v-if="loading" class="flex justify-center py-10">
-            <svg class="animate-spin h-8 w-8 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          </div>
-          
-          <div v-else-if="currentMap" class="animate-slide-in">
-             <div class="mb-2 flex items-center gap-2">
-                <span class="text-xs px-2 py-0.5 rounded border" 
-                      :class="[getMapTypeStyle(currentMap.type).class, getMapTypeStyle(currentMap.type).bg, getMapTypeStyle(currentMap.type).border]">
-                  {{ getMapTypeStyle(currentMap.type).name }}
-                </span>
-                <span class="text-xs px-2 py-0.5 rounded border border-stone-800 bg-stone-900" 
-                      :class="getSafetyStyle(currentMap.danger_level).class">
-                  {{ getSafetyStyle(currentMap.danger_level).name }}
-                </span>
-             </div>
-             
-             <h3 class="text-3xl font-bold text-stone-200 mb-4 font-serif">{{ currentMap.name }}</h3>
-             
-             <div class="text-stone-400 text-sm leading-relaxed mb-6 border-l-2 border-stone-800 pl-4 italic">
-               {{ currentMap.description || '暂无描述' }}
-             </div>
+        <div
+          v-if="activeTab === 'connected'"
+          class="w-full md:w-1/3 p-5 border-b md:border-b-0 md:border-r border-line-subtle bg-surface-canvas flex flex-col gap-5 overflow-y-auto scroll-thin"
+        >
+          <div v-if="currentMap" class="animate-slide-in">
+            <div class="mb-2 flex items-center gap-2">
+              <span
+                class="text-xs px-2 py-0.5 rounded border"
+                :class="[getMapTypeStyle(currentMap.type).class, getMapTypeStyle(currentMap.type).bg, getMapTypeStyle(currentMap.type).border]"
+              >
+                {{ getMapTypeStyle(currentMap.type).name }}
+              </span>
+              <span
+                class="text-xs px-2 py-0.5 rounded border border-line-subtle bg-surface-raised"
+                :class="getSafetyStyle(currentMap.danger_level).class"
+              >
+                {{ getSafetyStyle(currentMap.danger_level).name }}
+              </span>
+            </div>
 
-             <div class="space-y-4">
-               <div>
-                 <h4 class="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">环境消耗</h4>
-                 <div class="text-stone-300 text-sm">
-                   {{ currentMap.environment_cost > 0 ? `每小时消耗 ${currentMap.environment_cost} 点灵力` : '无灵力消耗' }}
-                 </div>
-               </div>
+            <h3 class="text-3xl font-bold text-fg-primary mb-4 font-display">{{ currentMap.name }}</h3>
 
-               <div>
-                 <h4 class="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">境界要求</h4>
-                 <div class="text-stone-300 text-sm">
-                   {{ currentMap.requiredRealm || '凡人' }}
-                 </div>
-               </div>
-               
-               <!-- 资源列表 (静态展示，暂不可交互) -->
-               <div v-if="currentMap.resources && currentMap.resources.length > 0">
-                 <h4 class="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">主要产出</h4>
-                 <div class="flex flex-wrap gap-2">
-                   <span v-for="res in currentMap.resources" :key="res.name" 
-                         class="px-2 py-1 bg-stone-900 border border-stone-800 rounded text-xs text-stone-400 hover:text-stone-200 transition-colors cursor-help"
-                         :title="`难度: ${res.difficulty}, 刷新: ${res.cooldown/60}分`">
-                     {{ res.name }}
-                   </span>
-                 </div>
-               </div>
-             </div>
+            <div class="text-fg-muted text-sm leading-relaxed mb-6 border-l-2 border-line-subtle pl-4 italic">
+              {{ currentMap.description || '暂无描述' }}
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <h4 class="text-xs font-bold text-fg-faint uppercase tracking-wider mb-2">环境消耗</h4>
+                <div class="text-fg-secondary text-sm">
+                  {{ currentMap.environment_cost > 0 ? `每小时消耗 ${currentMap.environment_cost} 点灵力` : '无灵力消耗' }}
+                </div>
+              </div>
+
+              <div>
+                <h4 class="text-xs font-bold text-fg-faint uppercase tracking-wider mb-2">境界要求</h4>
+                <div class="text-fg-secondary text-sm">
+                  {{ currentMap.requiredRealm || '凡人' }}
+                </div>
+              </div>
+
+              <!-- 资源列表 (静态展示，暂不可交互) -->
+              <div v-if="currentMap.resources && currentMap.resources.length > 0">
+                <h4 class="text-xs font-bold text-fg-faint uppercase tracking-wider mb-2">主要产出</h4>
+                <div class="flex flex-wrap gap-2">
+                  <span
+                    v-for="res in currentMap.resources"
+                    :key="res.name"
+                    class="px-2 py-1 bg-surface-raised border border-line-subtle rounded-control text-xs text-fg-muted hover:text-fg-primary transition-colors cursor-help"
+                    :title="`难度: ${res.difficulty}, 刷新: ${res.cooldown / 60}分`"
+                  >
+                    {{ res.name }}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- 右侧：地图列表 -->
-        <div class="flex-1 overflow-hidden">
+        <div class="flex-1 min-h-0 overflow-hidden">
           <!-- 可行路径列表 -->
-          <div v-if="activeTab === 'connected'" class="h-full p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-stone-900/50 relative overflow-y-auto">
-             <h3 class="text-lg font-bold text-stone-300 mb-4 flex items-center gap-2">
-               <span>可行路径</span>
-               <span class="text-xs font-normal text-stone-500">Connected Paths</span>
-             </h3>
+          <div
+            v-if="activeTab === 'connected'"
+            class="h-full p-5 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-surface-sunken/50 relative overflow-y-auto scroll-thin"
+          >
+            <h3 class="text-lg font-bold text-fg-secondary mb-4 flex items-center gap-2 font-display">
+              <span>可行路径</span>
+              <span class="text-xs font-normal text-fg-faint">Connected Paths</span>
+            </h3>
 
-             <div v-if="loading" class="text-stone-500">加载中...</div>
-             
-             <div v-else-if="connectedMaps.length === 0" class="flex flex-col items-center justify-center h-64 text-stone-500">
-               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-               <p>此地似乎是一处绝地，没有出口。</p>
-             </div>
+            <EmptyState
+              v-if="connectedMaps.length === 0"
+              text="此地似乎是一处绝地，没有出口。"
+              hint="换到「全部地图」查看已知疆域，或去「大世界」寻一处有去路的落脚地"
+            />
 
-             <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-               <div v-for="map in connectedMaps" :key="map.id" 
-                    class="group relative bg-[#1c1917] border border-stone-800 hover:border-amber-700/50 rounded-lg p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg cursor-pointer"
-                    @click="handleMove(map)">
-                 
-                 <!-- 连线装饰 -->
-                 <div class="absolute top-1/2 -left-2 w-2 h-px bg-stone-800 group-hover:bg-amber-800/50 transition-colors hidden sm:block"></div>
-                 
-                 <div class="flex justify-between items-start mb-2">
-                   <h4 class="text-base font-bold text-stone-200 group-hover:text-amber-500 transition-colors">{{ map.name }}</h4>
-                   <span class="text-[10px] px-1.5 py-0.5 rounded border bg-stone-900/50"
-                         :class="getMapTypeStyle(map.type).class + ' ' + getMapTypeStyle(map.type).border">
-                     {{ getMapTypeStyle(map.type).name }}
-                   </span>
-                 </div>
-                 
-                 <p class="text-xs text-stone-500 line-clamp-2 mb-2 h-8">{{ map.description }}</p>
-                 
-                 <div class="flex items-center gap-2 mb-3">
-                   <span class="text-[10px] px-2 py-0.5 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400">
-                     境界: {{ map.requiredRealm || '凡人' }}
-                   </span>
-                 </div>
-                 
-                 <div class="flex items-center justify-between text-xs mt-auto pt-2 border-t border-stone-800/50">
-                   <span :class="getSafetyStyle(map.danger_level).class">{{ getSafetyStyle(map.danger_level).name }}</span>
-                   <span class="text-stone-400 group-hover:text-amber-400 flex items-center gap-1">
-                     {{ map.move_cost || 0 }}灵力 · {{ formatTime(map.move_time || 0) }}
-                     <svg v-if="moving" class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"/><path class="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"/></svg>
-                     <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform group-hover:translate-x-1 transition-transform"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                   </span>
-                 </div>
-               </div>
-             </div>
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div
+                v-for="map in connectedMaps"
+                :key="map.id"
+                class="group relative bg-surface-raised border border-line-subtle hover:border-gold-700/50 rounded-panel p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg cursor-pointer"
+                @click="handleMove(map)"
+              >
+                <!-- 连线装饰 -->
+                <div class="absolute top-1/2 -left-2 w-2 h-px bg-line-subtle group-hover:bg-gold-800/50 transition-colors hidden sm:block"></div>
+
+                <div class="flex justify-between items-start mb-2">
+                  <h4 class="text-base font-bold text-fg-primary group-hover:text-gold-500 transition-colors">{{ map.name }}</h4>
+                  <span
+                    class="text-[10px] px-1.5 py-0.5 rounded border bg-surface-sunken/50"
+                    :class="getMapTypeStyle(map.type).class + ' ' + getMapTypeStyle(map.type).border"
+                  >
+                    {{ getMapTypeStyle(map.type).name }}
+                  </span>
+                </div>
+
+                <p class="text-xs text-fg-faint line-clamp-2 mb-2 h-8">{{ map.description }}</p>
+
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="text-[10px] px-2 py-0.5 rounded bg-gold-900/30 border border-gold-700/50 text-gold-400">
+                    境界: {{ map.requiredRealm || '凡人' }}
+                  </span>
+                </div>
+
+                <div class="flex items-center justify-between text-xs mt-auto pt-2 border-t border-line-subtle/50">
+                  <span :class="getSafetyStyle(map.danger_level).class">{{ getSafetyStyle(map.danger_level).name }}</span>
+                  <span class="text-fg-muted group-hover:text-gold-400 flex items-center gap-1">
+                    {{ map.move_cost || 0 }}灵力 · {{ formatTime(map.move_time || 0) }}
+                    <svg v-if="moving" class="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"/><path class="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"/></svg>
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform group-hover:translate-x-1 transition-transform"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          
+
           <!-- 全部地图列表 -->
           <div v-else-if="activeTab === 'all'" class="h-full overflow-hidden">
             <FullMapList @close="emit('close')" />
@@ -300,15 +297,5 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
-
-<style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-</style>

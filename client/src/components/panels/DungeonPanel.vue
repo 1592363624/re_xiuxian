@@ -16,88 +16,82 @@
  *   - 未解锁章节展示锁定状态与境界要求
  */
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
-
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-stone-800 rounded-lg p-6 max-w-4xl w-full mx-4 shadow-2xl animate-fade-in max-h-[90vh] flex flex-col panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 21h18"/>
-            <path d="M5 21V8l7-5 7 5v13"/>
-            <path d="M9 21v-6h6v6"/>
-            <path d="M9 11h6"/>
-          </svg>
-          秘境副本
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
-
+  <PanelShell
+    title="秘境副本"
+    hint="章节挑战 · 难度三档 · 三星扫荡"
+    size="lg"
+    @close="$emit('close')"
+  >
+    <div class="space-y-3">
       <!-- 状态总览 -->
-      <div v-if="status" class="bg-[#292524] border border-stone-700 rounded-lg p-3 mb-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <div>
-          <div class="text-stone-500">当前境界</div>
-          <div class="text-amber-300 font-bold">{{ status.realm_name }}</div>
-        </div>
-        <div>
-          <div class="text-stone-500">今日挑战</div>
-          <div class="font-bold" :class="status.daily_challenge_count >= status.daily_challenge_limit ? 'text-rose-400' : 'text-emerald-400'">
-            {{ status.daily_challenge_count }} / {{ status.daily_challenge_limit }}
+      <PanelCard v-if="status" :padded="false" class="px-3 py-2.5">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div>
+            <div class="text-fg-faint">当前境界</div>
+            <div class="text-gold-300 font-bold">{{ status.realm_name }}</div>
+          </div>
+          <div>
+            <div class="text-fg-faint">今日挑战</div>
+            <div class="font-bold" :class="status.daily_challenge_count >= status.daily_challenge_limit ? 'text-rose-400' : 'text-emerald-400'">
+              {{ status.daily_challenge_count }} / {{ status.daily_challenge_limit }}
+            </div>
+          </div>
+          <div>
+            <div class="text-fg-faint">冷却状态</div>
+            <div class="font-bold" :class="status.cooldown_ready ? 'text-emerald-400' : 'text-gold-400'">
+              {{ status.cooldown_ready ? '就绪' : `冷却中 ${formatTime(status.cooldown_remaining_sec)}` }}
+            </div>
+          </div>
+          <div>
+            <div class="text-fg-faint">通关章节数</div>
+            <div class="text-cyan-300 font-bold">{{ status.completed_chapters.length }}</div>
           </div>
         </div>
-        <div>
-          <div class="text-stone-500">冷却状态</div>
-          <div class="font-bold" :class="status.cooldown_ready ? 'text-emerald-400' : 'text-amber-400'">
-            {{ status.cooldown_ready ? '就绪' : `冷却中 ${formatTime(status.cooldown_remaining_sec)}` }}
-          </div>
-        </div>
-        <div>
-          <div class="text-stone-500">通关章节数</div>
-          <div class="text-cyan-300 font-bold">{{ status.completed_chapters.length }}</div>
-        </div>
-      </div>
+      </PanelCard>
 
       <!-- 副本进行中提示 -->
-      <div v-if="status?.in_dungeon && status.in_progress" class="bg-rose-950/30 border border-rose-800/50 rounded-lg p-3 mb-4 text-xs text-rose-300 flex items-center gap-2">
+      <PanelCard v-if="status?.in_dungeon && status.in_progress" tone="danger" :padded="false" class="flex items-center gap-2 px-3 py-2.5 text-xs text-rose-300">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/>
           <polyline points="12 6 12 12 16 14"/>
         </svg>
         <span>
-          副本进行中：<span class="text-amber-300">{{ status.in_progress.chapter_name }}</span>
-          · 难度：<span class="text-amber-300">{{ getDifficultyLabel(status.in_progress.difficulty) }}</span>
-          · 剩余时间：<span class="text-amber-300">{{ formatTime(status.in_progress.remaining_seconds) }}</span>
+          副本进行中：<span class="text-gold-300">{{ status.in_progress.chapter_name }}</span>
+          · 难度：<span class="text-gold-300">{{ getDifficultyLabel(status.in_progress.difficulty) }}</span>
+          · 剩余时间：<span class="text-gold-300">{{ formatTime(status.in_progress.remaining_seconds) }}</span>
         </span>
-        <button @click="handleContinueDungeon"
-          :disabled="loading"
-          class="ml-auto px-3 py-1 rounded bg-amber-950/40 border border-amber-700 text-amber-300 hover:bg-amber-900/40 transition-colors">
+        <AppButton size="xs" variant="outline" class="ms-auto" :disabled="loading" @click="handleContinueDungeon">
           继续挑战
-        </button>
-      </div>
+        </AppButton>
+      </PanelCard>
 
-      <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto space-y-3 pr-1">
+      <!-- 首屏拉取失败：常驻错误态 + 重试。
+           没有把 :error 交给 PanelShell —— 外壳的错误态会整块替换插槽，
+           连「副本进行中」提示条和视图切换按钮一起吞掉，正在挑战的玩家反而找不到入口。 -->
+      <ErrorState
+        v-if="configError || statusError"
+        :message="configError || statusError"
+        @retry="handleRefresh"
+      />
+
+      <!-- 内容区：视图切换（章节列表 / 副本进行中 / 通关历史） -->
+      <div>
         <!-- 视图切换：章节选择 / 副本进行中 / 通关历史 -->
         <div v-if="view === 'list'" class="space-y-3">
           <!-- 章节列表 -->
-          <section v-for="chapter in chapters" :key="chapter.id" class="bg-[#292524] border border-stone-700 rounded-lg p-4">
+          <section v-for="chapter in chapters" :key="chapter.id" class="bg-surface-hover border border-line rounded-panel p-4">
             <div class="flex items-start justify-between mb-2">
               <div class="flex-1">
-                <div class="text-sm font-bold text-amber-300 flex items-center gap-2">
+                <div class="text-sm font-bold text-gold-300 flex items-center gap-2">
                   {{ chapter.name }}
-                  <span v-if="getChapterStars(chapter.id) > 0" class="text-[10px] text-amber-500">
+                  <span v-if="getChapterStars(chapter.id) > 0" class="text-[10px] text-gold-500">
                     {{ '★'.repeat(getChapterStars(chapter.id)) }}
                   </span>
                 </div>
-                <div class="text-[11px] text-stone-500 mt-0.5">
+                <div class="text-[11px] text-fg-faint mt-0.5">
                   推荐境界：{{ chapter.recommended_realm }} · {{ chapter.node_count }} 关 · BOSS：{{ chapter.boss_name || '未知' }} · 时长 {{ formatTime(chapter.duration_sec) }}
                 </div>
-                <div class="text-xs text-stone-400 mt-2 leading-relaxed">{{ chapter.description }}</div>
+                <div class="text-xs text-fg-muted mt-2 leading-relaxed">{{ chapter.description }}</div>
               </div>
               <div v-if="!status?.unlocked || (status?.realm_rank ?? 0) < chapter.min_realm_rank"
                 class="text-[10px] text-rose-400 px-2 py-0.5 rounded bg-rose-950/40 border border-rose-900/40 shrink-0 ml-2">
@@ -106,26 +100,26 @@
             </div>
 
             <!-- 难度选择与操作 -->
-            <div v-if="canChallenge(chapter)" class="mt-3 pt-3 border-t border-stone-800">
+            <div v-if="canChallenge(chapter)" class="mt-3 pt-3 border-t border-line-subtle">
               <div class="flex items-center gap-2 text-xs mb-2">
-                <span class="text-stone-500">难度：</span>
+                <span class="text-fg-faint">难度：</span>
                 <button v-for="d in difficulties" :key="d.value"
                   @click="selectDifficulty(chapter.id, d.value)"
                   :disabled="loading"
                   class="text-xs py-1 px-2 rounded border transition-all"
                   :class="getSelectedDifficulty(chapter.id) === d.value
                     ? `${d.activeClass} ${d.borderClass} ${d.textClass}`
-                    : 'bg-stone-900/40 border-stone-700 text-stone-400 hover:border-stone-500'">
+                    : 'bg-surface-raised/40 border-line text-fg-muted hover:border-line-strong'">
                   {{ d.label }}
                 </button>
-                <span class="text-stone-500 ml-2 text-[10px]">
+                <span class="text-fg-faint ml-2 text-[10px]">
                   倍率：HP×{{ getDifficultyMultiplier(getSelectedDifficulty(chapter.id), 'hp') }} · 攻击×{{ getDifficultyMultiplier(getSelectedDifficulty(chapter.id), 'atk') }} · 修为×{{ getDifficultyMultiplier(getSelectedDifficulty(chapter.id), 'exp') }}
                 </span>
               </div>
               <div class="flex gap-2">
                 <button @click="handleStartDungeon(chapter.id)"
                   :disabled="loading || !status?.cooldown_ready || (status?.daily_challenge_count ?? 0) >= (status?.daily_challenge_limit ?? 0) || status?.in_dungeon"
-                  class="flex-1 py-2 rounded-lg text-xs font-bold tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-amber-950/40 border border-amber-700 text-amber-300 hover:bg-amber-900/40 hover:border-amber-500">
+                  class="flex-1 py-2 rounded-control text-xs font-bold tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-amber-950/40 border border-gold-700 text-gold-300 hover:bg-gold-900/40 hover:border-gold-500">
                   <span v-if="loading">进入中...</span>
                   <span v-else-if="status?.in_dungeon">已在副本中</span>
                   <span v-else-if="!status?.cooldown_ready">冷却中</span>
@@ -134,7 +128,7 @@
                 </button>
                 <button v-if="canSweep(chapter.id)" @click="handleSweepDungeon(chapter.id)"
                   :disabled="loading || !status?.cooldown_ready || (status?.daily_challenge_count ?? 0) >= (status?.daily_challenge_limit ?? 0) || status?.in_dungeon"
-                  class="flex-1 py-2 rounded-lg text-xs font-bold tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-cyan-950/40 border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-500">
+                  class="flex-1 py-2 rounded-control text-xs font-bold tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-cyan-950/40 border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-500">
                   <span v-if="loading">扫荡中...</span>
                   <span v-else>扫荡（{{ Math.round((status?.sweep_reward_ratio ?? 0) * 100) }}%奖励）</span>
                 </button>
@@ -142,16 +136,13 @@
             </div>
 
             <!-- 未解锁提示 -->
-            <div v-else class="mt-3 pt-3 border-t border-stone-800 text-xs text-stone-500 text-center py-2">
-              境界达到 <span class="text-amber-400">{{ chapter.recommended_realm }}</span> 后解锁
+            <div v-else class="mt-3 pt-3 border-t border-line-subtle text-xs text-fg-faint text-center py-2">
+              境界达到 <span class="text-gold-400">{{ chapter.recommended_realm }}</span> 后解锁
             </div>
           </section>
 
           <!-- 查看通关历史按钮 -->
-          <button @click="switchView('history')"
-            class="w-full py-2 rounded-lg text-xs font-bold tracking-wider bg-stone-900/40 border border-stone-700 text-stone-300 hover:bg-stone-800/40 hover:border-stone-500 transition-all">
-            查看通关历史
-          </button>
+          <AppButton size="sm" block @click="switchView('history')">查看通关历史</AppButton>
         </div>
 
         <!-- 副本进行中视图 -->
@@ -173,81 +164,71 @@
         <!-- 通关历史视图 -->
         <div v-else-if="view === 'history'" class="space-y-2">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm font-bold text-stone-300">通关历史</h3>
-            <button @click="switchView('list')"
-              class="text-xs text-stone-400 hover:text-amber-300 transition-colors">
-              ← 返回章节列表
-            </button>
+            <h3 class="text-sm font-bold text-fg-secondary font-display">通关历史</h3>
+            <AppButton size="xs" variant="ghost" @click="switchView('list')">← 返回章节列表</AppButton>
           </div>
-          <div v-if="history.length === 0" class="text-center py-8 text-stone-500 text-sm">
-            暂无通关记录
-          </div>
+          <EmptyState v-if="history.length === 0" text="暂无通关记录" hint="首次通关一章后可在此回看用时、星级与收益" />
           <div v-for="entry in history" :key="entry.id"
-            class="bg-[#292524] border border-stone-700 rounded-lg p-3 text-xs">
+            class="bg-surface-hover border border-line rounded-panel p-3 text-xs">
             <div class="flex items-center justify-between mb-1">
-              <div class="font-bold text-amber-300">
+              <div class="font-bold text-gold-300">
                 {{ entry.chapter_name }}
-                <span class="text-[10px] text-stone-500 ml-1">（{{ getDifficultyLabel(entry.difficulty) }}）</span>
+                <span class="text-[10px] text-fg-faint ml-1">（{{ getDifficultyLabel(entry.difficulty) }}）</span>
               </div>
-              <div class="text-amber-500">{{ '★'.repeat(entry.stars) }}<span class="text-stone-700">{{ '★'.repeat(3 - entry.stars) }}</span></div>
+              <div class="text-gold-500">{{ '★'.repeat(entry.stars) }}<span class="text-line-strong">{{ '★'.repeat(3 - entry.stars) }}</span></div>
             </div>
-            <div class="text-stone-400 flex items-center gap-3 text-[11px]">
+            <div class="text-fg-muted flex items-center gap-3 text-[11px]">
               <span>用时：{{ formatTime(entry.completion_time_sec) }}</span>
               <span>修为：+{{ formatNumber(entry.exp_gained) }}</span>
               <span>灵石：+{{ formatNumber(entry.spirit_stones_gained) }}</span>
             </div>
-            <div class="text-stone-600 text-[10px] mt-1">{{ formatDate(entry.completed_at) }}</div>
+            <div class="text-fg-faint text-[10px] mt-1">{{ formatDate(entry.completed_at) }}</div>
           </div>
         </div>
       </div>
 
-      <!-- 底部操作栏 -->
-      <div class="mt-4 flex gap-2">
-        <button @click="handleRefresh"
-          :disabled="loading"
-          class="px-4 py-2.5 text-sm text-stone-400 hover:text-white border border-stone-700 hover:border-stone-500 rounded-lg transition-colors disabled:opacity-50">
-          刷新状态
-        </button>
-        <button @click="$emit('close')"
-          class="flex-1 py-2.5 rounded-lg font-bold tracking-widest text-sm transition-all bg-stone-900/40 border border-stone-700 text-stone-300 hover:bg-stone-800/40 hover:border-stone-500">
-          关闭
-        </button>
-      </div>
     </div>
 
     <!-- 中断副本二次确认弹窗 -->
     <Modal :isOpen="interruptConfirmOpen" title="中断副本确认" width="500px" @close="interruptConfirmOpen = false">
-      <div class="space-y-3 text-sm text-stone-300">
-        <p class="text-amber-300 font-bold">确定要中断当前副本挑战吗？</p>
-        <ul class="text-xs text-stone-400 space-y-1 list-disc pl-5">
+      <div class="space-y-3 text-sm text-fg-secondary">
+        <p class="text-gold-300 font-bold">确定要中断当前副本挑战吗？</p>
+        <ul class="text-xs text-fg-muted space-y-1 list-disc pl-5">
           <li>中断将按失败结算，本次挑战不记录通关</li>
           <li>补偿50%已积累修为，不发放物品与灵石</li>
           <li>会消耗一次今日挑战次数与冷却时间</li>
         </ul>
-        <p class="text-xs text-stone-500">建议仅在HP过低无法继续时使用此功能。</p>
+        <p class="text-xs text-fg-faint">建议仅在HP过低无法继续时使用此功能。</p>
       </div>
       <template #footer>
-        <button @click="interruptConfirmOpen = false"
-          class="px-4 py-2 text-sm text-stone-400 hover:text-white border border-stone-700 hover:border-stone-500 rounded-lg transition-colors">
-          继续挑战
-        </button>
-        <button @click="handleInterrupt"
-          :disabled="loading"
-          class="px-4 py-2 text-sm font-bold text-rose-300 bg-rose-950/40 border border-rose-700 hover:bg-rose-900/40 rounded-lg transition-colors disabled:opacity-50">
-          <span v-if="loading">执行中...</span>
-          <span v-else>确认中断</span>
-        </button>
+        <AppButton variant="ghost" @click="interruptConfirmOpen = false">继续挑战</AppButton>
+        <AppButton variant="danger" :disabled="loading" @click="handleInterrupt">
+          {{ loading ? '执行中...' : '确认中断' }}
+        </AppButton>
       </template>
     </Modal>
-  </div>
+
+    <!-- 底部操作栏 -->
+    <template #footer>
+      <AppButton variant="outline" :disabled="loading" @click="handleRefresh">刷新状态</AppButton>
+      <AppButton class="flex-1" @click="$emit('close')">关闭</AppButton>
+    </template>
+  </PanelShell>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
+import { useAsyncTask } from '../../composables/useAsyncTask'
 import { formatTime, formatNumber } from '../../utils/format'
 import Modal from '../common/Modal.vue'
 import DungeonProgressView from './DungeonProgressView.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import PanelCard from '../ui/PanelCard.vue'
+import Badge from '../ui/Badge.vue'
+import AppButton from '../ui/AppButton.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import ErrorState from '../ui/ErrorState.vue'
 import {
   getConfig,
   getStatus,
@@ -265,6 +246,13 @@ const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 
 const loading = ref(false)
+/**
+ * 首屏两份数据的失败记账
+ * 与上面的 loading 分开：loading 是「进入副本/扫荡/推进」等动作的进行中锁，
+ * 这里只管副本配置与状态拉取，失败要留下常驻的错误态和重试入口。
+ */
+const { error: configError, run: runConfig } = useAsyncTask({ fallback: '获取副本配置失败' })
+const { error: statusError, run: runStatus } = useAsyncTask({ fallback: '获取副本状态失败' })
 const status = ref(null)
 const config = ref(null)
 const history = ref([])
@@ -284,7 +272,7 @@ let tickTimer = null
  */
 const difficulties = [
   { value: 'normal',    label: '普通', activeClass: 'bg-emerald-950/40', borderClass: 'border-emerald-600', textClass: 'text-emerald-300' },
-  { value: 'hard',      label: '困难', activeClass: 'bg-amber-950/40',   borderClass: 'border-amber-600',   textClass: 'text-amber-300' },
+  { value: 'hard',      label: '困难', activeClass: 'bg-amber-950/40',   borderClass: 'border-gold-600',   textClass: 'text-gold-300' },
   { value: 'nightmare', label: '噩梦', activeClass: 'bg-rose-950/40',    borderClass: 'border-rose-600',    textClass: 'text-rose-300' }
 ]
 
@@ -373,28 +361,18 @@ const formatDate = (dateStr) => {
 /**
  * 拉取副本配置
  */
-const fetchConfig = async () => {
-  try {
-    const res = await getConfig()
-    config.value = res.data?.data || res.data
-  } catch (err) {
-    console.error('获取副本配置失败:', err)
-    uiStore.showToast('获取副本配置失败', 'error')
-  }
-}
+const fetchConfig = () => runConfig(async () => {
+  const res = await getConfig()
+  config.value = res.data?.data || res.data
+})
 
 /**
  * 拉取副本状态
  */
-const fetchStatus = async () => {
-  try {
-    const res = await getStatus()
-    status.value = res.data?.data || res.data
-  } catch (err) {
-    console.error('获取副本状态失败:', err)
-    uiStore.showToast('获取副本状态失败', 'error')
-  }
-}
+const fetchStatus = () => runStatus(async () => {
+  const res = await getStatus()
+  status.value = res.data?.data || res.data
+})
 
 /**
  * 拉取通关历史
@@ -405,7 +383,7 @@ const fetchHistory = async () => {
     history.value = res.data?.data || []
   } catch (err) {
     console.error('获取通关历史失败:', err)
-    uiStore.showToast('获取通关历史失败', 'error')
+    uiStore.showApiError(err, '获取通关历史失败')
   }
 }
 
@@ -423,7 +401,7 @@ const fetchCurrentNode = async () => {
     currentNode.value = payload.data
   } catch (err) {
     console.error('获取当前节点失败:', err)
-    uiStore.showToast('获取当前节点失败', 'error')
+    uiStore.showApiError(err, '获取当前节点失败')
   }
 }
 
@@ -453,8 +431,7 @@ const handleStartDungeon = async (chapterId) => {
       await fetchStatus()
     }
   } catch (err) {
-    const msg = err?.response?.data?.message || '进入副本失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '进入副本失败')
   } finally {
     loading.value = false
   }
@@ -492,8 +469,7 @@ const handleAdvance = async () => {
       await fetchStatus()
     }
   } catch (err) {
-    const msg = err?.response?.data?.message || '推进节点失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '推进节点失败')
   } finally {
     loading.value = false
   }
@@ -531,8 +507,7 @@ const handleBattle = async () => {
       }
     }
   } catch (err) {
-    const msg = err?.response?.data?.message || '战斗失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '战斗失败')
   } finally {
     loading.value = false
   }
@@ -563,8 +538,7 @@ const handleChooseOption = async (optionId) => {
       await fetchStatus()
     }
   } catch (err) {
-    const msg = err?.response?.data?.message || '选择失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '选择失败')
   } finally {
     loading.value = false
   }
@@ -606,8 +580,7 @@ const handleInterrupt = async () => {
       await fetchStatus()
     }
   } catch (err) {
-    const msg = err?.response?.data?.message || '中断副本失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '中断副本失败')
   } finally {
     loading.value = false
   }
@@ -638,8 +611,7 @@ const handleSweepDungeon = async (chapterId) => {
       await fetchStatus()
     }
   } catch (err) {
-    const msg = err?.response?.data?.message || '扫荡失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '扫荡失败')
   } finally {
     loading.value = false
   }
@@ -685,13 +657,3 @@ onUnmounted(() => {
   if (tickTimer) clearInterval(tickTimer)
 })
 </script>
-
-<style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
-}
-</style>

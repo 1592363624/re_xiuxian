@@ -1,0 +1,187 @@
+/* ============================================================
+ * 设计令牌（Design Tokens）—— 全站唯一定义处
+ *
+ * 这里解决的问题：此前配色散落在 78 种硬编码十六进制里，
+ * 且冷灰 gray-* 与暖灰 stone-* 混用（同一套深色底上出现两种中性色），
+ * 面板底色每写一遍就要重新挑一次颜色。
+ *
+ * 约定：
+ *   1. 新增面板不再写 #xxxxxx，一律取 surface-* / line-* / fg-* / gold-* 令牌。
+ *   2. 数值以「RGB 通道三元组」存储，Tailwind 侧用 rgb(var(--x) / <alpha-value>)
+ *      消费，因此 bg-surface-raised/60 这类透明度修饰仍然可用。
+ *   3. 想换主题（浅色 / 高对比 / 节日皮）只改本文件的 :root，组件不用动。
+ *
+ * 取值来源：全部等于改造前站内的既成事实颜色，替换后视觉零位移。
+ *   surface-sunken  #0a0908   surface-canvas #0c0a09   surface-base #141210
+ *   surface-raised  #1c1917   surface-hover  #292524   surface-active #44403c
+ *   line-subtle     #292524   line           #44403c   line-strong #57534e
+ *   fg-primary      #f5f5f4   fg-secondary   #d6d3d1
+ *   fg-muted        #a8a29e   fg-faint       #78716c
+ *
+ * 本文件不使用 @layer：它由 style.css 在 @tailwind 之前 @import 进来，
+ * 层上下文与 utilities 的先后顺序交给源码顺序决定，避免 Tailwind
+ * 在独立文件里报 "'@layer base' used but not defined"。
+ * ============================================================ */
+
+:root {
+  /* ── 表面（由深到浅，代表离视线越近）── */
+  --surface-sunken: 10 9 8;
+  --surface-canvas: 12 10 9;
+  --surface-base: 20 18 16;
+  --surface-raised: 28 25 23;
+  --surface-hover: 41 37 36;
+  --surface-active: 68 64 60;
+
+  /* 有色底：保留色相的浅染面，用于「机缘 / 达成 / 系统」这类带语义的区块。
+   * 与中性面同用一套明度阶梯，只换色相，不再各面板随手挑一个深色。 */
+  --surface-tint-gold: 28 19 13;
+  --surface-tint-gold-strong: 41 32 20;
+  --surface-tint-jade: 27 37 22;
+  --surface-tint-arcane: 22 19 24;
+
+  /* ── 描边 ── */
+  --line-subtle: 41 37 36;
+  --line: 68 64 60;
+  --line-strong: 87 83 78;
+
+  /* ── 正文 ── */
+  --fg-primary: 245 245 244;
+  --fg-secondary: 214 211 209;
+  --fg-muted: 168 162 158;
+  --fg-faint: 120 113 108;
+
+  /* ── 主强调色：鎏金 ── */
+  --gold-200: 253 230 138;
+  --gold-300: 252 211 77;
+  --gold-400: 251 191 36;
+  --gold-500: 245 158 11;
+  --gold-600: 217 119 6;
+  --gold-700: 180 83 9;
+  --gold-800: 146 64 14;
+  --gold-900: 120 53 15;
+
+  /* ── 语义色：修仙语境的固定含义，不再各面板自选 ── */
+  --state-success: 52 211 153; /* 灵光 / 达成 */
+  --state-warning: 251 191 36; /* 机缘 */
+  --state-danger: 251 113 133; /* 血光 / 战败 */
+  --state-info: 56 189 248; /* 神识 / 提示 */
+  --state-arcane: 192 132 252; /* 天道 / 传说 */
+
+  /* ── 字体：此前全站没有一处 font-family 声明 ──
+   * font-mono 在中文段落上没有 CJK 字形，会逐字回退到宋体，
+   * 日志这种主阅读面因此一直是不齐的。中文正文改用无衬线 UI 字体，
+   * 数字单独取等宽 + tabular-nums 对齐。 */
+  --font-display: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', STSong, SimSun, Georgia, 'Times New Roman', serif;
+  --font-ui: 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', 'HarmonyOS Sans SC', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-num: ui-monospace, 'SF Mono', 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+
+  /* ── 尺度 ── */
+  --radius-panel: 12px;
+  --radius-control: 8px;
+  --dock-width-cap: 1200px;
+
+  /* ── 层叠秩序（z-index）──
+   * 此前全站只有 z-50 一档在用（31 处），面板、抽屉、聊天、死亡遮罩、
+   * 系统公告、GM 后台全部并列。同值时谁在上面只由 DOM 顺序决定，
+   * 于是「死亡遮罩排在面板之前」＝面板一开就盖住了死亡画面，玩家还能继续操作。
+   * 下面这一套按「离玩家的意图有多近」分层：越是被系统强推给玩家的，层越高。
+   * 新增层请在这里加，不要在组件里写 z-[60] 之类的裸数字。
+   */
+  --z-nav: 20;        /* 顶栏、栏内浮动控件 */
+  --z-floating: 30;   /* 返回战斗、移动状态条、底部操作条 */
+  --z-panel: 40;      /* 功能面板（右坞停靠 / 窄屏全屏 modal） */
+  --z-companion: 50;  /* 聊天浮窗、移动功能抽屉 */
+  --z-system: 60;     /* 死亡遮罩、系统公告、设置、GM 后台：必须盖住面板 */
+  --z-dialog: 70;     /* 二次确认：压在其所依附的层之上 */
+  --z-toast: 80;      /* toast 永不被挡 */
+  --z-lightbox: 100;  /* 图片预览等全屏查看 */
+}
+
+html {
+  color-scheme: dark;
+  background-color: rgb(var(--surface-canvas));
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  color: rgb(var(--fg-secondary));
+  background-color: rgb(var(--surface-canvas));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 标题走衬线，正文走无衬线：文游的「卷宗感」来自标题而非正文 */
+h1, h2, h3 {
+  font-family: var(--font-display);
+}
+
+/* 数字一律等宽对齐，避免灵石/修为跳动时整行左右晃 */
+.num,
+time,
+data {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+::selection {
+  background-color: rgb(var(--gold-500) / 0.3);
+  color: rgb(var(--fg-primary));
+}
+
+/* ============================================================
+ * 全站滚动条
+ *
+ * 此前每个会滚动的组件都各自复制一份 webkit 滚动条规则
+ * （GameLog / FeatureDock / 若干面板各写各的，宽度和颜色都不统一）。
+ * 这里收一份全局兜底 + 两个工具类。
+ * ============================================================ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line)) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--line));
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--line-strong));
+}
+
+.scroll-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* 键盘可达性：只在键盘导航时出环，鼠标点击不出灰框 */
+.focus-ring:focus-visible {
+  outline: 2px solid rgb(var(--gold-500) / 0.7);
+  outline-offset: 1px;
+}
+
+/* 长日志/长列表换行策略：中文按字断行，连续英数按词断行 */
+.wrap-cjk {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}

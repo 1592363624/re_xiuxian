@@ -1,519 +1,495 @@
-/**
+<!--
  * PVP 斗法面板组件
  *
  * 弹窗式组件，展示玩家 PVP 状态、进行中战斗、排行榜、段位信息。
  *
  * 设计原则：
  *   - 所有业务逻辑在后端，前端仅做展示与接口调用
- *   - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
+ *   - 二次确认使用 common/Modal，外壳与卡片走 ui/PanelShell + ui/PanelCard
  *   - 冷却倒计时基于 server_time + cooldown_remaining_seconds 本地 tick 递减
  *   - 战斗日志展示按时间倒序（最新在上）
- *   - 颜色风格：PVP 用红色系（red-400/red-500/red-600）区分战斗主题
+ *   - 颜色风格：PVP 用血光系（red/rose）区分战斗主题
  *
  * 数据来源：
  *   - getStatus()：玩家自身段位、战绩、进行中战斗、冷却、虚弱、配置
  *   - getLeaderboard(10)：前 10 名玩家排行榜
  *   - executeAction() / flee()：战斗动作
- */
+-->
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
+  <PanelShell
+    title="斗法场"
+    hint="段位 · 挑战 · 天榜"
+    size="xl"
+    :loading="loading && !status"
+    :error="error"
+    @close="$emit('close')"
+    @retry="refreshAll"
+  >
+    <template #header-actions>
+      <div class="hidden sm:flex items-center gap-2">
+        <Badge tone="danger">{{ status?.ranking?.rank_tier || '散修' }}</Badge>
+        <Badge tone="gold">今日挑战 <span class="num">{{ challengeRemaining }}</span></Badge>
+        <Badge :tone="cooldownRemaining > 0 ? 'muted' : 'success'">
+          {{ cooldownRemaining > 0 ? formatTime(cooldownRemaining) : '可挑战' }}
+        </Badge>
+      </div>
+    </template>
 
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-red-900/40 rounded-lg p-6 max-w-3xl w-full mx-4 shadow-2xl shadow-red-900/20 animate-fade-in max-h-[88vh] flex flex-col panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-red-400 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.5 17.5L3 6V3h3l11.5 11.5"/>
-            <path d="M13 19l6-6"/>
-            <path d="M16 16l4 4"/>
-            <path d="M19 21l2-2"/>
-          </svg>
-          斗法场
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
+    <div v-if="status" class="space-y-4">
+      <!-- 段位卡：段位名 + 积分 + 胜率 + 连胜 -->
+      <PanelCard tone="danger">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full bg-rose-900/40 border border-red-600/50 flex items-center justify-center shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-300">
+                <path d="M14.5 17.5L3 6V3h3l11.5 11.5"/>
+                <path d="M13 19l6-6"/>
+                <path d="M16 16l4 4"/>
+              </svg>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-red-300 font-display">{{ status.ranking.rank_tier || '散修' }}</div>
+              <div class="text-xs text-fg-muted">段位</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+              <div class="text-xs text-fg-faint">积分</div>
+              <div class="text-red-300 font-bold num">{{ formatCompact(status.ranking.score) }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-fg-faint">胜率</div>
+              <div class="text-gold-300 font-bold num">{{ status.ranking.win_rate }}%</div>
+            </div>
+            <div>
+              <div class="text-xs text-fg-faint">连胜</div>
+              <div class="text-emerald-300 font-bold num">{{ status.ranking.win_streak }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-fg-faint">最高连胜</div>
+              <div class="text-purple-300 font-bold num">{{ status.ranking.max_win_streak }}</div>
+            </div>
+          </div>
+        </div>
+      </PanelCard>
+
+      <!-- 状态区：剩余次数、冷却、虚弱、荣誉、因果 -->
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <!-- 今日挑战剩余 -->
+        <div class="bg-surface-raised border border-line rounded-panel p-3">
+          <div class="text-xs text-fg-muted mb-1">今日挑战</div>
+          <div class="text-sm font-bold num"
+            :class="challengeRemaining > 0 ? 'text-red-400' : 'text-fg-faint'">
+            {{ challengeRemaining }} / {{ status.config?.daily_challenge_limit || 0 }}
+          </div>
+        </div>
+        <!-- 今日防守剩余 -->
+        <div class="bg-surface-raised border border-line rounded-panel p-3">
+          <div class="text-xs text-fg-muted mb-1">今日防守</div>
+          <div class="text-sm font-bold num"
+            :class="defendRemaining > 0 ? 'text-gold-400' : 'text-fg-faint'">
+            {{ defendRemaining }} / {{ status.config?.daily_defend_limit || 0 }}
+          </div>
+        </div>
+        <!-- 冷却倒计时 -->
+        <div class="bg-surface-raised border border-line rounded-panel p-3">
+          <div class="text-xs text-fg-muted mb-1">战斗冷却</div>
+          <div v-if="cooldownRemaining > 0" class="text-sm font-bold text-gold-400 num">
+            {{ formatTime(cooldownRemaining) }}
+          </div>
+          <div v-else class="text-sm font-bold text-emerald-400">可挑战</div>
+        </div>
+        <!-- 荣誉值 -->
+        <div class="bg-surface-raised border border-line rounded-panel p-3">
+          <div class="text-xs text-fg-muted mb-1">荣誉值</div>
+          <div class="text-sm font-bold text-gold-300 num">{{ formatCompact(status.player.honor) }}</div>
+        </div>
+        <!-- 因果值 -->
+        <div class="bg-surface-raised border border-line rounded-panel p-3">
+          <div class="text-xs text-fg-muted mb-1">因果值</div>
+          <div class="text-sm font-bold num"
+            :class="status.player.karma < 0 ? 'text-rose-400' : 'text-fg-primary'">
+            {{ status.player.karma }}
+          </div>
+        </div>
+        <!-- 战力 -->
+        <div class="bg-surface-raised border border-line rounded-panel p-3">
+          <div class="text-xs text-fg-muted mb-1">战力</div>
+          <div class="text-sm font-bold text-cyan-300 num">{{ formatCompact(status.player.power) }}</div>
+        </div>
       </div>
 
-      <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-        <!-- 加载中 -->
-        <div v-if="loading && !status" class="text-center text-stone-500 py-10">正在查阅斗法录...</div>
-
-        <template v-else-if="status">
-          <!-- 段位卡：段位名 + 积分 + 胜率 + 连胜 -->
-          <div class="bg-gradient-to-br from-red-950/40 to-[#292524] border border-red-800/40 rounded-lg p-4">
-            <div class="flex items-center justify-between flex-wrap gap-3">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-full bg-red-900/40 border border-red-600/50 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-300">
-                    <path d="M14.5 17.5L3 6V3h3l11.5 11.5"/>
-                    <path d="M13 19l6-6"/>
-                    <path d="M16 16l4 4"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-2xl font-bold text-red-300">{{ status.ranking.rank_tier || '散修' }}</div>
-                  <div class="text-xs text-stone-400">段位</div>
-                </div>
-              </div>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div>
-                  <div class="text-xs text-stone-500">积分</div>
-                  <div class="text-red-300 font-bold">{{ formatCompact(status.ranking.score) }}</div>
-                </div>
-                <div>
-                  <div class="text-xs text-stone-500">胜率</div>
-                  <div class="text-amber-300 font-bold">{{ status.ranking.win_rate }}%</div>
-                </div>
-                <div>
-                  <div class="text-xs text-stone-500">连胜</div>
-                  <div class="text-emerald-300 font-bold">{{ status.ranking.win_streak }}</div>
-                </div>
-                <div>
-                  <div class="text-xs text-stone-500">最高连胜</div>
-                  <div class="text-purple-300 font-bold">{{ status.ranking.max_win_streak }}</div>
-                </div>
-              </div>
+      <!-- 虚弱状态警告（仅虚弱时显示） -->
+      <PanelCard v-if="status.player.is_weak" tone="danger">
+        <div class="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-rose-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <div class="flex-1">
+            <div class="text-rose-300 font-bold text-sm">斗法落败 · 灵力虚浮</div>
+            <div class="text-xs text-rose-400/80">
+              剩余 <span class="num">{{ formatTime(weaknessRemaining) }}</span> · 修炼/突破效率下降，请静养恢复
             </div>
           </div>
+        </div>
+      </PanelCard>
 
-          <!-- 状态区：剩余次数、冷却、虚弱、荣誉、因果 -->
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <!-- 今日挑战剩余 -->
-            <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-              <div class="text-xs text-stone-400 mb-1">今日挑战</div>
+      <!-- 避世/入世模式卡 -->
+      <!-- 玩法文档第17节：避世可免疫斗法与袭扰，入世则恢复正常 PVP 交互 -->
+      <PanelCard :tone="isRecluseMode ? 'plain' : 'success'">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <!-- 避世图标：山间幽居 -->
+            <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+              :class="isRecluseMode ? 'bg-cyan-900/40 border border-cyan-600/50' : 'bg-emerald-900/40 border border-emerald-600/50'">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5"
+                :class="isRecluseMode ? 'text-cyan-300' : 'text-emerald-300'"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 20h18"/>
+                <path d="M5 20V8l5-4 5 4v12"/>
+                <path d="M9 20v-6h2v6"/>
+              </svg>
+            </div>
+            <div>
               <div class="text-sm font-bold"
-                :class="challengeRemaining > 0 ? 'text-red-400' : 'text-stone-500'">
-                {{ challengeRemaining }} / {{ status.config?.daily_challenge_limit || 0 }}
+                :class="isRecluseMode ? 'text-cyan-300' : 'text-emerald-300'">
+                {{ status.pvp_mode_name || '入世' }}
               </div>
-            </div>
-            <!-- 今日防守剩余 -->
-            <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-              <div class="text-xs text-stone-400 mb-1">今日防守</div>
-              <div class="text-sm font-bold"
-                :class="defendRemaining > 0 ? 'text-amber-400' : 'text-stone-500'">
-                {{ defendRemaining }} / {{ status.config?.daily_defend_limit || 0 }}
-              </div>
-            </div>
-            <!-- 冷却倒计时 -->
-            <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-              <div class="text-xs text-stone-400 mb-1">战斗冷却</div>
-              <div v-if="cooldownRemaining > 0" class="text-sm font-bold text-amber-400">
-                {{ formatTime(cooldownRemaining) }}
-              </div>
-              <div v-else class="text-sm font-bold text-emerald-400">可挑战</div>
-            </div>
-            <!-- 荣誉值 -->
-            <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-              <div class="text-xs text-stone-400 mb-1">荣誉值</div>
-              <div class="text-sm font-bold text-amber-300">{{ formatCompact(status.player.honor) }}</div>
-            </div>
-            <!-- 因果值 -->
-            <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-              <div class="text-xs text-stone-400 mb-1">因果值</div>
-              <div class="text-sm font-bold"
-                :class="status.player.karma < 0 ? 'text-rose-400' : 'text-stone-200'">
-                {{ status.player.karma }}
-              </div>
-            </div>
-            <!-- 战力 -->
-            <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-              <div class="text-xs text-stone-400 mb-1">战力</div>
-              <div class="text-sm font-bold text-cyan-300">{{ formatCompact(status.player.power) }}</div>
-            </div>
-          </div>
-
-          <!-- 虚弱状态警告（仅虚弱时显示） -->
-          <div v-if="status.player.is_weak" class="bg-rose-950/30 border border-rose-800/60 rounded-lg p-3 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-rose-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <div class="flex-1">
-              <div class="text-rose-300 font-bold text-sm">斗法落败 · 灵力虚浮</div>
-              <div class="text-xs text-rose-400/80">
-                剩余 {{ formatTime(weaknessRemaining) }} · 修炼/突破效率下降，请静养恢复
+              <div class="text-xs mt-0.5"
+                :class="isRecluseMode ? 'text-cyan-400/70' : 'text-fg-muted'">
+                {{ isRecluseMode
+                  ? '避世清修·免疫斗法袭扰，自身亦不可发起挑战'
+                  : '入世历劫·可正常参与 PVP 挑战、决斗、封神台' }}
               </div>
             </div>
           </div>
+          <!-- 切换按钮 -->
+          <AppButton
+            size="xs"
+            :variant="isRecluseMode ? 'primary' : 'outline'"
+            :disabled="modeSwitching"
+            @click="openPvpModeConfirm"
+          >
+            {{ modeSwitching ? '切换中…' : (isRecluseMode ? '入世' : '避世') }}
+          </AppButton>
+        </div>
+      </PanelCard>
 
-          <!-- 避世/入世模式卡 -->
-          <!-- 玩法文档第17节：避世可免疫斗法与袭扰，入世则恢复正常 PVP 交互 -->
-          <div class="bg-[#292524] border rounded-lg p-3"
-            :class="isRecluseMode ? 'border-cyan-700/60' : 'border-stone-700'">
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <!-- 避世图标：山间幽居 -->
-                <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                  :class="isRecluseMode ? 'bg-cyan-900/40 border border-cyan-600/50' : 'bg-emerald-900/40 border border-emerald-600/50'">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5"
-                    :class="isRecluseMode ? 'text-cyan-300' : 'text-emerald-300'"
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 20h18"/>
-                    <path d="M5 20V8l5-4 5 4v12"/>
-                    <path d="M9 20v-6h2v6"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-sm font-bold"
-                    :class="isRecluseMode ? 'text-cyan-300' : 'text-emerald-300'">
-                    {{ status.pvp_mode_name || '入世' }}
-                  </div>
-                  <div class="text-xs mt-0.5"
-                    :class="isRecluseMode ? 'text-cyan-400/70' : 'text-stone-400'">
-                    {{ isRecluseMode
-                      ? '避世清修·免疫斗法袭扰，自身亦不可发起挑战'
-                      : '入世历劫·可正常参与 PVP 挑战、决斗、封神台' }}
-                  </div>
-                </div>
-              </div>
-              <!-- 切换按钮 -->
-              <button
-                @click="openPvpModeConfirm"
-                :disabled="modeSwitching"
-                class="px-3 py-1.5 text-xs font-bold rounded border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                :class="isRecluseMode
-                  ? 'bg-emerald-900/40 border-emerald-600 text-emerald-300 hover:bg-emerald-800/50'
-                  : 'bg-cyan-900/40 border-cyan-600 text-cyan-300 hover:bg-cyan-800/50'"
-              >
-                {{ modeSwitching ? '切换中...' : (isRecluseMode ? '入世' : '避世') }}
-              </button>
+      <!-- 进行中战斗区 -->
+      <PanelCard v-if="status.is_in_pvp_battle && status.battle_info" tone="danger">
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <Badge tone="danger" solid>战斗中</Badge>
+              <span class="text-xs text-fg-muted num">回合 {{ status.battle_info.current_round }} / {{ status.battle_info.max_rounds }}</span>
+            </div>
+            <div class="text-xs"
+              :class="status.battle_info.is_my_turn ? 'text-emerald-400 font-bold' : 'text-gold-400'">
+              {{ status.battle_info.is_my_turn ? '己方回合' : '对手回合' }}
             </div>
           </div>
 
-          <!-- 进行中战斗区 -->
-          <div v-if="status.is_in_pvp_battle && status.battle_info" class="bg-red-950/20 border border-red-800/50 rounded-lg p-4 space-y-3">
-            <div class="flex items-center justify-between">
+          <!-- 对手信息 -->
+          <div class="bg-surface-sunken border border-red-900/30 rounded-panel p-3">
+            <div class="flex items-center justify-between text-sm mb-2">
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-300">战斗中</span>
-                <span class="text-xs text-stone-400">回合 {{ status.battle_info.current_round }} / {{ status.battle_info.max_rounds }}</span>
+                <span class="text-fg-muted text-xs">对手：</span>
+                <span class="text-red-300 font-bold">{{ status.battle_info.opponent_nickname }}</span>
+                <span class="text-xs text-fg-faint">[{{ status.battle_info.opponent_realm }}]</span>
               </div>
-              <div class="text-xs"
-                :class="status.battle_info.is_my_turn ? 'text-emerald-400 font-bold' : 'text-amber-400'">
-                {{ status.battle_info.is_my_turn ? '己方回合' : '对手回合' }}
-              </div>
-            </div>
-
-            <!-- 对手信息 -->
-            <div class="bg-[#0c0a09]/60 border border-red-900/30 rounded p-3">
-              <div class="flex items-center justify-between text-sm mb-2">
-                <div class="flex items-center gap-2">
-                  <span class="text-stone-400 text-xs">对手：</span>
-                  <span class="text-red-300 font-bold">{{ status.battle_info.opponent_nickname }}</span>
-                  <span class="text-xs text-stone-500">[{{ status.battle_info.opponent_realm }}]</span>
-                </div>
-                <div class="text-xs text-stone-500">
-                  对手战力：<span class="text-red-300">{{ formatCompact(status.battle_info.opponent_power) }}</span>
-                  <span class="mx-1">|</span>
-                  己方战力：<span class="text-cyan-300">{{ formatCompact(status.battle_info.attacker_power) }}</span>
-                </div>
-              </div>
-              <!-- HP 进度条 -->
-              <div class="space-y-2">
-                <div>
-                  <div class="flex justify-between text-xs mb-0.5">
-                    <span class="text-cyan-300">己方气血</span>
-                    <span class="text-stone-400">{{ currentAttackerHp }} / {{ maxHp }}</span>
-                  </div>
-                  <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
-                    <div class="h-full bg-gradient-to-r from-cyan-700 to-cyan-500 transition-all duration-300"
-                      :style="{ width: `${attackerHpPercent}%` }"></div>
-                  </div>
-                </div>
-                <div>
-                  <div class="flex justify-between text-xs mb-0.5">
-                    <span class="text-red-300">对手气血</span>
-                    <span class="text-stone-400">{{ currentDefenderHp }} / {{ maxHp }}</span>
-                  </div>
-                  <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
-                    <div class="h-full bg-gradient-to-r from-red-700 to-red-500 transition-all duration-300"
-                      :style="{ width: `${defenderHpPercent}%` }"></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 五行相克展示（基于灵根属性，增加 PVP 策略深度） -->
-              <!-- 后端 battle_info.element_info 返回双方灵根克制关系与伤害倍率 -->
-              <div v-if="status.battle_info.element_info" class="bg-[#0c0a09]/60 border rounded p-2 mt-2"
-                :class="elementBorderColor(status.battle_info.element_info)">
-                <div class="flex items-center justify-between gap-2">
-                  <!-- 己方灵根 -->
-                  <div class="flex items-center gap-1.5">
-                    <span class="text-xs text-stone-400">己方</span>
-                    <span v-if="status.battle_info.element_info.my_element"
-                      class="px-1.5 py-0.5 rounded text-xs font-bold border"
-                      :class="elementBadgeClass(status.battle_info.element_info.my_element)">
-                      {{ elementIcon(status.battle_info.element_info.my_element) }}
-                      {{ elementName(status.battle_info.element_info.my_element) }}
-                    </span>
-                    <span v-else class="text-xs text-stone-500">无属性</span>
-                  </div>
-                  <!-- 克制关系 -->
-                  <div class="flex-1 text-center">
-                    <div v-if="status.battle_info.element_info.matchup"
-                      class="text-xs font-bold"
-                      :class="elementAdvantageTextClass(status.battle_info.element_info)">
-                      {{ status.battle_info.element_info.matchup }}
-                      <span class="ml-1">×{{ status.battle_info.element_info.multiplier }}</span>
-                    </div>
-                    <div v-else class="text-xs text-stone-500">无相克关系 ×1.0</div>
-                  </div>
-                  <!-- 对手灵根 -->
-                  <div class="flex items-center gap-1.5">
-                    <span v-if="status.battle_info.element_info.opponent_element"
-                      class="px-1.5 py-0.5 rounded text-xs font-bold border"
-                      :class="elementBadgeClass(status.battle_info.element_info.opponent_element)">
-                      {{ elementIcon(status.battle_info.element_info.opponent_element) }}
-                      {{ elementName(status.battle_info.element_info.opponent_element) }}
-                    </span>
-                    <span v-else class="text-xs text-stone-500">无属性</span>
-                    <span class="text-xs text-stone-400">对手</span>
-                  </div>
-                </div>
-                <!-- 克制提示文案 -->
-                <div v-if="status.battle_info.element_info.matchup" class="text-center mt-1.5 text-xs"
-                  :class="status.battle_info.element_info.advantage === 'attacker' ? 'text-emerald-400' : 'text-rose-400'">
-                  {{ status.battle_info.element_info.advantage === 'attacker'
-                    ? '己方灵根克制对手，伤害提升'
-                    : '对手灵根克制己方，伤害降低' }}
-                </div>
+              <div class="text-xs text-fg-faint">
+                对手战力：<span class="text-red-300 num">{{ formatCompact(status.battle_info.opponent_power) }}</span>
+                <span class="mx-1">|</span>
+                己方战力：<span class="text-cyan-300 num">{{ formatCompact(status.battle_info.attacker_power) }}</span>
               </div>
             </div>
+            <!-- HP 进度条 -->
+            <div class="space-y-2">
+              <StatBar
+                label="己方气血"
+                tone="azure"
+                height="h-2"
+                :value="currentAttackerHp"
+                :max="maxHp"
+                :text="`${currentAttackerHp} / ${maxHp}`"
+              />
+              <StatBar
+                label="对手气血"
+                tone="blood"
+                height="h-2"
+                :value="currentDefenderHp"
+                :max="maxHp"
+                :text="`${currentDefenderHp} / ${maxHp}`"
+              />
+            </div>
 
-            <!-- 战斗日志（最近 5 条，最新在上） -->
-            <div class="bg-[#0c0a09]/60 border border-stone-800/60 rounded p-2">
-              <div class="text-xs text-stone-500 mb-1">战斗记录</div>
-              <div v-if="recentLogs.length === 0" class="text-xs text-stone-600 py-2 text-center">尚无战斗记录</div>
-              <ul v-else class="space-y-1 text-xs">
-                <li v-for="(log, idx) in recentLogs" :key="idx"
-                  class="flex items-start gap-2 px-2 py-1 rounded"
-                  :class="log.actor === 'attacker' ? 'bg-cyan-950/30' : 'bg-red-950/30'">
-                  <span class="text-stone-500 shrink-0">[R{{ log.round || '-' }}]</span>
-                  <span :class="log.actor === 'attacker' ? 'text-cyan-300' : 'text-red-300'">
-                    {{ log.actor === 'attacker' ? '攻' : '守' }}
+            <!-- 五行相克展示（基于灵根属性，增加 PVP 策略深度） -->
+            <!-- 后端 battle_info.element_info 返回双方灵根克制关系与伤害倍率 -->
+            <div v-if="status.battle_info.element_info" class="bg-surface-sunken border rounded-panel p-2 mt-2"
+              :class="elementBorderColor(status.battle_info.element_info)">
+              <div class="flex items-center justify-between gap-2">
+                <!-- 己方灵根 -->
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs text-fg-muted">己方</span>
+                  <span v-if="status.battle_info.element_info.my_element"
+                    class="px-1.5 py-0.5 rounded-control text-xs font-bold border"
+                    :class="elementBadgeClass(status.battle_info.element_info.my_element)">
+                    {{ elementIcon(status.battle_info.element_info.my_element) }}
+                    {{ elementName(status.battle_info.element_info.my_element) }}
                   </span>
-                  <span class="text-stone-300 flex-1">{{ formatLogText(log) }}</span>
-                  <!-- 五行克制标签（行动方对目标方的克制关系） -->
-                  <span v-if="log.element && log.element.name"
-                    class="shrink-0 px-1 rounded text-[10px] font-bold"
-                    :class="log.element.advantage === 'attacker'
-                      ? 'text-emerald-400 bg-emerald-950/50'
-                      : 'text-rose-400 bg-rose-950/50'">
-                    {{ log.element.name }}
+                  <span v-else class="text-xs text-fg-faint">无属性</span>
+                </div>
+                <!-- 克制关系 -->
+                <div class="flex-1 text-center">
+                  <div v-if="status.battle_info.element_info.matchup"
+                    class="text-xs font-bold"
+                    :class="elementAdvantageTextClass(status.battle_info.element_info)">
+                    {{ status.battle_info.element_info.matchup }}
+                    <span class="ml-1 num">×{{ status.battle_info.element_info.multiplier }}</span>
+                  </div>
+                  <div v-else class="text-xs text-fg-faint">无相克关系 <span class="num">×1.0</span></div>
+                </div>
+                <!-- 对手灵根 -->
+                <div class="flex items-center gap-1.5">
+                  <span v-if="status.battle_info.element_info.opponent_element"
+                    class="px-1.5 py-0.5 rounded-control text-xs font-bold border"
+                    :class="elementBadgeClass(status.battle_info.element_info.opponent_element)">
+                    {{ elementIcon(status.battle_info.element_info.opponent_element) }}
+                    {{ elementName(status.battle_info.element_info.opponent_element) }}
                   </span>
-                  <span v-if="log.damage > 0" class="text-amber-400 shrink-0">-{{ log.damage }}</span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- 操作按钮 -->
-            <div class="grid grid-cols-5 gap-2">
-              <button
-                @click="handleAction('attack')"
-                :disabled="actionLoading || !status.battle_info.is_my_turn"
-                class="px-2 py-2 text-xs font-bold rounded bg-red-900/50 border border-red-700 text-red-300 hover:bg-red-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
-              >攻击</button>
-              <button
-                @click="handleAction('skill')"
-                :disabled="actionLoading || !status.battle_info.is_my_turn"
-                class="px-2 py-2 text-xs font-bold rounded bg-purple-900/50 border border-purple-700 text-purple-300 hover:bg-purple-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
-              >技能</button>
-              <button
-                @click="handleAction('defend')"
-                :disabled="actionLoading || !status.battle_info.is_my_turn"
-                class="px-2 py-2 text-xs font-bold rounded bg-cyan-900/50 border border-cyan-700 text-cyan-300 hover:bg-cyan-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
-              >防御</button>
-              <button
-                @click="openBattleItems"
-                :disabled="actionLoading || !status.battle_info.is_my_turn"
-                class="px-2 py-2 text-xs font-bold rounded bg-amber-900/50 border border-amber-700 text-amber-300 hover:bg-amber-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
-              >丹药</button>
-              <button
-                @click="openFleeConfirm"
-                :disabled="actionLoading"
-                class="px-2 py-2 text-xs font-bold rounded bg-stone-800 border border-stone-600 text-stone-300 hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed"
-              >逃跑</button>
+                  <span v-else class="text-xs text-fg-faint">无属性</span>
+                  <span class="text-xs text-fg-muted">对手</span>
+                </div>
+              </div>
+              <!-- 克制提示文案 -->
+              <div v-if="status.battle_info.element_info.matchup" class="text-center mt-1.5 text-xs"
+                :class="status.battle_info.element_info.advantage === 'attacker' ? 'text-emerald-400' : 'text-rose-400'">
+                {{ status.battle_info.element_info.advantage === 'attacker'
+                  ? '己方灵根克制对手，伤害提升'
+                  : '对手灵根克制己方，伤害降低' }}
+              </div>
             </div>
           </div>
 
-          <!-- 排行榜区（前 10 名） -->
-          <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-sm font-bold text-red-300">天榜前十</div>
-              <button @click="refreshLeaderboard" :disabled="leaderboardLoading"
-                class="text-xs text-stone-400 hover:text-red-300 transition-colors">
-                {{ leaderboardLoading ? '刷新中...' : '刷新' }}
-              </button>
-            </div>
-            <div v-if="leaderboard.length === 0" class="text-xs text-stone-500 py-2 text-center">暂无榜单数据</div>
+          <!-- 战斗日志（最近 5 条，最新在上） -->
+          <div class="bg-surface-sunken border border-line rounded-panel p-2">
+            <div class="text-xs text-fg-faint mb-1">战斗记录</div>
+            <div v-if="recentLogs.length === 0" class="text-xs text-fg-faint py-2 text-center">尚无战斗记录</div>
             <ul v-else class="space-y-1 text-xs">
-              <li v-for="(item, idx) in leaderboard" :key="item.player_id"
-                class="flex items-center justify-between px-2 py-1 rounded"
-                :class="idx < 3 ? 'bg-amber-950/30' : ''">
-                <div class="flex items-center gap-2">
-                  <span class="w-5 text-center font-bold"
-                    :class="idx === 0 ? 'text-amber-400' : idx === 1 ? 'text-stone-300' : idx === 2 ? 'text-amber-700' : 'text-stone-500'">
-                    {{ idx + 1 }}
-                  </span>
-                  <span class="text-stone-200">{{ item.nickname }}</span>
-                  <span class="text-xs text-stone-500">[{{ item.rank_tier }}]</span>
-                </div>
-                <div class="flex items-center gap-3 text-stone-400">
-                  <span>积分 <span class="text-red-300 font-bold">{{ item.score }}</span></span>
-                  <span>胜率 <span class="text-amber-300">{{ calcWinRate(item) }}%</span></span>
-                </div>
+              <li v-for="(log, idx) in recentLogs" :key="idx"
+                class="flex items-start gap-2 px-2 py-1 rounded-control"
+                :class="log.actor === 'attacker' ? 'bg-cyan-950/30' : 'bg-red-950/30'">
+                <span class="text-fg-faint shrink-0 num">[R{{ log.round || '-' }}]</span>
+                <span :class="log.actor === 'attacker' ? 'text-cyan-300' : 'text-red-300'">
+                  {{ log.actor === 'attacker' ? '攻' : '守' }}
+                </span>
+                <span class="text-fg-secondary flex-1">{{ formatLogText(log) }}</span>
+                <!-- 五行克制标签（行动方对目标方的克制关系） -->
+                <span v-if="log.element && log.element.name"
+                  class="shrink-0 px-1 rounded-control text-[10px] font-bold"
+                  :class="log.element.advantage === 'attacker'
+                    ? 'text-emerald-400 bg-emerald-950/50'
+                    : 'text-rose-400 bg-rose-950/50'">
+                  {{ log.element.name }}
+                </span>
+                <span v-if="log.damage > 0" class="text-gold-400 shrink-0 num">-{{ log.damage }}</span>
               </li>
             </ul>
           </div>
 
-          <!-- 段位信息区 -->
-          <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-            <div class="text-sm font-bold text-red-300 mb-2">段位阶序</div>
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-              <div v-for="(rank, idx) in (status.config?.ranks || [])" :key="idx"
-                class="px-2 py-1.5 rounded border flex items-center justify-between"
-                :class="rank.name === status.ranking.rank_tier
-                  ? 'bg-red-900/40 border-red-600 text-red-300'
-                  : 'bg-[#0c0a09]/40 border-stone-800 text-stone-400'">
-                <span class="font-bold">{{ rank.name }}</span>
-                <span>{{ formatScoreRange(rank) }}</span>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- 底部操作栏 -->
-      <div class="mt-4 flex gap-2">
-        <button
-          @click="$emit('close')"
-          class="px-4 py-2.5 text-sm text-stone-400 hover:text-white border border-stone-700 hover:border-stone-500 rounded-lg transition-colors"
-        >关闭</button>
-        <button
-          @click="refreshAll"
-          :disabled="loading"
-          class="flex-1 py-2.5 rounded-lg font-bold tracking-widest text-sm transition-all disabled:opacity-50 bg-red-950/40 border border-red-700 text-red-300 hover:bg-red-900/40 hover:border-red-500"
-        >
-          {{ loading ? '刷新中...' : '刷新斗法录' }}
-        </button>
-      </div>
-
-      <!-- 逃跑确认弹窗 -->
-      <Modal :isOpen="fleeConfirmShow" title="逃跑确认" width="420px" @close="fleeConfirmShow = false">
-        <p class="text-stone-300 text-sm">确定要逃跑吗？</p>
-        <p class="text-rose-400 text-xs mt-2">逃跑将视为失败结算：扣除积分、可能进入虚弱状态，且不会获得任何奖励。</p>
-        <template #footer>
-          <button @click="fleeConfirmShow = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">取消</button>
-          <button @click="confirmFlee" :disabled="actionLoading"
-            class="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded text-sm disabled:opacity-50">
-            {{ actionLoading ? '执行中...' : '确认逃跑' }}
-          </button>
-        </template>
-      </Modal>
-
-      <!-- 丹药选择弹窗（PVP 战斗中使用消耗品） -->
-      <Modal :isOpen="battleItemsShow" title="使用丹药" width="480px" @close="battleItemsShow = false">
-        <div class="space-y-3">
-          <!-- 剩余次数提示 -->
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-stone-400">本场剩余使用次数</span>
-            <span class="font-bold" :class="battleItemsRemaining > 0 ? 'text-amber-400' : 'text-rose-400'">
-              {{ battleItemsRemaining }} / {{ battleItemsMax }}
-            </span>
-          </div>
-
-          <!-- 加载中 -->
-          <div v-if="battleItemsLoading" class="text-center text-stone-500 py-6 text-sm">
-            正在翻阅随身丹药...
-          </div>
-
-          <!-- 无可用丹药 -->
-          <div v-else-if="battleItems.length === 0" class="text-center text-stone-500 py-6 text-sm">
-            <p>背包中没有可在战斗中使用的丹药</p>
-            <p class="text-xs mt-2 text-stone-600">回春丹、小还丹、大还丹、凝气丹、聚灵丹可在战斗中使用</p>
-          </div>
-
-          <!-- 丹药列表 -->
-          <div v-else class="space-y-2 max-h-64 overflow-y-auto">
+          <!-- 操作按钮 -->
+          <div class="grid grid-cols-5 gap-2">
             <button
-              v-for="item in battleItems"
-              :key="item.item_id"
-              @click="handleUseItem(item.item_id)"
-              :disabled="actionLoading || battleItemsRemaining <= 0"
-              class="w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
-              :class="item.subtype === 'healing'
-                ? 'bg-rose-950/30 border-rose-800/50 hover:border-rose-600 hover:bg-rose-950/50'
-                : 'bg-sky-950/30 border-sky-800/50 hover:border-sky-600 hover:bg-sky-950/50'"
-            >
-              <!-- 丹药图标 -->
-              <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                :class="item.subtype === 'healing' ? 'bg-rose-900/40' : 'bg-sky-900/40'">
-                <span class="text-lg">{{ item.subtype === 'healing' ? '💊' : '✨' }}</span>
-              </div>
-              <!-- 丹药信息 -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-bold text-stone-200">{{ item.name }}</span>
-                  <span class="text-xs px-1.5 py-0.5 rounded"
-                    :class="item.quality === 'rare' ? 'bg-purple-900/50 text-purple-300'
-                      : item.quality === 'uncommon' ? 'bg-emerald-900/50 text-emerald-300'
-                      : 'bg-stone-800 text-stone-400'">
-                    {{ item.quality === 'rare' ? '稀有' : item.quality === 'uncommon' ? '良品' : '普通' }}
-                  </span>
-                </div>
-                <p class="text-xs text-stone-500 mt-0.5">{{ item.description }}</p>
-                <p class="text-xs mt-1" :class="item.subtype === 'healing' ? 'text-rose-400' : 'text-sky-400'">
-                  恢复 {{ item.effect.hp_restore || item.effect.mp_restore || 0 }} 点{{ item.subtype === 'healing' ? '气血' : '灵力' }}
-                </p>
-              </div>
-              <!-- 持有数量 -->
-              <div class="text-right shrink-0">
-                <div class="text-xs text-stone-500">持有</div>
-                <div class="text-sm font-bold text-amber-400">×{{ item.quantity }}</div>
-              </div>
-            </button>
+              type="button"
+              @click="handleAction('attack')"
+              :disabled="actionLoading || !status.battle_info.is_my_turn"
+              class="focus-ring px-2 py-2 text-xs font-bold rounded-control bg-red-900/50 border border-red-700 text-red-300 hover:bg-red-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
+            >攻击</button>
+            <button
+              type="button"
+              @click="handleAction('skill')"
+              :disabled="actionLoading || !status.battle_info.is_my_turn"
+              class="focus-ring px-2 py-2 text-xs font-bold rounded-control bg-purple-900/50 border border-purple-700 text-purple-300 hover:bg-purple-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
+            >技能</button>
+            <button
+              type="button"
+              @click="handleAction('defend')"
+              :disabled="actionLoading || !status.battle_info.is_my_turn"
+              class="focus-ring px-2 py-2 text-xs font-bold rounded-control bg-cyan-900/50 border border-cyan-700 text-cyan-300 hover:bg-cyan-800/60 disabled:opacity-40 disabled:cursor-not-allowed"
+            >防御</button>
+            <button
+              type="button"
+              @click="openBattleItems"
+              :disabled="actionLoading || !status.battle_info.is_my_turn"
+              class="focus-ring px-2 py-2 text-xs font-bold rounded-control bg-gold-800/50 border border-gold-700 text-gold-300 hover:bg-gold-700/60 disabled:opacity-40 disabled:cursor-not-allowed"
+            >丹药</button>
+            <button
+              type="button"
+              @click="openFleeConfirm"
+              :disabled="actionLoading"
+              class="focus-ring px-2 py-2 text-xs font-bold rounded-control bg-surface-active border border-line-strong text-fg-secondary hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
+            >逃跑</button>
           </div>
         </div>
-        <template #footer>
-          <button @click="battleItemsShow = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">
-            关闭
-          </button>
-        </template>
-      </Modal>
+      </PanelCard>
 
-      <!-- 避世/入世切换确认弹窗 -->
-      <!-- 玩法文档第17节：避世免疫斗法袭扰，入世恢复正常 PVP 交互 -->
-      <Modal :isOpen="pvpModeConfirmShow" :title="pvpModeConfirmTitle" width="460px" @close="pvpModeConfirmShow = false">
-        <div class="space-y-3">
-          <p class="text-stone-300 text-sm">{{ pvpModeConfirmDesc }}</p>
-          <div class="bg-[#0c0a09]/60 border border-stone-800 rounded p-3 space-y-1.5 text-xs">
-            <div v-for="(effect, idx) in pvpModeConfirmEffects" :key="idx"
-              class="flex items-start gap-2"
-              :class="effect.type === 'positive' ? 'text-emerald-300' : 'text-amber-300'">
-              <span class="shrink-0">{{ effect.type === 'positive' ? '✓' : '✗' }}</span>
-              <span class="flex-1">{{ effect.text }}</span>
+      <!-- 排行榜区（前 10 名） -->
+      <PanelCard title="天榜前十">
+        <template #action>
+          <AppButton size="xs" variant="ghost" :disabled="leaderboardLoading" @click="refreshLeaderboard">
+            {{ leaderboardLoading ? '刷新中…' : '刷新' }}
+          </AppButton>
+        </template>
+        <div v-if="leaderboard.length === 0" class="text-xs text-fg-faint py-2 text-center">暂无榜单数据</div>
+        <ul v-else class="space-y-1 text-xs">
+          <li v-for="(item, idx) in leaderboard" :key="item.player_id"
+            class="flex items-center justify-between px-2 py-1 rounded-control"
+            :class="idx < 3 ? 'bg-surface-tint-gold' : ''">
+            <div class="flex items-center gap-2">
+              <span class="w-5 text-center font-bold num"
+                :class="idx === 0 ? 'text-gold-400' : idx === 1 ? 'text-fg-secondary' : idx === 2 ? 'text-gold-700' : 'text-fg-faint'">
+                {{ idx + 1 }}
+              </span>
+              <span class="text-fg-primary">{{ item.nickname }}</span>
+              <span class="text-xs text-fg-faint">[{{ item.rank_tier }}]</span>
             </div>
+            <div class="flex items-center gap-3 text-fg-muted">
+              <span>积分 <span class="text-red-300 font-bold num">{{ item.score }}</span></span>
+              <span>胜率 <span class="text-gold-300 num">{{ calcWinRate(item) }}%</span></span>
+            </div>
+          </li>
+        </ul>
+      </PanelCard>
+
+      <!-- 段位信息区 -->
+      <PanelCard title="段位阶序">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+          <div v-for="(rank, idx) in (status.config?.ranks || [])" :key="idx"
+            class="px-2 py-1.5 rounded-control border flex items-center justify-between"
+            :class="rank.name === status.ranking.rank_tier
+              ? 'bg-red-900/40 border-red-600 text-red-300'
+              : 'bg-surface-sunken border-line-subtle text-fg-muted'">
+            <span class="font-bold">{{ rank.name }}</span>
+            <span class="num">{{ formatScoreRange(rank) }}</span>
           </div>
         </div>
-        <template #footer>
-          <button @click="pvpModeConfirmShow = false"
-            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">再思</button>
-          <button @click="confirmSwitchPvpMode" :disabled="modeSwitching"
-            class="px-4 py-2 text-white rounded text-sm disabled:opacity-50"
-            :class="pendingPvpMode === 'recluse'
-              ? 'bg-cyan-700 hover:bg-cyan-600'
-              : 'bg-emerald-700 hover:bg-emerald-600'">
-            {{ modeSwitching ? '切换中...' : '确认' }}
-          </button>
-        </template>
-      </Modal>
+      </PanelCard>
     </div>
-  </div>
+
+    <!-- 底部操作栏 -->
+    <template #footer>
+      <AppButton size="sm" variant="outline" @click="$emit('close')">关闭</AppButton>
+      <AppButton size="sm" variant="danger" block :disabled="loading" @click="refreshAll">
+        {{ loading ? '刷新中…' : '刷新斗法录' }}
+      </AppButton>
+    </template>
+
+    <!-- 逃跑确认弹窗 -->
+    <Modal :isOpen="fleeConfirmShow" title="逃跑确认" width="420px" @close="fleeConfirmShow = false">
+      <p class="text-fg-secondary text-sm">确定要逃跑吗？</p>
+      <p class="text-rose-400 text-xs mt-2">逃跑将视为失败结算：扣除积分、可能进入虚弱状态，且不会获得任何奖励。</p>
+      <template #footer>
+        <AppButton size="sm" variant="outline" @click="fleeConfirmShow = false">取消</AppButton>
+        <AppButton size="sm" variant="danger" :disabled="actionLoading" @click="confirmFlee">
+          {{ actionLoading ? '执行中…' : '确认逃跑' }}
+        </AppButton>
+      </template>
+    </Modal>
+
+    <!-- 丹药选择弹窗（PVP 战斗中使用消耗品） -->
+    <Modal :isOpen="battleItemsShow" title="使用丹药" width="480px" @close="battleItemsShow = false">
+      <div class="space-y-3">
+        <!-- 剩余次数提示 -->
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-fg-muted">本场剩余使用次数</span>
+          <span class="font-bold num" :class="battleItemsRemaining > 0 ? 'text-gold-400' : 'text-rose-400'">
+            {{ battleItemsRemaining }} / {{ battleItemsMax }}
+          </span>
+        </div>
+
+        <!-- 加载中 -->
+        <LoadingBlock v-if="battleItemsLoading" text="正在翻阅随身丹药…" />
+
+        <!-- 无可用丹药 -->
+        <EmptyState
+          v-else-if="battleItems.length === 0"
+          text="背包中没有可在战斗中使用的丹药"
+          hint="回春丹、小还丹、大还丹、凝气丹、聚灵丹可在战斗中使用"
+        />
+
+        <!-- 丹药列表 -->
+        <div v-else class="space-y-2 max-h-64 overflow-y-auto scroll-thin">
+          <button
+            v-for="item in battleItems"
+            :key="item.item_id"
+            type="button"
+            @click="handleUseItem(item.item_id)"
+            :disabled="actionLoading || battleItemsRemaining <= 0"
+            class="w-full flex items-center gap-3 p-3 rounded-panel border transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
+            :class="item.subtype === 'healing'
+              ? 'bg-rose-950/30 border-rose-800/50 hover:border-rose-600 hover:bg-rose-950/50'
+              : 'bg-sky-950/30 border-sky-800/50 hover:border-sky-600 hover:bg-sky-950/50'"
+          >
+            <!-- 丹药图标 -->
+            <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+              :class="item.subtype === 'healing' ? 'bg-rose-900/40' : 'bg-sky-900/40'">
+              <span class="text-lg">{{ item.subtype === 'healing' ? '💊' : '✨' }}</span>
+            </div>
+            <!-- 丹药信息 -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-fg-primary">{{ item.name }}</span>
+                <Badge :tone="item.quality === 'rare' ? 'arcane' : item.quality === 'uncommon' ? 'success' : 'muted'">
+                  {{ item.quality === 'rare' ? '稀有' : item.quality === 'uncommon' ? '良品' : '普通' }}
+                </Badge>
+              </div>
+              <p class="text-xs text-fg-faint mt-0.5">{{ item.description }}</p>
+              <p class="text-xs mt-1 num" :class="item.subtype === 'healing' ? 'text-rose-400' : 'text-sky-400'">
+                恢复 {{ item.effect.hp_restore || item.effect.mp_restore || 0 }} 点{{ item.subtype === 'healing' ? '气血' : '灵力' }}
+              </p>
+            </div>
+            <!-- 持有数量 -->
+            <div class="text-right shrink-0">
+              <div class="text-xs text-fg-faint">持有</div>
+              <div class="text-sm font-bold text-gold-400 num">×{{ item.quantity }}</div>
+            </div>
+          </button>
+        </div>
+      </div>
+      <template #footer>
+        <AppButton size="sm" variant="outline" @click="battleItemsShow = false">关闭</AppButton>
+      </template>
+    </Modal>
+
+    <!-- 避世/入世切换确认弹窗 -->
+    <!-- 玩法文档第17节：避世免疫斗法袭扰，入世恢复正常 PVP 交互 -->
+    <Modal :isOpen="pvpModeConfirmShow" :title="pvpModeConfirmTitle" width="460px" @close="pvpModeConfirmShow = false">
+      <div class="space-y-3">
+        <p class="text-fg-secondary text-sm">{{ pvpModeConfirmDesc }}</p>
+        <div class="bg-surface-sunken border border-line rounded-panel p-3 space-y-1.5 text-xs">
+          <div v-for="(effect, idx) in pvpModeConfirmEffects" :key="idx"
+            class="flex items-start gap-2"
+            :class="effect.type === 'positive' ? 'text-emerald-300' : 'text-gold-300'">
+            <span class="shrink-0">{{ effect.type === 'positive' ? '✓' : '✗' }}</span>
+            <span class="flex-1">{{ effect.text }}</span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <AppButton size="sm" variant="outline" @click="pvpModeConfirmShow = false">再思</AppButton>
+        <AppButton
+          size="sm"
+          :variant="pendingPvpMode === 'recluse' ? 'default' : 'primary'"
+          :disabled="modeSwitching"
+          @click="confirmSwitchPvpMode"
+        >
+          {{ modeSwitching ? '切换中…' : '确认' }}
+        </AppButton>
+      </template>
+    </Modal>
+  </PanelShell>
 </template>
 
 <script setup>
@@ -531,9 +507,17 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
+import { useAsyncTask } from '../../composables/useAsyncTask'
 import { usePlayerStore } from '../../stores/player'
 import { formatTime, formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import PanelCard from '../ui/PanelCard.vue'
+import AppButton from '../ui/AppButton.vue'
+import Badge from '../ui/Badge.vue'
+import StatBar from '../ui/StatBar.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import LoadingBlock from '../ui/LoadingBlock.vue'
 import {
   getStatus,
   getLeaderboard,
@@ -549,7 +533,7 @@ const uiStore = useUIStore()
 const playerStore = usePlayerStore()
 
 // ====== 响应式状态 ======
-const loading = ref(false)
+const { loading, error, run } = useAsyncTask({ fallback: '获取 PVP 状态失败' })
 const actionLoading = ref(false)
 const leaderboardLoading = ref(false)
 const status = ref(null)
@@ -674,22 +658,6 @@ const weaknessRemaining = computed(() => {
 })
 
 /**
- * 攻击方 HP 百分比
- */
-const attackerHpPercent = computed(() => {
-  if (maxHp.value <= 0) return 0
-  return Math.max(0, Math.min(100, (currentAttackerHp.value / maxHp.value) * 100))
-})
-
-/**
- * 防守方 HP 百分比
- */
-const defenderHpPercent = computed(() => {
-  if (maxHp.value <= 0) return 0
-  return Math.max(0, Math.min(100, (currentDefenderHp.value / maxHp.value) * 100))
-})
-
-/**
  * 最近 5 条战斗日志（最新在前）
  * 后端返回的 battle_log 已按时间倒序，这里仅截取前 5 条
  */
@@ -703,31 +671,26 @@ const recentLogs = computed(() => {
 /**
  * 拉取 PVP 状态
  */
-const fetchStatus = async () => {
-  try {
-    const res = await getStatus()
-    const data = res.data?.data || res.data
-    status.value = data
-    // 初始化战斗实时 HP（基于最新日志或默认值）
-    if (data?.is_in_pvp_battle && data.battle_info) {
-      const lastLog = data.battle_info.battle_log?.[0]
-      if (lastLog) {
-        currentAttackerHp.value = lastLog.attacker_hp ?? 100
-        currentDefenderHp.value = lastLog.defender_hp ?? 100
-        // 取两者最大值作为 HP 上限（粗略估算）
-        maxHp.value = Math.max(currentAttackerHp.value, currentDefenderHp.value, 100)
-      } else {
-        // 战斗刚开始还没有日志，使用默认值
-        currentAttackerHp.value = 100
-        currentDefenderHp.value = 100
-        maxHp.value = 100
-      }
+const fetchStatus = () => run(async () => {
+  const res = await getStatus()
+  const data = res.data?.data || res.data
+  status.value = data
+  // 初始化战斗实时 HP（基于最新日志或默认值）
+  if (data?.is_in_pvp_battle && data.battle_info) {
+    const lastLog = data.battle_info.battle_log?.[0]
+    if (lastLog) {
+      currentAttackerHp.value = lastLog.attacker_hp ?? 100
+      currentDefenderHp.value = lastLog.defender_hp ?? 100
+      // 取两者最大值作为 HP 上限（粗略估算）
+      maxHp.value = Math.max(currentAttackerHp.value, currentDefenderHp.value, 100)
+    } else {
+      // 战斗刚开始还没有日志，使用默认值
+      currentAttackerHp.value = 100
+      currentDefenderHp.value = 100
+      maxHp.value = 100
     }
-  } catch (err) {
-    console.error('获取 PVP 状态失败:', err)
-    uiStore.showToast('获取 PVP 状态失败', 'error')
   }
-}
+})
 
 /**
  * 拉取排行榜
@@ -749,9 +712,7 @@ const fetchLeaderboard = async () => {
  * 刷新全部数据
  */
 const refreshAll = async () => {
-  loading.value = true
   await Promise.all([fetchStatus(), fetchLeaderboard()])
-  loading.value = false
 }
 
 /**
@@ -879,8 +840,7 @@ const handleAction = async (action) => {
     // 重新拉取状态以同步回合信息与日志
     await fetchStatus()
   } catch (err) {
-    const msg = err?.response?.data?.message || '动作执行失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '动作执行失败')
   } finally {
     actionLoading.value = false
   }
@@ -922,8 +882,7 @@ const confirmFlee = async () => {
     await fetchStatus()
     await fetchLeaderboard()
   } catch (err) {
-    const msg = err?.response?.data?.message || '逃跑失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '逃跑失败')
   } finally {
     actionLoading.value = false
   }
@@ -962,8 +921,7 @@ const openBattleItems = async () => {
     battleItemsRemaining.value = data?.remaining_uses ?? 0
     battleItemsMax.value = data?.max_uses ?? 3
   } catch (err) {
-    const msg = err?.response?.data?.message || '获取丹药列表失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '获取丹药列表失败')
     battleItemsShow.value = false
   } finally {
     battleItemsLoading.value = false
@@ -995,8 +953,7 @@ const handleUseItem = async (itemId) => {
     battleItemsShow.value = false
     await fetchStatus()
   } catch (err) {
-    const msg = err?.response?.data?.message || '丹药使用失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '丹药使用失败')
   } finally {
     actionLoading.value = false
   }
@@ -1040,8 +997,7 @@ const confirmSwitchPvpMode = async () => {
     // 刷新状态以同步 pvp_mode 字段
     await fetchStatus()
   } catch (err) {
-    const msg = err?.response?.data?.message || '切换 PVP 模式失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '切换 PVP 模式失败')
   } finally {
     modeSwitching.value = false
   }
@@ -1097,13 +1053,13 @@ const ELEMENT_ICONS = {
  */
 const elementBadgeClass = (element) => {
   const map = {
-    metal: 'bg-amber-950/60 border-amber-600/60 text-amber-300',
+    metal: 'bg-gold-900/60 border-gold-600/60 text-gold-300',
     wood: 'bg-emerald-950/60 border-emerald-600/60 text-emerald-300',
     water: 'bg-cyan-950/60 border-cyan-600/60 text-cyan-300',
     fire: 'bg-red-950/60 border-red-600/60 text-red-300',
     earth: 'bg-yellow-950/60 border-yellow-700/60 text-yellow-300'
   }
-  return map[element] || 'bg-stone-800 border-stone-600 text-stone-300'
+  return map[element] || 'bg-surface-active border-line-strong text-fg-secondary'
 }
 
 /**
@@ -1127,7 +1083,7 @@ const elementIcon = (element) => {
  * - 无克制：默认灰色边框
  */
 const elementBorderColor = (elementInfo) => {
-  if (!elementInfo || !elementInfo.matchup) return 'border-stone-700'
+  if (!elementInfo || !elementInfo.matchup) return 'border-line'
   return elementInfo.advantage === 'attacker'
     ? 'border-emerald-600/60'
     : 'border-rose-600/60'
@@ -1139,7 +1095,7 @@ const elementBorderColor = (elementInfo) => {
  * - 对手克制：红色（不利）
  */
 const elementAdvantageTextClass = (elementInfo) => {
-  if (!elementInfo || !elementInfo.matchup) return 'text-stone-400'
+  if (!elementInfo || !elementInfo.matchup) return 'text-fg-muted'
   return elementInfo.advantage === 'attacker'
     ? 'text-emerald-300'
     : 'text-rose-300'
@@ -1181,19 +1137,3 @@ onUnmounted(() => {
   }
 })
 </script>
-
-<style scoped>
-.overflow-y-auto::-webkit-scrollbar {
-  width: 4px;
-}
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: transparent;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #7f1d1d;
-  border-radius: 2px;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #991b1b;
-}
-</style>

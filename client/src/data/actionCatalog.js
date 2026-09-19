@@ -7,8 +7,12 @@
  * 新增功能三步：
  *   1. 在 ACTIONS 里补一条 { name, desc, icon }
  *   2. 把 id 追加进某个分组的 ids
- *   3. 在 GameLayout 的 actionRoutes 里把 id 映射到面板开关
- * 漏做第 2 步会在控制台告警（见 FeatureDock 的 ungroupedActionIds）。
+ *   3. 在 components/panels/registry.js 里把同一个 id 登记到面板组件
+ *      （动态 import，Vite 会自动切出独立 chunk）
+ * 漏做第 2 步会在控制台告警（见 FeatureDock 的 ungroupedActionIds）；
+ * 漏做第 3 步也会告警，且 GameLayout 会给出"暂未开放"而不是白屏。
+ *
+ * 本文件只放元数据，不要 import 任何组件 —— 它被首屏同步加载。
  */
 
 const svg = (cls, paths) =>

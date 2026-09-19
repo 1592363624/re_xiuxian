@@ -21,17 +21,17 @@
     <!-- 顶部标题 -->
     <div class="flex justify-between items-center">
       <h3 class="text-lg font-bold text-amber-300">后期系统管理</h3>
-      <div class="text-xs text-gray-500">批次3 后期系统 6 大子模块 GM 操作面板</div>
+      <div class="text-xs text-fg-faint">批次3 后期系统 6 大子模块 GM 操作面板</div>
     </div>
 
     <!-- 子 Tab 切换 -->
-    <div class="flex border-b border-gray-700 bg-gray-800/50 overflow-x-auto">
+    <div class="flex border-b border-line bg-surface-raised/50 overflow-x-auto">
       <button
         v-for="tab in subTabs"
         :key="tab.id"
         @click="currentSubTab = tab.id"
         class="px-6 py-2 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
-        :class="currentSubTab === tab.id ? 'text-amber-300' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'"
+        :class="currentSubTab === tab.id ? 'text-amber-300' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-hover/50'"
       >
         {{ tab.name }}
         <div v-if="currentSubTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500"></div>
@@ -39,188 +39,180 @@
     </div>
 
     <!-- 玩家ID 输入（所有子模块共享） -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
+    <div class="bg-surface-raised rounded-lg border border-line p-3">
       <div class="flex items-center gap-3">
-        <label class="text-sm text-gray-400 whitespace-nowrap">目标玩家ID：</label>
+        <label class="text-sm text-fg-muted whitespace-nowrap">目标玩家ID：</label>
         <input v-model.number="playerId" type="number" min="1" placeholder="例如：1"
-          class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm focus:border-amber-500 focus:outline-none" />
-        <span class="text-xs text-gray-500">测试账号 ID=1（韩天尊）</span>
+          class="flex-1 px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
+        <span class="text-xs text-fg-faint">测试账号 ID=1（韩天尊）</span>
       </div>
     </div>
 
     <!-- ============ 子 Tab 1：第二元神属性调整 ============ -->
-    <div v-if="currentSubTab === 'second_soul'" class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div v-if="currentSubTab === 'second_soul'" class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-purple-300 mb-3">调整副元神属性</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 调整第二/第三元神的攻/防/血/速/识属性<br>
         · 仅传需要调整的字段，其他字段保持不变
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
         <div>
-          <label class="block text-xs text-gray-400 mb-1">元神序号</label>
+          <label class="block text-xs text-fg-muted mb-1">元神序号</label>
           <select v-model="secondSoulForm.soulIndex"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option :value="2">2（第二元神）</option>
             <option :value="3">3（第三元神）</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">攻击 (atk)</label>
+          <label class="block text-xs text-fg-muted mb-1">攻击 (atk)</label>
           <input v-model.number="secondSoulForm.atk" type="number" placeholder="留空不调整"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">防御 (def)</label>
+          <label class="block text-xs text-fg-muted mb-1">防御 (def)</label>
           <input v-model.number="secondSoulForm.def" type="number" placeholder="留空不调整"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">气血 (hp_max)</label>
+          <label class="block text-xs text-fg-muted mb-1">气血 (hp_max)</label>
           <input v-model.number="secondSoulForm.hpMax" type="number" placeholder="留空不调整"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">速度 (speed)</label>
+          <label class="block text-xs text-fg-muted mb-1">速度 (speed)</label>
           <input v-model.number="secondSoulForm.speed" type="number" placeholder="留空不调整"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">神识 (sense)</label>
+          <label class="block text-xs text-fg-muted mb-1">神识 (sense)</label>
           <input v-model.number="secondSoulForm.sense" type="number" placeholder="留空不调整"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
       <button @click="submitSecondSoulAdjust"
         :disabled="actionLoading || !playerId"
-        class="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded text-white text-sm disabled:opacity-50">
+        class="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded-control text-fg-primary text-sm disabled:opacity-50">
         {{ actionLoading ? '提交中...' : '确认调整' }}
       </button>
     </div>
 
     <!-- ============ 子 Tab 2：小世界管理 ============ -->
-    <div v-if="currentSubTab === 'small_world'" class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div v-if="currentSubTab === 'small_world'" class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-amber-300 mb-3">小世界管理</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 重置：删除玩家小世界与神庙记录，玩家可重新开辟<br>
         · 调整等级：直接覆盖小世界等级（1-10）
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <!-- 重置小世界 -->
-        <div class="bg-gray-900/50 border border-gray-700 rounded p-3">
+        <div class="bg-surface-sunken/50 border border-line rounded p-3">
           <div class="text-xs text-rose-300 font-bold mb-2">重置小世界</div>
-          <div class="text-[11px] text-gray-500 mb-3">将删除该玩家的小世界与神庙记录，操作不可撤销。</div>
-          <button @click="submitSmallWorldReset"
-            :disabled="actionLoading || !playerId"
-            class="w-full px-4 py-2 bg-rose-700 hover:bg-rose-600 rounded text-white text-sm disabled:opacity-50">
+          <div class="text-[11px] text-fg-faint mb-3">将删除该玩家的小世界与神庙记录，操作不可撤销。</div>
+          <AppButton variant="danger" size="sm" block :disabled="actionLoading || !playerId" @click="submitSmallWorldReset">
             重置小世界
-          </button>
+          </AppButton>
         </div>
         <!-- 调整等级 -->
-        <div class="bg-gray-900/50 border border-gray-700 rounded p-3">
+        <div class="bg-surface-sunken/50 border border-line rounded p-3">
           <div class="text-xs text-amber-300 font-bold mb-2">调整小世界等级</div>
           <div class="mb-2">
-            <label class="block text-[11px] text-gray-400 mb-1">新等级（1-10）</label>
+            <label class="block text-[11px] text-fg-muted mb-1">新等级（1-10）</label>
             <input v-model.number="smallWorldLevel" type="number" min="1" max="10"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+              class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
-          <button @click="submitSmallWorldSetLevel"
-            :disabled="actionLoading || !playerId || !smallWorldLevel"
-            class="w-full px-4 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm disabled:opacity-50">
+          <AppButton variant="primary" size="sm" block :disabled="actionLoading || !playerId || !smallWorldLevel" @click="submitSmallWorldSetLevel">
             调整等级
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>
 
     <!-- ============ 子 Tab 3：神庙等级调整 ============ -->
-    <div v-if="currentSubTab === 'divine_temple'" class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div v-if="currentSubTab === 'divine_temple'" class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-amber-300 mb-3">神庙等级调整</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 直接覆盖神庙等级（1-10），不影响禁制值与其他属性
       </div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label class="block text-xs text-gray-400 mb-1">新等级（1-10）</label>
+          <label class="block text-xs text-fg-muted mb-1">新等级（1-10）</label>
           <input v-model.number="templeLevel" type="number" min="1" max="10"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
-      <button @click="submitTempleSetLevel"
-        :disabled="actionLoading || !playerId || !templeLevel"
-        class="px-4 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm disabled:opacity-50">
+      <AppButton variant="primary" size="sm" :disabled="actionLoading || !playerId || !templeLevel" @click="submitTempleSetLevel">
         {{ actionLoading ? '提交中...' : '确认调整' }}
-      </button>
+      </AppButton>
     </div>
 
     <!-- ============ 子 Tab 4：香火发放/扣减 ============ -->
-    <div v-if="currentSubTab === 'incense'" class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div v-if="currentSubTab === 'incense'" class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-amber-300 mb-3">香火发放/扣减</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 正数发放，负数扣减（范围 -1000000 ~ 1000000）<br>
         · 操作将记录到香火流水，可在玩家面板查询
       </div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label class="block text-xs text-gray-400 mb-1">数量（正数发放 / 负数扣减）</label>
+          <label class="block text-xs text-fg-muted mb-1">数量（正数发放 / 负数扣减）</label>
           <input v-model.number="incenseAmount" type="number" placeholder="例如：1000 或 -500"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
-      <button @click="submitIncenseGrant"
-        :disabled="actionLoading || !playerId || incenseAmount === null"
-        class="px-4 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm disabled:opacity-50">
+      <AppButton variant="primary" size="sm" :disabled="actionLoading || !playerId || incenseAmount === null" @click="submitIncenseGrant">
         {{ actionLoading ? '提交中...' : '确认发放' }}
-      </button>
+      </AppButton>
     </div>
 
     <!-- ============ 子 Tab 5：神识发放/扣减 ============ -->
-    <div v-if="currentSubTab === 'divine_sense'" class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div v-if="currentSubTab === 'divine_sense'" class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-cyan-300 mb-3">神识发放/扣减</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 正数发放，负数扣减（范围 -10000 ~ 10000）<br>
         · 神识用于第二元神凝练、神迹干预、法则转换等
       </div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label class="block text-xs text-gray-400 mb-1">数量（正数发放 / 负数扣减）</label>
+          <label class="block text-xs text-fg-muted mb-1">数量（正数发放 / 负数扣减）</label>
           <input v-model.number="divineSenseAmount" type="number" placeholder="例如：100 或 -50"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+            class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
       <button @click="submitDivineSenseGrant"
         :disabled="actionLoading || !playerId || divineSenseAmount === null"
-        class="px-4 py-2 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-sm disabled:opacity-50">
+        class="px-4 py-2 bg-cyan-700 hover:bg-cyan-600 rounded-control text-fg-primary text-sm disabled:opacity-50">
         {{ actionLoading ? '提交中...' : '确认发放' }}
       </button>
     </div>
 
     <!-- ============ 子 Tab 6：法则点 / 碎片发放 ============ -->
-    <div v-if="currentSubTab === 'law'" class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div v-if="currentSubTab === 'law'" class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-purple-300 mb-3">法则点 / 法则碎片发放</div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <!-- 法则点发放 -->
-        <div class="bg-gray-900/50 border border-gray-700 rounded p-3">
+        <div class="bg-surface-sunken/50 border border-line rounded p-3">
           <div class="text-xs text-purple-300 font-bold mb-2">法则点发放/扣减</div>
-          <div class="text-[11px] text-gray-500 mb-2">范围 -10000 ~ 10000</div>
+          <div class="text-[11px] text-fg-faint mb-2">范围 -10000 ~ 10000</div>
           <div class="mb-2">
-            <label class="block text-[11px] text-gray-400 mb-1">数量</label>
+            <label class="block text-[11px] text-fg-muted mb-1">数量</label>
             <input v-model.number="lawPointsAmount" type="number" placeholder="例如：100 或 -50"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+              class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <button @click="submitLawGrantPoints"
             :disabled="actionLoading || !playerId || lawPointsAmount === null"
-            class="w-full px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded text-white text-sm disabled:opacity-50">
+            class="w-full px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded-control text-fg-primary text-sm disabled:opacity-50">
             确认发放法则点
           </button>
         </div>
         <!-- 法则碎片发放 -->
-        <div class="bg-gray-900/50 border border-gray-700 rounded p-3">
+        <div class="bg-surface-sunken/50 border border-line rounded p-3">
           <div class="text-xs text-cyan-300 font-bold mb-2">法则碎片发放/扣减</div>
-          <div class="text-[11px] text-gray-500 mb-2">范围 -1000 ~ 1000</div>
+          <div class="text-[11px] text-fg-faint mb-2">范围 -1000 ~ 1000</div>
           <div class="mb-2">
-            <label class="block text-[11px] text-gray-400 mb-1">碎片类型</label>
+            <label class="block text-[11px] text-fg-muted mb-1">碎片类型</label>
             <select v-model="lawFragmentType"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+              class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
               <option value="">选择碎片类型</option>
               <option value="space">空间碎片</option>
               <option value="time">时间碎片</option>
@@ -230,13 +222,13 @@
             </select>
           </div>
           <div class="mb-2">
-            <label class="block text-[11px] text-gray-400 mb-1">数量</label>
+            <label class="block text-[11px] text-fg-muted mb-1">数量</label>
             <input v-model.number="lawFragmentAmount" type="number" placeholder="例如：10 或 -5"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-white text-sm">
+              class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <button @click="submitLawGrantFragment"
             :disabled="actionLoading || !playerId || !lawFragmentType || lawFragmentAmount === null"
-            class="w-full px-4 py-2 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-sm disabled:opacity-50">
+            class="w-full px-4 py-2 bg-cyan-700 hover:bg-cyan-600 rounded-control text-fg-primary text-sm disabled:opacity-50">
             确认发放碎片
           </button>
         </div>
@@ -252,6 +244,7 @@
  */
 import { ref, reactive } from 'vue';
 import { useUIStore } from '../../../stores/ui';
+import AppButton from '../../ui/AppButton.vue'
 import {
   gmSecondSoulAdjustAttributes,
   gmSmallWorldReset,

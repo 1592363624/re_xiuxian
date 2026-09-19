@@ -18,45 +18,43 @@
     <!-- 顶部标题 -->
     <div class="flex justify-between items-center">
       <h3 class="text-lg font-bold text-amber-300">多人副本管理</h3>
-      <div class="text-xs text-gray-500">批次3 多人副本系统 GM 操作面板</div>
+      <div class="text-xs text-fg-faint">批次3 多人副本系统 GM 操作面板</div>
     </div>
 
     <!-- ============ 模块 1：强制解散副本 ============ -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-rose-300 mb-2">强制解散副本</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 强制解散指定实例 ID 的多人副本<br>
         · 用于处理卡死/异常的副本实例，所有成员将退出
       </div>
       <div class="mb-3">
-        <label class="block text-xs text-gray-400 mb-1">副本实例 ID</label>
+        <label class="block text-xs text-fg-muted mb-1">副本实例 ID</label>
         <input v-model.number="forceDissolveForm.instanceId" type="number" min="1" placeholder="例如：1"
-          class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+          class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
       </div>
-      <button @click="submitForceDissolve"
-        :disabled="actionLoading || !forceDissolveForm.instanceId"
-        class="px-4 py-2 bg-rose-700 hover:bg-rose-600 rounded text-white text-sm disabled:opacity-50">
+      <AppButton variant="danger" size="sm" :disabled="actionLoading || !forceDissolveForm.instanceId" @click="submitForceDissolve">
         {{ actionLoading ? '提交中...' : '强制解散' }}
-      </button>
+      </AppButton>
     </div>
 
     <!-- ============ 模块 2：调整副本变量 ============ -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-purple-300 mb-2">调整副本变量</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 直接覆盖指定副本实例的某项变量值<br>
         · 变量含义：morale=士气 / vigilance=警戒 / demon_corruption=魔染 / seal_stability=封印稳定度 / soul_stability=神魂稳定度 / harvest_multiplier=收获倍率
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
         <div>
-          <label class="block text-xs text-gray-400 mb-1">副本实例 ID</label>
+          <label class="block text-xs text-fg-muted mb-1">副本实例 ID</label>
           <input v-model.number="adjustVariableForm.instanceId" type="number" min="1" placeholder="例如：1"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">变量名</label>
+          <label class="block text-xs text-fg-muted mb-1">变量名</label>
           <select v-model="adjustVariableForm.variable"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option value="">请选择变量</option>
             <option v-for="opt in variableOptions" :key="opt.value" :value="opt.value">
               {{ opt.value }}（{{ opt.label }}）
@@ -64,35 +62,35 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">新值</label>
+          <label class="block text-xs text-fg-muted mb-1">新值</label>
           <input v-model.number="adjustVariableForm.value" type="number" placeholder="例如：80"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
       <button @click="submitAdjustVariable"
         :disabled="actionLoading || !adjustVariableForm.instanceId || !adjustVariableForm.variable || adjustVariableForm.value === null"
-        class="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded text-white text-sm disabled:opacity-50">
+        class="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded-control text-fg-primary text-sm disabled:opacity-50">
         {{ actionLoading ? '提交中...' : '确认调整' }}
       </button>
     </div>
 
     <!-- ============ 模块 3：发放副本奖励 ============ -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-amber-300 mb-2">发放副本奖励</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 直接为指定玩家发放副本奖励（绕过副本完成流程）<br>
         · 奖励 key 来自副本奖励池配置，请先确认对应 key 存在
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
         <div>
-          <label class="block text-xs text-gray-400 mb-1">目标玩家 ID</label>
+          <label class="block text-xs text-fg-muted mb-1">目标玩家 ID</label>
           <input v-model.number="grantRewardForm.playerId" type="number" min="1" placeholder="例如：1"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">副本 key</label>
+          <label class="block text-xs text-fg-muted mb-1">副本 key</label>
           <select v-model="grantRewardForm.dungeonKey"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option value="">请选择副本</option>
             <option v-for="opt in dungeonKeyOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}（{{ opt.value }}）
@@ -100,36 +98,34 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">奖励 key</label>
+          <label class="block text-xs text-fg-muted mb-1">奖励 key</label>
           <input v-model="grantRewardForm.rewardKey" type="text" placeholder="例如：spirit_stone_small"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
-      <button @click="submitGrantReward"
-        :disabled="actionLoading || !grantRewardForm.playerId || !grantRewardForm.dungeonKey || !grantRewardForm.rewardKey"
-        class="px-4 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm disabled:opacity-50">
+      <AppButton variant="primary" size="sm" :disabled="actionLoading || !grantRewardForm.playerId || !grantRewardForm.dungeonKey || !grantRewardForm.rewardKey" @click="submitGrantReward">
         {{ actionLoading ? '提交中...' : '确认发放' }}
-      </button>
+      </AppButton>
     </div>
 
     <!-- ============ 模块 4：重置玩家冷却 ============ -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div class="bg-surface-raised rounded-lg border border-line p-4">
       <div class="text-sm font-bold text-emerald-300 mb-2">重置玩家冷却</div>
-      <div class="text-xs text-gray-500 mb-3">
+      <div class="text-xs text-fg-faint mb-3">
         · 重置指定玩家对应副本的冷却状态<br>
         · 重置后玩家可立即再次开启/加入该副本<br>
         · 选择「全部副本」可一次性重置所有4个副本的冷却
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <div>
-          <label class="block text-xs text-gray-400 mb-1">目标玩家 ID</label>
+          <label class="block text-xs text-fg-muted mb-1">目标玩家 ID</label>
           <input v-model.number="resetCooldownForm.playerId" type="number" min="1" placeholder="例如：1"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1">副本 key</label>
+          <label class="block text-xs text-fg-muted mb-1">副本 key</label>
           <select v-model="resetCooldownForm.dungeonKey"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option value="">请选择副本</option>
             <option v-for="opt in dungeonKeyOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}（{{ opt.value }}）
@@ -138,11 +134,9 @@
           </select>
         </div>
       </div>
-      <button @click="submitResetCooldown"
-        :disabled="actionLoading || !resetCooldownForm.playerId || !resetCooldownForm.dungeonKey"
-        class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-white text-sm disabled:opacity-50">
+      <AppButton variant="primary" size="sm" :disabled="actionLoading || !resetCooldownForm.playerId || !resetCooldownForm.dungeonKey" @click="submitResetCooldown">
         {{ actionLoading ? '提交中...' : '确认重置' }}
-      </button>
+      </AppButton>
     </div>
   </div>
 </template>
@@ -154,6 +148,7 @@
  */
 import { ref, reactive } from 'vue';
 import { useUIStore } from '../../../stores/ui';
+import AppButton from '../../ui/AppButton.vue'
 import {
   adminForceDissolve,
   adminAdjustVariable,

@@ -17,49 +17,50 @@
     <div class="flex justify-between items-center">
       <h3 class="text-lg font-bold text-amber-300">飞升系统管理</h3>
       <div class="flex space-x-2">
-        <button @click="fetchStats"
-          class="px-3 py-1 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm">刷新统计</button>
+        <AppButton variant="primary" size="sm" @click="fetchStats">
+          刷新统计
+        </AppButton>
         <button @click="fetchPlayers"
-          class="px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded text-white text-sm">刷新列表</button>
+          class="px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded-control text-fg-primary text-sm">刷新列表</button>
       </div>
     </div>
 
     <!-- 统计指标卡片（4列网格） -->
     <div v-if="stats" class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <!-- 已飞升玩家数（金色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">已飞升玩家</div>
-        <div class="text-2xl font-bold text-amber-300">{{ stats.total_ascended }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">成功飞升灵界人数</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">已飞升玩家</div>
+        <div class="text-2xl font-bold text-amber-300 num">{{ stats.total_ascended }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">成功飞升灵界人数</div>
       </div>
       <!-- 飞升成功率（绿色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">飞升成功率</div>
-        <div class="text-2xl font-bold text-emerald-400">{{ (stats.success_rate * 100).toFixed(1) }}%</div>
-        <div class="text-[10px] text-gray-500 mt-1">{{ stats.total_success }}/{{ stats.total_attempts }} 次尝试</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">飞升成功率</div>
+        <div class="text-2xl font-bold text-emerald-400 num">{{ (stats.success_rate * 100).toFixed(1) }}%</div>
+        <div class="text-[10px] text-fg-faint mt-1 num">{{ stats.total_success }}/{{ stats.total_attempts }} 次尝试</div>
       </div>
       <!-- 活跃节点数（青色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">活跃节点</div>
-        <div class="text-2xl font-bold text-cyan-400">{{ stats.active_nodes }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">当前已发现/稳固中节点数</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">活跃节点</div>
+        <div class="text-2xl font-bold text-cyan-400 num">{{ stats.active_nodes }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">当前已发现/稳固中节点数</div>
       </div>
       <!-- 准备中玩家数（紫色） -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">准备中玩家</div>
-        <div class="text-2xl font-bold text-purple-400">{{ stats.state_distribution.preparing }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">飞升中: {{ stats.state_distribution.ascending }} · 已失败: {{ stats.state_distribution.failed }}</div>
+      <div class="bg-surface-raised rounded-lg border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">准备中玩家</div>
+        <div class="text-2xl font-bold text-purple-400 num">{{ stats.state_distribution.preparing }}</div>
+        <div class="text-[10px] text-fg-faint mt-1">飞升中: {{ stats.state_distribution.ascending }} · 已失败: {{ stats.state_distribution.failed }}</div>
       </div>
     </div>
 
     <!-- 子 Tab 切换：玩家进度 / 夺舍目标 -->
-    <div class="flex border-b border-gray-700 bg-gray-800/50">
+    <div class="flex border-b border-line bg-surface-raised/50">
       <button
         v-for="tab in subTabs"
         :key="tab.id"
         @click="switchTab(tab.id)"
         class="px-6 py-2 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
-        :class="currentSubTab === tab.id ? 'text-amber-300' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'"
+        :class="currentSubTab === tab.id ? 'text-amber-300' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-hover/50'"
       >
         {{ tab.name }}
         <div v-if="currentSubTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500"></div>
@@ -68,24 +69,26 @@
 
     <!-- 子 Tab 1：玩家飞升进度列表 -->
     <div v-if="currentSubTab === 'players'">
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <!-- 分页控制 -->
         <div class="flex justify-between items-center mb-3">
-          <div class="text-sm text-gray-400">共 {{ playerList.total }} 条记录</div>
+          <div class="text-sm text-fg-muted num">共 {{ playerList.total }} 条记录</div>
           <div class="flex items-center space-x-2">
-            <button @click="changePage(playerList.page - 1)" :disabled="playerList.page <= 1"
-              class="px-2 py-1 text-xs bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600">上一页</button>
-            <span class="text-xs text-gray-400">{{ playerList.page }} / {{ playerList.total_pages }}</span>
-            <button @click="changePage(playerList.page + 1)" :disabled="playerList.page >= playerList.total_pages"
-              class="px-2 py-1 text-xs bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600">下一页</button>
+            <AppButton variant="default" size="xs" :disabled="playerList.page <= 1" @click="changePage(playerList.page - 1)">
+              上一页
+            </AppButton>
+            <span class="text-xs text-fg-muted num">{{ playerList.page }} / {{ playerList.total_pages }}</span>
+            <AppButton variant="default" size="xs" :disabled="playerList.page >= playerList.total_pages" @click="changePage(playerList.page + 1)">
+              下一页
+            </AppButton>
           </div>
         </div>
 
         <!-- 玩家列表表格 -->
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead>
-              <tr class="text-left text-gray-400 border-b border-gray-700">
+            <thead class="bg-surface-raised text-fg-muted">
+              <tr class="text-left text-fg-muted border-b border-line">
                 <th class="px-2 py-2">玩家</th>
                 <th class="px-2 py-2">境界</th>
                 <th class="px-2 py-2">大衍诀</th>
@@ -98,22 +101,22 @@
             </thead>
             <tbody>
               <tr v-for="player in playerList.list" :key="player.id"
-                class="border-b border-gray-700/50 hover:bg-gray-700/30">
+                class="border-b border-line-subtle hover:bg-surface-hover">
                 <td class="px-2 py-2">
-                  <div class="text-white font-bold">{{ player.nickname }}</div>
-                  <div class="text-[10px] text-gray-500">ID: {{ player.player_id }}</div>
+                  <div class="text-fg-primary font-bold">{{ player.nickname }}</div>
+                  <div class="text-[10px] text-fg-faint">ID: {{ player.player_id }}</div>
                 </td>
-                <td class="px-2 py-2 text-gray-300">{{ player.realm }}</td>
+                <td class="px-2 py-2 text-fg-secondary">{{ player.realm }}</td>
                 <td class="px-2 py-2 text-purple-300">{{ player.dayan_level }}/5</td>
                 <td class="px-2 py-2 text-cyan-300">{{ player.law_fragments_count }}/5</td>
-                <td class="px-2 py-2 text-xs text-gray-400">{{ player.reverse_channel_coord || '—' }}</td>
+                <td class="px-2 py-2 text-xs text-fg-muted">{{ player.reverse_channel_coord || '—' }}</td>
                 <td class="px-2 py-2">
                   <span class="text-[10px] px-2 py-0.5 rounded"
                     :class="getAscensionStateClass(player.ascension_state)">
                     {{ getAscensionStateLabel(player.ascension_state) }}
                   </span>
                 </td>
-                <td class="px-2 py-2 text-xs text-gray-400">
+                <td class="px-2 py-2 text-xs text-fg-muted num">
                   {{ player.ascension_attempt_count }}/{{ player.ascension_success_count }}
                 </td>
                 <td class="px-2 py-2">
@@ -122,15 +125,17 @@
                       class="text-[10px] px-2 py-0.5 bg-purple-900/40 border border-purple-700 text-purple-300 rounded hover:bg-purple-800/40">大衍诀</button>
                     <button @click="openLawFragmentModal(player)"
                       class="text-[10px] px-2 py-0.5 bg-cyan-900/40 border border-cyan-700 text-cyan-300 rounded hover:bg-cyan-800/40">法则碎片</button>
-                    <button @click="openCoordModal(player)"
-                      class="text-[10px] px-2 py-0.5 bg-amber-900/40 border border-amber-700 text-amber-300 rounded hover:bg-amber-800/40">坐标</button>
-                    <button @click="openResetCooldownModal(player)"
-                      class="text-[10px] px-2 py-0.5 bg-rose-900/40 border border-rose-700 text-rose-300 rounded hover:bg-rose-800/40">重置CD</button>
+                    <AppButton variant="primary" size="xs" @click="openCoordModal(player)">
+                      坐标
+                    </AppButton>
+                    <AppButton variant="danger" size="xs" @click="openResetCooldownModal(player)">
+                      重置CD
+                    </AppButton>
                   </div>
                 </td>
               </tr>
               <tr v-if="playerList.list.length === 0">
-                <td colspan="8" class="text-center py-6 text-gray-500">暂无玩家飞升档案数据</td>
+                <td colspan="8" class="text-center py-6 text-fg-faint">暂无玩家飞升档案数据</td>
               </tr>
             </tbody>
           </table>
@@ -140,17 +145,18 @@
 
     <!-- 子 Tab 2：夺舍目标管理 -->
     <div v-if="currentSubTab === 'targets'">
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="flex justify-between items-center mb-3">
-          <div class="text-sm text-gray-400">夺舍目标列表（共 {{ targets.length }} 条）</div>
-          <button @click="openCreateTargetModal"
-            class="px-3 py-1 bg-rose-700 hover:bg-rose-600 rounded text-white text-sm">新增目标</button>
+          <div class="text-sm text-fg-muted">夺舍目标列表（共 {{ targets.length }} 条）</div>
+          <AppButton variant="danger" size="sm" @click="openCreateTargetModal">
+            新增目标
+          </AppButton>
         </div>
 
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead>
-              <tr class="text-left text-gray-400 border-b border-gray-700">
+            <thead class="bg-surface-raised text-fg-muted">
+              <tr class="text-left text-fg-muted border-b border-line">
                 <th class="px-2 py-2">名称</th>
                 <th class="px-2 py-2">类型</th>
                 <th class="px-2 py-2">境界</th>
@@ -164,13 +170,13 @@
             </thead>
             <tbody>
               <tr v-for="target in targets" :key="target.id"
-                class="border-b border-gray-700/50 hover:bg-gray-700/30">
+                class="border-b border-line-subtle hover:bg-surface-hover">
                 <td class="px-2 py-2">
-                  <div class="text-white font-bold">{{ target.target_name }}</div>
-                  <div class="text-[10px] text-gray-500">{{ target.target_key }}</div>
+                  <div class="text-fg-primary font-bold">{{ target.target_name }}</div>
+                  <div class="text-[10px] text-fg-faint">{{ target.target_key }}</div>
                 </td>
-                <td class="px-2 py-2 text-gray-300">{{ getTargetTypeLabel(target.target_type) }}</td>
-                <td class="px-2 py-2 text-gray-400">rank {{ target.realm_rank }}</td>
+                <td class="px-2 py-2 text-fg-secondary">{{ getTargetTypeLabel(target.target_type) }}</td>
+                <td class="px-2 py-2 text-fg-muted">rank {{ target.realm_rank }}</td>
                 <td class="px-2 py-2 text-emerald-300">{{ (target.inherit_ratio * 100).toFixed(0) }}%</td>
                 <td class="px-2 py-2 text-amber-300">{{ target.drop_realm_count }} 大境界</td>
                 <td class="px-2 py-2">
@@ -179,10 +185,10 @@
                     {{ target.risk_level }}
                   </span>
                 </td>
-                <td class="px-2 py-2 text-gray-400">{{ target.weight }}</td>
+                <td class="px-2 py-2 text-fg-muted num">{{ target.weight }}</td>
                 <td class="px-2 py-2">
                   <span v-if="target.is_rare" class="text-[10px] px-2 py-0.5 rounded bg-amber-900/60 text-amber-300 border border-amber-700">稀有</span>
-                  <span v-else class="text-gray-600">—</span>
+                  <span v-else class="text-fg-faint">—</span>
                 </td>
                 <td class="px-2 py-2">
                   <button @click="openEditTargetModal(target)"
@@ -190,7 +196,7 @@
                 </td>
               </tr>
               <tr v-if="targets.length === 0">
-                <td colspan="9" class="text-center py-6 text-gray-500">暂无夺舍目标，请配置</td>
+                <td colspan="9" class="text-center py-6 text-fg-faint">暂无夺舍目标，请配置</td>
               </tr>
             </tbody>
           </table>
@@ -201,21 +207,22 @@
     <!-- 大衍诀调整弹窗 -->
     <Modal :isOpen="dayanModal.open" title="调整大衍诀层数" @close="dayanModal.open = false">
       <div v-if="dayanModal.player" class="space-y-3">
-        <div class="text-sm text-gray-300">
-          玩家：<span class="font-bold text-white">{{ dayanModal.player.nickname }}</span>
+        <div class="text-sm text-fg-secondary">
+          玩家：<span class="font-bold text-fg-primary">{{ dayanModal.player.nickname }}</span>
           （当前：{{ dayanModal.player.dayan_level }} 层）
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">新层数（0-5）</label>
+          <label class="block text-sm text-fg-muted mb-1">新层数（0-5）</label>
           <input v-model.number="dayanModal.value" type="number" min="0" max="5"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+            class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div class="flex justify-end gap-2">
-          <button @click="dayanModal.open = false"
-            class="px-4 py-2 text-sm bg-gray-700 rounded hover:bg-gray-600">取消</button>
+          <AppButton variant="default" size="sm" @click="dayanModal.open = false">
+            取消
+          </AppButton>
           <button @click="submitDayanLevel"
             :disabled="dayanModal.loading"
-            class="px-4 py-2 text-sm bg-purple-700 rounded hover:bg-purple-600 disabled:opacity-50">
+            class="px-4 py-2 text-sm bg-purple-700 rounded-control hover:bg-purple-600 disabled:opacity-50">
             {{ dayanModal.loading ? '提交中...' : '确认调整' }}
           </button>
         </div>
@@ -225,21 +232,22 @@
     <!-- 法则碎片发放弹窗 -->
     <Modal :isOpen="lawFragmentModal.open" title="发放法则碎片" @close="lawFragmentModal.open = false">
       <div v-if="lawFragmentModal.player" class="space-y-3">
-        <div class="text-sm text-gray-300">
-          玩家：<span class="font-bold text-white">{{ lawFragmentModal.player.nickname }}</span>
+        <div class="text-sm text-fg-secondary">
+          玩家：<span class="font-bold text-fg-primary">{{ lawFragmentModal.player.nickname }}</span>
           （当前：{{ lawFragmentModal.player.law_fragments_count }} 块）
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">发放数量（1-10）</label>
+          <label class="block text-sm text-fg-muted mb-1">发放数量（1-10）</label>
           <input v-model.number="lawFragmentModal.value" type="number" min="1" max="10"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+            class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div class="flex justify-end gap-2">
-          <button @click="lawFragmentModal.open = false"
-            class="px-4 py-2 text-sm bg-gray-700 rounded hover:bg-gray-600">取消</button>
+          <AppButton variant="default" size="sm" @click="lawFragmentModal.open = false">
+            取消
+          </AppButton>
           <button @click="submitLawFragment"
             :disabled="lawFragmentModal.loading"
-            class="px-4 py-2 text-sm bg-cyan-700 rounded hover:bg-cyan-600 disabled:opacity-50">
+            class="px-4 py-2 text-sm bg-cyan-700 rounded-control hover:bg-cyan-600 disabled:opacity-50">
             {{ lawFragmentModal.loading ? '提交中...' : '确认发放' }}
           </button>
         </div>
@@ -249,24 +257,23 @@
     <!-- 坐标发放弹窗 -->
     <Modal :isOpen="coordModal.open" title="发放逆灵通道坐标" @close="coordModal.open = false">
       <div v-if="coordModal.player" class="space-y-3">
-        <div class="text-sm text-gray-300">
-          玩家：<span class="font-bold text-white">{{ coordModal.player.nickname }}</span>
+        <div class="text-sm text-fg-secondary">
+          玩家：<span class="font-bold text-fg-primary">{{ coordModal.player.nickname }}</span>
           （当前坐标：{{ coordModal.player.reverse_channel_coord || '无' }}）
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">坐标字符串（留空则自动生成）</label>
+          <label class="block text-sm text-fg-muted mb-1">坐标字符串（留空则自动生成）</label>
           <input v-model="coordModal.value" type="text" placeholder="例如：东经135.2北纬28.4"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+            class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
-        <div class="text-xs text-gray-500">提示：留空将自动生成随机坐标</div>
+        <div class="text-xs text-fg-faint">提示：留空将自动生成随机坐标</div>
         <div class="flex justify-end gap-2">
-          <button @click="coordModal.open = false"
-            class="px-4 py-2 text-sm bg-gray-700 rounded hover:bg-gray-600">取消</button>
-          <button @click="submitCoord"
-            :disabled="coordModal.loading"
-            class="px-4 py-2 text-sm bg-amber-700 rounded hover:bg-amber-600 disabled:opacity-50">
+          <AppButton variant="default" size="sm" @click="coordModal.open = false">
+            取消
+          </AppButton>
+          <AppButton variant="primary" size="sm" :disabled="coordModal.loading" @click="submitCoord">
             {{ coordModal.loading ? '提交中...' : '确认发放' }}
-          </button>
+          </AppButton>
         </div>
       </div>
     </Modal>
@@ -274,18 +281,17 @@
     <!-- 重置冷却确认弹窗 -->
     <Modal :isOpen="resetCdModal.open" title="重置飞升冷却" @close="resetCdModal.open = false">
       <div v-if="resetCdModal.player" class="space-y-3">
-        <div class="text-sm text-gray-300">
-          确认重置玩家 <span class="font-bold text-white">{{ resetCdModal.player.nickname }}</span> 的飞升冷却？<br>
+        <div class="text-sm text-fg-secondary">
+          确认重置玩家 <span class="font-bold text-fg-primary">{{ resetCdModal.player.nickname }}</span> 的飞升冷却？<br>
           重置后玩家可立即再次尝试飞升。
         </div>
         <div class="flex justify-end gap-2">
-          <button @click="resetCdModal.open = false"
-            class="px-4 py-2 text-sm bg-gray-700 rounded hover:bg-gray-600">取消</button>
-          <button @click="submitResetCooldown"
-            :disabled="resetCdModal.loading"
-            class="px-4 py-2 text-sm bg-rose-700 rounded hover:bg-rose-600 disabled:opacity-50">
+          <AppButton variant="default" size="sm" @click="resetCdModal.open = false">
+            取消
+          </AppButton>
+          <AppButton variant="danger" size="sm" :disabled="resetCdModal.loading" @click="submitResetCooldown">
             {{ resetCdModal.loading ? '提交中...' : '确认重置' }}
-          </button>
+          </AppButton>
         </div>
       </div>
     </Modal>
@@ -295,100 +301,99 @@
       <div class="space-y-3">
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-sm text-gray-400 mb-1">目标标识*</label>
+            <label class="block text-sm text-fg-muted mb-1">目标标识*</label>
             <input v-model="targetModal.form.target_key" type="text" :disabled="targetModal.isEdit"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white disabled:opacity-50">
+              class="w-full px-3 py-2 disabled:opacity-50 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">目标名称*</label>
+            <label class="block text-sm text-fg-muted mb-1">目标名称*</label>
             <input v-model="targetModal.form.target_name" type="text"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">类型*</label>
+            <label class="block text-sm text-fg-muted mb-1">类型*</label>
             <select v-model="targetModal.form.target_type"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
               <option value="mortal">凡人</option>
               <option value="cultivator">修士</option>
               <option value="monster">妖兽</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">境界排名*</label>
+            <label class="block text-sm text-fg-muted mb-1">境界排名*</label>
             <input v-model.number="targetModal.form.realm_rank" type="number" min="0"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">继承比例*</label>
+            <label class="block text-sm text-fg-muted mb-1">继承比例*</label>
             <input v-model.number="targetModal.form.inherit_ratio" type="number" min="0" max="1" step="0.1"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">境界跌落*</label>
+            <label class="block text-sm text-fg-muted mb-1">境界跌落*</label>
             <input v-model.number="targetModal.form.drop_realm_count" type="number" min="1" max="5"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">风险等级*</label>
+            <label class="block text-sm text-fg-muted mb-1">风险等级*</label>
             <select v-model.number="targetModal.form.risk_level"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
               <option :value="1">1（低）</option>
               <option :value="2">2（中）</option>
               <option :value="3">3（高）</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">权重</label>
+            <label class="block text-sm text-fg-muted mb-1">权重</label>
             <input v-model.number="targetModal.form.weight" type="number" min="0"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">基础攻击</label>
+            <label class="block text-sm text-fg-muted mb-1">基础攻击</label>
             <input v-model.number="targetModal.form.base_atk" type="number"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">基础防御</label>
+            <label class="block text-sm text-fg-muted mb-1">基础防御</label>
             <input v-model.number="targetModal.form.base_def" type="number"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">基础HP</label>
+            <label class="block text-sm text-fg-muted mb-1">基础HP</label>
             <input v-model.number="targetModal.form.base_hp_max" type="number"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">基础速度</label>
+            <label class="block text-sm text-fg-muted mb-1">基础速度</label>
             <input v-model.number="targetModal.form.base_speed" type="number"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">基础神识</label>
+            <label class="block text-sm text-fg-muted mb-1">基础神识</label>
             <input v-model.number="targetModal.form.base_sense" type="number"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-sm text-gray-400 mb-1">稀有目标</label>
+            <label class="block text-sm text-fg-muted mb-1">稀有目标</label>
             <select v-model="targetModal.form.is_rare"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white">
+              class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
               <option :value="false">否</option>
               <option :value="true">是</option>
             </select>
           </div>
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">描述</label>
+          <label class="block text-sm text-fg-muted mb-1">描述</label>
           <textarea v-model="targetModal.form.description" rows="3"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"></textarea>
+            class="w-full px-3 py-2 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600"></textarea>
         </div>
         <div class="flex justify-end gap-2">
-          <button @click="targetModal.open = false"
-            class="px-4 py-2 text-sm bg-gray-700 rounded hover:bg-gray-600">取消</button>
-          <button @click="submitTarget"
-            :disabled="targetModal.loading"
-            class="px-4 py-2 text-sm bg-rose-700 rounded hover:bg-rose-600 disabled:opacity-50">
+          <AppButton variant="default" size="sm" @click="targetModal.open = false">
+            取消
+          </AppButton>
+          <AppButton variant="danger" size="sm" :disabled="targetModal.loading" @click="submitTarget">
             {{ targetModal.loading ? '提交中...' : (targetModal.isEdit ? '确认编辑' : '确认新增') }}
-          </button>
+          </AppButton>
         </div>
       </div>
     </Modal>
@@ -403,6 +408,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import Modal from '../../common/Modal.vue';
 import { useUIStore } from '../../../stores/ui';
+import AppButton from '../../ui/AppButton.vue'
 import {
   gmGetStats,
   gmGetPlayerList,
@@ -783,11 +789,11 @@ function getAscensionStateLabel(state: string): string {
  */
 function getAscensionStateClass(state: string): string {
   const map: Record<string, string> = {
-    preparing: 'bg-stone-900/60 text-stone-300 border border-stone-700',
+    preparing: 'bg-surface-raised/60 text-fg-secondary border border-line',
     ascending: 'bg-amber-900/60 text-amber-300 border border-amber-700',
     failed: 'bg-rose-900/60 text-rose-300 border border-rose-700'
   };
-  return map[state] || 'bg-stone-900/60 text-stone-300 border border-stone-700';
+  return map[state] || 'bg-surface-raised/60 text-fg-secondary border border-line';
 }
 
 /**
@@ -811,6 +817,6 @@ function getRiskClass(risk: number): string {
     2: 'bg-amber-900/60 text-amber-300 border border-amber-700',
     3: 'bg-rose-900/60 text-rose-300 border border-rose-700'
   };
-  return map[risk] || 'bg-stone-900/60 text-stone-300 border border-stone-700';
+  return map[risk] || 'bg-surface-raised/60 text-fg-secondary border border-line';
 }
 </script>

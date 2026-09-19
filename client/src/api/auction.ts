@@ -99,7 +99,7 @@ export interface AuctionSummary {
   id: number;
   /** 卖家玩家 ID */
   seller_id: number;
-  /** 卖家昵称 */
+  /** 卖家昵称（仅 /list 与 /:id 会带上卖家；/my、/my-bids 不查卖家，恒为 null） */
   seller_nickname: string | null;
   /** 物品配置键名 */
   item_key: string;
@@ -141,15 +141,14 @@ export interface AuctionSummary {
 
 /**
  * 竞价历史项
+ * 对应后端 AuctionService.getAuctionDetail 的 bids 映射（仅这 5 个键）
  */
 export interface AuctionBidRecord {
   /** 竞价记录 ID */
   id: number;
-  /** 拍卖 ID */
-  auction_id: number;
-  /** 竞价者 ID */
+  /** 竞价者 ID（前端据此认出哪些出价是自己的） */
   bidder_id: number;
-  /** 竞价者昵称 */
+  /** 竞价者昵称（服务端查不到玩家时回退为"未知修士"） */
   bidder_nickname: string | null;
   /** 出价（字符串大数） */
   bid_price: string;
@@ -181,19 +180,21 @@ export interface AuctionDetail extends AuctionSummary {
 
 /**
  * 我的竞价项（GET /auction/my-bids 返回）
+ *
+ * 后端 AuctionService.getMyBids 是"拍平"下发的：整条记录就是拍卖摘要，
+ * 再补 5 个与"我"相关的标记，没有 auction 嵌套，也没有 my_bid_price / my_bid_at
+ * （我出过多少只能从详情接口的 bids 里按 bidder_id 认）。
  */
-export interface MyBidItem {
-  /** 拍卖摘要 */
-  auction: AuctionSummary;
-  /** 我的出价（字符串大数） */
-  my_bid_price: string;
-  /** 我的竞价时间 */
-  my_bid_at: string;
-  /** 是否领先（我是当前最高竞价者） */
+export interface MyBidItem extends AuctionSummary {
+  /** 我是否为当前最高竞价者 */
+  is_current_bidder: boolean;
+  /** 我是否为得标者 */
+  is_winner: boolean;
+  /** 是否领先（拍卖进行中且我是当前最高竞价者） */
   leading: boolean;
   /** 是否得标（拍卖已结束且我得标） */
   won: boolean;
-  /** 是否落标（拍卖已结束且我未得标，灵石已退还） */
+  /** 是否落标（拍卖已结束且我未得标，冻结灵石已退还） */
   lost: boolean;
 }
 
@@ -206,6 +207,10 @@ export interface AuctionListParams {
   status?: AuctionStatus;
   quality?: string;
   keyword?: string;
+  /**
+   * 排序字段：路由层接受并透传，但 AuctionService.listAuctions 的 order 目前
+   * 硬编码为 end_at ASC，因此除 end_at_asc 外的取值实际不生效（界面不要再放排序下拉）
+   */
   sort?: 'end_at_asc' | 'current_price_desc' | 'current_price_asc';
 }
 
@@ -267,21 +272,36 @@ export interface CreateAuctionResult {
 
 /**
  * 出价响应
+ *
+ * 对应后端 AuctionService.placeBid 的 return（bid / auction 两块都是嵌套对象）。
+ * 注意服务端不给的东西：previous_bidder_id、extended、new_end_at、frozen_amount、
+ * spirit_stones_after 都不存在——被超越者的退还走 WebSocket 推送，
+ * 冻结金额是直接从 player.spirit_stones 扣的、没有单独的冻结台账；
+ * 防秒杀是否延长只能用 auction.end_at / extension_count 自己比对得出。
  */
 export interface PlaceBidResult {
   success: boolean;
   message: string;
-  auction_id: number;
-  new_price: string;
-  previous_bidder_id: number | null;
-  /** 防秒杀是否触发延长 */
-  extended: boolean;
-  /** 延长后的新结束时间（仅 extended=true 时有值） */
-  new_end_at: string | null;
-  /** 剩余冻结灵石（字符串大数） */
-  frozen_amount: string;
-  /** 竞价后灵石余额（字符串大数） */
-  spirit_stones_after: string;
+  /** 本次写入的竞价记录 */
+  bid: {
+    id: number;
+    auction_id: number;
+    /** 本次出价（字符串大数） */
+    bid_price: string;
+    created_at: string;
+  };
+  /** 出价后的拍卖状态 */
+  auction: {
+    id: number;
+    /** 最新价（字符串大数） */
+    current_price: string;
+    /** 当前最高竞价者（就是本次出价的我） */
+    current_bidder_id: number | null;
+    /** 结束时间：触发防秒杀延长时服务端已写回新值 */
+    end_at: string;
+    /** 累计延长次数 */
+    extension_count: number;
+  };
 }
 
 /**

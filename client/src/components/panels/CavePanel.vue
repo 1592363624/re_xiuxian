@@ -3,7 +3,7 @@
  * 洞府系统面板组件
  *
  * 功能说明：
- *   - 全屏遮罩 + 居中弹窗布局，emits('close') 关闭面板
+ *   - 外壳统一走 ui/PanelShell（遮罩 / 标题栏 / 关闭 / 右坞停靠契约），emits('close') 关闭面板
  *   - 顶部 Tab 切换：洞府经营（设施升级 / 灵脉领取 / 地块解锁）/ 小药园（播种 / 采收）
  *   - 洞府经营：未开辟时显示开辟入口（炼气期 + 1000 灵石）；已开辟时展示五大设施卡片
  *   - 小药园：3 列地块网格，支持播种（种子选择弹窗）、采收、一键采收
@@ -14,6 +14,13 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import AppButton from '../ui/AppButton.vue'
+import Badge from '../ui/Badge.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import ErrorState from '../ui/ErrorState.vue'
+import { formatCompact } from '../../utils/format'
 import {
   getCaveInfo,
   openCave,
@@ -137,6 +144,12 @@ const isPlotMaxed = computed(() => {
   return plots.current >= plots.max
 })
 
+/** 顶部页签（契约见 ui/Tabs.vue）；成熟作物用角标点位提示 */
+const tabItems = computed(() => [
+  { key: 'cave', label: '洞府经营' },
+  { key: 'garden', label: '小药园', badge: hasMaturePlot.value ? '●' : undefined }
+])
+
 // ====== 数据加载 ======
 
 /**
@@ -148,7 +161,7 @@ const fetchAll = async () => {
     await Promise.all([fetchCaveInfo(), fetchGardenStatus()])
   } catch (error) {
     console.error('[CavePanel] 加载洞府数据失败:', error)
-    uiStore.showToast('加载洞府数据失败', 'error')
+    uiStore.showApiError(error, '[CavePanel] 加载洞府数据失败')
   } finally {
     loading.value = false
   }
@@ -589,326 +602,218 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <!-- 遮罩层：点击关闭面板 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
+  <PanelShell
+    title="洞府"
+    size="xl"
+    :loading="loading"
+    @close="emit('close')"
+  >
+    <!-- Tab 切换栏 -->
+    <Tabs v-model="activeTab" :items="tabItems" class="mb-4" />
 
-    <!-- 主容器 -->
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      <!-- 顶部标题栏 -->
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
-        <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 12l9-9 9 9"/>
-            <path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/>
-            <path d="M9 21v-6h6v6"/>
-          </svg>
-          洞府
-        </h2>
-        <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
+    <!-- ====== 洞府经营视图 ====== -->
+    <div v-if="activeTab === 'cave'" class="space-y-4">
+      <!-- 未开辟洞府 -->
+      <EmptyState
+        v-if="!isOpened"
+        text="你尚未开辟洞府"
+        hint="需达炼气期且消耗 1000 灵石方可开辟；开辟后可获得灵脉、静室、丹房、器室、大阵五大设施与药园地块。"
+      >
+        <AppButton variant="primary" :disabled="operating" @click="handleOpenCave">开辟洞府</AppButton>
+      </EmptyState>
 
-      <!-- Tab 切换栏 -->
-      <div class="flex items-center gap-1 p-3 border-b border-stone-800 bg-[#0c0a09]">
-        <button
-          @click="activeTab = 'cave'"
-          class="px-4 py-1.5 rounded text-sm whitespace-nowrap transition-colors"
-          :class="activeTab === 'cave'
-            ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
-            : 'text-stone-500 hover:text-stone-300 border border-transparent'"
-        >
-          洞府经营
-        </button>
-        <button
-          @click="activeTab = 'garden'"
-          class="px-4 py-1.5 rounded text-sm whitespace-nowrap transition-colors"
-          :class="activeTab === 'garden'
-            ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
-            : 'text-stone-500 hover:text-stone-300 border border-transparent'"
-        >
-          小药园
-          <span v-if="hasMaturePlot" class="ml-1 text-xs text-emerald-400">●</span>
-        </button>
-      </div>
-
-      <!-- 内容区域 -->
-      <div class="flex-1 overflow-y-auto p-4">
-        <!-- 加载中 -->
-        <div v-if="loading" class="flex justify-center items-center h-64">
-          <svg class="animate-spin h-10 w-10 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
-
-        <!-- ====== 洞府经营视图 ====== -->
-        <div v-else-if="activeTab === 'cave'" class="space-y-4">
-          <!-- 未开辟洞府 -->
-          <div v-if="!isOpened" class="flex flex-col items-center justify-center h-64 text-stone-500">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-3 opacity-50">
-              <path d="M3 12l9-9 9 9"/>
-              <path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/>
-            </svg>
-            <p class="mb-2 text-stone-400">你尚未开辟洞府</p>
-            <p class="mb-4 text-xs text-stone-600 text-center max-w-sm">
-              需达 <span class="text-amber-400">炼气期</span> 且消耗
-              <span class="text-yellow-500">1000 灵石</span> 方可开辟洞府，
-              开辟后可获得灵脉、静室、丹房、器室、大阵五大设施与药园地块。
-            </p>
-            <button
-              @click="handleOpenCave"
-              :disabled="operating"
-              class="px-6 py-2 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              开辟洞府
-            </button>
-          </div>
-
-          <!-- 已开辟洞府：展示设施与资源 -->
-          <div v-else>
-            <!-- 五大设施卡片网格（2 列） -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-              <div
-                v-for="item in facilityList"
-                :key="item.type"
-                class="bg-[#1c1917] border border-stone-800 rounded-lg p-4 hover:border-stone-700 transition-colors"
-              >
-                <!-- 卡片头部：设施名 + 等级 -->
-                <div class="flex justify-between items-start mb-2">
-                  <div>
-                    <h4 class="text-sm font-bold text-amber-400">{{ item.info.name }}</h4>
-                    <p class="text-xs text-stone-500 mt-0.5 leading-relaxed">{{ item.info.description }}</p>
-                  </div>
-                  <span class="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-400 whitespace-nowrap">
-                    Lv.{{ item.info.level }}/{{ item.info.max_level }}
-                  </span>
-                </div>
-
-                <!-- 升级消耗与按钮 -->
-                <div class="flex items-center justify-between mt-3 pt-3 border-t border-stone-800">
-                  <div class="text-xs">
-                    <span class="text-stone-500">升级消耗：</span>
-                    <span v-if="item.info.can_upgrade" class="text-yellow-500">{{ formatUpgradeCost(item.info) }}</span>
-                    <span v-else class="text-stone-600">已满级</span>
-                  </div>
-                  <button
-                    v-if="item.info.can_upgrade"
-                    @click="handleUpgrade(item.type, item.info)"
-                    :disabled="operating"
-                    class="px-3 py-1 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    升级
-                  </button>
-                  <span v-else class="text-xs text-emerald-500">已达上限</span>
-                </div>
+      <!-- 已开辟洞府：展示设施与资源 -->
+      <div v-else>
+        <!-- 五大设施卡片网格（2 列） -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div
+            v-for="item in facilityList"
+            :key="item.type"
+            class="bg-surface-raised border border-line rounded-panel p-4 hover:border-line-strong transition-colors"
+          >
+            <!-- 卡片头部：设施名 + 等级 -->
+            <div class="flex justify-between items-start mb-2">
+              <div class="min-w-0">
+                <h4 class="text-[13px] font-bold text-gold-400 font-display">{{ item.info.name }}</h4>
+                <p class="text-xs text-fg-muted mt-0.5 leading-relaxed wrap-cjk">{{ item.info.description }}</p>
               </div>
+              <Badge tone="neutral">Lv.{{ item.info.level }}/{{ item.info.max_level }}</Badge>
             </div>
 
-            <!-- 灵脉领取区 -->
-            <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-4 mb-3">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-500">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 6v6l4 2"/>
-                  </svg>
-                  <div>
-                    <div class="text-sm font-bold text-stone-200">灵脉产出</div>
-                    <div class="text-xs text-stone-500 mt-0.5">
-                      待领取：
-                      <span class="text-yellow-500 font-bold">{{ caveInfo?.spirit_vein?.pending_stones ?? 0 }}</span>
-                      灵石
-                      <span v-if="caveInfo?.spirit_vein?.produce_rate" class="ml-2 text-stone-600">
-                        （{{ caveInfo.spirit_vein.produce_rate }}/时）
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  @click="handleCollect"
-                  :disabled="operating || (caveInfo?.spirit_vein?.pending_stones ?? 0) <= 0"
-                  class="px-4 py-1.5 rounded bg-yellow-900/30 border border-yellow-700/50 text-yellow-400 hover:bg-yellow-800/50 hover:text-yellow-300 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  领取灵石
-                </button>
+            <!-- 升级消耗与按钮 -->
+            <div class="flex items-center justify-between mt-3 pt-3 border-t border-line-subtle">
+              <div class="text-xs">
+                <span class="text-fg-muted">升级消耗：</span>
+                <span v-if="item.info.can_upgrade" class="text-gold-400 num">{{ formatUpgradeCost(item.info) }}</span>
+                <span v-else class="text-fg-faint">已满级</span>
               </div>
-            </div>
-
-            <!-- 药园地块概览 -->
-            <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-4">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500">
-                    <path d="M12 2v20"/>
-                    <path d="M2 12h20"/>
-                    <path d="M12 2a15 15 0 0 1 0 20"/>
-                    <path d="M12 2a15 15 0 0 0 0 20"/>
-                  </svg>
-                  <div>
-                    <div class="text-sm font-bold text-stone-200">药园地块</div>
-                    <div class="text-xs text-stone-500 mt-0.5">
-                      当前：
-                      <span class="text-emerald-400 font-bold">{{ caveInfo?.garden_plots?.current ?? 0 }}</span>
-                      /
-                      <span class="text-stone-400">{{ caveInfo?.garden_plots?.max ?? 0 }}</span>
-                      块
-                    </div>
-                  </div>
-                </div>
-                <button
-                  v-if="!isPlotMaxed"
-                  @click="handleUnlockPlot"
-                  :disabled="operating"
-                  class="px-4 py-1.5 rounded bg-emerald-900/30 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span v-if="caveInfo?.garden_plots?.unlock_cost">
-                    解锁地块（{{ caveInfo.garden_plots.unlock_cost.spirit_stone }} 灵石）
-                  </span>
-                  <span v-else>解锁地块</span>
-                </button>
-                <span v-else class="text-xs text-stone-600">已达上限</span>
-              </div>
-              <div class="mt-2 text-xs text-stone-600">
-                切换至「小药园」Tab 可进行播种与采收
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ====== 小药园视图 ====== -->
-        <div v-else-if="activeTab === 'garden'">
-          <!-- 洞府未开辟时提示 -->
-          <div v-if="!isOpened" class="flex flex-col items-center justify-center h-64 text-stone-500">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-              <path d="M12 2v20"/>
-              <path d="M2 12h20"/>
-            </svg>
-            <p class="mb-4">需先开辟洞府方可使用药园</p>
-            <button
-              @click="activeTab = 'cave'"
-              class="px-4 py-2 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 transition-colors text-sm"
-            >
-              前往开辟洞府
-            </button>
-          </div>
-
-          <!-- 药园未开启（后端返回 is_opened=false） -->
-          <div v-else-if="gardenStatus && !gardenStatus.is_opened" class="flex flex-col items-center justify-center h-64 text-stone-500">
-            <p class="mb-2">{{ gardenStatus.message || '药园暂未开启' }}</p>
-          </div>
-
-          <!-- 药园正常展示 -->
-          <div v-else-if="gardenStatus">
-            <!-- 顶部操作栏：一键采收 -->
-            <div class="flex items-center justify-between mb-4">
-              <div class="text-sm text-stone-500">
-                地块：{{ gardenStatus.plot_count ?? 0 }} / {{ gardenStatus.max_plots ?? 0 }}
-              </div>
-              <button
-                v-if="hasMaturePlot"
-                @click="handleHarvestAll"
+              <AppButton
+                v-if="item.info.can_upgrade"
+                size="xs"
+                variant="primary"
                 :disabled="operating"
-                class="px-4 py-2 rounded bg-emerald-900/30 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 transition-colors text-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                @click="handleUpgrade(item.type, item.info)"
               >
-                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M6 9l6 6 6-6"/>
-                </svg>
-                一键采收
-              </button>
-            </div>
-
-            <!-- 地块空状态 -->
-            <div v-if="(gardenStatus.plots || []).length === 0" class="flex flex-col items-center justify-center h-48 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-                <path d="M12 2v20"/>
-                <path d="M2 12h20"/>
-              </svg>
-              <p>暂无药园地块，请先在「洞府经营」中解锁地块</p>
-            </div>
-
-            <!-- 地块网格（3 列） -->
-            <div v-else class="grid grid-cols-3 gap-3">
-              <div
-                v-for="plot in gardenStatus.plots"
-                :key="plot.plot_index"
-                class="bg-[#1c1917] border rounded-lg p-3 flex flex-col items-center text-center transition-colors"
-                :class="plot.status === 'mature'
-                  ? 'border-emerald-700/50 hover:border-emerald-500/80'
-                  : 'border-stone-800 hover:border-stone-700'"
-              >
-                <!-- 地块序号 -->
-                <div class="text-xs text-stone-600 mb-2">地块 #{{ plot.plot_index + 1 }}</div>
-
-                <!-- 空地 -->
-                <template v-if="plot.status === 'empty'">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-stone-600 mb-2">
-                    <path d="M12 2v20"/>
-                    <path d="M2 12h20"/>
-                  </svg>
-                  <div class="text-xs text-stone-500 mb-2">空地</div>
-                  <button
-                    @click="handleOpenSeedModal(plot.plot_index)"
-                    :disabled="operating"
-                    class="px-3 py-1 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    播种
-                  </button>
-                </template>
-
-                <!-- 种植中 -->
-                <template v-else-if="plot.status === 'planted'">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-500 mb-2">
-                    <path d="M12 22V8"/>
-                    <path d="M5 12c0-3 3-5 7-5s7 2 7 5"/>
-                    <path d="M12 8c0-3 2-5 5-5"/>
-                  </svg>
-                  <div class="text-xs font-bold text-cyan-400 mb-1">{{ plot.seed?.name || '未知种子' }}</div>
-                  <div class="text-xs text-stone-500 mb-2">
-                    剩余：{{ formatCountdown(getPlotRemainingSeconds(plot)) }}
-                  </div>
-                  <div class="text-xs text-stone-600">
-                    产出：{{ plot.seed?.produce_name || '—' }}
-                  </div>
-                </template>
-
-                <!-- 已成熟 -->
-                <template v-else-if="plot.status === 'mature'">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500 mb-2">
-                    <path d="M12 22V8"/>
-                    <path d="M5 12c0-3 3-5 7-5s7 2 7 5"/>
-                    <path d="M12 8c0-3 2-5 5-5"/>
-                  </svg>
-                  <div class="text-xs font-bold text-emerald-400 mb-1">已成熟</div>
-                  <div class="text-xs text-stone-500 mb-2">{{ plot.seed?.name || '灵草' }}</div>
-                  <button
-                    @click="handleHarvest(plot)"
-                    :disabled="operating || !plot.can_harvest"
-                    class="px-3 py-1 rounded bg-emerald-900/40 border border-emerald-600/60 text-emerald-300 hover:bg-emerald-700/50 hover:text-emerald-200 transition-colors text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    采收
-                  </button>
-                </template>
-              </div>
+                升级
+              </AppButton>
+              <span v-else class="text-xs text-state-success">已达上限</span>
             </div>
           </div>
+        </div>
 
-          <!-- 数据加载失败 -->
-          <div v-else class="flex flex-col items-center justify-center h-64 text-stone-500">
-            <p class="mb-3">药园状态获取失败</p>
-            <button
-              @click="fetchGardenStatus"
-              class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors text-sm"
+        <!-- 灵脉领取区 -->
+        <div class="bg-surface-raised border border-line rounded-panel p-4 mb-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-[13px] font-bold text-fg-primary">灵脉产出</div>
+              <div class="text-xs text-fg-muted mt-0.5">
+                待领取：
+                <span
+                  class="text-gold-400 font-bold num"
+                  :title="String(caveInfo?.spirit_vein?.pending_stones ?? 0)"
+                >{{ formatCompact(caveInfo?.spirit_vein?.pending_stones ?? 0) }}</span>
+                灵石
+                <span v-if="caveInfo?.spirit_vein?.produce_rate" class="ml-2 text-fg-faint num">
+                  （{{ formatCompact(caveInfo.spirit_vein.produce_rate) }}/时）
+                </span>
+              </div>
+            </div>
+            <AppButton
+              variant="primary"
+              :disabled="operating || (caveInfo?.spirit_vein?.pending_stones ?? 0) <= 0"
+              @click="handleCollect"
             >
-              重新加载
-            </button>
+              领取灵石
+            </AppButton>
+          </div>
+        </div>
+
+        <!-- 药园地块概览 -->
+        <div class="bg-surface-raised border border-line rounded-panel p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-[13px] font-bold text-fg-primary">药园地块</div>
+              <div class="text-xs text-fg-muted mt-0.5">
+                当前：
+                <span class="text-state-success font-bold num">{{ caveInfo?.garden_plots?.current ?? 0 }}</span>
+                /
+                <span class="text-fg-secondary num">{{ caveInfo?.garden_plots?.max ?? 0 }}</span>
+                块
+              </div>
+            </div>
+            <AppButton
+              v-if="!isPlotMaxed"
+              variant="primary"
+              :disabled="operating"
+              @click="handleUnlockPlot"
+            >
+              <span v-if="caveInfo?.garden_plots?.unlock_cost">
+                解锁地块（{{ formatCompact(caveInfo.garden_plots.unlock_cost.spirit_stone) }} 灵石）
+              </span>
+              <span v-else>解锁地块</span>
+            </AppButton>
+            <span v-else class="text-xs text-fg-faint">已达上限</span>
+          </div>
+          <div class="mt-2 text-xs text-fg-faint">
+            切换至「小药园」Tab 可进行播种与采收
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ====== 小药园视图 ====== -->
+    <div v-else-if="activeTab === 'garden'">
+      <!-- 洞府未开辟时提示 -->
+      <EmptyState v-if="!isOpened" text="需先开辟洞府方可使用药园">
+        <AppButton variant="primary" @click="activeTab = 'cave'">前往开辟洞府</AppButton>
+      </EmptyState>
+
+      <!-- 药园未开启（后端返回 is_opened=false） -->
+      <EmptyState
+        v-else-if="gardenStatus && !gardenStatus.is_opened"
+        :text="gardenStatus.message || '药园暂未开启'"
+      />
+
+      <!-- 药园正常展示 -->
+      <div v-else-if="gardenStatus">
+        <!-- 顶部操作栏：一键采收 -->
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm text-fg-muted num">
+            地块：{{ gardenStatus.plot_count ?? 0 }} / {{ gardenStatus.max_plots ?? 0 }}
+          </div>
+          <AppButton
+            v-if="hasMaturePlot"
+            variant="primary"
+            :disabled="operating"
+            @click="handleHarvestAll"
+          >
+            一键采收
+          </AppButton>
+        </div>
+
+        <!-- 地块空状态 -->
+        <EmptyState
+          v-if="(gardenStatus.plots || []).length === 0"
+          text="暂无药园地块"
+          hint="请先在「洞府经营」中解锁地块"
+        />
+
+        <!-- 地块网格（3 列） -->
+        <div v-else class="grid grid-cols-3 gap-3">
+          <div
+            v-for="plot in gardenStatus.plots"
+            :key="plot.plot_index"
+            class="bg-surface-raised border rounded-panel p-3 flex flex-col items-center text-center transition-colors"
+            :class="plot.status === 'mature'
+              ? 'border-state-success/50 hover:border-state-success'
+              : 'border-line hover:border-line-strong'"
+          >
+            <!-- 地块序号 -->
+            <div class="text-xs text-fg-faint mb-2 num">地块 #{{ plot.plot_index + 1 }}</div>
+
+            <!-- 空地 -->
+            <template v-if="plot.status === 'empty'">
+              <div class="text-xs text-fg-muted mb-2">空地</div>
+              <AppButton
+                size="xs"
+                variant="primary"
+                :disabled="operating"
+                @click="handleOpenSeedModal(plot.plot_index)"
+              >
+                播种
+              </AppButton>
+            </template>
+
+            <!-- 种植中 -->
+            <template v-else-if="plot.status === 'planted'">
+              <div class="text-xs font-bold text-state-info mb-1">{{ plot.seed?.name || '未知种子' }}</div>
+              <div class="text-xs text-fg-muted mb-2 num">
+                剩余：{{ formatCountdown(getPlotRemainingSeconds(plot)) }}
+              </div>
+              <div class="text-xs text-fg-faint">
+                产出：{{ plot.seed?.produce_name || '—' }}
+              </div>
+            </template>
+
+            <!-- 已成熟 -->
+            <template v-else-if="plot.status === 'mature'">
+              <div class="text-xs font-bold text-state-success mb-1">已成熟</div>
+              <div class="text-xs text-fg-muted mb-2">{{ plot.seed?.name || '灵草' }}</div>
+              <AppButton
+                size="xs"
+                variant="primary"
+                :disabled="operating || !plot.can_harvest"
+                @click="handleHarvest(plot)"
+              >
+                采收
+              </AppButton>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据加载失败 -->
+      <ErrorState v-else message="药园状态获取失败" @retry="fetchGardenStatus" />
     </div>
 
     <!-- ========== 确认弹窗（自定义 Modal 组件，替代浏览器原生 confirm） ========== -->
@@ -926,101 +831,98 @@ onUnmounted(() => {
     >
       <!-- 开辟洞府 -->
       <div class="space-y-3" v-if="confirmModal.type === 'open'">
-        <p class="text-stone-300">确定要开辟洞府吗？</p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-fg-secondary">确定要开辟洞府吗？</p>
+        <p class="text-xs text-fg-muted leading-relaxed">
           开辟洞府需消耗
-          <span class="text-yellow-500">1000 灵石</span>，且需达到
-          <span class="text-amber-400">炼气期</span>。
+          <span class="text-gold-400">1000 灵石</span>，且需达到
+          <span class="text-gold-400">炼气期</span>。
           开辟后将解锁灵脉、静室、丹房、器室、大阵五大设施与药园地块。
         </p>
       </div>
 
       <!-- 升级设施 -->
       <div class="space-y-3" v-else-if="confirmModal.type === 'upgrade' && confirmUpgrade">
-        <p class="text-stone-300">
+        <p class="text-fg-secondary">
           确定要将
-          <span class="font-bold text-amber-400">{{ confirmUpgrade.info.name }}</span>
+          <span class="font-bold text-gold-400">{{ confirmUpgrade.info.name }}</span>
           升级至
-          <span class="font-bold text-amber-400">Lv.{{ confirmUpgrade.info.level + 1 }}</span>
+          <span class="font-bold text-gold-400">Lv.{{ confirmUpgrade.info.level + 1 }}</span>
           吗？
         </p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-xs text-fg-muted leading-relaxed">
           升级消耗：
-          <span class="text-yellow-500">{{ formatUpgradeCost(confirmUpgrade.info) }}</span>
+          <span class="text-gold-400">{{ formatUpgradeCost(confirmUpgrade.info) }}</span>
         </p>
       </div>
 
       <!-- 领取灵石 -->
       <div class="space-y-3" v-else-if="confirmModal.type === 'collect'">
-        <p class="text-stone-300">确定要领取灵脉产出的灵石吗？</p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-fg-secondary">确定要领取灵脉产出的灵石吗？</p>
+        <p class="text-xs text-fg-muted leading-relaxed">
           待领取灵石：
-          <span class="text-yellow-500 font-bold">{{ caveInfo?.spirit_vein?.pending_stones ?? 0 }}</span>
+          <span
+            class="text-gold-400 font-bold num"
+            :title="String(caveInfo?.spirit_vein?.pending_stones ?? 0)"
+          >{{ formatCompact(caveInfo?.spirit_vein?.pending_stones ?? 0) }}</span>
           灵石
         </p>
       </div>
 
       <!-- 解锁地块 -->
       <div class="space-y-3" v-else-if="confirmModal.type === 'unlock'">
-        <p class="text-stone-300">确定要解锁新的药园地块吗？</p>
-        <p class="text-xs text-stone-500 leading-relaxed" v-if="caveInfo?.garden_plots?.unlock_cost">
+        <p class="text-fg-secondary">确定要解锁新的药园地块吗？</p>
+        <p class="text-xs text-fg-muted leading-relaxed" v-if="caveInfo?.garden_plots?.unlock_cost">
           消耗灵石：
-          <span class="text-yellow-500">{{ caveInfo.garden_plots.unlock_cost.spirit_stone }}</span>
+          <span
+            class="text-gold-400 num"
+            :title="String(caveInfo.garden_plots.unlock_cost.spirit_stone)"
+          >{{ formatCompact(caveInfo.garden_plots.unlock_cost.spirit_stone) }}</span>
         </p>
       </div>
 
       <!-- 播种 -->
       <div class="space-y-3" v-else-if="confirmModal.type === 'plant' && confirmPlant">
-        <p class="text-stone-300">
+        <p class="text-fg-secondary">
           确定要在地块 #{{ confirmPlant.plotIndex + 1 }} 播种
-          <span class="font-bold text-amber-400">{{ confirmPlant.seed.name }}</span>
+          <span class="font-bold text-gold-400">{{ confirmPlant.seed.name }}</span>
           吗？
         </p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-xs text-fg-muted leading-relaxed">
           生长时间：
-          <span class="text-cyan-400">{{ formatGrowTime(confirmPlant.seed.grow_time_seconds) }}</span>，
+          <span class="text-state-info num">{{ formatGrowTime(confirmPlant.seed.grow_time_seconds) }}</span>，
           成熟后可采收
-          <span class="text-emerald-400">{{ confirmPlant.seed.produce_name }}</span>
+          <span class="text-state-success">{{ confirmPlant.seed.produce_name }}</span>
         </p>
       </div>
 
       <!-- 采收 -->
       <div class="space-y-3" v-else-if="confirmModal.type === 'harvest' && confirmHarvest">
-        <p class="text-stone-300">
+        <p class="text-fg-secondary">
           确定要采收地块 #{{ confirmHarvest.plot_index + 1 }} 吗？
         </p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-xs text-fg-muted leading-relaxed">
           作物：
-          <span class="text-amber-400">{{ confirmHarvest.seed?.name || '灵草' }}</span>
+          <span class="text-gold-400">{{ confirmHarvest.seed?.name || '灵草' }}</span>
         </p>
       </div>
 
       <!-- 一键采收 -->
       <div class="space-y-3" v-else-if="confirmModal.type === 'harvestAll'">
-        <p class="text-stone-300">确定要一键采收所有成熟作物吗？</p>
-        <p class="text-xs text-stone-500 leading-relaxed">
+        <p class="text-fg-secondary">确定要一键采收所有成熟作物吗？</p>
+        <p class="text-xs text-fg-muted leading-relaxed">
           所有成熟灵草将一次性采收完毕，物品存入储物袋。
         </p>
       </div>
 
       <template #footer>
-        <button
-          @click="closeConfirmModal"
-          class="px-4 py-2 bg-stone-700 hover:bg-stone-600 text-stone-200 rounded transition-colors text-sm"
-        >
-          取消
-        </button>
-        <button
+        <AppButton variant="default" @click="closeConfirmModal">取消</AppButton>
+        <AppButton
+          variant="primary"
+          :loading="operating"
           @click="handleConfirm"
-          :disabled="operating"
-          class="px-4 py-2 rounded text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="confirmModal.type === 'harvest' || confirmModal.type === 'harvestAll'
-            ? 'bg-emerald-600 hover:bg-emerald-500'
-            : 'bg-amber-600 hover:bg-amber-500'"
         >
-          <span v-if="operating">处理中...</span>
-          <span v-else>确认</span>
-        </button>
+          {{ operating ? '处理中…' : '确认' }}
+        </AppButton>
       </template>
     </Modal>
 
@@ -1031,55 +933,34 @@ onUnmounted(() => {
       @close="seedModal.show = false"
       width="500px"
     >
-      <div v-if="(gardenStatus?.available_seeds || []).length === 0" class="text-center text-stone-500 text-sm py-8">
-        暂无可用种子
-      </div>
+      <EmptyState
+        v-if="(gardenStatus?.available_seeds || []).length === 0"
+        text="暂无可用种子"
+      />
       <div v-else class="space-y-2">
         <div
           v-for="seed in gardenStatus?.available_seeds || []"
           :key="seed.seed_id"
-          class="bg-[#0c0a09] border border-stone-800 rounded p-3 flex justify-between items-center hover:border-stone-700 transition-colors cursor-pointer"
+          class="bg-surface-canvas border border-line rounded-control p-3 flex justify-between items-center hover:border-line-strong transition-colors cursor-pointer"
           @click="handleSelectSeed(seed)"
         >
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-sm font-bold text-amber-300">{{ seed.name }}</span>
-              <span v-if="seed.min_cave_level > 0" class="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-400">
-                需洞府 Lv.{{ seed.min_cave_level }}
-              </span>
+              <span class="text-sm font-bold text-gold-300">{{ seed.name }}</span>
+              <Badge v-if="seed.min_cave_level > 0" tone="neutral">需洞府 Lv.{{ seed.min_cave_level }}</Badge>
             </div>
-            <div class="text-xs text-stone-500 flex gap-3">
-              <span>产出：<span class="text-emerald-400">{{ seed.produce_name }}</span></span>
-              <span>时间：<span class="text-cyan-400">{{ formatGrowTime(seed.grow_time_seconds) }}</span></span>
-              <span>产量：<span class="text-yellow-400">x{{ seed.base_yield }}</span></span>
+            <div class="text-xs text-fg-muted flex gap-3">
+              <span>产出：<span class="text-state-success">{{ seed.produce_name }}</span></span>
+              <span>时间：<span class="text-state-info num">{{ formatGrowTime(seed.grow_time_seconds) }}</span></span>
+              <span>产量：<span class="text-gold-400 num">x{{ seed.base_yield }}</span></span>
             </div>
           </div>
-          <button
-            class="ml-3 px-3 py-1.5 rounded bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors text-xs whitespace-nowrap"
-          >
-            播种
-          </button>
+          <AppButton size="xs" variant="primary" class="ml-3 shrink-0">播种</AppButton>
         </div>
       </div>
       <template #footer>
-        <button
-          @click="seedModal.show = false"
-          class="px-4 py-2 bg-stone-700 hover:bg-stone-600 text-stone-200 rounded transition-colors text-sm"
-        >
-          取消
-        </button>
+        <AppButton variant="default" @click="seedModal.show = false">取消</AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
-
-<style scoped>
-/* 弹窗淡入动画，与项目其他面板保持一致 */
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-</style>

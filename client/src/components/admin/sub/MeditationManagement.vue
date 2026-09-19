@@ -2,58 +2,58 @@
   <div class="space-y-6">
     <!-- 标题与操作按钮 -->
     <div class="flex justify-between items-center">
-      <h3 class="text-lg font-bold text-white">悟道与瓶颈管理</h3>
+      <h3 class="text-lg font-bold text-fg-primary">悟道与瓶颈管理</h3>
       <div class="flex space-x-2">
-        <button @click="fetchList(pagination.page)" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新</button>
-        <button @click="fetchMetrics" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white text-sm">更新指标</button>
+        <AppButton variant="primary" size="sm" @click="fetchList(pagination.page)">刷新</AppButton>
+        <AppButton variant="primary" size="sm" @click="fetchMetrics">更新指标</AppButton>
       </div>
     </div>
 
     <!-- 统计指标卡片 -->
     <div v-if="metrics" class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <!-- 当前悟道中 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">悟道中玩家</div>
-        <div class="text-2xl font-bold text-amber-400">{{ metrics.meditation.meditating_count }}</div>
-        <div class="text-[10px] text-gray-500 mt-1">
+      <div class="bg-surface-base/50 rounded-panel border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">悟道中玩家</div>
+        <div class="text-2xl font-bold text-amber-400 num">{{ metrics.meditation.meditating_count }}</div>
+        <div class="text-[10px] text-fg-faint mt-1 num">
           每日上限：常规 {{ metrics.meditation.daily_normal_limit }} / 深度 {{ metrics.meditation.daily_deep_limit }}
         </div>
       </div>
       <!-- 瓶颈分布 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">瓶颈分布</div>
-        <div class="flex gap-2 text-xs">
-          <span class="text-gray-400">无：<span class="text-gray-200 font-bold">{{ metrics.bottleneck.state_distribution.none }}</span></span>
+      <div class="bg-surface-base/50 rounded-panel border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">瓶颈分布</div>
+        <div class="flex gap-2 text-xs num">
+          <span class="text-fg-muted">无：<span class="text-fg-primary font-bold">{{ metrics.bottleneck.state_distribution.none }}</span></span>
           <span class="text-rose-400">瓶颈：<span class="font-bold">{{ metrics.bottleneck.state_distribution.active }}</span></span>
           <span class="text-emerald-400">已破：<span class="font-bold">{{ metrics.bottleneck.state_distribution.broken }}</span></span>
           <span class="text-amber-400">失败：<span class="font-bold">{{ metrics.bottleneck.state_distribution.failed }}</span></span>
         </div>
-        <div class="text-[10px] text-gray-500 mt-1">
+        <div class="text-[10px] text-fg-faint mt-1">
           瓶颈境界：{{ metrics.bottleneck.bottleneck_realms?.join(', ') || '无' }}
         </div>
       </div>
       <!-- 瓶颈系统配置 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">瓶颈配置</div>
-        <div class="text-sm text-stone-300">最大失败次数：{{ metrics.bottleneck.max_failure_count }}</div>
-        <div class="text-sm text-emerald-400">破除加成：+{{ metrics.bottleneck.broken_bonus }}%</div>
+      <div class="bg-surface-base/50 rounded-panel border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">瓶颈配置</div>
+        <div class="text-sm text-fg-secondary num">最大失败次数：{{ metrics.bottleneck.max_failure_count }}</div>
+        <div class="text-sm text-emerald-400 num">破除加成：+{{ metrics.bottleneck.broken_bonus }}%</div>
       </div>
       <!-- 冷却时间 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-3">
-        <div class="text-xs text-gray-400 mb-1">悟道冷却</div>
-        <div class="text-2xl font-bold text-cyan-400">{{ metrics.meditation.cooldown_seconds }}s</div>
-        <div class="text-[10px] text-gray-500 mt-1">悟道结束后冷却</div>
+      <div class="bg-surface-base/50 rounded-panel border border-line p-3">
+        <div class="text-xs text-fg-muted mb-1">悟道冷却</div>
+        <div class="text-2xl font-bold text-cyan-400 num">{{ metrics.meditation.cooldown_seconds }}s</div>
+        <div class="text-[10px] text-fg-faint mt-1">悟道结束后冷却</div>
       </div>
     </div>
 
     <!-- 筛选与搜索 -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div class="bg-surface-base/50 rounded-panel border border-line p-4">
       <div class="flex flex-wrap items-center gap-3">
         <div class="flex items-center gap-2">
-          <label class="text-sm text-gray-400 whitespace-nowrap">筛选：</label>
+          <label class="text-sm text-fg-muted whitespace-nowrap">筛选：</label>
           <select
             v-model="searchParams.filter"
-            class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+            class="px-3 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600"
             @change="handleSearch"
           >
             <option value="all">全部</option>
@@ -61,16 +61,16 @@
             <option value="bottleneck">仅瓶颈期</option>
           </select>
         </div>
-        <button @click="handleSearch" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">查询</button>
-        <button @click="resetSearch" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">重置</button>
+        <AppButton variant="primary" size="sm" @click="handleSearch">查询</AppButton>
+        <AppButton variant="default" size="sm" @click="resetSearch">重置</AppButton>
       </div>
     </div>
 
     <!-- 玩家列表表格 -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+    <div class="bg-surface-base/50 rounded-panel border border-line overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="bg-gray-900 text-gray-400">
+          <thead class="bg-surface-raised text-fg-muted">
             <tr>
               <th class="px-3 py-2 text-left whitespace-nowrap">玩家ID</th>
               <th class="px-3 py-2 text-left whitespace-nowrap">昵称</th>
@@ -86,30 +86,30 @@
           </thead>
           <tbody>
             <!-- 加载中 -->
-            <tr v-if="loading" class="text-center text-gray-500">
+            <tr v-if="loading" class="text-center text-fg-faint">
               <td colspan="10" class="px-3 py-6">加载中...</td>
             </tr>
             <!-- 空数据 -->
-            <tr v-else-if="playerList.length === 0" class="text-center text-gray-500">
+            <tr v-else-if="playerList.length === 0" class="text-center text-fg-faint">
               <td colspan="10" class="px-3 py-6">暂无数据</td>
             </tr>
             <!-- 数据行 -->
             <tr
               v-for="p in playerList"
               :key="p.id"
-              class="border-t border-gray-700 hover:bg-gray-750"
+              class="border-t border-line-subtle hover:bg-surface-hover"
             >
-              <td class="px-3 py-2 text-gray-400">{{ p.id }}</td>
-              <td class="px-3 py-2 text-white">{{ p.nickname }}</td>
-              <td class="px-3 py-2 text-gray-300 text-xs">{{ p.realm }}</td>
+              <td class="px-3 py-2 text-fg-muted num">{{ p.id }}</td>
+              <td class="px-3 py-2 text-fg-primary">{{ p.nickname }}</td>
+              <td class="px-3 py-2 text-fg-secondary text-xs">{{ p.realm }}</td>
               <td class="px-3 py-2">
                 <span
-                  :class="p.is_meditating ? 'bg-amber-900 text-amber-300' : 'bg-gray-700 text-gray-400'"
+                  :class="p.is_meditating ? 'bg-amber-900 text-amber-300' : 'bg-surface-active text-fg-muted'"
                   class="px-2 py-0.5 rounded text-xs"
                 >{{ p.is_meditating ? '悟道中' : '空闲' }}</span>
               </td>
               <td class="px-3 py-2 text-xs">
-                <span :class="p.meditation_mode === 'deep' ? 'text-purple-300' : 'text-gray-300'">
+                <span :class="p.meditation_mode === 'deep' ? 'text-purple-300' : 'text-fg-secondary'">
                   {{ modeLabel(p.meditation_mode) }}
                 </span>
               </td>
@@ -120,41 +120,36 @@
                 >{{ bottleneckStateLabel(p.bottleneck_state) }}</span>
               </td>
               <td class="px-3 py-2 text-xs">
-                <span v-if="p.bottleneck_state !== 'none'" class="text-rose-300">
+                <span v-if="p.bottleneck_state !== 'none'" class="text-rose-300 num">
                   {{ p.bottleneck_insight }} / {{ p.bottleneck_threshold }}
                 </span>
-                <span v-else class="text-gray-500">-</span>
+                <span v-else class="text-fg-faint">-</span>
               </td>
               <td class="px-3 py-2 text-xs">
-                <span v-if="p.breakthrough_failure_count > 0" class="text-amber-400">{{ p.breakthrough_failure_count }}</span>
-                <span v-else class="text-gray-500">0</span>
+                <span v-if="p.breakthrough_failure_count > 0" class="text-amber-400 num">{{ p.breakthrough_failure_count }}</span>
+                <span v-else class="text-fg-faint num">0</span>
               </td>
-              <td class="px-3 py-2 text-xs text-gray-300">
+              <td class="px-3 py-2 text-xs text-fg-secondary num">
                 常规 {{ p.daily_meditation_count }} / 深度 {{ p.daily_deep_meditation_count }}
               </td>
               <td class="px-3 py-2 text-center whitespace-nowrap">
-                <button
-                  @click="openDetailModal(p)"
-                  class="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-xs mr-1"
-                >详情</button>
-                <button
+                <AppButton variant="outline" size="xs" class="mr-1" @click="openDetailModal(p)">详情</AppButton>
+                <AppButton
                   v-if="p.is_meditating"
+                  variant="primary"
+                  size="xs"
+                  class="mr-1"
                   @click="openForceSettleModal(p)"
-                  class="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-white text-xs mr-1"
-                >强制结算</button>
-                <button
+                >强制结算</AppButton>
+                <AppButton
                   v-if="p.is_meditating"
+                  variant="danger"
+                  size="xs"
+                  class="mr-1"
                   @click="openForceInterruptModal(p)"
-                  class="px-2 py-1 bg-rose-700 hover:bg-rose-600 rounded text-white text-xs mr-1"
-                >强制中断</button>
-                <button
-                  @click="openBottleneckModal(p)"
-                  class="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white text-xs mr-1"
-                >瓶颈</button>
-                <button
-                  @click="openResetBottleneckModal(p)"
-                  class="px-2 py-1 bg-gray-600 hover:bg-gray-500 rounded text-white text-xs"
-                >重置瓶颈</button>
+                >强制中断</AppButton>
+                <AppButton variant="outline" size="xs" class="mr-1" @click="openBottleneckModal(p)">瓶颈</AppButton>
+                <AppButton variant="danger" size="xs" @click="openResetBottleneckModal(p)">重置瓶颈</AppButton>
               </td>
             </tr>
           </tbody>
@@ -162,22 +157,24 @@
       </div>
 
       <!-- 分页 -->
-      <div class="px-4 py-3 border-t border-gray-700 flex items-center justify-between text-sm">
-        <div class="text-gray-400">
+      <div class="px-4 py-3 border-t border-line-subtle flex items-center justify-between text-sm">
+        <div class="text-fg-muted num">
           共 {{ pagination.total }} 条记录
         </div>
         <div class="flex items-center gap-2">
-          <button
+          <AppButton
+            variant="default"
+            size="sm"
             @click="fetchList(pagination.page - 1)"
             :disabled="pagination.page <= 1 || loading"
-            class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          >上一页</button>
-          <span class="text-gray-300">{{ pagination.page }} / {{ pagination.totalPages }}</span>
-          <button
+          >上一页</AppButton>
+          <span class="text-fg-secondary num">{{ pagination.page }} / {{ pagination.totalPages }}</span>
+          <AppButton
+            variant="default"
+            size="sm"
             @click="fetchList(pagination.page + 1)"
             :disabled="pagination.page >= pagination.totalPages || loading"
-            class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          >下一页</button>
+          >下一页</AppButton>
         </div>
       </div>
     </div>
@@ -187,76 +184,76 @@
       <div v-if="detailPlayer" class="space-y-3 text-sm">
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-gray-400 mb-1">玩家ID</label>
-            <div class="text-white">{{ detailPlayer.id }}</div>
+            <label class="block text-fg-muted mb-1">玩家ID</label>
+            <div class="text-fg-primary num">{{ detailPlayer.id }}</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">昵称</label>
-            <div class="text-white">{{ detailPlayer.nickname }}</div>
+            <label class="block text-fg-muted mb-1">昵称</label>
+            <div class="text-fg-primary">{{ detailPlayer.nickname }}</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">境界</label>
-            <div class="text-white">{{ detailPlayer.realm }} (rank {{ detailPlayer.realm_rank }})</div>
+            <label class="block text-fg-muted mb-1">境界</label>
+            <div class="text-fg-primary">{{ detailPlayer.realm }} (rank {{ detailPlayer.realm_rank }})</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">修为</label>
+            <label class="block text-fg-muted mb-1">修为</label>
             <!-- 修复 4-3-P1-2：使用 formatNumber 处理 BigInt 字符串 -->
-            <div class="text-white font-mono">{{ formatNumber(detailPlayer.exp) }}</div>
+            <div class="text-fg-primary font-mono num">{{ formatNumber(detailPlayer.exp) }}</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">悟道状态</label>
-            <div :class="detailPlayer.is_meditating ? 'text-amber-400' : 'text-gray-400'">
+            <label class="block text-fg-muted mb-1">悟道状态</label>
+            <div :class="detailPlayer.is_meditating ? 'text-amber-400' : 'text-fg-muted'">
               {{ detailPlayer.is_meditating ? `悟道中（${modeLabel(detailPlayer.meditation_mode)}）` : '空闲' }}
             </div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">悟道时长</label>
-            <div class="text-white">{{ detailPlayer.meditation_duration || 0 }} 秒</div>
+            <label class="block text-fg-muted mb-1">悟道时长</label>
+            <div class="text-fg-primary num">{{ detailPlayer.meditation_duration || 0 }} 秒</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">当前感悟值</label>
-            <div class="text-amber-400 font-bold">{{ detailPlayer.meditation_insight || 0 }}</div>
+            <label class="block text-fg-muted mb-1">当前感悟值</label>
+            <div class="text-amber-400 font-bold num">{{ detailPlayer.meditation_insight || 0 }}</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">今日已用</label>
-            <div class="text-white">常规 {{ detailPlayer.daily_meditation_count }} / 深度 {{ detailPlayer.daily_deep_meditation_count }}</div>
+            <label class="block text-fg-muted mb-1">今日已用</label>
+            <div class="text-fg-primary num">常规 {{ detailPlayer.daily_meditation_count }} / 深度 {{ detailPlayer.daily_deep_meditation_count }}</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">瓶颈状态</label>
+            <label class="block text-fg-muted mb-1">瓶颈状态</label>
             <div :class="bottleneckStateTextClass(detailPlayer.bottleneck_state)">
               {{ bottleneckStateLabel(detailPlayer.bottleneck_state) }}
             </div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">瓶颈进度</label>
-            <div class="text-white">{{ detailPlayer.bottleneck_insight || 0 }} / {{ detailPlayer.bottleneck_threshold || 100 }}</div>
+            <label class="block text-fg-muted mb-1">瓶颈进度</label>
+            <div class="text-fg-primary num">{{ detailPlayer.bottleneck_insight || 0 }} / {{ detailPlayer.bottleneck_threshold || 100 }}</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">突破失败次数</label>
-            <div class="text-amber-400">{{ detailPlayer.breakthrough_failure_count || 0 }}</div>
+            <label class="block text-fg-muted mb-1">突破失败次数</label>
+            <div class="text-amber-400 num">{{ detailPlayer.breakthrough_failure_count || 0 }}</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">瓶颈开始时间</label>
-            <div class="text-white text-xs">{{ formatDate(detailPlayer.bottleneck_started_at) || '-' }}</div>
+            <label class="block text-fg-muted mb-1">瓶颈开始时间</label>
+            <div class="text-fg-primary text-xs num">{{ formatDate(detailPlayer.bottleneck_started_at) || '-' }}</div>
           </div>
           <div>
-            <label class="block text-gray-400 mb-1">上次悟道时间</label>
-            <div class="text-white text-xs">{{ formatDate(detailPlayer.last_meditation_time) || '-' }}</div>
+            <label class="block text-fg-muted mb-1">上次悟道时间</label>
+            <div class="text-fg-primary text-xs num">{{ formatDate(detailPlayer.last_meditation_time) || '-' }}</div>
           </div>
         </div>
       </div>
       <template #footer>
-        <button @click="detailPlayer = null" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">关闭</button>
+        <AppButton variant="default" @click="detailPlayer = null">关闭</AppButton>
       </template>
     </Modal>
 
     <!-- 修改瓶颈状态弹窗 -->
     <Modal :isOpen="!!bottleneckEditing" title="修改瓶颈状态" width="500px" @close="bottleneckEditing = null">
       <div v-if="bottleneckEditing" class="space-y-3 text-sm">
-        <p class="text-gray-300">玩家：<span class="text-amber-400">{{ bottleneckEditing.nickname }} (ID: {{ bottleneckEditing.id }})</span></p>
+        <p class="text-fg-secondary">玩家：<span class="text-amber-400">{{ bottleneckEditing.nickname }} (ID: {{ bottleneckEditing.id }})</span></p>
         <div>
-          <label class="block text-gray-400 mb-1">瓶颈状态</label>
-          <select v-model="bottleneckForm.bottleneck_state" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+          <label class="block text-fg-muted mb-1">瓶颈状态</label>
+          <select v-model="bottleneckForm.bottleneck_state" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
             <option value="none">none（无瓶颈）</option>
             <option value="active">active（处于瓶颈期）</option>
             <option value="broken">broken（已破除，可突破）</option>
@@ -264,35 +261,35 @@
           </select>
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">瓶颈感悟值</label>
-          <input v-model.number="bottleneckForm.bottleneck_insight" type="number" min="0" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
-          <p class="mt-1 text-xs text-gray-500">范围：0 ~ {{ bottleneckForm.bottleneck_threshold || 100 }}</p>
+          <label class="block text-fg-muted mb-1">瓶颈感悟值</label>
+          <input v-model.number="bottleneckForm.bottleneck_insight" type="number" min="0" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
+          <p class="mt-1 text-xs text-fg-faint">范围：0 ~ {{ bottleneckForm.bottleneck_threshold || 100 }}</p>
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">瓶颈阈值</label>
-          <input v-model.number="bottleneckForm.bottleneck_threshold" type="number" min="1" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+          <label class="block text-fg-muted mb-1">瓶颈阈值</label>
+          <input v-model.number="bottleneckForm.bottleneck_threshold" type="number" min="1" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-gray-400 mb-1">突破失败次数</label>
-          <input v-model.number="bottleneckForm.breakthrough_failure_count" type="number" min="0" class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white">
+          <label class="block text-fg-muted mb-1">突破失败次数</label>
+          <input v-model.number="bottleneckForm.breakthrough_failure_count" type="number" min="0" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
         </div>
       </div>
       <template #footer>
-        <button @click="bottleneckEditing = null" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">取消</button>
-        <button @click="submitBottleneckEdit" :disabled="operating" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50">
+        <AppButton variant="ghost" @click="bottleneckEditing = null">取消</AppButton>
+        <AppButton variant="primary" :disabled="operating" @click="submitBottleneckEdit">
           {{ operating ? '保存中...' : '保存' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
     <!-- 确认操作弹窗 -->
     <Modal :isOpen="confirmDialog.show" title="确认操作" width="420px" @close="confirmDialog.show = false">
-      <p class="text-gray-300 whitespace-pre-line">{{ confirmDialog.message }}</p>
+      <p class="text-fg-secondary whitespace-pre-line">{{ confirmDialog.message }}</p>
       <template #footer>
-        <button @click="confirmDialog.show = false" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">取消</button>
-        <button @click="confirmDialogAction" :disabled="operating" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded disabled:opacity-50">
+        <AppButton variant="default" @click="confirmDialog.show = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="operating" @click="confirmDialogAction">
           {{ operating ? '执行中...' : '确认' }}
-        </button>
+        </AppButton>
       </template>
     </Modal>
   </div>
@@ -326,6 +323,7 @@ import {
 } from '../../../api/admin_meditation'
 // 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
 import { formatNumber } from '../../../utils/format'
+import AppButton from '../../ui/AppButton.vue'
 
 const uiStore = useUIStore()
 
@@ -372,7 +370,7 @@ const fetchMetrics = async () => {
     metrics.value = res.data?.data || res.data
   } catch (err) {
     console.error('获取指标失败:', err)
-    uiStore.showToast('获取指标失败', 'error')
+    uiStore.showApiError(err, '获取指标失败')
   }
 }
 
@@ -395,7 +393,7 @@ const fetchList = async (page = 1) => {
     pagination.totalPages = Math.ceil(pagination.total / pagination.pageSize) || 1
   } catch (err) {
     console.error('获取列表失败:', err)
-    uiStore.showToast('获取列表失败', 'error')
+    uiStore.showApiError(err, '获取列表失败')
   } finally {
     loading.value = false
   }
@@ -425,7 +423,7 @@ const openDetailModal = async (player) => {
     detailPlayer.value = res.data?.data || res.data
   } catch (err) {
     console.error('获取详情失败:', err)
-    uiStore.showToast('获取详情失败', 'error')
+    uiStore.showApiError(err, '获取详情失败')
   }
 }
 
@@ -444,8 +442,7 @@ const openForceSettleModal = (player) => {
       await fetchList(pagination.page)
       await fetchMetrics()
     } catch (err) {
-      const msg = err?.response?.data?.message || '强制结算失败'
-      uiStore.showToast(msg, 'error')
+      uiStore.showApiError(err, '强制结算失败')
     } finally {
       operating.value = false
     }
@@ -468,8 +465,7 @@ const openForceInterruptModal = (player) => {
       await fetchList(pagination.page)
       await fetchMetrics()
     } catch (err) {
-      const msg = err?.response?.data?.message || '强制中断失败'
-      uiStore.showToast(msg, 'error')
+      uiStore.showApiError(err, '强制中断失败')
     } finally {
       operating.value = false
     }
@@ -506,8 +502,7 @@ const submitBottleneckEdit = async () => {
     await fetchList(pagination.page)
     await fetchMetrics()
   } catch (err) {
-    const msg = err?.response?.data?.message || '修改失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '修改失败')
   } finally {
     operating.value = false
   }
@@ -527,8 +522,7 @@ const openResetBottleneckModal = (player) => {
       await fetchList(pagination.page)
       await fetchMetrics()
     } catch (err) {
-      const msg = err?.response?.data?.message || '重置失败'
-      uiStore.showToast(msg, 'error')
+      uiStore.showApiError(err, '重置失败')
     } finally {
       operating.value = false
     }
@@ -579,12 +573,12 @@ const bottleneckStateLabel = (state) => {
  */
 const bottleneckStateClass = (state) => {
   const map = {
-    none: 'bg-gray-700 text-gray-300',
+    none: 'bg-surface-active text-fg-secondary',
     active: 'bg-rose-900 text-rose-300',
     broken: 'bg-emerald-900 text-emerald-300',
     failed: 'bg-amber-900 text-amber-300'
   }
-  return map[state] || 'bg-gray-700 text-gray-300'
+  return map[state] || 'bg-surface-active text-fg-secondary'
 }
 
 /**
@@ -592,12 +586,12 @@ const bottleneckStateClass = (state) => {
  */
 const bottleneckStateTextClass = (state) => {
   const map = {
-    none: 'text-gray-300',
+    none: 'text-fg-secondary',
     active: 'text-rose-400',
     broken: 'text-emerald-400',
     failed: 'text-amber-400'
   }
-  return map[state] || 'text-gray-300'
+  return map[state] || 'text-fg-secondary'
 }
 
 /**

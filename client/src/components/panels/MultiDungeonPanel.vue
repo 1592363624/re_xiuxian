@@ -1,478 +1,448 @@
 /**
  * 多人副本综合面板组件
  *
- * 批次3 多人副本系统 - 掩月抢亲 / 端午镇蛟 / 昆吾山·封魔塔 / 虚天殿 四大副本综合面板
+ * 批次3 多人副本系统 - 副本大厅 / 我的副本 / 奖励池 / 历史记录 综合面板
  *
  * Tab 划分：
- *   1. 副本大厅：显示四个副本入口卡片，含名称/人数/境界/冷却/奖励池概要
- *   2. 我的副本：显示当前玩家参与的副本详情（实例信息/变量/抉择/队长操作/队员操作）
- *   3. 奖励池：分四个子页签展示普通掉落/首通奖励/稀有掉落表格
- *   4. 历史记录：分页展示玩家历史副本记录
+ *   1. 副本大厅：按 /help 的 dungeons（以 dungeon_key 为键）渲染入口卡片，
+ *      含名称/描述/人数/队长与队员境界门槛/幕数/冷却/奖励池概要
+ *   2. 我的副本：显示当前玩家参与的副本详情（实例信息/变量/抉择/队长操作/投粽）
+ *   3. 奖励池：按副本子页签展示普通掉落/首通奖励/稀有掉落表格（页签内置 4 个副本）
+ *   4. 历史记录：分页展示玩家历史副本记录（含进行中的副本）
  *
- * 副本特色：
- *   - yanyue（掩月抢亲）：3-5人，6幕抉择，元婴期及以上
- *   - duanwu（端午镇蛟）：10人投粽，端午专属
- *   - kunwu（昆吾山·封魔塔）：3-5人，4幕+第三幕阵眼多次抉择+第四幕5回合自动决战
- *   - xutian（虚天殿）：3-5人，6幕抉择+第六幕6回合自动决战（2026-07-21 新增）
+ * 副本清单与人数/幕数/门槛一律以 /help 为准，不在前端列举
+ * （后端 config/multi_dungeon_data.json 现有 10 个副本键，含 2026-07-21 新增的
+ *  xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong）。
  *
  * 设计原则：
  *   - 所有状态从后端拉取，禁止硬编码业务数据
  *   - 业务逻辑全部在后端，前端仅做展示与接口调用
+ *   - 后端没给的字段一律显示「未知」，不补默认值、不印 undefined/NaN
  *   - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
- *   - 颜色风格与 AscensionPanel.vue / SmallWorldPanel.vue 一致（修仙古风：#1c1917 / #292524 / amber-300）
- *   - 使用 Tailwind CSS 工具类，无自定义 CSS
- *   - 进度条颜色按数值分级：<30 红色 / 30-70 黄色 / >70 绿色
+ *   - 颜色一律取 tokens.css 的 surface-* / line-* / fg-* / gold-* 令牌（见 src/styles/tokens.css）
+ *   - 外壳、页签、卡片、徽章、进度条复用 ui/ 基础件，不再自写遮罩与滚动条
+ *   - 进度条颜色按数值分级：<30 血光 / 30-70 鎏金 / >70 灵木
  */
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
+  <PanelShell
+    title="多人副本 · 群英会战"
+    hint="掩月抢亲 · 端午镇蛟 · 昆吾山 · 虚天殿"
+    size="xl"
+    @close="$emit('close')"
+  >
+    <!-- Tab 切换栏：切换时按需懒加载对应子模块 -->
+    <Tabs
+      :model-value="activeTab"
+      :items="tabs"
+      class="mb-3"
+      @update:model-value="switchTab"
+    />
 
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-amber-900/40 rounded-lg p-6 max-w-5xl w-full mx-4 shadow-2xl animate-fade-in max-h-[90vh] flex flex-col panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/>
-          </svg>
-          多人副本 · 群英会战
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
+    <div>
 
-      <!-- Tab 切换栏 -->
-      <div class="flex border-b border-stone-700 mb-3 overflow-x-auto">
-        <button v-for="tab in tabs" :key="tab.id"
-          @click="switchTab(tab.id)"
-          class="px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap relative"
-          :class="activeTab === tab.id ? 'text-amber-300' : 'text-stone-500 hover:text-stone-300'">
-          {{ tab.name }}
-          <div v-if="activeTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-400"></div>
-        </button>
-      </div>
+      <!-- ============ Tab 1: 副本大厅 ============ -->
+      <div v-show="activeTab === 'hall'" class="space-y-3">
+        <LoadingBlock v-if="loading.hall" text="加载副本大厅中…" />
+        <template v-else-if="helpData">
+          <!-- 流程状态说明：文案取自 /help 的 state_machine（后端配置，不前端硬编码） -->
+          <PanelCard v-if="stateFlow.length" title="副本流程">
+            <ul class="text-[11px] text-fg-muted space-y-1 list-disc pl-4">
+              <li v-for="st in stateFlow" :key="st.key">{{ st.label }}：{{ st.desc }}</li>
+            </ul>
+          </PanelCard>
 
-      <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto pr-1">
-
-        <!-- ============ Tab 1: 副本大厅 ============ -->
-        <div v-show="activeTab === 'hall'" class="space-y-3">
-          <div v-if="loading.hall" class="text-center py-6 text-stone-500 text-sm">加载副本大厅中...</div>
-          <template v-else-if="helpData">
-            <!-- 规则说明 -->
-            <section v-if="helpData.rules && helpData.rules.length" class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-amber-300 mb-2">副本规则</div>
-              <ul class="text-[11px] text-stone-400 space-y-1 list-disc pl-4">
-                <li v-for="(rule, idx) in helpData.rules" :key="idx">{{ rule }}</li>
-              </ul>
-            </section>
-
-            <!-- 副本入口卡片 -->
-            <section class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div v-for="dgn in helpData.dungeons" :key="dgn.dungeon_key"
-                class="bg-[#292524] border border-stone-700 rounded-lg p-4 flex flex-col">
-                <!-- 卡片头部 -->
-                <div class="flex items-center justify-between mb-2">
-                  <div class="text-sm font-bold text-amber-300">{{ dgn.name }}</div>
-                  <div class="text-[10px] px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800">
-                    {{ dgn.duration_text || '多人' }}
-                  </div>
-                </div>
-                <!-- 副本描述 -->
-                <div class="text-[11px] text-stone-400 mb-3">{{ dgn.description }}</div>
-                <!-- 副本参数 -->
-                <div class="grid grid-cols-2 gap-2 text-[11px] mb-3">
-                  <div>
-                    <span class="text-stone-500">人数：</span>
-                    <span class="text-stone-200">{{ dgn.min_players }}-{{ dgn.max_players }} 人</span>
-                  </div>
-                  <div>
-                    <span class="text-stone-500">境界：</span>
-                    <span class="text-amber-300">{{ dgn.realm_required }}</span>
-                  </div>
-                </div>
-                <!-- 冷却状态 -->
-                <div class="text-[11px] mb-3">
-                  <span class="text-stone-500">冷却：</span>
-                  <span v-if="getCooldown(dgn.dungeon_key)?.in_cooldown" class="text-rose-400">
-                    冷却中（剩余 {{ formatTime(getCooldown(dgn.dungeon_key)!.remaining_seconds) }}）
-                  </span>
-                  <span v-else class="text-emerald-300">可开启</span>
-                </div>
-                <!-- 操作按钮：队长开启副本 -->
-                <button @click="handleCreate(dgn.dungeon_key)"
-                  :disabled="loading.action || (getCooldown(dgn.dungeon_key)?.in_cooldown ?? false)"
-                  class="w-full py-2 rounded text-xs font-bold bg-amber-700 text-amber-100 hover:bg-amber-600 disabled:opacity-50">
-                  开启副本
-                </button>
+          <!-- 副本入口卡片：/help 的 dungeons 是以 dungeon_key 为键的对象 -->
+          <section class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <PanelCard v-for="(dgn, dungeonKey) in helpData.dungeons" :key="dungeonKey" class="flex flex-col">
+              <!-- 卡片头部 -->
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-bold text-gold-300">{{ dgn.name }}</div>
+                <Badge tone="gold">{{ dgn.act_count }} 幕</Badge>
               </div>
-            </section>
-
-            <!-- 队员加入入口 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-purple-300 mb-2">加入他人副本</div>
-              <div class="text-[11px] text-stone-400 mb-3">· 输入队长分享的实例 ID，即可加入对应副本</div>
-              <div class="flex items-center gap-2">
-                <input v-model.number="joinInstanceId" type="number" min="1" placeholder="实例 ID"
-                  class="flex-1 bg-stone-900 border border-stone-700 rounded px-3 py-2 text-xs text-white focus:border-amber-500 focus:outline-none" />
-                <button @click="handleJoin"
-                  :disabled="loading.action || !joinInstanceId"
-                  class="px-4 py-2 rounded text-xs font-bold bg-purple-700 text-purple-100 hover:bg-purple-600 disabled:opacity-50">
-                  加入副本
-                </button>
-              </div>
-            </section>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无副本数据</div>
-        </div>
-
-        <!-- ============ Tab 2: 我的副本 ============ -->
-        <div v-show="activeTab === 'mine'" class="space-y-3">
-          <div v-if="loading.mine" class="text-center py-6 text-stone-500 text-sm">加载副本进度中...</div>
-          <template v-else-if="statusData && statusData.has_instance && statusData.instance">
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <!-- 实例信息头 -->
-              <div class="flex items-center justify-between mb-3">
+              <!-- 副本描述 -->
+              <div class="text-[11px] text-fg-muted mb-3">{{ dgn.desc }}</div>
+              <!-- 副本参数（字段名与 MultiDungeonService.getHelp 对齐） -->
+              <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] mb-3">
                 <div>
-                  <div class="text-sm font-bold text-amber-300">{{ statusData.instance.dungeon_name }}</div>
-                  <div class="text-[10px] text-stone-500">实例 ID：{{ statusData.instance.instance_id }}</div>
-                </div>
-                <div class="text-[10px] px-2 py-0.5 rounded border" :class="getStatusBadgeClass(statusData.instance.status)">
-                  {{ getStatusName(statusData.instance.status) }}
-                </div>
-              </div>
-              <!-- 当前幕数 -->
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-3">
-                <div>
-                  <div class="text-stone-500">当前幕数</div>
-                  <div class="text-amber-300 font-bold">
-                    第 {{ statusData.instance.current_act }} 幕
-                    <span v-if="statusData.instance.total_acts"> / {{ statusData.instance.total_acts }} 幕</span>
-                  </div>
+                  <span class="text-fg-faint">人数：</span>
+                  <span class="text-fg-primary">{{ dgn.member_min }}-{{ dgn.member_max }} 人</span>
                 </div>
                 <div>
-                  <div class="text-stone-500">队长</div>
-                  <div class="text-stone-200 font-bold">{{ statusData.instance.leader_player_name || `#${statusData.instance.leader_player_id}` }}</div>
+                  <span class="text-fg-faint">集结时限：</span>
+                  <span class="text-fg-primary">{{ dgn.expire_hours }} 小时</span>
                 </div>
                 <div>
-                  <div class="text-stone-500">成员数</div>
-                  <div class="text-stone-200 font-bold">{{ statusData.instance.members.length }} 人</div>
+                  <span class="text-fg-faint">队长门槛：</span>
+                  <span class="text-gold-300">{{ dgn.leader_min_realm }}及以上</span>
                 </div>
                 <div>
-                  <div class="text-stone-500">我的身份</div>
-                  <div v-if="statusData.instance.is_leader" class="text-amber-300 font-bold">队长</div>
-                  <div v-else class="text-purple-300 font-bold">队员</div>
+                  <span class="text-fg-faint">队员门槛：</span>
+                  <span class="text-gold-300">{{ dgn.member_min_realm }}及以上</span>
+                </div>
+                <div>
+                  <span class="text-fg-faint">冷却：</span>
+                  <span class="text-fg-primary">{{ dgn.cooldown_hours }} 小时</span>
+                </div>
+                <div>
+                  <span class="text-fg-faint">奖励：</span>
+                  <span class="text-emerald-300">{{ dgn.rewards_summary }}</span>
                 </div>
               </div>
-              <!-- 成员列表 -->
-              <div class="bg-stone-900/40 border border-stone-800 rounded p-2 mb-3">
-                <div class="text-[11px] text-stone-500 mb-1">成员列表</div>
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-1">
-                  <div v-for="m in statusData.instance.members" :key="m.player_id"
-                    class="text-[11px] flex items-center gap-1">
-                    <span :class="m.is_leader ? 'text-amber-300' : 'text-stone-300'">
-                      {{ m.player_name }}
-                    </span>
-                    <span v-if="m.is_leader" class="text-[9px] text-amber-500">[队长]</span>
-                    <span v-if="!m.is_online" class="text-[9px] text-stone-600">[离线]</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <!-- 副本变量（进度条） -->
-            <section v-if="statusData.instance.variables" class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-purple-300 mb-3">副本变量</div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div v-for="(val, key) in statusData.instance.variables" :key="key" class="text-xs">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-stone-400">{{ getVariableName(key as DungeonVariable) }}</span>
-                    <!-- 虚天殿·道路选择特殊展示：0=未选 / 1=冰道 / 2=火道 -->
-                    <span v-if="key === 'path_choice'" class="font-bold text-cyan-300">
-                      {{ getPathChoiceText(val as number) }}
-                    </span>
-                    <!-- 虚天主魂HP特殊展示：null=未进入第六幕 -->
-                    <span v-else-if="key === 'void_soul_hp'" class="font-bold" :class="val ? 'text-rose-300' : 'text-stone-500'">
-                      {{ val ? val : '未进入第六幕' }}
-                    </span>
-                    <!-- 通用数值展示 -->
-                    <span v-else class="font-bold" :class="getVariableValueClass(val as number)">{{ val }}</span>
-                  </div>
-                  <!-- 进度条：根据数值高低显示不同颜色（道路选择与未进入第六幕的虚天主魂HP不显示进度条） -->
-                  <div v-if="key !== 'path_choice' && !(key === 'void_soul_hp' && !val)" class="h-1.5 bg-stone-800 rounded-full overflow-hidden">
-                    <div class="h-full transition-all"
-                      :class="getVariableBarClass(Number(val))"
-                      :style="{ width: `${getVariablePercent(Number(val), key as DungeonVariable)}%` }"></div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <!-- 当前幕剧情 + 抉择 -->
-            <section v-if="statusData.instance.current_act_description" class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-amber-300 mb-2">第 {{ statusData.instance.current_act }} 幕 · 剧情推进</div>
-              <p class="text-[12px] text-stone-300 mb-3 whitespace-pre-line">{{ statusData.instance.current_act_description }}</p>
-
-              <!-- 昆吾山第三幕阵眼进度提示 -->
-              <div v-if="statusData.instance.multi_choice_progress" class="mb-3 p-2 bg-purple-950/30 border border-purple-800 rounded text-[11px] text-purple-300">
-                · 阵眼进度：{{ statusData.instance.multi_choice_progress.finished_count }} / {{ statusData.instance.multi_choice_progress.total_count }}
-                <span v-if="statusData.instance.multi_choice_progress.next_eye_name">
-                  · 下一阵眼：{{ statusData.instance.multi_choice_progress.next_eye_name }}
+              <!-- 冷却状态 -->
+              <div class="text-[11px] mb-3">
+                <span class="text-fg-faint">当前：</span>
+                <span v-if="cooldownOf(dungeonKey)?.in_cooldown" class="text-rose-400">
+                  冷却中{{ cooldownLeftText(dungeonKey) ? `（剩余 ${cooldownLeftText(dungeonKey)}）` : '（剩余时间未知）' }}
                 </span>
+                <span v-else class="text-emerald-300">可开启</span>
               </div>
-
-              <!-- 抉择选项（仅队长可推进） -->
-              <div v-if="statusData.instance.current_choices && statusData.instance.current_choices.length">
-                <div class="text-[11px] text-stone-500 mb-2">
-                  · {{ statusData.instance.is_leader ? '请队长抉择推进剧情' : '等待队长抉择' }}
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <button v-for="choice in statusData.instance.current_choices" :key="choice.choice_key"
-                    @click="handleChoose(choice.choice_key)"
-                    :disabled="loading.action || !statusData.instance.is_leader"
-                    class="bg-stone-900/50 border border-stone-700 rounded p-2 text-left hover:border-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <div class="flex items-center justify-between mb-1">
-                      <span class="text-xs font-bold text-amber-300">{{ choice.name }}</span>
-                      <span v-if="choice.is_recommended" class="text-[9px] text-emerald-400">推荐</span>
-                    </div>
-                    <div v-if="choice.description" class="text-[10px] text-stone-400 mb-1">{{ choice.description }}</div>
-                    <!-- 变量变化预览 -->
-                    <div v-if="choice.variable_changes" class="flex flex-wrap gap-1 mt-1">
-                      <span v-for="(chg, vk) in choice.variable_changes" :key="vk"
-                        class="text-[9px] px-1 py-0.5 rounded"
-                        :class="(chg as number) >= 0 ? 'bg-emerald-950/60 text-emerald-300' : 'bg-rose-950/60 text-rose-300'">
-                        {{ getVariableName(vk as DungeonVariable) }} {{ (chg as number) >= 0 ? '+' : '' }}{{ chg }}
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <!-- 昆吾山第四幕 / 虚天殿第六幕 自动决战按钮 -->
-              <div v-else-if="statusData.instance.is_auto_advance" class="mt-2">
-                <div class="text-[11px] text-stone-500 mb-2">
-                  · 本幕为自动决战，{{ statusData.instance.is_leader ? `请队长确认后触发${statusData.instance.rounds_max || 5}回合战斗` : '等待队长触发决战' }}
-                </div>
-                <button v-if="statusData.instance.is_leader" @click="handleAdvance"
-                  :disabled="loading.action"
-                  class="w-full py-3 rounded text-sm font-bold bg-gradient-to-r from-rose-900 to-purple-900 border border-rose-600 text-amber-200 hover:from-rose-800 hover:to-purple-800 disabled:opacity-50 disabled:cursor-not-allowed">
-                  ⚔ {{ getAdvanceButtonText(statusData.instance.dungeon_key) }}（{{ statusData.instance.rounds_max || 5 }} 回合）
-                </button>
-                <div v-else class="text-center text-[11px] text-stone-500 py-2">
-                  · 仅队长可触发决战
-                </div>
-              </div>
-            </section>
-
-            <!-- 队长操作区 -->
-            <section v-if="statusData.instance.is_leader" class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-amber-300 mb-3">队长操作</div>
-              <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                <!-- 进入开打：仅在 forming 状态可用 -->
-                <button v-if="statusData.instance.status === 'forming'" @click="handleEnter"
-                  :disabled="loading.action"
-                  class="py-2 rounded text-xs font-bold bg-emerald-950/40 border border-emerald-800 text-emerald-300 hover:bg-emerald-900/40 disabled:opacity-50">
-                  进入开打
-                </button>
-                <!-- 解散副本 -->
-                <button @click="handleDissolve"
-                  :disabled="loading.action"
-                  class="py-2 rounded text-xs font-bold bg-rose-950/40 border border-rose-800 text-rose-300 hover:bg-rose-900/40 disabled:opacity-50">
-                  解散副本
-                </button>
-              </div>
-              <!-- 踢人操作 -->
-              <div class="mt-3 border-t border-stone-700 pt-3">
-                <div class="text-[11px] text-stone-500 mb-2">· 选择成员踢出副本</div>
-                <div class="flex items-center gap-2">
-                  <select v-model.number="kickTargetId"
-                    class="flex-1 bg-stone-900 border border-stone-700 rounded px-3 py-2 text-xs text-white focus:border-rose-500 focus:outline-none">
-                    <option value="">选择成员</option>
-                    <option v-for="m in kickableMembers(statusData.instance)" :key="m.player_id" :value="m.player_id">
-                      {{ m.player_name }}（ID: {{ m.player_id }}）
-                    </option>
-                  </select>
-                  <button @click="handleKick"
-                    :disabled="loading.action || !kickTargetId"
-                    class="px-4 py-2 rounded text-xs font-bold bg-rose-800 text-rose-100 hover:bg-rose-700 disabled:opacity-50">
-                    踢出
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            <!-- 队员操作区：端午投粽 -->
-            <section v-if="!statusData.instance.is_leader && statusData.instance.dungeon_key === 'duanwu' && statusData.instance.status === 'active'"
-              class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-purple-300 mb-3">端午投粽</div>
-              <div class="text-[11px] text-stone-400 mb-3">· 每次投粽 1-5 个，可提升封印稳定度</div>
-              <div class="flex items-center gap-2">
-                <input v-model.number="zongziCount" type="number" min="1" max="5" placeholder="1-5"
-                  class="flex-1 bg-stone-900 border border-stone-700 rounded px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none" />
-                <button @click="handleThrowZongzi"
-                  :disabled="loading.action || !zongziCount || zongziCount < 1 || zongziCount > 5"
-                  class="px-4 py-2 rounded text-xs font-bold bg-purple-700 text-purple-100 hover:bg-purple-600 disabled:opacity-50">
-                  投粽
-                </button>
-              </div>
-            </section>
-          </template>
-          <!-- 无副本空状态 -->
-          <div v-else class="text-center py-12 text-stone-500">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-3 opacity-40">
-              <path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/>
-            </svg>
-            <div class="text-sm">当前未参与任何副本</div>
-            <div class="text-[11px] mt-1">前往「副本大厅」开启或加入副本</div>
-          </div>
-        </div>
-
-        <!-- ============ Tab 3: 奖励池 ============ -->
-        <div v-show="activeTab === 'rewards'" class="space-y-3">
-          <!-- 子页签切换 -->
-          <div class="flex border-b border-stone-700 mb-2">
-            <button v-for="sub in rewardSubTabs" :key="sub.key"
-              @click="switchRewardSub(sub.key)"
-              class="px-3 py-1.5 text-[11px] font-medium transition-colors relative"
-              :class="rewardSubTab === sub.key ? 'text-amber-300' : 'text-stone-500 hover:text-stone-300'">
-              {{ sub.name }}
-              <div v-if="rewardSubTab === sub.key" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-400"></div>
-            </button>
-          </div>
-
-          <div v-if="loading.rewards" class="text-center py-6 text-stone-500 text-sm">加载奖励池中...</div>
-          <template v-else-if="rewardsData">
-            <!-- 普通掉落 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-stone-300 mb-2">普通掉落</div>
-              <div v-if="rewardsData.normal_rewards.length === 0" class="text-[11px] text-stone-500 text-center py-2">暂无</div>
-              <table v-else class="w-full text-[11px]">
-                <thead>
-                  <tr class="text-stone-500 border-b border-stone-700">
-                    <th class="text-left py-1">名称</th>
-                    <th class="text-left py-1">描述</th>
-                    <th class="text-right py-1">数量/概率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="r in rewardsData.normal_rewards" :key="r.reward_key" class="border-b border-stone-800">
-                    <td class="py-1 text-amber-300">{{ r.name }}</td>
-                    <td class="py-1 text-stone-400">{{ r.description || '-' }}</td>
-                    <td class="py-1 text-right text-stone-200">{{ r.amount ?? '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-            <!-- 首通奖励 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-purple-300 mb-2">首通奖励</div>
-              <div v-if="rewardsData.first_clear_rewards.length === 0" class="text-[11px] text-stone-500 text-center py-2">暂无</div>
-              <table v-else class="w-full text-[11px]">
-                <thead>
-                  <tr class="text-stone-500 border-b border-stone-700">
-                    <th class="text-left py-1">名称</th>
-                    <th class="text-left py-1">描述</th>
-                    <th class="text-right py-1">数量</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="r in rewardsData.first_clear_rewards" :key="r.reward_key" class="border-b border-stone-800">
-                    <td class="py-1 text-purple-300">{{ r.name }}</td>
-                    <td class="py-1 text-stone-400">{{ r.description || '-' }}</td>
-                    <td class="py-1 text-right text-stone-200">{{ r.amount ?? '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-            <!-- 稀有掉落 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-rose-300 mb-2">稀有掉落</div>
-              <div v-if="rewardsData.rare_rewards.length === 0" class="text-[11px] text-stone-500 text-center py-2">暂无</div>
-              <table v-else class="w-full text-[11px]">
-                <thead>
-                  <tr class="text-stone-500 border-b border-stone-700">
-                    <th class="text-left py-1">名称</th>
-                    <th class="text-left py-1">描述</th>
-                    <th class="text-right py-1">数量/概率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="r in rewardsData.rare_rewards" :key="r.reward_key" class="border-b border-stone-800">
-                    <td class="py-1 text-rose-300">{{ r.name }}</td>
-                    <td class="py-1 text-stone-400">{{ r.description || '-' }}</td>
-                    <td class="py-1 text-right text-stone-200">{{ r.amount ?? '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无奖励数据</div>
-        </div>
-
-        <!-- ============ Tab 4: 历史记录 ============ -->
-        <div v-show="activeTab === 'history'" class="space-y-3">
-          <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-            <div class="flex items-center justify-between mb-3">
-              <div class="text-sm font-bold text-amber-300">副本历史</div>
-              <div class="flex items-center gap-2 text-xs">
-                <button @click="changeHistoryPage(historyData.page - 1)"
-                  :disabled="loading.history || historyData.page <= 1"
-                  class="px-2 py-1 text-xs bg-stone-800 rounded disabled:opacity-50 hover:bg-stone-700">上一页</button>
-                <span class="text-stone-400">{{ historyData.page }} / {{ historyData.total_pages || 1 }}</span>
-                <button @click="changeHistoryPage(historyData.page + 1)"
-                  :disabled="loading.history || historyData.page >= historyData.total_pages"
-                  class="px-2 py-1 text-xs bg-stone-800 rounded disabled:opacity-50 hover:bg-stone-700">下一页</button>
-              </div>
-            </div>
-            <div v-if="loading.history" class="text-center py-3 text-stone-500 text-xs">加载历史记录中...</div>
-            <div v-else-if="historyData.list.length === 0" class="text-center py-6 text-stone-500 text-xs">
-              暂无历史记录
-            </div>
-            <div v-else class="space-y-1 max-h-96 overflow-y-auto">
-              <div v-for="rec in historyData.list" :key="rec.id"
-                class="bg-stone-900/40 border border-stone-800 rounded p-2 text-[11px]">
-                <div class="flex items-center justify-between mb-1">
-                  <div class="flex items-center gap-2">
-                    <span class="text-amber-300 font-bold">{{ rec.dungeon_name }}</span>
-                    <span v-if="rec.is_first_clear" class="text-[9px] px-1 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-800">首通</span>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded" :class="getResultBadgeClass(rec.result)">
-                      {{ getResultName(rec.result) }}
-                    </span>
-                  </div>
-                  <span class="text-stone-500">{{ formatTimeString(rec.finished_at) }}</span>
-                </div>
-                <div class="text-stone-400">
-                  · 进度：第 {{ rec.reached_act || 0 }} 幕<span v-if="rec.total_acts"> / {{ rec.total_acts }} 幕</span>
-                </div>
-                <div v-if="rec.rewards && rec.rewards.length" class="text-stone-400 mt-1">
-                  · 奖励：
-                  <span v-for="(rw, idx) in rec.rewards" :key="idx" class="text-emerald-300">
-                    {{ rw.name }}<span v-if="rw.amount"> ×{{ rw.amount }}</span><span v-if="idx < rec.rewards!.length - 1">、</span>
-                  </span>
-                </div>
-              </div>
-            </div>
+              <!-- 操作按钮：队长开启副本 -->
+              <AppButton
+                size="sm"
+                variant="primary"
+                block
+                :disabled="loading.action || (cooldownOf(dungeonKey)?.in_cooldown ?? false)"
+                @click="handleCreate(dungeonKey)"
+              >
+                开启副本
+              </AppButton>
+            </PanelCard>
           </section>
-        </div>
+
+          <!-- 队员加入入口 -->
+          <PanelCard title="加入他人副本" hint="输入队长分享的实例 ID，即可加入对应副本">
+            <div class="flex items-center gap-2">
+              <input v-model.number="joinInstanceId" type="number" min="1" placeholder="实例 ID"
+                class="flex-1 min-w-0 bg-surface-sunken border border-line rounded-control px-3 py-2 text-xs text-fg-primary focus:border-gold-500 focus:outline-none" />
+              <AppButton
+                size="sm"
+                variant="primary"
+                :disabled="loading.action || !joinInstanceId"
+                @click="handleJoin"
+              >
+                加入副本
+              </AppButton>
+            </div>
+          </PanelCard>
+        </template>
+        <EmptyState v-else text="暂无副本数据" hint="稍后重新进入「副本大厅」，或点击刷新重试" />
+      </div>
+
+      <!-- ============ Tab 2: 我的副本 ============ -->
+      <div v-show="activeTab === 'mine'" class="space-y-3">
+        <LoadingBlock v-if="loading.mine" text="加载副本进度中…" />
+        <!-- /status 的 has_instance 为 false 时后端不下发 instance，直接按 instance 判空 -->
+        <template v-else-if="instance">
+          <PanelCard :padded="true">
+            <!-- 实例信息头 -->
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="text-sm font-bold text-gold-300">{{ instance.dungeon_name }}</div>
+                <div class="text-[10px] text-fg-faint">实例 ID：{{ instance.id }}</div>
+              </div>
+              <Badge :tone="getStatusTone(instance.instance_state)">
+                {{ getStatusName(instance.instance_state) }}
+              </Badge>
+            </div>
+            <!-- 当前幕数 -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-3">
+              <div>
+                <div class="text-fg-faint">当前幕数</div>
+                <div class="text-gold-300 font-bold">
+                  第 {{ instance.current_act }} 幕
+                  <span v-if="totalActs !== null"> / {{ totalActs }} 幕</span>
+                  <span v-else class="text-fg-faint"> / 总幕数未知</span>
+                </div>
+              </div>
+              <div>
+                <div class="text-fg-faint">队长</div>
+                <div v-if="leaderName !== null" class="text-fg-primary font-bold truncate">{{ leaderName }}</div>
+                <div v-else class="text-fg-faint">未知</div>
+              </div>
+              <div>
+                <div class="text-fg-faint">成员数</div>
+                <div class="text-fg-primary font-bold">{{ members.length }} / {{ instance.member_max }} 人</div>
+              </div>
+              <div>
+                <div class="text-fg-faint">我的身份</div>
+                <div v-if="instance.is_leader" class="text-gold-300 font-bold">队长</div>
+                <div v-else class="text-purple-300 font-bold">队员</div>
+              </div>
+            </div>
+            <!-- 成员列表：/status 的 members 在 data 顶层，字段为 nickname/role/realm -->
+            <div class="bg-surface-sunken border border-line-subtle rounded-control p-2 mb-3">
+              <div class="text-[11px] text-fg-faint mb-1">成员列表</div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-1">
+                <div v-for="m in members" :key="m.player_id"
+                  class="text-[11px] flex items-center gap-1 min-w-0">
+                  <span class="truncate" :class="m.role === 'leader' ? 'text-gold-300' : 'text-fg-secondary'">
+                    {{ m.nickname || `#${m.player_id}` }}
+                  </span>
+                  <span v-if="m.role === 'leader'" class="text-[9px] text-gold-500 shrink-0">[队长]</span>
+                  <span v-if="m.realm" class="text-[9px] text-fg-faint shrink-0">[{{ m.realm }}]</span>
+                </div>
+              </div>
+            </div>
+          </PanelCard>
+
+          <!-- 副本变量（进度条）：/status 的 variables 挂在 data 顶层，本面板只渲染已知且非 null 的变量 -->
+          <PanelCard v-if="visibleVariables.length" title="副本变量">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div v-for="v in visibleVariables" :key="v.key" class="text-xs">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <span class="text-fg-muted truncate">{{ v.label }}</span>
+                  <!-- 虚天殿·道路选择特殊展示：0=未选 / 1=冰道 / 2=火道 -->
+                  <span v-if="v.key === 'path_choice'" class="font-bold text-cyan-300 shrink-0">
+                    {{ getPathChoiceText(Number(v.value)) }}
+                  </span>
+                  <!-- 通用数值展示：HP 一类的大数压缩显示，精确值放 title -->
+                  <span v-else class="font-bold num shrink-0"
+                    :class="getVariableValueClass(getVariablePercent(Number(v.value), v.key))"
+                    :title="String(v.value)">{{ formatCompact(Number(v.value)) }}</span>
+                </div>
+                <!-- 进度条：根据数值高低显示不同颜色（道路选择不显示进度条） -->
+                <StatBar
+                  v-if="v.key !== 'path_choice'"
+                  :value="getVariablePercent(Number(v.value), v.key)"
+                  :max="100"
+                  :tone="getVariableTone(getVariablePercent(Number(v.value), v.key))"
+                  :show-value="false"
+                />
+              </div>
+            </div>
+          </PanelCard>
+
+          <!-- 当前幕剧情 + 抉择：幕信息挂在 data.current_act，抉择挂在 data.current_act.choices -->
+          <PanelCard v-if="currentAct" :title="`第 ${instance.current_act} 幕 · ${currentAct.act_name || '剧情推进'}`">
+            <p v-if="currentAct.description" class="text-[12px] text-fg-secondary mb-3 whitespace-pre-line leading-relaxed">{{ currentAct.description }}</p>
+
+            <!-- 昆吾山第三幕阵眼进度提示 -->
+            <div v-if="currentAct.multi_choice_progress" class="mb-3 p-2 bg-surface-tint-arcane border border-purple-800 rounded-control text-[11px] text-purple-300">
+              · 阵眼进度：{{ currentAct.multi_choice_progress.finished_count }} / {{ currentAct.multi_choice_progress.total_count }}
+              <span v-if="currentAct.multi_choice_progress.next_eye_name">
+                · 下一阵眼：{{ currentAct.multi_choice_progress.next_eye_name }}
+              </span>
+            </div>
+
+            <!-- 抉择选项（仅队长可推进）：选项字段为 key / text / desc -->
+            <div v-if="currentAct.choices && currentAct.choices.length">
+              <div class="text-[11px] text-fg-faint mb-2">
+                · {{ instance.is_leader ? '请队长抉择推进剧情' : '等待队长抉择' }}
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <button v-for="choice in currentAct.choices" :key="choice.key"
+                  @click="handleChoose(choice.key)"
+                  :disabled="loading.action || !instance.is_leader"
+                  class="bg-surface-sunken border border-line rounded-control p-2 text-left hover:border-gold-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <div class="text-xs font-bold text-gold-300 mb-1">{{ choice.text }}</div>
+                  <div v-if="choice.desc" class="text-[10px] text-fg-muted">{{ choice.desc }}</div>
+                </button>
+              </div>
+            </div>
+
+            <!-- 自动决战幕（昆吾山第四幕 / 虚天殿第六幕等）：由队长调用 /advance 一次性结算 -->
+            <div v-else-if="currentAct.is_auto_advance" class="mt-2">
+              <div class="text-[11px] text-fg-faint mb-2">
+                · 本幕为自动决战，{{ instance.is_leader ? '请队长确认后触发战斗' : '等待队长触发决战' }}
+              </div>
+              <button v-if="instance.is_leader" @click="handleAdvance"
+                :disabled="loading.action"
+                class="w-full py-3 rounded-control text-sm font-bold bg-gradient-to-r from-rose-900 to-purple-900 border border-rose-600 text-gold-200 hover:from-rose-800 hover:to-purple-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                ⚔ {{ getAdvanceButtonText(currentAct) }}
+              </button>
+              <div v-else class="text-center text-[11px] text-fg-faint py-2">
+                · 仅队长可触发决战
+              </div>
+            </div>
+          </PanelCard>
+
+          <!-- 队长操作区 -->
+          <PanelCard v-if="instance.is_leader" title="队长操作">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <!-- 进入开打：后端仅允许 preparing 状态进入 -->
+              <button v-if="instance.instance_state === 'preparing'" @click="handleEnter"
+                :disabled="loading.action"
+                class="py-2 rounded-control text-xs font-bold bg-emerald-950/40 border border-emerald-800 text-emerald-300 hover:bg-emerald-900/40 disabled:opacity-50">
+                进入开打
+              </button>
+              <!-- 解散副本 -->
+              <AppButton size="sm" variant="danger" :disabled="loading.action" @click="handleDissolve">
+                解散副本
+              </AppButton>
+            </div>
+            <!-- 踢人操作：后端仅允许 preparing 状态踢人 -->
+            <div v-if="instance.instance_state === 'preparing'" class="mt-3 border-t border-line pt-3">
+              <div class="text-[11px] text-fg-faint mb-2">· 选择成员踢出副本</div>
+              <div class="flex items-center gap-2">
+                <select v-model.number="kickTargetId"
+                  class="flex-1 min-w-0 bg-surface-sunken border border-line rounded-control px-3 py-2 text-xs text-fg-primary focus:border-rose-500 focus:outline-none">
+                  <option value="">选择成员</option>
+                  <option v-for="m in kickableMembers(members)" :key="m.player_id" :value="m.player_id">
+                    {{ m.nickname || `#${m.player_id}` }}（ID: {{ m.player_id }}）
+                  </option>
+                </select>
+                <AppButton size="sm" variant="danger" :disabled="loading.action || !kickTargetId" @click="handleKick">
+                  踢出
+                </AppButton>
+              </div>
+            </div>
+          </PanelCard>
+
+          <!-- 端午投粽：后端只接受 preparing 状态的端午副本，队长与队员皆可投 -->
+          <PanelCard v-if="instance.dungeon_key === 'duanwu' && instance.instance_state === 'preparing'"
+            title="端午投粽" hint="每次投 1-5 个美味肉粽，计入个人与全队投粽数；开打时全队未投将触发空舟惩罚">
+            <div class="flex items-center gap-2">
+              <input v-model.number="zongziCount" type="number" min="1" max="5" placeholder="1-5"
+                class="flex-1 min-w-0 bg-surface-sunken border border-line rounded-control px-3 py-2 text-xs text-fg-primary focus:border-purple-500 focus:outline-none" />
+              <button @click="handleThrowZongzi"
+                :disabled="loading.action || !zongziCount || zongziCount < 1 || zongziCount > 5"
+                class="px-4 py-2 rounded-control text-xs font-bold bg-purple-700 text-purple-100 hover:bg-purple-600 disabled:opacity-50">
+                投粽
+              </button>
+            </div>
+          </PanelCard>
+        </template>
+        <!-- 无副本空状态 -->
+        <EmptyState v-else text="当前未参与任何副本" hint="前往「副本大厅」开启或加入副本" />
+      </div>
+
+      <!-- ============ Tab 3: 奖励池 ============ -->
+      <div v-show="activeTab === 'rewards'" class="space-y-3">
+        <!-- 子页签切换：每个副本一份奖励表 -->
+        <Tabs
+          :model-value="rewardSubTab"
+          :items="rewardSubTabs"
+          class="mb-2"
+          @update:model-value="switchRewardSub"
+        />
+
+        <LoadingBlock v-if="loading.rewards" text="加载奖励池中…" />
+        <template v-else-if="rewardsData">
+          <!-- 普通掉落 -->
+          <PanelCard title="普通掉落">
+            <div v-if="rewardsData.normal_rewards.length === 0" class="text-[11px] text-fg-faint text-center py-2">暂无</div>
+            <table v-else class="w-full text-[11px]">
+              <thead>
+                <tr class="text-fg-faint border-b border-line">
+                  <th class="text-left py-1">名称</th>
+                  <th class="text-left py-1">描述</th>
+                  <th class="text-right py-1">数量/概率</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in rewardsData.normal_rewards" :key="r.reward_key" class="border-b border-line-subtle">
+                  <td class="py-1 text-gold-300">{{ r.name }}</td>
+                  <td class="py-1 text-fg-muted">{{ r.description || '-' }}</td>
+                  <td class="py-1 text-right text-fg-primary">{{ r.amount ?? '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </PanelCard>
+          <!-- 首通奖励 -->
+          <PanelCard title="首通奖励">
+            <div v-if="rewardsData.first_clear_rewards.length === 0" class="text-[11px] text-fg-faint text-center py-2">暂无</div>
+            <table v-else class="w-full text-[11px]">
+              <thead>
+                <tr class="text-fg-faint border-b border-line">
+                  <th class="text-left py-1">名称</th>
+                  <th class="text-left py-1">描述</th>
+                  <th class="text-right py-1">数量</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in rewardsData.first_clear_rewards" :key="r.reward_key" class="border-b border-line-subtle">
+                  <td class="py-1 text-purple-300">{{ r.name }}</td>
+                  <td class="py-1 text-fg-muted">{{ r.description || '-' }}</td>
+                  <td class="py-1 text-right text-fg-primary">{{ r.amount ?? '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </PanelCard>
+          <!-- 稀有掉落 -->
+          <PanelCard title="稀有掉落">
+            <div v-if="rewardsData.rare_rewards.length === 0" class="text-[11px] text-fg-faint text-center py-2">暂无</div>
+            <table v-else class="w-full text-[11px]">
+              <thead>
+                <tr class="text-fg-faint border-b border-line">
+                  <th class="text-left py-1">名称</th>
+                  <th class="text-left py-1">描述</th>
+                  <th class="text-right py-1">数量/概率</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in rewardsData.rare_rewards" :key="r.reward_key" class="border-b border-line-subtle">
+                  <td class="py-1 text-rose-300">{{ r.name }}</td>
+                  <td class="py-1 text-fg-muted">{{ r.description || '-' }}</td>
+                  <td class="py-1 text-right text-fg-primary">{{ r.amount ?? '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </PanelCard>
+        </template>
+        <EmptyState v-else text="暂无奖励数据" />
+      </div>
+
+      <!-- ============ Tab 4: 历史记录 ============ -->
+      <div v-show="activeTab === 'history'" class="space-y-3">
+        <PanelCard :padded="true">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <div class="text-sm font-bold text-gold-300">副本历史</div>
+            <div class="flex items-center gap-2 text-xs">
+              <AppButton
+                size="xs"
+                :disabled="loading.history || historyData.page <= 1"
+                @click="changeHistoryPage(historyData.page - 1)"
+              >上一页</AppButton>
+              <span class="text-fg-muted num">{{ historyData.page }} / {{ historyTotalPages }}</span>
+              <AppButton
+                size="xs"
+                :disabled="loading.history || historyData.page >= historyTotalPages"
+                @click="changeHistoryPage(historyData.page + 1)"
+              >下一页</AppButton>
+            </div>
+          </div>
+          <LoadingBlock v-if="loading.history" text="加载历史记录中…" />
+          <EmptyState v-else-if="historyData.records.length === 0" text="暂无历史记录" hint="参与一场多人副本后在此回看结果与幕数" />
+          <div v-else class="space-y-1 max-h-96 overflow-y-auto scroll-thin">
+            <div v-for="rec in historyData.records" :key="`${rec.instance_id}-${rec.join_time}`"
+              class="bg-surface-sunken border border-line-subtle rounded-control p-2 text-[11px]">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-gold-300 font-bold truncate">{{ rec.dungeon_name }}</span>
+                  <Badge v-if="rec.first_clear" tone="arcane">首通</Badge>
+                  <Badge :tone="getStatusTone(rec.instance_state)">{{ getStatusName(rec.instance_state) }}</Badge>
+                </div>
+                <span class="text-fg-faint num shrink-0" :title="historyTime(rec) || ''">{{ formatTimeString(historyTime(rec)) }}</span>
+              </div>
+              <div class="text-fg-muted">
+                · 进度：第 {{ rec.current_act }} 幕<span v-if="actCountOf(rec.dungeon_key) !== null"> / {{ actCountOf(rec.dungeon_key) }} 幕</span>
+              </div>
+              <div class="text-fg-muted">
+                · 身份：{{ rec.role === 'leader' ? '队长' : '队员' }}
+                <span v-if="rec.contribution !== null"> · 贡献 {{ rec.contribution }}</span>
+              </div>
+            </div>
+          </div>
+        </PanelCard>
       </div>
     </div>
 
     <!-- 二次确认弹窗（通用） -->
     <Modal :isOpen="confirmModal.show" :title="confirmModal.title" @close="confirmModal.show = false" width="420px">
-      <p class="text-stone-300 text-sm whitespace-pre-line">{{ confirmModal.message }}</p>
+      <p class="text-fg-secondary text-sm whitespace-pre-line">{{ confirmModal.message }}</p>
       <template #footer>
-        <button @click="confirmModal.show = false"
-          class="px-4 py-2 text-xs rounded bg-stone-800 text-stone-300 hover:bg-stone-700">取消</button>
-        <button @click="confirmModal.onConfirm(); confirmModal.show = false"
+        <AppButton size="sm" variant="ghost" @click="confirmModal.show = false">取消</AppButton>
+        <AppButton
+          size="sm"
+          variant="primary"
           :disabled="loading.action"
-          class="px-4 py-2 text-xs rounded bg-amber-700 text-amber-100 hover:bg-amber-600 disabled:opacity-50">
+          @click="confirmModal.onConfirm(); confirmModal.show = false"
+        >
           确认
-        </button>
+        </AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup lang="ts">
@@ -480,9 +450,18 @@
  * 多人副本综合面板脚本
  * 4 Tab 共享一个面板，按需懒加载对应子模块数据
  */
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import Modal from '../common/Modal.vue';
+import PanelShell from '../ui/PanelShell.vue';
+import Tabs from '../ui/Tabs.vue';
+import PanelCard from '../ui/PanelCard.vue';
+import Badge from '../ui/Badge.vue';
+import AppButton from '../ui/AppButton.vue';
+import StatBar from '../ui/StatBar.vue';
+import LoadingBlock from '../ui/LoadingBlock.vue';
+import EmptyState from '../ui/EmptyState.vue';
 import { useUIStore } from '../../stores/ui';
+import { formatCompact } from '../../utils/format';
 import {
   multiDungeonGetHelp,
   multiDungeonCreate,
@@ -497,38 +476,185 @@ import {
   multiDungeonGetRewards,
   multiDungeonGetHistory,
   multiDungeonGetCooldown,
-  type DungeonKey,
-  type DungeonVariable,
-  type MultiDungeonHelpData,
-  type MultiDungeonStatusData,
-  type MultiDungeonRewardsData,
-  type MultiDungeonHistoryData,
-  type MultiDungeonCooldown,
-  type MultiDungeonInstance,
-  type MultiDungeonMember
+  type DungeonKey
 } from '../../api/multiDungeon';
+
+/**
+ * 本面板用到的服务端契约（键名逐字对齐 MultiDungeonService 的返回）
+ *
+ * client/src/api/multiDungeon.ts 的类型声明已与后端脱节（/help 的 dungeons 是以
+ * dungeon_key 为键的对象、/status 的抉择挂在 data.current_act.choices、成员挂在
+ * data.members），按那份声明取值会读到 undefined，故在此重述真实结构。
+ * 状态机取值见 models/multiDungeonInstance.js：preparing/active/cleared/failed/dissolved。
+ */
+
+/** 抉择项：current_act.choices 与阵眼 next_eye_choices 同构 */
+interface MChoice {
+  key: string;
+  text: string;
+  desc: string;
+}
+
+/** GET /help → data.dungeons[dungeon_key] */
+interface MDungeonHelp {
+  name: string;
+  desc: string;
+  member_min: number;
+  member_max: number;
+  leader_min_realm: string;
+  leader_min_realm_rank: number;
+  member_min_realm: string;
+  member_min_realm_rank: number;
+  consume_item_key: string | null;
+  consume_item_count: number | null;
+  cooldown_hours: number;
+  expire_hours: number;
+  act_count: number;
+  has_empty_boat_penalty: boolean;
+  rewards_summary: string;
+}
+
+/** GET /help → data */
+interface MHelpData {
+  dungeons: Record<string, MDungeonHelp>;
+  state_machine?: Record<string, { next_states?: string[]; description?: string }>;
+  global_bounds?: Record<string, unknown>;
+}
+
+/** GET /status → data.current_act（currentAct.multi_choice_progress 仅阵眼幕非空） */
+interface MCurrentAct {
+  act_number: number;
+  act_name: string;
+  description: string;
+  is_final_act: boolean;
+  is_random_choice: boolean;
+  is_multi_choice_act: boolean;
+  is_auto_advance: boolean;
+  rounds_max: number | null;
+  choices: MChoice[];
+  escape_choices: unknown[];
+  multi_choice_progress: {
+    finished_count: number;
+    total_count: number;
+    next_eye_key: string | null;
+    next_eye_name: string | null;
+    next_eye_choices: MChoice[];
+  } | null;
+}
+
+/** GET /status → data.instance（注意：这里的 current_act 是幕号） */
+interface MInstanceSummary {
+  id: number;
+  dungeon_key: string;
+  dungeon_name: string;
+  instance_state: string;
+  current_act: number;
+  current_act_state: string;
+  member_count: number;
+  member_max: number;
+  member_min: number;
+  expire_at: string | null;
+  started_at: string | null;
+  is_leader: boolean;
+  role: string;
+}
+
+/** GET /status → data.members[] */
+interface MMember {
+  player_id: number;
+  nickname: string | null;
+  realm: string | null;
+  role: string;
+  contribution: number;
+  zongzi_invested: number;
+  is_ready: boolean;
+}
+
+/** GET /status → data（HP 类变量后端返回字符串，未进入对应幕时为 null） */
+interface MStatusData {
+  has_instance: boolean;
+  message?: string;
+  instance?: MInstanceSummary;
+  variables?: Record<string, number | string | null>;
+  current_act?: MCurrentAct | null;
+  members?: MMember[];
+  history_choices?: unknown[];
+}
+
+/** GET /rewards → data */
+interface MRewardEntry {
+  reward_key: string;
+  name: string;
+  description: string;
+  amount: string;
+  type: string;
+}
+interface MRewardsData {
+  dungeon_key: string;
+  dungeon_name: string;
+  normal_rewards: MRewardEntry[];
+  first_clear_rewards: MRewardEntry[];
+  rare_rewards: MRewardEntry[];
+  rewards?: Record<string, unknown>;
+}
+
+/** GET /history → data.records[]（含进行中与已结束） */
+interface MHistoryRecord {
+  instance_id: number;
+  dungeon_key: string;
+  dungeon_name: string;
+  role: string;
+  instance_state: string;
+  current_act: number;
+  first_clear: boolean;
+  contribution: number | null;
+  zongzi_invested: number;
+  started_at: string | null;
+  cleared_at: string | null;
+  dissolved_at: string | null;
+  join_time: string | null;
+}
+interface MHistoryData {
+  records: MHistoryRecord[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+/** GET /cooldown → data.cooldowns[dungeon_key]（冷却中才带 remaining_ms） */
+interface MCooldownEntry {
+  dungeon_key: string;
+  in_cooldown: boolean;
+  cooldown_end_time?: string;
+  cooldown_hours?: number;
+  reason?: string;
+  remaining_ms?: number;
+}
+
+/** 副本终态：进入即由后端给全员铺冷却（见 MultiDungeonService.TERMINAL_STATES） */
+const FINISHED_STATES = ['cleared', 'failed', 'dissolved'];
 
 const uiStore = useUIStore();
 
-/** Tab 配置 */
+/** Tab 配置（key/label 契约见 ui/Tabs.vue） */
 const tabs = [
-  { id: 'hall', name: '副本大厅' },
-  { id: 'mine', name: '我的副本' },
-  { id: 'rewards', name: '奖励池' },
-  { id: 'history', name: '历史记录' }
+  { key: 'hall', label: '副本大厅' },
+  { key: 'mine', label: '我的副本' },
+  { key: 'rewards', label: '奖励池' },
+  { key: 'history', label: '历史记录' }
 ];
 /** 当前激活 Tab */
 const activeTab = ref('hall');
 /** 已加载过的 Tab 集合，避免重复请求 */
 const loadedTabs = reactive<Set<string>>(new Set());
 
-/** 奖励池子页签配置 */
+/** 奖励池子页签配置（key/label 契约见 ui/Tabs.vue） */
 // 2026-07-21 新增 xutian（虚天殿）
 const rewardSubTabs = [
-  { key: 'yanyue' as DungeonKey, name: '掩月抢亲' },
-  { key: 'duanwu' as DungeonKey, name: '端午镇蛟' },
-  { key: 'kunwu' as DungeonKey, name: '昆吾山·封魔塔' },
-  { key: 'xutian' as DungeonKey, name: '虚天殿' }
+  { key: 'yanyue' as DungeonKey, label: '掩月抢亲' },
+  { key: 'duanwu' as DungeonKey, label: '端午镇蛟' },
+  { key: 'kunwu' as DungeonKey, label: '昆吾山·封魔塔' },
+  { key: 'xutian' as DungeonKey, label: '虚天殿' }
 ];
 /** 奖励池当前子页签 */
 const rewardSubTab = ref<DungeonKey>('yanyue');
@@ -543,12 +669,12 @@ const loading = reactive({
 });
 
 /** 各模块数据 */
-const helpData = ref<MultiDungeonHelpData | null>(null);
-const statusData = ref<MultiDungeonStatusData | null>(null);
-const rewardsData = ref<MultiDungeonRewardsData | null>(null);
-const cooldownList = ref<MultiDungeonCooldown[]>([]);
-const historyData = reactive<MultiDungeonHistoryData>({
-  list: [], total: 0, page: 1, page_size: 20, total_pages: 0
+const helpData = ref<MHelpData | null>(null);
+const statusData = ref<MStatusData | null>(null);
+const rewardsData = ref<MRewardsData | null>(null);
+const cooldownList = ref<MCooldownEntry[]>([]);
+const historyData = reactive<MHistoryData>({
+  records: [], total: 0, page: 1, size: 20
 });
 
 /** 输入框绑定值 */
@@ -571,6 +697,105 @@ onMounted(async () => {
   await Promise.all([loadHall(), loadCooldown()]);
   loadedTabs.add('hall');
 });
+
+// ============ 视图派生数据（后端没给的就是 null，界面显示「未知」） ============
+
+/** /status 的三个挂载点：实例概要、成员、当前幕（无副本时全为空） */
+const instance = computed<MInstanceSummary | null>(() => statusData.value?.instance ?? null);
+const members = computed<MMember[]>(() => statusData.value?.members ?? []);
+const currentAct = computed<MCurrentAct | null>(() => statusData.value?.current_act ?? null);
+
+/** 队长道号：/status 只在 members 里给出 role=leader 的成员 */
+const leaderName = computed<string | null>(() => {
+  const leader = members.value.find(m => m.role === 'leader');
+  return leader?.nickname || (leader ? `#${leader.player_id}` : null);
+});
+
+/**
+ * 某个副本的总幕数：/status 不返回，取自 /help 的 act_count
+ * @param key 副本 key
+ */
+function actCountOf(key: string | undefined | null): number | null {
+  if (!key) return null;
+  const n = helpData.value?.dungeons?.[key]?.act_count;
+  return typeof n === 'number' ? n : null;
+}
+/** 当前副本的总幕数 */
+const totalActs = computed(() => actCountOf(instance.value?.dungeon_key));
+
+/**
+ * 变量中文名字典：仅本面板已知的变量参与渲染，
+ * 后端新增变量在未补文案前整条不显示，避免印出裸键名。
+ */
+const VARIABLE_LABELS: Record<string, string> = {
+  morale: '士气',
+  vigilance: '警戒',
+  demon_corruption: '魔染',
+  seal_stability: '封印稳定度',
+  soul_stability: '神魂稳定度',
+  harvest_multiplier: '收获倍率',
+  // 昆吾山·封魔塔专属变量
+  demonic_qi: '魔气',
+  mountain_seal: '山禁',
+  treasure_pressure: '宝压/夺宝压力',
+  linglong: '玲珑',
+  seal_progress: '封印推进',
+  tower_shadow_hp: '塔心魔影HP',
+  // 虚天殿专属变量
+  path_choice: '道路选择',
+  formation_power: '阵法强度',
+  void_soul_hp: '虚天主魂HP'
+};
+/**
+ * 归属副本：后端 /status 会为所有副本返回全套变量（非本副本的是库表默认值），
+ * 这里按副本键过滤掉与当前副本无关的默认值，避免在掩月副本里印出「魔气 0」。
+ * 不在表内的六个变量（士气/警戒/魔染/封印/神魂/收获）为各副本共用，一律展示。
+ */
+const VARIABLE_OWNERS: Record<string, string[]> = {
+  demonic_qi: ['kunwu'],
+  mountain_seal: ['kunwu'],
+  treasure_pressure: ['kunwu', 'xutian'],
+  linglong: ['kunwu'],
+  seal_progress: ['kunwu'],
+  tower_shadow_hp: ['kunwu'],
+  path_choice: ['xutian'],
+  formation_power: ['xutian'],
+  void_soul_hp: ['xutian']
+};
+/** 当前可见变量：后端返回 null（未进入对应幕）或未知变量一律不显示 */
+const visibleVariables = computed<Array<{ key: string; label: string; value: number | string }>>(() => {
+  const vars = statusData.value?.variables;
+  const dungeonKey = instance.value?.dungeon_key;
+  if (!vars || !dungeonKey) return [];
+  const out: Array<{ key: string; label: string; value: number | string }> = [];
+  for (const [key, value] of Object.entries(vars)) {
+    if (value === null || value === undefined) continue;
+    const label = VARIABLE_LABELS[key];
+    if (!label) continue;
+    const owners = VARIABLE_OWNERS[key];
+    if (owners && !owners.includes(dungeonKey)) continue;
+    out.push({ key, label, value });
+  }
+  return out;
+});
+
+/** /help 的 state_machine：只渲染有中文文案的五个状态，其余键（超时配置等）忽略 */
+const stateFlow = computed<Array<{ key: string; label: string; desc: string }>>(() => {
+  const sm = helpData.value?.state_machine;
+  if (!sm) return [];
+  return ['preparing', 'active', 'cleared', 'failed', 'dissolved']
+    .filter(k => sm[k] && typeof sm[k].description === 'string')
+    .map(k => {
+      const raw = (sm[k]!.description as string).trim();
+      // 后端文案自带「准备中：」这类状态名前缀，和前端状态名撞车，只取说明部分
+      const cut = raw.indexOf('：');
+      return { key: k, label: getStatusName(k), desc: cut > 0 && cut <= 8 ? raw.slice(cut + 1).trim() : raw };
+    });
+});
+
+/** 历史总页数：后端只给 total + size，页数由前端推导 */
+const historyTotalPages = computed(() =>
+  Math.max(1, Math.ceil((historyData.total || 0) / (historyData.size || 20))));
 
 /**
  * Tab 切换：按需懒加载
@@ -597,13 +822,13 @@ async function switchRewardSub(subKey: DungeonKey) {
 
 // ============ 数据加载函数 ============
 
-/** 加载副本大厅（规则 + 副本列表） */
+/** 加载副本大厅（流程状态 + 副本列表） */
 async function loadHall() {
   loading.hall = true;
   try {
     const resp = await multiDungeonGetHelp();
     if (resp.data?.code === 200 && resp.data.data) {
-      helpData.value = resp.data.data;
+      helpData.value = resp.data.data as unknown as MHelpData;
     } else {
       uiStore.showToast(resp.data?.message || '获取副本大厅数据失败', 'error');
     }
@@ -619,7 +844,15 @@ async function loadCooldown() {
   try {
     const resp = await multiDungeonGetCooldown();
     if (resp.data?.code === 200 && resp.data.data) {
-      cooldownList.value = resp.data.data.cooldowns || [];
+      // 后端 MultiDungeonService.getCooldown 返回的是按副本 key 索引的对象
+      // （cooldowns.yanyue = { in_cooldown, ... }），而这里要的是带 dungeon_key
+      // 的数组（api 的类型声明也是数组）。直接赋值会让 cooldownOf() 里的
+      // .find 抛 "is not a function"，面板每次打开都白屏。
+      // 用 Array.isArray 而不是 || [] ：对象是 truthy，挡不住错误形态。
+      const raw = resp.data.data.cooldowns;
+      cooldownList.value = Array.isArray(raw)
+        ? raw
+        : Object.entries(raw || {}).map(([dungeon_key, v]) => ({ dungeon_key, ...(v as object) } as any));
     }
   } catch (e: any) {
     // 冷却状态加载失败不弹 toast，避免刷屏
@@ -631,8 +864,17 @@ async function loadCooldown() {
  * 获取指定副本的冷却信息
  * @param key 副本 key
  */
-function getCooldown(key: DungeonKey): MultiDungeonCooldown | undefined {
+function cooldownOf(key: string): MCooldownEntry | undefined {
   return cooldownList.value.find(c => c.dungeon_key === key);
+}
+
+/**
+ * 冷却剩余文案：后端给的是 remaining_ms（毫秒），缺失时返回 null 由界面显示未知
+ * @param key 副本 key
+ */
+function cooldownLeftText(key: string): string | null {
+  const ms = cooldownOf(key)?.remaining_ms;
+  return typeof ms === 'number' ? formatTime(Math.ceil(ms / 1000)) : null;
 }
 
 /** 加载我的副本进度 */
@@ -641,7 +883,7 @@ async function loadStatus() {
   try {
     const resp = await multiDungeonGetStatus();
     if (resp.data?.code === 200 && resp.data.data) {
-      statusData.value = resp.data.data;
+      statusData.value = resp.data.data as unknown as MStatusData;
     } else {
       uiStore.showToast(resp.data?.message || '获取副本进度失败', 'error');
     }
@@ -661,7 +903,7 @@ async function loadRewards(key: DungeonKey) {
   try {
     const resp = await multiDungeonGetRewards(key);
     if (resp.data?.code === 200 && resp.data.data) {
-      rewardsData.value = resp.data.data;
+      rewardsData.value = resp.data.data as unknown as MRewardsData;
     } else {
       uiStore.showToast(resp.data?.message || '获取奖励池失败', 'error');
     }
@@ -676,9 +918,13 @@ async function loadRewards(key: DungeonKey) {
 async function loadHistory() {
   loading.history = true;
   try {
-    const resp = await multiDungeonGetHistory(historyData.page, historyData.page_size);
+    const resp = await multiDungeonGetHistory(historyData.page, historyData.size);
     if (resp.data?.code === 200 && resp.data.data) {
-      Object.assign(historyData, resp.data.data);
+      const payload = resp.data.data as unknown as Partial<MHistoryData>;
+      historyData.records = Array.isArray(payload.records) ? payload.records : [];
+      historyData.total = payload.total ?? 0;
+      historyData.page = payload.page ?? 1;
+      historyData.size = payload.size ?? historyData.size;
     } else {
       uiStore.showToast(resp.data?.message || '获取历史记录失败', 'error');
     }
@@ -694,7 +940,7 @@ async function loadHistory() {
  * @param page 目标页码
  */
 async function changeHistoryPage(page: number) {
-  if (page < 1 || page > historyData.total_pages) return;
+  if (page < 1 || page > historyTotalPages.value) return;
   historyData.page = page;
   await loadHistory();
 }
@@ -702,25 +948,46 @@ async function changeHistoryPage(page: number) {
 // ============ 操作处理函数 ============
 
 /**
- * 队长开启副本
- * @param dungeonKey 副本 key
+ * 业务是否成功
+ * 后端路由把失败也包成 code:200，只靠 code 判成功会把「副本已满员」
+ * 这类失败弹成绿条，判别字段是 success（见 routes/multi_dungeon.js sendServiceResult）。
+ * @param resp axios 响应
  */
-function handleCreate(dungeonKey: DungeonKey) {
-  const dgn = helpData.value?.dungeons.find(d => d.dungeon_key === dungeonKey);
+function isBizOk(resp: { data?: { code?: number; success?: boolean } }): boolean {
+  return resp?.data?.code === 200 && resp.data.success !== false;
+}
+
+/**
+ * 取后端业务消息（失败时的原因文案）
+ * @param resp axios 响应
+ * @param fallback 后端没给文案时的兜底
+ */
+function bizMessage(resp: { data?: { message?: string } }, fallback: string): string {
+  return resp?.data?.message || fallback;
+}
+
+/**
+ * 队长开启副本
+ * @param dungeonKey 副本 key（来自 /help 的 dungeons 键名）
+ */
+function handleCreate(dungeonKey: string) {
+  // /help 的 dungeons 是以 dungeon_key 为键的对象，不是数组
+  const dgn = helpData.value?.dungeons?.[dungeonKey] as { name?: string } | undefined;
   showConfirm(
     '开启副本',
     `确认以队长身份开启「${dgn?.name || dungeonKey}」副本？\n· 需等待队员加入后由你「进入开打」\n· 解散前不可再开新副本`,
     async () => {
       loading.action = true;
       try {
-        const resp = await multiDungeonCreate(dungeonKey);
-        if (resp.data?.code === 200) {
-          uiStore.showToast(resp.data.message || '副本已开启', 'success');
+        const resp = await multiDungeonCreate(dungeonKey as DungeonKey);
+        if (isBizOk(resp)) {
+          uiStore.showToast(bizMessage(resp, '副本已开启'), 'success');
           // 切换到「我的副本」Tab 查看
           await switchTab('mine');
           await loadStatus();
+          await loadCooldown();
         } else {
-          uiStore.showToast(resp.data?.message || '开启失败', 'error');
+          uiStore.showToast(bizMessage(resp, '开启失败'), 'error');
         }
       } catch (e: any) {
         uiStore.showToast(e.message || '网络错误', 'error');
@@ -740,14 +1007,14 @@ async function handleJoin() {
   loading.action = true;
   try {
     const resp = await multiDungeonJoin(joinInstanceId.value);
-    if (resp.data?.code === 200) {
-      uiStore.showToast(resp.data.message || '加入成功', 'success');
+    if (isBizOk(resp)) {
+      uiStore.showToast(bizMessage(resp, '加入成功'), 'success');
       joinInstanceId.value = null;
       // 切换到「我的副本」Tab 查看
       await switchTab('mine');
       await loadStatus();
     } else {
-      uiStore.showToast(resp.data?.message || '加入失败', 'error');
+      uiStore.showToast(bizMessage(resp, '加入失败'), 'error');
     }
   } catch (e: any) {
     uiStore.showToast(e.message || '网络错误', 'error');
@@ -761,11 +1028,11 @@ async function handleEnter() {
   loading.action = true;
   try {
     const resp = await multiDungeonEnter();
-    if (resp.data?.code === 200) {
-      uiStore.showToast(resp.data.message || '已进入开打', 'success');
+    if (isBizOk(resp)) {
+      uiStore.showToast(bizMessage(resp, '已进入开打'), 'success');
       await loadStatus();
     } else {
-      uiStore.showToast(resp.data?.message || '进入失败', 'error');
+      uiStore.showToast(bizMessage(resp, '进入失败'), 'error');
     }
   } catch (e: any) {
     uiStore.showToast(e.message || '网络错误', 'error');
@@ -776,7 +1043,7 @@ async function handleEnter() {
 
 /**
  * 队长推进抉择
- * @param choiceKey 选项 key
+ * @param choiceKey 选项 key（current_act.choices[].key；阵眼幕后端也接受裸选项键）
  */
 async function handleChoose(choiceKey: string) {
   showConfirm(
@@ -786,15 +1053,16 @@ async function handleChoose(choiceKey: string) {
       loading.action = true;
       try {
         const resp = await multiDungeonChoose(choiceKey);
-        if (resp.data?.code === 200) {
-          uiStore.showToast(resp.data.message || '抉择已推进', 'success');
+        if (isBizOk(resp)) {
+          uiStore.showToast(bizMessage(resp, '抉择已推进'), 'success');
           await loadStatus();
-          // 副本结束时同步刷新冷却
-          if (resp.data.data?.is_finished) {
+          // 副本结束时同步刷新冷却：choose 的返回里没有 is_finished，终态看 instance_state
+          const state = (resp.data?.data as unknown as { instance_state?: string } | null)?.instance_state;
+          if (state && FINISHED_STATES.includes(state)) {
             await loadCooldown();
           }
         } else {
-          uiStore.showToast(resp.data?.message || '推进失败', 'error');
+          uiStore.showToast(bizMessage(resp, '推进失败'), 'error');
         }
       } catch (e: any) {
         uiStore.showToast(e.message || '网络错误', 'error');
@@ -806,34 +1074,30 @@ async function handleChoose(choiceKey: string) {
 }
 
 /**
- * 队长触发自动决战（昆吾山第四幕 / 虚天殿第六幕通用）
+ * 队长触发自动决战（昆吾山第四幕 / 虚天殿第六幕等 is_auto_advance 幕）
  * 一次性结算自动战斗，不可中途干预
- * - kunwu: 5 回合，每回合伤害 = 200000 + 玲珑值 × 2000
- * - xutian: 6 回合，每回合伤害 = 180000 + 阵法强度 × 2500
+ * 幕名、回合上限、结算说明全部取 /status 的 current_act，前端不再硬编码数值公式
  */
 function handleAdvance() {
-  // 根据副本键构造不同的确认提示
-  const dungeonKey = statusData.value?.instance?.dungeon_key;
-  const isXutian = dungeonKey === 'xutian';
-  const title = isXutian ? '虚天主魂·幻海归元' : '玲珑封魔塔决战';
-  const roundsMax = isXutian ? 6 : 5;
-  const damageFormula = isXutian
-    ? `每回合伤害 = 180000 + 阵法强度 × 2500`
-    : `每回合伤害 = 200000 + 玲珑值 × 2000`;
-  const clearCondition = isXutian
-    ? `6回合内削减虚天主魂HP（1500000）至0 即通关`
-    : `5回合内击杀塔心魔影（1000000）且封印推进≥80 即通关`;
+  const act = currentAct.value;
+  const title = act?.act_name || '自动决战';
+  const detail = [
+    `确认触发「${title}」？`,
+    `· 系统将自动结算本幕战斗${typeof act?.rounds_max === 'number' ? `（至多 ${act.rounds_max} 回合）` : ''}`,
+    '· 一次性结算，不可中途干预'
+  ];
+  if (act?.description) detail.push('', act.description);
 
   showConfirm(
     title,
-    `确认触发「${title}」？\n· 系统将自动进行${roundsMax}回合战斗\n· ${damageFormula}\n· ${clearCondition}\n· 操作不可撤销`,
+    detail.join('\n'),
     async () => {
       loading.action = true;
       try {
         const resp = await multiDungeonAdvance();
-        if (resp.data?.code === 200 && resp.data.data) {
+        if (isBizOk(resp) && resp.data.data) {
           const result = resp.data.data;
-          // 展示决战结果详情（昆吾山/虚天殿共用日志格式，字段差异由后端保证）
+          // 展示决战结果详情（各副本共用 rounds_log 骨架，回合伤害字段一致）
           const roundsLog = result.auto_battle?.rounds_log || [];
           let totalDamage = BigInt(0);
           try {
@@ -845,17 +1109,17 @@ function handleAdvance() {
             totalDamage = BigInt(roundsLog.reduce((sum, r) => sum + (parseInt(r.damage, 10) || 0), 0));
           }
           const detailMsg = roundsLog.length > 0
-            ? `\n\n战斗回合：${result.auto_battle.rounds_total}\n总伤害：${totalDamage.toString()}`
+            ? `\n\n战斗回合：${result.auto_battle.rounds_total}\n总伤害：${formatCompact(totalDamage)}`
             : '';
           uiStore.showToast(
-            (resp.data.message || '决战完成') + detailMsg,
+            bizMessage(resp, '决战完成') + detailMsg,
             result.instance_state === 'cleared' ? 'success' : 'error'
           );
           await loadStatus();
           // 副本结束同步刷新冷却
           await loadCooldown();
         } else {
-          uiStore.showToast(resp.data?.message || '决战失败', 'error');
+          uiStore.showToast(bizMessage(resp, '决战失败'), 'error');
         }
       } catch (e: any) {
         uiStore.showToast(e.message || '网络错误', 'error');
@@ -867,13 +1131,13 @@ function handleAdvance() {
 }
 
 /**
- * 获取自动决战按钮文案
- * @param dungeonKey 副本键
- * @returns 按钮文案（昆吾山=触发封魔决战 / 虚天殿=幻海归元决战）
+ * 获取自动决战按钮文案（幕名与回合上限取后端）
+ * @param act 当前幕
+ * @returns 按钮文案，如 触发「玲珑封魔塔决战」（5 回合）
  */
-function getAdvanceButtonText(dungeonKey: DungeonKey | undefined): string {
-  if (dungeonKey === 'xutian') return '触发虚天主魂决战';
-  return '触发封魔决战';
+function getAdvanceButtonText(act: MCurrentAct | null): string {
+  const base = act?.act_name ? `触发「${act.act_name}」` : '触发决战';
+  return typeof act?.rounds_max === 'number' ? `${base}（${act.rounds_max} 回合）` : base;
 }
 
 /**
@@ -899,12 +1163,12 @@ async function handleThrowZongzi() {
   loading.action = true;
   try {
     const resp = await multiDungeonThrowZongzi(zongziCount.value);
-    if (resp.data?.code === 200) {
-      uiStore.showToast(resp.data.message || '投粽成功', 'success');
+    if (isBizOk(resp)) {
+      uiStore.showToast(bizMessage(resp, '投粽成功'), 'success');
       zongziCount.value = null;
       await loadStatus();
     } else {
-      uiStore.showToast(resp.data?.message || '投粽失败', 'error');
+      uiStore.showToast(bizMessage(resp, '投粽失败'), 'error');
     }
   } catch (e: any) {
     uiStore.showToast(e.message || '网络错误', 'error');
@@ -922,11 +1186,11 @@ function handleDissolve() {
       loading.action = true;
       try {
         const resp = await multiDungeonDissolve();
-        if (resp.data?.code === 200) {
-          uiStore.showToast(resp.data.message || '副本已解散', 'success');
+        if (isBizOk(resp)) {
+          uiStore.showToast(bizMessage(resp, '副本已解散'), 'success');
           await loadStatus();
         } else {
-          uiStore.showToast(resp.data?.message || '解散失败', 'error');
+          uiStore.showToast(bizMessage(resp, '解散失败'), 'error');
         }
       } catch (e: any) {
         uiStore.showToast(e.message || '网络错误', 'error');
@@ -943,19 +1207,20 @@ function handleKick() {
     uiStore.showToast('请选择要踢出的成员', 'warning');
     return;
   }
+  const target = members.value.find(m => m.player_id === kickTargetId.value);
   showConfirm(
     '踢出成员',
-    `确认将玩家 ID=${kickTargetId.value} 踢出副本？\n· 该玩家将立即退出副本`,
+    `确认将「${target?.nickname || `玩家 #${kickTargetId.value}`}」踢出副本？\n· 该玩家将立即退出副本`,
     async () => {
       loading.action = true;
       try {
         const resp = await multiDungeonKick(kickTargetId.value!);
-        if (resp.data?.code === 200) {
-          uiStore.showToast(resp.data.message || '已踢出', 'success');
+        if (isBizOk(resp)) {
+          uiStore.showToast(bizMessage(resp, '已踢出'), 'success');
           kickTargetId.value = null;
           await loadStatus();
         } else {
-          uiStore.showToast(resp.data?.message || '踢人失败', 'error');
+          uiStore.showToast(bizMessage(resp, '踢人失败'), 'error');
         }
       } catch (e: any) {
         uiStore.showToast(e.message || '网络错误', 'error');
@@ -982,115 +1247,70 @@ function showConfirm(title: string, message: string, onConfirm: () => void) {
 }
 
 /**
- * 获取副本状态中文名
+ * 获取副本状态中文名（取值见 models/multiDungeonInstance.js 的 instance_state）
  * @param status 状态值
  */
 function getStatusName(status: string): string {
   const map: Record<string, string> = {
-    forming: '集结中',
+    preparing: '集结中',
     active: '进行中',
-    choosing: '抉择中',
-    finished: '已结束',
+    cleared: '已通关',
+    failed: '已失败',
     dissolved: '已解散'
   };
   return map[status] || status;
 }
 
 /**
- * 获取副本状态徽章样式
+ * 获取副本状态徽章色阶（tone 契约见 ui/Badge.vue）
  * @param status 状态值
  */
-function getStatusBadgeClass(status: string): string {
-  const map: Record<string, string> = {
-    forming: 'bg-amber-950/60 text-amber-300 border-amber-800',
-    active: 'bg-emerald-950/60 text-emerald-300 border-emerald-800',
-    choosing: 'bg-purple-950/60 text-purple-300 border-purple-800',
-    finished: 'bg-stone-800 text-stone-400 border-stone-700',
-    dissolved: 'bg-rose-950/60 text-rose-300 border-rose-800'
+function getStatusTone(status: string): 'gold' | 'success' | 'arcane' | 'neutral' | 'danger' {
+  const map: Record<string, 'gold' | 'success' | 'arcane' | 'neutral' | 'danger'> = {
+    preparing: 'gold',
+    active: 'success',
+    cleared: 'arcane',
+    failed: 'danger',
+    dissolved: 'neutral'
   };
-  return map[status] || 'bg-stone-800 text-stone-400 border-stone-700';
+  return map[status] || 'neutral';
 }
 
 /**
- * 获取历史结果中文名
- * @param result 结果值
+ * 历史记录的展示时间：终态时间后端拆成三个字段，取实际有值的那个
+ * @param rec 历史记录
  */
-function getResultName(result: string): string {
-  const map: Record<string, string> = {
-    success: '成功',
-    fail: '失败',
-    dissolved: '解散'
-  };
-  return map[result] || result;
+function historyTime(rec: MHistoryRecord): string | null {
+  return rec.cleared_at || rec.dissolved_at || rec.started_at || rec.join_time || null;
 }
 
 /**
- * 获取历史结果徽章样式
- * @param result 结果值
+ * 根据变量完成度获取进度条色阶（tone 契约见 ui/StatBar.vue）
+ * <30 血光 / 30-70 鎏金 / >70 灵木
+ * @param val 归一化到 0-100 的完成度
  */
-function getResultBadgeClass(result: string): string {
-  const map: Record<string, string> = {
-    success: 'bg-emerald-950/60 text-emerald-300 border border-emerald-800',
-    fail: 'bg-rose-950/60 text-rose-300 border border-rose-800',
-    dissolved: 'bg-stone-800 text-stone-400 border border-stone-700'
-  };
-  return map[result] || 'bg-stone-800 text-stone-400 border border-stone-700';
+function getVariableTone(val: number): 'blood' | 'gold' | 'jade' {
+  if (val < 30) return 'blood';
+  if (val <= 70) return 'gold';
+  return 'jade';
 }
 
 /**
- * 获取副本变量中文名
- * @param key 变量 key
- */
-function getVariableName(key: DungeonVariable): string {
-  const map: Record<DungeonVariable, string> = {
-    morale: '士气',
-    vigilance: '警戒',
-    demon_corruption: '魔染',
-    seal_stability: '封印稳定度',
-    soul_stability: '神魂稳定度',
-    harvest_multiplier: '收获倍率',
-    // 昆吾山·封魔塔专属变量
-    demonic_qi: '魔气',
-    mountain_seal: '山禁',
-    treasure_pressure: '宝压/夺宝压力',
-    linglong: '玲珑',
-    seal_progress: '封印推进',
-    tower_shadow_hp: '塔心魔影HP',
-    // 虚天殿专属变量（2026-07-21 新增）
-    path_choice: '道路选择',
-    formation_power: '阵法强度',
-    void_soul_hp: '虚天主魂HP'
-  };
-  return map[key] || key;
-}
-
-/**
- * 根据变量值获取进度条颜色类
- * <30 红色 / 30-70 黄色 / >70 绿色
- * @param val 数值
- */
-function getVariableBarClass(val: number): string {
-  if (val < 30) return 'bg-gradient-to-r from-rose-700 to-rose-500';
-  if (val <= 70) return 'bg-gradient-to-r from-amber-600 to-amber-400';
-  return 'bg-gradient-to-r from-emerald-700 to-emerald-500';
-}
-
-/**
- * 根据变量值获取数值文字颜色类
- * @param val 数值
+ * 根据变量完成度获取数值文字颜色类
+ * @param val 归一化到 0-100 的完成度
  */
 function getVariableValueClass(val: number): string {
   if (val < 30) return 'text-rose-400';
-  if (val <= 70) return 'text-amber-300';
+  if (val <= 70) return 'text-gold-300';
   return 'text-emerald-300';
 }
 
 /**
- * 计算变量百分比（用于进度条宽度）
+ * 计算变量百分比（用于进度条宽度与色阶）
  * @param val 当前值
  * @param key 变量 key（收获倍率按 200 上限 / 塔心魔影HP 按 1000000 上限 / 虚天主魂HP 按 1500000 上限 / 其他按 100 上限）
  */
-function getVariablePercent(val: number, key: DungeonVariable): number {
+function getVariablePercent(val: number, key: string): number {
   // 收获倍率通常为 1.0-2.0，按 200% 上限显示
   if (key === 'harvest_multiplier') {
     return Math.min(100, Math.max(0, (val / 2) * 100));
@@ -1099,7 +1319,7 @@ function getVariablePercent(val: number, key: DungeonVariable): number {
   if (key === 'tower_shadow_hp') {
     return Math.min(100, Math.max(0, (val / 1000000) * 100));
   }
-  // 虚天主魂HP 初始1500000，按此上限显示百分比（2026-07-21 新增）
+  // 虚天主魂HP 初始1500000，按此上限显示百分比
   if (key === 'void_soul_hp') {
     return Math.min(100, Math.max(0, (val / 1500000) * 100));
   }
@@ -1108,11 +1328,11 @@ function getVariablePercent(val: number, key: DungeonVariable): number {
 }
 
 /**
- * 获取可踢出的成员列表（排除队长本人）
- * @param instance 副本实例
+ * 获取可踢出的成员列表（排除队长本人；后端只允许踢 role=member）
+ * @param list 成员列表
  */
-function kickableMembers(instance: MultiDungeonInstance): MultiDungeonMember[] {
-  return instance.members.filter(m => !m.is_leader);
+function kickableMembers(list: MMember[]): MMember[] {
+  return list.filter(m => m.role !== 'leader');
 }
 
 /**
@@ -1139,14 +1359,3 @@ function formatTimeString(time: string | null): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 </script>
-
-<style scoped>
-/* 局部淡入动画，与 AscensionPanel / SmallWorldPanel 保持一致 */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-</style>

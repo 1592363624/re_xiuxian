@@ -6,14 +6,16 @@
   -->
   <div class="space-y-4">
     <!-- 顶部操作栏 -->
-    <div class="flex items-center justify-between bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+    <div class="flex items-center justify-between bg-surface-base/50 rounded-panel p-3 border border-line">
       <div class="flex items-center gap-3">
-        <div class="text-sm text-gray-400">自动刷新（10s）</div>
+        <div class="text-sm text-fg-muted">自动刷新（10s）</div>
         <button
+          type="button"
           @click="autoRefresh = !autoRefresh"
+          aria-label="切换自动刷新"
           :class="[
-            'relative w-10 h-5 rounded-full transition-colors',
-            autoRefresh ? 'bg-emerald-600' : 'bg-gray-600'
+            'focus-ring relative w-10 h-5 rounded-full transition-colors',
+            autoRefresh ? 'bg-emerald-600' : 'bg-surface-active'
           ]"
         >
           <div
@@ -21,64 +23,63 @@
             :class="autoRefresh ? 'translate-x-5' : 'translate-x-0.5'"
           ></div>
         </button>
-        <span v-if="lastRefreshAt" class="text-xs text-gray-500">
+        <span v-if="lastRefreshAt" class="text-xs text-fg-faint num">
           最后刷新: {{ lastRefreshAt }}
         </span>
       </div>
       <div class="flex gap-2">
-        <button
-          @click="fetchMetrics"
-          class="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
-        >
-          手动刷新
-        </button>
-        <button
-          @click="handleTriggerRun"
+        <AppButton variant="default" size="sm" @click="fetchMetrics">手动刷新</AppButton>
+        <AppButton
+          variant="primary"
+          size="sm"
           :disabled="triggering"
-          class="px-3 py-1.5 text-xs bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
+          @click="handleTriggerRun"
         >
           {{ triggering ? '执行中...' : '手动触发清理' }}
-        </button>
+        </AppButton>
       </div>
     </div>
 
     <!-- 加载中（仅首次加载显示） -->
-    <div v-if="loading && !metrics" class="text-center py-8 text-gray-400">
+    <div v-if="loading && !metrics" class="text-center py-8 text-fg-muted">
       加载监控数据中...
     </div>
 
     <!-- 配置编辑卡片（GM 可视化编辑 interval_ms，热重载生效） -->
-    <div class="bg-gray-800/70 rounded-lg p-4 border border-gray-700">
+    <div class="bg-surface-base/50 rounded-panel p-4 border border-line">
       <div class="flex items-center justify-between mb-3">
-        <div class="text-sm font-semibold text-gray-200">调度器配置（修改后即时生效，无需重启服务）</div>
-        <button
-          @click="fetchConfig"
+        <div class="text-sm font-semibold text-fg-primary">调度器配置（修改后即时生效，无需重启服务）</div>
+        <AppButton
+          variant="default"
+          size="xs"
           :disabled="configLoading"
-          class="px-2.5 py-1 text-xs bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-200 rounded transition-colors"
+          @click="fetchConfig"
         >
           {{ configLoading ? '加载中...' : '刷新配置' }}
-        </button>
+        </AppButton>
       </div>
 
       <!-- 配置加载中 -->
-      <div v-if="configLoading && !configData" class="text-center py-4 text-gray-500 text-sm">
+      <div v-if="configLoading && !configData" class="text-center py-4 text-fg-faint text-sm">
         加载配置中...
       </div>
 
       <!-- 配置编辑表单 -->
       <div v-else-if="configData" class="space-y-3">
         <!-- 顶层开关与批量大小 -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pb-3 border-b border-gray-700">
-          <div class="flex items-center justify-between bg-gray-900/50 rounded p-2.5">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pb-3 border-b border-line-subtle">
+          <div class="flex items-center justify-between bg-surface-sunken/50 rounded-control p-2.5">
             <div>
-              <div class="text-xs text-gray-400">调度器总开关</div>
-              <div class="text-[10px] text-gray-500 mt-0.5">关闭后所有状态都不会被清理</div>
+              <div class="text-xs text-fg-muted">调度器总开关</div>
+              <div class="text-[10px] text-fg-faint mt-0.5">关闭后所有状态都不会被清理</div>
             </div>
             <button
+              type="button"
               @click="configData.enabled = !configData.enabled; markDirty()"
+              aria-label="切换调度器总开关"
               :class="[
-                'relative w-10 h-5 rounded-full transition-colors',
-                configData.enabled ? 'bg-emerald-600' : 'bg-gray-600'
+                'focus-ring relative w-10 h-5 rounded-full transition-colors',
+                configData.enabled ? 'bg-emerald-600' : 'bg-surface-active'
               ]"
             >
               <div
@@ -87,23 +88,23 @@
               ></div>
             </button>
           </div>
-          <div class="bg-gray-900/50 rounded p-2.5">
-            <label class="block text-xs text-gray-400 mb-1">单次扫描批量大小</label>
+          <div class="bg-surface-sunken/50 rounded-control p-2.5">
+            <label class="block text-xs text-fg-muted mb-1">单次扫描批量大小</label>
             <input
               v-model.number="configData.batchSize"
               type="number"
               min="1"
               max="1000"
               @input="markDirty()"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+              class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary text-sm num focus-ring focus:border-gold-600"
             >
-            <div class="text-[10px] text-gray-500 mt-1">1-1000，越大扫描越快但 DB 压力越大</div>
+            <div class="text-[10px] text-fg-faint mt-1">1-1000，越大扫描越快但 DB 压力越大</div>
           </div>
-          <div class="bg-gray-900/50 rounded p-2.5 flex items-center">
+          <div class="bg-surface-sunken/50 rounded-control p-2.5 flex items-center">
             <div>
-              <div class="text-xs text-gray-400">当前主调度间隔</div>
-              <div class="text-lg font-bold text-cyan-400">{{ (configData.masterTickMs / 1000).toFixed(1) }} s</div>
-              <div class="text-[10px] text-gray-500 mt-1">取所有状态最小 interval_ms</div>
+              <div class="text-xs text-fg-muted">当前主调度间隔</div>
+              <div class="text-lg font-bold text-cyan-400 num">{{ (configData.masterTickMs / 1000).toFixed(1) }} s</div>
+              <div class="text-[10px] text-fg-faint mt-1">取所有状态最小 interval_ms</div>
             </div>
           </div>
         </div>
@@ -112,7 +113,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-xs text-gray-400 border-b border-gray-700">
+              <tr class="text-xs text-fg-muted bg-surface-raised border-b border-line">
                 <th class="text-left py-2 px-3">状态</th>
                 <th class="text-left py-2 px-3">间隔(ms)</th>
                 <th class="text-center py-2 px-3">启用</th>
@@ -126,11 +127,11 @@
               <tr
                 v-for="state in configData.states"
                 :key="state.stateType"
-                class="border-b border-gray-800 hover:bg-gray-900/30"
+                class="border-b border-line-subtle hover:bg-surface-hover"
               >
                 <td class="py-2 px-3">
-                  <div class="text-gray-200">{{ state.displayName }}</div>
-                  <div class="text-xs text-gray-500">{{ state.stateType }}</div>
+                  <div class="text-fg-primary">{{ state.displayName }}</div>
+                  <div class="text-xs text-fg-faint">{{ state.stateType }}</div>
                 </td>
                 <td class="py-2 px-3">
                   <input
@@ -140,9 +141,9 @@
                     max="3600000"
                     step="1000"
                     @input="markDirty()"
-                    class="w-28 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                    class="w-28 bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary text-sm num focus-ring focus:border-gold-600"
                   >
-                  <div class="text-[10px] text-gray-500 mt-1">{{ (state.intervalMs / 1000).toFixed(1) }}s</div>
+                  <div class="text-[10px] text-fg-faint mt-1 num">{{ (state.intervalMs / 1000).toFixed(1) }}s</div>
                 </td>
                 <td class="py-2 px-3 text-center">
                   <input type="checkbox" v-model="state.enable" @change="markDirty()" class="rounded">
@@ -156,7 +157,7 @@
                 <td class="py-2 px-3 text-center">
                   <input type="checkbox" v-model="state.logEach" @change="markDirty()" class="rounded">
                 </td>
-                <td class="py-2 px-3 text-xs text-gray-500">
+                <td class="py-2 px-3 text-xs text-fg-faint num">
                   {{ state.lastCleanedAt ? formatTime(state.lastCleanedAt) : '尚未执行' }}
                 </td>
               </tr>
@@ -168,30 +169,27 @@
         <div class="flex items-center justify-between pt-2">
           <div class="text-xs">
             <span v-if="dirty" class="text-amber-400">● 有未保存的修改</span>
-            <span v-else class="text-gray-500">配置已是最新</span>
+            <span v-else class="text-fg-faint">配置已是最新</span>
             <span v-if="lastSaveMessage" class="ml-3 text-emerald-400">{{ lastSaveMessage }}</span>
             <span v-if="saveError" class="ml-3 text-red-400">{{ saveError }}</span>
           </div>
           <div class="flex gap-2">
-            <button
-              @click="fetchConfig"
-              :disabled="saving"
-              class="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-200 rounded transition-colors"
-            >
+            <AppButton variant="default" size="sm" :disabled="saving" @click="fetchConfig">
               重置
-            </button>
-            <button
-              @click="handleSaveConfig"
+            </AppButton>
+            <AppButton
+              variant="primary"
+              size="sm"
               :disabled="saving || !dirty"
-              class="px-4 py-1.5 text-xs bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
+              @click="handleSaveConfig"
             >
               {{ saving ? '保存中...' : '保存并热重载' }}
-            </button>
+            </AppButton>
           </div>
         </div>
 
         <!-- 配置说明 -->
-        <div class="text-[11px] text-gray-500 bg-gray-900/30 rounded p-2 leading-relaxed">
+        <div class="text-[11px] text-fg-faint bg-surface-sunken/30 rounded-control p-2 leading-relaxed">
           <div>说明：</div>
           <div>1. 间隔越小清理越及时，但数据库扫描越频繁（5s 对修仙游戏足够，1s 是最低兜底）</div>
           <div>2. "自动结算"：状态到期后自动结算（如闭关到期自动发修为），关闭则只标记不结算</div>
@@ -205,8 +203,8 @@
     <div v-if="metrics" class="space-y-4">
       <!-- 健康度总览卡片 -->
       <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div class="bg-gray-800/70 rounded-lg p-4 border border-gray-700">
-          <div class="text-xs text-gray-400 mb-1">健康度</div>
+        <div class="bg-surface-base/50 rounded-panel p-4 border border-line">
+          <div class="text-xs text-fg-muted mb-1">健康度</div>
           <div
             class="text-lg font-bold"
             :class="{
@@ -217,41 +215,41 @@
           >
             {{ healthText }}
           </div>
-          <div class="text-xs text-gray-500 mt-1">错误率 {{ (metrics.errorRate * 100).toFixed(2) }}%</div>
+          <div class="text-xs text-fg-faint mt-1 num">错误率 {{ (metrics.errorRate * 100).toFixed(2) }}%</div>
         </div>
-        <div class="bg-gray-800/70 rounded-lg p-4 border border-gray-700">
-          <div class="text-xs text-gray-400 mb-1">累计执行次数</div>
-          <div class="text-lg font-bold text-blue-400">{{ metrics.totalRuns }}</div>
-          <div class="text-xs text-gray-500 mt-1">已清理 {{ metrics.totalItemsCleaned }} 项</div>
+        <div class="bg-surface-base/50 rounded-panel p-4 border border-line">
+          <div class="text-xs text-fg-muted mb-1">累计执行次数</div>
+          <div class="text-lg font-bold text-blue-400 num">{{ metrics.totalRuns }}</div>
+          <div class="text-xs text-fg-faint mt-1 num">已清理 {{ metrics.totalItemsCleaned }} 项</div>
         </div>
-        <div class="bg-gray-800/70 rounded-lg p-4 border border-gray-700">
-          <div class="text-xs text-gray-400 mb-1">上次执行耗时</div>
-          <div class="text-lg font-bold text-purple-400">{{ metrics.lastRunDurationMs }} ms</div>
-          <div class="text-xs text-gray-500 mt-1">{{ metrics.lastRunAt ? formatTime(metrics.lastRunAt) : '尚未执行' }}</div>
+        <div class="bg-surface-base/50 rounded-panel p-4 border border-line">
+          <div class="text-xs text-fg-muted mb-1">上次执行耗时</div>
+          <div class="text-lg font-bold text-purple-400 num">{{ metrics.lastRunDurationMs }} ms</div>
+          <div class="text-xs text-fg-faint mt-1 num">{{ metrics.lastRunAt ? formatTime(metrics.lastRunAt) : '尚未执行' }}</div>
         </div>
-        <div class="bg-gray-800/70 rounded-lg p-4 border border-gray-700">
-          <div class="text-xs text-gray-400 mb-1">调度间隔</div>
-          <div class="text-lg font-bold text-cyan-400">{{ (metrics.intervalMs / 1000).toFixed(0) }} s</div>
-          <div class="text-xs text-gray-500 mt-1">{{ metrics.enabled ? '已启用' : '已禁用' }}</div>
+        <div class="bg-surface-base/50 rounded-panel p-4 border border-line">
+          <div class="text-xs text-fg-muted mb-1">调度间隔</div>
+          <div class="text-lg font-bold text-cyan-400 num">{{ (metrics.intervalMs / 1000).toFixed(0) }} s</div>
+          <div class="text-xs text-fg-faint mt-1">{{ metrics.enabled ? '已启用' : '已禁用' }}</div>
         </div>
       </div>
 
       <!-- 已注册状态处理器列表 -->
-      <div class="bg-gray-800/70 rounded-lg p-4 border border-gray-700">
-        <div class="text-sm font-semibold text-gray-200 mb-3">已注册状态处理器（{{ metrics.registeredStates.length }} 个）</div>
+      <div class="bg-surface-base/50 rounded-panel p-4 border border-line">
+        <div class="text-sm font-semibold text-fg-primary mb-3">已注册状态处理器（{{ metrics.registeredStates.length }} 个）</div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           <div
             v-for="state in metrics.registeredStates"
             :key="state.stateType"
-            class="flex items-center justify-between p-2 bg-gray-900/50 rounded border border-gray-700"
+            class="flex items-center justify-between p-2 bg-surface-sunken/50 rounded-control border border-line-subtle"
           >
             <div>
-              <div class="text-sm text-gray-200">{{ state.displayName }}</div>
-              <div class="text-xs text-gray-500">{{ state.stateType }} · {{ state.stateEnum }}</div>
+              <div class="text-sm text-fg-primary">{{ state.displayName }}</div>
+              <div class="text-xs text-fg-faint">{{ state.stateType }} · {{ state.stateEnum }}</div>
             </div>
             <div
               class="px-2 py-0.5 text-xs rounded"
-              :class="state.exclusive ? 'bg-red-900/40 text-red-300' : 'bg-gray-700 text-gray-400'"
+              :class="state.exclusive ? 'bg-red-900/40 text-red-300' : 'bg-surface-active text-fg-muted'"
             >
               {{ state.exclusive ? '互斥' : '共存' }}
             </div>
@@ -260,12 +258,12 @@
       </div>
 
       <!-- 上次清理统计详情 -->
-      <div class="bg-gray-800/70 rounded-lg p-4 border border-gray-700">
-        <div class="text-sm font-semibold text-gray-200 mb-3">上次清理统计</div>
+      <div class="bg-surface-base/50 rounded-panel p-4 border border-line">
+        <div class="text-sm font-semibold text-fg-primary mb-3">上次清理统计</div>
         <div v-if="hasLastRunStats" class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-xs text-gray-400 border-b border-gray-700">
+              <tr class="text-xs text-fg-muted bg-surface-raised border-b border-line">
                 <th class="text-left py-2 px-3">状态类型</th>
                 <th class="text-right py-2 px-3">扫描数</th>
                 <th class="text-right py-2 px-3">已清理</th>
@@ -277,40 +275,40 @@
               <tr
                 v-for="(stat, type) in metrics.lastRunStats"
                 :key="type"
-                class="border-b border-gray-800 hover:bg-gray-900/30"
+                class="border-b border-line-subtle hover:bg-surface-hover"
               >
-                <td class="py-2 px-3 text-gray-200">{{ type }}</td>
-                <td class="py-2 px-3 text-right text-gray-300">{{ stat.scanned ?? 0 }}</td>
-                <td class="py-2 px-3 text-right text-emerald-400">{{ getCleanedCount(stat) }}</td>
-                <td class="py-2 px-3 text-right" :class="stat.failed > 0 ? 'text-red-400' : 'text-gray-500'">
+                <td class="py-2 px-3 text-fg-primary">{{ type }}</td>
+                <td class="py-2 px-3 text-right text-fg-secondary num">{{ stat.scanned ?? 0 }}</td>
+                <td class="py-2 px-3 text-right text-emerald-400 num">{{ getCleanedCount(stat) }}</td>
+                <td class="py-2 px-3 text-right num" :class="stat.failed > 0 ? 'text-red-400' : 'text-fg-faint'">
                   {{ stat.failed ?? 0 }}
                 </td>
                 <td class="py-2 px-3">
-                  <span v-if="stat.skipped" class="text-xs text-gray-500">跳过（{{ stat.reason }}）</span>
+                  <span v-if="stat.skipped" class="text-xs text-fg-faint">跳过（{{ stat.reason }}）</span>
                   <span v-else-if="stat.failed > 0" class="text-xs text-red-400">部分失败</span>
                   <span v-else-if="(stat.scanned ?? 0) > 0" class="text-xs text-emerald-400">正常</span>
-                  <span v-else class="text-xs text-gray-500">无过期数据</span>
+                  <span v-else class="text-xs text-fg-faint">无过期数据</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div v-else class="text-center py-4 text-gray-500 text-sm">
+        <div v-else class="text-center py-4 text-fg-faint text-sm">
           尚无执行记录
         </div>
       </div>
 
       <!-- 服务运行信息 -->
-      <div class="bg-gray-800/70 rounded-lg p-4 border border-gray-700">
-        <div class="text-sm font-semibold text-gray-200 mb-3">服务信息</div>
+      <div class="bg-surface-base/50 rounded-panel p-4 border border-line">
+        <div class="text-sm font-semibold text-fg-primary mb-3">服务信息</div>
         <div class="grid grid-cols-2 gap-3 text-xs">
           <div>
-            <span class="text-gray-500">服务启动时间：</span>
-            <span class="text-gray-300">{{ formatTime(metrics.startedAt) }}</span>
+            <span class="text-fg-faint">服务启动时间：</span>
+            <span class="text-fg-secondary num">{{ formatTime(metrics.startedAt) }}</span>
           </div>
           <div>
-            <span class="text-gray-500">累计错误次数：</span>
-            <span :class="metrics.totalErrors > 0 ? 'text-red-400' : 'text-emerald-400'">
+            <span class="text-fg-faint">累计错误次数：</span>
+            <span class="num" :class="metrics.totalErrors > 0 ? 'text-red-400' : 'text-emerald-400'">
               {{ metrics.totalErrors }}
             </span>
           </div>
@@ -346,6 +344,7 @@ import {
   type StateCleanerConfigData
 } from '../../../api/admin';
 import { useUIStore } from '../../../stores/ui';
+import AppButton from '../../ui/AppButton.vue';
 
 const uiStore = useUIStore();
 

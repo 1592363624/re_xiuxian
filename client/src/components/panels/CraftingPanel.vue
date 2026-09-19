@@ -3,9 +3,9 @@
  * 炼制系统面板组件（炼丹房 / 炼器阁）
  *
  * 功能说明：
- *   - 全屏遮罩 + 居中弹窗布局，emits('close') 关闭面板
- *   - 顶部 Tab 切换：炼丹房（alchemy 丹药）/ 炼器阁（refining 装备）
- *   - 顶部展示炼制技能信息：等级、称号、经验进度条、成功率加成
+ *   - 外壳统一走 ui/PanelShell（遮罩、关闭、右坞停靠由它给），面板不再自写遮罩与外壳
+ *   - Tab 切换走 ui/Tabs：炼丹房（alchemy 丹药）/ 炼器阁（refining 装备），标签上带配方数
+ *   - 炼制技能信息：等级、称号、经验进度条（ui/StatBar）、成功率加成
  *   - 每个已学配方以卡片形式展示，含产物、材料、成功率、冷却倒计时、炼制次数选择
  *   - 炼制成功/失败通过 uiStore.showToast 提示，禁用浏览器原生 alert/confirm
  *   - 所有业务逻辑通过 crafting API 调用后端，前端只做展示与交互
@@ -27,6 +27,13 @@ import {
   type CraftResult
 } from '../../api/crafting'
 import { useUIStore } from '../../stores/ui'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import AppButton from '../ui/AppButton.vue'
+import Badge from '../ui/Badge.vue'
+import StatBar from '../ui/StatBar.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import LoadingBlock from '../ui/LoadingBlock.vue'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
@@ -84,16 +91,12 @@ const currentRecipes = computed(() => {
 })
 
 /**
- * 经验进度百分比
- * - 未达满级：当前经验 / 下一级所需经验
- * - 已满级（next_level_exp 为 null）：100%
+ * 页签定义（key/label 契约见 ui/Tabs.vue）；badge 沿用原先写在标签里的配方数
  */
-const expProgress = computed(() => {
-  if (!skillInfo.value) return 0
-  const { exp, next_level_exp } = skillInfo.value
-  if (next_level_exp === null || next_level_exp <= 0) return 100
-  return Math.min(100, Math.floor((exp / next_level_exp) * 100))
-})
+const tabItems = computed(() => [
+  { key: 'alchemy', label: '炼丹房', badge: alchemyRecipes.value.length },
+  { key: 'refining', label: '炼器阁', badge: refiningRecipes.value.length }
+])
 
 /**
  * 是否已达技能满级
@@ -335,13 +338,13 @@ const formatCountdown = (sec: number): string => {
  */
 const qualityClass = (quality: string): string => {
   const map: Record<string, string> = {
-    common: 'text-gray-300',
-    uncommon: 'text-green-400',
-    rare: 'text-blue-400',
+    common: 'text-fg-secondary',
+    uncommon: 'text-emerald-400',
+    rare: 'text-sky-400',
     epic: 'text-purple-400',
-    legendary: 'text-yellow-400'
+    legendary: 'text-gold-400'
   }
-  return map[quality] || 'text-gray-300'
+  return map[quality] || 'text-fg-secondary'
 }
 
 /**
@@ -396,156 +399,92 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <!-- 遮罩层：点击关闭面板 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-
-    <!-- 主容器 -->
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      <!-- 顶部标题栏 -->
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
-        <h2 class="text-xl font-bold text-amber-400 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 2h6l3 7-3 3-3-2-3 2-3-3z"/>
-            <path d="M10 2v6l2 2 2-2V2"/>
-            <path d="M12 14v8"/>
-            <path d="M8 22h8"/>
-          </svg>
-          炼制阁
-        </h2>
-        <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-
+  <PanelShell
+    title="炼制阁"
+    hint="炼丹 · 炼器 · 控火"
+    size="xl"
+    scoped-scroll
+    @close="emit('close')"
+  >
+    <div class="h-full flex flex-col min-h-0">
       <!-- 炼制技能信息栏 -->
-      <div v-if="skillInfo" class="p-4 border-b border-stone-800 bg-[#0c0a09]">
+      <div v-if="skillInfo" class="shrink-0 p-4 border-b border-line-subtle bg-surface-canvas">
         <div class="flex items-center justify-between gap-4 flex-wrap">
           <!-- 等级与称号 -->
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-4 flex-wrap">
             <div class="flex items-center gap-2">
-              <span class="text-xs text-stone-500">等级</span>
-              <span class="text-lg font-bold text-amber-400">{{ skillInfo.level }}</span>
-              <span class="text-xs text-stone-600">/ {{ skillInfo.max_level }}</span>
+              <span class="text-xs text-fg-faint">等级</span>
+              <span class="text-lg font-bold text-gold-400 num">{{ skillInfo.level }}</span>
+              <span class="text-xs text-fg-faint num">/ {{ skillInfo.max_level }}</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-xs text-stone-500">称号</span>
-              <span class="text-sm font-bold text-violet-400 px-2 py-0.5 rounded bg-violet-900/30 border border-violet-700/50">{{ skillInfo.title }}</span>
+              <span class="text-xs text-fg-faint">称号</span>
+              <Badge tone="arcane">{{ skillInfo.title }}</Badge>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-xs text-stone-500">成功率加成</span>
-              <span class="text-sm font-bold text-emerald-400">+{{ skillInfo.success_bonus }}%</span>
+              <span class="text-xs text-fg-faint">成功率加成</span>
+              <span class="text-sm font-bold text-emerald-400 num">+{{ skillInfo.success_bonus }}%</span>
             </div>
           </div>
 
           <!-- 经验进度条 -->
-          <div class="flex items-center gap-3 flex-1 min-w-[200px] max-w-md">
-            <span class="text-xs text-stone-500 whitespace-nowrap">经验</span>
-            <div class="flex-1 bg-stone-800 rounded-full h-2 overflow-hidden border border-stone-700">
-              <div
-                class="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-300"
-                :style="{ width: expProgress + '%' }"
-              ></div>
-            </div>
-            <span class="text-xs text-stone-400 whitespace-nowrap">
-              <span v-if="isMaxLevel" class="text-amber-400">已满级</span>
-              <span v-else>{{ skillInfo.exp }} / {{ skillInfo.next_level_exp }}</span>
-            </span>
-          </div>
+          <StatBar
+            label="经验"
+            tone="gold"
+            class="flex-1 min-w-[200px] max-w-md"
+            :value="isMaxLevel ? 1 : skillInfo.exp"
+            :max="isMaxLevel ? 1 : skillInfo.next_level_exp"
+            :text="isMaxLevel ? '已满级' : `${skillInfo.exp} / ${skillInfo.next_level_exp}`"
+          />
         </div>
       </div>
 
-      <!-- Tab 切换栏 -->
-      <div class="flex items-center gap-1 p-3 border-b border-stone-800 bg-[#1c1917]">
-        <button
-          @click="activeTab = 'alchemy'"
-          class="px-4 py-1.5 rounded text-sm whitespace-nowrap transition-colors flex items-center gap-1.5"
-          :class="activeTab === 'alchemy'
-            ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
-            : 'text-stone-500 hover:text-stone-300 border border-transparent'"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 2h6l3 7-3 3-3-2-3 2-3-3z"/>
-            <path d="M10 2v6l2 2 2-2V2"/>
-            <path d="M12 14v8"/>
-            <path d="M8 22h8"/>
-          </svg>
-          炼丹房
-          <span class="text-xs text-stone-600">（{{ alchemyRecipes.length }}）</span>
-        </button>
-        <button
-          @click="activeTab = 'refining'"
-          class="px-4 py-1.5 rounded text-sm whitespace-nowrap transition-colors flex items-center gap-1.5"
-          :class="activeTab === 'refining'
-            ? 'bg-purple-900/30 text-purple-400 border border-purple-700/50'
-            : 'text-stone-500 hover:text-stone-300 border border-transparent'"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.5 17.5 3 6V3h3l11.5 11.5"/>
-            <path d="m13 19 6-6"/>
-            <path d="m16 16 4 4"/>
-            <path d="m19 21 2-2"/>
-          </svg>
-          炼器阁
-          <span class="text-xs text-stone-600">（{{ refiningRecipes.length }}）</span>
-        </button>
-      </div>
+      <!-- Tab 切换栏：配方数走 Tabs 的 badge -->
+      <Tabs v-model="activeTab" :items="tabItems" class="shrink-0" />
 
       <!-- 内容区域 -->
-      <div class="flex-1 overflow-y-auto p-4">
-        <!-- 加载中 -->
-        <div v-if="loading" class="flex justify-center items-center h-64">
-          <svg class="animate-spin h-10 w-10 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
+      <div class="flex-1 min-h-0 overflow-y-auto p-4">
+        <LoadingBlock v-if="loading" />
 
         <!-- 空状态 -->
-        <div v-else-if="currentRecipes.length === 0" class="flex flex-col items-center justify-center h-64 text-stone-500">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-            <path d="M9 2h6l3 7-3 3-3-2-3 2-3-3z"/>
-            <path d="M12 14v8"/>
-            <path d="M8 22h8"/>
-          </svg>
-          <p>尚未习得任何{{ activeTab === 'alchemy' ? '丹方' : '器谱' }}，请先获取并学习配方</p>
-        </div>
+        <EmptyState
+          v-else-if="currentRecipes.length === 0"
+          :text="`尚未习得任何${activeTab === 'alchemy' ? '丹方' : '器谱'}`"
+          hint="先通过历练、坊市或宗门兑换取得配方，再回来开炉"
+        />
 
         <!-- 配方卡片列表 -->
         <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div
             v-for="recipe in currentRecipes"
             :key="recipe.recipe_id"
-            class="bg-[#1c1917] border rounded-lg p-4 transition-all duration-300"
+            class="bg-surface-raised border rounded-panel p-4 transition-all duration-300"
             :class="activeTab === 'alchemy'
-              ? 'border-amber-900/40 hover:border-amber-700/60'
-              : 'border-purple-900/40 hover:border-purple-700/60'"
+              ? 'border-gold-800 hover:border-gold-700'
+              : 'border-purple-900 hover:border-purple-700'"
           >
             <!-- 卡片头部：配方名称 + 类型徽章 -->
             <div class="flex justify-between items-start mb-2">
               <div>
                 <h3 class="text-base font-bold flex items-center gap-2"
-                    :class="activeTab === 'alchemy' ? 'text-amber-300' : 'text-purple-300'">
+                    :class="activeTab === 'alchemy' ? 'text-gold-300' : 'text-purple-300'">
                   {{ recipe.name }}
                 </h3>
-                <p class="text-xs text-stone-500 mt-1 leading-relaxed">{{ recipe.description }}</p>
+                <p class="text-xs text-fg-faint mt-1 leading-relaxed">{{ recipe.description }}</p>
               </div>
             </div>
 
             <!-- 产物信息 -->
-            <div class="bg-[#0c0a09] rounded p-2.5 border border-stone-800 mb-3">
+            <div class="bg-surface-canvas rounded-control px-2.5 py-2.5 border border-line-subtle mb-3">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-stone-500">产物</span>
+                  <span class="text-xs text-fg-faint">产物</span>
                   <span class="text-sm font-bold" :class="qualityClass(recipe.product.quality)">
                     {{ recipe.product.name }}
                   </span>
-                  <span class="text-xs text-stone-400">x{{ recipe.product.quantity }}</span>
+                  <span class="text-xs text-fg-muted">x{{ recipe.product.quantity }}</span>
                 </div>
-                <span class="text-xs px-2 py-0.5 rounded border border-stone-700"
+                <span class="text-xs px-2 py-0.5 rounded border border-line"
                       :class="qualityClass(recipe.product.quality)">
                   {{ qualityLabel(recipe.product.quality) }}
                 </span>
@@ -554,17 +493,17 @@ onUnmounted(() => {
 
             <!-- 材料列表 -->
             <div class="mb-3">
-              <div class="text-xs text-stone-500 mb-1.5">所需材料</div>
+              <div class="text-xs text-fg-faint mb-1.5">所需材料</div>
               <div class="space-y-1">
                 <div
                   v-for="mat in recipe.materials"
                   :key="mat.item_key"
-                  class="flex items-center justify-between text-xs bg-[#0c0a09] rounded px-2.5 py-1.5 border border-stone-800"
+                  class="flex items-center justify-between text-xs bg-surface-canvas rounded-control px-2.5 py-1.5 border border-line-subtle"
                 >
-                  <span class="text-stone-300">{{ mat.name }}</span>
-                  <span :class="mat.sufficient ? 'text-stone-400' : 'text-red-400'">
+                  <span class="text-fg-secondary">{{ mat.name }}</span>
+                  <span class="num" :class="mat.sufficient ? 'text-fg-muted' : 'text-rose-400'">
                     {{ mat.owned }} / {{ mat.required }}
-                    <span v-if="!mat.sufficient" class="ml-1 text-red-500">不足</span>
+                    <span v-if="!mat.sufficient" class="ml-1 text-rose-500">不足</span>
                   </span>
                 </div>
               </div>
@@ -573,20 +512,20 @@ onUnmounted(() => {
             <!-- 成功率与技能经验 -->
             <div class="flex items-center gap-4 mb-3 text-xs">
               <div class="flex items-center gap-1.5">
-                <span class="text-stone-500">基础成功率</span>
-                <span class="text-stone-300">{{ recipe.base_success_rate }}%</span>
+                <span class="text-fg-faint">基础成功率</span>
+                <span class="text-fg-secondary num">{{ recipe.base_success_rate }}%</span>
               </div>
-              <svg class="w-3 h-3 text-stone-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="w-3 h-3 text-fg-faint" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="5" y1="12" x2="19" y2="12"/>
                 <polyline points="12 5 19 12 12 19"/>
               </svg>
               <div class="flex items-center gap-1.5">
-                <span class="text-stone-500">实际成功率</span>
-                <span class="font-bold text-emerald-400">{{ recipe.actual_success_rate }}%</span>
+                <span class="text-fg-faint">实际成功率</span>
+                <span class="font-bold text-emerald-400 num">{{ recipe.actual_success_rate }}%</span>
               </div>
               <div class="flex items-center gap-1.5 ml-auto">
-                <span class="text-stone-500">经验</span>
-                <span class="text-cyan-400">+{{ recipe.skill_exp }}</span>
+                <span class="text-fg-faint">经验</span>
+                <span class="text-cyan-400 num">+{{ recipe.skill_exp }}</span>
               </div>
             </div>
 
@@ -594,19 +533,19 @@ onUnmounted(() => {
             <div class="flex items-center gap-3">
               <!-- 次数选择器 -->
               <div class="flex items-center gap-1.5">
-                <span class="text-xs text-stone-500">次数</span>
-                <div class="flex items-center bg-[#0c0a09] border border-stone-700 rounded overflow-hidden">
+                <span class="text-xs text-fg-faint">次数</span>
+                <div class="flex items-center bg-surface-canvas border border-line rounded-control overflow-hidden">
                   <button
                     @click="craftQuantities[recipe.recipe_id] = Math.max(1, (craftQuantities[recipe.recipe_id] || 1) - 1)"
                     :disabled="crafting"
-                    class="px-2 py-1 text-stone-400 hover:text-amber-400 hover:bg-stone-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="px-2 py-1 text-fg-muted hover:text-gold-400 hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >-</button>
                   <input
                     v-model.number="craftQuantities[recipe.recipe_id]"
                     type="number"
                     min="1"
                     max="10"
-                    class="w-10 bg-transparent text-center text-sm text-stone-200 focus:outline-none"
+                    class="w-10 bg-transparent text-center text-sm text-fg-primary num focus:outline-none"
                     @change="() => {
                       const v = craftQuantities[recipe.recipe_id]
                       if (!v || v < 1) craftQuantities[recipe.recipe_id] = 1
@@ -616,39 +555,40 @@ onUnmounted(() => {
                   <button
                     @click="craftQuantities[recipe.recipe_id] = Math.min(10, (craftQuantities[recipe.recipe_id] || 1) + 1)"
                     :disabled="crafting"
-                    class="px-2 py-1 text-stone-400 hover:text-amber-400 hover:bg-stone-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="px-2 py-1 text-fg-muted hover:text-gold-400 hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >+</button>
                 </div>
               </div>
 
               <!-- 炼制按钮组：开炉控火（高收益）/ 一键炼制（省事但有惩罚） -->
               <div class="flex-1 flex gap-2">
-                <!-- 开炉控火：进入火候小游戏，可炼出更高品质 -->
+                <!-- 开炉控火：进入火候小游戏，可炼出更高品质（丹金器紫，保留色相对立） -->
                 <button
                   @click="handleStartHeat(recipe)"
                   :disabled="!canCraft(recipe)"
                   :title="canCraft(recipe) ? '手动把控火候，偏差越小品质越高' : ''"
-                  class="flex-1 py-2 rounded border transition-colors text-sm font-bold disabled:cursor-not-allowed"
+                  class="flex-1 py-2 rounded-control border transition-colors text-sm font-bold disabled:cursor-not-allowed"
                   :class="canCraft(recipe)
                     ? (activeTab === 'alchemy'
-                        ? 'bg-amber-900/30 border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300'
-                        : 'bg-purple-900/30 border-purple-700/50 text-purple-400 hover:bg-purple-800/50 hover:text-purple-300')
-                    : 'bg-stone-900 border-stone-700 text-stone-500'"
+                        ? 'bg-surface-tint-gold border-gold-700 text-gold-400 hover:bg-surface-tint-gold-strong hover:text-gold-300'
+                        : 'bg-surface-tint-arcane border-purple-800 text-purple-400 hover:bg-purple-950/60 hover:text-purple-300')
+                    : 'bg-surface-sunken border-line text-fg-faint'"
                 >
                   <span v-if="canCraft(recipe)">开炉控火</span>
                   <span v-else>{{ getDisableReason(recipe) || '无法炼制' }}</span>
                 </button>
 
                 <!-- 一键炼制：跳过火候，承担固定成功率惩罚 -->
-                <button
+                <AppButton
                   v-if="canCraft(recipe)"
-                  @click="handleCraft(recipe)"
-                  :disabled="crafting"
+                  size="xs"
+                  variant="default"
                   title="跳过火候把控，成功率略降且品质固定为中档"
-                  class="px-3 py-2 rounded border border-stone-700 bg-stone-900/60 text-stone-400 text-xs hover:text-stone-200 hover:border-stone-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  :disabled="crafting"
+                  @click="handleCraft(recipe)"
                 >
                   一键
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -656,25 +596,25 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- ====== 火候控制浮层 ====== -->
+    <!-- ====== 火候控制浮层（子弹窗，不属于面板外壳） ====== -->
     <div
       v-if="heatSession"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
     >
-      <div class="w-full max-w-md bg-stone-900 border border-amber-800/50 rounded-lg shadow-2xl animate-fade-in">
+      <div class="w-full max-w-md bg-surface-base border border-gold-800 rounded-panel shadow-2xl animate-fade-in">
         <!-- 标题栏 -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-stone-800">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-line-subtle">
           <div>
-            <h3 class="text-amber-400 font-bold">{{ heatSession.recipe_name }}</h3>
-            <p class="text-xs text-stone-500">
-              第 {{ Math.min(heatLogs.length + 1, heatSession.total_stages) }} / {{ heatSession.total_stages }} 阶段
-              · 数量 x{{ heatSession.quantity }}
+            <h3 class="text-gold-400 font-bold">{{ heatSession.recipe_name }}</h3>
+            <p class="text-xs text-fg-faint">
+              第 <span class="num">{{ Math.min(heatLogs.length + 1, heatSession.total_stages) }} / {{ heatSession.total_stages }}</span> 阶段
+              · 数量 <span class="num">x{{ heatSession.quantity }}</span>
             </p>
           </div>
           <!-- 剩余时间：低于 30 秒转红警示 -->
           <div class="text-right">
-            <div class="text-xs text-stone-500">丹炉冷却倒计时</div>
-            <div class="font-mono text-sm" :class="heatRemaining <= 30 ? 'text-red-400' : 'text-stone-300'">
+            <div class="text-xs text-fg-faint">丹炉冷却倒计时</div>
+            <div class="num text-sm" :class="heatRemaining <= 30 ? 'text-rose-400' : 'text-fg-secondary'">
               {{ heatRemaining }}s
             </div>
           </div>
@@ -693,7 +633,7 @@ onUnmounted(() => {
             🔥
           </div>
           <!-- 火候提示：模糊描述，玩家据此推断档位 -->
-          <p v-if="!heatFinished" class="mt-4 text-center text-sm text-amber-300/90 px-2">
+          <p v-if="!heatFinished" class="mt-4 text-center text-sm text-gold-300 px-2">
             {{ heatSession.hint?.text }}
           </p>
           <p v-else class="mt-4 text-center text-sm text-emerald-400">
@@ -708,10 +648,10 @@ onUnmounted(() => {
             :key="idx"
             class="px-2 py-1 rounded text-xs border"
             :class="log.stage_result === 'perfect'
-              ? 'border-emerald-700/60 bg-emerald-900/20 text-emerald-400'
+              ? 'border-emerald-800 bg-emerald-900/20 text-emerald-400'
               : (log.stage_result === 'too_hot'
-                  ? 'border-red-700/60 bg-red-900/20 text-red-400'
-                  : 'border-sky-700/60 bg-sky-900/20 text-sky-400')"
+                  ? 'border-rose-800 bg-rose-900/20 text-rose-400'
+                  : 'border-sky-800 bg-sky-900/20 text-sky-400')"
             :title="log.stage_message"
           >
             {{ log.stage_result === 'perfect' ? '完美' : (log.stage_result === 'too_hot' ? '火大' : '火小') }}
@@ -726,7 +666,7 @@ onUnmounted(() => {
               :key="h"
               @click="handleSubmitHeat(h)"
               :disabled="heatSubmitting"
-              class="py-2 rounded border border-stone-700 bg-stone-800/60 text-xs text-stone-300 hover:border-amber-600 hover:text-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              class="py-2 rounded-control border border-line bg-surface-hover text-xs text-fg-secondary hover:border-gold-700 hover:text-gold-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {{ getHeatLabel(h) }}
             </button>
@@ -735,92 +675,82 @@ onUnmounted(() => {
 
         <!-- 操作区 -->
         <div class="px-4 pb-4 flex gap-2">
-          <button
-            @click="handleCancelHeat"
-            :disabled="crafting"
-            class="px-4 py-2 rounded border border-stone-700 text-stone-400 text-sm hover:text-stone-200 transition-colors disabled:opacity-40"
-          >
-            停火散炉
-          </button>
-          <button
+          <AppButton variant="default" :disabled="crafting" @click="handleCancelHeat">停火散炉</AppButton>
+          <AppButton
             v-if="heatFinished"
-            @click="handleFinishHeat"
+            variant="primary"
+            class="flex-1"
             :disabled="crafting"
-            class="flex-1 py-2 rounded border border-amber-700/50 bg-amber-900/30 text-amber-400 text-sm font-bold hover:bg-amber-800/50 transition-colors disabled:opacity-40"
+            @click="handleFinishHeat"
           >
             {{ crafting ? '开炉中…' : '开炉取丹' }}
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>
 
-    <!-- ====== 炼制结果浮层 ====== -->
+    <!-- ====== 炼制结果浮层（子弹窗，不属于面板外壳） ====== -->
     <div
       v-if="craftOutcome"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
       @click.self="craftOutcome = null"
     >
-      <div class="w-full max-w-sm bg-stone-900 border border-stone-700 rounded-lg shadow-2xl animate-fade-in p-5">
-        <h3 class="text-center font-bold mb-3" :class="craftOutcome.success ? 'text-emerald-400' : 'text-red-400'">
+      <div class="w-full max-w-sm bg-surface-base border border-line rounded-panel shadow-2xl animate-fade-in p-5">
+        <h3 class="text-center font-bold mb-3" :class="craftOutcome.success ? 'text-emerald-400' : 'text-rose-400'">
           {{ craftOutcome.success ? '炼制成功' : '炼制失败' }}
         </h3>
 
         <!-- 成品信息 -->
         <div v-if="craftOutcome.success_count > 0" class="text-center mb-4">
-          <div class="text-lg text-amber-300">
+          <div class="text-lg text-gold-300">
             {{ craftOutcome.product.name }} x{{ craftOutcome.product.quantity }}
           </div>
-          <div v-if="craftOutcome.product.quality_tier" class="mt-1 text-sm text-amber-500">
+          <div v-if="craftOutcome.product.quality_tier" class="mt-1 text-sm text-gold-500">
             【{{ craftOutcome.product.quality_tier }}】
             <!-- 丹药展示效果倍率（服用恢复/修为放大）；装备展示属性浮动倍率（穿戴基础属性放大） -->
-            <span v-if="craftOutcome.recipe_type === 'alchemy'" class="text-stone-500 text-xs">效果 x{{ craftOutcome.product.effect_multiplier }}</span>
-            <span v-else class="text-stone-500 text-xs">属性 x{{ craftOutcome.product.attr_multiplier }}</span>
+            <span v-if="craftOutcome.recipe_type === 'alchemy'" class="text-fg-faint text-xs">效果 x{{ craftOutcome.product.effect_multiplier }}</span>
+            <span v-else class="text-fg-faint text-xs">属性 x{{ craftOutcome.product.attr_multiplier }}</span>
           </div>
         </div>
 
         <!-- 成功率构成明细，让玩家看懂数值来源 -->
-        <div class="text-xs space-y-1 bg-stone-950/60 rounded p-3 border border-stone-800">
-          <div class="flex justify-between text-stone-400">
-            <span>基础成功率</span><span>{{ (craftOutcome.rate_detail.base * 100).toFixed(0) }}%</span>
+        <div class="text-xs space-y-1 bg-surface-sunken rounded-control p-3 border border-line-subtle">
+          <div class="flex justify-between text-fg-muted">
+            <span>基础成功率</span><span class="num">{{ (craftOutcome.rate_detail.base * 100).toFixed(0) }}%</span>
           </div>
-          <div class="flex justify-between text-stone-400">
-            <span>技能加成</span><span class="text-emerald-400">+{{ (craftOutcome.rate_detail.skill_bonus * 100).toFixed(1) }}%</span>
+          <div class="flex justify-between text-fg-muted">
+            <span>技能加成</span><span class="text-emerald-400 num">+{{ (craftOutcome.rate_detail.skill_bonus * 100).toFixed(1) }}%</span>
           </div>
-          <div class="flex justify-between text-stone-400">
+          <div class="flex justify-between text-fg-muted">
             <span>境界修正</span>
-            <span :class="craftOutcome.rate_detail.realm_modifier >= 0 ? 'text-emerald-400' : 'text-red-400'">
+            <span class="num" :class="craftOutcome.rate_detail.realm_modifier >= 0 ? 'text-emerald-400' : 'text-rose-400'">
               {{ craftOutcome.rate_detail.realm_modifier >= 0 ? '+' : '' }}{{ (craftOutcome.rate_detail.realm_modifier * 100).toFixed(1) }}%
             </span>
           </div>
-          <div class="flex justify-between text-stone-400">
-            <span>洞府丹房</span><span class="text-emerald-400">+{{ (craftOutcome.rate_detail.cave_bonus * 100).toFixed(1) }}%</span>
+          <div class="flex justify-between text-fg-muted">
+            <span>洞府丹房</span><span class="text-emerald-400 num">+{{ (craftOutcome.rate_detail.cave_bonus * 100).toFixed(1) }}%</span>
           </div>
-          <div class="flex justify-between text-stone-400">
+          <div class="flex justify-between text-fg-muted">
             <span>火候修正</span>
-            <span :class="craftOutcome.rate_detail.heat_modifier >= 0 ? 'text-emerald-400' : 'text-red-400'">
+            <span class="num" :class="craftOutcome.rate_detail.heat_modifier >= 0 ? 'text-emerald-400' : 'text-rose-400'">
               {{ craftOutcome.rate_detail.heat_modifier >= 0 ? '+' : '' }}{{ (craftOutcome.rate_detail.heat_modifier * 100).toFixed(1) }}%
             </span>
           </div>
-          <div class="flex justify-between pt-1 mt-1 border-t border-stone-800 text-amber-400 font-bold">
-            <span>最终成功率</span><span>{{ (craftOutcome.rate_detail.final * 100).toFixed(1) }}%</span>
+          <div class="flex justify-between pt-1 mt-1 border-t border-line-subtle text-gold-400 font-bold">
+            <span>最终成功率</span><span class="num">{{ (craftOutcome.rate_detail.final * 100).toFixed(1) }}%</span>
           </div>
         </div>
 
-        <div class="mt-3 text-xs text-stone-500 text-center">
-          成功 {{ craftOutcome.success_count }} / {{ craftOutcome.total_attempts }} 次
-          · 获得技能经验 {{ craftOutcome.skill_exp_gained }}
-          <span v-if="craftOutcome.skill_level_up" class="text-amber-400">（技能升级！）</span>
+        <div class="mt-3 text-xs text-fg-faint text-center">
+          成功 <span class="num">{{ craftOutcome.success_count }} / {{ craftOutcome.total_attempts }}</span> 次
+          · 获得技能经验 <span class="num">{{ craftOutcome.skill_exp_gained }}</span>
+          <span v-if="craftOutcome.skill_level_up" class="text-gold-400">（技能升级！）</span>
         </div>
 
-        <button
-          @click="craftOutcome = null"
-          class="mt-4 w-full py-2 rounded border border-stone-700 text-stone-300 text-sm hover:border-amber-600 hover:text-amber-400 transition-colors"
-        >
-          确定
-        </button>
+        <AppButton variant="default" block class="mt-4" @click="craftOutcome = null">确定</AppButton>
       </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
 
 <style scoped>
@@ -832,21 +762,22 @@ onUnmounted(() => {
   to { opacity: 1; transform: scale(1); }
 }
 
-/* 丹炉光晕：以呼吸动画表现炉火强弱，配合火候提示等级切换颜色 */
+/* 丹炉光晕：以呼吸动画表现炉火强弱，配合火候提示等级切换颜色。
+ * 颜色取令牌通道值（state-info / gold-400 / state-danger），换主题时不用回来改。 */
 .furnace-glow {
   animation: furnacePulse 1.6s ease-in-out infinite;
 }
 .furnace-low {
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.25), transparent 70%);
-  box-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+  background: radial-gradient(circle, rgb(var(--state-info) / 0.25), transparent 70%);
+  box-shadow: 0 0 24px rgb(var(--state-info) / 0.35);
 }
 .furnace-mid {
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.28), transparent 70%);
-  box-shadow: 0 0 28px rgba(251, 191, 36, 0.4);
+  background: radial-gradient(circle, rgb(var(--gold-400) / 0.28), transparent 70%);
+  box-shadow: 0 0 28px rgb(var(--gold-400) / 0.4);
 }
 .furnace-high {
-  background: radial-gradient(circle, rgba(239, 68, 68, 0.3), transparent 70%);
-  box-shadow: 0 0 34px rgba(239, 68, 68, 0.5);
+  background: radial-gradient(circle, rgb(var(--state-danger) / 0.3), transparent 70%);
+  box-shadow: 0 0 34px rgb(var(--state-danger) / 0.5);
 }
 @keyframes furnacePulse {
   0%, 100% { transform: scale(1); filter: brightness(1); }

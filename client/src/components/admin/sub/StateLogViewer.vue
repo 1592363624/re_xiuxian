@@ -5,22 +5,22 @@
   -->
   <div class="space-y-4">
     <!-- 顶部筛选栏 -->
-    <div class="flex flex-wrap items-center gap-3 bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+    <div class="flex flex-wrap items-center gap-3 bg-surface-base/50 rounded-panel p-3 border border-line">
       <div class="flex items-center gap-2">
-        <label class="text-xs text-gray-400">玩家ID</label>
+        <label class="text-xs text-fg-muted">玩家ID</label>
         <input
           v-model.number="filters.playerId"
           @keyup.enter="fetchLogs(1)"
           type="number"
           placeholder="留空查全部"
-          class="w-28 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+          class="w-28 bg-surface-sunken border border-line rounded-control px-2 py-1 text-sm text-fg-secondary num focus-ring focus:border-gold-600"
         />
       </div>
       <div class="flex items-center gap-2">
-        <label class="text-xs text-gray-400">动作类型</label>
+        <label class="text-xs text-fg-muted">动作类型</label>
         <select
           v-model="filters.action"
-          class="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+          class="bg-surface-sunken border border-line rounded-control px-2 py-1 text-sm text-fg-secondary focus-ring focus:border-gold-600"
         >
           <option value="">全部</option>
           <option value="enter">进入状态</option>
@@ -31,10 +31,10 @@
         </select>
       </div>
       <div class="flex items-center gap-2">
-        <label class="text-xs text-gray-400">状态类型</label>
+        <label class="text-xs text-fg-muted">状态类型</label>
         <select
           v-model="filters.stateType"
-          class="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+          class="bg-surface-sunken border border-line rounded-control px-2 py-1 text-sm text-fg-secondary focus-ring focus:border-gold-600"
         >
           <option value="">全部</option>
           <option value="seclusion">闭关</option>
@@ -44,30 +44,24 @@
           <option value="ban">封禁</option>
         </select>
       </div>
-      <button
-        @click="fetchLogs(1)"
-        class="px-3 py-1.5 text-xs bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors"
-      >
+      <AppButton variant="primary" size="xs" @click="fetchLogs(1)">
         查询
-      </button>
-      <button
-        @click="resetFilters"
-        class="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
-      >
+      </AppButton>
+      <AppButton variant="default" size="xs" @click="resetFilters">
         重置
-      </button>
-      <span v-if="total" class="ml-auto text-xs text-gray-500">共 {{ total }} 条</span>
+      </AppButton>
+      <span v-if="total" class="ml-auto text-xs text-fg-faint num">共 {{ total }} 条</span>
     </div>
 
     <!-- 加载中 -->
-    <div v-if="loading" class="text-center py-8 text-gray-400">加载中...</div>
+    <div v-if="loading" class="text-center py-8 text-fg-muted">加载中...</div>
 
     <!-- 日志表格 -->
-    <div v-else-if="logs.length > 0" class="bg-gray-800/70 rounded-lg border border-gray-700 overflow-hidden">
+    <div v-else-if="logs.length > 0" class="bg-surface-base/50 rounded-panel border border-line overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
-            <tr class="text-xs text-gray-400 bg-gray-900/50 border-b border-gray-700">
+            <tr class="text-xs text-fg-muted bg-surface-raised border-b border-line">
               <th class="text-left py-2 px-3">时间</th>
               <th class="text-left py-2 px-3">玩家</th>
               <th class="text-left py-2 px-3">状态类型</th>
@@ -82,10 +76,10 @@
             <tr
               v-for="log in logs"
               :key="log.id"
-              class="border-b border-gray-800 hover:bg-gray-900/30"
+              class="border-b border-line-subtle hover:bg-surface-hover"
             >
-              <td class="py-2 px-3 text-gray-400 text-xs whitespace-nowrap">{{ formatTime(log.created_at) }}</td>
-              <td class="py-2 px-3 text-gray-200">{{ log.player_id }}{{ log.player_nickname ? ` (${log.player_nickname})` : '' }}</td>
+              <td class="py-2 px-3 text-fg-muted text-xs whitespace-nowrap num">{{ formatTime(log.created_at) }}</td>
+              <td class="py-2 px-3 text-fg-primary num">{{ log.player_id }}{{ log.player_nickname ? ` (${log.player_nickname})` : '' }}</td>
               <td class="py-2 px-3">
                 <span class="text-xs px-2 py-0.5 rounded" :class="stateTypeClass(log.state_type)">
                   {{ stateTypeText(log.state_type) }}
@@ -94,10 +88,10 @@
               <td class="py-2 px-3">
                 <span class="text-xs" :class="actionClass(log.action)">{{ actionText(log.action) }}</span>
               </td>
-              <td class="py-2 px-3 text-gray-400 text-xs">{{ log.from_state || '-' }}</td>
-              <td class="py-2 px-3 text-gray-300 text-xs">{{ log.to_state || '-' }}</td>
-              <td class="py-2 px-3 text-gray-500 text-xs">{{ log.source || '-' }}</td>
-              <td class="py-2 px-3 text-gray-500 text-xs max-w-xs truncate" :title="log.details">
+              <td class="py-2 px-3 text-fg-muted text-xs">{{ log.from_state || '-' }}</td>
+              <td class="py-2 px-3 text-fg-secondary text-xs">{{ log.to_state || '-' }}</td>
+              <td class="py-2 px-3 text-fg-faint text-xs">{{ log.source || '-' }}</td>
+              <td class="py-2 px-3 text-fg-faint text-xs max-w-xs truncate" :title="log.details">
                 {{ log.details || '-' }}
               </td>
             </tr>
@@ -106,31 +100,33 @@
       </div>
 
       <!-- 分页 -->
-      <div class="flex items-center justify-between p-3 border-t border-gray-700 bg-gray-900/30">
-        <div class="text-xs text-gray-500">
+      <div class="flex items-center justify-between p-3 border-t border-line-subtle bg-surface-sunken/30">
+        <div class="text-xs text-fg-faint num">
           第 {{ currentPage }} / {{ totalPages }} 页
         </div>
         <div class="flex gap-2">
-          <button
+          <AppButton
+            variant="default"
+            size="xs"
             @click="fetchLogs(currentPage - 1)"
             :disabled="currentPage <= 1"
-            class="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded"
           >
             上一页
-          </button>
-          <button
+          </AppButton>
+          <AppButton
+            variant="default"
+            size="xs"
             @click="fetchLogs(currentPage + 1)"
             :disabled="currentPage >= totalPages"
-            class="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded"
           >
             下一页
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>
 
     <!-- 空状态 -->
-    <div v-else class="text-center py-12 text-gray-500">
+    <div v-else class="text-center py-12 text-fg-faint">
       <div class="text-4xl mb-2">📜</div>
       <div>暂无状态转移日志</div>
     </div>
@@ -151,6 +147,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { getStateLogs } from '../../../api/admin';
 import { useUIStore } from '../../../stores/ui';
+import AppButton from '../../ui/AppButton.vue';
 
 const uiStore = useUIStore();
 
@@ -240,9 +237,9 @@ function stateTypeClass(type: string): string {
     combat: 'bg-red-900/40 text-red-300',
     adventure: 'bg-amber-900/40 text-amber-300',
     moving: 'bg-blue-900/40 text-blue-300',
-    ban: 'bg-gray-700 text-gray-300'
+    ban: 'bg-surface-active text-fg-secondary'
   };
-  return map[type] || 'bg-gray-700 text-gray-300';
+  return map[type] || 'bg-surface-active text-fg-secondary';
 }
 
 /**
@@ -265,12 +262,12 @@ function actionText(action: string): string {
 function actionClass(action: string): string {
   const map: Record<string, string> = {
     enter: 'text-emerald-400',
-    exit: 'text-gray-400',
+    exit: 'text-fg-muted',
     transition: 'text-blue-400',
     auto_clean: 'text-amber-400',
     error: 'text-red-400'
   };
-  return map[action] || 'text-gray-400';
+  return map[action] || 'text-fg-muted';
 }
 
 onMounted(() => {

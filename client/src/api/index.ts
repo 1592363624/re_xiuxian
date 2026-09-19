@@ -30,35 +30,49 @@ apiClient.interceptors.request.use(
 );
 
 // 响应拦截器
+//
+// 分工：传输层/协议层的错误（登录失效、无权限、404、500、断网）在这里统一播报，
+// 因为组件再怎么补充也只能给出"获取X失败"这种更没信息量的话；
+// 400 这类带具体原因的业务错误留给调用方，只有它知道自己在干什么。
+//
+// 关键：弹过 toast 的错误要打 __uiNotified 标记。
+// 之前没有这个标记，组件的 catch 无从得知提示已经出现过，于是每个 500 都会
+// 再叠一条自己的"××失败"——玩家同时看到两条互相矛盾的红字。
+// 组件侧统一走 uiStore.showApiError()，它会认这个标记并且不再重复播报。
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
   (error: AxiosError) => {
     const uiStore = useUIStore();
-    
+
+    const notify = (message: string) => {
+      uiStore.showToast(message, 'error');
+      (error as any).__uiNotified = true;
+    };
+
     if (error.response) {
       const { status, data } = error.response;
-      
-      // 统一错误处理：只处理通用错误，业务错误由组件自行处理
+
       if (status === 401) {
         const playerStore = usePlayerStore();
         playerStore.logout();
-        uiStore.showToast('登录已过期，请重新登录', 'error');
+        notify('登录已过期，请重新登录');
       } else if (status === 403) {
-        uiStore.showToast('没有权限执行此操作', 'error');
+        notify('没有权限执行此操作');
       } else if (status === 404) {
-        uiStore.showToast('请求的资源不存在', 'error');
+        notify('请求的资源不存在');
       } else if (status === 500) {
-        uiStore.showToast('服务器错误，请稍后重试', 'error');
+        notify('服务器错误，请稍后重试');
       }
       // 400 等业务错误不在此处弹 toast，由调用方组件处理
     } else if (error.request) {
-      uiStore.showToast('网络错误，请检查网络连接', 'error');
+      notify('网络错误，请检查网络连接');
     } else {
       uiStore.showToast('请求配置错误', 'error');
+      (error as any).__uiNotified = true;
     }
-    
+
     return Promise.reject(error);
   }
 );

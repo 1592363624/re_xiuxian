@@ -1,25 +1,27 @@
 <template>
   <!-- 三栏在 1280px 以下放不下（角色 288 + 日志 560 + 坞 400），
        因此 xl 起才启用右坞，更窄的屏退回底部操作条 + 全屏 modal。 -->
-  <aside class="hidden xl:flex flex-col flex-1 min-w-[400px] border-l border-stone-800 bg-[#100e0c] shrink-0">
+  <aside class="hidden xl:flex flex-col flex-1 min-w-[400px] border-l border-line-subtle bg-surface-canvas shrink-0">
     <!-- 分类标签：全部带文字，不再出现纯图标导航 -->
-    <div class="shrink-0 flex flex-wrap gap-x-1 gap-y-0.5 px-2 pt-2 pb-1.5 border-b border-stone-800/70 bg-[#141210]">
+    <div class="shrink-0 flex flex-wrap gap-x-1 gap-y-0.5 px-2 pt-2 pb-1.5 border-b border-line-subtle bg-surface-base" role="tablist">
       <button
         v-for="tab in tabs"
         :key="tab.key"
         @click="selectTab(tab.key)"
+        role="tab"
+        :aria-selected="activeTab === tab.key"
         class="px-2.5 py-1 rounded text-[13px] tracking-wider transition-colors border"
         :class="activeTab === tab.key
-          ? 'bg-amber-900/40 border-amber-700/60 text-amber-200 font-bold'
-          : 'border-transparent text-stone-400 hover:text-amber-500 hover:bg-[#1c1917]'"
+          ? 'bg-gold-900/40 border-gold-700/60 text-gold-200 font-bold'
+          : 'border-transparent text-fg-muted hover:text-gold-500 hover:bg-surface-raised'"
       >{{ tab.label }}</button>
     </div>
 
     <!-- 面板停靠面：42 个功能面板在桌面端定位到这一块，而不是盖住整个视口 -->
     <div ref="surfaceRef" class="dock-surface relative flex-1 min-h-0 overflow-hidden">
-      <div v-show="!openPanelId" class="absolute inset-0 overflow-y-auto dock-scroll p-3">
+      <div v-show="!openPanelId" class="absolute inset-0 overflow-y-auto scroll-thin p-3">
         <!-- 坞体本身不设上限（停靠的功能面板要吃到宽度），但卡片视图自限宽避免被拉散 -->
-        <div class="max-w-[1200px] mx-auto">
+        <div class="max-w-dock mx-auto">
         <OverviewPane
           v-if="activeTab === 'overview'"
           :player="player"
@@ -29,19 +31,19 @@
         </OverviewPane>
 
         <div v-else>
-          <h3 class="text-[11px] text-stone-500 tracking-[0.2em] mb-2.5 font-serif">{{ activeTabLabel }} · 共 {{ activeEntries.length }} 项</h3>
+          <h3 class="text-[11px] text-fg-faint tracking-[0.2em] mb-2.5 font-display">{{ activeTabLabel }} · 共 {{ activeEntries.length }} 项</h3>
           <div class="grid grid-cols-2 2xl:grid-cols-3 gap-2">
             <button
               v-for="entry in activeEntries"
               :key="entry.id"
               @click="$emit('action', entry.id)"
-              class="group flex items-start gap-2.5 p-2.5 rounded-lg bg-[#1a1715] border border-stone-800 text-left transition-all duration-200
-                     hover:border-stone-600 hover:bg-[#221e1b] active:scale-[0.98]"
+              class="group flex items-start gap-2.5 p-2.5 rounded-lg bg-surface-raised border border-line-subtle text-left transition-all duration-200
+                     hover:border-line-strong hover:bg-surface-hover active:scale-[0.98]"
             >
               <span class="shrink-0 mt-0.5 transition-transform duration-200 group-hover:scale-110" v-html="entry.icon"></span>
               <span class="min-w-0">
-                <span class="block text-[13px] font-bold text-stone-200 tracking-wide group-hover:text-amber-500 transition-colors truncate">{{ entry.name }}</span>
-                <span class="block text-[11px] text-stone-500 leading-snug mt-0.5">{{ entry.desc }}</span>
+                <span class="block text-[13px] font-bold text-fg-primary tracking-wide group-hover:text-gold-500 transition-colors truncate">{{ entry.name }}</span>
+                <span class="block text-[11px] text-fg-faint leading-snug mt-0.5">{{ entry.desc }}</span>
               </span>
             </button>
           </div>
@@ -123,9 +125,3 @@ onUnmounted(() => {
 watch(() => props.openPanelId, publishSurfaceRect)
 </script>
 
-<style scoped>
-.dock-scroll::-webkit-scrollbar { width: 4px; }
-.dock-scroll::-webkit-scrollbar-track { background: transparent; }
-.dock-scroll::-webkit-scrollbar-thumb { background: #44403c; border-radius: 2px; }
-.dock-scroll { scrollbar-width: thin; scrollbar-color: #44403c transparent; }
-</style>

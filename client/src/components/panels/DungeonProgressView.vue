@@ -17,51 +17,51 @@
 <template>
   <div class="space-y-3">
     <!-- ============ 1. 副本结算遮盖层（settlement 有值时优先展示） ============ -->
-    <div v-if="settlement" class="bg-[#292524] border-2 rounded-lg p-5 space-y-4"
+    <div v-if="settlement" class="bg-surface-hover border-2 rounded-lg p-5 space-y-4"
       :class="settlement.is_success ? 'border-amber-600' : 'border-rose-800'">
       <div class="text-center">
         <div class="text-2xl font-bold tracking-widest mb-1"
           :class="settlement.is_success ? 'text-amber-300' : 'text-rose-400'">
           {{ getSettleTitle() }}
         </div>
-        <div class="text-xs text-stone-500">{{ getSettleReasonText() }}</div>
+        <div class="text-xs text-fg-faint">{{ getSettleReasonText() }}</div>
       </div>
 
       <!-- 星级展示 -->
       <div v-if="settlement.is_success" class="flex items-center justify-center gap-2 py-2">
         <svg v-for="i in 3" :key="i" xmlns="http://www.w3.org/2000/svg"
           width="36" height="36" viewBox="0 0 24 24"
-          :fill="i <= settlement.stars ? '#fbbf24' : 'none'"
-          :stroke="i <= settlement.stars ? '#fbbf24' : '#44403c'"
+          :fill="i <= settlement.stars ? 'rgb(var(--gold-400))' : 'none'"
+          :stroke="i <= settlement.stars ? 'rgb(var(--gold-400))' : 'rgb(var(--line))'"
           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
       </div>
 
       <!-- 通关用时 -->
-      <div class="text-center text-xs text-stone-400">
+      <div class="text-center text-xs text-fg-muted">
         用时：<span class="text-amber-300 font-bold">{{ formatTime(settlement.completion_time_sec) }}</span>
         <span v-if="settlement.record_updated" class="ml-2 text-emerald-400">· 更新了通关记录</span>
       </div>
 
       <!-- 奖励列表 -->
-      <div class="bg-stone-900/50 border border-stone-700 rounded-lg p-3 space-y-2">
-        <div class="text-xs text-stone-500 mb-1">本次奖励</div>
+      <div class="bg-surface-raised/50 border border-line rounded-lg p-3 space-y-2">
+        <div class="text-xs text-fg-faint mb-1">本次奖励</div>
         <div class="grid grid-cols-2 gap-2 text-xs">
           <div class="flex items-center gap-2">
-            <span class="text-stone-500">修为：</span>
+            <span class="text-fg-faint">修为：</span>
             <span class="text-cyan-300 font-bold">+{{ formatNumber(settlement.rewards.exp) }}</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-stone-500">灵石：</span>
+            <span class="text-fg-faint">灵石：</span>
             <span class="text-amber-300 font-bold">+{{ formatNumber(settlement.rewards.spirit_stones) }}</span>
           </div>
         </div>
-        <div v-if="settlement.rewards.items && settlement.rewards.items.length > 0" class="pt-2 border-t border-stone-800">
-          <div class="text-xs text-stone-500 mb-1">物品</div>
+        <div v-if="settlement.rewards.items && settlement.rewards.items.length > 0" class="pt-2 border-t border-line-subtle">
+          <div class="text-xs text-fg-faint mb-1">物品</div>
           <div class="flex flex-wrap gap-2">
             <span v-for="(item, idx) in settlement.rewards.items" :key="idx"
-              class="text-[11px] px-2 py-0.5 rounded bg-stone-800 border border-stone-700 text-stone-300">
+              class="text-[11px] px-2 py-0.5 rounded bg-surface-hover border border-line text-fg-secondary">
               {{ item.item_key }} ×{{ item.quantity }}
             </span>
           </div>
@@ -70,7 +70,7 @@
 
       <!-- 退出按钮 -->
       <button @click="$emit('exit')"
-        class="w-full py-2 rounded-lg text-sm font-bold tracking-wider bg-stone-900/40 border border-stone-700 text-stone-300 hover:bg-stone-800/40 hover:border-stone-500 transition-all">
+        class="w-full py-2 rounded-lg text-sm font-bold tracking-wider bg-surface-raised/40 border border-line text-fg-secondary hover:bg-surface-hover/40 hover:border-line-strong transition-all">
         返回章节列表
       </button>
     </div>
@@ -78,7 +78,7 @@
     <!-- ============ 2. 副本进行中主体（无 settlement 时展示） ============ -->
     <template v-else>
       <!-- 顶部进度信息栏 -->
-      <div v-if="progress" class="bg-[#292524] border border-stone-700 rounded-lg p-3">
+      <div v-if="progress" class="bg-surface-hover border border-line rounded-lg p-3">
         <div class="flex items-center justify-between mb-2">
           <div class="text-sm font-bold text-amber-300">{{ progress.chapter_name }}</div>
           <div class="text-[10px] px-2 py-0.5 rounded"
@@ -88,35 +88,35 @@
         </div>
         <div class="grid grid-cols-3 gap-2 text-[11px]">
           <div>
-            <div class="text-stone-500">剩余时间</div>
+            <div class="text-fg-faint">剩余时间</div>
             <div class="font-bold"
-              :class="progress.remaining_seconds < 300 ? 'text-rose-400' : 'text-stone-300'">
+              :class="progress.remaining_seconds < 300 ? 'text-rose-400' : 'text-fg-secondary'">
               {{ formatTime(progress.remaining_seconds) }}
             </div>
           </div>
           <div>
-            <div class="text-stone-500">关卡进度</div>
-            <div class="text-stone-300 font-bold">
+            <div class="text-fg-faint">关卡进度</div>
+            <div class="text-fg-secondary font-bold">
               {{ progress.nodes_completed_count }} / {{ nodesTotal }}
             </div>
           </div>
           <div>
-            <div class="text-stone-500">当前关</div>
+            <div class="text-fg-faint">当前关</div>
             <div class="text-cyan-300 font-bold truncate">{{ currentNode?.title || '—' }}</div>
           </div>
         </div>
       </div>
 
       <!-- 玩家状态条 -->
-      <div v-if="progress" class="bg-[#292524] border border-stone-700 rounded-lg p-3 space-y-2">
-        <div class="text-[10px] text-stone-500 mb-1">道友状态</div>
+      <div v-if="progress" class="bg-surface-hover border border-line rounded-lg p-3 space-y-2">
+        <div class="text-[10px] text-fg-faint mb-1">道友状态</div>
         <!-- HP -->
         <div>
           <div class="flex items-center justify-between text-[11px] mb-0.5">
-            <span class="text-stone-400">气血</span>
+            <span class="text-fg-muted">气血</span>
             <span class="text-rose-300 font-bold">{{ formatNumber(progress.hp_remaining) }}</span>
           </div>
-          <div class="h-1.5 bg-stone-900 rounded overflow-hidden">
+          <div class="h-1.5 bg-surface-raised rounded overflow-hidden">
             <div class="h-full bg-gradient-to-r from-rose-700 to-rose-500 transition-all"
               :style="{ width: hpRatio + '%' }"></div>
           </div>
@@ -124,10 +124,10 @@
         <!-- MP -->
         <div>
           <div class="flex items-center justify-between text-[11px] mb-0.5">
-            <span class="text-stone-400">灵力</span>
+            <span class="text-fg-muted">灵力</span>
             <span class="text-cyan-300 font-bold">{{ formatNumber(progress.mp_remaining) }}</span>
           </div>
-          <div class="h-1.5 bg-stone-900 rounded overflow-hidden">
+          <div class="h-1.5 bg-surface-raised rounded overflow-hidden">
             <div class="h-full bg-gradient-to-r from-cyan-700 to-cyan-500 transition-all"
               :style="{ width: mpRatio + '%' }"></div>
           </div>
@@ -135,20 +135,20 @@
         <!-- 修为与灵石 -->
         <div class="grid grid-cols-2 gap-2 pt-1 text-[11px]">
           <div class="flex items-center gap-1">
-            <span class="text-stone-500">已获修为：</span>
+            <span class="text-fg-faint">已获修为：</span>
             <span class="text-emerald-300 font-bold">+{{ formatNumber(progress.exp_accumulated) }}</span>
           </div>
           <div class="flex items-center gap-1">
-            <span class="text-stone-500">已获灵石：</span>
+            <span class="text-fg-faint">已获灵石：</span>
             <span class="text-amber-300 font-bold">+{{ formatNumber(progress.spirit_stones_accumulated) }}</span>
           </div>
         </div>
         <!-- 已收集物品 -->
         <div v-if="progress.items_collected && progress.items_collected.length > 0" class="pt-1">
-          <div class="text-[10px] text-stone-500 mb-1">已收集物品</div>
+          <div class="text-[10px] text-fg-faint mb-1">已收集物品</div>
           <div class="flex flex-wrap gap-1">
             <span v-for="(item, idx) in progress.items_collected" :key="idx"
-              class="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 border border-stone-700 text-stone-300">
+              class="text-[10px] px-1.5 py-0.5 rounded bg-surface-hover border border-line text-fg-secondary">
               {{ item.item_key }} ×{{ item.quantity }}
             </span>
           </div>
@@ -156,64 +156,64 @@
       </div>
 
       <!-- 战斗结果展示区（battleResult 有值时展示） -->
-      <div v-if="battleResult" class="bg-[#292524] border rounded-lg p-3 space-y-2"
+      <div v-if="battleResult" class="bg-surface-hover border rounded-lg p-3 space-y-2"
         :class="battleResult.battle_result === 'victory' ? 'border-emerald-700/50' : 'border-rose-800/50'">
         <div class="flex items-center justify-between">
           <div class="text-sm font-bold"
             :class="battleResult.battle_result === 'victory' ? 'text-emerald-300' : 'text-rose-400'">
             {{ battleResult.battle_result === 'victory' ? '✦ 战斗胜利 ✦' : '✦ 战斗失利 ✦' }}
           </div>
-          <div class="text-[10px] text-stone-500">
+          <div class="text-[10px] text-fg-faint">
             敌方剩余HP：<span class="text-rose-300">{{ formatNumber(battleResult.final_monster_hp) }}</span>
           </div>
         </div>
 
         <!-- 战斗日志（精简展示前 8 条） -->
         <div v-if="battleResult.battle_log && battleResult.battle_log.length > 0"
-          class="bg-stone-900/50 border border-stone-800 rounded p-2 max-h-32 overflow-y-auto text-[10px] space-y-0.5">
+          class="bg-surface-raised/50 border border-line-subtle rounded p-2 max-h-32 overflow-y-auto text-[10px] space-y-0.5">
           <div v-for="(log, idx) in battleResult.battle_log" :key="idx"
             class="flex items-center gap-2">
-            <span class="text-stone-600 shrink-0">R{{ log.round }}</span>
+            <span class="text-fg-faint shrink-0">R{{ log.round }}</span>
             <span class="shrink-0"
               :class="log.side === 'player' ? 'text-cyan-400' : 'text-rose-400'">
               {{ log.side === 'player' ? '我' : '敌' }}
             </span>
-            <span class="text-stone-400">造成</span>
+            <span class="text-fg-muted">造成</span>
             <span class="font-bold"
               :class="log.side === 'player' ? 'text-cyan-300' : 'text-rose-300'">
               {{ formatNumber(log.damage) }}
             </span>
-            <span class="text-stone-400">伤害</span>
-            <span v-if="log.player_hp" class="text-stone-500 ml-auto">
+            <span class="text-fg-muted">伤害</span>
+            <span v-if="log.player_hp" class="text-fg-faint ml-auto">
               我:{{ formatNumber(log.player_hp) }} / 敌:{{ formatNumber(log.monster_hp) }}
             </span>
           </div>
         </div>
 
         <!-- 战斗奖励 -->
-        <div v-if="battleResult.rewards" class="text-[11px] text-stone-400 flex flex-wrap gap-3">
+        <div v-if="battleResult.rewards" class="text-[11px] text-fg-muted flex flex-wrap gap-3">
           <span>修为：<span class="text-emerald-300 font-bold">+{{ formatNumber(battleResult.rewards.exp) }}</span></span>
           <span>灵石：<span class="text-amber-300 font-bold">+{{ formatNumber(battleResult.rewards.spirit_stones) }}</span></span>
           <span v-if="battleResult.rewards.items && battleResult.rewards.items.length > 0">
             物品：
             <span v-for="(item, idx) in battleResult.rewards.items" :key="idx"
-              class="text-stone-300 mr-1">{{ item.item_key }} ×{{ item.quantity }}</span>
+              class="text-fg-secondary mr-1">{{ item.item_key }} ×{{ item.quantity }}</span>
           </span>
         </div>
 
         <!-- 胜利/失败文案 -->
         <div v-if="battleResult.battle_result === 'victory' && battleResult.victory_text"
-          class="text-xs text-amber-300 italic leading-relaxed border-t border-stone-800 pt-2">
+          class="text-xs text-amber-300 italic leading-relaxed border-t border-line-subtle pt-2">
           {{ battleResult.victory_text }}
         </div>
         <div v-if="battleResult.battle_result === 'defeat' && battleResult.defeat_text"
-          class="text-xs text-rose-400 italic leading-relaxed border-t border-stone-800 pt-2">
+          class="text-xs text-rose-400 italic leading-relaxed border-t border-line-subtle pt-2">
           {{ battleResult.defeat_text }}
         </div>
       </div>
 
       <!-- ============ 3. 当前节点内容区（按类型渲染） ============ -->
-      <div v-if="currentNode" class="bg-[#292524] border border-stone-700 rounded-lg p-4 space-y-3">
+      <div v-if="currentNode" class="bg-surface-hover border border-line rounded-lg p-4 space-y-3">
         <!-- 节点头部 -->
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
@@ -230,7 +230,7 @@
 
         <!-- story 节点：剧情文本 -->
         <div v-if="currentNode.type === 'story'">
-          <div class="text-sm text-stone-300 leading-relaxed whitespace-pre-line">
+          <div class="text-sm text-fg-secondary leading-relaxed whitespace-pre-line">
             {{ currentNode.narrative }}
           </div>
           <div v-if="currentNode.ai_generated" class="text-[10px] text-purple-400 mt-2 italic">
@@ -240,41 +240,41 @@
 
         <!-- battle / boss 节点：怪物信息 -->
         <div v-else-if="currentNode.type === 'battle' || currentNode.type === 'boss'">
-          <div v-if="currentNode.description" class="text-xs text-stone-400 italic mb-2 leading-relaxed">
+          <div v-if="currentNode.description" class="text-xs text-fg-muted italic mb-2 leading-relaxed">
             {{ currentNode.description }}
           </div>
           <div v-if="currentNode.monster"
-            class="bg-stone-900/50 border border-stone-700 rounded-lg p-3 space-y-2">
+            class="bg-surface-raised/50 border border-line rounded-lg p-3 space-y-2">
             <div class="flex items-center justify-between">
               <div class="text-sm font-bold"
                 :class="currentNode.type === 'boss' ? 'text-rose-400' : 'text-orange-300'">
                 {{ currentNode.monster.name }}
               </div>
               <div v-if="currentNode.monster.skills && currentNode.monster.skills.length > 0"
-                class="text-[10px] text-stone-500">
+                class="text-[10px] text-fg-faint">
                 技能：{{ currentNode.monster.skills.join(' · ') }}
               </div>
             </div>
-            <div v-if="currentNode.monster.description" class="text-[11px] text-stone-500 italic">
+            <div v-if="currentNode.monster.description" class="text-[11px] text-fg-faint italic">
               {{ currentNode.monster.description }}
             </div>
             <div class="grid grid-cols-3 gap-2 text-[11px]">
-              <div class="bg-stone-950/40 rounded px-2 py-1">
-                <div class="text-stone-500">气血</div>
+              <div class="bg-surface-canvas/40 rounded px-2 py-1">
+                <div class="text-fg-faint">气血</div>
                 <div class="text-rose-300 font-bold">{{ formatNumber(currentNode.monster.hp) }}</div>
               </div>
-              <div class="bg-stone-950/40 rounded px-2 py-1">
-                <div class="text-stone-500">攻击</div>
+              <div class="bg-surface-canvas/40 rounded px-2 py-1">
+                <div class="text-fg-faint">攻击</div>
                 <div class="text-orange-300 font-bold">{{ formatNumber(currentNode.monster.attack) }}</div>
               </div>
-              <div class="bg-stone-950/40 rounded px-2 py-1">
-                <div class="text-stone-500">防御</div>
+              <div class="bg-surface-canvas/40 rounded px-2 py-1">
+                <div class="text-fg-faint">防御</div>
                 <div class="text-cyan-300 font-bold">{{ formatNumber(currentNode.monster.defense) }}</div>
               </div>
             </div>
           </div>
           <!-- 战斗奖励预览 -->
-          <div v-if="currentNode.rewards" class="text-[11px] text-stone-500 mt-2">
+          <div v-if="currentNode.rewards" class="text-[11px] text-fg-faint mt-2">
             胜利奖励：修为+{{ formatNumber(currentNode.rewards.exp) }} · 灵石+{{ formatNumber(currentNode.rewards.spirit_stones) }}
             <span v-if="currentNode.rewards.items && currentNode.rewards.items.length > 0">
               · 物品：<span v-for="(item, idx) in currentNode.rewards.items" :key="idx">{{ item.item_key }}×{{ item.quantity }} </span>
@@ -284,23 +284,23 @@
 
         <!-- puzzle 节点：选项分支 -->
         <div v-else-if="currentNode.type === 'puzzle'">
-          <div class="text-sm text-stone-300 leading-relaxed whitespace-pre-line mb-3">
+          <div class="text-sm text-fg-secondary leading-relaxed whitespace-pre-line mb-3">
             {{ currentNode.narrative }}
           </div>
           <div class="space-y-2">
             <button v-for="option in (currentNode.options || [])" :key="option.id"
               @click="$emit('choose-option', option.id)"
               :disabled="loading"
-              class="w-full text-left p-2.5 rounded-lg border border-stone-700 bg-stone-900/40 hover:bg-stone-800/60 hover:border-amber-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              class="w-full text-left p-2.5 rounded-lg border border-line bg-surface-raised/40 hover:bg-surface-hover/60 hover:border-amber-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               <div class="text-xs text-amber-300 font-bold mb-0.5">{{ option.text }}</div>
-              <div v-if="option.hint" class="text-[10px] text-stone-500">{{ option.hint }}</div>
+              <div v-if="option.hint" class="text-[10px] text-fg-faint">{{ option.hint }}</div>
             </button>
           </div>
         </div>
 
         <!-- reward 节点：奖励展示 -->
         <div v-else-if="currentNode.type === 'reward'">
-          <div v-if="currentNode.narrative" class="text-sm text-stone-300 leading-relaxed whitespace-pre-line mb-2">
+          <div v-if="currentNode.narrative" class="text-sm text-fg-secondary leading-relaxed whitespace-pre-line mb-2">
             {{ currentNode.narrative }}
           </div>
           <div v-if="currentNode.rewards"
@@ -312,7 +312,7 @@
             </div>
             <div v-if="currentNode.rewards.items && currentNode.rewards.items.length > 0" class="flex flex-wrap gap-1 pt-1">
               <span v-for="(item, idx) in currentNode.rewards.items" :key="idx"
-                class="text-[11px] px-2 py-0.5 rounded bg-stone-800 border border-stone-700 text-stone-300">
+                class="text-[11px] px-2 py-0.5 rounded bg-surface-hover border border-line text-fg-secondary">
                 {{ item.item_key }} ×{{ item.quantity }}
               </span>
             </div>
@@ -320,7 +320,7 @@
         </div>
 
         <!-- ============ 4. 节点操作按钮区 ============ -->
-        <div class="pt-2 border-t border-stone-800 flex gap-2">
+        <div class="pt-2 border-t border-line-subtle flex gap-2">
           <!-- story 节点：继续探索 -->
           <button v-if="currentNode.type === 'story'" @click="$emit('advance')"
             :disabled="loading"
@@ -356,14 +356,14 @@
           <!-- 中断副本按钮（始终可点击，独立于节点操作） -->
           <button @click="$emit('interrupt')"
             :disabled="loading"
-            class="px-3 py-2 rounded-lg text-xs text-stone-400 hover:text-rose-400 border border-stone-700 hover:border-rose-800 transition-colors disabled:opacity-50">
+            class="px-3 py-2 rounded-lg text-xs text-fg-muted hover:text-rose-400 border border-line hover:border-rose-800 transition-colors disabled:opacity-50">
             中断副本
           </button>
         </div>
       </div>
 
       <!-- 无节点内容兜底 -->
-      <div v-else class="bg-[#292524] border border-stone-700 rounded-lg p-6 text-center text-stone-500 text-sm">
+      <div v-else class="bg-surface-hover border border-line rounded-lg p-6 text-center text-fg-faint text-sm">
         {{ loading ? '正在加载副本内容...' : '暂无节点内容' }}
       </div>
     </template>
@@ -468,7 +468,7 @@ const getDifficultyBadgeClass = (difficulty) => {
     normal: 'bg-emerald-950/40 border border-emerald-700 text-emerald-300',
     hard: 'bg-amber-950/40 border border-amber-700 text-amber-300',
     nightmare: 'bg-rose-950/40 border border-rose-700 text-rose-300'
-  }[difficulty] || 'bg-stone-800 text-stone-300'
+  }[difficulty] || 'bg-surface-hover text-fg-secondary'
 }
 
 /**
@@ -494,7 +494,7 @@ const getNodeTypeBadgeClass = (type) => {
     puzzle: 'bg-purple-950/40 border border-purple-800 text-purple-300',
     boss: 'bg-rose-950/40 border border-rose-800 text-rose-300',
     reward: 'bg-amber-950/40 border border-amber-700 text-amber-300'
-  }[type] || 'bg-stone-800 text-stone-300'
+  }[type] || 'bg-surface-hover text-fg-secondary'
 }
 
 /**
@@ -516,17 +516,3 @@ const getSettleReasonText = () => {
   return props.settlement.settle_reason || ''
 }
 </script>
-
-<style scoped>
-/* 滚动条样式 */
-.overflow-y-auto::-webkit-scrollbar {
-  width: 4px;
-}
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: #1c1917;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #44403c;
-  border-radius: 2px;
-}
-</style>

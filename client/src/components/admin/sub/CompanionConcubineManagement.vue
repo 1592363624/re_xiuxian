@@ -22,17 +22,17 @@
     <!-- 顶部标题 -->
     <div class="flex justify-between items-center">
       <h3 class="text-lg font-bold text-amber-300">道侣 / 侍妾管理</h3>
-      <div class="text-xs text-gray-500">批次3 道侣侍妾系统 GM 操作面板</div>
+      <div class="text-xs text-fg-faint">批次3 道侣侍妾系统 GM 操作面板</div>
     </div>
 
     <!-- 子 Tab 切换 -->
-    <div class="flex border-b border-gray-700 bg-gray-800/50 overflow-x-auto">
+    <div class="flex border-b border-line bg-surface-raised/50 overflow-x-auto">
       <button
         v-for="tab in subTabs"
         :key="tab.id"
         @click="currentSubTab = tab.id"
         class="px-6 py-2 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
-        :class="currentSubTab === tab.id ? 'text-amber-300' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'"
+        :class="currentSubTab === tab.id ? 'text-amber-300' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-hover/50'"
       >
         {{ tab.name }}
         <div v-if="currentSubTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-500"></div>
@@ -42,89 +42,85 @@
     <!-- ============ 子 Tab 1：道侣管理 ============ -->
     <div v-if="currentSubTab === 'dao_companion'" class="space-y-4">
       <!-- 强制解除道侣 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="text-sm font-bold text-rose-300 mb-2">强制解除道侣</div>
-        <div class="text-xs text-gray-500 mb-3">
+        <div class="text-xs text-fg-faint mb-3">
           · 强制解除指定玩家的道侣关系，用于处理玩家纠纷或异常状态<br>
           · 操作不可撤销，会清空亲密度与心契等级
         </div>
         <div class="mb-3">
-          <label class="block text-xs text-gray-400 mb-1">目标玩家 ID</label>
+          <label class="block text-xs text-fg-muted mb-1">目标玩家 ID</label>
           <input v-model.number="daoBreakForm.playerId" type="number" min="1" placeholder="例如：1"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
-        <button @click="submitDaoBreak"
-          :disabled="actionLoading || !daoBreakForm.playerId"
-          class="px-4 py-2 bg-rose-700 hover:bg-rose-600 rounded text-white text-sm disabled:opacity-50">
+        <AppButton variant="danger" size="sm" :disabled="actionLoading || !daoBreakForm.playerId" @click="submitDaoBreak">
           {{ actionLoading ? '提交中...' : '强制解除' }}
-        </button>
+        </AppButton>
       </div>
 
       <!-- 调整心契等级 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="text-sm font-bold text-purple-300 mb-2">调整心契等级</div>
-        <div class="text-xs text-gray-500 mb-3">
+        <div class="text-xs text-fg-faint mb-3">
           · 直接覆盖指定玩家的心契等级（0-5）<br>
           · 0=未启心契，5=满级心契
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
           <div>
-            <label class="block text-xs text-gray-400 mb-1">目标玩家 ID</label>
+            <label class="block text-xs text-fg-muted mb-1">目标玩家 ID</label>
             <input v-model.number="heartContractForm.playerId" type="number" min="1" placeholder="例如：1"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+              class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-xs text-gray-400 mb-1">心契等级（0-5）</label>
+            <label class="block text-xs text-fg-muted mb-1">心契等级（0-5）</label>
             <input v-model.number="heartContractForm.level" type="number" min="0" max="5" placeholder="0-5"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+              class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
         </div>
         <button @click="submitSetHeartContract"
           :disabled="actionLoading || !heartContractForm.playerId || heartContractForm.level === null"
-          class="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded text-white text-sm disabled:opacity-50">
+          class="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded-control text-fg-primary text-sm disabled:opacity-50">
           {{ actionLoading ? '提交中...' : '确认调整' }}
         </button>
       </div>
 
       <!-- 触发心劫 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="text-sm font-bold text-amber-300 mb-2">触发心劫</div>
-        <div class="text-xs text-gray-500 mb-3">
+        <div class="text-xs text-fg-faint mb-3">
           · 立即为指定玩家生成一个心劫事件<br>
           · 玩家需在道侣面板的心劫 Tab 中抉择应对
         </div>
         <div class="mb-3">
-          <label class="block text-xs text-gray-400 mb-1">目标玩家 ID</label>
+          <label class="block text-xs text-fg-muted mb-1">目标玩家 ID</label>
           <input v-model.number="triggerTribulationForm.playerId" type="number" min="1" placeholder="例如：1"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
-        <button @click="submitTriggerTribulation"
-          :disabled="actionLoading || !triggerTribulationForm.playerId"
-          class="px-4 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm disabled:opacity-50">
+        <AppButton variant="primary" size="sm" :disabled="actionLoading || !triggerTribulationForm.playerId" @click="submitTriggerTribulation">
           {{ actionLoading ? '提交中...' : '触发心劫' }}
-        </button>
+        </AppButton>
       </div>
     </div>
 
     <!-- ============ 子 Tab 2：侍妾管理 ============ -->
     <div v-if="currentSubTab === 'concubine'" class="space-y-4">
       <!-- 直接发放侍妾 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="text-sm font-bold text-fuchsia-300 mb-2">直接发放侍妾</div>
-        <div class="text-xs text-gray-500 mb-3">
+        <div class="text-xs text-fg-faint mb-3">
           · 直接为玩家发放一个指定原型的侍妾<br>
           · 共 7 种原型可选
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
           <div>
-            <label class="block text-xs text-gray-400 mb-1">目标玩家 ID</label>
+            <label class="block text-xs text-fg-muted mb-1">目标玩家 ID</label>
             <input v-model.number="grantConcubineForm.playerId" type="number" min="1" placeholder="例如：1"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+              class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-xs text-gray-400 mb-1">侍妾原型</label>
+            <label class="block text-xs text-fg-muted mb-1">侍妾原型</label>
             <select v-model="grantConcubineForm.concubineKey"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+              class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
               <option value="">请选择侍妾原型</option>
               <option v-for="opt in concubineKeyOptions" :key="opt.value" :value="opt.value">
                 {{ opt.label }}（{{ opt.value }}）
@@ -134,28 +130,28 @@
         </div>
         <button @click="submitGrantConcubine"
           :disabled="actionLoading || !grantConcubineForm.playerId || !grantConcubineForm.concubineKey"
-          class="px-4 py-2 bg-fuchsia-700 hover:bg-fuchsia-600 rounded text-white text-sm disabled:opacity-50">
+          class="px-4 py-2 bg-fuchsia-700 hover:bg-fuchsia-600 rounded-control text-fg-primary text-sm disabled:opacity-50">
           {{ actionLoading ? '提交中...' : '确认发放' }}
         </button>
       </div>
 
       <!-- 调整侍妾属性 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="text-sm font-bold text-cyan-300 mb-2">调整侍妾属性</div>
-        <div class="text-xs text-gray-500 mb-3">
+        <div class="text-xs text-fg-faint mb-3">
           · 直接覆盖指定侍妾的某项属性<br>
           · charm=魅力(0-100) / intimacy=亲密度(0-100) / loyalty=忠诚度(0-100) / exp=经验 / realm_rank=境界等阶
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
           <div>
-            <label class="block text-xs text-gray-400 mb-1">侍妾 ID</label>
+            <label class="block text-xs text-fg-muted mb-1">侍妾 ID</label>
             <input v-model.number="setAttrForm.concubineId" type="number" min="1" placeholder="例如：1"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+              class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
           <div>
-            <label class="block text-xs text-gray-400 mb-1">属性名</label>
+            <label class="block text-xs text-fg-muted mb-1">属性名</label>
             <select v-model="setAttrForm.attr"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+              class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
               <option value="">请选择属性</option>
               <option value="charm">charm（魅力）</option>
               <option value="intimacy">intimacy（亲密度）</option>
@@ -165,35 +161,33 @@
             </select>
           </div>
           <div>
-            <label class="block text-xs text-gray-400 mb-1">新值</label>
+            <label class="block text-xs text-fg-muted mb-1">新值</label>
             <input v-model.number="setAttrForm.value" type="number" placeholder="例如：80"
-              class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+              class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
           </div>
         </div>
         <button @click="submitSetAttr"
           :disabled="actionLoading || !setAttrForm.concubineId || !setAttrForm.attr || setAttrForm.value === null"
-          class="px-4 py-2 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-sm disabled:opacity-50">
+          class="px-4 py-2 bg-cyan-700 hover:bg-cyan-600 rounded-control text-fg-primary text-sm disabled:opacity-50">
           {{ actionLoading ? '提交中...' : '确认调整' }}
         </button>
       </div>
 
       <!-- 立即完成远航 -->
-      <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="bg-surface-raised rounded-lg border border-line p-4">
         <div class="text-sm font-bold text-emerald-300 mb-2">立即完成远航</div>
-        <div class="text-xs text-gray-500 mb-3">
+        <div class="text-xs text-fg-faint mb-3">
           · 强制将指定远航标记为已完成<br>
           · 玩家可在侍妾面板的远航 Tab 中领取奖励
         </div>
         <div class="mb-3">
-          <label class="block text-xs text-gray-400 mb-1">远航 ID</label>
+          <label class="block text-xs text-fg-muted mb-1">远航 ID</label>
           <input v-model.number="finishVoyageForm.voyageId" type="number" min="1" placeholder="例如：1"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-white text-sm">
+            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
-        <button @click="submitFinishVoyage"
-          :disabled="actionLoading || !finishVoyageForm.voyageId"
-          class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-white text-sm disabled:opacity-50">
+        <AppButton variant="primary" size="sm" :disabled="actionLoading || !finishVoyageForm.voyageId" @click="submitFinishVoyage">
           {{ actionLoading ? '提交中...' : '立即完成' }}
-        </button>
+        </AppButton>
       </div>
     </div>
   </div>
@@ -206,6 +200,7 @@
  */
 import { ref, reactive } from 'vue';
 import { useUIStore } from '../../../stores/ui';
+import AppButton from '../../ui/AppButton.vue'
 import {
   adminBreakDaoCompanion,
   adminSetHeartContractLevel,

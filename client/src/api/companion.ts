@@ -196,68 +196,89 @@ export interface HeartTribulationListData {
 
 // ==================== 侍妾相关类型 ====================
 
-/** 侍妾记录（PlayerConcubine 行） */
+/**
+ * 侍妾记录（GET /concubine/list 的 data.concubines 元素）
+ *
+ * 字段以 server/game/services/ConcubineService.js#getList 为准。
+ * 后端没有 name / realm / status / location / avatar / awaken_level / is_awakened：
+ * 名字是 concubine_name，境界只有 realm_rank，安置用 is_placed + placement_location，
+ * 远航用 is_voyaging + voyage_id，觉醒是 awakened_form（形态名，不是数字等级）。
+ */
 export interface Concubine {
-  /** 侍妾 ID */
+  /** 侍妾实例 ID */
   id: number;
-  /** 所属玩家 ID */
-  player_id: number;
   /** 侍妾原型 key（如 nan_gong_wan） */
   concubine_key: string;
   /** 侍妾名字 */
-  name: string;
-  /** 头像 emoji */
-  avatar?: string;
-  /** 境界名称 */
-  realm: string;
-  /** 境界等阶（数字） */
+  concubine_name: string;
+  /** 侍妾类型 */
+  concubine_type: string;
+  /** 境界等阶（数字，后端不下发境界中文名） */
   realm_rank: number;
-  /** 魅力（0-100） */
+  /** 经验值：后端按字符串下发，展示前要 Number() */
+  exp: string;
+  /** 魅力 */
   charm: number;
-  /** 亲密度（0-100） */
+  /** 亲密度 */
   intimacy: number;
-  /** 忠诚度（0-100） */
+  /** 忠诚度 */
   loyalty: number;
-  /** 经验值 */
-  exp: number;
-  /** 状态：idle=空闲 / placed=已安置 / voyaging=远航中 / protecting=护法中 */
-  status: 'idle' | 'placed' | 'voyaging' | 'protecting';
-  /** 安置地点（已安置时存在） */
-  location?: string;
-  /** 觉醒等级（0=未觉醒婉影） */
-  awaken_level: number;
+  /** 天赋 ID */
+  talent_id: number | string | null;
+  /** 属性快照 */
+  attributes: Record<string, any> | null;
+  /** 是否已安置 */
+  is_placed: boolean;
+  /** 安置地点（未安置为 null） */
+  placement_location: string | null;
+  /** 是否远航中 */
+  is_voyaging: boolean;
+  /** 进行中的远航 ID（无远航为 null） */
+  voyage_id: number | null;
+  /** 觉醒形态名（未觉醒为 null） */
+  awakened_form: string | null;
+  /** 今日已问安次数 */
+  daily_ask_after_count: number;
   /** 上次问安时间 */
-  last_ask_after_time?: string;
+  last_ask_after_time?: string | null;
   /** 上次反哺时间 */
-  last_backfeed_time?: string;
-  /** 是否已觉醒婉影 */
-  is_awakened: boolean;
-  /** 创建时间 */
+  last_backfeed_time?: string | null;
+  /** 纳妾时间 */
   created_at?: string;
 }
 
-/** 远航记录 */
+/**
+ * 远航记录
+ *
+ * 字段以 server/game/services/ConcubineService.js#getVoyageStatus 为准
+ * （早前的版本按设计稿写，id / mode / expected_return_time / is_finished / concubine_name
+ * 这几个名字后端一个都没返回，面板因此整块渲染不出来）
+ */
 export interface ConcubineVoyage {
   /** 远航 ID */
-  id: number;
-  /** 侍妾 ID */
+  voyage_id: number;
+  /** 侍妾 ID（名称需从 /concubine/list 的 concubines 里按 id 关联） */
   concubine_id: number;
-  /** 侍妾名称 */
-  concubine_name: string;
   /** 远航模式：safe=稳妥 / balanced=均衡 / risky=冒险 / moon_palace=月殿寻痕 */
-  mode: 'safe' | 'balanced' | 'risky' | 'moon_palace';
-  /** 远航模式中文名 */
-  mode_name?: string;
-  /** 远航时长（小时） */
-  duration_hours: number;
+  voyage_mode: string;
   /** 出发时间 */
   started_at: string;
   /** 预计归来时间 */
-  expected_return_time: string;
-  /** 是否已完成 */
-  is_finished: boolean;
-  /** 远航奖励列表（归来后才有） */
-  rewards?: VoyageReward[];
+  expected_end_time: string;
+  /** 实际归来时间；未归来为 null */
+  actual_end_time: string | null;
+  /** 状态；已过预计归来时间且仍在途中时后端给 ready_to_return */
+  status: string;
+  /** 奖励是否已领取 */
+  is_collected: boolean;
+  /** 远航奖励；未领取时后端刻意不下发，恒为 null */
+  rewards?: VoyageReward[] | null;
+  /** 风险系数 */
+  risk_modifier?: number;
+  /** 奖励倍率 */
+  reward_multiplier?: number;
+  /** 现在就可以召回领取 */
+  can_return: boolean;
 }
 
 /** 远航奖励 */
@@ -272,16 +293,16 @@ export interface VoyageReward {
   item_key?: string;
 }
 
-/** GET /concubine/list 响应数据 */
+/**
+ * GET /concubine/list 响应数据
+ * 后端只给 count + concubines（ConcubineService.getList）；
+ * 寻缘今日余量不在这里，别指望从这份数据里读到。
+ */
 export interface ConcubineListData {
   /** 侍妾列表 */
   concubines: Concubine[];
   /** 侍妾数量 */
-  total: number;
-  /** 今日剩余寻缘次数（含免费 + 灵石） */
-  seek_fate_remaining: number;
-  /** 寻缘日总上限 */
-  seek_fate_limit: number;
+  count: number;
 }
 
 /** POST /concubine/seek-fate 响应数据 */
@@ -374,12 +395,15 @@ export interface VoyageStartResult {
   message: string;
 }
 
-/** GET /concubine/voyage/status 响应数据 */
+/**
+ * GET /concubine/voyage/status 响应数据
+ * 后端给的是未分组的 voyages + count，进行中/待领取由前端按 can_return 分流
+ */
 export interface VoyageStatusData {
-  /** 进行中的远航列表 */
-  active_voyages: ConcubineVoyage[];
-  /** 已完成待领取的远航列表 */
-  finished_voyages: ConcubineVoyage[];
+  /** 全部远航记录（按创建时间倒序） */
+  voyages: ConcubineVoyage[];
+  /** 记录条数 */
+  count: number;
 }
 
 /** POST /concubine/voyage/return 响应数据 */

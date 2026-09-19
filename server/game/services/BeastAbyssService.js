@@ -297,11 +297,24 @@ class BeastAbyssService {
             });
         }
 
+        // 今日已用次数：口径必须与 startExplore 里的每日上限校验完全一致
+        // （玩家级、按当日 0 点起的 created_at），否则前端展示的余数会和服务端判定打架
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayCount = await SpiritBeastAbyssExplore.count({
+            where: {
+                player_id: player.id,
+                created_at: { [Op.gte]: todayStart }
+            }
+        });
+
         return {
             data: {
                 active_explores: result,
                 active_count: result.length,
-                max_concurrent: this.config.abyss.max_concurrent_beasts
+                max_concurrent: this.config.abyss.max_concurrent_beasts,
+                daily_explores_today: todayCount,
+                daily_limit: this.config.abyss.daily_explore_limit
             }
         };
     }

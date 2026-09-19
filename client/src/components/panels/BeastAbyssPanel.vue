@@ -1,9 +1,9 @@
-/**
+<!--
  * 灵兽探渊综合面板组件
  *
  * 灵兽探渊系统 - 异步多人 PVE+PVP 混合探索综合面板
  *
- * Tab 划分：
+ * Tab 划分（外壳 ui/PanelShell，导航 ui/Tabs）：
  *   1. 探渊状态：展示进行中探渊列表（灵兽名/层数/剩余时间/到期标识）+ 召回按钮 + 今日探渊次数
  *   2. 开始探渊：层数选择 + 灵兽输入 + 时长输入 + 体力消耗预览 + 开始按钮
  *   3. 排行榜：3 个子分类切换（最深层数/累计探渊次数/累计PVP胜利）
@@ -12,377 +12,366 @@
  * 设计原则：
  *   - 所有状态从后端拉取，禁止硬编码业务数据
  *   - 业务逻辑全部在后端，前端仅做展示与接口调用
- *   - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
- *   - 颜色风格与 MultiDungeonPanel.vue 一致（修仙古风：#1c1917 / #292524 / amber-300）
- *   - 使用 Tailwind CSS 工具类，无自定义 CSS
- *   - 到期探渊高亮显示（amber/emerald 边框）
- */
+ *   - 二次确认走 common/Modal，不弹浏览器原生 alert/confirm
+ *   - 配色统一取设计令牌（surface-* / line / fg-* / gold-*）
+ *   - 到期探渊高亮显示（gold / emerald 边框）
+-->
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
-
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-amber-900/40 rounded-lg p-6 max-w-5xl w-full mx-4 shadow-2xl animate-fade-in max-h-[90vh] flex flex-col panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a4 4 0 0 0-4 4c0 1.6.8 3 2 4-2.2.5-4 2.5-4 5v3h12v-3c0-2.5-1.8-4.5-4-5 1.2-1 2-2.4 2-4a4 4 0 0 0-4-4z"/>
-            <path d="M5 22h14"/><path d="M12 18v4"/>
-          </svg>
-          灵兽探渊 · 深渊秘境
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
+  <PanelShell title="灵兽探渊" hint="深渊秘境 · 异步探索" size="2xl" @close="$emit('close')">
+    <template #header-actions>
+      <div class="hidden sm:flex items-center gap-2">
+        <Badge v-if="statusData && dailyLimit !== null" tone="gold">今日探渊 <span class="num">{{ dailyToday }}</span> / <span class="num">{{ dailyLimit }}</span></Badge>
+        <Badge v-if="statusData && statusData.active_explores.length" tone="success" dot>进行中 <span class="num">{{ statusData.active_explores.length }}</span></Badge>
       </div>
+    </template>
 
-      <!-- Tab 切换栏 -->
-      <div class="flex border-b border-stone-700 mb-3 overflow-x-auto">
-        <button v-for="tab in tabs" :key="tab.id"
-          @click="switchTab(tab.id)"
-          class="px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap relative"
-          :class="activeTab === tab.id ? 'text-amber-300' : 'text-stone-500 hover:text-stone-300'">
-          {{ tab.name }}
-          <div v-if="activeTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-400"></div>
-        </button>
-      </div>
+    <!-- Tab 切换栏（切换时按需懒加载，保留 v-show 以免丢失各页输入状态） -->
+    <Tabs
+      :model-value="activeTab"
+      :items="tabItems"
+      class="mb-3"
+      @update:model-value="switchTab"
+    />
 
-      <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto pr-1">
+    <!-- ============ Tab 1: 探渊状态 ============ -->
+    <div v-show="activeTab === 'status'" class="space-y-3">
+      <LoadingBlock v-if="loading.status" text="加载探渊状态中…" />
+      <template v-else-if="statusData">
+        <!-- 今日探渊次数统计 -->
+        <PanelCard v-if="dailyLimit !== null" title="今日探渊" hint="每日 0 点重置次数">
+          <div class="flex items-center justify-between">
+            <div class="text-[11px] text-fg-faint">派出灵兽即计入当日次数</div>
+            <div class="text-right">
+              <span class="text-2xl font-bold text-gold-300 num">{{ dailyToday }}</span>
+              <span class="text-fg-faint text-sm num"> / {{ dailyLimit }}</span>
+            </div>
+          </div>
+        </PanelCard>
 
-        <!-- ============ Tab 1: 探渊状态 ============ -->
-        <div v-show="activeTab === 'status'" class="space-y-3">
-          <div v-if="loading.status" class="text-center py-6 text-stone-500 text-sm">加载探渊状态中...</div>
-          <template v-else-if="statusData">
-            <!-- 今日探渊次数统计 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
+        <!-- 进行中探渊列表 -->
+        <PanelCard title="进行中的探渊">
+          <div v-if="statusData.active_explores.length === 0" class="text-center py-6 text-fg-faint text-xs">
+            暂无进行中的探渊，前往「开始探渊」派出灵兽
+          </div>
+          <div v-else class="space-y-2">
+            <div v-for="exp in statusData.active_explores" :key="exp.explore_id"
+              class="bg-surface-sunken border rounded-control p-3"
+              :class="exp.is_expired ? 'border-emerald-700' : 'border-line-subtle'">
+              <!-- 行 1：灵兽名 + 层数 -->
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold text-gold-300">{{ exp.beast_name }}</span>
+                  <Badge tone="gold">第 <span class="num">{{ exp.start_floor }}</span> 层</Badge>
+                  <!-- 到期标识 -->
+                  <Badge v-if="exp.is_expired" tone="success" dot>已到期·可召回</Badge>
+                </div>
+                <span class="text-[10px] text-fg-faint num">ID: {{ exp.explore_id }}</span>
+              </div>
+              <!-- 行 2：起止时间 -->
+              <div class="grid grid-cols-2 gap-2 text-[11px] mb-2">
+                <div>
+                  <span class="text-fg-faint">开始：</span>
+                  <span class="text-fg-secondary num">{{ formatTimeString(exp.start_time) }}</span>
+                </div>
+                <div>
+                  <span class="text-fg-faint">结束：</span>
+                  <span class="text-fg-secondary num">{{ formatTimeString(exp.end_time) }}</span>
+                </div>
+              </div>
+              <!-- 行 3：剩余时间 + 召回按钮 -->
               <div class="flex items-center justify-between">
-                <div>
-                  <div class="text-sm font-bold text-amber-300">今日探渊</div>
-                  <div class="text-[11px] text-stone-500">· 每日 0 点重置次数</div>
+                <div class="text-[11px]">
+                  <span class="text-fg-faint">剩余：</span>
+                  <span v-if="exp.remaining_seconds > 0" class="text-gold-300 font-bold num">
+                    {{ formatTime(exp.remaining_seconds) }}
+                  </span>
+                  <span v-else class="text-emerald-300 font-bold">已到期</span>
                 </div>
-                <div class="text-right">
-                  <span class="text-2xl font-bold text-amber-300">{{ statusData.daily_explores_today }}</span>
-                  <span class="text-stone-500 text-sm"> / {{ statusData.daily_limit }}</span>
-                </div>
+                <AppButton size="xs" variant="danger" :disabled="loading.action" @click="handleRecall(exp.beast_id, exp.beast_name)">
+                  召回灵兽
+                </AppButton>
               </div>
-            </section>
+            </div>
+          </div>
+        </PanelCard>
+      </template>
+      <EmptyState v-else text="暂无探渊状态数据" hint="派出灵兽后再回来看进度" />
+    </div>
 
-            <!-- 进行中探渊列表 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-amber-300 mb-3">进行中的探渊</div>
-              <div v-if="statusData.active_explores.length === 0" class="text-center py-6 text-stone-500 text-xs">
-                暂无进行中的探渊，前往「开始探渊」派出灵兽
+    <!-- ============ Tab 2: 开始探渊 ============ -->
+    <div v-show="activeTab === 'start'" class="space-y-3">
+      <LoadingBlock v-if="loading.floors" text="加载深渊层数中…" />
+      <template v-else-if="floorsData">
+        <!-- 探渊参数概览 -->
+        <PanelCard title="探渊参数">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+            <div>
+              <div class="text-fg-faint">同时派出上限</div>
+              <div class="text-gold-300 font-bold num">{{ floorsData.max_concurrent_beasts }} 只</div>
+            </div>
+            <div>
+              <div class="text-fg-faint">时长范围</div>
+              <div class="text-gold-300 font-bold num">{{ floorsData.min_duration_hours }} - {{ floorsData.max_duration_hours }} 小时</div>
+            </div>
+            <div>
+              <div class="text-fg-faint">每日次数</div>
+              <div v-if="dailyLimit !== null" class="text-gold-300 font-bold num">{{ dailyToday }} / {{ dailyLimit }}</div>
+              <div v-else class="text-fg-faint">未知</div>
+            </div>
+            <div>
+              <div class="text-fg-faint">今日剩余</div>
+              <div v-if="dailyRemaining !== null" class="font-bold num" :class="dailyRemaining > 0 ? 'text-emerald-300' : 'text-rose-400'">
+                {{ dailyRemaining }} 次
               </div>
-              <div v-else class="space-y-2">
-                <div v-for="exp in statusData.active_explores" :key="exp.explore_id"
-                  class="bg-stone-900/40 border rounded p-3"
-                  :class="exp.is_expired ? 'border-emerald-700 shadow-lg shadow-emerald-900/20' : 'border-stone-800'">
-                  <!-- 行 1：灵兽名 + 层数 -->
-                  <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                      <span class="text-sm font-bold text-amber-300">{{ exp.beast_name }}</span>
-                      <span class="text-[10px] px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800">
-                        第 {{ exp.floor }} 层
-                      </span>
-                      <!-- 到期标识 -->
-                      <span v-if="exp.is_expired" class="text-[10px] px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800 animate-pulse">
-                        已到期·可召回
-                      </span>
-                    </div>
-                    <span class="text-[10px] text-stone-500">ID: {{ exp.explore_id }}</span>
-                  </div>
-                  <!-- 行 2：起止时间 -->
-                  <div class="grid grid-cols-2 gap-2 text-[11px] mb-2">
-                    <div>
-                      <span class="text-stone-500">开始：</span>
-                      <span class="text-stone-300">{{ formatTimeString(exp.start_time) }}</span>
-                    </div>
-                    <div>
-                      <span class="text-stone-500">结束：</span>
-                      <span class="text-stone-300">{{ formatTimeString(exp.end_time) }}</span>
-                    </div>
-                  </div>
-                  <!-- 行 3：剩余时间 + 召回按钮 -->
-                  <div class="flex items-center justify-between">
-                    <div class="text-[11px]">
-                      <span class="text-stone-500">剩余：</span>
-                      <span v-if="exp.remaining_seconds > 0" class="text-amber-300 font-bold">
-                        {{ formatTime(exp.remaining_seconds) }}
-                      </span>
-                      <span v-else class="text-emerald-300 font-bold">已到期</span>
-                    </div>
-                    <button @click="handleRecall(exp.beast_id, exp.beast_name)"
-                      :disabled="loading.action"
-                      class="px-3 py-1 rounded text-[11px] font-bold bg-rose-950/40 border border-rose-800 text-rose-300 hover:bg-rose-900/40 disabled:opacity-50">
-                      召回灵兽
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无探渊状态数据</div>
-        </div>
+              <div v-else class="text-fg-faint">未知</div>
+            </div>
+          </div>
+        </PanelCard>
 
-        <!-- ============ Tab 2: 开始探渊 ============ -->
-        <div v-show="activeTab === 'start'" class="space-y-3">
-          <div v-if="loading.floors" class="text-center py-6 text-stone-500 text-sm">加载深渊层数中...</div>
-          <template v-else-if="floorsData">
-            <!-- 探渊参数概览 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-amber-300 mb-2">探渊参数</div>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
-                <div>
-                  <div class="text-stone-500">同时派出上限</div>
-                  <div class="text-amber-300 font-bold">{{ floorsData.max_concurrent_beasts }} 只</div>
-                </div>
-                <div>
-                  <div class="text-stone-500">时长范围</div>
-                  <div class="text-amber-300 font-bold">{{ floorsData.min_duration_hours }} - {{ floorsData.max_duration_hours }} 小时</div>
-                </div>
-                <div>
-                  <div class="text-stone-500">每日次数</div>
-                  <div class="text-amber-300 font-bold">
-                    {{ floorsData.daily_explore_limit - floorsData.daily_remaining }} / {{ floorsData.daily_explore_limit }}
-                  </div>
-                </div>
-                <div>
-                  <div class="text-stone-500">今日剩余</div>
-                  <div class="font-bold" :class="floorsData.daily_remaining > 0 ? 'text-emerald-300' : 'text-rose-400'">
-                    {{ floorsData.daily_remaining }} 次
-                  </div>
-                </div>
+        <!-- 层数选择 -->
+        <PanelCard title="选择深渊层数">
+          <div v-if="floorsData.floors.length === 0" class="text-center py-4 text-fg-faint text-xs">
+            当前境界无可用层数
+          </div>
+          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <button v-for="f in floorsData.floors" :key="f.floor"
+              type="button"
+              @click="selectedFloor = f.floor"
+              :class="[
+                'text-left p-3 rounded-control border transition-all',
+                selectedFloor === f.floor
+                  ? 'bg-surface-tint-gold-strong border-gold-600'
+                  : 'bg-surface-sunken border-line-subtle hover:border-gold-700'
+              ]">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-bold text-gold-300">第 <span class="num">{{ f.floor }}</span> 层 · {{ f.name }}</span>
+                <span v-if="selectedFloor === f.floor" class="text-[10px] text-gold-400">✓ 已选</span>
               </div>
-            </section>
-
-            <!-- 层数选择 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-amber-300 mb-3">选择深渊层数</div>
-              <div v-if="floorsData.floors.length === 0" class="text-center py-4 text-stone-500 text-xs">
-                当前境界无可用层数
-              </div>
-              <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <button v-for="f in floorsData.floors" :key="f.floor"
-                  @click="selectedFloor = f.floor"
-                  :class="[
-                    'text-left p-3 rounded border transition-all',
-                    selectedFloor === f.floor
-                      ? 'bg-amber-950/40 border-amber-600 shadow-lg shadow-amber-900/20'
-                      : 'bg-stone-900/40 border-stone-800 hover:border-amber-700'
-                  ]">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-bold text-amber-300">第 {{ f.floor }} 层 · {{ f.name }}</span>
-                    <span v-if="selectedFloor === f.floor" class="text-[10px] text-amber-400">✓ 已选</span>
-                  </div>
-                  <div class="text-[10px] text-stone-400 mb-1">{{ f.description }}</div>
-                  <div class="text-[10px] text-stone-500">· 入场境界：{{ f.min_realm_name }}</div>
-                </button>
-              </div>
-            </section>
-
-            <!-- 探渊配置输入 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="text-sm font-bold text-amber-300 mb-3">探渊配置</div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <!-- 灵兽 ID 输入 -->
-                <div>
-                  <label class="text-[11px] text-stone-500 mb-1 block">灵兽 ID</label>
-                  <input v-model.number="startForm.beast_id" type="number" min="1" placeholder="请输入灵兽 ID"
-                    class="w-full bg-stone-900 border border-stone-700 rounded px-3 py-2 text-xs text-white focus:border-amber-500 focus:outline-none" />
-                  <div class="text-[10px] text-stone-500 mt-1">· 可在「灵兽面板」查看灵兽 ID</div>
-                </div>
-                <!-- 探渊时长输入 -->
-                <div>
-                  <label class="text-[11px] text-stone-500 mb-1 block">
-                    探渊时长（{{ floorsData.min_duration_hours }} - {{ floorsData.max_duration_hours }} 小时）
-                  </label>
-                  <input v-model.number="startForm.duration_hours" type="number"
-                    :min="floorsData.min_duration_hours" :max="floorsData.max_duration_hours" placeholder="时长"
-                    class="w-full bg-stone-900 border border-stone-700 rounded px-3 py-2 text-xs text-white focus:border-amber-500 focus:outline-none" />
-                  <div class="text-[10px] text-stone-500 mt-1">· 时长越长，奖励与风险越高</div>
-                </div>
-              </div>
-              <!-- 体力消耗预览 -->
-              <div class="mt-3 p-2 bg-stone-900/40 border border-stone-800 rounded text-[11px]">
-                <span class="text-stone-500">体力消耗：</span>
-                <span class="text-amber-300 font-bold">{{ staminaPerExplore }}</span>
-                <span class="text-stone-500"> 点 / 每次探渊</span>
-              </div>
-              <!-- 开始按钮 -->
-              <button @click="handleStart"
-                :disabled="loading.action || !canStart"
-                class="w-full mt-3 py-2 rounded text-xs font-bold bg-amber-700 text-amber-100 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                {{ canStart ? '开始探渊' : '请填写完整配置' }}
-              </button>
-            </section>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无层数数据</div>
-        </div>
-
-        <!-- ============ Tab 3: 排行榜 ============ -->
-        <div v-show="activeTab === 'ranking'" class="space-y-3">
-          <!-- 子分类切换 -->
-          <div class="flex border-b border-stone-700 mb-2">
-            <button v-for="sub in rankingSubTabs" :key="sub.key"
-              @click="switchRankingSub(sub.key)"
-              class="px-3 py-1.5 text-[11px] font-medium transition-colors relative"
-              :class="rankingSubTab === sub.key ? 'text-amber-300' : 'text-stone-500 hover:text-stone-300'">
-              {{ sub.name }}
-              <div v-if="rankingSubTab === sub.key" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-400"></div>
+              <div class="text-[10px] text-fg-muted mb-1">{{ f.description }}</div>
+              <div class="text-[10px] text-fg-faint">· 入场境界：{{ f.min_realm_name }}</div>
             </button>
           </div>
+        </PanelCard>
 
-          <div v-if="loading.ranking" class="text-center py-6 text-stone-500 text-sm">加载排行榜中...</div>
-          <template v-else-if="rankingData">
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-              <div class="flex items-center justify-between mb-3">
-                <div class="text-sm font-bold text-amber-300">{{ getRankingSubName(rankingSubTab) }}</div>
-                <div class="flex items-center gap-2 text-xs">
-                  <button @click="changeRankingPage(rankingData.page - 1)"
-                    :disabled="loading.ranking || rankingData.page <= 1"
-                    class="px-2 py-1 text-xs bg-stone-800 rounded disabled:opacity-50 hover:bg-stone-700">上一页</button>
-                  <span class="text-stone-400">{{ rankingData.page }} / {{ Math.max(1, Math.ceil((rankingData.total || rankingData.ranking.length) / rankingData.page_size)) }}</span>
-                  <button @click="changeRankingPage(rankingData.page + 1)"
-                    :disabled="loading.ranking || rankingData.ranking.length < rankingData.page_size"
-                    class="px-2 py-1 text-xs bg-stone-800 rounded disabled:opacity-50 hover:bg-stone-700">下一页</button>
-                </div>
-              </div>
-              <div v-if="rankingData.ranking.length === 0" class="text-center py-6 text-stone-500 text-xs">暂无排行数据</div>
-              <table v-else class="w-full text-[11px]">
-                <thead>
-                  <tr class="text-stone-500 border-b border-stone-700">
-                    <th class="text-left py-1 w-12">名次</th>
-                    <th class="text-left py-1">玩家</th>
-                    <th class="text-left py-1">境界</th>
-                    <th class="text-right py-1">{{ getRankingValueName(rankingSubTab) }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="r in rankingData.ranking" :key="r.player_id" class="border-b border-stone-800">
-                    <td class="py-1.5">
-                      <span :class="getRankBadgeClass(r.rank)">{{ r.rank }}</span>
-                    </td>
-                    <td class="py-1.5 text-amber-300">{{ r.nickname }}</td>
-                    <td class="py-1.5 text-stone-300">{{ r.realm }}</td>
-                    <td class="py-1.5 text-right text-emerald-300 font-bold">{{ r.value }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无排行数据</div>
-        </div>
+        <!-- 探渊配置输入 -->
+        <PanelCard title="探渊配置">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <!-- 灵兽 ID 输入 -->
+            <div>
+              <label class="text-[11px] text-fg-faint mb-1 block">灵兽 ID</label>
+              <input v-model.number="startForm.beast_id" type="number" min="1" placeholder="请输入灵兽 ID"
+                class="num w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-xs text-fg-primary focus:border-gold-500 focus:outline-none" />
+              <div class="text-[10px] text-fg-faint mt-1">· 可在「灵兽面板」查看灵兽 ID</div>
+            </div>
+            <!-- 探渊时长输入 -->
+            <div>
+              <label class="text-[11px] text-fg-faint mb-1 block">
+                探渊时长（<span class="num">{{ floorsData.min_duration_hours }} - {{ floorsData.max_duration_hours }}</span> 小时）
+              </label>
+              <input v-model.number="startForm.duration_hours" type="number"
+                :min="floorsData.min_duration_hours" :max="floorsData.max_duration_hours" placeholder="时长"
+                class="num w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-xs text-fg-primary focus:border-gold-500 focus:outline-none" />
+              <div class="text-[10px] text-fg-faint mt-1">· 时长越长，奖励与风险越高</div>
+            </div>
+          </div>
+          <!-- 体力消耗预览 -->
+          <div class="mt-3 p-2 bg-surface-sunken border border-line-subtle rounded-control text-[11px]">
+            <span class="text-fg-faint">体力消耗：</span>
+            <span class="text-gold-300 font-bold num">{{ staminaPerExplore }}</span>
+            <span class="text-fg-faint"> 点 / 每次探渊</span>
+          </div>
+          <!-- 开始按钮 -->
+          <AppButton
+            variant="primary"
+            block
+            class="mt-3"
+            :disabled="loading.action || !canStart"
+            @click="handleStart"
+          >
+            {{ canStart ? '开始探渊' : '请填写完整配置' }}
+          </AppButton>
+        </PanelCard>
+      </template>
+      <EmptyState v-else text="暂无层数数据" />
+    </div>
 
-        <!-- ============ Tab 4: 历史记录 ============ -->
-        <div v-show="activeTab === 'history'" class="space-y-3">
-          <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-            <div class="flex items-center justify-between mb-3">
-              <div class="text-sm font-bold text-amber-300">探渊历史</div>
-              <div class="flex items-center gap-2 text-xs">
-                <button @click="changeHistoryPage(historyData.page - 1)"
-                  :disabled="loading.history || historyData.page <= 1"
-                  class="px-2 py-1 text-xs bg-stone-800 rounded disabled:opacity-50 hover:bg-stone-700">上一页</button>
-                <span class="text-stone-400">{{ historyData.page }} / {{ historyData.total_pages || 1 }}</span>
-                <button @click="changeHistoryPage(historyData.page + 1)"
-                  :disabled="loading.history || historyData.page >= historyData.total_pages"
-                  class="px-2 py-1 text-xs bg-stone-800 rounded disabled:opacity-50 hover:bg-stone-700">下一页</button>
-              </div>
-            </div>
-            <div v-if="loading.history" class="text-center py-3 text-stone-500 text-xs">加载历史记录中...</div>
-            <div v-else-if="historyData.history.length === 0" class="text-center py-6 text-stone-500 text-xs">
-              暂无历史记录
-            </div>
-            <div v-else class="space-y-1 max-h-96 overflow-y-auto">
-              <button v-for="rec in historyData.history" :key="rec.explore_id"
-                @click="handleViewEncounters(rec.explore_id, `灵兽#${rec.beast_id}`, rec.max_floor_reached)"
-                class="w-full text-left bg-stone-900/40 border border-stone-800 rounded p-2 text-[11px] hover:border-amber-700 transition-colors">
-                <div class="flex items-center justify-between mb-1">
-                  <div class="flex items-center gap-2">
-                    <span class="text-amber-300 font-bold">灵兽 #{{ rec.beast_id }}</span>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800">
-                      最深 {{ rec.max_floor_reached }} 层
-                    </span>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded" :class="getOutcomeBadgeClass(rec.status)">
-                      {{ getOutcomeName(rec.status) }}
-                    </span>
-                  </div>
-                  <span class="text-stone-500">{{ formatTimeString(rec.end_time) }}</span>
-                </div>
-                <div class="text-stone-400">
-                  · 时长：{{ rec.duration_hours }} 小时 · 击杀 {{ rec.monster_kills }} · PVP {{ rec.pvp_wins }}胜{{ rec.pvp_losses }}负
-                </div>
-                <div class="text-[10px] text-amber-500 mt-1">▸ 点击查看遭遇详情</div>
-              </button>
-            </div>
-          </section>
+    <!-- ============ Tab 3: 排行榜 ============ -->
+    <div v-show="activeTab === 'ranking'" class="space-y-3">
+      <!-- 子分类切换 -->
+      <Tabs
+        :model-value="rankingSubTab"
+        :items="rankingSubItems"
+        class="mb-2"
+        @update:model-value="switchRankingSub"
+      />
+
+      <LoadingBlock v-if="loading.ranking" text="加载排行榜中…" />
+      <PanelCard v-else-if="rankingData" :title="getRankingSubName(rankingSubTab)">
+        <template #action>
+          <div class="flex items-center gap-2 text-xs">
+            <AppButton
+              size="xs"
+              variant="default"
+              :disabled="loading.ranking || rankingData.page <= 1"
+              @click="changeRankingPage(rankingData.page - 1)"
+            >上一页</AppButton>
+            <span class="text-fg-muted num">{{ rankingData.page }} / {{ Math.max(1, Math.ceil((rankingData.total || rankingData.ranking.length) / rankingData.page_size)) }}</span>
+            <AppButton
+              size="xs"
+              variant="default"
+              :disabled="loading.ranking || rankingData.ranking.length < rankingData.page_size"
+              @click="changeRankingPage(rankingData.page + 1)"
+            >下一页</AppButton>
+          </div>
+        </template>
+        <div v-if="rankingData.ranking.length === 0" class="text-center py-6 text-fg-faint text-xs">暂无排行数据</div>
+        <table v-else class="w-full text-[11px]">
+          <thead>
+            <tr class="text-fg-faint border-b border-line">
+              <th class="text-left py-1 w-12">名次</th>
+              <th class="text-left py-1">玩家</th>
+              <th class="text-left py-1">境界</th>
+              <th class="text-right py-1">{{ getRankingValueName(rankingSubTab) }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in rankingData.ranking" :key="r.player_id" class="border-b border-line-subtle">
+              <td class="py-1.5">
+                <span class="num" :class="getRankBadgeClass(r.rank)">{{ r.rank }}</span>
+              </td>
+              <td class="py-1.5 text-gold-300">{{ r.nickname }}</td>
+              <td class="py-1.5 text-fg-secondary">{{ r.realm }}</td>
+              <td class="py-1.5 text-right text-emerald-300 font-bold num">{{ r.value }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </PanelCard>
+      <EmptyState v-else text="暂无排行数据" />
+    </div>
+
+    <!-- ============ Tab 4: 历史记录 ============ -->
+    <div v-show="activeTab === 'history'" class="space-y-3">
+      <PanelCard title="探渊历史">
+        <template #action>
+          <div class="flex items-center gap-2 text-xs">
+            <AppButton
+              size="xs"
+              variant="default"
+              :disabled="loading.history || historyData.page <= 1"
+              @click="changeHistoryPage(historyData.page - 1)"
+            >上一页</AppButton>
+            <span class="text-fg-muted num">{{ historyData.page }} / {{ historyTotalPages }}</span>
+            <AppButton
+              size="xs"
+              variant="default"
+              :disabled="loading.history || historyData.page >= historyTotalPages"
+              @click="changeHistoryPage(historyData.page + 1)"
+            >下一页</AppButton>
+          </div>
+        </template>
+        <LoadingBlock v-if="loading.history" text="加载历史记录中…" />
+        <div v-else-if="historyData.history.length === 0" class="text-center py-6 text-fg-faint text-xs">
+          暂无历史记录
         </div>
-      </div>
+        <div v-else class="space-y-1 max-h-96 overflow-y-auto scroll-thin">
+          <button v-for="rec in historyData.history" :key="rec.explore_id"
+            type="button"
+            @click="handleViewEncounters(rec.explore_id, `灵兽#${rec.beast_id}`, rec.max_floor_reached)"
+            class="w-full text-left bg-surface-sunken border border-line-subtle rounded-control p-2 text-[11px] hover:border-gold-700 transition-colors">
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-2">
+                <span class="text-gold-300 font-bold">灵兽 <span class="num">#{{ rec.beast_id }}</span></span>
+                <Badge tone="gold">最深 <span class="num">{{ rec.max_floor_reached }}</span> 层</Badge>
+                <Badge :tone="getOutcomeTone(rec.status)">{{ getOutcomeName(rec.status) }}</Badge>
+              </div>
+              <span class="text-fg-faint num">{{ formatTimeString(rec.end_time) }}</span>
+            </div>
+            <div class="text-fg-muted num">
+              · 时长：{{ rec.duration_hours }} 小时 · 击杀 {{ rec.monster_kills }} · PVP {{ rec.pvp_wins }}胜{{ rec.pvp_losses }}负
+            </div>
+            <div class="text-[10px] text-gold-500 mt-1">▸ 点击查看遭遇详情</div>
+          </button>
+        </div>
+      </PanelCard>
     </div>
 
     <!-- 二次确认弹窗（通用） -->
     <Modal :isOpen="confirmModal.show" :title="confirmModal.title" @close="confirmModal.show = false" width="420px">
-      <p class="text-stone-300 text-sm whitespace-pre-line">{{ confirmModal.message }}</p>
+      <p class="text-fg-secondary text-sm whitespace-pre-line">{{ confirmModal.message }}</p>
       <template #footer>
-        <button @click="confirmModal.show = false"
-          class="px-4 py-2 text-xs rounded bg-stone-800 text-stone-300 hover:bg-stone-700">取消</button>
-        <button @click="confirmModal.onConfirm(); confirmModal.show = false"
-          :disabled="loading.action"
-          class="px-4 py-2 text-xs rounded bg-amber-700 text-amber-100 hover:bg-amber-600 disabled:opacity-50">
+        <AppButton size="sm" variant="outline" @click="confirmModal.show = false">取消</AppButton>
+        <AppButton size="sm" variant="primary" :disabled="loading.action" @click="confirmModal.onConfirm(); confirmModal.show = false">
           确认
-        </button>
+        </AppButton>
       </template>
     </Modal>
 
-    <!-- 遭遇详情弹窗 -->
+    <!-- 遭遇详情弹窗（字段契约见 api/beastAbyss.ts AbyssEncounter，来自服务端 getEncounterHistory） -->
     <Modal :isOpen="encountersModal.show" :title="encountersModal.title" @close="encountersModal.show = false" width="640px">
-      <div v-if="loading.encounters" class="text-center py-6 text-stone-500 text-sm">加载遭遇详情中...</div>
-      <div v-else-if="encountersData && encountersData.encounters.length > 0" class="space-y-2 max-h-[60vh] overflow-y-auto">
-        <div v-for="enc in encountersData.encounters" :key="enc.round"
-          class="bg-stone-900/40 border rounded p-2"
+      <LoadingBlock v-if="loading.encounters" text="加载遭遇详情中…" />
+      <div v-else-if="encountersData && encountersData.encounters.length > 0" class="space-y-2 max-h-[60vh] overflow-y-auto scroll-thin">
+        <div v-for="(enc, idx) in encountersData.encounters" :key="enc.log_id"
+          class="bg-surface-sunken border rounded-control p-2"
           :class="getEncounterBorderClass(enc.encounter_type)">
-          <!-- 回合头 -->
-          <div class="flex items-center justify-between mb-1">
-            <div class="flex items-center gap-2">
-              <span class="text-[10px] px-1.5 py-0.5 rounded text-stone-200" :class="getEncounterBadgeClass(enc.encounter_type)">
-                第 {{ enc.round }} 回合 · {{ getEncounterTypeName(enc.encounter_type) }}
+          <!-- 行 1：层数 + 遭遇类型 + 结果。后端无回合号，idx+1 只是本列表的展示序号 -->
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="text-[10px] px-1.5 py-0.5 rounded-control text-fg-primary shrink-0" :class="getEncounterBadgeClass(enc.encounter_type)">
+              <span class="num">#{{ idx + 1 }}</span> · 第 <span class="num">{{ enc.floor }}</span> 层 · {{ getEncounterTypeName(enc.encounter_type) }}
+            </span>
+            <div class="flex items-center gap-2 min-w-0">
+              <!-- PVP 对手：后端只有对手灵兽名与玩家 ID，没有昵称/境界 -->
+              <span v-if="enc.opponent_beast_name || enc.opponent_player_id !== null" class="text-[10px] text-purple-300 truncate">
+                对手：{{ enc.opponent_beast_name || '未知灵兽' }}<span v-if="enc.opponent_player_id !== null" class="num">（玩家 #{{ enc.opponent_player_id }}）</span>
               </span>
+              <span class="text-[10px] font-bold shrink-0" :class="getResultClass(enc.result)">{{ getResultName(enc.result) }}</span>
             </div>
-            <!-- PVP 对手信息 -->
-            <span v-if="enc.pvp_opponent" class="text-[10px] text-purple-300">
-              对手：{{ enc.pvp_opponent.nickname }}（{{ enc.pvp_opponent.realm }}）
+          </div>
+          <!-- 行 2：遭遇详情 encounter_detail（JSON 对象，非字符串）。
+               服务端目前只在怪物战斗分支构造、且写日志时漏传该字段，缺失时整块不显示 -->
+          <div v-if="enc.encounter_detail" class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-secondary mb-1">
+            <span v-if="enc.encounter_detail.monster_name">遭遇「{{ enc.encounter_detail.monster_name }}」</span>
+            <span v-if="getElementName(enc.encounter_detail.monster_element)">
+              <span class="text-fg-faint">属性</span> {{ getElementName(enc.encounter_detail.monster_element) }}
+            </span>
+            <span v-if="enc.encounter_detail.monster_hp">
+              <span class="text-fg-faint">敌方气血</span>
+              <span class="num" :title="formatNumber(enc.encounter_detail.monster_hp)">{{ formatCompact(enc.encounter_detail.monster_hp) }}</span>
+            </span>
+            <span v-if="enc.encounter_detail.rounds">
+              <span class="text-fg-faint">战斗</span> <span class="num">{{ enc.encounter_detail.rounds }}</span> 回合
             </span>
           </div>
-          <!-- 遭遇描述 -->
-          <div class="text-[11px] text-stone-300 mb-1">{{ enc.description }}</div>
-          <!-- 结果描述 -->
-          <div class="text-[11px] text-amber-300 mb-1">· {{ enc.result }}</div>
-          <!-- 数值变化 -->
-          <div class="flex flex-wrap gap-2 text-[10px]">
-            <span v-if="enc.hp_change !== 0" :class="enc.hp_change > 0 ? 'text-emerald-300' : 'text-rose-300'">
-              HP {{ enc.hp_change > 0 ? '+' : '' }}{{ enc.hp_change }}
+          <!-- 行 3：数值。气血/体力是遭遇后的绝对值（后端不提供变化量），仅经验/灵石/兽魂/物品为增益 -->
+          <div class="flex flex-wrap gap-2 text-[10px] num">
+            <span v-if="hasNumber(enc.hp_after)">
+              <span class="text-fg-faint">气血</span>
+              <span :title="formatNumber(enc.hp_after)">{{ formatCompact(enc.hp_after) }}</span>
             </span>
-            <span v-if="enc.exp_change !== 0" :class="enc.exp_change > 0 ? 'text-emerald-300' : 'text-rose-300'">
-              经验 {{ enc.exp_change > 0 ? '+' : '' }}{{ enc.exp_change }}
+            <span v-if="hasNumber(enc.stamina_after)">
+              <span class="text-fg-faint">体力</span>
+              <span :title="formatNumber(enc.stamina_after)">{{ formatCompact(enc.stamina_after) }}</span>
             </span>
-            <span v-if="enc.spirit_stones && enc.spirit_stones > 0" class="text-amber-300">
-              灵石 +{{ enc.spirit_stones }}
+            <span v-if="enc.exp_gained > 0" class="text-emerald-300">
+              经验 +<span :title="formatNumber(enc.exp_gained)">{{ formatCompact(enc.exp_gained) }}</span>
             </span>
-            <span v-for="(item, idx) in (enc.items || [])" :key="idx" class="text-purple-300">
-              {{ item.name }} ×{{ item.amount }}
+            <span v-if="enc.spirit_stones_gained > 0" class="text-gold-300">
+              灵石 +<span :title="formatNumber(enc.spirit_stones_gained)">{{ formatCompact(enc.spirit_stones_gained) }}</span>
+            </span>
+            <span v-if="enc.beast_soul_gained > 0" class="text-purple-300">
+              兽魂 +<span :title="formatNumber(enc.beast_soul_gained)">{{ formatCompact(enc.beast_soul_gained) }}</span>
+            </span>
+            <span v-for="item in encounterItems(enc)" :key="`${enc.log_id}-${item.item_id}`" class="text-purple-300">
+              {{ item.name }} ×<span :title="formatNumber(item.qty)">{{ formatCompact(item.qty) }}</span>
             </span>
           </div>
         </div>
       </div>
-      <div v-else class="text-center py-6 text-stone-500 text-sm">暂无遭遇详情</div>
+      <EmptyState v-else text="暂无遭遇详情" />
       <template #footer>
-        <button @click="encountersModal.show = false"
-          class="px-4 py-2 text-xs rounded bg-stone-800 text-stone-300 hover:bg-stone-700">关闭</button>
+        <AppButton size="sm" variant="outline" @click="encountersModal.show = false">关闭</AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup lang="ts">
@@ -392,6 +381,13 @@
  */
 import { ref, reactive, computed, onMounted } from 'vue';
 import Modal from '../common/Modal.vue';
+import PanelShell from '../ui/PanelShell.vue';
+import PanelCard from '../ui/PanelCard.vue';
+import Tabs from '../ui/Tabs.vue';
+import AppButton from '../ui/AppButton.vue';
+import Badge from '../ui/Badge.vue';
+import EmptyState from '../ui/EmptyState.vue';
+import LoadingBlock from '../ui/LoadingBlock.vue';
 import { useUIStore } from '../../stores/ui';
 import {
   beastAbyssGetFloors,
@@ -408,17 +404,20 @@ import {
   type AbyssHistoryData,
   type AbyssRankingData,
   type AbyssEncountersData,
+  type AbyssEncounter,
+  type AbyssEncounterItem,
   type AbyssConfigData
 } from '../../api/beastAbyss';
+import { formatCompact, formatNumber } from '../../utils/format';
 
 const uiStore = useUIStore();
 
-/** Tab 配置 */
-const tabs = [
-  { id: 'status', name: '探渊状态' },
-  { id: 'start', name: '开始探渊' },
-  { id: 'ranking', name: '排行榜' },
-  { id: 'history', name: '历史记录' }
+/** Tab 配置（key/label 契约见 ui/Tabs.vue） */
+const tabItems = [
+  { key: 'status', label: '探渊状态' },
+  { key: 'start', label: '开始探渊' },
+  { key: 'ranking', label: '排行榜' },
+  { key: 'history', label: '历史记录' }
 ];
 /** 当前激活 Tab */
 const activeTab = ref('status');
@@ -431,6 +430,8 @@ const rankingSubTabs: Array<{ key: AbyssRankingCategory; name: string }> = [
   { key: 'total_explore_count', name: '累计探渊次数' },
   { key: 'total_pvp_wins', name: '累计PVP胜利' }
 ];
+/** 排行榜子分类 Tab 项（由 rankingSubTabs 派生，保持 key/name 单一来源） */
+const rankingSubItems = rankingSubTabs.map(sub => ({ key: sub.key, label: sub.name }));
 /** 排行榜当前子分类 */
 const rankingSubTab = ref<AbyssRankingCategory>('deepest_floor');
 
@@ -451,7 +452,7 @@ const rankingData = ref<AbyssRankingData | null>(null);
 const encountersData = ref<AbyssEncountersData | null>(null);
 const configData = ref<AbyssConfigData | null>(null);
 const historyData = reactive<AbyssHistoryData>({
-  list: [], total: 0, page: 1, page_size: 10, total_pages: 0
+  history: [], total: 0, page: 1, page_size: 10
 });
 
 /** 开始探渊表单 */
@@ -477,6 +478,23 @@ const encountersModal = reactive({
 });
 
 /**
+ * 今日探渊次数余量。后端 /status 未返回上限时按「未知」处理（null）：
+ * 界面上宁可整块不显示，也不要印出 undefined 或 NaN。
+ */
+const dailyToday = computed(() =>
+  typeof statusData.value?.daily_explores_today === 'number'
+    ? statusData.value.daily_explores_today : null);
+const dailyLimit = computed(() =>
+  typeof statusData.value?.daily_limit === 'number' ? statusData.value.daily_limit : null);
+const dailyRemaining = computed(() =>
+  dailyToday.value === null || dailyLimit.value === null
+    ? null : Math.max(0, dailyLimit.value - dailyToday.value));
+
+/** 历史总页数：后端只给 total + page_size，页数由前端推导 */
+const historyTotalPages = computed(() =>
+  Math.max(1, Math.ceil((historyData.total || 0) / (historyData.page_size || 10))));
+
+/**
  * 体力消耗（从配置或 floors 接口获取，避免硬编码）
  * 优先使用 /config 接口的 stamina_per_explore，其次回退到 floors 接口的隐式默认值
  */
@@ -499,7 +517,7 @@ const canStart = computed(() => {
   if (startForm.duration_hours < floorsData.value.min_duration_hours ||
       startForm.duration_hours > floorsData.value.max_duration_hours) return false;
   if (!selectedFloor.value) return false;
-  if (floorsData.value.daily_remaining <= 0) return false;
+  if (dailyRemaining.value === 0) return false;
   return true;
 });
 
@@ -656,7 +674,7 @@ async function loadHistory() {
  * @param page 目标页码
  */
 async function changeHistoryPage(page: number) {
-  if (page < 1 || page > Math.ceil(historyData.total / historyData.page_size)) return;
+  if (page < 1 || page > historyTotalPages.value) return;
   historyData.page = page;
   await loadHistory();
 }
@@ -799,20 +817,20 @@ function getOutcomeName(status: string): string {
 }
 
 /**
- * 获取探渊结局徽章样式
+ * 获取探渊结局徽章色（tone 取值见 ui/Badge.vue）
  * @param outcome 结局值
  */
-function getOutcomeBadgeClass(status: string): string {
+function getOutcomeTone(status: string): string {
   // 后端 status 字段值：active=进行中 / settled=已结算 / recalled=已召回 / dead=陨落
   // 兼容旧 outcome 字段值：success=成功 / dead=陨落 / recalled=提前召回
   const map: Record<string, string> = {
-    active: 'bg-sky-950/60 text-sky-300 border border-sky-800',
-    settled: 'bg-emerald-950/60 text-emerald-300 border border-emerald-800',
-    success: 'bg-emerald-950/60 text-emerald-300 border border-emerald-800',
-    dead: 'bg-rose-950/60 text-rose-300 border border-rose-800',
-    recalled: 'bg-amber-950/60 text-amber-300 border border-amber-800'
+    active: 'info',
+    settled: 'success',
+    success: 'success',
+    dead: 'danger',
+    recalled: 'gold'
   };
-  return map[status] || 'bg-stone-800 text-stone-400 border border-stone-700';
+  return map[status] || 'neutral';
 }
 
 /**
@@ -846,10 +864,10 @@ function getRankingValueName(category: AbyssRankingCategory): string {
  * @param rank 名次
  */
 function getRankBadgeClass(rank: number): string {
-  if (rank === 1) return 'inline-block px-2 py-0.5 rounded bg-amber-500 text-stone-900 font-bold';
-  if (rank === 2) return 'inline-block px-2 py-0.5 rounded bg-stone-300 text-stone-900 font-bold';
-  if (rank === 3) return 'inline-block px-2 py-0.5 rounded bg-orange-700 text-stone-100 font-bold';
-  return 'inline-block px-2 py-0.5 rounded bg-stone-800 text-stone-300';
+  if (rank === 1) return 'inline-block px-2 py-0.5 rounded-control bg-gold-500 text-surface-sunken font-bold';
+  if (rank === 2) return 'inline-block px-2 py-0.5 rounded-control bg-line-strong text-fg-primary font-bold';
+  if (rank === 3) return 'inline-block px-2 py-0.5 rounded-control bg-gold-800 text-gold-200 font-bold';
+  return 'inline-block px-2 py-0.5 rounded-control bg-surface-active text-fg-secondary';
 }
 
 /**
@@ -875,11 +893,11 @@ function getEncounterBadgeClass(type: string): string {
   const map: Record<string, string> = {
     monster: 'bg-rose-950/60 text-rose-300',
     pvp: 'bg-purple-950/60 text-purple-300',
-    event: 'bg-amber-950/60 text-amber-300',
+    event: 'bg-gold-900/60 text-gold-300',
     treasure: 'bg-emerald-950/60 text-emerald-300',
-    trap: 'bg-stone-800 text-stone-300'
+    trap: 'bg-surface-active text-fg-secondary'
   };
-  return map[type] || 'bg-stone-800 text-stone-300';
+  return map[type] || 'bg-surface-active text-fg-secondary';
 }
 
 /**
@@ -890,11 +908,74 @@ function getEncounterBorderClass(type: string): string {
   const map: Record<string, string> = {
     monster: 'border-rose-900/50',
     pvp: 'border-purple-900/50',
-    event: 'border-amber-900/50',
+    event: 'border-gold-800/50',
     treasure: 'border-emerald-900/50',
-    trap: 'border-stone-700'
+    trap: 'border-line'
   };
-  return map[type] || 'border-stone-800';
+  return map[type] || 'border-line-subtle';
+}
+
+/**
+ * 遭遇结果中文名（后端 result 取值 victory/defeat/triggered，列可空）
+ * 未知或为空时统一显示「未知」，不要印出 undefined
+ * @param result 后端 result 字段
+ */
+function getResultName(result: string | null): string {
+  const map: Record<string, string> = {
+    victory: '胜',
+    defeat: '败',
+    triggered: '触发'
+  };
+  return map[result || ''] || '未知';
+}
+
+/**
+ * 遭遇结果文字配色
+ * @param result 后端 result 字段
+ */
+function getResultClass(result: string | null): string {
+  const map: Record<string, string> = {
+    victory: 'text-emerald-300',
+    defeat: 'text-rose-300',
+    triggered: 'text-gold-300'
+  };
+  return map[result || ''] || 'text-fg-faint';
+}
+
+/**
+ * 五行中文名（encounter_detail.monster_element 为英文 key）
+ * @param element 后端属性 key
+ * @returns 中文名；无该字段或无法识别时返回空串，由模板 v-if 隐藏
+ */
+function getElementName(element?: string): string {
+  const map: Record<string, string> = {
+    metal: '金',
+    wood: '木',
+    water: '水',
+    fire: '火',
+    earth: '土',
+    dark: '暗'
+  };
+  return element ? (map[element] || '') : '';
+}
+
+/**
+ * 数值字段是否可用：hp_after / stamina_after 在库里是可空列，
+ * 缺失时整块不显示，宁可留空也不要印成 0（那是凭空造出来的数）
+ * @param value 后端数值字段
+ */
+function hasNumber(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * 单条遭遇的实物掉落
+ * is_spirit_stone 的项后端不入背包（直接累计到玩家灵石），故此处跳过，
+ * 灵石数值统一看 spirit_stones_gained，避免同一笔奖励展示两次
+ * @param enc 遭遇日志
+ */
+function encounterItems(enc: AbyssEncounter): AbyssEncounterItem[] {
+  return (enc.items_gained || []).filter(item => !item.is_spirit_stone);
 }
 
 /**
@@ -921,14 +1002,3 @@ function formatTimeString(time: string | null): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 </script>
-
-<style scoped>
-/* 局部淡入动画，与 MultiDungeonPanel / AscensionPanel 保持一致 */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-</style>

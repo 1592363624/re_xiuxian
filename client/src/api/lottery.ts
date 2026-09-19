@@ -3,18 +3,18 @@
  * 对应后端 /api/lottery 路由。
  * 直接基于 axios（与项目其它 api 文件保持一致）。
  */
-import axios from 'axios'
+import apiClient from './index'
 
-const BASE = '/api/lottery'
+const BASE = '/lottery'
 
 /**
  * 获取抽奖面板信息（花费 / 保底 / 奖池预览 / 玩家保底进度）
  */
-export const getLotteryPanel = () => axios.get(`${BASE}/panel`)
+export const getLotteryPanel = () => apiClient.get(`${BASE}/panel`)
 
 /**
  * 抽奖
  * @param mode 'single' | 'ten'
  */
 export const drawLottery = (mode: 'single' | 'ten' = 'single') =>
-  axios.post(`${BASE}/draw`, { mode })
+  apiClient.post(`${BASE}/draw`, { mode })

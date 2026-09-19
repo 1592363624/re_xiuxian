@@ -13,501 +13,430 @@
  *   - 所有状态从后端拉取，禁止硬编码业务数据
  *   - 业务逻辑全部在后端，前端仅做展示与接口调用
  *   - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
- *   - 颜色风格与 MultiDungeonPanel.vue 一致（修仙古风：#1c1917 / #292524 / amber-300）
+ *   - 颜色统一取设计令牌（surface-* / line-* / fg-* / gold-*，见 styles/tokens.css）
  *   - 五行配色：金=yellow / 木=emerald / 水=sky / 火=rose / 土=amber-stone
- *   - 使用 Tailwind CSS 工具类，无自定义 CSS（除淡入动画外）
+ *   - 使用 Tailwind CSS 工具类，外壳与标签页走 ui/PanelShell.vue + ui/Tabs.vue，无自定义 CSS
  */
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
+  <PanelShell
+    title="太一门 · 引道五行"
+    hint="五行道途 · 修炼任务 · 排行 · 共鸣"
+    size="xl"
+    @close="$emit('close')"
+  >
+    <!-- Tab 切换栏（切换时按需懒加载，见 switchTab） -->
+    <Tabs :model-value="activeTab" :items="tabItems" class="mb-3" @update:model-value="switchTab" />
 
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-amber-900/40 rounded-lg p-6 max-w-5xl w-full mx-4 shadow-2xl animate-fade-in max-h-[90vh] flex flex-col panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-            <path d="M2 12h20"/>
-          </svg>
-          太一门 · 引道五行
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
+    <!-- ============ Tab 1: 道途面板 ============ -->
+    <div v-show="activeTab === 'profile'" class="space-y-3">
+      <LoadingBlock v-if="loading.profile" text="加载道途面板中…" />
+      <template v-else-if="profileData">
+        <!-- 未选择道途：5种道途卡片 -->
+        <template v-if="!profileData.gate.dao_path">
+          <PanelCard>
+            <div class="text-sm font-bold text-gold-300 mb-2">引道入门</div>
+            <div class="text-[11px] text-fg-muted">
+              · 需达到<span class="text-gold-300">元婴期</span>且神识≥<span class="text-gold-300">200</span>方可引道<br/>
+              · 五行道途各有专长：金主杀伐、木主生机、水主防御、火主洞察、土主稳固<br/>
+              · 首次选择免费，后续切换需消耗法则碎片（每月1次免费）
+            </div>
+          </PanelCard>
 
-      <!-- Tab 切换栏 -->
-      <div class="flex border-b border-stone-700 mb-3 overflow-x-auto">
-        <button v-for="tab in tabs" :key="tab.id"
-          @click="switchTab(tab.id)"
-          class="px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap relative"
-          :class="activeTab === tab.id ? 'text-amber-300' : 'text-stone-500 hover:text-stone-300'">
-          {{ tab.name }}
-          <div v-if="activeTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-400"></div>
-        </button>
-      </div>
-
-      <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto pr-1">
-
-        <!-- ============ Tab 1: 道途面板 ============ -->
-        <div v-show="activeTab === 'profile'" class="space-y-3">
-          <div v-if="loading.profile" class="text-center py-6 text-stone-500 text-sm">加载道途面板中...</div>
-          <template v-else-if="profileData">
-            <!-- 未选择道途：5种道途卡片 -->
-            <template v-if="!profileData.gate.dao_path">
-              <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-                <div class="text-sm font-bold text-amber-300 mb-2">引道入门</div>
-                <div class="text-[11px] text-stone-400">
-                  · 需达到<span class="text-amber-300">元婴期</span>且神识≥<span class="text-amber-300">200</span>方可引道<br/>
-                  · 五行道途各有专长：金主杀伐、木主生机、水主防御、火主洞察、土主稳固<br/>
-                  · 首次选择免费，后续切换需消耗法则碎片（每月1次免费）
+          <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div v-for="path in allDaoPaths" :key="path"
+              class="bg-surface-raised border rounded-panel p-4 flex flex-col transition-all hover:shadow-lg"
+              :class="getPathTheme(path).border">
+              <!-- 卡片头 -->
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-bold" :class="getPathTheme(path).text">
+                  {{ getPathName(path) }}
                 </div>
-              </section>
-
-              <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div v-for="path in allDaoPaths" :key="path"
-                  class="bg-[#292524] border rounded-lg p-4 flex flex-col transition-all hover:shadow-lg"
-                  :class="getPathTheme(path).border">
-                  <!-- 卡片头 -->
-                  <div class="flex items-center justify-between mb-2">
-                    <div class="text-sm font-bold" :class="getPathTheme(path).text">
-                      {{ getPathName(path) }}
-                    </div>
-                    <div class="text-[10px] px-2 py-0.5 rounded border" :class="getPathTheme(path).badge">
-                      五行
-                    </div>
-                  </div>
-                  <!-- 道途描述 -->
-                  <div class="text-[11px] text-stone-400 mb-3 flex-1">{{ getPathDescription(path) }}</div>
-                  <!-- 被动加成 -->
-                  <div class="text-[10px] text-stone-500 mb-3">
-                    · 被动：{{ getPathPassive(path) }}
-                  </div>
-                  <!-- 选择按钮 -->
-                  <button @click="handleChoosePath(path)"
-                    :disabled="loading.action"
-                    class="w-full py-2 rounded text-xs font-bold disabled:opacity-50"
-                    :class="getPathTheme(path).button">
-                    选择此道途
-                  </button>
+                <div class="text-[10px] px-2 py-0.5 rounded border" :class="getPathTheme(path).badge">
+                  五行
                 </div>
-              </section>
-            </template>
-
-            <!-- 已选择道途：展示道途详情 + 操作 -->
-            <template v-else>
-              <!-- 道途核心信息卡 -->
-              <section class="bg-[#292524] border rounded-lg p-4"
-                :class="getPathTheme(profileData.gate.dao_path).border">
-                <div class="flex items-center justify-between mb-3">
-                  <div>
-                    <div class="text-sm font-bold" :class="getPathTheme(profileData.gate.dao_path).text">
-                      {{ profileData.gate.dao_path_name }}
-                    </div>
-                    <div class="text-[10px] text-stone-500">{{ profileData.gate.dao_level_title }}</div>
-                  </div>
-                  <div class="text-right">
-                    <div class="text-[10px] text-stone-500">道途等级</div>
-                    <div class="text-lg font-bold text-amber-300">
-                      {{ profileData.gate.dao_level }}
-                      <span class="text-[10px] text-stone-500">/ 10</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 道途描述 -->
-                <div class="text-[11px] text-stone-400 mb-3">{{ profileData.gate.dao_path_description }}</div>
-
-                <!-- 被动加成 -->
-                <div v-if="profileData.gate.passive_bonus" class="text-[11px] mb-3 p-2 bg-stone-900/40 border border-stone-800 rounded">
-                  <span class="text-stone-500">被动加成：</span>
-                  <span class="text-emerald-300">{{ profileData.gate.passive_bonus.description }}</span>
-                  <span class="text-stone-400">（当前 +{{ Math.round(profileData.gate.passive_bonus.value * 100) }}%）</span>
-                </div>
-
-                <!-- 经验进度条 -->
-                <div class="text-xs mb-3">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-stone-500">道途经验</span>
-                    <span class="text-stone-300">
-                      {{ profileData.gate.dao_exp }}
-                      <span v-if="profileData.gate.dao_level < 10" class="text-stone-500">/ {{ profileData.gate.next_level_exp }}</span>
-                      <span v-else class="text-amber-300">（已满级）</span>
-                    </span>
-                  </div>
-                  <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
-                    <div class="h-full transition-all"
-                      :class="getPathTheme(profileData.gate.dao_path).bar"
-                      :style="{ width: `${getExpPercent(profileData.gate.dao_exp, profileData.gate.next_level_exp, profileData.gate.dao_level)}%` }"></div>
-                  </div>
-                </div>
-
-                <!-- 神识值 -->
-                <div class="text-xs">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-stone-500">神识</span>
-                    <span class="text-sky-300">
-                      {{ profileData.divine_sense.current }} / {{ profileData.divine_sense.max }}
-                    </span>
-                  </div>
-                  <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
-                    <div class="h-full bg-gradient-to-r from-sky-700 to-sky-400 transition-all"
-                      :style="{ width: `${getDivineSensePercent()}%` }"></div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- 引道修炼 + 切换道途 操作区 -->
-              <section class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <!-- 引道修炼 -->
-                <div class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-                  <div class="text-sm font-bold text-amber-300 mb-2">引道修炼</div>
-                  <div class="text-[11px] text-stone-400 mb-3">
-                    · 消耗 <span class="text-sky-300">50 神识</span> 获得道途经验<br/>
-                    · 每日上限 <span class="text-amber-300">{{ cultivateLimit }}</span> 次（今日已修 <span class="text-amber-300">{{ cultivateCountToday }}</span> 次）
-                  </div>
-                  <button @click="handleCultivate"
-                    :disabled="loading.action || !canCultivate"
-                    class="w-full py-2 rounded text-xs font-bold bg-amber-700 text-amber-100 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {{ canCultivate ? '引道修炼' : '不可修炼' }}
-                  </button>
-                </div>
-
-                <!-- 切换道途 -->
-                <div class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-                  <div class="text-sm font-bold text-purple-300 mb-2">切换道途</div>
-                  <div class="text-[11px] text-stone-400 mb-3">
-                    · 每月 <span class="text-amber-300">1 次</span>免费，之后消耗 <span class="text-rose-300">100 五行法则碎片</span><br/>
-                    · 切换冷却 <span class="text-amber-300">7 天</span>，等级重置为1，保留 50% 经验
-                  </div>
-                  <!-- 选择目标道途 -->
-                  <select v-model="switchTargetPath"
-                    class="w-full bg-stone-900 border border-stone-700 rounded px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none mb-2">
-                    <option value="">选择目标道途</option>
-                    <option v-for="path in allDaoPaths.filter(p => p !== profileData.gate.dao_path)" :key="path" :value="path">
-                      {{ getPathName(path) }} - {{ getPathDescription(path).slice(0, 12) }}...
-                    </option>
-                  </select>
-                  <button @click="handleSwitchPath"
-                    :disabled="loading.action || !switchTargetPath"
-                    class="w-full py-2 rounded text-xs font-bold bg-purple-700 text-purple-100 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                    确认切换
-                  </button>
-                </div>
-              </section>
-
-              <!-- 道途技能列表 -->
-              <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-                <div class="text-sm font-bold text-amber-300 mb-3">道途技能</div>
-                <div v-if="profileData.skills.length === 0" class="text-[11px] text-stone-500 text-center py-2">暂无技能</div>
-                <div v-else class="space-y-2">
-                  <div v-for="skill in profileData.skills" :key="skill.skill_id"
-                    class="bg-stone-900/40 border border-stone-800 rounded p-3">
-                    <!-- 技能头 -->
-                    <div class="flex items-center justify-between mb-2">
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-amber-300">{{ skill.skill_name }}</span>
-                        <!-- 锁定/可用 徽章 -->
-                        <span v-if="skill.is_locked" class="text-[9px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 border border-stone-700">
-                          锁定（需 {{ skill.skill_min_level }} 级）
-                        </span>
-                        <span v-else-if="skill.cooldown_end && isCoolingDown(skill.cooldown_end)" class="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/60 text-rose-300 border border-rose-800">
-                          冷却中
-                        </span>
-                        <span v-else-if="skill.can_use" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800">
-                          可用
-                        </span>
-                        <span v-else class="text-[9px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 border border-stone-700">
-                          神识不足
-                        </span>
-                      </div>
-                      <div class="text-[10px] text-stone-500">
-                        消耗 {{ skill.skill_divine_sense_cost }} 神识 · 冷却 {{ skill.skill_cooldown_hours }} 小时
-                      </div>
-                    </div>
-                    <!-- 技能描述 -->
-                    <div class="text-[11px] text-stone-400 mb-2">{{ skill.skill_description }}</div>
-                    <!-- 冷却倒计时 -->
-                    <div v-if="skill.cooldown_end && isCoolingDown(skill.cooldown_end)" class="text-[10px] text-rose-400 mb-2">
-                      · 冷却结束于：{{ formatTimeString(skill.cooldown_end) }}
-                    </div>
-
-                    <!-- 使用技能：目标输入区（仅对需要目标的技能显示） -->
-                    <div v-if="!skill.is_locked && needsTarget(skill.skill_id)" class="grid grid-cols-2 gap-2 mb-2">
-                      <input v-model.number="skillTargetPlayerId" type="number" min="1" placeholder="目标玩家 ID"
-                        class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-[11px] text-white focus:border-amber-500 focus:outline-none" />
-                      <input v-if="needsBeastId(skill.skill_id)" v-model.number="skillTargetBeastId" type="number" min="1" placeholder="目标灵兽 ID"
-                        class="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-[11px] text-white focus:border-amber-500 focus:outline-none" />
-                    </div>
-
-                    <!-- 使用技能按钮 -->
-                    <button @click="handleUseSkill(skill)"
-                      :disabled="loading.action || !canUseSkill(skill)"
-                      class="w-full py-1.5 rounded text-[11px] font-bold bg-rose-900/60 border border-rose-700 text-rose-200 hover:bg-rose-800/60 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {{ skill.is_locked ? '技能未解锁' : (isCoolingDown(skill.cooldown_end || '') ? '冷却中' : '施展技能') }}
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <!-- 累计统计 -->
-              <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-                <div class="text-sm font-bold text-stone-300 mb-3">道途累计</div>
-                <div class="grid grid-cols-3 gap-3 text-center">
-                  <div>
-                    <div class="text-[10px] text-stone-500">总修炼次数</div>
-                    <div class="text-lg font-bold text-amber-300">{{ profileData.stats.total_cultivate_count }}</div>
-                  </div>
-                  <div>
-                    <div class="text-[10px] text-stone-500">总技能次数</div>
-                    <div class="text-lg font-bold text-rose-300">{{ profileData.stats.total_skill_use_count }}</div>
-                  </div>
-                  <div>
-                    <div class="text-[10px] text-stone-500">总共鸣次数</div>
-                    <div class="text-lg font-bold text-sky-300">{{ profileData.stats.total_resonance_count }}</div>
-                  </div>
-                </div>
-              </section>
-            </template>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无道途数据</div>
-        </div>
-
-        <!-- ============ Tab 2: 修炼任务 ============ -->
-        <div v-show="activeTab === 'tasks'" class="space-y-3">
-          <div v-if="loading.tasks" class="text-center py-6 text-stone-500 text-sm">加载任务中...</div>
-          <template v-else-if="tasksData">
-            <!-- 任务重置时间 -->
-            <section v-if="tasksData.reset_time" class="bg-[#292524] border border-stone-700 rounded-lg p-3 flex items-center justify-between">
-              <div class="text-xs text-stone-400">
-                · 任务将于 <span class="text-amber-300">{{ formatTimeString(tasksData.reset_time) }}</span> 重置
               </div>
-              <button @click="loadTasks"
-                :disabled="loading.tasks"
-                class="px-3 py-1 text-[11px] bg-stone-800 rounded hover:bg-stone-700 text-stone-300 disabled:opacity-50">
-                刷新任务
+              <!-- 道途描述 -->
+              <div class="text-[11px] text-fg-muted mb-3 flex-1">{{ getPathDescription(path) }}</div>
+              <!-- 被动加成 -->
+              <div class="text-[10px] text-fg-faint mb-3">
+                · 被动：{{ getPathPassive(path) }}
+              </div>
+              <!-- 选择按钮 -->
+              <button @click="handleChoosePath(path)"
+                :disabled="loading.action"
+                class="w-full py-2 rounded-control text-xs font-bold disabled:opacity-50"
+                :class="getPathTheme(path).button">
+                选择此道途
               </button>
-            </section>
+            </div>
+          </section>
+        </template>
 
-            <!-- 任务列表 -->
-            <section v-if="tasksData.tasks.length === 0" class="text-center py-12 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-3 opacity-40">
-                <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-              </svg>
-              <div class="text-sm">{{ tasksData.message || '今日暂无任务' }}</div>
-              <div class="text-[11px] mt-1">需先选择道途方可领取日常任务</div>
-            </section>
+        <!-- 已选择道途：展示道途详情 + 操作 -->
+        <template v-else>
+          <!-- 道途核心信息卡 -->
+          <section class="bg-surface-raised border rounded-panel p-4"
+            :class="getPathTheme(profileData.gate.dao_path).border">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="text-sm font-bold" :class="getPathTheme(profileData.gate.dao_path).text">
+                  {{ profileData.gate.dao_path_name }}
+                </div>
+                <div class="text-[10px] text-fg-faint">{{ profileData.gate.dao_level_title }}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-[10px] text-fg-faint">道途等级</div>
+                <div class="text-lg font-bold text-gold-300 num">
+                  {{ profileData.gate.dao_level }}
+                  <span class="text-[10px] text-fg-faint">/ 10</span>
+                </div>
+              </div>
+            </div>
 
-            <section v-else class="space-y-2">
-              <div v-for="(task, idx) in tasksData.tasks" :key="idx"
-                class="bg-[#292524] border rounded-lg p-3"
-                :class="task.completed && !task.rewards_claimed ? 'border-emerald-700 shadow-lg shadow-emerald-900/20' : 'border-stone-700'">
-                <!-- 任务头 -->
+            <!-- 道途描述 -->
+            <div class="text-[11px] text-fg-muted mb-3">{{ profileData.gate.dao_path_description }}</div>
+
+            <!-- 被动加成 -->
+            <div v-if="profileData.gate.passive_bonus" class="text-[11px] mb-3 p-2 bg-surface-sunken/60 border border-line-subtle rounded-control">
+              <span class="text-fg-faint">被动加成：</span>
+              <span class="text-emerald-300">{{ profileData.gate.passive_bonus.description }}</span>
+              <span class="text-fg-muted">（当前 +{{ Math.round(profileData.gate.passive_bonus.value * 100) }}%）</span>
+            </div>
+
+            <!-- 经验进度条 -->
+            <div class="text-xs mb-3">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-fg-faint">道途经验</span>
+                <span class="text-fg-secondary num" :title="String(profileData.gate.dao_exp)">
+                  {{ formatCompact(profileData.gate.dao_exp) }}
+                  <span v-if="profileData.gate.dao_level < 10" class="text-fg-faint">/ {{ formatCompact(profileData.gate.next_level_exp) }}</span>
+                  <span v-else class="text-gold-300">（已满级）</span>
+                </span>
+              </div>
+              <div class="h-2 bg-surface-sunken rounded-full overflow-hidden border border-line-subtle">
+                <div class="h-full transition-all"
+                  :class="getPathTheme(profileData.gate.dao_path).bar"
+                  :style="{ width: `${getExpPercent(profileData.gate.dao_exp, profileData.gate.next_level_exp, profileData.gate.dao_level)}%` }"></div>
+              </div>
+            </div>
+
+            <!-- 神识值 -->
+            <div class="text-xs">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-fg-faint">神识</span>
+                <span class="text-sky-300 num" :title="profileData.divine_sense.current + ' / ' + profileData.divine_sense.max">
+                  {{ formatCompact(profileData.divine_sense.current) }} / {{ formatCompact(profileData.divine_sense.max) }}
+                </span>
+              </div>
+              <div class="h-2 bg-surface-sunken rounded-full overflow-hidden border border-line-subtle">
+                <div class="h-full bg-gradient-to-r from-sky-700 to-sky-400 transition-all"
+                  :style="{ width: `${getDivineSensePercent()}%` }"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 引道修炼 + 切换道途 操作区 -->
+          <section class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <!-- 引道修炼 -->
+            <div class="bg-surface-hover border border-line rounded-panel p-4">
+              <div class="text-sm font-bold text-gold-300 mb-2">引道修炼</div>
+              <div class="text-[11px] text-fg-muted mb-3">
+                · 消耗 <span class="text-sky-300 num">50 神识</span> 获得道途经验<br/>
+                · 每日上限 <span class="text-gold-300">{{ cultivateLimit }}</span> 次（今日已修 <span class="text-gold-300">{{ cultivateCountToday }}</span> 次）
+              </div>
+              <AppButton variant="primary" size="sm" block :disabled="loading.action || !canCultivate" @click="handleCultivate">
+                {{ canCultivate ? '引道修炼' : '不可修炼' }}
+              </AppButton>
+            </div>
+
+            <!-- 切换道途 -->
+            <div class="bg-surface-hover border border-line rounded-panel p-4">
+              <div class="text-sm font-bold text-purple-300 mb-2">切换道途</div>
+              <div class="text-[11px] text-fg-muted mb-3">
+                · 每月 <span class="text-gold-300">1 次</span>免费，之后消耗 <span class="text-rose-300">100 五行法则碎片</span><br/>
+                · 切换冷却 <span class="text-gold-300">7 天</span>，等级重置为1，保留 50% 经验
+              </div>
+              <!-- 选择目标道途 -->
+              <select v-model="switchTargetPath"
+                class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-xs text-fg-primary focus-ring mb-2">
+                <option value="">选择目标道途</option>
+                <option v-for="path in allDaoPaths.filter(p => p !== profileData.gate.dao_path)" :key="path" :value="path">
+                  {{ getPathName(path) }} - {{ getPathDescription(path).slice(0, 12) }}...
+                </option>
+              </select>
+              <button @click="handleSwitchPath"
+                :disabled="loading.action || !switchTargetPath"
+                class="w-full py-2 rounded-control text-xs font-bold bg-purple-700 text-purple-100 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                确认切换
+              </button>
+            </div>
+          </section>
+
+          <!-- 道途技能列表 -->
+          <PanelCard>
+            <div class="text-sm font-bold text-gold-300 mb-3">道途技能</div>
+            <div v-if="profileData.skills.length === 0" class="text-[11px] text-fg-faint text-center py-2">暂无技能</div>
+            <div v-else class="space-y-2">
+              <div v-for="skill in profileData.skills" :key="skill.skill_id"
+                class="bg-surface-sunken/60 border border-line-subtle rounded-control p-3">
+                <!-- 技能头 -->
                 <div class="flex items-center justify-between mb-2">
                   <div class="flex items-center gap-2">
-                    <span class="text-xs font-bold text-amber-300">{{ task.task_name }}</span>
-                    <!-- 状态徽章 -->
-                    <span v-if="task.rewards_claimed" class="text-[9px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 border border-stone-700">
-                      已领取
-                    </span>
-                    <span v-else-if="task.completed" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800 animate-pulse">
-                      可领取
-                    </span>
-                    <span v-else class="text-[9px] px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800">
-                      进行中
-                    </span>
+                    <span class="text-xs font-bold text-gold-300">{{ skill.skill_name }}</span>
+                    <!-- 锁定/可用 徽章 -->
+                    <Badge v-if="skill.is_locked" tone="muted">锁定（需 {{ skill.skill_min_level }} 级）</Badge>
+                    <Badge v-else-if="skill.cooldown_end && isCoolingDown(skill.cooldown_end)" tone="danger">冷却中</Badge>
+                    <Badge v-else-if="skill.can_use" tone="success">可用</Badge>
+                    <Badge v-else tone="neutral">神识不足</Badge>
                   </div>
-                  <div class="text-[10px] text-stone-500">
-                    进度：{{ task.current_count }} / {{ task.target_count }}
+                  <div class="text-[10px] text-fg-faint num">
+                    消耗 {{ formatCompact(skill.skill_divine_sense_cost) }} 神识 · 冷却 {{ skill.skill_cooldown_hours }} 小时
                   </div>
                 </div>
-                <!-- 任务描述 -->
-                <div class="text-[11px] text-stone-400 mb-2">{{ task.task_description }}</div>
-                <!-- 进度条 -->
-                <div class="h-1.5 bg-stone-800 rounded-full overflow-hidden mb-2">
-                  <div class="h-full transition-all"
-                    :class="task.completed ? 'bg-gradient-to-r from-emerald-700 to-emerald-400' : 'bg-gradient-to-r from-amber-700 to-amber-400'"
-                    :style="{ width: `${Math.min(100, (task.current_count / task.target_count) * 100)}%` }"></div>
+                <!-- 技能描述 -->
+                <div class="text-[11px] text-fg-muted mb-2">{{ skill.skill_description }}</div>
+                <!-- 冷却倒计时 -->
+                <div v-if="skill.cooldown_end && isCoolingDown(skill.cooldown_end)" class="text-[10px] text-rose-400 mb-2">
+                  · 冷却结束于：{{ formatTimeString(skill.cooldown_end) }}
                 </div>
-                <!-- 奖励 + 领取按钮 -->
-                <div class="flex items-center justify-between">
-                  <div class="text-[10px] text-stone-400">
-                    奖励：
-                    <span v-if="task.rewards.dao_exp" class="text-amber-300">道途经验 +{{ task.rewards.dao_exp }}</span>
-                    <span v-if="task.rewards.divine_sense" class="text-sky-300"> 神识 +{{ task.rewards.divine_sense }}</span>
-                    <span v-if="task.rewards.law_fragment_five_elements" class="text-purple-300"> 五行碎片 +{{ task.rewards.law_fragment_five_elements }}</span>
-                  </div>
-                  <button v-if="task.completed && !task.rewards_claimed"
-                    @click="handleClaimTask(idx)"
-                    :disabled="loading.action"
-                    class="px-3 py-1 text-[11px] font-bold bg-emerald-700 text-emerald-100 rounded hover:bg-emerald-600 disabled:opacity-50">
-                    领取奖励
-                  </button>
-                </div>
-              </div>
-            </section>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无任务数据</div>
-        </div>
 
-        <!-- ============ Tab 3: 排行榜 ============ -->
-        <div v-show="activeTab === 'ranking'" class="space-y-3">
-          <!-- 子分类切换 -->
-          <div class="flex border-b border-stone-700 mb-2">
-            <button v-for="cat in rankingCategories" :key="cat.key"
-              @click="switchRankingCategory(cat.key)"
-              class="px-3 py-1.5 text-[11px] font-medium transition-colors relative"
-              :class="rankingCategory === cat.key ? 'text-amber-300' : 'text-stone-500 hover:text-stone-300'">
-              {{ cat.name }}
-              <div v-if="rankingCategory === cat.key" class="absolute bottom-0 left-0 w-full h-0.5 bg-amber-400"></div>
-            </button>
+                <!-- 使用技能：目标输入区（仅对需要目标的技能显示） -->
+                <div v-if="!skill.is_locked && needsTarget(skill.skill_id)" class="grid grid-cols-2 gap-2 mb-2">
+                  <input v-model.number="skillTargetPlayerId" type="number" min="1" placeholder="目标玩家 ID"
+                    class="bg-surface-sunken border border-line rounded-control px-2 py-1 text-[11px] text-fg-primary focus-ring" />
+                  <input v-if="needsBeastId(skill.skill_id)" v-model.number="skillTargetBeastId" type="number" min="1" placeholder="目标灵兽 ID"
+                    class="bg-surface-sunken border border-line rounded-control px-2 py-1 text-[11px] text-fg-primary focus-ring" />
+                </div>
+
+                <!-- 使用技能按钮 -->
+                <AppButton variant="danger" size="xs" block :disabled="loading.action || !canUseSkill(skill)" @click="handleUseSkill(skill)">
+                  {{ skill.is_locked ? '技能未解锁' : (isCoolingDown(skill.cooldown_end || '') ? '冷却中' : '施展技能') }}
+                </AppButton>
+              </div>
+            </div>
+          </PanelCard>
+
+          <!-- 累计统计 -->
+          <PanelCard>
+            <div class="text-sm font-bold text-fg-secondary mb-3">道途累计</div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div class="text-[10px] text-fg-faint">总修炼次数</div>
+                <div class="text-lg font-bold text-gold-300 num" :title="String(profileData.stats.total_cultivate_count)">{{ formatCompact(profileData.stats.total_cultivate_count) }}</div>
+              </div>
+              <div>
+                <div class="text-[10px] text-fg-faint">总技能次数</div>
+                <div class="text-lg font-bold text-rose-300 num" :title="String(profileData.stats.total_skill_use_count)">{{ formatCompact(profileData.stats.total_skill_use_count) }}</div>
+              </div>
+              <div>
+                <div class="text-[10px] text-fg-faint">总共鸣次数</div>
+                <div class="text-lg font-bold text-sky-300 num" :title="String(profileData.stats.total_resonance_count)">{{ formatCompact(profileData.stats.total_resonance_count) }}</div>
+              </div>
+            </div>
+          </PanelCard>
+        </template>
+      </template>
+      <EmptyState v-else text="暂无道途数据" />
+    </div>
+
+    <!-- ============ Tab 2: 修炼任务 ============ -->
+    <div v-show="activeTab === 'tasks'" class="space-y-3">
+      <LoadingBlock v-if="loading.tasks" text="加载任务中…" />
+      <template v-else-if="tasksData">
+        <!-- 任务重置时间 -->
+        <PanelCard v-if="tasksData.reset_time" class="flex items-center justify-between">
+          <div class="text-xs text-fg-muted num">
+            · 任务将于 <span class="text-gold-300">{{ formatTimeString(tasksData.reset_time) }}</span> 重置
+          </div>
+          <AppButton variant="default" size="xs" :disabled="loading.tasks" @click="loadTasks">刷新任务</AppButton>
+        </PanelCard>
+
+        <!-- 任务列表 -->
+        <EmptyState
+          v-if="tasksData.tasks.length === 0"
+          :text="tasksData.message || '今日暂无任务'"
+          hint="需先选择道途方可领取日常任务"
+        />
+
+        <section v-else class="space-y-2">
+          <div v-for="(task, idx) in tasksData.tasks" :key="idx"
+            class="bg-surface-raised border rounded-panel p-3"
+            :class="task.completed && !task.rewards_claimed ? 'border-emerald-700 shadow-lg shadow-emerald-900/20' : 'border-line'">
+            <!-- 任务头 -->
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-gold-300">{{ task.task_name }}</span>
+                <!-- 状态徽章 -->
+                <Badge v-if="task.rewards_claimed" tone="muted">已领取</Badge>
+                <Badge v-else-if="task.completed" tone="success" class="animate-pulse">可领取</Badge>
+                <Badge v-else tone="gold">进行中</Badge>
+              </div>
+              <div class="text-[10px] text-fg-faint">
+                进度：{{ task.current_count }} / {{ task.target_count }}
+              </div>
+            </div>
+            <!-- 任务描述 -->
+            <div class="text-[11px] text-fg-muted mb-2">{{ task.task_description }}</div>
+            <!-- 进度条 -->
+            <div class="h-1.5 bg-surface-hover rounded-full overflow-hidden mb-2">
+              <div class="h-full transition-all"
+                :class="task.completed ? 'bg-gradient-to-r from-emerald-700 to-emerald-400' : 'bg-gradient-to-r from-gold-700 to-gold-400'"
+                :style="{ width: `${Math.min(100, (task.current_count / task.target_count) * 100)}%` }"></div>
+            </div>
+            <!-- 奖励 + 领取按钮 -->
+            <div class="flex items-center justify-between">
+              <div class="text-[10px] text-fg-muted">
+                奖励：
+                <span v-if="task.rewards.dao_exp" class="text-gold-300">道途经验 +{{ task.rewards.dao_exp }}</span>
+                <span v-if="task.rewards.divine_sense" class="text-sky-300"> 神识 +{{ task.rewards.divine_sense }}</span>
+                <span v-if="task.rewards.law_fragment_five_elements" class="text-purple-300"> 五行碎片 +{{ task.rewards.law_fragment_five_elements }}</span>
+              </div>
+              <button v-if="task.completed && !task.rewards_claimed"
+                @click="handleClaimTask(idx)"
+                :disabled="loading.action"
+                class="px-3 py-1 text-[11px] font-bold bg-emerald-700 text-emerald-100 rounded-control hover:bg-emerald-600 disabled:opacity-50">
+                领取奖励
+              </button>
+            </div>
+          </div>
+        </section>
+      </template>
+      <EmptyState v-else text="暂无任务数据" />
+    </div>
+
+    <!-- ============ Tab 3: 排行榜 ============ -->
+    <div v-show="activeTab === 'ranking'" class="space-y-3">
+      <!-- 子分类切换 -->
+      <Tabs :model-value="rankingCategory" :items="rankingCategories" class="mb-2" @update:model-value="switchRankingCategory" />
+
+      <LoadingBlock v-if="loading.ranking" text="加载排行中…" />
+      <template v-else-if="rankingData">
+        <!-- 排行列表 -->
+        <PanelCard>
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-xs text-fg-muted num">
+              · 共 <span class="text-gold-300">{{ rankingData.total }}</span> 名修士上榜
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <AppButton variant="default" size="xs" :disabled="loading.ranking || rankingData.current_page <= 1" @click="changeRankingPage(rankingData.current_page - 1)">上一页</AppButton>
+              <span class="text-fg-muted">{{ rankingData.current_page }} / {{ rankingData.total_pages || 1 }}</span>
+              <AppButton variant="default" size="xs" :disabled="loading.ranking || rankingData.current_page >= rankingData.total_pages" @click="changeRankingPage(rankingData.current_page + 1)">下一页</AppButton>
+            </div>
           </div>
 
-          <div v-if="loading.ranking" class="text-center py-6 text-stone-500 text-sm">加载排行中...</div>
-          <template v-else-if="rankingData">
-            <!-- 排行列表 -->
-            <section class="bg-[#292524] border border-stone-700 rounded-lg p-3">
-              <div class="flex items-center justify-between mb-3">
-                <div class="text-xs text-stone-400">
-                  · 共 <span class="text-amber-300">{{ rankingData.total }}</span> 名修士上榜
-                </div>
-                <div class="flex items-center gap-2 text-xs">
-                  <button @click="changeRankingPage(rankingData.current_page - 1)"
-                    :disabled="loading.ranking || rankingData.current_page <= 1"
-                    class="px-2 py-1 text-xs bg-stone-800 rounded disabled:opacity-50 hover:bg-stone-700">上一页</button>
-                  <span class="text-stone-400">{{ rankingData.current_page }} / {{ rankingData.total_pages || 1 }}</span>
-                  <button @click="changeRankingPage(rankingData.current_page + 1)"
-                    :disabled="loading.ranking || rankingData.current_page >= rankingData.total_pages"
-                    class="px-2 py-1 text-xs bg-stone-800 rounded disabled:opacity-50 hover:bg-stone-700">下一页</button>
-                </div>
+          <EmptyState v-if="rankingData.rankings.length === 0" text="暂无上榜修士" />
+          <div v-else class="space-y-1 max-h-[60vh] overflow-y-auto scroll-thin">
+            <div v-for="entry in rankingData.rankings" :key="entry.rank"
+              class="bg-surface-sunken/60 border border-line-subtle rounded-control p-2 flex items-center gap-3">
+              <!-- 排名 -->
+              <div class="w-8 text-center shrink-0">
+                <div v-if="entry.rank === 1" class="text-gold-400 font-bold text-lg">①</div>
+                <div v-else-if="entry.rank === 2" class="text-fg-secondary font-bold text-lg">②</div>
+                <div v-else-if="entry.rank === 3" class="text-gold-700 font-bold text-lg">③</div>
+                <div v-else class="text-fg-faint text-xs">{{ entry.rank }}</div>
               </div>
-
-              <div v-if="rankingData.rankings.length === 0" class="text-center py-6 text-stone-500 text-xs">
-                暂无上榜修士
-              </div>
-              <div v-else class="space-y-1 max-h-[60vh] overflow-y-auto">
-                <div v-for="entry in rankingData.rankings" :key="entry.rank"
-                  class="bg-stone-900/40 border border-stone-800 rounded p-2 flex items-center gap-3">
-                  <!-- 排名 -->
-                  <div class="w-8 text-center shrink-0">
-                    <div v-if="entry.rank === 1" class="text-amber-400 font-bold text-lg">①</div>
-                    <div v-else-if="entry.rank === 2" class="text-stone-300 font-bold text-lg">②</div>
-                    <div v-else-if="entry.rank === 3" class="text-amber-700 font-bold text-lg">③</div>
-                    <div v-else class="text-stone-500 text-xs">{{ entry.rank }}</div>
-                  </div>
-                  <!-- 玩家信息 -->
-                  <div class="flex-1 min-w-0">
-                    <div class="text-xs text-stone-200 truncate">{{ entry.player_nickname }}</div>
-                    <div class="text-[10px]" :class="getPathTheme(entry.dao_path).text">
-                      {{ entry.dao_path_name }} · {{ entry.dao_level }} 级
-                    </div>
-                  </div>
-                  <!-- 数值 -->
-                  <div class="text-right shrink-0">
-                    <div class="text-[10px] text-stone-500">{{ getRankingValueLabel(rankingCategory) }}</div>
-                    <div class="text-sm font-bold text-amber-300">{{ entry.value }}</div>
-                  </div>
+              <!-- 玩家信息 -->
+              <div class="flex-1 min-w-0">
+                <div class="text-xs text-fg-secondary truncate">{{ entry.player_nickname }}</div>
+                <div class="text-[10px]" :class="getPathTheme(entry.dao_path).text">
+                  {{ entry.dao_path_name }} · {{ entry.dao_level }} 级
                 </div>
               </div>
-            </section>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无排行数据</div>
-        </div>
-
-        <!-- ============ Tab 4: 共鸣 ============ -->
-        <div v-show="activeTab === 'resonance'" class="space-y-3">
-          <div v-if="loading.resonance" class="text-center py-6 text-stone-500 text-sm">加载共鸣状态中...</div>
-          <template v-else-if="resonanceData">
-            <div v-if="!resonanceData.dao_path" class="text-center py-12 text-stone-500">
-              <div class="text-sm">{{ resonanceData.message || '尚未选择道途，无共鸣' }}</div>
+              <!-- 数值 -->
+              <div class="text-right shrink-0">
+                <div class="text-[10px] text-fg-faint">{{ getRankingValueLabel(rankingCategory) }}</div>
+                <div class="text-sm font-bold text-gold-300 num" :title="String(entry.value)">{{ formatCompact(entry.value) }}</div>
+              </div>
             </div>
-            <template v-else>
-              <!-- 当前道途 -->
-              <section class="bg-[#292524] border rounded-lg p-4"
-                :class="getPathTheme(resonanceData.dao_path as DaoPath).border">
-                <div class="flex items-center justify-between mb-3">
-                  <div>
-                    <div class="text-sm font-bold" :class="getPathTheme(resonanceData.dao_path as DaoPath).text">
-                      {{ resonanceData.dao_path_name }}
-                    </div>
-                    <div class="text-[10px] text-stone-500">当前道途</div>
-                  </div>
-                  <div class="text-right">
-                    <div class="text-[10px] text-stone-500">共鸣加成</div>
-                    <div class="text-xl font-bold text-amber-300">
-                      +{{ Math.round(resonanceData.resonance_bonus * 100) }}%
-                    </div>
-                  </div>
-                </div>
-                <div class="text-[11px] text-stone-300">{{ resonanceData.resonance_description }}</div>
-              </section>
+          </div>
+        </PanelCard>
+      </template>
+      <EmptyState v-else text="暂无排行数据" />
+    </div>
 
-              <!-- 同道途玩家统计 -->
-              <section class="grid grid-cols-2 gap-3">
-                <div class="bg-[#292524] border border-stone-700 rounded-lg p-4 text-center">
-                  <div class="text-[10px] text-stone-500 mb-1">同道途修士</div>
-                  <div class="text-2xl font-bold text-amber-300">{{ resonanceData.same_path_total }}</div>
-                  <div class="text-[10px] text-stone-500 mt-1">人</div>
+    <!-- ============ Tab 4: 共鸣 ============ -->
+    <div v-show="activeTab === 'resonance'" class="space-y-3">
+      <LoadingBlock v-if="loading.resonance" text="加载共鸣状态中…" />
+      <template v-else-if="resonanceData">
+        <EmptyState v-if="!resonanceData.dao_path" :text="resonanceData.message || '尚未选择道途，无共鸣'" />
+        <template v-else>
+          <!-- 当前道途 -->
+          <section class="bg-surface-raised border rounded-panel p-4"
+            :class="getPathTheme(resonanceData.dao_path as DaoPath).border">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="text-sm font-bold" :class="getPathTheme(resonanceData.dao_path as DaoPath).text">
+                  {{ resonanceData.dao_path_name }}
                 </div>
-                <div class="bg-[#292524] border border-stone-700 rounded-lg p-4 text-center">
-                  <div class="text-[10px] text-stone-500 mb-1">高等级修士</div>
-                  <div class="text-2xl font-bold text-emerald-300">{{ resonanceData.same_path_advanced }}</div>
-                  <div class="text-[10px] text-stone-500 mt-1">人（5级以上）</div>
+                <div class="text-[10px] text-fg-faint">当前道途</div>
+              </div>
+              <div class="text-right">
+                <div class="text-[10px] text-fg-faint">共鸣加成</div>
+                <div class="text-xl font-bold text-gold-300">
+                  +{{ Math.round(resonanceData.resonance_bonus * 100) }}%
                 </div>
-              </section>
+              </div>
+            </div>
+            <div class="text-[11px] text-fg-secondary">{{ resonanceData.resonance_description }}</div>
+          </section>
 
-              <!-- 共鸣加成说明 -->
-              <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-                <div class="text-sm font-bold text-amber-300 mb-2">共鸣机制</div>
-                <div class="text-[11px] text-stone-400 space-y-1">
-                  · 同道途玩家组队时获得被动加成叠加<br/>
-                  · 2人 +10% / 3人 +20% / 4人 +30% / 5人 +50%（封顶）<br/>
-                  · 加成作用于道途经验获取与技能效果
-                </div>
-              </section>
+          <!-- 同道途玩家统计 -->
+          <section class="grid grid-cols-2 gap-3">
+            <div class="bg-surface-hover border border-line rounded-panel p-4 text-center">
+              <div class="text-[10px] text-fg-faint mb-1">同道途修士</div>
+              <div class="text-2xl font-bold text-gold-300 num">{{ resonanceData.same_path_total }}</div>
+              <div class="text-[10px] text-fg-faint mt-1">人</div>
+            </div>
+            <div class="bg-surface-hover border border-line rounded-panel p-4 text-center">
+              <div class="text-[10px] text-fg-faint mb-1">高等级修士</div>
+              <div class="text-2xl font-bold text-emerald-300 num">{{ resonanceData.same_path_advanced }}</div>
+              <div class="text-[10px] text-fg-faint mt-1">人（5级以上）</div>
+            </div>
+          </section>
 
-              <!-- 相克道途列表 -->
-              <section v-if="resonanceData.restraint_targets.length > 0" class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-                <div class="text-sm font-bold text-rose-300 mb-3">相克道途</div>
-                <div class="text-[11px] text-stone-400 mb-3">
-                  · 你的道途克制以下道途，对它们施展技能时效果 +20%
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <div v-for="targetPath in resonanceData.restraint_targets" :key="targetPath"
-                    class="bg-stone-900/40 border rounded p-2 flex items-center gap-2"
-                    :class="getPathTheme(targetPath as DaoPath).border">
-                    <span class="text-xs font-bold" :class="getPathTheme(targetPath as DaoPath).text">
-                      {{ getPathName(targetPath as DaoPath) }}
-                    </span>
-                    <span class="text-[10px] text-stone-500">· 受你克制</span>
-                  </div>
-                </div>
-              </section>
-            </template>
-          </template>
-          <div v-else class="text-center py-6 text-stone-500 text-sm">暂无共鸣数据</div>
-        </div>
-      </div>
+          <!-- 共鸣加成说明 -->
+          <PanelCard>
+            <div class="text-sm font-bold text-gold-300 mb-2">共鸣机制</div>
+            <div class="text-[11px] text-fg-muted space-y-1">
+              · 同道途玩家组队时获得被动加成叠加<br/>
+              · 2人 +10% / 3人 +20% / 4人 +30% / 5人 +50%（封顶）<br/>
+              · 加成作用于道途经验获取与技能效果
+            </div>
+          </PanelCard>
+
+          <!-- 相克道途列表 -->
+          <PanelCard v-if="resonanceData.restraint_targets.length > 0">
+            <div class="text-sm font-bold text-rose-300 mb-3">相克道途</div>
+            <div class="text-[11px] text-fg-muted mb-3">
+              · 你的道途克制以下道途，对它们施展技能时效果 +20%
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div v-for="targetPath in resonanceData.restraint_targets" :key="targetPath"
+                class="bg-surface-raised/40 border rounded p-2 flex items-center gap-2"
+                :class="getPathTheme(targetPath as DaoPath).border">
+                <span class="text-xs font-bold" :class="getPathTheme(targetPath as DaoPath).text">
+                  {{ getPathName(targetPath as DaoPath) }}
+                </span>
+                <span class="text-[10px] text-fg-faint">· 受你克制</span>
+              </div>
+            </div>
+          </PanelCard>
+        </template>
+      </template>
+      <EmptyState v-else text="暂无共鸣数据" />
     </div>
 
     <!-- 二次确认弹窗（通用） -->
     <Modal :isOpen="confirmModal.show" :title="confirmModal.title" @close="confirmModal.show = false" width="420px">
-      <p class="text-stone-300 text-sm whitespace-pre-line">{{ confirmModal.message }}</p>
+      <p class="text-fg-secondary text-sm whitespace-pre-line">{{ confirmModal.message }}</p>
       <template #footer>
-        <button @click="confirmModal.show = false"
-          class="px-4 py-2 text-xs rounded bg-stone-800 text-stone-300 hover:bg-stone-700">取消</button>
-        <button @click="confirmModal.onConfirm(); confirmModal.show = false"
-          :disabled="loading.action"
-          class="px-4 py-2 text-xs rounded bg-amber-700 text-amber-100 hover:bg-amber-600 disabled:opacity-50">
+        <AppButton variant="default" size="sm" @click="confirmModal.show = false">取消</AppButton>
+        <AppButton variant="primary" size="sm" :disabled="loading.action" @click="confirmModal.onConfirm(); confirmModal.show = false">
           确认
-        </button>
+        </AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup lang="ts">
@@ -517,6 +446,14 @@
  */
 import { ref, reactive, computed, onMounted } from 'vue';
 import Modal from '../common/Modal.vue';
+import PanelShell from '../ui/PanelShell.vue';
+import Tabs from '../ui/Tabs.vue';
+import PanelCard from '../ui/PanelCard.vue';
+import Badge from '../ui/Badge.vue';
+import AppButton from '../ui/AppButton.vue';
+import EmptyState from '../ui/EmptyState.vue';
+import LoadingBlock from '../ui/LoadingBlock.vue';
+import { formatCompact } from '../../utils/format';
 import { useUIStore } from '../../stores/ui';
 import {
   taoismGateGetProfile,
@@ -542,11 +479,11 @@ import {
 const uiStore = useUIStore();
 
 /** Tab 配置 */
-const tabs = [
-  { id: 'profile', name: '道途面板' },
-  { id: 'tasks', name: '修炼任务' },
-  { id: 'ranking', name: '排行榜' },
-  { id: 'resonance', name: '共鸣' }
+const tabItems = [
+  { key: 'profile', label: '道途面板' },
+  { key: 'tasks', label: '修炼任务' },
+  { key: 'ranking', label: '排行榜' },
+  { key: 'resonance', label: '共鸣' }
 ];
 /** 当前激活 Tab */
 const activeTab = ref('profile');
@@ -555,9 +492,9 @@ const loadedTabs = reactive<Set<string>>(new Set());
 
 /** 排行榜子分类配置 */
 const rankingCategories = [
-  { key: 'dao_level' as RankingCategory, name: '道途等级' },
-  { key: 'total_skill_use' as RankingCategory, name: '技能使用次数' },
-  { key: 'total_resonance' as RankingCategory, name: '共鸣加成' }
+  { key: 'dao_level' as RankingCategory, label: '道途等级' },
+  { key: 'total_skill_use' as RankingCategory, label: '技能使用次数' },
+  { key: 'total_resonance' as RankingCategory, label: '共鸣加成' }
 ];
 /** 当前排行榜子分类 */
 const rankingCategory = ref<RankingCategory>('dao_level');
@@ -1118,13 +1055,3 @@ function formatTimeString(time: string | null | undefined): string {
 }
 </script>
 
-<style scoped>
-/* 局部淡入动画，与 AscensionPanel / MultiDungeonPanel 保持一致 */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-</style>

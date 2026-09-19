@@ -14,7 +14,7 @@
   <div class="relative z-30">
     <!-- 浮动状态条（始终可见） -->
     <div
-      class="flex items-center gap-3 px-4 py-2.5 bg-[#1a1510]/95 border-b backdrop-blur-sm select-none"
+      class="flex items-center gap-3 px-4 py-2.5 bg-surface-base/95 border-b backdrop-blur-sm select-none"
       :class="isDeep ? 'border-purple-900/50' : 'border-cyan-900/40'"
     >
       <!-- 左侧图标 + 标题 -->
@@ -48,7 +48,7 @@
       </div>
 
       <!-- 中间数据区 -->
-      <div class="flex items-center gap-4 text-xs text-stone-400 flex-1 min-w-0">
+      <div class="flex items-center gap-4 text-xs text-fg-muted flex-1 min-w-0">
         <!-- 已获修为（移动端优先显示） -->
         <div class="flex items-center gap-1.5 shrink-0">
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500">
@@ -59,7 +59,7 @@
         </div>
         <!-- 闭关时长（所有终端显示，提升 UI 可见性） -->
         <div class="flex items-center gap-1.5 shrink-0">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-stone-500">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-fg-faint">
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 6v6l4 2"/>
           </svg>
@@ -72,7 +72,7 @@
         </div>
         <!-- 进度条（深度闭关显示） -->
         <div v-if="isDeep" class="hidden lg:flex items-center gap-1.5 shrink-0 min-w-[80px]">
-          <div class="flex-1 h-1.5 bg-stone-800 rounded-full overflow-hidden">
+          <div class="flex-1 h-1.5 bg-surface-hover rounded-full overflow-hidden">
             <div
               class="h-full bg-gradient-to-r from-purple-700 to-purple-400 transition-all duration-1000"
               :style="{ width: `${progress}%` }"
@@ -82,7 +82,7 @@
         </div>
         <!-- 修为速率（桌面端显示） -->
         <div class="hidden md:flex items-center gap-1.5 shrink-0">
-          <span class="text-stone-500">速率</span>
+          <span class="text-fg-faint">速率</span>
           <span
             class="font-mono"
             :class="isDeep ? 'text-purple-400' : 'text-cyan-400'"
@@ -95,7 +95,7 @@
         <!-- 展开/收起按钮 -->
         <button
           @click="expanded = !expanded"
-          class="p-1.5 rounded text-stone-500 hover:text-cyan-400 hover:bg-cyan-950/30 transition-colors"
+          class="p-1.5 rounded text-fg-faint hover:text-cyan-400 hover:bg-cyan-950/30 transition-colors"
           :title="expanded ? '收起详情' : '展开详情'"
         >
           <svg
@@ -144,7 +144,7 @@
     <Transition name="seclusion-panel">
       <div v-if="expanded" class="absolute top-full left-0 right-0 z-40">
         <div
-          class="bg-[#141210]/98 border-b backdrop-blur-md px-6 py-6"
+          class="bg-surface-base/98 border-b backdrop-blur-md px-6 py-6"
           :class="isDeep ? 'border-purple-900/40' : 'border-cyan-900/30'"
         >
           <!-- 背景动画 -->
@@ -172,7 +172,7 @@
                   :class="[
                     isDeep
                       ? 'bg-gradient-to-b from-purple-950 to-black border-purple-500/50 shadow-[0_0_25px_rgba(168,85,247,0.3)]'
-                      : 'bg-gradient-to-b from-stone-900 to-black border-cyan-500/40 shadow-[0_0_25px_rgba(6,182,212,0.25)]'
+                      : 'bg-gradient-to-b from-surface-raised to-black border-cyan-500/40 shadow-[0_0_25px_rgba(6,182,212,0.25)]'
                   ]"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
@@ -211,30 +211,30 @@
 
             <!-- 统计数据 -->
             <div class="grid grid-cols-3 gap-4 mb-6">
-              <div class="bg-[#1c1917] rounded-lg p-3 border border-stone-800 text-center">
-                <div class="text-stone-500 text-xs mb-1.5">闭关时长</div>
+              <div class="bg-surface-raised rounded-lg p-3 border border-line-subtle text-center">
+                <div class="text-fg-faint text-xs mb-1.5">闭关时长</div>
                 <div class="text-xl font-mono text-white">{{ formatTime(duration) }}</div>
               </div>
-              <div class="bg-[#1c1917] rounded-lg p-3 border border-stone-800 text-center">
-                <div class="text-stone-500 text-xs mb-1.5">已获修为</div>
+              <div class="bg-surface-raised rounded-lg p-3 border border-line-subtle text-center">
+                <div class="text-fg-faint text-xs mb-1.5">已获修为</div>
                 <div
                   class="text-xl font-mono font-bold"
                   :class="isDeep ? 'text-purple-400' : 'text-cyan-400'"
                 >+{{ expGained }}</div>
               </div>
-              <div class="bg-[#1c1917] rounded-lg p-3 border border-stone-800 text-center">
-                <div class="text-stone-500 text-xs mb-1.5">修为速率</div>
+              <div class="bg-surface-raised rounded-lg p-3 border border-line-subtle text-center">
+                <div class="text-fg-faint text-xs mb-1.5">修为速率</div>
                 <div class="text-xl font-mono text-emerald-400">{{ expRate }}/秒</div>
               </div>
             </div>
 
             <!-- 深度闭关进度条 -->
             <div v-if="isDeep" class="mb-6">
-              <div class="flex justify-between text-xs text-stone-500 mb-1.5">
+              <div class="flex justify-between text-xs text-fg-faint mb-1.5">
                 <span>修炼进度</span>
                 <span>{{ progress }}% / 剩余 {{ formatTime(remainingTime) }}</span>
               </div>
-              <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
+              <div class="h-2 bg-surface-hover rounded-full overflow-hidden">
                 <div
                   class="h-full bg-gradient-to-r from-purple-700 via-purple-500 to-purple-300 transition-all duration-1000"
                   :style="{ width: `${progress}%` }"
@@ -258,7 +258,7 @@
               <button
                 @click="handleEnd"
                 :disabled="loading"
-                class="flex-1 py-2.5 bg-stone-900/80 border border-stone-700 text-rose-400 hover:text-rose-300 hover:border-rose-500/50 hover:bg-stone-800 transition-all duration-300 rounded-lg tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex-1 py-2.5 bg-surface-raised/80 border border-line text-rose-400 hover:text-rose-300 hover:border-rose-500/50 hover:bg-surface-hover transition-all duration-300 rounded-lg tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span v-if="loading">结算中...</span>
                 <span v-else>{{ isDeep && !reachedMinDuration ? `正常结束（损失${forcedPenaltyPercent}）` : '结束修炼' }}</span>
@@ -423,8 +423,7 @@ const handleEnd = async () => {
     })
   } catch (err) {
     console.error('结束闭关失败:', err)
-    const msg = err?.response?.data?.message || err?.response?.data?.error || '结束闭关失败，请重试'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '结束闭关失败，请重试')
   } finally {
     loading.value = false
   }
@@ -450,8 +449,7 @@ const handleForceEnd = async () => {
     })
   } catch (err) {
     console.error('强行出关失败:', err)
-    const msg = err?.response?.data?.message || err?.response?.data?.error || '强行出关失败，请重试'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '强行出关失败，请重试')
   } finally {
     loading.value = false
   }

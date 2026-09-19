@@ -1,6 +1,7 @@
 <template>
-  <!-- 移动端/窄屏底部操作条。xl 以上导航由右坞承担，这里整体隐藏。 -->
-  <div class="xl:hidden shrink-0 flex items-stretch gap-1.5 p-2 bg-[#0c0a09] border-t border-stone-800 select-none z-20 overflow-x-auto">
+  <!-- 移动端/窄屏底部操作条。xl 以上导航由右坞承担，这里整体隐藏。
+       pb 用 safe-area 兜底，否则全面屏手势条会压在按钮上。 -->
+  <div class="xl:hidden shrink-0 flex items-stretch gap-1.5 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-surface-canvas border-t border-line-subtle select-none z-20 overflow-x-auto no-scrollbar">
     <div
       v-for="action in quickActions"
       :key="action.id"
@@ -8,22 +9,22 @@
     >
       <button
         @click="handleAction(action.id)"
-        class="group relative flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-lg bg-[#1c1917] border transition-all duration-200 active:scale-95"
+        class="group relative flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-lg bg-surface-raised border transition-all duration-200 active:scale-95"
         :class="action.id === 'cultivate' && isBreakthroughReady
           ? 'border-purple-500/60 ring-1 ring-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-          : 'border-stone-800'"
+          : 'border-line-subtle'"
       >
         <span
           class="transition-transform duration-200 group-hover:scale-110"
           :class="{ 'animate-pulse drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]': action.id === 'cultivate' && isBreakthroughReady }"
           v-html="action.icon"
         ></span>
-        <span class="text-[10px] text-stone-300 font-bold tracking-wider leading-none">{{ action.name }}</span>
+        <span class="text-[10px] text-fg-secondary font-bold tracking-wider leading-none">{{ action.name }}</span>
 
         <!-- 闭关冷却倒计时 -->
         <span
           v-if="action.id === 'cultivate' && remainingCooldown > 0"
-          class="absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg z-10 cursor-not-allowed font-mono text-amber-500 text-xs"
+          class="absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg z-10 cursor-not-allowed num text-gold-500 text-xs"
           @click.stop
         >{{ formatCooldown(remainingCooldown) }}</span>
       </button>
@@ -32,10 +33,11 @@
     <!-- 其余功能收进抽屉，避免这里堆成一条划不到头的长条 -->
     <button
       @click="emit('action', 'menu')"
-      class="shrink-0 flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-lg bg-[#1c1917] border border-stone-800 active:scale-95"
+      aria-label="打开全部功能菜单"
+      class="shrink-0 flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-lg bg-surface-raised border border-line-subtle active:scale-95"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-      <span class="text-[10px] text-stone-300 font-bold tracking-wider leading-none">更多</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gold-400"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <span class="text-[10px] text-fg-secondary font-bold tracking-wider leading-none">更多</span>
     </button>
   </div>
 </template>

@@ -8,40 +8,33 @@
   交互：通过 useUIStore 写入日志与 toast，并 emit 'close' 由父层收口面板
 -->
 <template>
-  <div class="technique-panel relative">
+  <PanelShell
+    title="功法"
+    hint="修炼 · 突破 · 领悟 · 装备"
+    size="xl"
+    :loading="loading"
+    :error="error"
+    @close="emit('close')"
+    @retry="fetchList"
+  >
+    <!-- 空态一定要留在插槽里，不能交给 PanelShell 的 :empty：
+         外壳的空态会整块替换掉 slot，连页签栏一起藏掉，
+         于是"一本功法都还没习得"的新号再也点不到「可习得」，直接卡死在入门处。 -->
     <!-- 标签页切换 -->
-    <div class="flex gap-2 mb-4 border-b border-stone-700/60 pb-2">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        class="px-3 py-1.5 text-sm rounded-md transition-colors"
-        :class="view === tab.id
-          ? 'bg-amber-700/40 text-amber-200 border border-amber-600/50'
-          : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'"
-        @click="switchView(tab.id)"
-      >{{ tab.name }}</button>
-    </div>
+    <Tabs v-model="view" :items="tabItems" class="mb-4" />
 
     <!-- 玩家资源联动展示：修炼/突破/研习消耗实时抵扣，操作后会自动刷新 -->
-    <div class="flex items-center justify-between gap-3 mb-3 text-xs rounded-lg border border-stone-700/50 bg-stone-900/40 px-3 py-2">
+    <div class="flex items-center justify-between gap-3 mb-3 text-xs rounded-control border border-line-subtle bg-surface-raised px-3 py-2">
       <div class="flex flex-wrap gap-3">
-        <span class="text-amber-300">灵石 <b class="text-amber-200">{{ playerStore.player ? formatCompact(playerStore.player.spirit_stones) : '—' }}</b></span>
-        <span class="text-sky-300">灵力 <b class="text-sky-200">{{ playerStore.player ? formatCompact(playerStore.player.mp) : '—' }}<span v-if="playerStore.player?.mp_max"> / {{ formatCompact(playerStore.player.mp_max) }}</span></b></span>
-        <span class="text-emerald-300">修为 <b class="text-emerald-200">{{ playerStore.player ? formatCompact(playerStore.player.exp) : '—' }}</b></span>
+        <span class="text-amber-300">灵石 <b class="text-amber-200 num">{{ playerStore.player ? formatCompact(playerStore.player.spirit_stones) : '—' }}</b></span>
+        <span class="text-sky-300">灵力 <b class="text-sky-200 num">{{ playerStore.player ? formatCompact(playerStore.player.mp) : '—' }}<span v-if="playerStore.player?.mp_max"> / {{ formatCompact(playerStore.player.mp_max) }}</span></b></span>
+        <span class="text-emerald-300">修为 <b class="text-emerald-200 num">{{ playerStore.player ? formatCompact(playerStore.player.exp) : '—' }}</b></span>
       </div>
-      <button
-        class="shrink-0 px-2 py-0.5 rounded bg-stone-700/50 hover:bg-stone-600/60 border border-stone-600/50"
-        @click="emit('close')"
-      >收起</button>
-    </div>
-
-    <!-- 加载中 -->
-    <div v-if="loading" class="text-center text-stone-400 py-12 text-sm">
-      正在运转周天，请稍候...
+      <AppButton size="xs" variant="ghost" @click="fetchList">刷新</AppButton>
     </div>
 
     <!-- 已习得功法 -->
-    <div v-else-if="view === 'owned'" class="space-y-3">
+    <div v-if="view === 'owned'" class="space-y-3">
       <div
         v-for="item in owned"
         :key="item.technique_id"
@@ -57,11 +50,11 @@
               {{ item.equip_slot === 'main' ? '主修' : '辅修' }}
             </span>
           </div>
-          <span class="text-xs text-stone-400">第 {{ item.layer }} / {{ item.max_layer }} 层</span>
+          <span class="text-xs text-fg-muted">第 {{ item.layer }} / {{ item.max_layer }} 层</span>
         </div>
 
         <!-- 熟练度进度 -->
-        <div class="mt-2 flex items-center gap-2 text-xs text-stone-400">
+        <div class="mt-2 flex items-center gap-2 text-xs text-fg-muted">
           <span>熟练度 {{ item.proficiency }} / {{ item.required_proficiency }}</span>
           <div class="flex-1 h-1.5 bg-black/40 rounded overflow-hidden">
             <div
@@ -82,7 +75,7 @@
 
         <!-- 消耗预览：精确展示各操作消耗，并与实时余额对比，不足时标红 -->
         <div class="mt-1 text-xs space-y-0.5">
-          <div class="text-stone-500">今日修炼 {{ item.daily_practice_count }} / {{ item.daily_practice_limit }}</div>
+          <div class="text-fg-faint">今日修炼 {{ item.daily_practice_count }} / {{ item.daily_practice_limit }}</div>
           <div class="flex flex-wrap gap-x-3 gap-y-0.5">
             <span :class="enoughSS(item.practice_cost) ? 'text-amber-300/90' : 'text-rose-400'">修炼 灵石{{ item.practice_cost }}</span>
             <span :class="enoughMP(item.mp_cost) ? 'text-sky-300/90' : 'text-rose-400'">灵力{{ item.mp_cost }}</span>
@@ -113,7 +106,7 @@
           >领悟神通</button>
           <template v-if="item.equip_slot">
             <button
-              class="px-3 py-1 text-xs rounded bg-stone-700/50 hover:bg-stone-600/60 border border-stone-600/50"
+              class="px-3 py-1 text-xs rounded bg-surface-active/50 hover:bg-surface-active/60 border border-line-strong/50"
               @click="confirmUnequip(item)"
             >卸下</button>
           </template>
@@ -134,9 +127,11 @@
           神通：{{ item.comprehended_skills.length }} 项
         </div>
       </div>
-      <div v-if="!owned.length" class="text-center text-stone-500 py-10 text-sm">
-        尚未习得任何功法，去「可习得」研习吧
-      </div>
+      <EmptyState
+        v-if="!owned.length"
+        text="尚未习得任何功法"
+        hint="前往「可习得」页签研习一本入门功法，再回来运转周天"
+      />
     </div>
 
     <!-- 可习得功法 -->
@@ -158,7 +153,7 @@
             :class="tech.realm_satisfied ? 'bg-emerald-900/40 text-emerald-300' : 'bg-rose-900/40 text-rose-300'"
           >{{ tech.realm_satisfied ? '境界达标' : '境界不足' }}</span>
         </div>
-        <div v-if="tech.description" class="mt-1 text-xs text-stone-400">{{ tech.description }}</div>
+        <div v-if="tech.description" class="mt-1 text-xs text-fg-muted">{{ tech.description }}</div>
         <div v-if="tech.bonuses && Object.keys(tech.bonuses).length" class="mt-2 flex flex-wrap gap-1.5 text-xs">
           <span
             v-for="(val, key) in tech.bonuses"
@@ -182,51 +177,67 @@
           >研习</button>
         </div>
       </div>
-      <div v-if="!available.length" class="text-center text-stone-500 py-10 text-sm">暂无可习得的功法</div>
+      <div v-if="!available.length" class="text-center text-fg-faint py-10 text-sm">暂无可习得的功法</div>
     </div>
 
     <!-- 系统设置 -->
     <div v-else-if="view === 'settings'" class="space-y-2 text-sm">
-      <div class="rounded-lg border border-stone-700/50 p-3 space-y-1">
-        <div class="flex justify-between"><span class="text-stone-400">功法系统</span><span>{{ settings.enabled ? '开放' : '关闭' }}</span></div>
-        <div class="flex justify-between"><span class="text-stone-400">主修槽位上限</span><span>{{ settings.max_equipped_main }}</span></div>
-        <div class="flex justify-between"><span class="text-stone-400">辅修槽位上限</span><span>{{ settings.max_equipped_auxiliary }}</span></div>
-        <div class="flex justify-between"><span class="text-stone-400">每日修炼上限</span><span>{{ settings.daily_practice_limit }}</span></div>
-        <div class="flex justify-between"><span class="text-stone-400">修炼冷却</span><span>{{ settings.practice_cooldown_seconds }} 秒</span></div>
-        <div class="flex justify-between"><span class="text-stone-400">你的悟性</span><span>{{ wisdom }}</span></div>
+      <div class="rounded-lg border border-line/50 p-3 space-y-1">
+        <div class="flex justify-between"><span class="text-fg-muted">功法系统</span><span>{{ settings.enabled ? '开放' : '关闭' }}</span></div>
+        <div class="flex justify-between"><span class="text-fg-muted">主修槽位上限</span><span>{{ settings.max_equipped_main }}</span></div>
+        <div class="flex justify-between"><span class="text-fg-muted">辅修槽位上限</span><span>{{ settings.max_equipped_auxiliary }}</span></div>
+        <div class="flex justify-between"><span class="text-fg-muted">每日修炼上限</span><span>{{ settings.daily_practice_limit }}</span></div>
+        <div class="flex justify-between"><span class="text-fg-muted">修炼冷却</span><span>{{ settings.practice_cooldown_seconds }} 秒</span></div>
+        <div class="flex justify-between"><span class="text-fg-muted">你的悟性</span><span>{{ wisdom }}</span></div>
       </div>
-      <div class="text-xs text-stone-500 leading-relaxed">
+      <div class="text-xs text-fg-faint leading-relaxed">
         说明：修炼消耗灵石与灵力提升熟练度；熟练度达标后可突破升阶，突破有成功率与保底。
         可装备 1 个主修与多个辅修功法，主修切换需付出代价。神通需在已修功法上领悟，
         槽位数随功法层数解锁。
       </div>
     </div>
 
-    <!-- 二次确认弹窗 -->
+    <!-- 二次确认弹窗
+         Modal 的开关属性是 isOpen，正文走默认插槽、按钮走 #footer 插槽；
+         它并没有 message/confirmText/cancelText/type 这几个 prop。
+         之前直接当确认框用，于是这里渲染出来是一个只有标题和 ✕ 的空盒子，
+         修炼/突破/领悟的确认按钮根本不存在，整条操作流程走不到。 -->
     <Modal
-      v-if="confirmModal.show"
+      :is-open="confirmModal.show"
       :title="confirmModal.title"
-      :message="confirmModal.message"
-      :confirmText="confirmModal.confirmText"
-      :cancelText="confirmModal.cancelText"
-      :type="confirmModal.type"
-      @confirm="confirmModal.onConfirm"
-      @cancel="closeConfirm"
-    />
+      @close="closeConfirm"
+    >
+      <p class="text-sm leading-relaxed text-fg-secondary whitespace-pre-line">{{ confirmModal.message }}</p>
+      <template #footer>
+        <AppButton variant="outline" @click="closeConfirm">{{ confirmModal.cancelText }}</AppButton>
+        <AppButton
+          :variant="confirmModal.type === 'danger' || confirmModal.type === 'error' ? 'danger' : 'primary'"
+          @click="confirmModal.onConfirm"
+        >{{ confirmModal.confirmText }}</AppButton>
+      </template>
+    </Modal>
 
-    <!-- 处理遮罩 -->
-    <div v-if="busy" class="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg z-10">
-      <div class="text-amber-300 text-sm">运转功法中...</div>
+    <!-- 处理遮罩：absolute 定位到 PanelShell 的 .panel-body，盖住整块面板 -->
+    <div v-if="busy" class="absolute inset-0 z-10 grid place-items-center bg-black/55 backdrop-blur-[1px]">
+      <div class="flex items-center gap-2 text-[13px] text-gold-300">
+        <span class="inline-block w-4 h-4 rounded-full border-2 border-gold-700 border-t-gold-400 animate-spin"></span>
+        运转功法中…
+      </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
+import { useAsyncTask } from '../../composables/useAsyncTask'
 import { usePlayerStore } from '../../stores/player'
 import { formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import AppButton from '../ui/AppButton.vue'
+import EmptyState from '../ui/EmptyState.vue'
 import {
   getTechniqueList,
   learnTechnique,
@@ -240,17 +251,17 @@ const uiStore = useUIStore()
 const playerStore = usePlayerStore()
 const emit = defineEmits(['close'])
 
-/** 标签页定义 */
-const tabs = [
-  { id: 'owned', name: '已习得' },
-  { id: 'available', name: '可习得' },
-  { id: 'settings', name: '系统' }
+/** 标签页定义（key/label 契约见 ui/Tabs.vue） */
+const tabItems = [
+  { key: 'owned', label: '已习得' },
+  { key: 'available', label: '可习得' },
+  { key: 'settings', label: '系统' }
 ]
 
 /** 组件状态 */
 const view = ref('owned')
 const payload = ref(null)
-const loading = ref(false)
+const { loading, error, run } = useAsyncTask({ fallback: '获取功法总览失败' })
 const busy = ref(false)
 
 /** 二次确认弹窗状态 */
@@ -280,7 +291,6 @@ const enoughSS = (cost) => playerSS.value >= Number(cost || 0)
 const enoughMP = (cost) => playerMP.value >= Number(cost || 0)
 
 /** 切换标签页 */
-const switchView = (newView) => { view.value = newView }
 
 /** 关闭弹窗 */
 const closeConfirm = () => { confirmModal.value.show = false }
@@ -290,13 +300,19 @@ const openConfirm = (opts) => {
   confirmModal.value = { show: true, confirmText: '确认', cancelText: '取消', type: 'warning', ...opts }
 }
 
-/** 品阶色（取自后端 grade_color，兜底默认） */
+/**
+ * 品阶色（取自后端 grade_color，兜底默认）
+ *
+ * 这里的兜底色必须保持十六进制字面量：下面靠拼接 '66' / '14' 两个
+ * alpha 后缀得到描边和底色，换成 rgb(var(--x)) 就拼不动了。
+ * 文字色没有这个约束，取令牌。
+ */
 const gradeStyle = (color) => {
   const c = color || '#78716c'
   return {
     borderColor: `${c}66`,
     background: `${c}14`,
-    color: '#e7e5e4'
+    color: 'rgb(var(--fg-primary))'
   }
 }
 
@@ -353,22 +369,18 @@ const acquireLabel = (acquire) => {
   if (!acquire) return '未知'
   const src = { default: '新手指引', shop: '灵石购买', sect: '宗门贡献', secret_realm: '秘境奇遇' }
   let text = src[acquire.source] || acquire.source
-  if (acquire.source === 'shop' && acquire.cost_spirit_stones) text += `（${acquire.cost_spirit_stones} 灵石）`
-  if (acquire.source === 'sect' && acquire.cost_contribution) text += `（${acquire.cost_contribution} 贡献）`
+  // 配置里的键名是 cost_spirit_stone / sect_contribution（technique_data.json 的 acquire 段）
+  if (acquire.source === 'shop' && acquire.cost_spirit_stone) text += `（${acquire.cost_spirit_stone} 灵石）`
+  if (acquire.source === 'sect' && acquire.sect_contribution) text += `（${acquire.sect_contribution} 贡献）`
   if (acquire.source === 'secret_realm') text += '（不可主动研习）'
   return text
 }
 
 /** 拉取功法总览 */
-const fetchList = async () => {
-  try {
-    const res = await getTechniqueList()
-    payload.value = res.data?.data || res.data || {}
-  } catch (err) {
-    console.error('获取功法总览失败:', err)
-    uiStore.showToast('获取功法总览失败', 'error')
-  }
-}
+const fetchList = () => run(async () => {
+  const res = await getTechniqueList()
+  payload.value = res.data?.data || res.data || {}
+})
 
 /** 资源刷新通知父层（仅记录日志，不关闭面板，保持持续操作体验） */
 const emitRefresh = () => {
@@ -410,7 +422,7 @@ const doPractice = async (id) => {
     await refreshResources()
   } catch (err) {
     console.error('修炼失败:', err)
-    uiStore.showToast('修炼失败', 'error')
+    uiStore.showApiError(err, '修炼失败')
   } finally {
     busy.value = false
   }
@@ -439,7 +451,7 @@ const doBreakthrough = async (id) => {
     await refreshResources()
   } catch (err) {
     console.error('突破失败:', err)
-    uiStore.showToast('突破失败', 'error')
+    uiStore.showApiError(err, '突破失败')
   } finally {
     busy.value = false
   }
@@ -468,7 +480,7 @@ const doComprehend = async (id) => {
     await refreshResources()
   } catch (err) {
     console.error('领悟失败:', err)
-    uiStore.showToast('领悟失败', 'error')
+    uiStore.showApiError(err, '领悟失败')
   } finally {
     busy.value = false
   }
@@ -497,7 +509,7 @@ const doLearn = async (id) => {
     await refreshResources()
   } catch (err) {
     console.error('研习失败:', err)
-    uiStore.showToast('研习失败', 'error')
+    uiStore.showApiError(err, '研习失败')
   } finally {
     busy.value = false
   }
@@ -579,7 +591,7 @@ const doEquip = async (id, slot) => {
     await refreshResources()
   } catch (err) {
     console.error('装备失败:', err)
-    uiStore.showToast('装备失败', 'error')
+    uiStore.showApiError(err, '装备失败')
   } finally {
     busy.value = false
   }
@@ -597,7 +609,7 @@ const doUnequip = async (id) => {
     await refreshResources()
   } catch (err) {
     console.error('卸下失败:', err)
-    uiStore.showToast('卸下失败', 'error')
+    uiStore.showApiError(err, '卸下失败')
   } finally {
     busy.value = false
   }
@@ -610,8 +622,3 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.technique-panel {
-  min-height: 320px;
-}
-</style>

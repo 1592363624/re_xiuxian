@@ -16,6 +16,7 @@ import { useUIStore } from '../stores/ui'
 // 修复：正则与道号长度限制从配置读取，避免硬编码
 import { AUTH_REGEX, NICKNAME_LIMITS, UI_CONFIG } from '../config'
 import { readQQRedirect } from '../utils/qqAuth'
+import AppButton from '../components/ui/AppButton.vue'
 
 const isLogin = ref(true) // true: 登录模式, false: 注册模式
 const form = ref({
@@ -241,67 +242,67 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-xiuxian-dark text-xiuxian-text p-4">
-    <div class="w-full max-w-md bg-gray-900 border border-gray-700 rounded-lg p-8 shadow-2xl">
-      <h1 class="text-3xl font-bold text-center text-xiuxian-gold mb-2">重生之凡人修仙传</h1>
-      <p class="text-center text-gray-500 mb-8 text-sm">踏入仙途，逆天改命</p>
+  <div class="min-h-screen flex items-center justify-center bg-surface-canvas text-fg-secondary p-4">
+    <div class="w-full max-w-md bg-surface-base border border-line rounded-panel p-8 shadow-2xl shadow-black/60">
+      <h1 class="text-3xl font-bold text-center text-gold-500 mb-2 font-display tracking-wide">重生之凡人修仙传</h1>
+      <p class="text-center text-fg-faint mb-8 text-sm">踏入仙途，逆天改命</p>
       
       <!-- 登出/互踢提示 -->
-      <div v-if="playerStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm text-center animate-pulse">
+      <div v-if="playerStore.logoutReason" class="mb-6 p-3 bg-red-900/50 border border-red-700 rounded-control text-red-200 text-sm text-center animate-pulse">
         {{ playerStore.logoutReason }}
       </div>
 
       <!-- QQ 已通过校验但还没绑定账号：引导正常登录/注册，成功后自动完成绑定 -->
-      <div v-if="qqPendingTicket" class="mb-6 p-3 bg-sky-900/40 border border-sky-700 rounded text-sky-100 text-sm">
+      <div v-if="qqPendingTicket" class="mb-6 p-3 bg-sky-900/40 border border-sky-700 rounded-control text-sky-100 text-sm">
         <p class="font-bold mb-1">{{ pendingQQLabel() }}还没有绑定任何账号</p>
         <p class="text-sky-200/80">登录已有账号、或注册一个新账号，完成后会自动把这个 QQ 绑定上去，以后就能直接用 QQ 登录。</p>
       </div>
 
       <form @submit.prevent="handleSubmit" class="space-y-6">
         <div>
-          <label class="block text-sm font-medium text-gray-400 mb-1">账号</label>
+          <label class="block text-sm font-medium text-fg-muted mb-1">账号</label>
           <div class="relative">
             <input 
                 v-model="form.username" 
                 @input="handleInput('username')"
                 type="text" 
                 required 
-                class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-xiuxian-gold focus:ring-1 focus:ring-xiuxian-gold transition-colors"
+                class="w-full bg-surface-hover border border-line rounded-control px-3 py-2 text-fg-primary placeholder:text-fg-faint focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-colors"
                 :class="{'border-red-500 focus:border-red-500 focus:ring-red-500': usernameError}"
                 placeholder="请输入账号"
             >
             <div v-if="checking.username" class="absolute right-3 top-2.5">
-                <div class="animate-spin h-4 w-4 border-2 border-xiuxian-gold border-t-transparent rounded-full"></div>
+                <div class="animate-spin h-4 w-4 border-2 border-gold-500 border-t-transparent rounded-full"></div>
             </div>
           </div>
           <p v-if="usernameError" class="mt-1 text-xs text-red-500">{{ usernameError }}</p>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-400 mb-1">密码</label>
+          <label class="block text-sm font-medium text-fg-muted mb-1">密码</label>
           <input 
             v-model="form.password" 
             type="password" 
             required 
-            class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-xiuxian-gold focus:ring-1 focus:ring-xiuxian-gold transition-colors"
+            class="w-full bg-surface-hover border border-line rounded-control px-3 py-2 text-fg-primary placeholder:text-fg-faint focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-colors"
             placeholder="请输入密码"
           >
         </div>
 
         <div v-if="!isLogin">
-          <label class="block text-sm font-medium text-gray-400 mb-1">道号 (昵称)</label>
+          <label class="block text-sm font-medium text-fg-muted mb-1">道号 (昵称)</label>
           <div class="relative">
             <input 
                 v-model="form.nickname" 
                 @input="handleInput('nickname')"
                 type="text" 
                 required 
-                class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-xiuxian-gold focus:ring-1 focus:ring-xiuxian-gold transition-colors"
+                class="w-full bg-surface-hover border border-line rounded-control px-3 py-2 text-fg-primary placeholder:text-fg-faint focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-colors"
                 :class="{'border-red-500 focus:border-red-500 focus:ring-red-500': nicknameError}"
                 placeholder="例如：韩天尊"
             >
              <div v-if="checking.nickname" class="absolute right-3 top-2.5">
-                <div class="animate-spin h-4 w-4 border-2 border-xiuxian-gold border-t-transparent rounded-full"></div>
+                <div class="animate-spin h-4 w-4 border-2 border-gold-500 border-t-transparent rounded-full"></div>
             </div>
           </div>
           <p v-if="nicknameError" class="mt-1 text-xs text-red-500">{{ nicknameError }}</p>
@@ -311,19 +312,22 @@ const handleSubmit = async () => {
           {{ errorMsg }}
         </div>
 
-        <button 
-          type="submit" 
+        <AppButton
+          type="submit"
+          variant="primary"
+          block
+          size="md"
           :disabled="loading || (!isLogin && (!!usernameError || !!nicknameError))"
-          class="w-full bg-xiuxian-gold text-black font-bold py-2 rounded hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ loading ? '处理中...' : (isLogin ? '登 录' : '注 册') }}
-        </button>
+        </AppButton>
       </form>
 
       <div class="mt-6 text-center text-sm">
         <button 
+          type="button"
           @click="isLogin = !isLogin"
-          class="text-gray-400 hover:text-white underline underline-offset-4"
+          class="focus-ring rounded-control text-fg-muted hover:text-fg-primary underline underline-offset-4 transition-colors"
         >
           {{ isLogin ? '没有账号？点击注册' : '已有账号？返回登录' }}
         </button>
@@ -331,21 +335,25 @@ const handleSubmit = async () => {
 
       <!-- QQ 登录：服务端未配置 QQ 互联凭据时整块隐藏 -->
       <div v-if="qqEnabled" class="mt-6">
-        <div class="flex items-center gap-3 text-xs text-gray-600 mb-4">
-          <div class="flex-1 h-px bg-gray-700"></div>
+        <div class="flex items-center gap-3 text-xs text-line-strong mb-4">
+          <div class="flex-1 h-px bg-line"></div>
           <span>或</span>
-          <div class="flex-1 h-px bg-gray-700"></div>
+          <div class="flex-1 h-px bg-line"></div>
         </div>
+        <!--
+          这里不换成 AppButton：QQ 品牌蓝 #12B7F5 是腾讯规定的固定色，
+          令牌里没有等价物，套上任何变体都会破坏品牌识别，所以整块保留原样。
+        -->
         <button
           type="button"
           @click="startQQLogin"
           :disabled="loading"
-          class="w-full flex items-center justify-center gap-2 bg-[#12B7F5]/90 text-black font-bold py-2 rounded hover:bg-[#12B7F5] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="w-full flex items-center justify-center gap-2 bg-[#12B7F5]/90 text-surface-sunken font-bold py-2 rounded-control hover:bg-[#12B7F5] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span class="w-5 h-5 flex items-center justify-center rounded-full bg-black text-[#12B7F5] text-[10px] font-black leading-none">QQ</span>
           使用 QQ 登录
         </button>
-        <p class="mt-2 text-xs text-gray-500 text-center">首次使用需用 QQ 验证后绑定或注册一个账号</p>
+        <p class="mt-2 text-xs text-fg-faint text-center">首次使用需用 QQ 验证后绑定或注册一个账号</p>
       </div>
     </div>
   </div>

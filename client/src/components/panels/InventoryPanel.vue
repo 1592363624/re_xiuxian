@@ -3,10 +3,10 @@
  * 储物袋（背包）面板组件
  *
  * 功能说明：
- *   - 全屏遮罩 + 居中弹窗布局，参考 GatheringPanel 的 close 事件机制
- *   - 顶部标题与容量显示（已用 / 总容量）
- *   - 装备栏区域：展示 5 个装备槽位（武器/护甲/饰品/靴子/法器）及装备总加成
- *   - 分类筛选 tabs：全部 / 丹药 / 材料 / 装备 / 其他
+ *   - 外壳统一走 ui/PanelShell（遮罩、关闭、右坞停靠由它给），面板不再自写遮罩与外壳
+ *   - 容量（已用 / 总容量）挂在 PanelShell 的 header-actions 上
+ *   - 装备栏区域：展示各装备槽位（武器/护甲/饰品/靴子/法器）及装备总加成
+ *   - 分类筛选 tabs 走 ui/Tabs：全部 / 丹药 / 材料 / 装备 / 其他
  *   - 物品网格列表，按品质颜色描边，展示名称、数量、描述
  *   - 点击物品卡片展开操作菜单：使用（消耗品）/ 穿戴（装备）/ 丢弃
  *   - 使用/丢弃时弹出数量选择框（自定义 Modal 组件，禁用浏览器原生 prompt）
@@ -16,8 +16,16 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import AppButton from '../ui/AppButton.vue'
+import Badge from '../ui/Badge.vue'
+import StatBar from '../ui/StatBar.vue'
+import LoadingBlock from '../ui/LoadingBlock.vue'
+import EmptyState from '../ui/EmptyState.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { formatCompact } from '../../utils/format'
 import { getInventory, useItem, discardItem } from '../../api/inventory'
 import { getEquipped, equipItem, unequipItem, getEquipmentBonus } from '../../api/equipment'
 import { getGameBalancePublic } from '../../api/config'
@@ -94,12 +102,14 @@ const confirmModal = ref({
 // （categories 为 ref，模板中需 .value，此处不再额外包装 computed）
 
 // ====== 品质颜色映射 ======
-// common 白 / uncommon 绿 / rare 蓝 / epic 紫 / legendary 橙
+// common 白 / uncommon 绿 / rare 青 / epic 紫 / legendary 鎏金
+// 色相是玩法信息（品阶），保留跨度；中性档与鎏金档改用与 tokens.css 同值的令牌，
+// 保证与 Pawnshop / Auction / Crafting 的品质色一致
 const qualityColorMap = {
   common: {
-    border: 'border-stone-600',
-    text: 'text-stone-300',
-    glow: 'shadow-stone-900/30',
+    border: 'border-line-strong',
+    text: 'text-fg-secondary',
+    glow: 'shadow-surface-sunken/30',
     label: '普通'
   },
   uncommon: {
@@ -109,9 +119,9 @@ const qualityColorMap = {
     label: '非凡'
   },
   rare: {
-    border: 'border-blue-600',
-    text: 'text-blue-400',
-    glow: 'shadow-blue-900/40',
+    border: 'border-sky-600',
+    text: 'text-sky-400',
+    glow: 'shadow-sky-900/40',
     label: '稀有'
   },
   epic: {
@@ -121,15 +131,15 @@ const qualityColorMap = {
     label: '史诗'
   },
   legendary: {
-    border: 'border-amber-600',
-    text: 'text-amber-400',
-    glow: 'shadow-amber-900/50',
+    border: 'border-gold-600',
+    text: 'text-gold-400',
+    glow: 'shadow-gold-900/50',
     label: '传说'
   },
   unknown: {
-    border: 'border-stone-700',
-    text: 'text-stone-500',
-    glow: 'shadow-stone-900/30',
+    border: 'border-line',
+    text: 'text-fg-faint',
+    glow: 'shadow-surface-sunken/30',
     label: '未知'
   }
 }
@@ -175,14 +185,6 @@ const filteredItems = computed(() => {
 })
 
 /**
- * 容量使用百分比（用于容量条展示）
- */
-const capacityPercent = computed(() => {
-  if (capacity.value <= 0) return 0
-  return Math.min(100, Math.round((totalCount.value / capacity.value) * 100))
-})
-
-/**
  * 获取背包数据
  * 调用后端 GET /inventory 接口
  */
@@ -197,7 +199,7 @@ const fetchInventory = async () => {
     capacity.value = data.capacity || 0
   } catch (error) {
     console.error('获取背包数据失败:', error)
-    uiStore.showToast('获取储物袋数据失败', 'error')
+    uiStore.showApiError(error, '获取背包数据失败')
   } finally {
     loading.value = false
   }
@@ -341,8 +343,7 @@ const handleUse = async (item, quantity) => {
     expandedItemKey.value = null
     await fetchInventory()
   } catch (error) {
-    const msg = error.response?.data?.error || error.response?.data?.message || '使用失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '使用失败')
   } finally {
     operating.value = false
   }
@@ -372,8 +373,7 @@ const handleDiscard = async () => {
     expandedItemKey.value = null
     await fetchInventory()
   } catch (error) {
-    const msg = error.response?.data?.error || error.response?.data?.message || '丢弃失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '丢弃失败')
   } finally {
     operating.value = false
   }
@@ -443,7 +443,7 @@ const fetchEquipped = async () => {
     equippedSlots.value = data.slots || {}
   } catch (error) {
     console.error('获取装备栏数据失败:', error)
-    uiStore.showToast('获取装备栏数据失败', 'error')
+    uiStore.showApiError(error, '获取装备栏数据失败')
   } finally {
     equipmentLoading.value = false
   }
@@ -514,8 +514,7 @@ const handleEquip = async () => {
     expandedItemKey.value = null
     await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus(), playerStore.fetchPlayer()])
   } catch (error) {
-    const msg = error.response?.data?.error || error.response?.data?.message || '穿戴失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '穿戴失败')
   } finally {
     operating.value = false
   }
@@ -570,8 +569,7 @@ const handleUnequip = async () => {
     closeUnequipConfirmModal()
     await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus(), playerStore.fetchPlayer()])
   } catch (error) {
-    const msg = error.response?.data?.error || error.response?.data?.message || '卸下失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '卸下失败')
   } finally {
     operating.value = false
   }
@@ -623,136 +621,93 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <!-- 遮罩层：点击关闭面板 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-
-    <!-- 主容器 -->
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      <!-- 顶部标题栏 -->
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
-        <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-            <path d="M3 6h18"/>
-            <path d="M16 10a4 4 0 0 1-8 0"/>
-          </svg>
-          储物袋
-        </h2>
-        <div class="flex items-center gap-4">
-          <!-- 容量显示 -->
-          <div class="flex items-center gap-2">
-            <div class="w-32 h-2 bg-stone-900 rounded-full overflow-hidden">
-              <div
-                class="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-500"
-                :style="{ width: capacityPercent + '%' }"
-              ></div>
-            </div>
-            <span class="text-xs text-stone-400 whitespace-nowrap">
-              {{ totalCount }} / {{ capacity }}
-            </span>
-          </div>
-          <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+  <PanelShell
+    title="储物袋"
+    hint="装备 · 使用 · 丢弃"
+    size="xl"
+    scoped-scroll
+    @close="emit('close')"
+  >
+    <!-- 容量：原先占在标题行，现收进外壳的 header-actions -->
+    <template #header-actions>
+      <div class="flex items-center gap-2">
+        <div class="hidden sm:block w-28">
+          <StatBar :value="totalCount" :max="capacity" tone="gold" height="h-1.5" :show-value="false" />
         </div>
+        <Badge tone="gold">{{ totalCount }} / {{ capacity }}</Badge>
       </div>
+    </template>
 
+    <div class="h-full flex flex-col min-h-0">
       <!-- 分类筛选 tabs -->
-      <div class="flex items-center gap-1 p-3 border-b border-stone-800 bg-[#0c0a09] overflow-x-auto">
-        <button
-          v-for="cat in categories"
-          :key="cat.key"
-          @click="activeCategory = cat.key"
-          class="px-4 py-1.5 rounded text-sm whitespace-nowrap transition-colors"
-          :class="activeCategory === cat.key
-            ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
-            : 'text-stone-500 hover:text-stone-300 border border-transparent'"
-        >
-          {{ cat.label }}
-        </button>
-      </div>
+      <Tabs v-model="activeCategory" :items="categories" class="shrink-0" />
 
-      <!-- 装备栏区域：展示 5 个装备槽位及装备总加成 -->
-      <div class="border-b border-stone-800 bg-[#1c1917] p-3">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-bold text-amber-500 flex items-center gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-            </svg>
-            装备栏
-          </h3>
+      <!-- 装备栏区域：展示各装备槽位及装备总加成 -->
+      <div class="shrink-0 border-b border-line-subtle bg-surface-raised p-3">
+        <div class="flex items-center justify-between gap-3 mb-2 flex-wrap">
+          <h3 class="text-[13px] font-bold text-gold-500 tracking-wide font-display">装备栏</h3>
           <!-- 装备总加成（可选展示，有加成时才显示） -->
-          <div v-if="formatEffectText(equipmentBonus)" class="text-[10px] text-cyan-400">
+          <div v-if="formatEffectText(equipmentBonus)" class="text-[10px] text-sky-300">
             总加成：{{ formatEffectText(equipmentBonus) }}
           </div>
         </div>
-        <!-- 5 个装备槽位 -->
+        <!-- 装备槽位 -->
         <div class="grid grid-cols-5 gap-2">
           <div
             v-for="slotInfo in slotDisplayList"
             :key="slotInfo.slot"
-            class="bg-[#0c0a09] border rounded p-2 transition-all"
+            class="bg-surface-canvas border rounded-control p-2 transition-all"
             :class="slotInfo.item
               ? [getQualityStyle(slotInfo.item.quality).border, getQualityStyle(slotInfo.item.quality).glow]
-              : 'border-stone-800'"
+              : 'border-line-subtle'"
           >
             <!-- 槽位名称 -->
-            <div class="text-[10px] text-stone-500 mb-1 text-center">{{ slotInfo.label }}</div>
+            <div class="text-[10px] text-fg-faint mb-1 text-center">{{ slotInfo.label }}</div>
             <!-- 已装备物品 -->
             <div v-if="slotInfo.item" class="text-center">
               <div class="text-xs font-bold truncate" :class="getQualityStyle(slotInfo.item.quality).text" :title="slotInfo.item.name">
                 {{ slotInfo.item.name }}
               </div>
-              <div class="text-[9px] text-cyan-400 mt-0.5 line-clamp-1" :title="formatEffectText(slotInfo.item.effect)">
+              <div class="text-[9px] text-sky-300 mt-0.5 line-clamp-1" :title="formatEffectText(slotInfo.item.effect)">
                 {{ formatEffectText(slotInfo.item.effect) }}
               </div>
               <button
                 @click="openUnequipConfirmModal(slotInfo.slot)"
                 :disabled="operating"
-                class="mt-1 w-full px-2 py-0.5 rounded text-[10px] bg-red-900/30 border border-red-700/50 text-red-400 hover:bg-red-800/50 hover:text-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="mt-1 w-full px-2 py-0.5 rounded-control text-[10px] bg-rose-900/30 border border-rose-800 text-rose-300 hover:bg-rose-800/50 hover:text-rose-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 卸下
               </button>
             </div>
             <!-- 空槽位 -->
             <div v-else class="text-center py-2">
-              <span class="text-xs text-stone-600">无</span>
+              <span class="text-xs text-fg-faint">无</span>
             </div>
           </div>
         </div>
       </div>
 
       <!-- 物品列表区域 -->
-      <div class="flex-1 overflow-y-auto p-4">
-        <!-- 加载中 -->
-        <div v-if="loading" class="flex justify-center items-center h-64">
-          <svg class="animate-spin h-10 w-10 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
+      <div class="flex-1 min-h-0 overflow-y-auto p-4">
+        <LoadingBlock v-if="loading" />
 
         <!-- 空状态 -->
-        <div v-else-if="filteredItems.length === 0" class="flex flex-col items-center justify-center h-64 text-stone-500">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-            <path d="M3 6h18"/>
-          </svg>
-          <p v-if="activeCategory === 'all'">储物袋空空如也</p>
-          <p v-else>该分类下暂无物品</p>
-        </div>
+        <EmptyState
+          v-else-if="filteredItems.length === 0"
+          :text="activeCategory === 'all' ? '储物袋空空如也' : '该分类下暂无物品'"
+          :hint="activeCategory === 'all' ? '去历练、炼制与坊市，慢慢就攒下了' : '换个分类看看，或切回「全部」'"
+        />
 
         <!-- 物品网格 -->
         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <div
             v-for="item in filteredItems"
             :key="item.item_key"
-            class="bg-[#1c1917] border rounded-lg overflow-hidden transition-all hover:shadow-lg"
+            class="bg-surface-raised border rounded-panel overflow-hidden transition-all hover:shadow-lg"
             :class="[
               getQualityStyle(item.quality).border,
               getQualityStyle(item.quality).glow,
-              expandedItemKey === item.item_key ? 'ring-1 ring-amber-700/50' : ''
+              expandedItemKey === item.item_key ? 'ring-1 ring-gold-700/60' : ''
             ]"
           >
             <!-- 物品卡片头部 -->
@@ -766,23 +721,21 @@ onMounted(() => {
                     {{ item.name }}
                   </h4>
                   <div class="flex items-center gap-2 mt-1">
-                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-900 border border-stone-700 text-stone-400">
-                      {{ getTypeName(item.type) }}
-                    </span>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded border" :class="getQualityStyle(item.quality).text + ' border-current'">
+                    <Badge tone="neutral">{{ getTypeName(item.type) }}</Badge>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded border bg-surface-sunken" :class="getQualityStyle(item.quality).text + ' border-current'">
                       {{ getQualityStyle(item.quality).label }}
                     </span>
                   </div>
                 </div>
                 <div class="text-right ml-2">
-                  <div class="text-lg font-bold text-amber-400">x{{ item.quantity }}</div>
-                  <div class="text-[10px] text-stone-600">{{ item.price }} 灵石</div>
+                  <div class="text-lg font-bold text-gold-400 num">x{{ item.quantity }}</div>
+                  <div class="text-[10px] text-fg-faint num" :title="item.price">{{ formatCompact(item.price) }} 灵石</div>
                 </div>
               </div>
               <!-- 物品描述 -->
-              <p class="text-xs text-stone-500 line-clamp-2 leading-relaxed">{{ item.description }}</p>
+              <p class="text-xs text-fg-muted line-clamp-2 leading-relaxed">{{ item.description }}</p>
               <!-- 物品效果 -->
-              <p v-if="formatEffectText(item.effect)" class="text-[11px] text-cyan-400 mt-1.5">
+              <p v-if="formatEffectText(item.effect)" class="text-[11px] text-sky-300 mt-1.5">
                 {{ formatEffectText(item.effect) }}
               </p>
             </div>
@@ -790,13 +743,13 @@ onMounted(() => {
             <!-- 操作菜单（点击展开） -->
             <div
               v-if="expandedItemKey === item.item_key"
-              class="px-3 py-2 border-t border-stone-800 bg-[#0c0a09] flex gap-2 animate-fade-in"
+              class="px-3 py-2 border-t border-line-subtle bg-surface-canvas flex gap-2 animate-fade-in"
             >
               <button
                 v-if="item.usable"
                 @click.stop="openUseModal(item)"
                 :disabled="operating"
-                class="flex-1 px-3 py-1.5 rounded text-xs bg-emerald-900/30 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex-1 px-3 py-1.5 rounded-control text-xs bg-emerald-900/30 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 hover:text-emerald-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 使用
               </button>
@@ -805,14 +758,14 @@ onMounted(() => {
                 v-if="item.type === 'equipment'"
                 @click.stop="openEquipConfirmModal(item)"
                 :disabled="operating"
-                class="flex-1 px-3 py-1.5 rounded text-xs bg-amber-900/30 border border-amber-700/50 text-amber-400 hover:bg-amber-800/50 hover:text-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex-1 px-3 py-1.5 rounded-control text-xs bg-gold-900/30 border border-gold-700 text-gold-400 hover:bg-gold-800/50 hover:text-gold-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 穿戴
               </button>
               <button
                 @click.stop="openDiscardModal(item)"
                 :disabled="operating"
-                class="flex-1 px-3 py-1.5 rounded text-xs bg-red-900/30 border border-red-700/50 text-red-400 hover:bg-red-800/50 hover:text-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex-1 px-3 py-1.5 rounded-control text-xs bg-rose-900/30 border border-rose-800 text-rose-300 hover:bg-rose-800/50 hover:text-rose-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 丢弃
               </button>
@@ -830,62 +783,54 @@ onMounted(() => {
       width="420px"
     >
       <div class="space-y-4" v-if="quantityModal.item">
-        <p class="text-stone-300">
+        <p class="text-fg-secondary">
           {{ quantityModal.type === 'use' ? '请选择要使用的数量' : '请选择要丢弃的数量' }}
         </p>
-        <div class="flex items-center gap-3 bg-[#1c1917] p-3 rounded border border-stone-800">
+        <div class="flex items-center gap-3 bg-surface-raised p-3 rounded-control border border-line-subtle">
           <div class="flex-1">
             <div class="text-sm font-bold" :class="getQualityStyle(quantityModal.item.quality).text">
               {{ quantityModal.item.name }}
             </div>
-            <div class="text-xs text-stone-500 mt-0.5">持有 {{ quantityModal.item.quantity }} 个</div>
+            <div class="text-xs text-fg-muted mt-0.5">持有 {{ quantityModal.item.quantity }} 个</div>
           </div>
         </div>
         <!-- 数量调节器 -->
         <div class="flex items-center justify-center gap-4">
           <button
             @click="changeQuantity(-1)"
-            class="w-10 h-10 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-xl font-bold transition-colors"
+            class="w-10 h-10 rounded-control bg-surface-hover hover:bg-surface-active text-fg-secondary text-xl font-bold transition-colors"
           >-</button>
           <input
             v-model.number="quantityModal.quantity"
             type="number"
             min="1"
             :max="quantityModal.type === 'use' ? Math.min(maxUseQuantity, quantityModal.item.quantity) : quantityModal.item.quantity"
-            class="w-24 text-center bg-stone-900 border border-stone-700 rounded py-2 text-amber-400 font-bold text-lg focus:outline-none focus:border-amber-600"
+            class="w-24 text-center bg-surface-sunken border border-line rounded-control py-2 text-gold-400 font-bold text-lg num focus:outline-none focus:border-gold-700"
           />
           <button
             @click="changeQuantity(1)"
-            class="w-10 h-10 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-xl font-bold transition-colors"
+            class="w-10 h-10 rounded-control bg-surface-hover hover:bg-surface-active text-fg-secondary text-xl font-bold transition-colors"
           >+</button>
         </div>
         <!-- 快捷按钮 -->
         <div class="flex justify-center gap-2">
-          <button
-            @click="quantityModal.quantity = 1"
-            class="px-3 py-1 text-xs rounded bg-stone-800 hover:bg-stone-700 text-stone-400 transition-colors"
-          >最小</button>
-          <button
+          <AppButton size="sm" variant="default" @click="quantityModal.quantity = 1">最小</AppButton>
+          <AppButton
+            size="sm"
+            variant="default"
             @click="quantityModal.quantity = quantityModal.type === 'use' ? Math.min(maxUseQuantity, quantityModal.item.quantity) : quantityModal.item.quantity"
-            class="px-3 py-1 text-xs rounded bg-stone-800 hover:bg-stone-700 text-stone-400 transition-colors"
-          >最大</button>
+          >最大</AppButton>
         </div>
       </div>
       <template #footer>
-        <button
-          @click="closeQuantityModal"
-          class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
-        >取消</button>
-        <button
-          @click="confirmQuantity"
+        <AppButton variant="default" @click="closeQuantityModal">取消</AppButton>
+        <AppButton
+          :variant="quantityModal.type === 'use' ? 'primary' : 'danger'"
           :disabled="operating"
-          class="px-4 py-2 rounded text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="quantityModal.type === 'use'
-            ? 'bg-emerald-600 hover:bg-emerald-500'
-            : 'bg-red-600 hover:bg-red-500'"
+          @click="confirmQuantity"
         >
-          {{ operating ? '处理中...' : '确认' }}
-        </button>
+          {{ operating ? '处理中…' : '确认' }}
+        </AppButton>
       </template>
     </Modal>
 
@@ -897,7 +842,7 @@ onMounted(() => {
       width="420px"
     >
       <div class="space-y-4" v-if="confirmModal.item">
-        <div class="flex items-center gap-3 text-red-400">
+        <div class="flex items-center gap-3 text-rose-300">
           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
             <line x1="12" y1="9" x2="12" y2="13"/>
@@ -905,27 +850,20 @@ onMounted(() => {
           </svg>
           <p class="text-lg font-bold">丢弃后无法恢复</p>
         </div>
-        <p class="text-stone-300">
+        <p class="text-fg-secondary">
           确定要丢弃
           <span class="font-bold" :class="getQualityStyle(confirmModal.item.quality).text">
             {{ confirmModal.item.name }}
           </span>
           x{{ confirmModal.quantity }} 吗？
         </p>
-        <p class="text-xs text-stone-500">提示：珍贵的物品请谨慎丢弃，丢弃后无法找回。</p>
+        <p class="text-xs text-fg-muted">提示：珍贵的物品请谨慎丢弃，丢弃后无法找回。</p>
       </div>
       <template #footer>
-        <button
-          @click="closeConfirmModal"
-          class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
-        >取消</button>
-        <button
-          @click="handleDiscard"
-          :disabled="operating"
-          class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ operating ? '丢弃中...' : '确认丢弃' }}
-        </button>
+        <AppButton variant="default" @click="closeConfirmModal">取消</AppButton>
+        <AppButton variant="danger" :disabled="operating" @click="handleDiscard">
+          {{ operating ? '丢弃中…' : '确认丢弃' }}
+        </AppButton>
       </template>
     </Modal>
 
@@ -937,35 +875,28 @@ onMounted(() => {
       width="420px"
     >
       <div class="space-y-4" v-if="equipConfirmModal.item">
-        <p class="text-stone-300">确定要穿戴以下装备吗？</p>
+        <p class="text-fg-secondary">确定要穿戴以下装备吗？</p>
         <!-- 待穿戴装备信息 -->
-        <div class="flex items-center gap-3 bg-[#1c1917] p-3 rounded border border-stone-800">
+        <div class="flex items-center gap-3 bg-surface-raised p-3 rounded-control border border-line-subtle">
           <div class="flex-1">
             <div class="text-sm font-bold" :class="getQualityStyle(equipConfirmModal.item.quality).text">
               {{ equipConfirmModal.item.name }}
             </div>
-            <div v-if="formatEffectText(equipConfirmModal.item.effect)" class="text-xs text-cyan-400 mt-1">
+            <div v-if="formatEffectText(equipConfirmModal.item.effect)" class="text-xs text-sky-300 mt-1">
               {{ formatEffectText(equipConfirmModal.item.effect) }}
             </div>
           </div>
         </div>
         <!-- 提示：若该槽位已有装备，将被自动替换 -->
-        <p class="text-xs text-stone-500">
+        <p class="text-xs text-fg-muted">
           提示：若对应槽位已有装备，将自动卸下旧装备并归还储物袋。
         </p>
       </div>
       <template #footer>
-        <button
-          @click="closeEquipConfirmModal"
-          class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
-        >取消</button>
-        <button
-          @click="handleEquip"
-          :disabled="operating"
-          class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ operating ? '穿戴中...' : '确认穿戴' }}
-        </button>
+        <AppButton variant="default" @click="closeEquipConfirmModal">取消</AppButton>
+        <AppButton variant="primary" :disabled="operating" @click="handleEquip">
+          {{ operating ? '穿戴中…' : '确认穿戴' }}
+        </AppButton>
       </template>
     </Modal>
 
@@ -977,41 +908,34 @@ onMounted(() => {
       width="420px"
     >
       <div class="space-y-4" v-if="unequipConfirmModal.item">
-        <p class="text-stone-300">确定要卸下以下装备吗？</p>
+        <p class="text-fg-secondary">确定要卸下以下装备吗？</p>
         <!-- 待卸下装备信息 -->
-        <div class="flex items-center gap-3 bg-[#1c1917] p-3 rounded border border-stone-800">
+        <div class="flex items-center gap-3 bg-surface-raised p-3 rounded-control border border-line-subtle">
           <div class="flex-1">
             <div class="text-sm font-bold" :class="getQualityStyle(unequipConfirmModal.item.quality).text">
               {{ unequipConfirmModal.item.name }}
             </div>
-            <div class="text-xs text-stone-500 mt-0.5">
+            <div class="text-xs text-fg-muted mt-0.5">
               槽位：{{ unequipConfirmModal.item.slot_name || unequipConfirmModal.slot }}
             </div>
-            <div v-if="formatEffectText(unequipConfirmModal.item.effect)" class="text-xs text-cyan-400 mt-1">
+            <div v-if="formatEffectText(unequipConfirmModal.item.effect)" class="text-xs text-sky-300 mt-1">
               {{ formatEffectText(unequipConfirmModal.item.effect) }}
             </div>
           </div>
         </div>
         <!-- 提示：卸下后装备归还背包，需保证背包有剩余容量 -->
-        <p class="text-xs text-stone-500">
+        <p class="text-xs text-fg-muted">
           提示：卸下后装备将归还储物袋，请确保储物袋有剩余容量。
         </p>
       </div>
       <template #footer>
-        <button
-          @click="closeUnequipConfirmModal"
-          class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
-        >取消</button>
-        <button
-          @click="handleUnequip"
-          :disabled="operating"
-          class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ operating ? '卸下中...' : '确认卸下' }}
-        </button>
+        <AppButton variant="default" @click="closeUnequipConfirmModal">取消</AppButton>
+        <AppButton variant="primary" :disabled="operating" @click="handleUnequip">
+          {{ operating ? '卸下中…' : '确认卸下' }}
+        </AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
 
 <style scoped>

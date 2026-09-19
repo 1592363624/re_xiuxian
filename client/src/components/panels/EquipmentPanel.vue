@@ -3,7 +3,7 @@
  * 法宝管理面板组件
  *
  * 功能说明：
- *   - 全屏遮罩 + 居中弹窗布局，emits('close') 关闭面板
+ *   - 外壳统一走 ui/PanelShell（遮罩 / 标题栏 / 关闭 / 右坞停靠契约），emits('close') 关闭面板
  *   - 展示玩家所有已装备物品，含法宝深度系统字段（耐久/祭炼/本命/祭出）
  *   - 操作按钮：祭炼 / 修理 / 本命 / 散念 / 祭出 / 收回 / 调序
  *   - 底部：一键修理所有装备
@@ -18,6 +18,10 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import AppButton from '../ui/AppButton.vue'
+import Badge from '../ui/Badge.vue'
+import StatBar from '../ui/StatBar.vue'
 import {
   getEquipped,
   refineItem,
@@ -223,25 +227,25 @@ async function handleConfirm() {
 }
 
 /**
- * 耐久度颜色（根据百分比）
+ * 耐久度进度条色调（根据百分比，取值见 ui/StatBar.vue 的 tone 契约）
  */
-function durabilityColor(durability: number, max: number): string {
+function durabilityTone(durability: number, max: number): 'jade' | 'gold' | 'blood' {
   const pct = max > 0 ? durability / max : 0
-  if (pct >= 0.7) return 'bg-green-500'
-  if (pct >= 0.3) return 'bg-yellow-500'
-  return 'bg-red-500'
+  if (pct >= 0.7) return 'jade'
+  if (pct >= 0.3) return 'gold'
+  return 'blood'
 }
 
 /**
- * 品质颜色
+ * 品质颜色（暖色主题下不再用冷 gray/blue，一律取 fg / state / gold 令牌）
  */
 function qualityColor(quality: string): string {
   const map: Record<string, string> = {
-    common: 'text-gray-300 border-gray-500',
-    uncommon: 'text-green-300 border-green-500',
-    rare: 'text-blue-300 border-blue-500',
-    epic: 'text-purple-300 border-purple-500',
-    legendary: 'text-orange-300 border-orange-500'
+    common: 'text-fg-secondary border-line',
+    uncommon: 'text-state-success border-state-success/50',
+    rare: 'text-state-info border-state-info/50',
+    epic: 'text-state-arcane border-state-arcane/50',
+    legendary: 'text-gold-300 border-gold-600'
   }
   return map[quality] || map.common
 }
@@ -252,192 +256,142 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- 全屏遮罩 -->
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm panel-shell" @click.self="emit('close')">
-    <!-- 主面板 -->
-    <div class="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col panel-body">
-      <!-- 头部 -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-        <h2 class="text-xl font-bold text-amber-300">法宝管理</h2>
-        <button
-          class="text-gray-400 hover:text-white text-2xl leading-none"
-          @click="emit('close')"
-          aria-label="关闭"
-        >×</button>
-      </div>
-
-      <!-- 内容区 -->
-      <div class="flex-1 overflow-y-auto p-6">
-        <div v-if="loading" class="text-center text-gray-400 py-12">加载中...</div>
-
-        <div v-else-if="equipmentList.length === 0" class="text-center text-gray-400 py-12">
-          暂无装备，请先穿戴装备
+  <PanelShell
+    title="法宝管理"
+    size="lg"
+    :loading="loading"
+    :empty="!loading && equipmentList.length === 0"
+    empty-text="暂无装备，请先穿戴装备"
+    @close="emit('close')"
+  >
+    <!-- 装备卡片 -->
+    <div class="space-y-4">
+      <div
+        v-for="item in equipmentList"
+        :key="item.slot"
+        class="border rounded-panel p-4 bg-surface-raised"
+        :class="qualityColor(item.quality)"
+      >
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-[15px] font-bold font-display text-fg-primary">{{ item.name }}</span>
+              <Badge tone="neutral">{{ item.slot_name }}</Badge>
+              <Badge v-if="item.is_benming" tone="gold" solid>本命 #{{ item.benming_slot }}</Badge>
+              <Badge v-if="item.is_summoned" tone="info" solid>已祭出</Badge>
+              <Badge v-if="item.is_broken" tone="danger" solid>已破碎</Badge>
+              <Badge v-if="item.attr_multiplier && item.attr_multiplier > 1" tone="success">炼制 ×{{ item.attr_multiplier.toFixed(2) }}</Badge>
+            </div>
+            <div class="text-xs text-fg-muted mt-1 wrap-cjk">{{ item.description }}</div>
+            <div v-if="item.effect && Object.keys(item.effect).length > 0" class="text-xs text-fg-secondary mt-1">
+              <span v-for="(val, key) in item.effect" :key="key" class="mr-3">
+                {{ key }}: <span class="num">+{{ val }}</span>
+              </span>
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <div class="text-xs text-fg-muted">祭炼等级</div>
+            <div class="text-lg font-bold text-gold-400 num">+{{ item.refine_level }}</div>
+          </div>
         </div>
 
-        <div v-else class="space-y-4">
-          <!-- 装备卡片 -->
-          <div
-            v-for="item in equipmentList"
-            :key="item.slot"
-            class="border rounded-lg p-4 bg-gray-800/50"
-            :class="qualityColor(item.quality)"
-          >
-            <div class="flex items-start justify-between mb-3">
-              <div>
-                <div class="flex items-center gap-2">
-                  <span class="text-lg font-bold">{{ item.name }}</span>
-                  <span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">{{ item.slot_name }}</span>
-                  <span v-if="item.is_benming" class="text-xs px-2 py-0.5 rounded bg-amber-700 text-amber-100">
-                    本命 #{{ item.benming_slot }}
-                  </span>
-                  <span v-if="item.is_summoned" class="text-xs px-2 py-0.5 rounded bg-blue-700 text-blue-100">
-                    已祭出
-                  </span>
-                  <span v-if="item.is_broken" class="text-xs px-2 py-0.5 rounded bg-red-700 text-red-100">
-                    已破碎
-                  </span>
-                  <span v-if="item.attr_multiplier && item.attr_multiplier > 1" class="text-xs px-2 py-0.5 rounded bg-emerald-700 text-emerald-100">
-                    炼制 ×{{ item.attr_multiplier.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="text-xs text-gray-400 mt-1">{{ item.description }}</div>
-                <div v-if="item.effect && Object.keys(item.effect).length > 0" class="text-xs text-gray-300 mt-1">
-                  <span v-for="(val, key) in item.effect" :key="key" class="mr-3">
-                    {{ key }}: +{{ val }}
-                  </span>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="text-xs text-gray-400">祭炼等级</div>
-                <div class="text-lg font-bold text-amber-300">+{{ item.refine_level }}</div>
-              </div>
-            </div>
+        <!-- 耐久度进度条 -->
+        <StatBar
+          class="mb-3"
+          label="耐久度"
+          :value="item.durability"
+          :max="item.max_durability"
+          :tone="durabilityTone(item.durability, item.max_durability)"
+          height="h-2"
+        />
 
-            <!-- 耐久度进度条 -->
-            <div class="mb-3">
-              <div class="flex justify-between text-xs text-gray-400 mb-1">
-                <span>耐久度</span>
-                <span>{{ item.durability }} / {{ item.max_durability }}</span>
-              </div>
-              <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  class="h-full transition-all"
-                  :class="durabilityColor(item.durability, item.max_durability)"
-                  :style="{ width: `${Math.max(0, Math.min(100, (item.durability / Math.max(1, item.max_durability)) * 100))}%` }"
-                ></div>
-              </div>
-            </div>
+        <!-- 本命法力值（仅本命显示） -->
+        <div v-if="item.is_benming" class="mb-3">
+          <div class="flex justify-between text-xs text-fg-muted mb-1">
+            <span>法力值</span>
+            <span class="num">{{ item.spirit_power }}</span>
+          </div>
+        </div>
 
-            <!-- 本命法力值（仅本命显示） -->
-            <div v-if="item.is_benming" class="mb-3">
-              <div class="flex justify-between text-xs text-gray-400 mb-1">
-                <span>法力值</span>
-                <span>{{ item.spirit_power }}</span>
-              </div>
-            </div>
+        <!-- 操作按钮组 -->
+        <div class="flex flex-wrap items-center gap-2">
+          <AppButton size="xs" variant="primary" :disabled="operating || item.is_broken" @click="openConfirm('refine', item.slot)">
+            祭炼
+          </AppButton>
 
-            <!-- 操作按钮组 -->
-            <div class="flex flex-wrap gap-2">
-              <button
-                class="px-3 py-1 text-xs rounded bg-amber-700 hover:bg-amber-600 text-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="operating || item.is_broken"
-                @click="openConfirm('refine', item.slot)"
-              >祭炼</button>
+          <AppButton size="xs" variant="default" :disabled="operating || item.durability >= item.max_durability" @click="openConfirm('repair', item.slot)">
+            修理
+          </AppButton>
 
-              <button
-                class="px-3 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="operating || item.durability >= item.max_durability"
-                @click="openConfirm('repair', item.slot)"
-              >修理</button>
+          <AppButton v-if="!item.is_benming" size="xs" variant="outline" :disabled="operating || item.is_broken" @click="openConfirm('benming', item.slot)">
+            炼制本命
+          </AppButton>
 
-              <button
-                v-if="!item.is_benming"
-                class="px-3 py-1 text-xs rounded bg-purple-700 hover:bg-purple-600 text-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="operating || item.is_broken"
-                @click="openConfirm('benming', item.slot)"
-              >炼制本命</button>
+          <AppButton v-else size="xs" variant="danger" :disabled="operating" @click="openConfirm('disperse', item.slot)">
+            散念
+          </AppButton>
 
-              <button
-                v-else
-                class="px-3 py-1 text-xs rounded bg-red-700 hover:bg-red-600 text-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="operating"
-                @click="openConfirm('disperse', item.slot)"
-              >散念</button>
+          <AppButton v-if="item.is_benming && !item.is_summoned" size="xs" variant="default" :disabled="operating || item.is_broken" @click="openConfirm('summon', item.slot)">
+            祭出
+          </AppButton>
 
-              <button
-                v-if="item.is_benming && !item.is_summoned"
-                class="px-3 py-1 text-xs rounded bg-cyan-700 hover:bg-cyan-600 text-cyan-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="operating || item.is_broken"
-                @click="openConfirm('summon', item.slot)"
-              >祭出</button>
+          <AppButton v-if="item.is_benming && item.is_summoned" size="xs" variant="default" :disabled="operating" @click="openConfirm('recall', item.slot)">
+            收回
+          </AppButton>
 
-              <button
-                v-if="item.is_benming && item.is_summoned"
-                class="px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="operating"
-                @click="openConfirm('recall', item.slot)"
-              >收回</button>
-
-              <!-- 调整排序：使用数字输入框 + 按钮 -->
-              <div class="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="0"
-                  max="99"
-                  class="w-12 px-1 py-1 text-xs rounded bg-gray-700 text-white border border-gray-600"
-                  v-model.number="(item as any)._newOrder"
-                  :placeholder="item.sort_order"
-                />
-                <button
-                  class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                  :disabled="operating"
-                  @click="openConfirm('order', item.slot, (item as any)._newOrder ?? item.sort_order)"
-                >排序</button>
-              </div>
-            </div>
+          <!-- 调整排序：使用数字输入框 + 按钮 -->
+          <div class="flex items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              max="99"
+              class="num w-12 px-1 py-1 text-xs rounded-control bg-surface-sunken text-fg-primary border border-line focus-ring"
+              v-model.number="(item as any)._newOrder"
+              :placeholder="item.sort_order"
+            />
+            <AppButton
+              size="xs"
+              variant="default"
+              :disabled="operating"
+              @click="openConfirm('order', item.slot, (item as any)._newOrder ?? item.sort_order)"
+            >排序</AppButton>
           </div>
         </div>
       </div>
-
-      <!-- 底部操作栏 -->
-      <div class="px-6 py-4 border-t border-gray-700 flex justify-between items-center">
-        <div class="text-sm text-gray-400">
-          共 {{ count }} 件装备{{ benmingList.length > 0 ? `，本命法器 ${benmingList.length} 件` : '' }}
-        </div>
-        <button
-          class="px-4 py-2 text-sm rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="operating || !hasRepairable"
-          @click="openConfirm('repairAll')"
-        >一键修理</button>
-      </div>
     </div>
 
-    <!-- 确认弹窗 -->
-    <Modal :show="confirmModal.show" :title="confirmTitle" @close="confirmModal.show = false">
-      <div class="text-gray-200">{{ confirmMessage }}</div>
-      <template #footer>
-        <button
-          class="px-4 py-2 text-sm rounded bg-gray-700 hover:bg-gray-600 text-white mr-2"
-          @click="confirmModal.show = false"
-        >取消</button>
-        <button
-          class="px-4 py-2 text-sm rounded bg-amber-700 hover:bg-amber-600 text-white"
-          @click="handleConfirm"
-        >确认</button>
-      </template>
-    </Modal>
-
-    <!-- 提示弹窗 -->
-    <Modal :show="toastModal.show" title="操作结果" @close="toastModal.show = false">
-      <div :class="toastModal.isSuccess ? 'text-green-300' : 'text-red-300'">
-        {{ toastModal.message }}
+    <!-- 底部操作栏 -->
+    <template #footer>
+      <div class="text-sm text-fg-muted">
+        共 <span class="num">{{ count }}</span> 件装备{{ benmingList.length > 0 ? `，本命法器 ${benmingList.length} 件` : '' }}
       </div>
-      <template #footer>
-        <button
-          class="px-4 py-2 text-sm rounded bg-amber-700 hover:bg-amber-600 text-white"
-          @click="toastModal.show = false"
-        >确定</button>
-      </template>
-    </Modal>
-  </div>
+      <AppButton
+        class="ms-auto"
+        variant="primary"
+        :disabled="operating || !hasRepairable"
+        @click="openConfirm('repairAll')"
+      >
+        一键修理
+      </AppButton>
+    </template>
+  </PanelShell>
+
+  <!-- 确认弹窗 -->
+  <Modal :is-open="confirmModal.show" :title="confirmTitle" @close="confirmModal.show = false">
+    <div class="text-fg-primary">{{ confirmMessage }}</div>
+    <template #footer>
+      <AppButton variant="default" @click="confirmModal.show = false">取消</AppButton>
+      <AppButton variant="primary" @click="handleConfirm">确认</AppButton>
+    </template>
+  </Modal>
+
+  <!-- 提示弹窗 -->
+  <Modal :is-open="toastModal.show" title="操作结果" @close="toastModal.show = false">
+    <div :class="toastModal.isSuccess ? 'text-state-success' : 'text-state-danger'">
+      {{ toastModal.message }}
+    </div>
+    <template #footer>
+      <AppButton variant="primary" @click="toastModal.show = false">确定</AppButton>
+    </template>
+  </Modal>
 </template>

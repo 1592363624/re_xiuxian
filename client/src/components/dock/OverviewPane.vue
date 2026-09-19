@@ -11,25 +11,25 @@
     </div>
 
     <!-- 状态卡：闭关 / 悟道 / 历练进度条由 GameLayout 通过 slot 注入 -->
-    <section v-if="hasStatus" class="rounded-lg border border-stone-800 bg-[#1a1715] overflow-hidden">
-      <h3 class="px-3 py-1.5 text-[11px] text-stone-500 tracking-[0.2em] border-b border-stone-800/70 font-serif">当前状态</h3>
+    <section v-if="hasStatus" class="rounded-lg border border-line-subtle bg-surface-raised overflow-hidden">
+      <h3 class="px-3 py-1.5 text-[11px] text-fg-faint tracking-[0.2em] border-b border-line-subtle/70 font-display">当前状态</h3>
       <slot name="status" />
     </section>
 
     <!-- 地图卡：常驻当前位置与相邻快传，不必再开合全屏地图面板 -->
-    <section class="rounded-lg border border-stone-800 bg-[#1a1715] overflow-hidden">
-      <div class="flex items-center justify-between px-3 py-1.5 border-b border-stone-800/70">
-        <h3 class="text-[11px] text-stone-500 tracking-[0.2em] font-serif">所在区域</h3>
+    <section class="rounded-lg border border-line-subtle bg-surface-raised overflow-hidden">
+      <div class="flex items-center justify-between px-3 py-1.5 border-b border-line-subtle/70">
+        <h3 class="text-[11px] text-fg-faint tracking-[0.2em] font-display">所在区域</h3>
         <button
           @click="$emit('action', 'map')"
-          class="text-[11px] text-stone-500 hover:text-amber-500 transition-colors"
+          class="text-[11px] text-fg-faint hover:text-gold-500 transition-colors"
         >查看全图 ›</button>
       </div>
 
       <div class="p-3">
         <div class="flex items-baseline gap-2 mb-2.5">
           <span class="text-base font-bold text-emerald-400 tracking-wider">{{ currentMapName }}</span>
-          <span v-if="mapLoading" class="text-[11px] text-stone-600">载入中…</span>
+          <span v-if="mapLoading" class="text-[11px] text-line-strong">载入中…</span>
         </div>
 
         <div v-if="connectedMaps.length" class="grid grid-cols-2 gap-1.5">
@@ -38,36 +38,36 @@
             :key="map.id"
             @click="handleMove(map)"
             :disabled="moving"
-            class="group flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-stone-800 bg-[#141210]
-                   text-left transition-colors hover:border-stone-600 hover:bg-[#1f1b18] disabled:opacity-40"
+            class="group flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-line-subtle bg-surface-base
+                   text-left transition-colors hover:border-line-strong hover:bg-surface-hover disabled:opacity-40"
           >
             <span class="min-w-0">
-              <span class="block text-[12px] text-stone-300 group-hover:text-amber-500 truncate transition-colors">{{ map.name }}</span>
-              <span class="block text-[10px] text-stone-600">{{ formatCost(map.move_cost) }}</span>
+              <span class="block text-[12px] text-fg-secondary group-hover:text-gold-500 truncate transition-colors">{{ map.name }}</span>
+              <span class="block text-[10px] text-line-strong">{{ formatCost(map.move_cost) }}</span>
             </span>
             <span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded" :class="safetyClass(map)">{{ safetyLabel(map) }}</span>
           </button>
         </div>
-        <div v-else-if="!mapLoading" class="text-[11px] text-stone-600 py-1">此处暂无可直达的相邻区域。</div>
+        <div v-else-if="!mapLoading" class="text-[11px] text-line-strong py-1">此处暂无可直达的相邻区域。</div>
       </div>
     </section>
 
     <!-- 快捷入口：高频 12 项，卡片带名称与说明 -->
-    <section class="rounded-lg border border-stone-800 bg-[#1a1715] overflow-hidden">
-      <h3 class="px-3 py-1.5 text-[11px] text-stone-500 tracking-[0.2em] border-b border-stone-800/70 font-serif">快捷入口</h3>
+    <section class="rounded-lg border border-line-subtle bg-surface-raised overflow-hidden">
+      <h3 class="px-3 py-1.5 text-[11px] text-fg-faint tracking-[0.2em] border-b border-line-subtle/70 font-display">快捷入口</h3>
       <div class="grid grid-cols-3 lg:grid-cols-4 gap-1.5 p-2.5">
         <button
           v-for="entry in quickEntries"
           :key="entry.id"
           @click="$emit('action', entry.id)"
-          class="group flex items-center gap-2 px-2.5 py-2 rounded border border-stone-800 bg-[#141210]
-                 transition-colors hover:border-stone-600 hover:bg-[#1f1b18]"
+          class="group flex items-center gap-2 px-2.5 py-2 rounded border border-line-subtle bg-surface-base
+                 transition-colors hover:border-line-strong hover:bg-surface-hover"
           :title="entry.desc"
         >
           <span class="shrink-0 transition-transform duration-200 group-hover:scale-110" v-html="entry.icon"></span>
           <span class="min-w-0 text-left">
-            <span class="block text-[12px] text-stone-300 group-hover:text-amber-500 tracking-wide transition-colors truncate">{{ entry.name }}</span>
-            <span class="block text-[10px] text-stone-600 truncate">{{ entry.desc }}</span>
+            <span class="block text-[12px] text-fg-secondary group-hover:text-gold-500 tracking-wide transition-colors truncate">{{ entry.name }}</span>
+            <span class="block text-[10px] text-line-strong truncate">{{ entry.desc }}</span>
           </span>
         </button>
       </div>
@@ -144,7 +144,7 @@ const formatCost = (cost) => {
 
 const safetyStyle = (map) => getSafetyStyle(map.safety_level, safetyLevelNameMap.value)
 const safetyLabel = (map) => safetyStyle(map).name ?? '未知'
-const safetyClass = (map) => safetyStyle(map).class ?? 'text-stone-400'
+const safetyClass = (map) => safetyStyle(map).class ?? 'text-fg-muted'
 
 const handleMove = async (targetMap) => {
   if (moving.value) return
@@ -168,7 +168,7 @@ const handleMove = async (targetMap) => {
     await fetchMap()
   } catch (error) {
     console.error('[OverviewPane] 赶路失败:', error)
-    uiStore.showToast(error.response?.data?.message || '赶路失败', 'error')
+    uiStore.showApiError(error, '赶路失败')
   } finally {
     moving.value = false
   }

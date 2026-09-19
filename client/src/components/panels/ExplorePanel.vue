@@ -1,189 +1,160 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
-
-    <div class="relative bg-[#1c1917] border border-stone-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl animate-fade-in max-h-[85vh] flex flex-col panel-body">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-bold text-emerald-400 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2 2.5 9.5l1 10.5L12 22l8.5-2L22 10l-10-7.5z"/>
-          </svg>
-          历练探索
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
+  <PanelShell title="历练探索" hint="按时长结算 · 提前结束有惩罚" size="md" @close="$emit('close')">
+    <div class="space-y-4">
+      <!-- 当前地图信息 -->
+      <div v-if="currentMap" class="bg-surface-hover rounded-panel p-4 border border-line">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="text-emerald-400">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+          </div>
+          <span class="font-bold text-fg-primary">{{ currentMap.name }}</span>
+          <span class="text-xs text-fg-faint bg-surface-raised px-2 py-0.5 rounded">{{ currentMap.environment }}</span>
+        </div>
+        <p class="text-sm text-fg-muted">{{ currentMap.description }}</p>
       </div>
 
-      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-        <!-- 当前地图信息 -->
-        <div v-if="currentMap" class="bg-[#292524] rounded-lg p-4 border border-stone-700">
-          <div class="flex items-center gap-3 mb-2">
-            <div class="text-emerald-400">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-            </div>
-            <span class="font-bold text-stone-200">{{ currentMap.name }}</span>
-            <span class="text-xs text-stone-500 bg-[#1c1917] px-2 py-0.5 rounded">{{ currentMap.environment }}</span>
-          </div>
-          <p class="text-sm text-stone-400">{{ currentMap.description }}</p>
+      <!-- 环境信息 -->
+      <div class="flex gap-2 text-sm text-fg-muted">
+        <span class="bg-surface-hover px-3 py-1.5 rounded border border-line flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
+          {{ timeOfDay }}
+        </span>
+        <span class="bg-surface-hover px-3 py-1.5 rounded border border-line flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+          {{ weather }}
+        </span>
+      </div>
+
+      <!-- 历练时长选择（未历练时显示） -->
+      <div v-if="!isExploring" class="space-y-3">
+        <div class="text-sm text-fg-muted mb-2">
+          <span class="text-emerald-400 font-bold">选择历练时长</span>
+          <span class="text-fg-faint text-xs ml-2">时长越长奖励越高，但受伤风险也越大</span>
         </div>
-
-        <!-- 环境信息 -->
-        <div class="flex gap-2 text-sm text-stone-400">
-          <span class="bg-[#292524] px-3 py-1.5 rounded border border-stone-700 flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
-            {{ timeOfDay }}
-          </span>
-          <span class="bg-[#292524] px-3 py-1.5 rounded border border-stone-700 flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-            {{ weather }}
-          </span>
-        </div>
-
-        <!-- 历练时长选择（未历练时显示） -->
-        <div v-if="!isExploring" class="space-y-3">
-          <div class="text-sm text-stone-400 mb-2">
-            <span class="text-emerald-400 font-bold">选择历练时长</span>
-            <span class="text-stone-500 text-xs ml-2">时长越长奖励越高，但受伤风险也越大</span>
-          </div>
-          <!-- 时长类型选择卡片（v-for 渲染，配置来自后端 /api/config/game-balance/public） -->
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="item in durationTypeList"
-              :key="item.key"
-              @click="selectDurationType(item.key)"
-              class="text-left bg-[#292524] border rounded-lg p-3 transition-all duration-300 relative"
-              :class="selectedDurationType === item.key
-                ? `${item.activeBorder} ring-1 ${item.activeRing}`
-                : 'border-stone-700 hover:' + item.hoverBorder"
-            >
-              <!-- 推荐标识（仅默认时长类型显示） -->
-              <div v-if="item.isDefault" class="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 text-[9px] tracking-wider">推荐</div>
-              <div class="text-sm font-bold mb-1" :class="item.titleColor">{{ item.config.label }}</div>
-              <div class="text-xs text-stone-400 mb-2">{{ formatDurationLabel(item.config.duration) }}</div>
-              <div class="space-y-0.5">
-                <div class="text-[10px] text-stone-500 flex justify-between">
-                  <span>奖励</span><span :class="item.titleColor">×{{ item.config.reward_multiplier }}</span>
-                </div>
-                <div class="text-[10px] text-stone-500 flex justify-between">
-                  <span>受伤</span><span :class="item.titleColor">{{ formatPercent(item.config.injury_chance) }}</span>
-                </div>
-              </div>
-            </button>
-          </div>
-
-          <!-- 风险提示 -->
-          <div class="bg-[#292524] rounded-lg p-3 border border-stone-700 text-xs text-stone-400 space-y-1.5">
-            <div class="flex items-start gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-              <div>
-                <span class="text-amber-400 font-bold">提前结束惩罚：</span>
-                按已时长比例结算，并扣除 {{ earlyFinishPenaltyPercent }} 收益，<span class="text-rose-400">不设保底</span>。
-              </div>
-            </div>
-            <div class="flex items-start gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-rose-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-              <div>
-                <span class="text-rose-400 font-bold">受伤风险：</span>
-                历练结束时按概率受伤，损失当前气血的一定比例。时长越长风险越高。
-              </div>
-            </div>
-          </div>
-
-          <!-- 开始历练按钮 -->
+        <!-- 时长类型选择卡片（v-for 渲染，配置来自后端 /api/config/game-balance/public） -->
+        <div class="grid grid-cols-3 gap-2">
           <button
-            @click="startExploreAction"
-            :disabled="isLoading"
-            class="w-full py-4 px-6 bg-gradient-to-r from-emerald-900/80 to-[#064e3b] hover:from-emerald-800/80 hover:to-[#047857] border border-emerald-700 hover:border-emerald-500 text-emerald-400 hover:text-emerald-300 rounded-lg transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
+            v-for="item in durationTypeList"
+            :key="item.key"
+            @click="selectDurationType(item.key)"
+            class="text-left bg-surface-hover border rounded-panel p-3 transition-all duration-300 relative"
+            :class="selectedDurationType === item.key
+              ? `${item.activeBorder} ring-1 ${item.activeRing}`
+              : 'border-line hover:' + item.hoverBorder"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
-              <path d="M12 2 2.5 9.5l1 10.5L12 22l8.5-2L22 10l-10-7.5z"/>
+            <!-- 推荐标识（仅默认时长类型显示） -->
+            <Badge v-if="item.isDefault" tone="gold" class="absolute -top-2 left-1/2 -translate-x-1/2">推荐</Badge>
+            <div class="text-sm font-bold mb-1" :class="item.titleColor">{{ item.config.label }}</div>
+            <div class="text-xs text-fg-muted mb-2">{{ formatDurationLabel(item.config.duration) }}</div>
+            <div class="space-y-0.5">
+              <div class="text-[10px] text-fg-faint flex justify-between">
+                <span>奖励</span><span :class="item.titleColor">×{{ item.config.reward_multiplier }}</span>
+              </div>
+              <div class="text-[10px] text-fg-faint flex justify-between">
+                <span>受伤</span><span :class="item.titleColor">{{ formatPercent(item.config.injury_chance) }}</span>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <!-- 风险提示 -->
+        <div class="bg-surface-hover rounded-panel p-3 border border-line text-xs text-fg-muted space-y-1.5">
+          <div class="flex items-start gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
-            <span class="font-bold text-lg">开始{{ durationTypeLabel }}</span>
-          </button>
-          <p class="text-xs text-stone-500 text-center">历练过程中会遭遇各种随机事件，可能获得修为、物品或触发战斗</p>
+            <div>
+              <span class="text-amber-400 font-bold">提前结束惩罚：</span>
+              按已时长比例结算，并扣除 {{ earlyFinishPenaltyPercent }} 收益，<span class="text-rose-400">不设保底</span>。
+            </div>
+          </div>
+          <div class="flex items-start gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-rose-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div>
+              <span class="text-rose-400 font-bold">受伤风险：</span>
+              历练结束时按概率受伤，损失当前气血的一定比例。时长越长风险越高。
+            </div>
+          </div>
         </div>
 
-        <!-- 历练中状态 -->
-        <div v-else class="bg-[#292524] rounded-lg p-6 border border-stone-700 text-center space-y-4">
-          <div class="flex justify-center">
-            <div class="animate-spin text-emerald-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-              </svg>
-            </div>
+        <!-- 开始历练按钮 -->
+        <button
+          @click="startExploreAction"
+          :disabled="isLoading"
+          class="w-full py-4 px-6 bg-gradient-to-r from-emerald-900/80 to-emerald-900 hover:from-emerald-800/80 hover:to-emerald-700 border border-emerald-700 hover:border-emerald-500 text-emerald-400 hover:text-emerald-300 rounded-control transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
+            <path d="M12 2 2.5 9.5l1 10.5L12 22l8.5-2L22 10l-10-7.5z"/>
+          </svg>
+          <span class="font-bold text-lg">开始{{ durationTypeLabel }}</span>
+        </button>
+        <p class="text-xs text-fg-faint text-center">历练过程中会遭遇各种随机事件，可能获得修为、物品或触发战斗</p>
+      </div>
+
+      <!-- 历练中状态 -->
+      <div v-else class="bg-surface-hover rounded-panel p-6 border border-line text-center space-y-4">
+        <div class="flex justify-center">
+          <div class="animate-spin text-emerald-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
           </div>
-
-          <div v-if="currentEvent" class="space-y-3">
-            <span class="text-xs text-stone-500 uppercase tracking-wider">历练事件</span>
-            <h3 class="text-lg font-bold text-amber-400">{{ currentEvent.title }}</h3>
-            <p class="text-stone-300 text-sm leading-relaxed">{{ currentEvent.description }}</p>
-
-            <!-- 历练进度 -->
-            <div v-if="currentEvent.duration > 0" class="bg-[#1c1917] rounded p-2 border border-stone-700">
-              <div class="flex justify-between text-xs text-stone-500 mb-1">
-                <span>历练进度</span>
-                <span>{{ exploreProgressText }}</span>
-              </div>
-              <div class="h-1.5 bg-stone-800 rounded-full overflow-hidden">
-                <div
-                  class="h-full bg-gradient-to-r from-emerald-700 to-emerald-400 transition-all duration-1000"
-                  :style="{ width: `${exploreProgressPercent}%` }"
-                ></div>
-              </div>
-            </div>
-
-            <div v-if="currentEvent.type === 'combat'" class="mt-4">
-              <button
-                @click="enterCombatAction"
-                class="w-full py-3 bg-gradient-to-r from-rose-900/80 to-[#881337] hover:from-rose-800/80 hover:to-[#9f1239] border border-rose-700 text-rose-400 rounded-lg transition-all font-bold"
-              >
-                进入战斗
-              </button>
-            </div>
-
-            <div v-if="currentEvent.rewards && currentEvent.rewards.exp" class="text-sm text-emerald-400">
-              预计获得: {{ formatNumber(estimatedExp) }} 修为
-              <span v-if="realmMultiplier > 1.0" class="text-xs text-stone-500 ml-1">
-                (基础{{ formatNumber(currentEvent.rewards.exp) }} × 境界{{ realmMultiplier.toFixed(1) }}x)
-              </span>
-            </div>
-          </div>
-
-          <button
-            @click="completeExploreAction"
-            class="py-2 px-4 bg-[#44403c] hover:bg-[#57534e] border border-stone-600 text-stone-300 rounded-lg transition-colors"
-          >
-            结束历练
-          </button>
         </div>
 
-        <!-- AI 状态 -->
-        <div v-if="aiStatus" class="bg-[#292524] rounded-lg p-3 border border-stone-700">
-          <div class="flex items-center gap-2 text-sm">
-            <div :class="aiStatus.available ? 'text-emerald-400' : 'text-amber-400'">
-              <svg v-if="aiStatus.available" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            </div>
-            <span class="text-stone-400">
-              AI 生成: {{ aiStatus.available ? '已启用' : '使用模板' }}
-            </span>
-            <span v-if="aiStatus.provider" class="text-stone-500 text-xs">
-              ({{ aiStatus.provider }})
+        <div v-if="currentEvent" class="space-y-3">
+          <span class="text-xs text-fg-faint uppercase tracking-wider">历练事件</span>
+          <h3 class="text-lg font-bold text-amber-400">{{ currentEvent.title }}</h3>
+          <p class="text-fg-secondary text-sm leading-relaxed">{{ currentEvent.description }}</p>
+
+          <!-- 历练进度 -->
+          <div v-if="currentEvent.duration > 0" class="bg-surface-raised rounded-control p-2.5 border border-line">
+            <StatBar
+              :value="exploreProgressPercent"
+              :max="100"
+              label="历练进度"
+              :text="exploreProgressText"
+              tone="jade"
+            />
+          </div>
+
+          <div v-if="currentEvent.type === 'combat'" class="mt-4">
+            <AppButton variant="danger" block @click="enterCombatAction">进入战斗</AppButton>
+          </div>
+
+          <div v-if="currentEvent.rewards && currentEvent.rewards.exp" class="text-sm text-emerald-400">
+            预计获得: {{ formatNumber(estimatedExp) }} 修为
+            <span v-if="realmMultiplier > 1.0" class="text-xs text-fg-faint ml-1">
+              (基础{{ formatNumber(currentEvent.rewards.exp) }} × 境界{{ realmMultiplier.toFixed(1) }}x)
             </span>
           </div>
+        </div>
+
+        <AppButton @click="completeExploreAction">结束历练</AppButton>
+      </div>
+
+      <!-- AI 状态 -->
+      <div v-if="aiStatus" class="bg-surface-hover rounded-panel p-3 border border-line">
+        <div class="flex items-center gap-2 text-sm">
+          <div :class="aiStatus.available ? 'text-emerald-400' : 'text-amber-400'">
+            <svg v-if="aiStatus.available" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <span class="text-fg-muted">
+            AI 生成: {{ aiStatus.available ? '已启用' : '使用模板' }}
+          </span>
+          <span v-if="aiStatus.provider" class="text-fg-faint text-xs">
+            ({{ aiStatus.provider }})
+          </span>
         </div>
       </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup lang="ts">
@@ -211,6 +182,10 @@ import { getMapInfo } from '../../api/map'
 import { getGameBalancePublic, type AdventureConfig, type DurationTypeConfig } from '../../api/config'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import PanelShell from '../ui/PanelShell.vue'
+import AppButton from '../ui/AppButton.vue'
+import StatBar from '../ui/StatBar.vue'
+import Badge from '../ui/Badge.vue'
 // 修复 B27：奖励数值未走 formatNumber，大数显示为科学计数法或精度丢失
 import { formatNumber } from '../../utils/format'
 

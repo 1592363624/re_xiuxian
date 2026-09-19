@@ -17,6 +17,7 @@
  */
 import { ref, reactive, computed, onMounted } from 'vue'
 import Modal from '../../common/Modal.vue'
+import AppButton from '../../ui/AppButton.vue'
 import {
   getEquipmentList,
   getPlayerEquipment,
@@ -257,28 +258,28 @@ onMounted(() => {
   <div class="space-y-6">
     <!-- 标题与操作按钮 -->
     <div class="flex justify-between items-center">
-      <h3 class="text-lg font-bold text-white">装备管理</h3>
-      <button @click="fetchList(searchParams.page)" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新</button>
+      <h3 class="text-lg font-bold text-fg-primary">装备管理</h3>
+      <AppButton variant="primary" size="sm" @click="fetchList(searchParams.page)">刷新</AppButton>
     </div>
 
     <!-- 搜索区域 -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div class="bg-surface-base/50 rounded-panel border border-line p-4">
       <div class="flex flex-wrap items-center gap-3">
         <div class="flex items-center gap-2">
-          <label class="text-sm text-gray-400 whitespace-nowrap">玩家ID/昵称：</label>
+          <label class="text-sm text-fg-muted whitespace-nowrap">玩家ID/昵称：</label>
           <input
             v-model="searchParams.keyword"
             type="text"
-            class="w-40 px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+            class="w-40 px-3 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600"
             placeholder="ID 或 昵称"
             @keyup.enter="handleSearch"
           >
         </div>
         <div class="flex items-center gap-2">
-          <label class="text-sm text-gray-400 whitespace-nowrap">槽位：</label>
+          <label class="text-sm text-fg-muted whitespace-nowrap">槽位：</label>
           <select
             v-model="searchParams.slot"
-            class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+            class="px-3 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600"
           >
             <option value="">全部</option>
             <option value="weapon">武器</option>
@@ -289,26 +290,26 @@ onMounted(() => {
           </select>
         </div>
         <div class="flex items-center gap-2">
-          <label class="text-sm text-gray-400 whitespace-nowrap">本命：</label>
+          <label class="text-sm text-fg-muted whitespace-nowrap">本命：</label>
           <select
             v-model="searchParams.is_benming"
-            class="px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+            class="px-3 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600"
           >
             <option :value="undefined">全部</option>
             <option :value="true">是</option>
             <option :value="false">否</option>
           </select>
         </div>
-        <button @click="handleSearch" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">查询</button>
-        <button @click="resetSearch" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">重置</button>
+        <AppButton variant="primary" size="sm" @click="handleSearch">查询</AppButton>
+        <AppButton variant="default" size="sm" @click="resetSearch">重置</AppButton>
       </div>
     </div>
 
     <!-- 装备列表表格 -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+    <div class="bg-surface-base/50 rounded-panel border border-line overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="bg-gray-900 text-gray-400">
+          <thead class="bg-surface-raised text-fg-muted">
             <tr>
               <th class="px-3 py-2 text-left whitespace-nowrap">记录ID</th>
               <th class="px-3 py-2 text-left whitespace-nowrap">玩家ID</th>
@@ -326,33 +327,33 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="12" class="px-3 py-6 text-center text-gray-400">加载中...</td>
+              <td colspan="12" class="px-3 py-6 text-center text-fg-muted">加载中...</td>
             </tr>
             <tr v-else-if="list.length === 0">
-              <td colspan="12" class="px-3 py-6 text-center text-gray-400">暂无数据</td>
+              <td colspan="12" class="px-3 py-6 text-center text-fg-muted">暂无数据</td>
             </tr>
-            <tr v-for="item in list" :key="item.id" class="border-t border-gray-700 hover:bg-gray-700/50">
-              <td class="px-3 py-2 text-gray-300">{{ item.id }}</td>
-              <td class="px-3 py-2 text-blue-300 cursor-pointer hover:underline" @click="viewDetail(item)">{{ item.player_id }}</td>
-              <td class="px-3 py-2 text-gray-300">{{ item.slot }}</td>
-              <td class="px-3 py-2 text-gray-300">{{ item.item_key }}</td>
-              <td class="px-3 py-2" :class="item.durability <= 0 ? 'text-red-400' : 'text-gray-300'">{{ item.durability }}</td>
-              <td class="px-3 py-2 text-gray-300">{{ item.max_durability }}</td>
-              <td class="px-3 py-2 text-amber-300">+{{ item.refine_level }}</td>
+            <tr v-for="item in list" :key="item.id" class="border-t border-line-subtle hover:bg-surface-hover">
+              <td class="px-3 py-2 text-fg-secondary num">{{ item.id }}</td>
+              <td class="px-3 py-2 text-blue-300 cursor-pointer hover:underline num" @click="viewDetail(item)">{{ item.player_id }}</td>
+              <td class="px-3 py-2 text-fg-secondary">{{ item.slot }}</td>
+              <td class="px-3 py-2 text-fg-secondary">{{ item.item_key }}</td>
+              <td class="px-3 py-2 num" :class="item.durability <= 0 ? 'text-red-400' : 'text-fg-secondary'">{{ item.durability }}</td>
+              <td class="px-3 py-2 text-fg-secondary num">{{ item.max_durability }}</td>
+              <td class="px-3 py-2 text-amber-300 num">+{{ item.refine_level }}</td>
               <td class="px-3 py-2">
-                <span v-if="item.is_benming" class="text-amber-300">是 #{{ item.benming_slot }}</span>
-                <span v-else class="text-gray-500">否</span>
+                <span v-if="item.is_benming" class="text-amber-300 num">是 #{{ item.benming_slot }}</span>
+                <span v-else class="text-fg-faint">否</span>
               </td>
-              <td class="px-3 py-2 text-gray-300">{{ item.spirit_power }}</td>
+              <td class="px-3 py-2 text-fg-secondary num">{{ item.spirit_power }}</td>
               <td class="px-3 py-2">
                 <span v-if="item.is_summoned" class="text-cyan-300">已祭出</span>
-                <span v-else class="text-gray-500">-</span>
+                <span v-else class="text-fg-faint">-</span>
               </td>
-              <td class="px-3 py-2 text-gray-400 text-xs whitespace-nowrap">{{ formatTime(item.equipped_at) }}</td>
+              <td class="px-3 py-2 text-fg-muted text-xs whitespace-nowrap num">{{ formatTime(item.equipped_at) }}</td>
               <td class="px-3 py-2 text-center whitespace-nowrap">
-                <button @click="openEdit(item)" class="px-2 py-1 bg-amber-700 hover:bg-amber-600 rounded text-white text-xs mr-1">编辑</button>
-                <button @click="openConfirm('reset', item)" class="px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-white text-xs mr-1">重置</button>
-                <button @click="openConfirm('delete', item)" class="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-white text-xs">删除</button>
+                <AppButton variant="outline" size="xs" class="mr-1" @click="openEdit(item)">编辑</AppButton>
+                <AppButton variant="danger" size="xs" class="mr-1" @click="openConfirm('reset', item)">重置</AppButton>
+                <AppButton variant="danger" size="xs" @click="openConfirm('delete', item)">删除</AppButton>
               </td>
             </tr>
           </tbody>
@@ -360,42 +361,45 @@ onMounted(() => {
       </div>
 
       <!-- 分页 -->
-      <div class="px-4 py-3 border-t border-gray-700 flex justify-between items-center text-sm">
-        <span class="text-gray-400">共 {{ total }} 条</span>
+      <div class="px-4 py-3 border-t border-line-subtle flex justify-between items-center text-sm">
+        <span class="text-fg-muted num">共 {{ total }} 条</span>
         <div class="flex gap-2">
-          <button
+          <AppButton
+            size="sm"
+            variant="default"
             @click="fetchList(searchParams.page! - 1)"
             :disabled="searchParams.page! <= 1"
-            class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-50"
-          >上一页</button>
-          <span class="text-gray-400">{{ searchParams.page }} / {{ totalPages }}</span>
-          <button
+          >上一页</AppButton>
+          <span class="text-fg-muted num">{{ searchParams.page }} / {{ totalPages }}</span>
+          <AppButton
+            size="sm"
+            variant="default"
             @click="fetchList(searchParams.page! + 1)"
             :disabled="searchParams.page! >= totalPages"
-            class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white disabled:opacity-50"
-          >下一页</button>
+          >下一页</AppButton>
         </div>
       </div>
     </div>
 
     <!-- 详情弹窗 -->
-    <Modal :show="detailModal.show" :title="`玩家装备详情 - ${detailModal.playerName}`" @close="detailModal.show = false">
-      <div v-if="!detailData" class="text-gray-400 py-4">加载中...</div>
+    <Modal :is-open="detailModal.show" :title="`玩家装备详情 - ${detailModal.playerName}`" @close="detailModal.show = false">
+      <div v-if="!detailData" class="text-fg-muted py-4">加载中...</div>
       <div v-else class="space-y-3">
-        <div class="flex justify-between items-center bg-gray-800 p-3 rounded">
+        <div class="flex justify-between items-center bg-surface-sunken p-3 rounded-control">
           <div>
-            <div class="text-white">{{ detailData.player.nickname }} (#{{ detailData.player.id }})</div>
-            <div class="text-xs text-gray-400">境界：{{ detailData.player.realm }} | 灵石：{{ detailData.player.spirit_stones }}</div>
+            <div class="text-fg-primary">{{ detailData.player.nickname }} (#{{ detailData.player.id }})</div>
+            <div class="text-xs text-fg-muted num">境界：{{ detailData.player.realm }} | 灵石：{{ detailData.player.spirit_stones }}</div>
           </div>
-          <button
+          <AppButton
+            variant="primary"
+            size="sm"
             @click="openConfirm('repairAll', null, detailData.player.id)"
-            class="px-3 py-1 bg-blue-700 hover:bg-blue-600 rounded text-white text-sm"
-          >GM 一键修理</button>
+          >GM 一键修理</AppButton>
         </div>
-        <div class="text-gray-300 text-sm">装备数量：{{ detailData.count }}</div>
-        <div class="max-h-80 overflow-y-auto">
+        <div class="text-fg-secondary text-sm num">装备数量：{{ detailData.count }}</div>
+        <div class="max-h-80 overflow-y-auto scroll-thin">
           <table class="w-full text-xs">
-            <thead class="bg-gray-900 text-gray-400 sticky top-0">
+            <thead class="bg-surface-raised text-fg-muted sticky top-0">
               <tr>
                 <th class="px-2 py-1 text-left">槽位</th>
                 <th class="px-2 py-1 text-left">物品</th>
@@ -406,17 +410,17 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="eq in detailData.equipments" :key="eq.id" class="border-t border-gray-700">
-                <td class="px-2 py-1 text-gray-300">{{ eq.slot }}</td>
-                <td class="px-2 py-1 text-gray-300">{{ eq.item_key }}</td>
-                <td class="px-2 py-1 text-gray-300">{{ eq.durability }}/{{ eq.max_durability }}</td>
-                <td class="px-2 py-1 text-amber-300">+{{ eq.refine_level }}</td>
+              <tr v-for="eq in detailData.equipments" :key="eq.id" class="border-t border-line-subtle hover:bg-surface-hover">
+                <td class="px-2 py-1 text-fg-secondary">{{ eq.slot }}</td>
+                <td class="px-2 py-1 text-fg-secondary">{{ eq.item_key }}</td>
+                <td class="px-2 py-1 text-fg-secondary num">{{ eq.durability }}/{{ eq.max_durability }}</td>
+                <td class="px-2 py-1 text-amber-300 num">+{{ eq.refine_level }}</td>
                 <td class="px-2 py-1">
-                  <span v-if="eq.is_benming" class="text-amber-300">#{{ eq.benming_slot }}</span>
-                  <span v-else class="text-gray-500">-</span>
+                  <span v-if="eq.is_benming" class="text-amber-300 num">#{{ eq.benming_slot }}</span>
+                  <span v-else class="text-fg-faint">-</span>
                 </td>
                 <td class="px-2 py-1 text-center">
-                  <button @click="openEdit(eq)" class="px-2 py-0.5 bg-amber-700 hover:bg-amber-600 rounded text-white">编辑</button>
+                  <AppButton variant="outline" size="xs" @click="openEdit(eq)">编辑</AppButton>
                 </td>
               </tr>
             </tbody>
@@ -424,43 +428,43 @@ onMounted(() => {
         </div>
       </div>
       <template #footer>
-        <button @click="detailModal.show = false" class="px-4 py-2 text-sm rounded bg-gray-700 hover:bg-gray-600 text-white">关闭</button>
+        <AppButton variant="default" @click="detailModal.show = false">关闭</AppButton>
       </template>
     </Modal>
 
     <!-- 编辑弹窗 -->
-    <Modal :show="editModal.show" title="编辑装备记录" @close="editModal.show = false">
+    <Modal :is-open="editModal.show" title="编辑装备记录" @close="editModal.show = false">
       <div v-if="editModal.record" class="space-y-3">
-        <div class="text-sm text-gray-400">
+        <div class="text-sm text-fg-muted">
           记录 #{{ editModal.record.id }} | 玩家 #{{ editModal.record.player_id }} | {{ editModal.record.slot }} - {{ editModal.record.item_key }}
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="text-sm text-gray-400">耐久度 (0~999)</label>
-            <input v-model.number="editForm.durability" type="number" min="0" max="999" class="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm" />
+            <label class="text-sm text-fg-muted">耐久度 (0~999)</label>
+            <input v-model.number="editForm.durability" type="number" min="0" max="999" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600" />
           </div>
           <div>
-            <label class="text-sm text-gray-400">最大耐久 (1~999)</label>
-            <input v-model.number="editForm.max_durability" type="number" min="1" max="999" class="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm" />
+            <label class="text-sm text-fg-muted">最大耐久 (1~999)</label>
+            <input v-model.number="editForm.max_durability" type="number" min="1" max="999" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600" />
           </div>
           <div>
-            <label class="text-sm text-gray-400">祭炼等级 (0~15)</label>
-            <input v-model.number="editForm.refine_level" type="number" min="0" max="15" class="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm" />
+            <label class="text-sm text-fg-muted">祭炼等级 (0~15)</label>
+            <input v-model.number="editForm.refine_level" type="number" min="0" max="15" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600" />
           </div>
           <div>
-            <label class="text-sm text-gray-400">排序 (0~99)</label>
-            <input v-model.number="editForm.sort_order" type="number" min="0" max="99" class="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm" />
+            <label class="text-sm text-fg-muted">排序 (0~99)</label>
+            <input v-model.number="editForm.sort_order" type="number" min="0" max="99" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600" />
           </div>
           <div>
-            <label class="text-sm text-gray-400">法力值 (0~9999)</label>
-            <input v-model.number="editForm.spirit_power" type="number" min="0" max="9999" class="w-full px-2 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm" />
+            <label class="text-sm text-fg-muted">法力值 (0~9999)</label>
+            <input v-model.number="editForm.spirit_power" type="number" min="0" max="9999" class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600" />
           </div>
           <div class="flex items-center gap-4">
-            <label class="flex items-center gap-2 text-sm text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-fg-secondary">
               <input v-model="editForm.is_benming" type="checkbox" class="form-checkbox" />
               本命法器
             </label>
-            <label class="flex items-center gap-2 text-sm text-gray-300">
+            <label class="flex items-center gap-2 text-sm text-fg-secondary">
               <input v-model="editForm.is_summoned" type="checkbox" class="form-checkbox" />
               已祭出
             </label>
@@ -468,14 +472,14 @@ onMounted(() => {
         </div>
       </div>
       <template #footer>
-        <button @click="editModal.show = false" class="px-4 py-2 text-sm rounded bg-gray-700 hover:bg-gray-600 text-white mr-2">取消</button>
-        <button @click="submitEdit" :disabled="operating" class="px-4 py-2 text-sm rounded bg-amber-700 hover:bg-amber-600 text-white disabled:opacity-50">保存</button>
+        <AppButton variant="default" class="mr-2" @click="editModal.show = false">取消</AppButton>
+        <AppButton variant="primary" :disabled="operating" @click="submitEdit">保存</AppButton>
       </template>
     </Modal>
 
     <!-- 确认弹窗 -->
-    <Modal :show="confirmModal.show" title="操作确认" @close="confirmModal.show = false">
-      <div class="text-gray-200">
+    <Modal :is-open="confirmModal.show" title="操作确认" @close="confirmModal.show = false">
+      <div class="text-fg-primary">
         <template v-if="confirmModal.action === 'reset' && confirmModal.record">
           确认重置装备记录 #{{ confirmModal.record.id }}？将恢复初始耐久、祭炼等级清零、取消本命。
         </template>
@@ -487,16 +491,16 @@ onMounted(() => {
         </template>
       </div>
       <template #footer>
-        <button @click="confirmModal.show = false" class="px-4 py-2 text-sm rounded bg-gray-700 hover:bg-gray-600 text-white mr-2">取消</button>
-        <button @click="handleConfirm" :disabled="operating" class="px-4 py-2 text-sm rounded bg-red-700 hover:bg-red-600 text-white disabled:opacity-50">确认</button>
+        <AppButton variant="default" class="mr-2" @click="confirmModal.show = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="operating" @click="handleConfirm">确认</AppButton>
       </template>
     </Modal>
 
     <!-- 提示弹窗 -->
-    <Modal :show="toastModal.show" title="操作结果" @close="toastModal.show = false">
+    <Modal :is-open="toastModal.show" title="操作结果" @close="toastModal.show = false">
       <div :class="toastModal.isSuccess ? 'text-green-300' : 'text-red-300'">{{ toastModal.message }}</div>
       <template #footer>
-        <button @click="toastModal.show = false" class="px-4 py-2 text-sm rounded bg-amber-700 hover:bg-amber-600 text-white">确定</button>
+        <AppButton variant="primary" @click="toastModal.show = false">确定</AppButton>
       </template>
     </Modal>
   </div>

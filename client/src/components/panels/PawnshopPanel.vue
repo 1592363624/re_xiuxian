@@ -3,22 +3,31 @@
  * 聚宝当铺面板组件（玩家侧）
  *
  * 功能说明：
- *   - 弹窗式面板，参考 MeditationPanel / MarketPanel 的设计风格
- *   - 标题区：展示玩家当铺信用额度、当前灵石、今日典当次数、活跃当票数
- *   - Tab 切换：典当 / 我的当票 / 历史
+ *   - 外壳统一走 ui/PanelShell（遮罩 / 关闭 / 右坞停靠），面板不再自写遮罩与外壳
+ *   - 标题区：当铺信用额度与加成挂在 PanelShell 的 header-actions 上
+ *   - 状态条：当前灵石、今日典当次数、活跃当票数
+ *   - Tab 切换走 ui/Tabs：典当 / 我的当票 / 历史
  *     · 典当 Tab：物品选择下拉框（从储物袋拉取，仅显示可典当物品）、数量输入框、估值预览、确认典当按钮（带二次确认 Modal）
  *     · 我的当票 Tab：当票列表、赎回按钮（带二次确认 Modal）、剩余赎回时间倒计时
  *     · 历史 Tab：分页历史记录列表
- *   - 颜色风格：黄色系（amber-400/amber-500/amber-600）体现金银当铺主题
+ *   - 颜色风格：鎏金令牌（gold-* / surface-tint-gold）体现金银当铺主题
  *
  * 设计原则：
  *   - 所有业务逻辑在后端 PawnshopService 处理，前端仅做展示与接口调用
  *   - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
- *   - BIGINT 金额字段统一以字符串展示，避免 JS Number 精度问题
+ *   - BIGINT 金额字段统一走 formatCompact 展示（hover 看精确值），避免 JS Number 精度问题
  *   - 倒计时基于 pawned_at + redeem_deadline 本地 tick 递减，每秒刷新
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
+import Tabs from '../ui/Tabs.vue'
+import Badge from '../ui/Badge.vue'
+import AppButton from '../ui/AppButton.vue'
+import StatBar from '../ui/StatBar.vue'
+import PanelCard from '../ui/PanelCard.vue'
+import EmptyState from '../ui/EmptyState.vue'
+import LoadingBlock from '../ui/LoadingBlock.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { formatTime, formatCompact } from '../../utils/format'
@@ -38,8 +47,13 @@ const playerStore = usePlayerStore()
 
 /* ===================== 基础状态 ===================== */
 
-// 当前激活的 Tab：pawn=典当，listings=我的当票，history=历史
+// 当前激活的 Tab：pawn=典当，listings=我的当票，history=历史（key/label 契约见 ui/Tabs.vue）
 const activeTab = ref('pawn')
+const tabItems = [
+  { key: 'pawn', label: '典当' },
+  { key: 'listings', label: '我的当票' },
+  { key: 'history', label: '历史记录' }
+]
 const loading = ref(false)
 const submitting = ref(false)
 // 估值预览加载状态（独立于主 loading，避免阻塞 UI）
@@ -123,17 +137,6 @@ const activeListingsRemaining = computed(() => {
 })
 
 /**
- * 信用进度百分比（用于进度条展示）
- */
-const creditPercent = computed(() => {
-  if (!status.value) return 0
-  const credit = status.value.credit || 0
-  const max = status.value.config?.credit_max || 100
-  if (max <= 0) return 0
-  return Math.min(100, Math.floor((credit / max) * 100))
-})
-
-/**
  * 信用加成百分比文案
  */
 const creditBonusText = computed(() => {
@@ -150,12 +153,12 @@ const creditBonusText = computed(() => {
  * 品质颜色与中文标签映射（与 InventoryPanel 保持一致）
  */
 const qualityStyleMap = {
-  common: { color: 'text-stone-300', label: '普通' },
+  common: { color: 'text-fg-secondary', label: '普通' },
   uncommon: { color: 'text-emerald-400', label: '非凡' },
-  rare: { color: 'text-blue-400', label: '稀有' },
+  rare: { color: 'text-sky-400', label: '稀有' },
   epic: { color: 'text-purple-400', label: '史诗' },
-  legendary: { color: 'text-amber-400', label: '传说' },
-  unknown: { color: 'text-stone-500', label: '未知' }
+  legendary: { color: 'text-gold-400', label: '传说' },
+  unknown: { color: 'text-fg-faint', label: '未知' }
 }
 
 /**
@@ -223,16 +226,16 @@ const listingStatusLabel = (status) => {
 }
 
 /**
- * 当票状态标签样式类
+ * 当票状态标签色（典当中金/已赎回绿/已逾期红/已拍卖灰），取值契约见 ui/Badge.vue
  * @param {string} status - 当票状态
  */
-const listingStatusClass = (status) => {
+const listingStatusTone = (status) => {
   switch (status) {
-    case 'active': return 'bg-amber-950/40 text-amber-400 border-amber-700/50'
-    case 'redeemed': return 'bg-emerald-950/40 text-emerald-400 border-emerald-700/50'
-    case 'overdue': return 'bg-rose-950/40 text-rose-400 border-rose-700/50'
-    case 'auctioned': return 'bg-stone-800 text-stone-400 border-stone-700'
-    default: return 'bg-stone-800 text-stone-400 border-stone-700'
+    case 'active': return 'gold'
+    case 'redeemed': return 'success'
+    case 'overdue': return 'danger'
+    case 'auctioned': return 'muted'
+    default: return 'neutral'
   }
 }
 
@@ -251,16 +254,16 @@ const actionTypeLabel = (actionType) => {
 }
 
 /**
- * 历史记录操作类型样式类
+ * 历史记录操作类型色（典当金/赎回绿/逾期红/拍卖灰），取值契约见 ui/Badge.vue
  * @param {string} actionType - 操作类型
  */
-const actionTypeClass = (actionType) => {
+const actionTypeTone = (actionType) => {
   switch (actionType) {
-    case 'pawn': return 'text-amber-400'
-    case 'redeem': return 'text-emerald-400'
-    case 'overdue': return 'text-rose-400'
-    case 'auction': return 'text-stone-400'
-    default: return 'text-stone-400'
+    case 'pawn': return 'gold'
+    case 'redeem': return 'success'
+    case 'overdue': return 'danger'
+    case 'auction': return 'muted'
+    default: return 'neutral'
   }
 }
 
@@ -276,8 +279,7 @@ const fetchStatus = async () => {
     status.value = res.data?.data || res.data || null
   } catch (error) {
     console.error('[PawnshopPanel] 获取当铺状态失败:', error)
-    const msg = error.response?.data?.message || '获取当铺状态失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取当铺状态失败')
   } finally {
     loading.value = false
   }
@@ -293,7 +295,7 @@ const fetchInventory = async () => {
     inventoryItems.value = data.items || []
   } catch (error) {
     console.error('[PawnshopPanel] 获取储物袋失败:', error)
-    uiStore.showToast('获取储物袋失败', 'error')
+    uiStore.showApiError(error, '[PawnshopPanel] 获取储物袋失败')
   }
 }
 
@@ -314,8 +316,7 @@ const fetchListings = async () => {
     listingsTotalPages.value = data.total_pages || 0
   } catch (error) {
     console.error('[PawnshopPanel] 获取当票列表失败:', error)
-    const msg = error.response?.data?.message || '获取当票列表失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取当票列表失败')
   } finally {
     loading.value = false
   }
@@ -337,8 +338,7 @@ const fetchHistory = async () => {
     historyTotalPages.value = data.total_pages || 0
   } catch (error) {
     console.error('[PawnshopPanel] 获取历史记录失败:', error)
-    const msg = error.response?.data?.message || '获取历史记录失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '获取历史记录失败')
   } finally {
     loading.value = false
   }
@@ -495,8 +495,7 @@ const confirmPawn = async () => {
     }
   } catch (error) {
     console.error('[PawnshopPanel] 典当失败:', error)
-    const msg = error.response?.data?.message || error.response?.data?.error || '典当失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '典当失败')
   } finally {
     submitting.value = false
   }
@@ -547,8 +546,7 @@ const confirmRedeem = async () => {
     }
   } catch (error) {
     console.error('[PawnshopPanel] 赎回失败:', error)
-    const msg = error.response?.data?.message || error.response?.data?.error || '赎回失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '赎回失败')
   } finally {
     submitting.value = false
   }
@@ -606,100 +604,57 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-amber-900/40 rounded-lg w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl shadow-amber-900/20 overflow-hidden animate-fade-in panel-body">
-      <!-- 标题栏：当铺名称 + 信用额度 + 关闭按钮 -->
-      <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-gradient-to-r from-amber-950/40 to-[#1c1917]">
-        <h2 class="text-xl font-bold text-amber-400 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2 2 7l10 5 10-5-10-5z"/>
-            <path d="m2 17 10 5 10-5"/>
-            <path d="m2 12 10 5 10-5"/>
-          </svg>
-          聚宝当铺
-        </h2>
-        <div class="flex items-center gap-4">
-          <!-- 信用额度展示 -->
-          <div v-if="status" class="flex items-center gap-2">
-            <div class="text-right">
-              <div class="text-[10px] text-stone-500">当铺信用</div>
-              <div class="text-sm font-bold text-amber-300">{{ status.credit }} / {{ status.config?.credit_max || 100 }}</div>
-            </div>
-            <div class="w-24 h-2 bg-stone-900 rounded-full overflow-hidden">
-              <div
-                class="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-500"
-                :style="{ width: creditPercent + '%' }"
-              ></div>
-            </div>
-            <span class="text-xs text-emerald-400 whitespace-nowrap">{{ creditBonusText }}</span>
-          </div>
-          <button @click="emit('close')" class="text-stone-500 hover:text-stone-300 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+  <PanelShell
+    title="聚宝当铺"
+    hint="典当 · 赎回 · 信用"
+    size="xl"
+    scoped-scroll
+    @close="emit('close')"
+  >
+    <!-- 当铺信用：原先挤在标题行，现收进外壳的 header-actions -->
+    <template #header-actions>
+      <div v-if="status" class="flex items-center gap-2">
+        <div class="hidden sm:block w-24">
+          <StatBar
+            :value="status.credit"
+            :max="status.config?.credit_max || 100"
+            tone="gold"
+            height="h-1.5"
+            :show-value="false"
+          />
         </div>
+        <Badge tone="gold">信用 {{ status.credit }} / {{ status.config?.credit_max || 100 }}</Badge>
+        <Badge tone="success">{{ creditBonusText }}</Badge>
       </div>
+    </template>
 
+    <div class="h-full flex flex-col min-h-0">
       <!-- 状态信息条：今日次数 / 活跃当票 / 灵石余额 -->
-      <div v-if="status" class="grid grid-cols-3 gap-2 p-3 border-b border-stone-800 bg-[#0c0a09]">
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">今日典当</div>
-          <div class="text-sm font-bold" :class="dailyPawnRemaining > 0 ? 'text-amber-400' : 'text-stone-500'">
+      <div v-if="status" class="shrink-0 grid grid-cols-3 gap-2 px-3 py-2.5 border-b border-line-subtle bg-surface-canvas">
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">今日典当</div>
+          <div class="text-sm font-bold num" :class="dailyPawnRemaining > 0 ? 'text-gold-400' : 'text-fg-faint'">
             {{ dailyPawnRemaining }} / {{ status.daily_pawn_limit }}
           </div>
         </div>
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">活跃当票</div>
-          <div class="text-sm font-bold" :class="activeListingsRemaining > 0 ? 'text-amber-400' : 'text-rose-400'">
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">活跃当票</div>
+          <div class="text-sm font-bold num" :class="activeListingsRemaining > 0 ? 'text-gold-400' : 'text-rose-400'">
             {{ status.active_listings_count }} / {{ status.max_active_listings }}
           </div>
         </div>
-        <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
-          <div class="text-[10px] text-stone-500">灵石余额</div>
-          <div class="text-sm font-bold text-amber-300">{{ formatCompact(status.spirit_stones) }}</div>
+        <div class="bg-surface-raised border border-line-subtle rounded-control px-2 py-2 text-center">
+          <div class="text-[10px] text-fg-faint">灵石余额</div>
+          <div class="text-sm font-bold text-gold-300 num" :title="status.spirit_stones">{{ formatCompact(status.spirit_stones) }}</div>
         </div>
       </div>
 
-      <!-- Tab 切换 -->
-      <div class="flex border-b border-stone-800 bg-[#1c1917]">
-        <button
-          @click="switchTab('pawn')"
-          class="flex-1 px-4 py-3 text-sm font-bold transition-colors relative"
-          :class="activeTab === 'pawn' ? 'text-amber-400' : 'text-stone-500 hover:text-stone-300'"
-        >
-          典当
-          <span v-if="activeTab === 'pawn'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500"></span>
-        </button>
-        <button
-          @click="switchTab('listings')"
-          class="flex-1 px-4 py-3 text-sm font-bold transition-colors relative"
-          :class="activeTab === 'listings' ? 'text-amber-400' : 'text-stone-500 hover:text-stone-300'"
-        >
-          我的当票
-          <span v-if="activeTab === 'listings'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500"></span>
-        </button>
-        <button
-          @click="switchTab('history')"
-          class="flex-1 px-4 py-3 text-sm font-bold transition-colors relative"
-          :class="activeTab === 'history' ? 'text-amber-400' : 'text-stone-500 hover:text-stone-300'"
-        >
-          历史记录
-          <span v-if="activeTab === 'history'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500"></span>
-        </button>
-      </div>
+      <!-- Tab 切换：切换时仍由 switchTab 拉取对应数据 -->
+      <Tabs :model-value="activeTab" :items="tabItems" class="shrink-0" @update:model-value="switchTab" />
 
       <!-- 内容滚动区 -->
-      <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
-        <!-- 加载中 -->
-        <div v-if="loading" class="flex justify-center items-center h-64">
-          <svg class="animate-spin h-10 w-10 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
+      <div class="flex-1 min-h-0 overflow-y-auto p-4 scroll-thin">
+        <LoadingBlock v-if="loading" />
 
         <template v-else>
           <!-- ===================== 典当 Tab ===================== -->
@@ -707,11 +662,11 @@ onUnmounted(() => {
             <!-- 物品选择 -->
             <div class="space-y-4">
               <div>
-                <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">选择典当物品</label>
+                <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">选择典当物品</label>
                 <select
                   v-model="pawnForm.item_key"
                   @change="handleItemChange"
-                  class="w-full bg-[#0c0a09] border border-stone-700 rounded px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-600"
+                  class="w-full bg-surface-canvas border border-line rounded-control px-3 py-2 text-sm text-fg-primary focus:outline-none focus:border-gold-700"
                 >
                   <option value="">请选择储物袋中的物品</option>
                   <option
@@ -722,19 +677,19 @@ onUnmounted(() => {
                     {{ item.name }} x{{ item.quantity }}（{{ getQualityStyle(item.quality).label }}）
                   </option>
                 </select>
-                <p v-if="selectedInventoryItem" class="text-xs text-stone-600 mt-1">
+                <p v-if="selectedInventoryItem" class="text-xs text-fg-faint mt-1">
                   持有数量：{{ selectedInventoryItem.quantity }} · 单次最多典当 {{ status?.config?.max_pawn_quantity_per_transaction || 99 }} 个
                 </p>
               </div>
 
               <!-- 数量输入 -->
               <div v-if="pawnForm.item_key">
-                <label class="block text-xs font-bold text-stone-400 mb-2 uppercase tracking-wider">典当数量</label>
+                <label class="block text-xs font-bold text-fg-muted mb-2 uppercase tracking-wider">典当数量</label>
                 <div class="flex items-center gap-3">
                   <button
                     @click="changeQuantity(-1)"
                     :disabled="pawnForm.quantity <= 1"
-                    class="w-10 h-10 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-xl font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    class="w-10 h-10 rounded-control bg-surface-hover hover:bg-surface-active text-fg-secondary text-xl font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >-</button>
                   <input
                     v-model.number="pawnForm.quantity"
@@ -743,87 +698,90 @@ onUnmounted(() => {
                     :max="maxPawnQuantity"
                     @blur="handleQuantityInput"
                     @keyup.enter="handleQuantityInput"
-                    class="w-24 text-center bg-stone-900 border border-stone-700 rounded py-2 text-amber-400 font-bold text-lg focus:outline-none focus:border-amber-600"
+                    class="w-24 text-center bg-surface-sunken border border-line rounded-control py-2 text-gold-400 font-bold text-lg num focus:outline-none focus:border-gold-700"
                   />
                   <button
                     @click="changeQuantity(1)"
                     :disabled="pawnForm.quantity >= maxPawnQuantity"
-                    class="w-10 h-10 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 text-xl font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    class="w-10 h-10 rounded-control bg-surface-hover hover:bg-surface-active text-fg-secondary text-xl font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >+</button>
-                  <button
+                  <AppButton
+                    size="sm"
+                    variant="default"
                     @click="pawnForm.quantity = maxPawnQuantity; handleAppraise()"
-                    class="px-3 py-1 text-xs rounded bg-stone-800 hover:bg-stone-700 text-stone-400 transition-colors"
-                  >最大</button>
+                  >最大</AppButton>
                 </div>
               </div>
 
               <!-- 估值预览 -->
-              <div v-if="appraiseLoading" class="flex items-center gap-2 text-xs text-stone-500">
-                <svg class="animate-spin h-4 w-4 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>正在估价...</span>
+              <div v-if="appraiseLoading" class="flex items-center gap-2 text-xs text-fg-faint">
+                <span class="inline-block w-3.5 h-3.5 rounded-full border-2 border-line-strong border-t-gold-500 animate-spin"></span>
+                <span>正在估价…</span>
               </div>
-              <div v-else-if="appraiseResult" class="bg-amber-950/20 border border-amber-800/40 rounded-lg p-4 space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-stone-400">物品</span>
-                  <span class="text-amber-300 font-bold">{{ appraiseResult.item_info.name }}</span>
+              <PanelCard v-else-if="appraiseResult" tone="gold" padded>
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-fg-muted">物品</span>
+                    <span class="text-gold-300 font-bold">{{ appraiseResult.item_info.name }}</span>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-fg-muted">基础价值</span>
+                    <span class="text-fg-primary num" :title="appraiseResult.base_price">{{ formatCompact(appraiseResult.base_price) }} 灵石</span>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-fg-muted">品质折扣</span>
+                    <span class="text-fg-primary num">x{{ appraiseResult.quality_ratio.toFixed(2) }}</span>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-fg-muted">信用加成</span>
+                    <span class="text-emerald-400 num">+{{ (appraiseResult.credit_bonus * 100).toFixed(1) }}%</span>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-fg-muted">单件估值</span>
+                    <span class="text-fg-primary num" :title="appraiseResult.valuation_per_item">{{ formatCompact(appraiseResult.valuation_per_item) }} 灵石</span>
+                  </div>
+                  <div class="border-t border-gold-800/50 pt-2 flex items-center justify-between">
+                    <span class="text-sm text-fg-muted">总估值（{{ appraiseResult.quantity }} 件）</span>
+                    <span class="text-lg font-bold text-gold-400 num" :title="appraiseResult.total_valuation">{{ formatCompact(appraiseResult.total_valuation) }} 灵石</span>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-fg-muted">手续费（{{ (appraiseResult.pawn_fee_rate * 100).toFixed(1) }}%）</span>
+                    <span class="text-rose-400 num" :title="appraiseResult.pawn_fee">-{{ formatCompact(appraiseResult.pawn_fee) }} 灵石</span>
+                  </div>
+                  <div class="bg-surface-tint-gold-strong rounded-control px-2 py-2 flex items-center justify-between">
+                    <span class="text-sm font-bold text-gold-300">实得灵石</span>
+                    <span class="text-xl font-bold text-gold-400 num" :title="appraiseResult.pawn_amount">{{ formatCompact(appraiseResult.pawn_amount) }} 灵石</span>
+                  </div>
+                  <div class="flex items-center justify-between text-xs text-fg-faint">
+                    <span>{{ status?.config?.redeem_period_days || 7 }} 天后赎回价预估</span>
+                    <span class="text-rose-400 num" :title="appraiseResult.redeem_amount_7d">{{ formatCompact(appraiseResult.redeem_amount_7d) }} 灵石</span>
+                  </div>
                 </div>
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-stone-400">基础价值</span>
-                  <span class="text-stone-200">{{ appraiseResult.base_price }} 灵石</span>
-                </div>
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-stone-400">品质折扣</span>
-                  <span class="text-stone-200">x{{ appraiseResult.quality_ratio.toFixed(2) }}</span>
-                </div>
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-stone-400">信用加成</span>
-                  <span class="text-emerald-400">+{{ (appraiseResult.credit_bonus * 100).toFixed(1) }}%</span>
-                </div>
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-stone-400">单件估值</span>
-                  <span class="text-stone-200">{{ appraiseResult.valuation_per_item }} 灵石</span>
-                </div>
-                <div class="border-t border-amber-800/40 pt-2 flex items-center justify-between">
-                  <span class="text-sm text-stone-400">总估值（{{ appraiseResult.quantity }} 件）</span>
-                  <span class="text-lg font-bold text-amber-400">{{ appraiseResult.total_valuation }} 灵石</span>
-                </div>
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-stone-400">手续费（{{ (appraiseResult.pawn_fee_rate * 100).toFixed(1) }}%）</span>
-                  <span class="text-rose-400">-{{ appraiseResult.pawn_fee }} 灵石</span>
-                </div>
-                <div class="bg-amber-900/20 rounded p-2 flex items-center justify-between">
-                  <span class="text-sm font-bold text-amber-300">实得灵石</span>
-                  <span class="text-xl font-bold text-amber-400">{{ appraiseResult.pawn_amount }} 灵石</span>
-                </div>
-                <div class="flex items-center justify-between text-xs text-stone-500">
-                  <span>{{ status?.config?.redeem_period_days || 7 }} 天后赎回价预估</span>
-                  <span class="text-rose-400">{{ appraiseResult.redeem_amount_7d }} 灵石</span>
-                </div>
-              </div>
+              </PanelCard>
 
               <!-- 当铺说明 -->
-              <div v-if="!pawnForm.item_key" class="bg-stone-900/40 border border-stone-800 rounded-lg p-4 text-xs text-stone-500 space-y-2">
-                <p class="font-bold text-stone-400">当铺规则：</p>
-                <p>· 典当物品可立即获得灵石（扣除手续费），{{ status?.config?.redeem_period_days || 7 }} 天内可赎回</p>
-                <p>· 赎回需支付本金 + 利息（每日 {{ ((status?.config?.redeem_daily_interest_rate || 0) * 100).toFixed(1) }}%）</p>
-                <p>· 按时赎回可增加当铺信用额度，最高 +10% 估值加成</p>
-                <p>· 逾期未赎回的物品将归当铺所有</p>
-              </div>
+              <PanelCard v-if="!pawnForm.item_key" tone="muted">
+                <div class="text-xs text-fg-muted space-y-2">
+                  <p class="font-bold text-fg-secondary">当铺规则：</p>
+                  <p>· 典当物品可立即获得灵石（扣除手续费），{{ status?.config?.redeem_period_days || 7 }} 天内可赎回</p>
+                  <p>· 赎回需支付本金 + 利息（每日 {{ ((status?.config?.redeem_daily_interest_rate || 0) * 100).toFixed(1) }}%）</p>
+                  <p>· 按时赎回可增加当铺信用额度，最高 +10% 估值加成</p>
+                  <p>· 逾期未赎回的物品将归当铺所有</p>
+                </div>
+              </PanelCard>
 
               <!-- 典当按钮 -->
-              <button
+              <AppButton
                 v-if="pawnForm.item_key && appraiseResult"
-                @click="openPawnConfirmModal"
+                variant="primary"
+                block
                 :disabled="submitting || dailyPawnRemaining <= 0 || activeListingsRemaining <= 0"
-                class="w-full py-3 rounded-lg font-bold tracking-widest text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-amber-900/40 border border-amber-700 text-amber-300 hover:bg-amber-900/50 hover:border-amber-500"
+                @click="openPawnConfirmModal"
               >
                 <span v-if="dailyPawnRemaining <= 0">今日典当次数已用尽</span>
                 <span v-else-if="activeListingsRemaining <= 0">活跃当票已达上限</span>
                 <span v-else>确认典当</span>
-              </button>
+              </AppButton>
             </div>
           </div>
 
@@ -840,32 +798,25 @@ onUnmounted(() => {
                 ]"
                 :key="opt.value"
                 @click="listingsFilter = opt.value; handleListingsFilterChange()"
-                class="px-3 py-1 rounded text-xs transition-colors"
+                class="px-3 py-1 rounded-control text-xs border transition-colors"
                 :class="listingsFilter === opt.value
-                  ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
-                  : 'text-stone-500 hover:text-stone-300 border border-transparent'"
+                  ? 'bg-surface-tint-gold text-gold-400 border-gold-700/60'
+                  : 'bg-transparent text-fg-faint hover:text-fg-secondary border-transparent'"
               >
                 {{ opt.label }}
               </button>
             </div>
 
             <!-- 空状态 -->
-            <div v-if="listings.length === 0" class="flex flex-col items-center justify-center h-48 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-                <path d="M12 2 2 7l10 5 10-5-10-5z"/>
-                <path d="m2 17 10 5 10-5"/>
-                <path d="m2 12 10 5 10-5"/>
-              </svg>
-              <p>暂无当票记录</p>
-            </div>
+            <EmptyState v-if="listings.length === 0" text="暂无当票记录" hint="切换到「典当」页签，把闲置物品换成灵石" />
 
             <!-- 当票列表 -->
             <div v-else class="space-y-3">
               <div
                 v-for="listing in listings"
                 :key="listing.id"
-                class="bg-[#1c1917] border border-stone-800 rounded-lg p-4 hover:border-amber-800/50 transition-colors"
-                :class="isOverdue(listing) ? 'border-rose-800/50' : ''"
+                class="bg-surface-raised border border-line-subtle rounded-panel p-4 hover:border-gold-800 transition-colors"
+                :class="isOverdue(listing) ? 'border-rose-900/70' : ''"
               >
                 <div class="flex items-start justify-between gap-3">
                   <!-- 物品信息 -->
@@ -874,35 +825,37 @@ onUnmounted(() => {
                       <span class="text-base font-bold" :class="getQualityStyle(listing.item_quality).color">
                         {{ listing.item_name }}
                       </span>
-                      <span class="text-xs text-stone-500">x{{ listing.quantity }}</span>
-                      <span class="text-xs px-2 py-0.5 rounded border" :class="listingStatusClass(isOverdue(listing) ? 'overdue' : listing.status)">
+                      <span class="text-xs text-fg-faint">x{{ listing.quantity }}</span>
+                      <Badge :tone="listingStatusTone(isOverdue(listing) ? 'overdue' : listing.status)">
                         {{ isOverdue(listing) ? '已逾期' : listingStatusLabel(listing.status) }}
-                      </span>
+                      </Badge>
                     </div>
                     <!-- 典当金额信息 -->
                     <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-2">
                       <div class="flex items-center justify-between">
-                        <span class="text-stone-500">典当所得</span>
-                        <span class="text-amber-300 font-bold">{{ listing.pawn_amount }} 灵石</span>
+                        <span class="text-fg-faint">典当所得</span>
+                        <span class="text-gold-300 font-bold num" :title="listing.pawn_amount">{{ formatCompact(listing.pawn_amount) }} 灵石</span>
                       </div>
                       <div class="flex items-center justify-between">
-                        <span class="text-stone-500">手续费</span>
-                        <span class="text-rose-400">{{ listing.pawn_fee }} 灵石</span>
+                        <span class="text-fg-faint">手续费</span>
+                        <span class="text-rose-400 num" :title="listing.pawn_fee">{{ formatCompact(listing.pawn_fee) }} 灵石</span>
                       </div>
                       <div class="flex items-center justify-between">
-                        <span class="text-stone-500">原赎回价</span>
-                        <span class="text-stone-300">{{ listing.redeem_amount }} 灵石</span>
+                        <span class="text-fg-faint">原赎回价</span>
+                        <span class="text-fg-secondary num" :title="listing.redeem_amount">{{ formatCompact(listing.redeem_amount) }} 灵石</span>
                       </div>
                       <div v-if="listing.status === 'active'" class="flex items-center justify-between">
-                        <span class="text-stone-500">当前赎回价</span>
-                        <span class="text-amber-400 font-bold">{{ listing.current_redeem_amount || listing.redeem_amount }} 灵石</span>
+                        <span class="text-fg-faint">当前赎回价</span>
+                        <span class="text-gold-400 font-bold num" :title="listing.current_redeem_amount || listing.redeem_amount">
+                          {{ formatCompact(listing.current_redeem_amount || listing.redeem_amount) }} 灵石
+                        </span>
                       </div>
                     </div>
                     <!-- 时间信息 -->
-                    <div class="text-xs text-stone-600 mt-2 flex items-center gap-3 flex-wrap">
+                    <div class="text-xs text-fg-faint mt-2 flex items-center gap-3 flex-wrap">
                       <span>典当 {{ formatDateTime(listing.pawned_at) }}</span>
                       <span v-if="listing.status === 'active'">
-                        剩余 <span :class="isOverdue(listing) ? 'text-rose-400 font-bold' : 'text-amber-400'">
+                        剩余 <span :class="isOverdue(listing) ? 'text-rose-400 font-bold' : 'text-gold-400'">
                           {{ formatRemaining(getRemainingMs(listing)) }}
                         </span>
                       </span>
@@ -915,7 +868,7 @@ onUnmounted(() => {
                       v-if="listing.status === 'active' && !isOverdue(listing)"
                       @click="openRedeemConfirmModal(listing)"
                       :disabled="submitting"
-                      class="px-4 py-1.5 rounded bg-emerald-900/30 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
+                      class="px-4 py-1.5 rounded-control bg-emerald-900/30 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 hover:text-emerald-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
                     >
                       赎回
                     </button>
@@ -925,19 +878,15 @@ onUnmounted(() => {
 
               <!-- 分页 -->
               <div class="flex items-center justify-between pt-2">
-                <span class="text-xs text-stone-600">共 {{ listingsTotal }} 条</span>
+                <span class="text-xs text-fg-faint">共 {{ listingsTotal }} 条</span>
                 <div class="flex items-center gap-2">
-                  <button
-                    @click="changeListingsPage(-1)"
-                    :disabled="listingsPage <= 1"
-                    class="px-3 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                  >上一页</button>
-                  <span class="text-xs text-stone-400">{{ listingsPage }} / {{ listingsTotalPages }}</span>
-                  <button
-                    @click="changeListingsPage(1)"
-                    :disabled="listingsPage >= listingsTotalPages"
-                    class="px-3 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                  >下一页</button>
+                  <AppButton size="sm" variant="default" :disabled="listingsPage <= 1" @click="changeListingsPage(-1)">
+                    上一页
+                  </AppButton>
+                  <span class="text-xs text-fg-muted num">{{ listingsPage }} / {{ listingsTotalPages }}</span>
+                  <AppButton size="sm" variant="default" :disabled="listingsPage >= listingsTotalPages" @click="changeListingsPage(1)">
+                    下一页
+                  </AppButton>
                 </div>
               </div>
             </div>
@@ -946,53 +895,41 @@ onUnmounted(() => {
           <!-- ===================== 历史 Tab ===================== -->
           <div v-else>
             <!-- 空状态 -->
-            <div v-if="history.length === 0" class="flex flex-col items-center justify-center h-48 text-stone-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mb-2 opacity-50">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-              <p>暂无历史记录</p>
-            </div>
+            <EmptyState v-if="history.length === 0" text="暂无历史记录" hint="典当与赎回成交后都会留档在此" />
 
             <!-- 历史列表 -->
             <div v-else class="space-y-2">
               <div
                 v-for="item in history"
                 :key="item.id"
-                class="bg-[#1c1917] border border-stone-800 rounded-lg p-3 flex items-center justify-between gap-3"
+                class="bg-surface-raised border border-line-subtle rounded-panel p-3 flex items-center justify-between gap-3"
               >
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs px-2 py-0.5 rounded font-bold" :class="actionTypeClass(item.action_type)">
-                      {{ actionTypeLabel(item.action_type) }}
-                    </span>
-                    <span class="text-sm text-stone-200 truncate">{{ item.item_name }}</span>
-                    <span class="text-xs text-stone-500">x{{ item.quantity }}</span>
+                    <Badge :tone="actionTypeTone(item.action_type)">{{ actionTypeLabel(item.action_type) }}</Badge>
+                    <span class="text-sm text-fg-primary truncate">{{ item.item_name }}</span>
+                    <span class="text-xs text-fg-faint">x{{ item.quantity }}</span>
                   </div>
-                  <div class="text-xs text-stone-600">{{ formatDateTime(item.created_at) }}</div>
+                  <div class="text-xs text-fg-faint">{{ formatDateTime(item.created_at) }}</div>
                 </div>
                 <div class="text-right">
-                  <div class="text-sm font-bold" :class="item.action_type === 'pawn' ? 'text-amber-400' : 'text-emerald-400'">
-                    {{ item.action_type === 'pawn' ? '+' : '-' }}{{ item.amount }} 灵石
+                  <div class="text-sm font-bold num" :class="item.action_type === 'pawn' ? 'text-gold-400' : 'text-emerald-400'" :title="item.amount">
+                    {{ item.action_type === 'pawn' ? '+' : '-' }}{{ formatCompact(item.amount) }} 灵石
                   </div>
                 </div>
               </div>
 
               <!-- 分页 -->
               <div class="flex items-center justify-between pt-2">
-                <span class="text-xs text-stone-600">共 {{ historyTotal }} 条</span>
+                <span class="text-xs text-fg-faint">共 {{ historyTotal }} 条</span>
                 <div class="flex items-center gap-2">
-                  <button
-                    @click="changeHistoryPage(-1)"
-                    :disabled="historyPage <= 1"
-                    class="px-3 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                  >上一页</button>
-                  <span class="text-xs text-stone-400">{{ historyPage }} / {{ historyTotalPages }}</span>
-                  <button
-                    @click="changeHistoryPage(1)"
-                    :disabled="historyPage >= historyTotalPages"
-                    class="px-3 py-1 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-amber-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm"
-                  >下一页</button>
+                  <AppButton size="sm" variant="default" :disabled="historyPage <= 1" @click="changeHistoryPage(-1)">
+                    上一页
+                  </AppButton>
+                  <span class="text-xs text-fg-muted num">{{ historyPage }} / {{ historyTotalPages }}</span>
+                  <AppButton size="sm" variant="default" :disabled="historyPage >= historyTotalPages" @click="changeHistoryPage(1)">
+                    下一页
+                  </AppButton>
                 </div>
               </div>
             </div>
@@ -1004,113 +941,74 @@ onUnmounted(() => {
     <!-- ========== 典当确认弹窗 ========== -->
     <Modal :isOpen="pawnConfirmModal.show" title="确认典当" width="480px" @close="closePawnConfirmModal">
       <div v-if="appraiseResult" class="space-y-3">
-        <p class="text-sm text-stone-300">即将典当以下物品，请确认：</p>
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2">
+        <p class="text-sm text-fg-secondary">即将典当以下物品，请确认：</p>
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2">
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">物品</span>
-            <span class="text-amber-300 font-bold">{{ appraiseResult.item_info.name }} x{{ appraiseResult.quantity }}</span>
+            <span class="text-fg-faint">物品</span>
+            <span class="text-gold-300 font-bold">{{ appraiseResult.item_info.name }} x{{ appraiseResult.quantity }}</span>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">总估值</span>
-            <span class="text-stone-200">{{ appraiseResult.total_valuation }} 灵石</span>
+            <span class="text-fg-faint">总估值</span>
+            <span class="text-fg-primary num" :title="appraiseResult.total_valuation">{{ formatCompact(appraiseResult.total_valuation) }} 灵石</span>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">手续费</span>
-            <span class="text-rose-400">-{{ appraiseResult.pawn_fee }} 灵石</span>
+            <span class="text-fg-faint">手续费</span>
+            <span class="text-rose-400 num" :title="appraiseResult.pawn_fee">-{{ formatCompact(appraiseResult.pawn_fee) }} 灵石</span>
           </div>
-          <div class="border-t border-stone-800 pt-2 flex items-center justify-between">
-            <span class="text-sm font-bold text-amber-300">实得灵石</span>
-            <span class="text-lg font-bold text-amber-400">{{ appraiseResult.pawn_amount }} 灵石</span>
+          <div class="border-t border-line-subtle pt-2 flex items-center justify-between">
+            <span class="text-sm font-bold text-gold-300">实得灵石</span>
+            <span class="text-lg font-bold text-gold-400 num" :title="appraiseResult.pawn_amount">{{ formatCompact(appraiseResult.pawn_amount) }} 灵石</span>
           </div>
         </div>
-        <p class="text-xs text-stone-600">
+        <p class="text-xs text-fg-faint">
           提示：典当后 {{ status?.config?.redeem_period_days || 7 }} 天内可赎回，赎回需支付本金 + 利息。逾期未赎回的物品将归当铺所有。
         </p>
       </div>
       <template #footer>
-        <button
-          @click="closePawnConfirmModal"
-          class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 transition-colors text-sm"
-        >取消</button>
-        <button
-          @click="confirmPawn"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-amber-900/50 border border-amber-700/50 text-amber-300 hover:bg-amber-800/60 hover:text-amber-200 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认典当</span>
-        </button>
+        <AppButton variant="default" @click="closePawnConfirmModal">取消</AppButton>
+        <AppButton variant="primary" :disabled="submitting" @click="confirmPawn">
+          {{ submitting ? '处理中…' : '确认典当' }}
+        </AppButton>
       </template>
     </Modal>
 
     <!-- ========== 赎回确认弹窗 ========== -->
     <Modal :isOpen="redeemConfirmModal.show" title="确认赎回" width="480px" @close="closeRedeemConfirmModal">
       <div v-if="redeemConfirmModal.listing" class="space-y-3">
-        <p class="text-sm text-stone-300">即将赎回以下当票，请确认：</p>
-        <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2">
+        <p class="text-sm text-fg-secondary">即将赎回以下当票，请确认：</p>
+        <div class="bg-surface-canvas border border-line-subtle rounded-control p-3 space-y-2">
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">物品</span>
-            <span class="text-amber-300 font-bold">
+            <span class="text-fg-faint">物品</span>
+            <span class="text-gold-300 font-bold">
               {{ redeemConfirmModal.listing.item_name }} x{{ redeemConfirmModal.listing.quantity }}
             </span>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">原典当所得</span>
-            <span class="text-stone-200">{{ redeemConfirmModal.listing.pawn_amount }} 灵石</span>
+            <span class="text-fg-faint">原典当所得</span>
+            <span class="text-fg-primary num" :title="redeemConfirmModal.listing.pawn_amount">{{ formatCompact(redeemConfirmModal.listing.pawn_amount) }} 灵石</span>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-stone-500">当前赎回价</span>
-            <span class="text-rose-400 font-bold">
-              {{ redeemConfirmModal.listing.current_redeem_amount || redeemConfirmModal.listing.redeem_amount }} 灵石
+            <span class="text-fg-faint">当前赎回价</span>
+            <span class="text-rose-400 font-bold num" :title="redeemConfirmModal.listing.current_redeem_amount || redeemConfirmModal.listing.redeem_amount">
+              {{ formatCompact(redeemConfirmModal.listing.current_redeem_amount || redeemConfirmModal.listing.redeem_amount) }} 灵石
             </span>
           </div>
         </div>
-        <p class="text-xs text-stone-600">
+        <p class="text-xs text-fg-faint">
           提示：赎回后物品将归还储物袋，当铺信用额度 +1（影响估值加成）。
         </p>
       </div>
       <template #footer>
-        <button
-          @click="closeRedeemConfirmModal"
-          class="px-4 py-2 rounded bg-stone-800 border border-stone-700 text-stone-300 hover:text-stone-100 transition-colors text-sm"
-        >取消</button>
-        <button
-          @click="confirmRedeem"
-          :disabled="submitting"
-          class="px-4 py-2 rounded bg-emerald-900/50 border border-emerald-700/50 text-emerald-300 hover:bg-emerald-800/60 hover:text-emerald-200 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span v-if="submitting">处理中...</span>
-          <span v-else>确认赎回</span>
-        </button>
+        <AppButton variant="default" @click="closeRedeemConfirmModal">取消</AppButton>
+        <AppButton variant="primary" :disabled="submitting" @click="confirmRedeem">
+          {{ submitting ? '处理中…' : '确认赎回' }}
+        </AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
 
 <style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* 自定义滚动条 */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #44403c;
-  border-radius: 2px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #57534e;
-}
-
 /* 隐藏 number 输入框的箭头 */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {

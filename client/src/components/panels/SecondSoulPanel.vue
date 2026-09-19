@@ -16,244 +16,230 @@
  *   - 所有状态从后端 GET /second-soul/profile 拉取，禁止硬编码
  *   - 业务逻辑全部在后端，前端仅做展示与接口调用
  *   - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
- *   - 颜色风格与 AscensionPanel.vue 一致（修仙古风：#1c1917 / #292524 / amber-300 / purple-300）
+ *   - 颜色全部取 tokens.css 的 surface-* / line-* / fg-* / gold-* / state-* 令牌
  *   - 使用 Tailwind CSS 工具类，无自定义 CSS
  */
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
-    <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
-
-    <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-amber-900/40 rounded-lg p-6 max-w-4xl w-full mx-4 shadow-2xl animate-fade-in max-h-[90vh] flex flex-col panel-body">
-      <!-- 标题栏 -->
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold text-amber-300 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3c0 1.6.8 3 2 4-1.2 1-2 2.4-2 4a3 3 0 0 0 6 0c0-1.6-.8-3-2-4 1.2-1 2-2.4 2-4a3 3 0 0 0-3-3z"/>
-            <path d="M5 22h14"/><path d="M12 16v6"/>
-          </svg>
-          第二元神 · 元神分化
-        </h2>
-        <button @click="$emit('close')" class="text-stone-500 hover:text-white transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
+  <PanelShell
+    title="第二元神 · 元神分化"
+    size="lg"
+    :loading="loading && !profile"
+    @close="$emit('close')"
+  >
+    <!-- 状态总览栏 -->
+    <div v-if="profile" class="bg-surface-hover border border-line rounded-panel p-3 mb-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+      <div>
+        <div class="text-fg-muted">当前境界</div>
+        <div class="text-gold-400 font-bold">{{ profile.player.realm }}</div>
       </div>
-
-      <!-- 加载中状态 -->
-      <div v-if="loading && !profile" class="flex-1 flex items-center justify-center">
-        <div class="text-stone-500 text-sm">正在凝神查阅元神档案...</div>
+      <div>
+        <div class="text-fg-muted">灵石</div>
+        <div class="text-gold-300 font-bold num" :title="String(profile.player.spirit_stones)">{{ formatCompact(profile.player.spirit_stones) }}</div>
       </div>
-
-      <!-- 状态总览栏 -->
-      <div v-if="profile" class="bg-[#292524] border border-stone-700 rounded-lg p-3 mb-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-        <div>
-          <div class="text-stone-500">当前境界</div>
-          <div class="text-amber-300 font-bold">{{ profile.player.realm }}</div>
-        </div>
-        <div>
-          <div class="text-stone-500">灵石</div>
-          <div class="text-amber-200 font-bold">{{ formatNumber(profile.player.spirit_stones) }}</div>
-        </div>
-        <div>
-          <div class="text-stone-500">神识</div>
-          <div class="text-cyan-300 font-bold">{{ profile.player.divine_sense }}</div>
-        </div>
-        <div>
-          <div class="text-stone-500">残魂</div>
-          <div class="text-purple-300 font-bold">{{ profile.player.remnant_soul }}</div>
-        </div>
-        <div>
-          <div class="text-stone-500">副元神数</div>
-          <div class="text-pink-300 font-bold">{{ profile.player.second_soul_count }} / 2</div>
-        </div>
+      <div>
+        <div class="text-fg-muted">神识</div>
+        <div class="text-state-info font-bold num">{{ profile.player.divine_sense }}</div>
       </div>
+      <div>
+        <div class="text-fg-muted">残魂</div>
+        <div class="text-state-arcane font-bold num">{{ profile.player.remnant_soul }}</div>
+      </div>
+      <div>
+        <div class="text-fg-muted">副元神数</div>
+        <div class="text-pink-300 font-bold num">{{ profile.player.second_soul_count }} / 2</div>
+      </div>
+    </div>
 
-      <!-- 内容滚动区 -->
-      <div v-if="profile" class="flex-1 overflow-y-auto pr-1 space-y-3">
-        <!-- 元神列表 -->
-        <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-          <div class="text-sm font-bold text-amber-300 mb-3">元神列表</div>
-          <div v-if="profile.souls.length === 0" class="text-xs text-stone-500 text-center py-4">
-            暂无元神记录
-          </div>
-          <div v-else class="space-y-3">
-            <div v-for="soul in profile.souls" :key="soul.id"
-              class="bg-stone-900/50 border border-stone-700 rounded p-3 text-xs">
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2">
-                  <span class="font-bold" :class="soul.soul_index === 1 ? 'text-amber-300' : 'text-purple-300'">
-                    {{ getSoulIndexLabel(soul.soul_index) }}
-                  </span>
-                  <span class="text-stone-300">{{ soul.soul_name }}</span>
-                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400">
-                    {{ soul.soul_type }}
-                  </span>
-                </div>
-                <div class="flex items-center gap-2 text-[10px]">
-                  <span v-if="soul.is_cultivating" class="px-1.5 py-0.5 rounded bg-cyan-950/60 text-cyan-300 border border-cyan-800">
-                    修炼中
-                  </span>
-                  <span v-if="soul.last_dispatch_mode" class="px-1.5 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-800">
-                    {{ getDispatchModeLabel(soul.last_dispatch_mode) }}
-                  </span>
-                </div>
+    <!-- 内容区 -->
+    <div v-if="profile" class="space-y-3">
+      <!-- 元神列表 -->
+      <section class="bg-surface-hover border border-line rounded-panel p-4">
+        <div class="text-sm font-bold text-gold-400 mb-3 font-display">元神列表</div>
+        <div v-if="profile.souls.length === 0" class="text-xs text-fg-muted text-center py-4">
+          暂无元神记录
+        </div>
+        <div v-else class="space-y-3">
+          <div v-for="soul in profile.souls" :key="soul.id"
+            class="bg-surface-sunken border border-line rounded-control p-3 text-xs">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="font-bold" :class="soul.soul_index === 1 ? 'text-gold-400' : 'text-state-arcane'">
+                  {{ getSoulIndexLabel(soul.soul_index) }}
+                </span>
+                <span class="text-fg-secondary">{{ soul.soul_name }}</span>
+                <Badge tone="neutral">{{ soul.soul_type }}</Badge>
               </div>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-stone-400">
-                <div>境界：<span class="text-amber-300">{{ soul.realm }}</span></div>
-                <div>修为：<span class="text-emerald-300">{{ formatNumber(soul.exp) }}</span></div>
-                <div>继承率：<span class="text-purple-300">{{ (soul.inherit_ratio * 100).toFixed(0) }}%</span></div>
-                <div>斗法次数：<span class="text-rose-300">{{ soul.combat_count }}</span></div>
-              </div>
-              <div class="grid grid-cols-5 gap-2 mt-2 text-[11px]">
-                <div class="bg-stone-800/60 rounded px-2 py-1">
-                  <div class="text-stone-500">攻</div>
-                  <div class="text-amber-300 font-bold">{{ soul.attributes.atk ?? 0 }}</div>
-                </div>
-                <div class="bg-stone-800/60 rounded px-2 py-1">
-                  <div class="text-stone-500">防</div>
-                  <div class="text-amber-300 font-bold">{{ soul.attributes.def ?? 0 }}</div>
-                </div>
-                <div class="bg-stone-800/60 rounded px-2 py-1">
-                  <div class="text-stone-500">血</div>
-                  <div class="text-amber-300 font-bold">{{ soul.attributes.hp_max ?? 0 }}</div>
-                </div>
-                <div class="bg-stone-800/60 rounded px-2 py-1">
-                  <div class="text-stone-500">速</div>
-                  <div class="text-amber-300 font-bold">{{ soul.attributes.speed ?? 0 }}</div>
-                </div>
-                <div class="bg-stone-800/60 rounded px-2 py-1">
-                  <div class="text-stone-500">识</div>
-                  <div class="text-amber-300 font-bold">{{ soul.attributes.sense ?? 0 }}</div>
-                </div>
-              </div>
-
-              <!-- 修炼进度提示 -->
-              <div v-if="soul.is_cultivating && soul.cultivate_end_time" class="mt-2 text-[11px] text-cyan-300">
-                · 修炼中，预计结束：{{ formatTime(soul.cultivate_end_time) }}
-              </div>
-              <div v-if="soul.dispatch_until" class="mt-1 text-[11px] text-purple-300">
-                · 调度中，持续至：{{ formatTime(soul.dispatch_until) }}
-              </div>
-
-              <!-- 副元神操作按钮 -->
-              <div v-if="soul.soul_index >= 2" class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
-                <button v-for="mode in dispatchModes" :key="mode.value"
-                  @click="handleDispatch(soul.soul_index as 2|3, mode.value)"
-                  :disabled="loading"
-                  :class="[
-                    'py-1.5 text-[11px] rounded border transition-colors disabled:opacity-50',
-                    soul.last_dispatch_mode === mode.value
-                      ? 'bg-purple-900/60 border-purple-600 text-purple-200'
-                      : 'bg-stone-900/40 border-stone-700 text-stone-300 hover:bg-stone-800/60'
-                  ]">
-                  {{ mode.label }}
-                </button>
-                <button @click="handleCultivate(soul.soul_index as 2|3)"
-                  :disabled="loading || soul.is_cultivating"
-                  class="py-1.5 text-[11px] rounded bg-cyan-950/40 border border-cyan-800 text-cyan-300 hover:bg-cyan-900/40 disabled:opacity-50 transition-colors col-span-2 md:col-span-1">
-                  {{ soul.is_cultivating ? '修炼中' : '独立修炼' }}
-                </button>
+              <div class="flex items-center gap-2 text-[10px]">
+                <Badge v-if="soul.is_cultivating" tone="info">修炼中</Badge>
+                <Badge v-if="soul.last_dispatch_mode" tone="arcane">{{ getDispatchModeLabel(soul.last_dispatch_mode) }}</Badge>
               </div>
             </div>
-          </div>
-        </section>
-
-        <!-- 残篇收集进度 -->
-        <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-          <div class="text-sm font-bold text-purple-300 mb-3">元神残篇收集</div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <div v-for="(frag, key) in profile.fragment_progress" :key="key"
-              class="bg-stone-900/50 border border-stone-700 rounded p-2 text-xs">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="text-amber-300 font-bold">{{ frag.name }}</span>
-                  <span class="ml-2 text-stone-500 text-[10px]">{{ frag.source }}</span>
-                </div>
-                <div :class="frag.met ? 'text-emerald-300' : 'text-rose-400'">
-                  {{ frag.collected }} / {{ frag.required }}
-                </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-fg-muted">
+              <div>境界：<span class="text-gold-400">{{ soul.realm }}</span></div>
+              <div>修为：<span class="text-state-success num" :title="String(soul.exp)">{{ formatCompact(soul.exp) }}</span></div>
+              <div>继承率：<span class="text-state-arcane num">{{ (soul.inherit_ratio * 100).toFixed(0) }}%</span></div>
+              <div>斗法次数：<span class="text-state-danger num">{{ soul.combat_count }}</span></div>
+            </div>
+            <div class="grid grid-cols-5 gap-2 mt-2 text-[11px]">
+              <div class="bg-surface-base rounded-control px-2 py-1 border border-line-subtle">
+                <div class="text-fg-muted">攻</div>
+                <div class="text-gold-400 font-bold num">{{ soul.attributes.atk ?? 0 }}</div>
               </div>
-              <!-- 进度条 -->
-              <div class="mt-1 h-1 bg-stone-800 rounded-full overflow-hidden">
-                <div class="h-full transition-all duration-500"
-                  :class="frag.met ? 'bg-emerald-400' : 'bg-amber-500'"
-                  :style="{ width: `${Math.min((frag.collected / frag.required) * 100, 100)}%` }"></div>
+              <div class="bg-surface-base rounded-control px-2 py-1 border border-line-subtle">
+                <div class="text-fg-muted">防</div>
+                <div class="text-gold-400 font-bold num">{{ soul.attributes.def ?? 0 }}</div>
+              </div>
+              <div class="bg-surface-base rounded-control px-2 py-1 border border-line-subtle">
+                <div class="text-fg-muted">血</div>
+                <div class="text-gold-400 font-bold num">{{ soul.attributes.hp_max ?? 0 }}</div>
+              </div>
+              <div class="bg-surface-base rounded-control px-2 py-1 border border-line-subtle">
+                <div class="text-fg-muted">速</div>
+                <div class="text-gold-400 font-bold num">{{ soul.attributes.speed ?? 0 }}</div>
+              </div>
+              <div class="bg-surface-base rounded-control px-2 py-1 border border-line-subtle">
+                <div class="text-fg-muted">识</div>
+                <div class="text-gold-400 font-bold num">{{ soul.attributes.sense ?? 0 }}</div>
               </div>
             </div>
-          </div>
-        </section>
 
-        <!-- 凝练/分化操作 -->
-        <section class="bg-[#292524] border border-stone-700 rounded-lg p-4">
-          <div class="text-sm font-bold text-amber-300 mb-3">元神凝练与分化</div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <!-- 凝练第二元神 -->
-            <div class="bg-stone-900/50 border border-stone-700 rounded p-3">
-              <div class="text-xs text-amber-300 font-bold mb-2">凝练第二元神</div>
-              <div class="text-[11px] text-stone-400 space-y-1 mb-3">
-                <div>· 境界要求：<span :class="profile.condense_requirements.realm_met ? 'text-emerald-300' : 'text-rose-400'">
-                  {{ profile.condense_requirements.realm_required }}
-                </span></div>
-                <div>· 残篇收集：<span :class="profile.condense_requirements.fragments_met ? 'text-emerald-300' : 'text-rose-400'">
-                  {{ profile.condense_requirements.fragments_met ? '已齐全' : '尚有缺失' }}
-                </span></div>
-                <div>· 消耗灵石：<span class="text-amber-300">{{ formatNumber(profile.condense_requirements.cost.spirit_stones) }}</span></div>
-                <div>· 消耗神识：<span class="text-cyan-300">{{ profile.condense_requirements.cost.divine_sense }}</span></div>
-                <div>· 消耗残魂：<span class="text-purple-300">{{ profile.condense_requirements.cost.remnant_soul }}</span></div>
-              </div>
-              <button @click="openCondenseModal(2)"
-                :disabled="loading || !profile.condense_requirements.can_condense || hasSecondSoul"
-                class="w-full py-2 rounded text-xs font-bold bg-gradient-to-r from-amber-900 to-amber-700 border border-amber-500 text-amber-100 hover:from-amber-800 hover:to-amber-600 disabled:opacity-50 transition-all">
-                {{ hasSecondSoul ? '已有第二元神' : (profile.condense_requirements.can_condense ? '凝练第二元神' : '条件未满足') }}
+            <!-- 修炼进度提示 -->
+            <div v-if="soul.is_cultivating && soul.cultivate_end_time" class="mt-2 text-[11px] text-state-info num">
+              · 修炼中，预计结束：{{ formatTime(soul.cultivate_end_time) }}
+            </div>
+            <div v-if="soul.dispatch_until" class="mt-1 text-[11px] text-state-arcane num">
+              · 调度中，持续至：{{ formatTime(soul.dispatch_until) }}
+            </div>
+
+            <!-- 副元神操作按钮 -->
+            <div v-if="soul.soul_index >= 2" class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+              <button v-for="mode in dispatchModes" :key="mode.value"
+                @click="handleDispatch(soul.soul_index as 2|3, mode.value)"
+                :disabled="loading"
+                :class="[
+                  'py-1.5 text-[11px] rounded-control border transition-colors disabled:opacity-50',
+                  soul.last_dispatch_mode === mode.value
+                    ? 'bg-surface-tint-arcane border-state-arcane text-state-arcane font-bold'
+                    : 'bg-surface-base border-line text-fg-secondary hover:bg-surface-hover'
+                ]">
+                {{ mode.label }}
               </button>
-            </div>
-
-            <!-- 分化第三元神 -->
-            <div class="bg-stone-900/50 border border-stone-700 rounded p-3">
-              <div class="text-xs text-purple-300 font-bold mb-2">分化第三元神</div>
-              <div class="text-[11px] text-stone-400 space-y-1 mb-3">
-                <div>· 需第二元神境界≥化神期</div>
-                <div>· 元神上限：3（主+第二+第三）</div>
-                <div>· 消耗：额外灵石/神识/残魂</div>
-                <div>· 第三元神属性继承第二元神</div>
-              </div>
-              <button @click="openCondenseModal(3)"
-                :disabled="loading || !hasSecondSoul || hasThirdSoul"
-                class="w-full py-2 rounded text-xs font-bold bg-purple-950/40 border border-purple-800 text-purple-300 hover:bg-purple-900/40 disabled:opacity-50 transition-all">
-                {{ !hasSecondSoul ? '需先凝练第二元神' : (hasThirdSoul ? '已有第三元神' : '分化第三元神') }}
-                </button>
+              <AppButton
+                block
+                size="xs"
+                variant="outline"
+                :disabled="loading || soul.is_cultivating"
+                @click="handleCultivate(soul.soul_index as 2|3)"
+              >
+                {{ soul.is_cultivating ? '修炼中' : '独立修炼' }}
+              </AppButton>
             </div>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
+
+      <!-- 残篇收集进度 -->
+      <section class="bg-surface-hover border border-line rounded-panel p-4">
+        <div class="text-sm font-bold text-state-arcane mb-3 font-display">元神残篇收集</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div v-for="(frag, key) in profile.fragment_progress" :key="key"
+            class="bg-surface-sunken border border-line rounded-control p-2 text-xs">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-gold-400 font-bold">{{ frag.name }}</span>
+                <span class="ml-2 text-fg-muted text-[10px]">{{ frag.source }}</span>
+              </div>
+              <div class="num" :class="frag.met ? 'text-state-success' : 'text-state-danger'">
+                {{ frag.collected }} / {{ frag.required }}
+              </div>
+            </div>
+            <!-- 进度条 -->
+            <div class="mt-1 h-1 bg-surface-sunken rounded-full overflow-hidden border border-line-subtle">
+              <div class="h-full transition-all duration-500"
+                :class="frag.met ? 'bg-state-success' : 'bg-gold-500'"
+                :style="{ width: `${Math.min((frag.collected / frag.required) * 100, 100)}%` }"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 凝练/分化操作 -->
+      <section class="bg-surface-hover border border-line rounded-panel p-4">
+        <div class="text-sm font-bold text-gold-400 mb-3 font-display">元神凝练与分化</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- 凝练第二元神 -->
+          <div class="bg-surface-sunken border border-line rounded-control p-3">
+            <div class="text-xs text-gold-400 font-bold mb-2">凝练第二元神</div>
+            <div class="text-[11px] text-fg-secondary space-y-1 mb-3">
+              <div>· 境界要求：<span :class="profile.condense_requirements.realm_met ? 'text-state-success' : 'text-state-danger'">
+                {{ profile.condense_requirements.realm_required }}
+              </span></div>
+              <div>· 残篇收集：<span :class="profile.condense_requirements.fragments_met ? 'text-state-success' : 'text-state-danger'">
+                {{ profile.condense_requirements.fragments_met ? '已齐全' : '尚有缺失' }}
+              </span></div>
+              <div>· 消耗灵石：<span class="text-gold-400 num" :title="String(profile.condense_requirements.cost.spirit_stones)">{{ formatCompact(profile.condense_requirements.cost.spirit_stones) }}</span></div>
+              <div>· 消耗神识：<span class="text-state-info num">{{ profile.condense_requirements.cost.divine_sense }}</span></div>
+              <div>· 消耗残魂：<span class="text-state-arcane num">{{ profile.condense_requirements.cost.remnant_soul }}</span></div>
+            </div>
+            <AppButton
+              block
+              variant="primary"
+              :disabled="loading || !profile.condense_requirements.can_condense || hasSecondSoul"
+              @click="openCondenseModal(2)"
+            >
+              {{ hasSecondSoul ? '已有第二元神' : (profile.condense_requirements.can_condense ? '凝练第二元神' : '条件未满足') }}
+            </AppButton>
+          </div>
+
+          <!-- 分化第三元神 -->
+          <div class="bg-surface-sunken border border-line rounded-control p-3">
+            <div class="text-xs text-state-arcane font-bold mb-2">分化第三元神</div>
+            <div class="text-[11px] text-fg-secondary space-y-1 mb-3">
+              <div>· 需第二元神境界≥化神期</div>
+              <div>· 元神上限：<span class="num">3</span>（主+第二+第三）</div>
+              <div>· 消耗：额外灵石/神识/残魂</div>
+              <div>· 第三元神属性继承第二元神</div>
+            </div>
+            <AppButton
+              block
+              variant="outline"
+              :disabled="loading || !hasSecondSoul || hasThirdSoul"
+              @click="openCondenseModal(3)"
+            >
+              {{ !hasSecondSoul ? '需先凝练第二元神' : (hasThirdSoul ? '已有第三元神' : '分化第三元神') }}
+            </AppButton>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- 凝练/分化元神命名弹窗 -->
     <Modal :isOpen="showNameModal" :title="nameModalTitle" @close="showNameModal = false" width="420px">
       <div class="space-y-3">
-        <p class="text-stone-300 text-sm">
+        <p class="text-fg-secondary text-sm">
           请为{{ pendingSoulIndex === 2 ? '第二元神' : '第三元神' }}赐名（最长 50 字符）：
         </p>
         <input v-model="soulName" maxlength="50"
-          class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-amber-500 focus:outline-none"
+          class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-primary focus:border-gold-500 focus:outline-none focus-ring"
           placeholder="如：玄清分身、太虚影魂等" />
-        <p class="text-[11px] text-stone-500">
+        <p class="text-[11px] text-fg-muted">
           · 元神名称将显示在元神列表与战斗日志中<br>
           · 凝练后将消耗对应资源，操作不可撤销
         </p>
       </div>
       <template #footer>
-        <button @click="showNameModal = false"
-          class="px-4 py-2 text-xs rounded bg-stone-800 text-stone-300 hover:bg-stone-700">取消</button>
-        <button @click="confirmCondense"
-          :disabled="loading || !soulName.trim()"
-          class="px-4 py-2 text-xs rounded bg-amber-700 text-amber-100 hover:bg-amber-600 disabled:opacity-50">
-          {{ loading ? '处理中...' : '确认凝练' }}
-        </button>
+        <AppButton variant="default" @click="showNameModal = false">取消</AppButton>
+        <AppButton
+          variant="primary"
+          :loading="loading"
+          :disabled="!soulName.trim()"
+          @click="confirmCondense"
+        >
+          确认凝练
+        </AppButton>
       </template>
     </Modal>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup lang="ts">
@@ -263,8 +249,11 @@
  */
 import { ref, computed, onMounted } from 'vue';
 import Modal from '../common/Modal.vue';
+import PanelShell from '../ui/PanelShell.vue';
+import AppButton from '../ui/AppButton.vue';
+import Badge from '../ui/Badge.vue';
 import { useUIStore } from '../../stores/ui';
-import { formatNumber } from '../../utils/format';
+import { formatCompact } from '../../utils/format';
 import {
   secondSoulGetProfile,
   secondSoulCondense,
@@ -454,14 +443,3 @@ function formatTime(time: string | null): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 </script>
-
-<style scoped>
-/* 局部淡入动画，与 AscensionPanel 保持一致 */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-</style>

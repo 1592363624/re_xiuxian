@@ -20,6 +20,7 @@ import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import apiClient from '../../api'
 import { formatNumber } from '../../utils/format'
+import AppButton from '../ui/AppButton.vue'
 
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
@@ -117,7 +118,11 @@ const handleLogout = () => {
       </div>
 
       <!-- 死亡信息卡片 -->
-      <div class="relative z-10 max-w-md w-full mx-4 bg-gradient-to-b from-stone-900/95 to-black/95 border-2 border-red-900/50 rounded-2xl p-8 shadow-2xl shadow-red-900/30">
+      <div
+        class="relative z-10 max-w-md w-full mx-4 bg-gradient-to-b from-surface-raised/95 to-black/95 border-2 border-red-900/50 rounded-panel p-8 shadow-2xl shadow-red-900/30"
+        role="dialog"
+        aria-label="身死道消"
+      >
         <!-- 骷髅图标 -->
         <div class="flex justify-center mb-6">
           <div class="w-24 h-24 rounded-full bg-red-950/50 border-2 border-red-700/50 flex items-center justify-center shadow-lg shadow-red-900/50 animate-pulse">
@@ -132,56 +137,62 @@ const handleLogout = () => {
         </div>
 
         <!-- 标题 -->
-        <h1 class="text-center text-3xl font-serif font-bold text-red-500 tracking-widest mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]">
+        <h1 class="text-center text-3xl font-display font-bold text-red-500 tracking-widest mb-2 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]">
           身死道消
         </h1>
-        <p class="text-center text-stone-500 text-sm mb-6 italic">大道无情，寿元有尽</p>
+        <p class="text-center text-fg-faint text-sm mb-6 italic">大道无情，寿元有尽</p>
 
         <!-- 死亡信息 -->
-        <div class="space-y-3 mb-8 bg-black/40 rounded-lg p-4 border border-stone-800">
+        <div class="space-y-3 mb-8 bg-black/40 rounded-control p-4 border border-line-subtle">
           <div class="flex justify-between text-sm">
-            <span class="text-stone-500">死亡原因</span>
+            <span class="text-fg-faint">死亡原因</span>
             <span class="text-red-400 font-medium">{{ deathReason }}</span>
           </div>
           <div v-if="deathTime" class="flex justify-between text-sm">
-            <span class="text-stone-500">陨落时刻</span>
-            <span class="text-stone-300 font-mono">{{ deathTime.toLocaleString('zh-CN') }}</span>
+            <span class="text-fg-faint">陨落时刻</span>
+            <span class="text-fg-secondary num">{{ deathTime.toLocaleString('zh-CN') }}</span>
           </div>
           <div class="flex justify-between text-sm">
-            <span class="text-stone-500">剩余修为</span>
-            <span class="text-amber-400 font-mono">{{ formatNumber(currentExp) }}</span>
+            <span class="text-fg-faint">剩余修为</span>
+            <span class="text-gold-400 num">{{ formatNumber(currentExp) }}</span>
           </div>
-          <div class="border-t border-stone-800 pt-3 mt-3">
-            <p class="text-xs text-stone-500 leading-relaxed">
+          <div class="border-t border-line-subtle pt-3 mt-3">
+            <p class="text-xs text-fg-faint leading-relaxed">
               道友寿元已尽，魂归天地。可选择<span class="text-cyan-400">轮回重生</span>，重入修仙之道；
-              或<span class="text-stone-400">退出登录</span>，他日再来。
+              或<span class="text-fg-muted">退出登录</span>，他日再来。
             </p>
           </div>
         </div>
 
         <!-- 轮回结果反馈 -->
-        <div v-if="reincarnateResult" class="mb-4 p-3 rounded-lg text-sm" :class="reincarnateResult.success ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-700/50' : 'bg-red-900/30 text-red-300 border border-red-700/50'">
+        <div v-if="reincarnateResult" class="mb-4 p-3 rounded-control text-sm" :class="reincarnateResult.success ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-700/50' : 'bg-red-900/30 text-red-300 border border-red-700/50'">
           {{ reincarnateResult.message }}
         </div>
 
         <!-- 按钮组 -->
         <div class="space-y-3">
+          <!--
+            没有换成 AppButton：这颗是渐变实心 CTA，且要在文案前切换两种图标，
+            AppButton 的变体（primary=鎏金）会改掉「轮回」的青色语义。
+          -->
           <button
             @click="handleReincarnate"
             :disabled="isReincarnating"
-            class="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white font-bold tracking-wider transition-all shadow-lg shadow-cyan-900/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            class="focus-ring w-full py-3 rounded-control bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white font-bold tracking-wider transition-all shadow-lg shadow-cyan-900/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <svg v-if="isReincarnating" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m16.24 7.76 2.83-2.83"/><path d="M18 12h4"/><path d="m16.24 16.24 2.83 2.83"/><path d="M12 18v4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M2 12h4"/><path d="m4.93 4.93 2.83 2.83"/></svg>
+            <svg v-if="isReincarnating" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4"/><path d="m16.24 7.76 2.83-2.83"/><path d="M18 12h4"/><path d="m16.24 16.24 2.83 2.83"/><path d="M12 18v4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M2 12h4"/><path d="m4.93 4.93 2.83 2.83"/></svg>
             {{ isReincarnating ? '轮回中...' : '轮回重生' }}
           </button>
-          <button
+          <AppButton
             @click="handleLogout"
             :disabled="isReincarnating"
-            class="w-full py-2.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-stone-200 text-sm transition-all border border-stone-700 disabled:opacity-50"
+            variant="default"
+            size="md"
+            block
           >
             退出登录
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>

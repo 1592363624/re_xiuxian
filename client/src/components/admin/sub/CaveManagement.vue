@@ -2,45 +2,45 @@
   <div class="space-y-6">
     <!-- 标题与操作按钮 -->
     <div class="flex justify-between items-center">
-      <h3 class="text-lg font-bold text-white">洞府管理</h3>
+      <h3 class="text-lg font-bold text-fg-primary">洞府管理</h3>
       <div class="flex space-x-2">
-        <button @click="fetchList(pagination.page)" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新</button>
+        <AppButton variant="primary" size="sm" @click="fetchList(pagination.page)">刷新</AppButton>
       </div>
     </div>
 
     <!-- 搜索区域 -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+    <div class="bg-surface-base/50 rounded-panel border border-line p-4">
       <div class="flex flex-wrap items-center gap-3">
         <div class="flex items-center gap-2">
-          <label class="text-sm text-gray-400 whitespace-nowrap">玩家ID：</label>
+          <label class="text-sm text-fg-muted whitespace-nowrap">玩家ID：</label>
           <input
             v-model="searchParams.player_id"
             type="text"
-            class="w-32 px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+            class="w-32 px-3 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600"
             placeholder="精确匹配"
             @keyup.enter="handleSearch"
           >
         </div>
         <div class="flex items-center gap-2">
-          <label class="text-sm text-gray-400 whitespace-nowrap">昵称：</label>
+          <label class="text-sm text-fg-muted whitespace-nowrap">昵称：</label>
           <input
             v-model="searchParams.nickname"
             type="text"
-            class="w-40 px-3 py-1 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+            class="w-40 px-3 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600"
             placeholder="模糊匹配"
             @keyup.enter="handleSearch"
           >
         </div>
-        <button @click="handleSearch" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">查询</button>
-        <button @click="resetSearch" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">重置</button>
+        <AppButton variant="primary" size="sm" @click="handleSearch">查询</AppButton>
+        <AppButton variant="default" size="sm" @click="resetSearch">重置</AppButton>
       </div>
     </div>
 
     <!-- 洞府列表表格 -->
-    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+    <div class="bg-surface-base/50 rounded-panel border border-line overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="bg-gray-900 text-gray-400">
+          <thead class="bg-surface-raised text-fg-muted">
             <tr>
               <th class="px-3 py-2 text-left whitespace-nowrap">玩家ID</th>
               <th class="px-3 py-2 text-left whitespace-nowrap">昵称</th>
@@ -58,50 +58,51 @@
           </thead>
           <tbody>
             <!-- 加载中 -->
-            <tr v-if="loading" class="text-center text-gray-500">
+            <tr v-if="loading" class="text-center text-fg-faint">
               <td colspan="12" class="px-3 py-6">加载中...</td>
             </tr>
             <!-- 空数据 -->
-            <tr v-else-if="caveList.length === 0" class="text-center text-gray-500">
+            <tr v-else-if="caveList.length === 0" class="text-center text-fg-faint">
               <td colspan="12" class="px-3 py-6">暂无洞府数据</td>
             </tr>
             <!-- 数据行 -->
             <tr
               v-for="c in caveList"
               :key="c.player_id"
-              class="border-t border-gray-700 hover:bg-gray-750"
+              class="border-t border-line-subtle hover:bg-surface-hover"
             >
-              <td class="px-3 py-2 text-gray-400">{{ c.player_id }}</td>
-              <td class="px-3 py-2 text-white">{{ c.nickname }}</td>
-              <td class="px-3 py-2 text-gray-300 text-xs">{{ c.realm }}</td>
+              <td class="px-3 py-2 text-fg-muted num">{{ c.player_id }}</td>
+              <td class="px-3 py-2 text-fg-primary">{{ c.nickname }}</td>
+              <td class="px-3 py-2 text-fg-secondary text-xs">{{ c.realm }}</td>
               <td class="px-3 py-2">
                 <span
-                  :class="c.is_opened ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400'"
+                  :class="c.is_opened ? 'bg-green-900 text-green-300' : 'bg-surface-active text-fg-muted'"
                   class="px-2 py-0.5 rounded text-xs"
                 >{{ c.is_opened ? '已开辟' : '未开辟' }}</span>
               </td>
-              <td class="px-3 py-2 text-yellow-400 font-bold">{{ c.spirit_vein_level }}</td>
-              <td class="px-3 py-2 text-blue-300">{{ c.quiet_room_level }}</td>
-              <td class="px-3 py-2 text-purple-300">{{ c.pill_room_level }}</td>
-              <td class="px-3 py-2 text-orange-300">{{ c.tool_room_level }}</td>
-              <td class="px-3 py-2 text-red-300">{{ c.grand_formation_level }}</td>
-              <td class="px-3 py-2 text-green-400 font-bold">{{ c.garden_plots }} / 9</td>
-              <td class="px-3 py-2 text-gray-400 text-xs whitespace-nowrap">{{ formatDate(c.opened_at) }}</td>
+              <td class="px-3 py-2 text-yellow-400 font-bold num">{{ c.spirit_vein_level }}</td>
+              <td class="px-3 py-2 text-blue-300 num">{{ c.quiet_room_level }}</td>
+              <td class="px-3 py-2 text-purple-300 num">{{ c.pill_room_level }}</td>
+              <td class="px-3 py-2 text-orange-300 num">{{ c.tool_room_level }}</td>
+              <td class="px-3 py-2 text-red-300 num">{{ c.grand_formation_level }}</td>
+              <td class="px-3 py-2 text-green-400 font-bold num">{{ c.garden_plots }} / 9</td>
+              <td class="px-3 py-2 text-fg-muted text-xs whitespace-nowrap num">{{ formatDate(c.opened_at) }}</td>
               <td class="px-3 py-2 text-center whitespace-nowrap">
-                <button
+                <AppButton
+                  variant="outline"
+                  size="xs"
+                  class="mr-1"
+                  :disabled="!c.is_opened"
                   @click="openFacilityModal(c)"
+                >设施</AppButton>
+                <AppButton
+                  variant="outline"
+                  size="xs"
+                  class="mr-1"
                   :disabled="!c.is_opened"
-                  class="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 rounded text-white text-xs mr-1 disabled:opacity-40 disabled:cursor-not-allowed"
-                >设施</button>
-                <button
                   @click="openPlotsModal(c)"
-                  :disabled="!c.is_opened"
-                  class="px-2 py-1 bg-green-700 hover:bg-green-600 rounded text-white text-xs mr-1 disabled:opacity-40 disabled:cursor-not-allowed"
-                >地块</button>
-                <button
-                  @click="openResetModal(c)"
-                  class="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-white text-xs"
-                >重置</button>
+                >地块</AppButton>
+                <AppButton variant="danger" size="xs" @click="openResetModal(c)">重置</AppButton>
               </td>
             </tr>
           </tbody>
@@ -111,31 +112,33 @@
 
     <!-- 分页 -->
     <div class="flex justify-center items-center gap-4">
-      <button
+      <AppButton
+        variant="default"
+        size="sm"
         :disabled="pagination.page <= 1"
         @click="fetchList(pagination.page - 1)"
-        class="px-3 py-1 bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600 text-white text-sm"
-      >上一页</button>
-      <span class="text-gray-400 text-sm">第 {{ pagination.page }} / {{ pagination.totalPages }} 页 (共{{ pagination.total }}条)</span>
-      <button
+      >上一页</AppButton>
+      <span class="text-fg-muted text-sm num">第 {{ pagination.page }} / {{ pagination.totalPages }} 页 (共{{ pagination.total }}条)</span>
+      <AppButton
+        variant="default"
+        size="sm"
         :disabled="pagination.page >= pagination.totalPages"
         @click="fetchList(pagination.page + 1)"
-        class="px-3 py-1 bg-gray-700 rounded disabled:opacity-50 hover:bg-gray-600 text-white text-sm"
-      >下一页</button>
+      >下一页</AppButton>
     </div>
 
     <!-- 调整设施等级弹窗 -->
     <Modal :isOpen="facilityModal.show" title="调整设施等级" @close="closeFacilityModal">
       <div v-if="facilityModal.cave" class="space-y-4">
-        <p class="text-gray-300">
-          玩家：<span class="text-xiuxian-gold">{{ facilityModal.cave.nickname }}</span>
+        <p class="text-fg-secondary">
+          玩家：<span class="text-gold-500">{{ facilityModal.cave.nickname }}</span>
           （ID：{{ facilityModal.cave.player_id }}）
         </p>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">设施类型</label>
+          <label class="block text-sm text-fg-muted mb-1">设施类型</label>
           <select
             v-model="facilityModal.facility"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+            class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600"
           >
             <option v-for="opt in facilityOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}（当前等级：{{ getFacilityLevel(facilityModal.cave, opt.value) }}）
@@ -143,25 +146,25 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">新等级（0-10）</label>
+          <label class="block text-sm text-fg-muted mb-1">新等级（0-10）</label>
           <input
             v-model.number="facilityModal.level"
             type="number"
             min="0"
             max="10"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+            class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600"
             placeholder="输入新的等级数值"
           >
-          <p class="mt-1 text-xs text-gray-500">提示：0 表示未建造，10 为最高等级；GM 调整不消耗资源</p>
+          <p class="mt-1 text-xs text-fg-faint">提示：0 表示未建造，10 为最高等级；GM 调整不消耗资源</p>
         </div>
       </div>
       <template #footer>
-        <button @click="closeFacilityModal" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">取消</button>
-        <button
-          @click="confirmFacility"
+        <AppButton variant="default" @click="closeFacilityModal">取消</AppButton>
+        <AppButton
+          variant="primary"
           :disabled="facilityModal.submitting"
-          class="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded text-white text-sm disabled:opacity-50"
-        >{{ facilityModal.submitting ? '提交中...' : '确认调整' }}</button>
+          @click="confirmFacility"
+        >{{ facilityModal.submitting ? '提交中...' : '确认调整' }}</AppButton>
       </template>
     </Modal>
 
@@ -169,12 +172,12 @@
     <Modal :isOpen="resetModal.show" title="重置洞府确认" width="480px" @close="closeResetModal">
       <div v-if="resetModal.cave" class="space-y-3">
         <p class="text-red-300 font-bold">⚠️ 此操作不可撤销，请确认！</p>
-        <p class="text-gray-300">
-          玩家：<span class="text-xiuxian-gold">{{ resetModal.cave.nickname }}</span>
+        <p class="text-fg-secondary">
+          玩家：<span class="text-gold-500">{{ resetModal.cave.nickname }}</span>
           （ID：{{ resetModal.cave.player_id }}）
         </p>
-        <p class="text-gray-400 text-sm">重置后玩家洞府将发生以下变化：</p>
-        <ul class="text-sm text-gray-400 list-disc list-inside space-y-1">
+        <p class="text-fg-muted text-sm">重置后玩家洞府将发生以下变化：</p>
+        <ul class="text-sm text-fg-muted list-disc list-inside space-y-1">
           <li>所有设施等级（灵脉/静室/丹房/器室/大阵）清零</li>
           <li>灵脉累计产出与待领取灵石清零</li>
           <li>药园地块数重置为初始值（3 块）</li>
@@ -183,43 +186,43 @@
         </ul>
       </div>
       <template #footer>
-        <button @click="closeResetModal" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">取消</button>
-        <button
-          @click="confirmReset"
+        <AppButton variant="default" @click="closeResetModal">取消</AppButton>
+        <AppButton
+          variant="danger"
           :disabled="resetModal.submitting"
-          class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-white text-sm disabled:opacity-50"
-        >{{ resetModal.submitting ? '提交中...' : '确认重置' }}</button>
+          @click="confirmReset"
+        >{{ resetModal.submitting ? '提交中...' : '确认重置' }}</AppButton>
       </template>
     </Modal>
 
     <!-- 调整药园地块数弹窗 -->
     <Modal :isOpen="plotsModal.show" title="调整药园地块数" @close="closePlotsModal">
       <div v-if="plotsModal.cave" class="space-y-4">
-        <p class="text-gray-300">
-          玩家：<span class="text-xiuxian-gold">{{ plotsModal.cave.nickname }}</span>
+        <p class="text-fg-secondary">
+          玩家：<span class="text-gold-500">{{ plotsModal.cave.nickname }}</span>
           （ID：{{ plotsModal.cave.player_id }}）
         </p>
-        <p class="text-gray-400 text-sm">当前地块数：<span class="text-green-400">{{ plotsModal.cave.garden_plots }}</span> 块</p>
+        <p class="text-fg-muted text-sm">当前地块数：<span class="text-green-400">{{ plotsModal.cave.garden_plots }}</span> 块</p>
         <div>
-          <label class="block text-sm text-gray-400 mb-1">新地块数（0-9）</label>
+          <label class="block text-sm text-fg-muted mb-1">新地块数（0-9）</label>
           <input
             v-model.number="plotsModal.plots"
             type="number"
             min="0"
             max="9"
-            class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+            class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600"
             placeholder="输入新的地块数"
           >
-          <p class="mt-1 text-xs text-gray-500">提示：0 表示无地块，9 为最大值；GM 调整不消耗灵石</p>
+          <p class="mt-1 text-xs text-fg-faint">提示：0 表示无地块，9 为最大值；GM 调整不消耗灵石</p>
         </div>
       </div>
       <template #footer>
-        <button @click="closePlotsModal" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">取消</button>
-        <button
-          @click="confirmPlots"
+        <AppButton variant="default" @click="closePlotsModal">取消</AppButton>
+        <AppButton
+          variant="primary"
           :disabled="plotsModal.submitting"
-          class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm disabled:opacity-50"
-        >{{ plotsModal.submitting ? '提交中...' : '确认调整' }}</button>
+          @click="confirmPlots"
+        >{{ plotsModal.submitting ? '提交中...' : '确认调整' }}</AppButton>
       </template>
     </Modal>
   </div>
@@ -246,6 +249,7 @@ import {
   resetCave,
   updateGardenPlots
 } from '../../../api/admin_cave'
+import AppButton from '../../ui/AppButton.vue'
 
 const uiStore = useUIStore()
 
@@ -429,8 +433,7 @@ const confirmFacility = async () => {
     // 刷新列表展示最新数据
     await fetchList(pagination.page)
   } catch (err) {
-    const msg = err.response?.data?.message || '调整设施等级失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '调整设施等级失败')
   } finally {
     facilityModal.submitting = false
   }
@@ -470,8 +473,7 @@ const confirmReset = async () => {
     // 刷新列表展示最新数据
     await fetchList(pagination.page)
   } catch (err) {
-    const msg = err.response?.data?.message || '重置洞府失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '重置洞府失败')
   } finally {
     resetModal.submitting = false
   }
@@ -523,8 +525,7 @@ const confirmPlots = async () => {
     // 刷新列表展示最新数据
     await fetchList(pagination.page)
   } catch (err) {
-    const msg = err.response?.data?.message || '调整药园地块数失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(err, '调整药园地块数失败')
   } finally {
     plotsModal.submitting = false
   }

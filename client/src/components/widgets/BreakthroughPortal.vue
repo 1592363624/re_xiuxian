@@ -226,8 +226,7 @@ const handleBreakthroughClick = async () => {
       uiStore.showToast(res.message || '突破失败', 'warning')
     }
   } catch (error) {
-    const msg = error?.response?.data?.message || error?.response?.data?.error || '突破失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '突破失败')
   } finally {
     isTrying.value = false
   }

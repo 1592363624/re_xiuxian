@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6">
     <div class="flex justify-between items-center">
-       <h3 class="text-lg font-bold text-white">系统参数配置</h3>
-       <button @click="fetchConfig" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">刷新配置</button>
+       <h3 class="text-lg font-bold text-fg-primary">系统参数配置</h3>
+       <AppButton variant="primary" size="sm" @click="fetchConfig">刷新配置</AppButton>
     </div>
 
     <!-- 闭关/历练参数已迁移至「修炼配置」Tab 的提示 -->
@@ -20,59 +20,60 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <!-- 自动存档间隔 -->
-      <div class="bg-gray-800 p-4 rounded border border-gray-700">
-        <label class="block text-sm font-medium text-gray-400 mb-2">自动存档间隔 (毫秒)</label>
+      <div class="bg-surface-base/50 p-4 rounded-panel border border-line">
+        <label class="block text-sm font-medium text-fg-muted mb-2">自动存档间隔 (毫秒)</label>
         <div class="flex space-x-2">
           <input
             v-model="configs.auto_save_interval"
             type="number"
-            class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+            class="flex-1 bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary text-sm focus-ring focus:border-gold-600"
           >
-          <button @click="saveConfig('auto_save_interval', configs.auto_save_interval, '自动存档间隔(ms)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+          <AppButton variant="primary" @click="saveConfig('auto_save_interval', configs.auto_save_interval, '自动存档间隔(ms)')">保存</AppButton>
         </div>
-        <p class="mt-1 text-xs text-gray-500">默认: 10000 (10秒)</p>
+        <p class="mt-1 text-xs text-fg-faint">默认: 10000 (10秒)</p>
       </div>
 
       <!-- 修炼时间间隔（保留字段，向后兼容） -->
-      <div class="bg-gray-800 p-4 rounded border border-gray-700">
-        <label class="block text-sm font-medium text-gray-400 mb-2">修炼时间间隔 (秒)</label>
+      <div class="bg-surface-base/50 p-4 rounded-panel border border-line">
+        <label class="block text-sm font-medium text-fg-muted mb-2">修炼时间间隔 (秒)</label>
         <div class="flex space-x-2">
           <input
             v-model="configs.cultivate_interval"
             type="number"
             min="1"
-            class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+            class="flex-1 bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary text-sm focus-ring focus:border-gold-600"
           >
-          <button @click="saveConfig('cultivate_interval', configs.cultivate_interval, '修炼时间间隔(秒)')" class="px-4 py-2 bg-green-700 hover:bg-green-600 rounded text-white text-sm">保存</button>
+          <AppButton variant="primary" @click="saveConfig('cultivate_interval', configs.cultivate_interval, '修炼时间间隔(秒)')">保存</AppButton>
         </div>
-        <p class="mt-1 text-xs text-gray-500">默认: 60 (1分钟)</p>
+        <p class="mt-1 text-xs text-fg-faint">默认: 60 (1分钟)</p>
       </div>
 
       <!-- 时间控制 (GM) -->
-      <div class="bg-gray-800 p-4 rounded border border-gray-700 md:col-span-2 lg:col-span-3 mt-4">
+      <div class="bg-surface-base/50 p-4 rounded-panel border border-line md:col-span-2 lg:col-span-3 mt-4">
         <label class="block text-sm font-medium text-amber-500 mb-2 font-bold">⏳ 时光飞逝 (时间加速)</label>
         <div class="flex items-center gap-4 flex-wrap">
           <div class="flex items-center gap-2 flex-1 min-w-[200px]">
-            <span class="text-gray-400 text-sm">加速年份:</span>
+            <span class="text-fg-muted text-sm">加速年份:</span>
             <input
               v-model="timeTravelYears"
               type="number"
               min="0.1"
               step="0.1"
-              class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white"
+              class="flex-1 bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary text-sm focus-ring focus:border-gold-600"
               placeholder="输入年份，如 1 或 0.5"
             >
           </div>
           <button
+            type="button"
             @click="confirmTimeTravel"
             :disabled="isTimeTraveling"
-            class="px-6 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="focus-ring px-6 py-2 bg-amber-700 hover:bg-amber-600 rounded-control text-fg-primary text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <svg v-if="isTimeTraveling" class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <svg v-if="isTimeTraveling" class="animate-spin h-4 w-4 text-fg-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
             {{ isTimeTraveling ? '加速中...' : '执行加速' }}
           </button>
         </div>
-        <p class="mt-2 text-xs text-gray-500">警告：此操作会增加全服所有玩家的寿命，可能导致寿元耗尽的玩家死亡！(24小时=1年)</p>
+        <p class="mt-2 text-xs text-fg-faint">警告：此操作会增加全服所有玩家的寿命，可能导致寿元耗尽的玩家死亡！(24小时=1年)</p>
       </div>
     </div>
   </div>
@@ -93,6 +94,7 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
 import { getConfig, updateConfig, timeTravel } from '../../../api/admin'
+import AppButton from '../../ui/AppButton.vue'
 
 const emit = defineEmits(['timeTravelComplete', 'showConfirm'])
 const uiStore = useUIStore()
@@ -133,7 +135,7 @@ const saveConfig = async (key, value, desc) => {
     await updateConfig(key, value.toString(), desc)
     uiStore.showToast('配置保存成功', 'success')
   } catch (error) {
-    uiStore.showToast('配置保存失败', 'error')
+    uiStore.showApiError(error, '操作失败')
   }
 }
 

@@ -113,7 +113,7 @@ export function getMetrics() {
  * @param status 状态过滤（可选）
  */
 export function getBossList(page: number = 1, pageSize: number = 20, status?: string) {
-  const params: any = { page, page_size: pageSize };
+  const params: any = { page, limit: pageSize };
   if (status) params.status = status;
   return apiClient.get('/admin/world-boss/bosses', { params });
 }
@@ -125,7 +125,7 @@ export function getBossList(page: number = 1, pageSize: number = 20, status?: st
  * @param pageSize 每页数量
  */
 export function getSeasonList(page: number = 1, pageSize: number = 20) {
-  return apiClient.get('/admin/world-boss/seasons', { params: { page, page_size: pageSize } });
+  return apiClient.get('/admin/world-boss/seasons', { params: { page, limit: pageSize } });
 }
 
 /**
