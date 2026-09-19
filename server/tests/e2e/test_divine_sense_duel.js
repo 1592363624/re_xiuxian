@@ -15,7 +15,7 @@
  *  11. 路由文件验证
  *  12. OpenAPI 文档验证（如已注册）
  *
- * 运行方式：node scripts/test_divine_sense_duel.js
+ * 运行方式：node tests/e2e/test_divine_sense_duel.js
  *
  * 注意：本测试为只读为主，不实际发起挑战（避免影响其他玩家），
  *      主要验证接口可达性、参数校验、Service/路由/OpenAPI 完整性。
@@ -24,7 +24,7 @@
 
 // 显式指定 .env 路径，确保从 server/.env 加载
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 const BASE = 'http://localhost:5000';
 const TEST_USERNAME = '1592363624';
 const TEST_PASSWORD = '1592363624';
@@ -86,7 +86,7 @@ async function main() {
     // ===== 2. 配置完整性验证 =====
     console.log('\n--- 2. 配置完整性验证 ---');
     const fs = require('fs');
-    const lateStagePath = path.join(__dirname, '..', 'config', 'late_stage_data.json');
+    const lateStagePath = path.join(__dirname, '..', '..', 'config', 'late_stage_data.json');
     const lateStage = JSON.parse(fs.readFileSync(lateStagePath, 'utf-8'));
     const duelCfg = lateStage?.divine_duel;
     check('late_stage_data.divine_duel 配置段应存在', !!duelCfg);
@@ -102,7 +102,7 @@ async function main() {
 
     // ===== 3. 数据库表结构验证 =====
     console.log('\n--- 3. 数据库表结构验证 ---');
-    const sequelize = require('../config/database');
+    const sequelize = require('../../config/database');
     const { QueryTypes } = require('sequelize');
     try {
         const tableInfo = await sequelize.query(
@@ -136,7 +136,7 @@ async function main() {
     // ===== 4. Service 单元验证 =====
     console.log('\n--- 4. Service 单元验证 ---');
     try {
-        const DivineDuelService = require('../game/services/DivineDuelService');
+        const DivineDuelService = require('../../game/services/DivineDuelService');
         check('DivineDuelService 加载成功', !!DivineDuelService);
         check('Service 含 challenge 方法', typeof DivineDuelService.challenge === 'function');
         check('Service 含 accept 方法', typeof DivineDuelService.accept === 'function');
@@ -250,7 +250,7 @@ async function main() {
 
     // ===== 9. 路由文件验证 =====
     console.log('\n--- 9. 路由文件验证 ---');
-    const routePath = path.join(__dirname, '..', 'routes', 'divine-sense.js');
+    const routePath = path.join(__dirname, '..', '..', 'routes', 'divine-sense.js');
     check('routes/divine-sense.js 文件存在', fs.existsSync(routePath));
     if (fs.existsSync(routePath)) {
         const routeContent = fs.readFileSync(routePath, 'utf-8');
@@ -266,7 +266,7 @@ async function main() {
 
     // ===== 10. 前端文件验证 =====
     console.log('\n--- 10. 前端文件验证 ---');
-    const apiPath = path.join(__dirname, '..', '..', 'client', 'src', 'api', 'divineSenseDuel.ts');
+    const apiPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'api', 'divineSenseDuel.ts');
     check('client/src/api/divineSenseDuel.ts 文件存在', fs.existsSync(apiPath));
     if (fs.existsSync(apiPath)) {
         const apiContent = fs.readFileSync(apiPath, 'utf-8');
@@ -278,7 +278,7 @@ async function main() {
         check('API 含 surrenderDuel 方法', apiContent.includes('export const surrenderDuel'));
     }
 
-    const panelPath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'panels', 'DivineSenseDuelPanel.vue');
+    const panelPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'panels', 'DivineSenseDuelPanel.vue');
     check('client/src/components/panels/DivineSenseDuelPanel.vue 文件存在', fs.existsSync(panelPath));
     if (fs.existsSync(panelPath)) {
         const panelContent = fs.readFileSync(panelPath, 'utf-8');
@@ -293,20 +293,20 @@ async function main() {
     }
 
     // GameLayout 注册验证
-    const gameLayoutPath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'layout', 'GameLayout.vue');
+    const gameLayoutPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'layout', 'GameLayout.vue');
     const gameLayoutContent = fs.readFileSync(gameLayoutPath, 'utf-8');
     check('GameLayout 导入 DivineSenseDuelPanel', gameLayoutContent.includes('DivineSenseDuelPanel'));
     check('GameLayout 注册 isDivineSenseDuelOpen', gameLayoutContent.includes('isDivineSenseDuelOpen'));
     check('GameLayout 处理 divine_sense_duel actionId', gameLayoutContent.includes("'divine_sense_duel'"));
 
     // ActionBar 按钮验证
-    const actionBarPath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'panels', 'ActionBar.vue');
+    const actionBarPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'panels', 'ActionBar.vue');
     const actionBarContent = fs.readFileSync(actionBarPath, 'utf-8');
     check('ActionBar 含 divine_sense_duel 按钮', actionBarContent.includes("id: 'divine_sense_duel'"));
 
     // ===== 11. OpenAPI 文档验证 =====
     console.log('\n--- 11. OpenAPI 文档验证 ---');
-    const openapiPath = path.join(__dirname, '..', '..', 'docs', 'openapi.json');
+    const openapiPath = path.join(__dirname, '..', '..', '..', 'docs', 'openapi.json');
     if (fs.existsSync(openapiPath)) {
         const openapi = JSON.parse(fs.readFileSync(openapiPath, 'utf-8'));
         const paths = openapi.paths || {};

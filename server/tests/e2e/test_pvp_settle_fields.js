@@ -90,7 +90,7 @@ function buildPvpSettleLog(settle, myPlayerId) {
  */
 function verifyBackendSettleFields() {
     console.log('\n[场景1] 验证后端 _settleBattle 返回字段');
-    const pvpServicePath = path.join(__dirname, '..', 'game', 'services', 'PvpService.js');
+    const pvpServicePath = path.join(__dirname, '..', '..', 'game', 'services', 'PvpService.js');
     const content = fs.readFileSync(pvpServicePath, 'utf-8');
 
     // 验证 _settleBattle 返回的关键字段
@@ -120,7 +120,7 @@ function verifyBackendSettleFields() {
  */
 function verifyExecuteActionReturnStructure() {
     console.log('\n[场景2] 验证 executeAction 返回结构');
-    const pvpServicePath = path.join(__dirname, '..', 'game', 'services', 'PvpService.js');
+    const pvpServicePath = path.join(__dirname, '..', '..', 'game', 'services', 'PvpService.js');
     const content = fs.readFileSync(pvpServicePath, 'utf-8');
 
     // 验证 executeAction 返回的关键字段
@@ -300,7 +300,7 @@ function testNullSettle() {
  */
 function verifyFrontendFixes() {
     console.log('\n[场景8] 验证前端 PvpPanel.vue 已应用修复');
-    const pvpPanelPath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'panels', 'PvpPanel.vue');
+    const pvpPanelPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'panels', 'PvpPanel.vue');
     const content = fs.readFileSync(pvpPanelPath, 'utf-8');
 
     // 验证字段名修复（is_finished → battle_ended）
@@ -325,7 +325,7 @@ function verifyFrontendFixes() {
  */
 function verifySeclusionOverlayFixes() {
     console.log('\n[场景9] 验证 SeclusionOverlay.vue 已应用 HP/MP 恢复值展示修复');
-    const overlayPath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'panels', 'SeclusionOverlay.vue');
+    const overlayPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'panels', 'SeclusionOverlay.vue');
     const content = fs.readFileSync(overlayPath, 'utf-8');
 
     // 验证 buildSeclusionSettleLog 函数存在
@@ -358,7 +358,7 @@ function verifySeclusionOverlayFixes() {
  */
 function verifyExplorePanelFixes() {
     console.log('\n[场景10] 验证 ExplorePanel.vue 物品奖励数量展示修复');
-    const explorePath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'panels', 'ExplorePanel.vue');
+    const explorePath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'panels', 'ExplorePanel.vue');
     const content = fs.readFileSync(explorePath, 'utf-8');
 
     // 验证显示物品数量
@@ -375,7 +375,7 @@ function verifyExplorePanelFixes() {
  */
 function verifyDungeonPanelFixes() {
     console.log('\n[场景11] 验证 DungeonPanel.vue BigInt 字符串 formatNumber 修复');
-    const dungeonPath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'panels', 'DungeonPanel.vue');
+    const dungeonPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'panels', 'DungeonPanel.vue');
     const content = fs.readFileSync(dungeonPath, 'utf-8');
 
     // 验证中断副本日志使用 formatNumber

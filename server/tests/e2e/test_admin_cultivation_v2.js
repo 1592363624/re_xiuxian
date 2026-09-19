@@ -6,7 +6,7 @@
  *   - 测试 POST /api/admin/cultivation/rollback（回滚 + 回滚链验证）
  *   - 测试路径穿越攻击防护（应被拒绝）
  *
- * 用法：node scripts/test_admin_cultivation_v2.js
+ * 用法：node tests/e2e/test_admin_cultivation_v2.js
  */
 const http = require('http');
 

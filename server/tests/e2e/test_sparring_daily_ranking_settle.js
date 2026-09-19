@@ -9,7 +9,7 @@
  *   5. 字段完整性校验
  *
  * 测试账号：1592363624 / 1592363624（管理员）
- * 运行方式：node server/scripts/test_sparring_daily_ranking_settle.js
+ * 运行方式：node server/tests/e2e/test_sparring_daily_ranking_settle.js
  *
  * @author 修仙游戏开发组
  * @created 2026-07-21
@@ -252,7 +252,7 @@ async function main() {
     console.log('【阶段 5】称号配置校验');
     {
         // 读取 titles.json 校验新称号是否已注册
-        const titles = require('../config/titles.json');
+        const titles = require('../../config/titles.json');
         const expectedTitles = ['化神木人·破阵者', '木人切磋·天下第一'];
         for (const titleId of expectedTitles) {
             const found = titles.find(t => t.id === titleId);
@@ -268,7 +268,7 @@ async function main() {
     // ============== 阶段 6：调度器配置校验 ==============
     console.log('【阶段 6】调度器配置校验');
     {
-        const config = require('../config/sparring_woodman.json');
+        const config = require('../../config/sparring_woodman.json');
         assertEqual('应配置 ranking_top_n=10', config.global.ranking_top_n, 10);
         assertEqual('应配置 ranking_settle_hour=0', config.global.ranking_settle_hour, 0);
         assertEqual('应配置 ranking_settle_minute=5', config.global.ranking_settle_minute, 5);
@@ -283,7 +283,7 @@ async function main() {
     // ============== 阶段 7：化神木人首通称号校验 ==============
     console.log('【阶段 7】化神木人首通称号校验');
     {
-        const config = require('../config/sparring_woodman.json');
+        const config = require('../../config/sparring_woodman.json');
         const spiritSevering = config.woodmen.find(w => w.key === 'spirit_severing');
         assertTrue('化神木人应存在', !!spiritSevering);
         if (spiritSevering) {

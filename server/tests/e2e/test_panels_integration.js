@@ -10,7 +10,7 @@
  *
  * 测试账号：1592363624 / 1592363624（admin，化神初期 rank=23）
  *
- * 运行：node server/scripts/test_panels_integration.js
+ * 运行：node server/tests/e2e/test_panels_integration.js
  */
 'use strict';
 

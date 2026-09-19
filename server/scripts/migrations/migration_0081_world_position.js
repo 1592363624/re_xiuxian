@@ -4,7 +4,7 @@
  * 用途：在 player_map_positions 表上增加玩家连续世界坐标，
  * 支撑 2D 俯视大世界地图的移动与多人位置同步。
  */
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 
 const migrationInfo = {
     description: '为 player_map_positions 增加世界坐标 pos_x/pos_y 与最近移动时间 latest_move_time',

@@ -251,7 +251,7 @@
                       <span class="text-stone-600">图谱来源：{{ m.blueprint_source }}</span>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                      <span class="text-amber-300">灵石 {{ formatBigNumber(m.manufacture_cost.spirit_stone) }}</span>
+                      <span class="text-amber-300">灵石 {{ formatCompact(m.manufacture_cost.spirit_stone) }}</span>
                       <span v-for="(qty, mat) in m.manufacture_cost.materials" :key="mat" class="text-stone-400">
                         {{ materialName(mat) }} ×{{ qty }}
                       </span>
@@ -378,7 +378,7 @@
         <div class="bg-stone-950/50 rounded-lg p-3 space-y-1 text-[13px]">
           <div class="flex justify-between">
             <span class="text-stone-500">灵石</span>
-            <span class="text-amber-300 font-bold">{{ formatBigNumber(pendingMfg?.manufacture_cost.spirit_stone) }}</span>
+            <span class="text-amber-300 font-bold">{{ formatCompact(pendingMfg?.manufacture_cost.spirit_stone) }}</span>
           </div>
           <div v-for="(qty, mat) in pendingMfg?.manufacture_cost.materials" :key="mat" class="flex justify-between">
             <span class="text-stone-500">{{ materialName(mat) }}</span>
@@ -442,7 +442,7 @@
           </div>
           <div class="border-t border-stone-800 mt-2 pt-2 flex justify-between">
             <span class="text-stone-500">返还灵石（{{ (recycleData.spirit_stone_return_rate * 100).toFixed(0) }}% 返还率）</span>
-            <span class="text-amber-300 font-bold">{{ formatBigNumber(recycleData.spirit_stone_return) }}</span>
+            <span class="text-amber-300 font-bold">{{ formatCompact(recycleData.spirit_stone_return) }}</span>
           </div>
         </div>
         <div class="bg-rose-950/30 border border-rose-800/40 rounded-lg p-3 text-[12px] text-rose-200">
@@ -496,6 +496,7 @@
 import { ref, computed, onMounted } from 'vue'
 import Modal from '../common/Modal.vue'
 import { useUIStore } from '../../stores/ui'
+import { formatCompact } from '../../utils/format'
 import {
   getWorkshop,
   learnBlueprint,
@@ -560,18 +561,6 @@ const quenchCostStones = computed(() => {
 })
 
 // ===== 工具方法 =====
-/** 格式化大数字（BigInt 安全） */
-const formatBigNumber = (val) => {
-  if (val === null || val === undefined) return '0'
-  const str = String(val)
-  if (str.length <= 4) return str
-  // 保留前3位有效数字 + 万/亿单位
-  const num = Number(str)
-  if (num >= 1e8) return (num / 1e8).toFixed(2) + '亿'
-  if (num >= 1e4) return (num / 1e4).toFixed(1) + '万'
-  return str
-}
-
 /** 材料名称（根据 material ID 查找中文名） */
 const materialName = (matKey) => {
   return materialNameMap[matKey] || matKey
@@ -693,7 +682,7 @@ const executeManufacture = async () => {
           '气血': d.hp,
           '速度': d.speed,
           '耐久': d.durability,
-          '剩余灵石': formatBigNumber(d.spirit_stones_after)
+          '剩余灵石': formatCompact(d.spirit_stones_after)
         }
       }
       resultShow.value = true
@@ -783,7 +772,7 @@ const executeQuench = async () => {
           '气血': d.hp,
           '速度': d.speed,
           '耐久': d.durability,
-          '剩余灵石': formatBigNumber(d.spirit_stones_after)
+          '剩余灵石': formatCompact(d.spirit_stones_after)
         }
       }
       resultShow.value = true
@@ -804,7 +793,7 @@ const handleRepair = async (puppet) => {
     const res = await repair(puppet.id)
     if (res.data?.code === 200 && res.data?.data) {
       const d = res.data.data
-      uiStore.showToast?.(`${puppet.name} 维修完成（+${d.repaired_points}耐久，消耗${formatBigNumber(d.cost_spirit_stones)}灵石）`, 'success')
+      uiStore.showToast?.(`${puppet.name} 维修完成（+${d.repaired_points}耐久，消耗${formatCompact(d.cost_spirit_stones)}灵石）`, 'success')
       await loadData()
     }
   } catch (err) {
@@ -839,7 +828,7 @@ const executeRecycle = async () => {
     if (res.data?.code === 200 && res.data?.data) {
       recyclePreviewShow.value = false
       const d = res.data.data
-      uiStore.showToast?.(`回收成功，返还灵石 ${formatBigNumber(d.spirit_stone_return)}`, 'success')
+      uiStore.showToast?.(`回收成功，返还灵石 ${formatCompact(d.spirit_stone_return)}`, 'success')
       await loadData()
     }
   } catch (err) {

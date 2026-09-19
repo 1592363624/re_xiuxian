@@ -15,7 +15,7 @@
  *
  * 创建时间：2026-07-22
  */
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const DataTypes = require('sequelize').DataTypes;
 
 async function up() {

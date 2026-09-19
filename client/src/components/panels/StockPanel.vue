@@ -20,6 +20,7 @@
  *   - WebSocket 监听 stock:* 事件，实时刷新行情与持仓
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
@@ -842,19 +843,19 @@ onUnmounted(() => {
       <div v-if="status" class="grid grid-cols-3 md:grid-cols-6 gap-2 p-3 border-b border-stone-800 bg-[#0c0a09]">
         <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
           <div class="text-[10px] text-stone-500">账户余额</div>
-          <div class="text-sm font-bold text-cyan-300">{{ status.balance }}</div>
+          <div class="text-sm font-bold text-cyan-300">{{ formatCompact(status.balance) }}</div>
         </div>
         <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
           <div class="text-[10px] text-stone-500">持仓市值</div>
-          <div class="text-sm font-bold text-cyan-300">{{ status.holdings_value }}</div>
+          <div class="text-sm font-bold text-cyan-300">{{ formatCompact(status.holdings_value) }}</div>
         </div>
         <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
           <div class="text-[10px] text-stone-500">总资产</div>
-          <div class="text-sm font-bold text-amber-400">{{ status.total_assets }}</div>
+          <div class="text-sm font-bold text-amber-400">{{ formatCompact(status.total_assets) }}</div>
         </div>
         <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
           <div class="text-[10px] text-stone-500">融资负债</div>
-          <div class="text-sm font-bold" :class="Number(status.debt) > 0 ? 'text-rose-400' : 'text-stone-400'">{{ status.debt }}</div>
+          <div class="text-sm font-bold" :class="Number(status.debt) > 0 ? 'text-rose-400' : 'text-stone-400'">{{ formatCompact(status.debt) }}</div>
         </div>
         <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
           <div class="text-[10px] text-stone-500">保证金率</div>
@@ -1029,12 +1030,12 @@ onUnmounted(() => {
                   </div>
                   <div class="flex items-center justify-between">
                     <span class="text-stone-500">市值</span>
-                    <span class="text-amber-400 font-bold">{{ holding.market_value }}</span>
+                    <span class="text-amber-400 font-bold">{{ formatCompact(holding.market_value) }}</span>
                   </div>
                   <div class="flex items-center justify-between">
                     <span class="text-stone-500">浮动盈亏</span>
                     <span class="font-bold" :class="profitColorClass(holding.profit)">
-                      {{ Number(holding.profit) >= 0 ? '+' : '' }}{{ holding.profit }}
+                      {{ Number(holding.profit) >= 0 ? '+' : '' }}{{ formatCompact(holding.profit) }}
                       <span class="text-[10px] ml-1">({{ changeText(holding.profit_pct) }})</span>
                     </span>
                   </div>
@@ -1096,7 +1097,7 @@ onUnmounted(() => {
                         </td>
                         <td class="px-2 py-2 text-right text-stone-300">{{ tx.quantity }}</td>
                         <td class="px-2 py-2 text-right text-stone-300">{{ tx.price }}</td>
-                        <td class="px-2 py-2 text-right text-cyan-300 font-bold">{{ tx.amount }}</td>
+                        <td class="px-2 py-2 text-right text-cyan-300 font-bold">{{ formatCompact(tx.amount) }}</td>
                         <td class="px-2 py-2 text-right text-rose-400">{{ tx.fee }}</td>
                         <td class="px-2 py-2 text-right text-rose-400">{{ tx.tax }}</td>
                       </tr>
@@ -1208,7 +1209,7 @@ onUnmounted(() => {
                   </div>
                   <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
                     <div class="text-xs text-stone-500 mb-1">账户余额</div>
-                    <div class="text-lg font-bold text-cyan-300">{{ marginAccount.balance }}</div>
+                    <div class="text-lg font-bold text-cyan-300">{{ formatCompact(marginAccount.balance) }}</div>
                   </div>
                   <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
                     <div class="text-xs text-stone-500 mb-1">持仓市值</div>
@@ -1216,7 +1217,7 @@ onUnmounted(() => {
                   </div>
                   <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
                     <div class="text-xs text-stone-500 mb-1">融资负债</div>
-                    <div class="text-lg font-bold text-rose-400">{{ marginAccount.debt }}</div>
+                    <div class="text-lg font-bold text-rose-400">{{ formatCompact(marginAccount.debt) }}</div>
                   </div>
                   <div class="bg-[#1c1917] border border-stone-800 rounded-lg p-3">
                     <div class="text-xs text-stone-500 mb-1">保证金率</div>
@@ -1248,7 +1249,7 @@ onUnmounted(() => {
                       :disabled="submitting || Number(marginAccount.debt) <= 0"
                       class="px-4 py-2 rounded bg-rose-900/40 border border-rose-700/50 text-rose-300 hover:bg-rose-800/50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >偿还负债</button>
-                    <span class="text-xs text-stone-500">当前负债 {{ marginAccount.debt }} 灵石</span>
+                    <span class="text-xs text-stone-500">当前负债 {{ formatCompact(marginAccount.debt) }} 灵石</span>
                   </div>
                 </div>
 
@@ -1533,11 +1534,11 @@ onUnmounted(() => {
         <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2 text-sm">
           <div class="flex items-center justify-between">
             <span class="text-stone-500">灵石余额</span>
-            <span class="text-amber-300 font-bold">{{ playerStore.player?.spirit_stones || '0' }}</span>
+            <span class="text-amber-300 font-bold">{{ formatCompact(playerStore.player?.spirit_stones) }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-stone-500">股市账户余额</span>
-            <span class="text-cyan-300 font-bold">{{ status?.balance || '0' }}</span>
+            <span class="text-cyan-300 font-bold">{{ formatCompact(status?.balance) }}</span>
           </div>
         </div>
         <div>
@@ -1582,7 +1583,7 @@ onUnmounted(() => {
           </div>
           <div class="flex items-center justify-between">
             <span class="text-stone-500">金额</span>
-            <span class="text-cyan-400 font-bold">{{ transferModal.amount }} 灵石</span>
+            <span class="text-cyan-400 font-bold">{{ formatCompact(transferModal.amount) }} 灵石</span>
           </div>
         </div>
       </div>
@@ -1636,11 +1637,11 @@ onUnmounted(() => {
         <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2 text-sm">
           <div class="flex items-center justify-between">
             <span class="text-stone-500">当前负债</span>
-            <span class="text-rose-400 font-bold">{{ marginAccount.debt }} 灵石</span>
+            <span class="text-rose-400 font-bold">{{ formatCompact(marginAccount.debt) }} 灵石</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-stone-500">账户余额</span>
-            <span class="text-cyan-300 font-bold">{{ marginAccount.balance }} 灵石</span>
+            <span class="text-cyan-300 font-bold">{{ formatCompact(marginAccount.balance) }} 灵石</span>
           </div>
         </div>
         <div>
@@ -1676,7 +1677,7 @@ onUnmounted(() => {
         <div class="bg-[#0c0a09] border border-stone-800 rounded p-3 space-y-2">
           <div class="flex items-center justify-between">
             <span class="text-stone-500">偿还金额</span>
-            <span class="text-rose-400 font-bold">{{ repayModal.amount }} 灵石</span>
+            <span class="text-rose-400 font-bold">{{ formatCompact(repayModal.amount) }} 灵石</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-stone-500">偿还后剩余负债</span>

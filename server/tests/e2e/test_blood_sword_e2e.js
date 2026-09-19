@@ -9,7 +9,7 @@
  *   5. 测试未持有血魔剑时各操作的拒绝逻辑
  *
  * 使用方式：
- *   node server/scripts/test_blood_sword_e2e.js
+ *   node server/tests/e2e/test_blood_sword_e2e.js
  *
  * @author 修仙游戏开发组
  * @created 2026-07-21

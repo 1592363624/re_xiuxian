@@ -11,7 +11,7 @@
  *   3. kunwu（昆吾山·封魔塔）：有 base_rewards + normal_drops + first_clear_bonus + rare_drop + 特殊机制
  *   4. xutian（虚天殿）：有 base_rewards + normal_drops + first_clear_bonus + rare_drop + 特殊机制
  *
- * 运行方式：node server/scripts/test_multi_dungeon_rewards_display.js
+ * 运行方式：node server/tests/e2e/test_multi_dungeon_rewards_display.js
  */
 const axios = require('axios');
 

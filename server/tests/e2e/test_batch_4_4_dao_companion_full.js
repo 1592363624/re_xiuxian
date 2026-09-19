@@ -43,7 +43,7 @@ function check(name, condition, detail = '') {
 
     // ===== 场景1：静态代码扫描 DaoCompanionService 核心方法 =====
     console.log('[场景1] 静态代码扫描 DaoCompanionService 核心方法');
-    const servicePath = path.join(__dirname, '../game/services/DaoCompanionService.js');
+    const servicePath = path.join(__dirname, '..', '../game/services/DaoCompanionService.js');
     const serviceCode = fs.readFileSync(servicePath, 'utf-8');
 
     const expectedMethods = [
@@ -68,7 +68,7 @@ function check(name, condition, detail = '') {
 
     // ===== 场景2：静态代码扫描 配置文件 =====
     console.log('\n[场景2] 配置文件 dao_companion_data.json 核心数值');
-    const configPath = path.join(__dirname, '../config/dao_companion_data.json');
+    const configPath = path.join(__dirname, '..', '../config/dao_companion_data.json');
     const configCode = fs.readFileSync(configPath, 'utf-8');
     const config = JSON.parse(configCode);
 
@@ -174,22 +174,22 @@ function check(name, condition, detail = '') {
     console.log('\n[场景8] 互动接口可用性（不实际触发）');
     // 由于已经在冷却中或会修改数据，这里只检查接口路径存在
     check('interact 接口路径应存在于路由文件',
-        fs.readFileSync(path.join(__dirname, '../routes/dao_companion.js'), 'utf-8')
+        fs.readFileSync(path.join(__dirname, '..', '../routes/dao_companion.js'), 'utf-8')
             .includes("router.post('/interact'"));
     check('dual-cultivation 接口路径应存在',
-        fs.readFileSync(path.join(__dirname, '../routes/dao_companion.js'), 'utf-8')
+        fs.readFileSync(path.join(__dirname, '..', '../routes/dao_companion.js'), 'utf-8')
             .includes("router.post('/dual-cultivation'"));
     check('break 接口路径应存在',
-        fs.readFileSync(path.join(__dirname, '../routes/dao_companion.js'), 'utf-8')
+        fs.readFileSync(path.join(__dirname, '..', '../routes/dao_companion.js'), 'utf-8')
             .includes("router.post('/break'"));
     check('heart-imprint 接口路径应存在',
-        fs.readFileSync(path.join(__dirname, '../routes/dao_companion.js'), 'utf-8')
+        fs.readFileSync(path.join(__dirname, '..', '../routes/dao_companion.js'), 'utf-8')
             .includes("router.post('/heart-imprint'"));
     check('propose 接口路径应存在',
-        fs.readFileSync(path.join(__dirname, '../routes/dao_companion.js'), 'utf-8')
+        fs.readFileSync(path.join(__dirname, '..', '../routes/dao_companion.js'), 'utf-8')
             .includes("router.post('/propose'"));
     check('respond 接口路径应存在',
-        fs.readFileSync(path.join(__dirname, '../routes/dao_companion.js'), 'utf-8')
+        fs.readFileSync(path.join(__dirname, '..', '../routes/dao_companion.js'), 'utf-8')
             .includes("router.post('/respond'"));
 
     // ===== 汇总 =====

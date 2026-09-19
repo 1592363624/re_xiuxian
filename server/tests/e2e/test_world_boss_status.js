@@ -6,7 +6,7 @@
  *   2. 验证 GET /api/world-boss/ranking 排行榜接口
  *   3. 验证 Boss 阶段切换、HP、剩余时间等关键字段
  *
- * 运行方式：node server/scripts/test_world_boss_status.js
+ * 运行方式：node server/tests/e2e/test_world_boss_status.js
  */
 const axios = require('axios');
 

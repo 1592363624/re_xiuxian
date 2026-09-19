@@ -77,7 +77,7 @@ async function main() {
     console.log('\n--- 2. 配置完整性验证 ---');
     const fs = require('fs');
     const path = require('path');
-    const caveDataPath = path.join(__dirname, '..', 'config', 'cave_data.json');
+    const caveDataPath = path.join(__dirname, '..', '..', 'config', 'cave_data.json');
     const caveData = JSON.parse(fs.readFileSync(caveDataPath, 'utf-8'));
     const encounterCfg = caveData.cave?.social?.visit_encounters;
     check('visit_encounters 配置段应存在', !!encounterCfg);
@@ -106,7 +106,7 @@ async function main() {
 
     // ===== 3. 数据库迁移验证 =====
     console.log('\n--- 3. 数据库迁移验证 ---');
-    const sequelize = require('../config/database');
+    const sequelize = require('../../config/database');
     const { QueryTypes } = require('sequelize');
     const [colResult] = await sequelize.query(
         `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
@@ -119,7 +119,7 @@ async function main() {
 
     // ===== 4. 模型验证 =====
     console.log('\n--- 4. 模型验证 ---');
-    const CaveVisitor = require('../models/caveVisitor');
+    const CaveVisitor = require('../../models/caveVisitor');
     check('CaveVisitor 模型应定义 encounter_type 字段', !!CaveVisitor.rawAttributes?.encounter_type);
     check('CaveVisitor 模型应定义 encounter_reward 字段', !!CaveVisitor.rawAttributes?.encounter_reward);
 
@@ -216,7 +216,7 @@ async function main() {
 
     // ===== 9. OpenAPI 文档验证 =====
     console.log('\n--- 9. OpenAPI 文档验证 ---');
-    const openapiPath = path.join(__dirname, '..', '..', 'docs', 'openapi.json');
+    const openapiPath = path.join(__dirname, '..', '..', '..', 'docs', 'openapi.json');
     if (fs.existsSync(openapiPath)) {
         const openapi = JSON.parse(fs.readFileSync(openapiPath, 'utf-8'));
         const visitSchema = openapi.paths?.['/api/cave-social/visit']?.post?.responses?.['200']?.content?.['application/json']?.schema;

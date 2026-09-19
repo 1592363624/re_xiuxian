@@ -186,7 +186,7 @@
                   </div>
                   <p class="text-xs text-stone-400 mb-1">{{ ls.description }}</p>
                   <div class="flex gap-3 text-xs">
-                    <span class="text-amber-400">消耗：{{ ls.cost.toLocaleString() }} 灵石</span>
+                    <span class="text-amber-400">消耗：{{ formatCompact(ls.cost) }} 灵石</span>
                     <span class="text-emerald-400">加成：{{ formatBonus(ls.bonus) }}</span>
                   </div>
                 </div>
@@ -225,7 +225,7 @@
                 </div>
                 <div class="flex items-center justify-between">
                   <div>
-                    <span class="text-amber-400 font-bold">{{ good.price.toLocaleString() }}</span>
+                    <span class="text-amber-400 font-bold">{{ formatCompact(good.price) }}</span>
                     <span class="text-xs text-stone-500 ml-1">灵石</span>
                     <span v-if="good.base_price !== good.price" class="text-xs text-stone-500 line-through ml-1">{{ good.base_price }}</span>
                     <span v-if="good.remaining < 5" class="text-xs text-rose-400 ml-2">仅剩 {{ good.remaining }}</span>
@@ -896,7 +896,7 @@
           <p>确认购买此商品？</p>
           <div v-if="pendingBuy" class="bg-[#292524] border border-stone-700 rounded p-3 mt-2">
             <div>商品：<span class="text-emerald-300 font-bold">{{ pendingBuy.item_name }}</span></div>
-            <div>价格：<span class="text-amber-400 font-bold">{{ pendingBuy.price.toLocaleString() }}</span> 灵石</div>
+            <div>价格：<span class="text-amber-400 font-bold">{{ formatCompact(pendingBuy.price) }}</span> 灵石</div>
           </div>
         </div>
         <template #footer>
@@ -911,7 +911,7 @@
           <p>确认布置此景观？将消耗灵石并替换当前景观。</p>
           <div v-if="pendingLandscape" class="bg-[#292524] border border-stone-700 rounded p-3 mt-2">
             <div>景观：<span class="text-emerald-300 font-bold">{{ pendingLandscape.name }}</span></div>
-            <div>消耗：<span class="text-amber-400 font-bold">{{ pendingLandscape.cost.toLocaleString() }}</span> 灵石</div>
+            <div>消耗：<span class="text-amber-400 font-bold">{{ formatCompact(pendingLandscape.cost) }}</span> 灵石</div>
             <div class="text-xs text-stone-400 mt-1">加成：{{ formatBonus(pendingLandscape.bonus) }}</div>
           </div>
         </div>
@@ -1171,6 +1171,7 @@
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import { useUIStore } from '../../stores/ui'
+import { formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
 import {
   getMessages,

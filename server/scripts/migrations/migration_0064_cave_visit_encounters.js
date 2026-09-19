@@ -9,7 +9,7 @@
  */
 'use strict';
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const { QueryTypes } = require('sequelize');
 
 async function columnExists(tableName, columnName) {

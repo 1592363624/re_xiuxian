@@ -63,7 +63,7 @@
               <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
                   <div class="text-xs text-stone-500">积分</div>
-                  <div class="text-red-300 font-bold">{{ status.ranking.score }}</div>
+                  <div class="text-red-300 font-bold">{{ formatCompact(status.ranking.score) }}</div>
                 </div>
                 <div>
                   <div class="text-xs text-stone-500">胜率</div>
@@ -110,7 +110,7 @@
             <!-- 荣誉值 -->
             <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
               <div class="text-xs text-stone-400 mb-1">荣誉值</div>
-              <div class="text-sm font-bold text-amber-300">{{ status.player.honor }}</div>
+              <div class="text-sm font-bold text-amber-300">{{ formatCompact(status.player.honor) }}</div>
             </div>
             <!-- 因果值 -->
             <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
@@ -123,7 +123,7 @@
             <!-- 战力 -->
             <div class="bg-[#292524] border border-stone-700 rounded-lg p-3">
               <div class="text-xs text-stone-400 mb-1">战力</div>
-              <div class="text-sm font-bold text-cyan-300">{{ status.player.power }}</div>
+              <div class="text-sm font-bold text-cyan-300">{{ formatCompact(status.player.power) }}</div>
             </div>
           </div>
 
@@ -208,9 +208,9 @@
                   <span class="text-xs text-stone-500">[{{ status.battle_info.opponent_realm }}]</span>
                 </div>
                 <div class="text-xs text-stone-500">
-                  对手战力：<span class="text-red-300">{{ status.battle_info.opponent_power }}</span>
+                  对手战力：<span class="text-red-300">{{ formatCompact(status.battle_info.opponent_power) }}</span>
                   <span class="mx-1">|</span>
-                  己方战力：<span class="text-cyan-300">{{ status.battle_info.attacker_power }}</span>
+                  己方战力：<span class="text-cyan-300">{{ formatCompact(status.battle_info.attacker_power) }}</span>
                 </div>
               </div>
               <!-- HP 进度条 -->
@@ -532,7 +532,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
-import { formatTime } from '../../utils/format'
+import { formatTime, formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
 import {
   getStatus,

@@ -11,7 +11,7 @@
  *   7. /api/player/me 接口返回 is_dead=true（前端 DeathOverlay 据此渲染）
  *   8. 数据还原（避免污染测试账号）
  *
- * 运行方式：node scripts/test_death_flow_e2e.js
+ * 运行方式：node tests/e2e/test_death_flow_e2e.js
  */
 'use strict';
 
@@ -54,18 +54,18 @@ async function main() {
     console.log(C.cyan('═══════════════════════════════════════════════════════════\n'));
 
     // 引入服务（必须在 modules 初始化之后）
-    const rootDir = path.resolve(__dirname, '..');
+    const rootDir = path.resolve(__dirname, '..', '..');
     process.chdir(rootDir);
     require('dotenv').config();
 
-    const { infrastructure } = require('../modules');
+    const { infrastructure } = require('../../modules');
     const configLoader = infrastructure.ConfigLoader;
     await configLoader.loadAllConfigs();
 
-    const Player = require('../models/player');
-    const sequelize = require('../config/database');
-    const LifespanService = require('../game/core/LifespanService');
-    const PlayerService = require('../game/core/PlayerService');
+    const Player = require('../../models/player');
+    const sequelize = require('../../config/database');
+    const LifespanService = require('../../game/core/LifespanService');
+    const PlayerService = require('../../game/core/PlayerService');
 
     // ========== 登录获取 token ==========
     console.log(C.yellow('▶ 步骤 0: 登录获取 token'));

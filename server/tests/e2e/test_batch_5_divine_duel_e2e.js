@@ -10,7 +10,7 @@
  *   1. 数据库中需要至少 2 个化神期玩家
  *   2. 若不足，可使用 GM 接口或直接 SQL 创建/提升
  *
- * 运行：node server/scripts/test_batch_5_divine_duel_e2e.js
+ * 运行：node server/tests/e2e/test_batch_5_divine_duel_e2e.js
  */
 'use strict';
 
@@ -100,8 +100,8 @@ async function main() {
     }
 
     // 直接查询数据库找两个化神期玩家（rank >= 23）
-    const sequelize = require('../config/database');
-    const Player = require('../models/player');
+    const sequelize = require('../../config/database');
+    const Player = require('../../models/player');
     const [players] = await sequelize.query(
         `SELECT id, username, nickname, realm, realm_rank, divine_sense_balance, spirit_stones
          FROM players

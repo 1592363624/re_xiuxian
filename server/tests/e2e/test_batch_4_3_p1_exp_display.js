@@ -4,6 +4,8 @@
  * 验证内容：
  *   P1-2: 前端各组件 exp/spirit_stones 显示使用 formatNumber
  *         避免大数精度丢失（>2^53 时 Number 转换精度损失）
+ *   P1-2.21~23: 超过 1 万的数值改用 formatCompact 的万/亿单位
+ *         避免长数字撑破 w-72 左侧状态栏等窄容器
  *
  * 修复点：
  *   1. PlayerStatus.vue - 修为显示 + 进度条百分比（改用 BigInt 计算）
@@ -13,7 +15,7 @@
  *   5. CompanionPanel.vue - 心契当前经验显示
  *   6. MeditationManagement.vue - 玩家修为详情显示
  *
- * 运行方式：node server/scripts/test_batch_4_3_p1_exp_display.js
+ * 运行方式：node server/tests/e2e/test_batch_4_3_p1_exp_display.js
  */
 const fs = require('fs');
 const path = require('path');
@@ -40,6 +42,15 @@ function readFile(filePath) {
 }
 
 /**
+ * 判断组件是否从 utils/format 引入了 BigInt 安全的数值格式化函数
+ * formatNumber（千分位）与 formatCompact（万/亿简写）都满足"不裸显大数"的要求
+ */
+function importsFormatter(content) {
+    return /import\s*\{[^}]*\bformat(?:Number|Compact)\b[^}]*\}\s*from\s*'\.\.\/\.\.\/utils\/format'/.test(content)
+        || /import\s*\{[^}]*\bformat(?:Number|Compact)\b[^}]*\}\s*from\s*'\.\.\/\.\.\/\.\.\/utils\/format'/.test(content);
+}
+
+/**
  * 过滤代码行（去掉注释和空行）
  */
 function filterCodeLines(content) {
@@ -52,7 +63,7 @@ function filterCodeLines(content) {
         .filter(line => !line.startsWith('*/'));
 }
 
-const CLIENT_BASE = path.join(__dirname, '..', '..', 'client', 'src');
+const CLIENT_BASE = path.join(__dirname, '..', '..', '..', 'client', 'src');
 
 /**
  * 场景1：PlayerStatus.vue 修为显示修复
@@ -96,9 +107,9 @@ function testCharacterModalExpDisplay() {
     const filePath = path.join(CLIENT_BASE, 'components', 'modals', 'CharacterModal.vue');
     const content = readFile(filePath);
 
-    // 2.1 应引入 formatNumber
-    assert(content.includes("import { formatNumber } from '../../utils/format'"),
-        'P1-2.6 CharacterModal.vue 引入 formatNumber');
+    // 2.1 应引入 BigInt 安全的格式化函数
+    assert(importsFormatter(content),
+        'P1-2.6 CharacterModal.vue 引入 formatNumber/formatCompact');
 
     // 2.2 修为显示应使用 formatNumber
     assert(content.includes('formatNumber(player?.exp || 0)'),
@@ -138,9 +149,9 @@ function testSectPanelExpDisplay() {
     const filePath = path.join(CLIENT_BASE, 'components', 'panels', 'SectPanel.vue');
     const content = readFile(filePath);
 
-    // 4.1 应引入 formatNumber
-    assert(content.includes("import { formatNumber } from '../../utils/format'"),
-        'P1-2.12 SectPanel.vue 引入 formatNumber');
+    // 4.1 应引入 BigInt 安全的格式化函数
+    assert(importsFormatter(content),
+        'P1-2.12 SectPanel.vue 引入 formatNumber/formatCompact');
 
     // 4.2 点卯修为奖励应使用 formatNumber
     assert(content.includes('formatNumber(result.rewards?.exp || 0)'),
@@ -202,6 +213,20 @@ function testFormatNumberUtilExists() {
     // 7.2 formatNumber 应处理字符串/数字/BigInt
     assert(content.includes('BigInt') || content.includes('string'),
         'P1-2.20 formatNumber 支持 BigInt 字符串处理');
+
+    // 7.3 应导出 formatCompact：超过 1 万的数值改用万/亿单位，避免长数字撑破窄容器
+    assert(content.includes('export function formatCompact'),
+        'P1-2.21 utils/format.js 导出 formatCompact 函数');
+
+    // 7.4 formatCompact 应覆盖 万/亿/兆 四位一档的单位表
+    assert(content.includes('万') && content.includes('亿') && content.includes('兆'),
+        'P1-2.22 formatCompact 使用中文四位一档单位表');
+
+    // 7.5 左侧状态栏（固定 w-72）应改用 formatCompact 显示大数
+    const statusContent = readFile(path.join(CLIENT_BASE, 'components', 'panels', 'PlayerStatus.vue'));
+    assert(statusContent.includes('formatCompact(player.spirit_stones')
+        && statusContent.includes('formatCompact(player.attributes?.atk'),
+        'P1-2.23 PlayerStatus.vue 灵石/六维使用 formatCompact');
 }
 
 /**

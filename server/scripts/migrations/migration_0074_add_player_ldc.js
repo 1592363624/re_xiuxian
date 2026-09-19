@@ -19,7 +19,7 @@
  */
 'use strict';
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 
 /**
  * 检查字段是否存在

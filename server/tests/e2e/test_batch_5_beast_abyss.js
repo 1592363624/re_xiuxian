@@ -19,7 +19,7 @@
  *  15. 校验每日次数限制
  *  16. 校验体力恢复（调度器）
  *
- * 运行：node server/scripts/test_batch_5_beast_abyss.js
+ * 运行：node server/tests/e2e/test_batch_5_beast_abyss.js
  */
 'use strict';
 
@@ -147,9 +147,9 @@ async function main() {
 
     // ===== 4. 准备测试灵兽 =====
     console.log('\n▶ [4] 准备测试灵兽');
-    const sequelize = require('../config/database');
-    const SpiritBeast = require('../models/spiritBeast');
-    const SpiritBeastAbyssExplore = require('../models/spiritBeastAbyss');
+    const sequelize = require('../../config/database');
+    const SpiritBeast = require('../../models/spiritBeast');
+    const SpiritBeastAbyssExplore = require('../../models/spiritBeastAbyss');
 
     // 清理之前的测试探渊记录
     await SpiritBeastAbyssExplore.destroy({
@@ -435,11 +435,11 @@ async function main() {
 
     // ===== 17. 自动结算测试（直接调用Service）=====
     console.log('\n▶ [17] 自动结算测试（直接调用Service）');
-    const { infrastructure } = require('../modules');
+    const { infrastructure } = require('../../modules');
     if (infrastructure.ConfigLoader.getLoadedConfigNames().length === 0) {
         await infrastructure.ConfigLoader.loadAllConfigs();
     }
-    const BeastAbyssService = require('../game/services/BeastAbyssService');
+    const BeastAbyssService = require('../../game/services/BeastAbyssService');
     if (!BeastAbyssService.initialized) {
         BeastAbyssService.initialize(infrastructure.ConfigLoader);
     }

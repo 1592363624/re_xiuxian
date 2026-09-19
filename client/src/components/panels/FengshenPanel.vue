@@ -171,19 +171,19 @@
               <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm mb-3">
                 <div class="bg-[#1c1917] border border-stone-700 rounded px-2 py-1">
                   <span class="text-xs text-stone-500">攻击</span>
-                  <span class="text-stone-200 ml-1">{{ defenseInfo.snapshot.atk.toLocaleString() }}</span>
+                  <span class="text-stone-200 ml-1">{{ formatCompact(defenseInfo.snapshot.atk) }}</span>
                 </div>
                 <div class="bg-[#1c1917] border border-stone-700 rounded px-2 py-1">
                   <span class="text-xs text-stone-500">防御</span>
-                  <span class="text-stone-200 ml-1">{{ defenseInfo.snapshot.def.toLocaleString() }}</span>
+                  <span class="text-stone-200 ml-1">{{ formatCompact(defenseInfo.snapshot.def) }}</span>
                 </div>
                 <div class="bg-[#1c1917] border border-stone-700 rounded px-2 py-1">
                   <span class="text-xs text-stone-500">速度</span>
-                  <span class="text-stone-200 ml-1">{{ defenseInfo.snapshot.speed.toLocaleString() }}</span>
+                  <span class="text-stone-200 ml-1">{{ formatCompact(defenseInfo.snapshot.speed) }}</span>
                 </div>
                 <div class="bg-[#1c1917] border border-stone-700 rounded px-2 py-1">
                   <span class="text-xs text-stone-500">气血上限</span>
-                  <span class="text-stone-200 ml-1">{{ defenseInfo.snapshot.hp_max.toLocaleString() }}</span>
+                  <span class="text-stone-200 ml-1">{{ formatCompact(defenseInfo.snapshot.hp_max) }}</span>
                 </div>
                 <div class="bg-[#1c1917] border border-stone-700 rounded px-2 py-1">
                   <span class="text-xs text-stone-500">境界</span>
@@ -263,8 +263,8 @@
                     <span class="text-sm text-stone-200">第 {{ rank }} 名</span>
                   </div>
                   <div class="flex gap-4 text-sm">
-                    <span class="text-amber-400">{{ (seasonInfo.rank_reward_honor[idx] || 0).toLocaleString() }} 荣誉</span>
-                    <span class="text-emerald-400">{{ (seasonInfo.rank_reward_stones[idx] || 0).toLocaleString() }} 灵石</span>
+                    <span class="text-amber-400">{{ formatCompact(seasonInfo.rank_reward_honor[idx] || 0) }} 荣誉</span>
+                    <span class="text-emerald-400">{{ formatCompact(seasonInfo.rank_reward_stones[idx] || 0) }} 灵石</span>
                   </div>
                 </div>
               </div>
@@ -305,8 +305,8 @@
             </div>
           </div>
           <div class="bg-[#292524] border border-stone-700 rounded p-3 space-y-1">
-            <div>我的战力：<span class="text-stone-200">{{ challengeResult.battle_result.attacker_power.toLocaleString() }}</span></div>
-            <div>对手战力：<span class="text-stone-200">{{ challengeResult.battle_result.defender_power.toLocaleString() }}</span></div>
+            <div>我的战力：<span class="text-stone-200">{{ formatCompact(challengeResult.battle_result.attacker_power) }}</span></div>
+            <div>对手战力：<span class="text-stone-200">{{ formatCompact(challengeResult.battle_result.defender_power) }}</span></div>
             <div>积分变化：<span :class="challengeResult.battle_result.attacker_score_change >= 0 ? 'text-emerald-400' : 'text-rose-400'">
               {{ challengeResult.battle_result.attacker_score_change >= 0 ? '+' : '' }}{{ challengeResult.battle_result.attacker_score_change }}
             </span></div>
@@ -344,6 +344,7 @@
  *   - formatTime：时间格式化
  */
 import { ref, onMounted } from 'vue';
+import { formatCompact } from '../../utils/format';
 import Modal from '../common/Modal.vue';
 import {
   getRanking, getMyRanking, getDefense, setDefense,

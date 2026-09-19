@@ -9,7 +9,7 @@
  *   5. GET /api/multi-dungeon/rewards 对非法 dungeon_key 应返回 400 错误
  *   6. GM 接口 adjust-variable 应拒绝不在白名单内的变量
  *
- * 运行方式：node server/scripts/test_xutian_openapi_smoke.js
+ * 运行方式：node server/tests/e2e/test_xutian_openapi_smoke.js
  */
 'use strict';
 

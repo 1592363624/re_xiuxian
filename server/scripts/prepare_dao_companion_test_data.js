@@ -82,7 +82,7 @@ async function main() {
         console.log(`     intimacy=${newCompanion.intimacy}`);
         console.log(`     heart_contract_level=${newCompanion.heart_contract_level}`);
         console.log('\n===== 测试数据准备完成 =====');
-        console.log('现在可以运行: node scripts/test_dao_companion_protect.js');
+        console.log('现在可以运行: node tests/e2e/test_dao_companion_protect.js');
         process.exit(0);
     } else {
         console.error('  ❌ 道侣关系创建失败');

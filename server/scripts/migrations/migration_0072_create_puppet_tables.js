@@ -15,7 +15,7 @@
  */
 'use strict';
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 
 /**
  * 检查表是否存在

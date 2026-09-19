@@ -15,7 +15,7 @@
  *   - 失败时记录复现步骤与建议修复方案
  *   - 输出格式：测试名称/预期值/实际值/是否通过 + 汇总表
  *
- * 运行方式：node scripts/test_core_gameplay.js
+ * 运行方式：node tests/e2e/test_core_gameplay.js
  * 依赖：Node.js 18+ 内置 fetch
  */
 
@@ -25,12 +25,12 @@ const path = require('path');
 const fs = require('fs');
 
 // 加载 .env 环境变量（与业务服务一致，确保数据库连接参数可用）
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
-const sequelize = require('../config/database');
-const Player = require('../models/player');
-const HeartTribulationEvent = require('../models/heartTribulationEvent');
-const PlayerAdventure = require('../models/playerAdventure');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
+const HeartTribulationEvent = require('../../models/heartTribulationEvent');
+const PlayerAdventure = require('../../models/playerAdventure');
 
 /**
  * 直接读取 JSON 配置文件（避免依赖 ConfigLoader 初始化）
@@ -173,7 +173,7 @@ async function main() {
     // 测试前置：清理可能存在的状态互斥与冷却（避免历史数据干扰测试）
     // 1) 清理遗留的进行中战斗记录
     try {
-        const ActiveBattle = require('../models/activeBattle');
+        const ActiveBattle = require('../../models/activeBattle');
         await ActiveBattle.destroy({ where: { player_id: PLAYER_ID } });
         console.log('已清理遗留 ActiveBattle 记录');
     } catch (e) { console.warn('清理 ActiveBattle 失败（非阻塞）:', e.message); }
@@ -438,7 +438,7 @@ async function main() {
     try {
         // 1) 源码审查：LifespanService.updateLifespan 中 where: { is_secluded: false }
         const lifespanServiceCode = fs.readFileSync(
-            path.join(__dirname, '..', 'game', 'core', 'LifespanService.js'),
+            path.join(__dirname, '..', '..', 'game', 'core', 'LifespanService.js'),
             'utf-8'
         );
         const hasSecludedFilter = lifespanServiceCode.includes("is_secluded: false");
@@ -853,7 +853,7 @@ async function main() {
     }
 
     console.log('\n' + '='.repeat(80));
-    console.log('  测试完成。脚本文件位置: server/scripts/test_core_gameplay.js');
+    console.log('  测试完成。脚本文件位置: server/tests/e2e/test_core_gameplay.js');
     console.log('='.repeat(80));
 }
 

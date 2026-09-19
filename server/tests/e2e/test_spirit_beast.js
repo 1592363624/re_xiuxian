@@ -12,7 +12,7 @@
  *   8. POST /api/spirit-beast/:beastId/set-active - 设置出战
  *   9. GET /api/spirit-beast/:beastId - 查看详情
  *
- * 运行方式：node scripts/test_spirit_beast.js
+ * 运行方式：node tests/e2e/test_spirit_beast.js
  */
 const axios = require('axios');
 

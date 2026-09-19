@@ -16,6 +16,10 @@
     "testMatch": [
       "**/tests/**/*.test.js"
     ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/e2e/"
+    ],
     "collectCoverageFrom": [
       "game/services/**/*.js"
     ],

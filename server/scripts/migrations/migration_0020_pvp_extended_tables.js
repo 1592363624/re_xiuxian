@@ -11,7 +11,7 @@
  *   - 悬赏系统：发布者花费灵石发布悬赏，接单者完成悬赏获得悬赏金
  *   - 封神台：赛季制排名竞技场，玩家设置防守阵容，挑战者挑战排名
  */
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const DataTypes = require('sequelize').DataTypes;
 
 async function up() {

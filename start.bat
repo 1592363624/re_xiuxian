@@ -92,7 +92,7 @@ echo.
 echo 测试账号: 1592363624
 echo 测试密码: 1592363624
 echo.
-echo 子窗口已实时显示日志，同时写入 startup_backend.log / startup_frontend.log
+echo 子窗口已实时显示日志，同时写入 logs\startup_backend.log / logs\startup_frontend.log
 echo.
 echo 若窗口里出现方括号形式的转义乱码，启动前执行 set NO_COLOR=1 即可关闭颜色
 echo ===============================================

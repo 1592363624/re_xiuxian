@@ -14,7 +14,7 @@
  *  10. POST /api/fengshen/challenge — 挑战排名（可能因只有1名玩家而无法挑战）
  *  11. OpenAPI 文档验证
  *
- * 运行方式：node scripts/test_fengshen.js
+ * 运行方式：node tests/e2e/test_fengshen.js
  */
 'use strict';
 
@@ -81,7 +81,7 @@ async function main() {
     console.log('\n--- 2. 配置完整性验证 ---');
     const fs = require('fs');
     const path = require('path');
-    const balancePath = path.join(__dirname, '..', 'config', 'game_balance.json');
+    const balancePath = path.join(__dirname, '..', '..', 'config', 'game_balance.json');
     const balance = JSON.parse(fs.readFileSync(balancePath, 'utf-8'));
     const fengshenCfg = balance?.pvp_extended?.fengshen;
     check('pvp_extended.fengshen 配置段应存在', !!fengshenCfg);
@@ -98,7 +98,7 @@ async function main() {
 
     // ===== 3. 数据库表结构验证 =====
     console.log('\n--- 3. 数据库表结构验证 ---');
-    const sequelize = require('../config/database');
+    const sequelize = require('../../config/database');
     const { QueryTypes } = require('sequelize');
     const [cols] = await sequelize.query(
         `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
@@ -116,7 +116,7 @@ async function main() {
 
     // ===== 4. 模型验证 =====
     console.log('\n--- 4. 模型验证 ---');
-    const FengshenRanking = require('../models/fengshenRanking');
+    const FengshenRanking = require('../../models/fengshenRanking');
     const modelAttrs = FengshenRanking.rawAttributes;
     check('模型应定义 player_id 字段', !!modelAttrs?.player_id);
     check('模型应定义 rank 字段', !!modelAttrs?.rank);
@@ -253,7 +253,7 @@ async function main() {
 
     // ===== 14. OpenAPI 文档验证 =====
     console.log('\n--- 14. OpenAPI 文档验证 ---');
-    const openapiPath = path.join(__dirname, '..', '..', 'docs', 'openapi.json');
+    const openapiPath = path.join(__dirname, '..', '..', '..', 'docs', 'openapi.json');
     if (fs.existsSync(openapiPath)) {
         const openapi = JSON.parse(fs.readFileSync(openapiPath, 'utf-8'));
         check('OpenAPI 应包含 /api/fengshen/ranking', !!openapi.paths?.['/api/fengshen/ranking']);

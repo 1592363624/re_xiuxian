@@ -5,8 +5,8 @@
  * 绑定关系与 players 表分表存放，避免为第三方登录在玩家主表上扩列，
  * 后续接入微信/微博等平台只需新增 provider 取值，无需再改表结构。
  */
-const sequelize = require('../config/database');
-const PlayerOAuthBinding = require('../models/playerOAuthBinding');
+const sequelize = require('../../config/database');
+const PlayerOAuthBinding = require('../../models/playerOAuthBinding');
 
 const migrationInfo = {
     description: '创建 player_oauth_bindings 表，存储第三方登录身份与玩家账号的绑定关系',

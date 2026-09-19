@@ -16,11 +16,11 @@
  *   Step 6: 调用 /api/player/reincarnate，确认返回 200 且重置成功
  *   Step 7: 再次查询 /api/player/me，确认 is_dead=false、境界为凡人
  *
- * 运行方式：node server/scripts/test_death_flow.js
+ * 运行方式：node server/tests/e2e/test_death_flow.js
  */
 const axios = require('axios');
-const sequelize = require('../config/database');
-const Player = require('../models/player');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
 const { QueryTypes } = require('sequelize');
 
 // 测试账号配置（项目规则要求的固定测试账号）

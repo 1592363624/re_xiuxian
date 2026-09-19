@@ -23,7 +23,7 @@
  *   - 测试中如发生 catch 失败（如已捕获过），记录错误但继续测试其他接口
  *   - 输出汇总表（9 个接口的通过/失败状态）
  *
- * 运行方式：node server/scripts/test_spirit_beast_runtime.js
+ * 运行方式：node server/tests/e2e/test_spirit_beast_runtime.js
  */
 
 'use strict';

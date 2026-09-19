@@ -10,7 +10,7 @@
  *   6. 边界场景：未鉴权、无效 mode、空 body
  *   7. 数据还原：测试结束后玩家 pvp_mode 恢复为 active
  *
- * 运行方式：node scripts/test_pvp_mode_e2e.js
+ * 运行方式：node tests/e2e/test_pvp_mode_e2e.js
  *
  * 测试账号：1592363624 / 1592363624（玩家ID=1）
  */
@@ -126,7 +126,7 @@ async function main() {
 
     // ===== 场景1：静态代码扫描 - 后端 PvpService =====
     console.log('【场景1】静态代码扫描 - PvpService.setPvpMode/getPvpMode');
-    const pvpServicePath = path.join(__dirname, '../game/services/PvpService.js');
+    const pvpServicePath = path.join(__dirname, '..', '../game/services/PvpService.js');
     const pvpServiceCode = fs.readFileSync(pvpServicePath, 'utf-8');
     record('PvpService.setPvpMode 方法已定义', /static\s+async\s+setPvpMode\s*\(/.test(pvpServiceCode));
     record('PvpService.getPvpMode 方法已定义', /static\s+async\s+getPvpMode\s*\(/.test(pvpServiceCode));
@@ -137,7 +137,7 @@ async function main() {
 
     // ===== 场景2：静态代码扫描 - 路由层 =====
     console.log('\n【场景2】静态代码扫描 - routes/pvp.js');
-    const pvpRoutePath = path.join(__dirname, '../routes/pvp.js');
+    const pvpRoutePath = path.join(__dirname, '..', '../routes/pvp.js');
     const pvpRouteCode = fs.readFileSync(pvpRoutePath, 'utf-8');
     record("POST /api/pvp/mode 路由已挂载", /router\.post\('\/mode'/.test(pvpRouteCode));
     record("GET /api/pvp/mode 路由已挂载", /router\.get\('\/mode'/.test(pvpRouteCode));
@@ -145,7 +145,7 @@ async function main() {
 
     // ===== 场景3：静态代码扫描 - 前端 API =====
     console.log('\n【场景3】静态代码扫描 - 前端 pvp.ts');
-    const pvpApiPath = path.join(__dirname, '../../client/src/api/pvp.ts');
+    const pvpApiPath = path.join(__dirname, '..', '../../client/src/api/pvp.ts');
     if (fs.existsSync(pvpApiPath)) {
         const pvpApiCode = fs.readFileSync(pvpApiPath, 'utf-8');
         record("前端 setPvpMode API 已导出", /export\s+const\s+setPvpMode\s*=/.test(pvpApiCode));
@@ -158,7 +158,7 @@ async function main() {
 
     // ===== 场景4：静态代码扫描 - 前端 PvpPanel.vue =====
     console.log('\n【场景4】静态代码扫描 - 前端 PvpPanel.vue');
-    const pvpPanelPath = path.join(__dirname, '../../client/src/components/panels/PvpPanel.vue');
+    const pvpPanelPath = path.join(__dirname, '..', '../../client/src/components/panels/PvpPanel.vue');
     if (fs.existsSync(pvpPanelPath)) {
         const pvpPanelCode = fs.readFileSync(pvpPanelPath, 'utf-8');
         record('PvpPanel 引入 setPvpMode', /import\s*\{[^}]*setPvpMode[^}]*\}\s*from\s*'\.\.\/\.\.\/api\/pvp'/.test(pvpPanelCode) ||
@@ -192,14 +192,14 @@ async function main() {
 
     // ===== 场景6：静态代码扫描 - Player 模型 pvp_mode 字段 =====
     console.log('\n【场景6】静态代码扫描 - Player 模型 pvp_mode 字段');
-    const playerModelPath = path.join(__dirname, '../models/player.js');
+    const playerModelPath = path.join(__dirname, '..', '../models/player.js');
     const playerModelCode = fs.readFileSync(playerModelPath, 'utf-8');
     record("Player 模型定义 pvp_mode 字段", /pvp_mode:\s*\{/.test(playerModelCode));
     record("pvp_mode 默认值为 'active'", /defaultValue:\s*'active'/.test(playerModelCode));
 
     // ===== 场景7：OpenAPI 文档同步 =====
     console.log('\n【场景7】OpenAPI 文档同步校验');
-    const openapiPath = path.join(__dirname, '../../docs/openapi.json');
+    const openapiPath = path.join(__dirname, '..', '../../docs/openapi.json');
     const openapiCode = fs.readFileSync(openapiPath, 'utf-8');
     record('OpenAPI 包含 /api/pvp/mode 路径', openapiCode.includes('"/api/pvp/mode"'));
     record('OpenAPI 包含 GET /api/pvp/mode', /"\/api\/pvp\/mode":\s*\{[\s\S]*?"get":/.test(openapiCode));

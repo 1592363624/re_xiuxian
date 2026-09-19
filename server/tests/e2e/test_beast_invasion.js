@@ -22,7 +22,7 @@
  *   - 完整攻击流程需在玩家境界达标 + 捐献值足够时手动触发
  *   - 测试使用账号 1592363624 / 1592363624（项目约定）
  *
- * 运行方式：node server/scripts/test_beast_invasion.js
+ * 运行方式：node server/tests/e2e/test_beast_invasion.js
  */
 'use strict';
 

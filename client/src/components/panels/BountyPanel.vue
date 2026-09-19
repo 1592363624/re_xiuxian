@@ -113,7 +113,7 @@
                 </div>
                 <!-- 右侧：金额 + 操作 -->
                 <div class="flex flex-col items-end gap-1 shrink-0">
-                  <div class="text-amber-400 font-bold text-lg">{{ bounty.bounty_amount.toLocaleString() }}</div>
+                  <div class="text-amber-400 font-bold text-lg">{{ formatCompact(bounty.bounty_amount) }}</div>
                   <div class="text-xs text-stone-500">灵石</div>
                   <!-- 接取按钮（仅 active 状态且不是自己发布/目标的可接取） -->
                   <button
@@ -178,12 +178,12 @@
                         <span class="text-sm font-bold text-stone-200">悬赏 {{ bounty.target?.nickname || '未知' }}</span>
                       </div>
                       <div class="text-xs text-stone-400">
-                        金额：{{ bounty.bounty_amount.toLocaleString() }} 灵石
+                        金额：{{ formatCompact(bounty.bounty_amount) }} 灵石
                         <span v-if="bounty.acceptor"> · 接单者：{{ bounty.acceptor.nickname }}</span>
                       </div>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
-                      <span class="text-amber-400 font-bold">{{ bounty.bounty_amount.toLocaleString() }}</span>
+                      <span class="text-amber-400 font-bold">{{ formatCompact(bounty.bounty_amount) }}</span>
                       <button
                         v-if="bounty.status === 'active'"
                         @click="handleCancel(bounty)"
@@ -217,10 +217,10 @@
                       </div>
                       <div class="text-xs text-stone-400">
                         发布者：{{ bounty.publisher?.nickname || '未知' }}
-                        · 金额：{{ bounty.bounty_amount.toLocaleString() }} 灵石
+                        · 金额：{{ formatCompact(bounty.bounty_amount) }} 灵石
                       </div>
                     </div>
-                    <span class="text-amber-400 font-bold shrink-0">{{ bounty.bounty_amount.toLocaleString() }}</span>
+                    <span class="text-amber-400 font-bold shrink-0">{{ formatCompact(bounty.bounty_amount) }}</span>
                   </div>
                 </div>
               </div>
@@ -254,7 +254,7 @@
                         <span class="text-sm font-bold text-rose-300">被 {{ bounty.publisher?.nickname || '未知' }} 悬赏</span>
                       </div>
                       <div class="text-xs text-stone-400">
-                        金额：{{ bounty.bounty_amount.toLocaleString() }} 灵石
+                        金额：{{ formatCompact(bounty.bounty_amount) }} 灵石
                         <span v-if="bounty.acceptor"> · 接单者：{{ bounty.acceptor.nickname }}</span>
                       </div>
                       <div v-if="bounty.reason" class="text-xs text-stone-500 mt-1 italic truncate">
@@ -262,7 +262,7 @@
                       </div>
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
-                      <span class="text-rose-400 font-bold">{{ bounty.bounty_amount.toLocaleString() }}</span>
+                      <span class="text-rose-400 font-bold">{{ formatCompact(bounty.bounty_amount) }}</span>
                       <!-- 反悬赏按钮（仅 active 状态可反悬赏，accepted 状态战斗进行中也可反悬赏） -->
                       <button
                         v-if="bounty.status === 'active' || bounty.status === 'accepted'"
@@ -286,7 +286,7 @@
             <!-- 说明 -->
             <div class="bg-amber-950/20 border border-amber-800/40 rounded-lg p-3 text-xs text-amber-300/80">
               <p class="mb-1">📌 发布悬赏需消耗灵石（悬赏金额 + 平台手续费 {{ feeRateText }}）</p>
-              <p class="mb-1">📌 悬赏金额范围：{{ minAmount.toLocaleString() }} ~ {{ maxAmount.toLocaleString() }} 灵石</p>
+              <p class="mb-1">📌 悬赏金额范围：{{ formatCompact(minAmount) }} ~ {{ formatCompact(maxAmount) }} 灵石</p>
               <p>📌 目标必须为入世状态（避世者不可被悬赏），悬赏 {{ expireHours }} 小时内无人接取则全额退还</p>
             </div>
 
@@ -348,7 +348,7 @@
           <p>确认接取此悬赏？接取后将自动发起与目标的斗法战斗。</p>
           <div v-if="pendingBounty" class="bg-[#292524] border border-stone-700 rounded p-3 mt-2">
             <div>目标：<span class="text-amber-300 font-bold">{{ pendingBounty.target?.nickname }}</span></div>
-            <div>悬赏金额：<span class="text-amber-400 font-bold">{{ pendingBounty.bounty_amount.toLocaleString() }}</span> 灵石</div>
+            <div>悬赏金额：<span class="text-amber-400 font-bold">{{ formatCompact(pendingBounty.bounty_amount) }}</span> 灵石</div>
           </div>
           <p class="text-xs text-rose-400/80 mt-2">⚠️ 接取后进入 PVP 战斗，失败将进入虚弱状态</p>
         </div>
@@ -364,7 +364,7 @@
           <p>确认取消此悬赏？取消将扣除手续费，仅退还部分灵石。</p>
           <div v-if="pendingCancel" class="bg-[#292524] border border-stone-700 rounded p-3 mt-2">
             <div>目标：<span class="text-stone-200">{{ pendingCancel.target?.nickname }}</span></div>
-            <div>悬赏金额：<span class="text-amber-400">{{ pendingCancel.bounty_amount.toLocaleString() }}</span> 灵石</div>
+            <div>悬赏金额：<span class="text-amber-400">{{ formatCompact(pendingCancel.bounty_amount) }}</span> 灵石</div>
             <div class="text-xs text-stone-400 mt-1">退还约 {{ Math.floor(pendingCancel.bounty_amount * (1 - feeRate)) }} 灵石（扣 {{ Math.ceil(pendingCancel.bounty_amount * feeRate) }} 手续费）</div>
           </div>
         </div>
@@ -380,12 +380,12 @@
           <p>确认对悬赏者发起反悬赏？反悬赏将创建一个针对原悬赏者的新悬赏。</p>
           <div v-if="pendingCounter" class="bg-[#292524] border border-purple-800/40 rounded p-3 space-y-1.5">
             <div>原悬赏者：<span class="text-purple-300 font-bold">{{ pendingCounter.publisher?.nickname }}</span></div>
-            <div>原悬赏金额：<span class="text-stone-200">{{ pendingCounter.bounty_amount.toLocaleString() }}</span> 灵石</div>
+            <div>原悬赏金额：<span class="text-stone-200">{{ formatCompact(pendingCounter.bounty_amount) }}</span> 灵石</div>
             <div class="pt-1 border-t border-stone-700/50">
-              反悬赏金额：<span class="text-purple-300 font-bold">{{ counterPreviewAmount.toLocaleString() }}</span> 灵石
+              反悬赏金额：<span class="text-purple-300 font-bold">{{ formatCompact(counterPreviewAmount) }}</span> 灵石
               <span class="text-xs text-stone-500">（原金额 × {{ COUNTER_MULTIPLIER }}）</span>
             </div>
-            <div class="text-xs text-amber-400">总消耗：{{ counterPreviewCost.toLocaleString() }} 灵石（含手续费）</div>
+            <div class="text-xs text-amber-400">总消耗：{{ formatCompact(counterPreviewCost) }} 灵石（含手续费）</div>
           </div>
           <div>
             <label class="text-xs text-stone-400 mb-1 block">反悬赏理由（可选，最多 180 字）</label>
@@ -428,6 +428,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
 import {
   getBountyList,

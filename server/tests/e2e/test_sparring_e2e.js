@@ -28,7 +28,7 @@
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const BASE = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
 const TEST_USERNAME = '1592363624';
@@ -73,7 +73,7 @@ function check(name, condition, detail = '') {
     // ===== 场景1：静态代码扫描 - SparringService 核心方法 =====
     console.log('[场景1] 静态代码扫描 - SparringService 核心方法');
 
-    const servicePath = path.join(__dirname, '../game/services/SparringService.js');
+    const servicePath = path.join(__dirname, '..', '../game/services/SparringService.js');
     const serviceCode = fs.existsSync(servicePath)
         ? fs.readFileSync(servicePath, 'utf-8')
         : '';
@@ -126,7 +126,7 @@ function check(name, condition, detail = '') {
     // ===== 场景2：配置文件完整性 =====
     console.log('\n[场景2] 配置文件完整性校验');
 
-    const configPath = path.join(__dirname, '../config/sparring_woodman.json');
+    const configPath = path.join(__dirname, '..', '../config/sparring_woodman.json');
     check('sparring_woodman.json 配置文件存在', fs.existsSync(configPath), '');
 
     let config = null;
@@ -213,7 +213,7 @@ function check(name, condition, detail = '') {
     // ===== 场景3：模型字段一致性 =====
     console.log('\n[场景3] 模型字段一致性校验');
 
-    const modelPath = path.join(__dirname, '../models/playerSparring.js');
+    const modelPath = path.join(__dirname, '..', '../models/playerSparring.js');
     const modelCode = fs.existsSync(modelPath)
         ? fs.readFileSync(modelPath, 'utf-8')
         : '';
@@ -247,7 +247,7 @@ function check(name, condition, detail = '') {
     // ===== 场景4：迁移脚本存在性 =====
     console.log('\n[场景4] 迁移脚本存在性校验');
 
-    const migrationPath = path.join(__dirname, '../scripts/migration_0061_sparring_records.js');
+    const migrationPath = path.join(__dirname, '..', '..', 'scripts', 'migrations', 'migration_0061_sparring_records.js');
     check('migration_0061_sparring_records.js 文件存在', fs.existsSync(migrationPath), '');
 
     const migrationCode = fs.existsSync(migrationPath)
@@ -268,7 +268,7 @@ function check(name, condition, detail = '') {
     // ===== 场景5：路由文件存在性 =====
     console.log('\n[场景5] 路由文件存在性校验');
 
-    const routePath = path.join(__dirname, '../routes/sparring.js');
+    const routePath = path.join(__dirname, '..', '../routes/sparring.js');
     const routeCode = fs.existsSync(routePath)
         ? fs.readFileSync(routePath, 'utf-8')
         : '';
@@ -291,7 +291,7 @@ function check(name, condition, detail = '') {
     // ===== 场景6：index.js 路由挂载 =====
     console.log('\n[场景6] index.js 路由挂载校验');
 
-    const indexPath = path.join(__dirname, '../index.js');
+    const indexPath = path.join(__dirname, '..', '../index.js');
     const indexCode = fs.existsSync(indexPath)
         ? fs.readFileSync(indexPath, 'utf-8')
         : '';
@@ -523,7 +523,7 @@ function check(name, condition, detail = '') {
     // ===== 场景16：openapi.json 同步性 =====
     console.log('\n[场景16] openapi.json 同步性校验');
 
-    const openapiPath = path.join(__dirname, '../../docs/openapi.json');
+    const openapiPath = path.join(__dirname, '..', '../../docs/openapi.json');
     let openapiCode = '';
     try {
         openapiCode = fs.readFileSync(openapiPath, 'utf-8');

@@ -5,12 +5,12 @@
 'use strict';
 
 const path = require('path');
-process.chdir(path.resolve(__dirname, '..'));
+process.chdir(path.resolve(__dirname, '..', '..'));
 require('dotenv').config();
 
-const { infrastructure } = require('../modules');
+const { infrastructure } = require('../../modules');
 const configLoader = infrastructure.ConfigLoader;
-const Player = require('../models/player');
+const Player = require('../../models/player');
 
 async function main() {
     // 等待配置加载

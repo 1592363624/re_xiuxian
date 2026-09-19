@@ -24,7 +24,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 加载 .env 环境变量
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const BASE = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
 const TEST_USERNAME = '1592363624';
@@ -65,7 +65,7 @@ function check(name, condition, detail = '') {
     console.log('[场景1] 静态代码扫描 - RealmService.breakthrough 9 项关键修复点');
 
     const realmServiceCode = fs.readFileSync(
-        path.join(__dirname, '../game/core/RealmService.js'), 'utf-8'
+        path.join(__dirname, '..', '../game/core/RealmService.js'), 'utf-8'
     );
 
     // 提取 breakthrough 方法体（从 `async breakthrough(playerId) {` 到下一个 `async ` 方法或类结束）
@@ -132,14 +132,14 @@ function check(name, condition, detail = '') {
 
     try {
         // 初始化配置加载器（RealmService 依赖 realm_breakthrough 配置）
-        const { infrastructure } = require('../modules');
+        const { infrastructure } = require('../../modules');
         const configLoader = infrastructure.ConfigLoader;
         if (configLoader && typeof configLoader.loadAllConfigs === 'function') {
             await configLoader.loadAllConfigs();
         }
 
         // RealmService 采用单例导出（module.exports = new RealmService()），不需要 new
-        const RealmService = require('../game/core/RealmService');
+        const RealmService = require('../../game/core/RealmService');
 
         check('RealmService 实例加载成功', !!RealmService, '');
         check('breakthrough 是函数', typeof RealmService.breakthrough === 'function', '');

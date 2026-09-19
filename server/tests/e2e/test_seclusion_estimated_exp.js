@@ -10,7 +10,7 @@
  *   2. 验证 realm_multiplier 字段存在且正确
  *   3. 验证预估收益 = duration * baseExpRate * modeRate * realmMultiplier
  *
- * 运行方式：node server/scripts/test_seclusion_estimated_exp.js
+ * 运行方式：node server/tests/e2e/test_seclusion_estimated_exp.js
  */
 const axios = require('axios');
 

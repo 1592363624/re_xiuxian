@@ -19,7 +19,7 @@
  * 注意：本测试会真实修改玩家数据，仅在测试环境运行
  *
  * 使用方式：
- *   node server/scripts/test_blood_sword_business_flow.js
+ *   node server/tests/e2e/test_blood_sword_business_flow.js
  *
  * @author 修仙游戏开发组
  * @created 2026-07-21

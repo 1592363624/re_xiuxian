@@ -13,17 +13,17 @@
  *   - 场景4：离线 48 小时 → 实际恢复时长上限 24 小时
  *
  * 运行方式：
- *   cd server && node scripts/test_mp_recovery.js
+ *   cd server && node tests/e2e/test_mp_recovery.js
  */
 'use strict';
 
-const sequelize = require('../config/database');
-const Player = require('../models/player');
-const { initializeModules } = require('../modules');
-const game = require('../game');
-const DualTimeService = require('../game/core/DualTimeService');
-const AttributeMaxService = require('../game/core/AttributeMaxService');
-const RealmService = require('../game/core/RealmService');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
+const { initializeModules } = require('../../modules');
+const game = require('../../game');
+const DualTimeService = require('../../game/core/DualTimeService');
+const AttributeMaxService = require('../../game/core/AttributeMaxService');
+const RealmService = require('../../game/core/RealmService');
 
 const testResults = { passed: 0, failed: 0, total: 0 };
 
@@ -47,7 +47,7 @@ async function main() {
     await initializeModules();
     // 必须调用 initializeGameServices 才能让 AttributeMaxService.initialize 等执行
     // 否则 spiritConfig / attributeConfig 为 null，MP 上限会退化为 1000
-    const configLoader = require('../modules/infrastructure/ConfigLoader');
+    const configLoader = require('../../modules/infrastructure/ConfigLoader');
     await game.initializeGameServices(configLoader);
 
     // 获取测试玩家

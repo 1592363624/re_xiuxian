@@ -11,13 +11,13 @@
  *   7. formatBonusValue 逻辑验证（倍率类/比例类/边界值）
  *   8. getBonusList 逻辑验证（过滤 undefined/空对象/非对象）
  *
- * 运行方式：node scripts/test_sect_bonus_display.js
+ * 运行方式：node tests/e2e/test_sect_bonus_display.js
  */
 'use strict';
 
 const path = require('path');
 // 显式指定 .env 路径，避免 cwd 不一致导致配置缺失
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const fs = require('fs');
 const axios = require('axios');
@@ -73,7 +73,7 @@ async function main() {
 
     // ====== 测试1：后端 sect_data.json 配置完整性 ======
     console.log('【测试1】后端 sect_data.json 配置完整性');
-    const sectDataPath = path.join(__dirname, '..', 'config', 'sect_data.json');
+    const sectDataPath = path.join(__dirname, '..', '..', 'config', 'sect_data.json');
     const sectDataExists = fs.existsSync(sectDataPath);
     check('sect_data.json 文件存在', sectDataExists);
     if (sectDataExists) {
@@ -103,7 +103,7 @@ async function main() {
 
     // ====== 测试2：前端 sect.ts 接口定义 ======
     console.log('【测试2】前端 sect.ts SectBonus 接口定义');
-    const sectTsPath = path.join(__dirname, '..', '..', 'client', 'src', 'api', 'sect.ts');
+    const sectTsPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'api', 'sect.ts');
     check('sect.ts 文件存在', fs.existsSync(sectTsPath));
     if (fs.existsSync(sectTsPath)) {
         const sectTsContent = fs.readFileSync(sectTsPath, 'utf-8');
@@ -120,7 +120,7 @@ async function main() {
 
     // ====== 测试3：前端 SectPanel.vue 辅助函数实现 ======
     console.log('【测试3】前端 SectPanel.vue 辅助函数实现');
-    const sectPanelPath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'panels', 'SectPanel.vue');
+    const sectPanelPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'panels', 'SectPanel.vue');
     check('SectPanel.vue 文件存在', fs.existsSync(sectPanelPath));
     if (fs.existsSync(sectPanelPath)) {
         const panelContent = fs.readFileSync(sectPanelPath, 'utf-8');
@@ -358,7 +358,7 @@ async function main() {
 
     // ====== 测试8：changelog 记录验证 ======
     console.log('【测试8】changelog 记录验证');
-    const changelogPath = path.join(__dirname, '..', '..', 'client', 'src', 'data', 'changelog.js');
+    const changelogPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'data', 'changelog.js');
     if (fs.existsSync(changelogPath)) {
         const changelogContent = fs.readFileSync(changelogPath, 'utf-8');
         check('changelog 含"宗门加成"section', changelogContent.includes('宗门加成前端展示补齐'));
@@ -373,7 +373,7 @@ async function main() {
 
     // ====== 测试9：功能对比清单验证 ======
     console.log('【测试9】功能对比清单验证');
-    const compareListPath = path.join(__dirname, '..', '..', 'docs', '功能对比清单.md');
+    const compareListPath = path.join(__dirname, '..', '..', '..', 'docs', '功能对比清单.md');
     if (fs.existsSync(compareListPath)) {
         const compareContent = fs.readFileSync(compareListPath, 'utf-8');
         check('功能对比清单含"宗门增益"行', compareContent.includes('宗门增益'));

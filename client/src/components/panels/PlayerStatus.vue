@@ -4,7 +4,7 @@ import apiClient from '../../api'
 // 修复：使用统一封装的 system API 替代直接调用 apiClient
 import { getStats as getSystemStats } from '../../api/system'
 import { ROOT_TYPE_MAP, POLL_INTERVALS, UI_CONFIG } from '../../config'
-import { formatDuration, formatNumber } from '../../utils/format'
+import { formatDuration, formatNumber, formatCompact } from '../../utils/format'
 
 const props = defineProps({
   player: {
@@ -74,10 +74,12 @@ const lifespanColorClass = computed(() => {
 
 // 格式化年龄/寿元数值（保留 1 位小数，避免显示 102.61799999...）
 // 修仙游戏中"年"是粗粒度单位，1 位小数足够（如 102.6 年）
+// 超过 1 万年后改用万/亿单位，否则窄侧栏放不下 6 位以上的数字
 function formatAge(value) {
   if (value === null || value === undefined) return '0'
   const num = Number(value)
   if (isNaN(num)) return '0'
+  if (Math.abs(num) >= 10000) return formatCompact(num)
   return num.toFixed(1)
 }
 
@@ -257,7 +259,7 @@ onUnmounted(() => {
       <div>
         <div class="flex justify-between text-xs text-stone-400 mb-1">
           <span>气血 (HP)</span>
-          <span class="font-mono">{{ player.hp_current || 0 }} / {{ player.hp_max || 0 }}</span>
+          <span class="font-mono whitespace-nowrap" :title="`${player.hp_current || 0} / ${player.hp_max || 0}`">{{ formatCompact(player.hp_current || 0) }} / {{ formatCompact(player.hp_max || 0) }}</span>
         </div>
         <div class="h-2 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
           <div class="h-full bg-rose-700 progress-flow transition-all duration-300" :style="{ width: player.hp_max ? Math.min((player.hp_current / player.hp_max) * 100, 100) + '%' : '0%' }"></div>
@@ -268,7 +270,7 @@ onUnmounted(() => {
       <div>
         <div class="flex justify-between text-xs text-stone-400 mb-1">
           <span>灵力 (MP)</span>
-          <span class="font-mono">{{ player.mp_current || 0 }} / {{ player.mp_max || 0 }}</span>
+          <span class="font-mono whitespace-nowrap" :title="`${player.mp_current || 0} / ${player.mp_max || 0}`">{{ formatCompact(player.mp_current || 0) }} / {{ formatCompact(player.mp_max || 0) }}</span>
         </div>
         <div class="h-2 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
           <div class="h-full bg-sky-600 progress-flow transition-all duration-300" :style="{ width: player.mp_max ? Math.min((player.mp_current / player.mp_max) * 100, 100) + '%' : '0%' }"></div>
@@ -279,8 +281,8 @@ onUnmounted(() => {
       <div>
         <div class="flex justify-between text-[10px] text-stone-400 mb-0.5">
           <span>修为 (Exp)</span>
-          <!-- 修复 4-3-P1-2：使用 formatNumber 处理 BigInt 字符串，避免大数显示异常 -->
-          <span>{{ formatNumber(player.exp || 0) }} / {{ formatNumber(player.exp_next || 0) }}</span>
+          <!-- 大数改用万/亿单位，避免长数字撑破 w-72 侧栏；hover 看精确值 -->
+          <span class="whitespace-nowrap" :title="`${formatNumber(player.exp || 0)} / ${formatNumber(player.exp_next || 0)}`">{{ formatCompact(player.exp || 0) }} / {{ formatCompact(player.exp_next || 0) }}</span>
         </div>
         <div class="h-1.5 w-full bg-stone-900/80 rounded-sm overflow-hidden border border-stone-800 relative">
           <div class="h-full bg-emerald-600 progress-flow transition-all duration-300" 
@@ -336,30 +338,32 @@ onUnmounted(() => {
     </div>
 
     <!-- 属性网格 -->
-    <div class="grid grid-cols-3 gap-3 mb-8">
-      <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
+    <!-- 侧栏固定 w-72，三列每格约 80px：数值统一走 formatCompact，
+         并把格子的水平内边距收到 px-1，保证最坏的 "1.234万" 也不会顶出边框 -->
+    <div class="grid grid-cols-3 gap-2 mb-8">
+      <div class="bg-[#1c1917] px-1 py-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center min-w-0 hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">攻击</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.atk || 0 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-base leading-none whitespace-nowrap" :title="player.attributes?.atk || 0">{{ formatCompact(player.attributes?.atk || 0) }}</span>
       </div>
-      <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
+      <div class="bg-[#1c1917] px-1 py-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center min-w-0 hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">防御</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.def || 0 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-base leading-none whitespace-nowrap" :title="player.attributes?.def || 0">{{ formatCompact(player.attributes?.def || 0) }}</span>
       </div>
-      <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
+      <div class="bg-[#1c1917] px-1 py-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center min-w-0 hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">速度</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.speed || 0 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-base leading-none whitespace-nowrap" :title="player.attributes?.speed || 0">{{ formatCompact(player.attributes?.speed || 0) }}</span>
       </div>
-      <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
+      <div class="bg-[#1c1917] px-1 py-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center min-w-0 hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">神识</span>
-        <span class="text-stone-200 font-bold font-mono text-lg">{{ player.attributes?.sense || 0 }}</span>
+        <span class="text-stone-200 font-bold font-mono text-base leading-none whitespace-nowrap" :title="player.attributes?.sense || 0">{{ formatCompact(player.attributes?.sense || 0) }}</span>
       </div>
-      <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
+      <div class="bg-[#1c1917] px-1 py-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center min-w-0 hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">丹毒</span>
-        <span class="text-rose-500 font-bold font-mono text-lg">{{ player.toxicity || 0 }}</span>
+        <span class="text-rose-500 font-bold font-mono text-base leading-none whitespace-nowrap" :title="player.toxicity || 0">{{ formatCompact(player.toxicity || 0) }}</span>
       </div>
-      <div class="bg-[#1c1917] p-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center hover:bg-[#292524] transition-colors">
+      <div class="bg-[#1c1917] px-1 py-3 rounded-lg border border-stone-800 flex flex-col justify-center items-center min-w-0 hover:bg-[#292524] transition-colors">
         <span class="text-xs text-stone-500 mb-1.5">灵石</span>
-        <span class="text-amber-500 font-bold font-mono text-lg">{{ formatNumber(player.spirit_stones || 0) }}</span>
+        <span class="text-amber-500 font-bold font-mono text-base leading-none whitespace-nowrap" :title="formatNumber(player.spirit_stones || 0)">{{ formatCompact(player.spirit_stones || 0) }}</span>
       </div>
     </div>
     

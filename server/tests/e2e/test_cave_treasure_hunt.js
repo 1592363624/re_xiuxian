@@ -17,19 +17,19 @@
  *   4. 记录寻宝前后双方灵石/修为/HP 变化验证资源转移
  *   5. 清理测试产生的寻宝日志（回滚或删除）
  *
- * 运行方式：node server/scripts/test_cave_treasure_hunt.js
+ * 运行方式：node server/tests/e2e/test_cave_treasure_hunt.js
  */
 const path = require('path');
 // 显式加载 server/.env，避免从项目根目录运行时找不到 .env
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const { QueryTypes } = require('sequelize');
-const Player = require('../models/player');
-const PlayerCave = require('../models/playerCave');
-const CaveTreasureLog = require('../models/caveTreasureLog');
-const CaveSocialService = require('../game/services/CaveSocialService');
-const { infrastructure } = require('../modules');
+const Player = require('../../models/player');
+const PlayerCave = require('../../models/playerCave');
+const CaveTreasureLog = require('../../models/caveTreasureLog');
+const CaveSocialService = require('../../game/services/CaveSocialService');
+const { infrastructure } = require('../../modules');
 const configLoader = infrastructure.ConfigLoader;
 
 // 测试结果收集

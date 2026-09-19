@@ -4,8 +4,8 @@
  * 用途：保存玩家成就的达成进度与奖励领取状态，支撑成就系统。
  * 静态成就定义来自 achievement_data.json，本表只存动态进度。
  */
-const { sequelize } = require('../config/database');
-const PlayerAchievement = require('../models/playerAchievement');
+const { sequelize } = require('../../config/database');
+const PlayerAchievement = require('../../models/playerAchievement');
 
 // 迁移元信息（由 migration_manager 读取，用于展示与校验）
 const migrationInfo = {

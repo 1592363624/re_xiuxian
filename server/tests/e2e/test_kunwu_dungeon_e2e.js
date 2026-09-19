@@ -17,25 +17,25 @@
  *   - 测试结束后清理所有临时数据（实例/成员/抉择/冷却/临时玩家）
  *   - 通过 GM 接口重置队长冷却以重复测试
  *
- * 运行方式：node scripts/test_kunwu_dungeon_e2e.js
+ * 运行方式：node tests/e2e/test_kunwu_dungeon_e2e.js
  */
 'use strict';
 
 const path = require('path');
-const rootPath = path.resolve(__dirname, '..');
+const rootPath = path.resolve(__dirname, '..', '..');
 require('dotenv').config({ path: path.join(rootPath, '.env') });
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const { QueryTypes } = require('sequelize');
-const { infrastructure } = require('../modules');
+const { infrastructure } = require('../../modules');
 const configLoader = infrastructure.ConfigLoader;
-const Player = require('../models/player');
-const MultiDungeonInstance = require('../models/multiDungeonInstance');
-const MultiDungeonMember = require('../models/multiDungeonMember');
-const MultiDungeonChoice = require('../models/multiDungeonChoice');
-const MultiDungeonCooldown = require('../models/multiDungeonCooldown');
-const InventoryService = require('../game/services/InventoryService');
-const MultiDungeonService = require('../game/services/MultiDungeonService');
+const Player = require('../../models/player');
+const MultiDungeonInstance = require('../../models/multiDungeonInstance');
+const MultiDungeonMember = require('../../models/multiDungeonMember');
+const MultiDungeonChoice = require('../../models/multiDungeonChoice');
+const MultiDungeonCooldown = require('../../models/multiDungeonCooldown');
+const InventoryService = require('../../game/services/InventoryService');
+const MultiDungeonService = require('../../game/services/MultiDungeonService');
 
 // 境界 rank → 名称映射（避免依赖未初始化的 RealmService）
 const RANK_TO_REALM = {

@@ -12,7 +12,7 @@
  *   8. 清理（恢复 SystemConfig 标记）
  *
  * 测试账号：1592363624 / 1592363624（管理员）
- * 运行方式：node server/scripts/test_sparring_settle_business_flow.js
+ * 运行方式：node server/tests/e2e/test_sparring_settle_business_flow.js
  *
  * @author 修仙游戏开发组
  * @created 2026-07-21
@@ -22,9 +22,9 @@
 const http = require('http');
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
-const sequelize = require('../config/database');
-const SystemConfig = require('../models/system_config');
-const PlayerSparring = require('../models/playerSparring');
+const sequelize = require('../../config/database');
+const SystemConfig = require('../../models/system_config');
+const PlayerSparring = require('../../models/playerSparring');
 const { Op } = require('sequelize');
 
 // ============== 配置 ==============
@@ -212,7 +212,7 @@ async function main() {
     console.log('\n【阶段 6】验证玩家属性已更新（exp/spirit_stones 增加）');
     {
         // 直接查数据库验证（登录接口只返回 id/nickname/realm/role，且重新登录会让旧 token 失效）
-        const Player = require('../models/player');
+        const Player = require('../../models/player');
         const player = await Player.findByPk(playerInfo.id);
         if (!player) {
             fail('玩家应存在', null, 'Player 实例');
@@ -302,7 +302,7 @@ async function main() {
  * @returns {Promise<void>}
  */
 async function verifySettledData(token, playerId) {
-    const Player = require('../models/player');
+    const Player = require('../../models/player');
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);

@@ -50,8 +50,8 @@ function check(name, condition, detail = '') {
 
     // ===== 场景1：静态代码扫描 =====
     console.log('[场景1] 静态代码扫描：验证护道集成代码存在');
-    const combatServicePath = path.join(__dirname, '../game/services/CombatService.js');
-    const worldBossServicePath = path.join(__dirname, '../game/services/WorldBossService.js');
+    const combatServicePath = path.join(__dirname, '..', '../game/services/CombatService.js');
+    const worldBossServicePath = path.join(__dirname, '..', '../game/services/WorldBossService.js');
 
     const combatCode = fs.readFileSync(combatServicePath, 'utf-8');
     check('CombatService 应集成 tryProtect',
@@ -118,9 +118,9 @@ function check(name, condition, detail = '') {
         console.log('  ⚠️ 测试账号处于死亡状态，直接通过数据库清除 is_dead 标志（不调用 reincarnate 避免污染）');
         try {
             require('dotenv').config();
-            const { infrastructure } = require('../modules');
+            const { infrastructure } = require('../../modules');
             infrastructure.ConfigLoader.initialize();
-            const Player = require('../models/player');
+            const Player = require('../../models/player');
             const player = await Player.findByPk(1);
             if (player) {
                 player.is_dead = false;

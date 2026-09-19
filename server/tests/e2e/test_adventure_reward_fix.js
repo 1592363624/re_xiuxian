@@ -8,7 +8,7 @@
  *
  * 测试账号：1592363624 / 1592363624（玩家ID=1，韩天尊，化神初期 rank=23）
  *
- * 运行方式：node scripts/test_adventure_reward_fix.js
+ * 运行方式：node tests/e2e/test_adventure_reward_fix.js
  */
 'use strict';
 

@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const BASE = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
 const TEST_USERNAME = '1592363624';
@@ -71,7 +71,7 @@ function check(name, condition, detail = '') {
     console.log('[场景1] 静态代码扫描 - 苍坤洞府专属方法与变量边界');
 
     const serviceCode = fs.readFileSync(
-        path.join(__dirname, '../game/services/MultiDungeonService.js'), 'utf-8'
+        path.join(__dirname, '..', '../game/services/MultiDungeonService.js'), 'utf-8'
     );
 
     check('MultiDungeonService 包含 _processCangkunFinalAct 方法',
@@ -127,7 +127,7 @@ function check(name, condition, detail = '') {
     console.log('\n[场景2] 配置完整性 - 苍坤洞府 4 幕流程');
 
     const config = JSON.parse(fs.readFileSync(
-        path.join(__dirname, '../config/multi_dungeon_data.json'), 'utf-8')
+        path.join(__dirname, '..', '../config/multi_dungeon_data.json'), 'utf-8')
     );
 
     const cangkun = config.dungeons?.cangkun;
@@ -309,10 +309,10 @@ function check(name, condition, detail = '') {
     console.log('\n[场景3] 模型字段校验 - 苍坤专属字段已添加');
 
     const instanceModelCode = fs.readFileSync(
-        path.join(__dirname, '../models/multiDungeonInstance.js'), 'utf-8'
+        path.join(__dirname, '..', '../models/multiDungeonInstance.js'), 'utf-8'
     );
     const choiceModelCode = fs.readFileSync(
-        path.join(__dirname, '../models/multiDungeonChoice.js'), 'utf-8'
+        path.join(__dirname, '..', '../models/multiDungeonChoice.js'), 'utf-8'
     );
 
     check('MultiDungeonInstance 含 forbidden_rift 字段',
@@ -339,7 +339,7 @@ function check(name, condition, detail = '') {
     console.log('\n[场景4] 物品配置校验 - 苍坤相关物品已定义');
 
     const itemData = JSON.parse(fs.readFileSync(
-        path.join(__dirname, '../config/item_data.json'), 'utf-8')
+        path.join(__dirname, '..', '../config/item_data.json'), 'utf-8')
     );
 
     // item_data.json 结构：{ items: [...] } 或类似
@@ -359,7 +359,7 @@ function check(name, condition, detail = '') {
     // ===== 场景5：迁移脚本校验 =====
     console.log('\n[场景5] 迁移脚本校验 - migration_0057 存在');
 
-    const migrationPath = path.join(__dirname, 'migration_0057_cangkun_fields.js');
+    const migrationPath = path.join(__dirname, '..', '..', 'scripts', 'migrations', 'migration_0057_cangkun_fields.js');
     check('migration_0057_cangkun_fields.js 文件存在', fs.existsSync(migrationPath), '');
 
     if (fs.existsSync(migrationPath)) {
@@ -376,7 +376,7 @@ function check(name, condition, detail = '') {
     console.log('\n[场景6] 接口路由 - /api/multi-dungeon/* 支持 cangkun');
 
     const routeCode = fs.readFileSync(
-        path.join(__dirname, '../routes/multi_dungeon.js'), 'utf-8'
+        path.join(__dirname, '..', '../routes/multi_dungeon.js'), 'utf-8'
     );
 
     check('路由 create 接口白名单包含 cangkun',

@@ -12,7 +12,7 @@
  *
  * 测试账号：1592363624 / 1592363624（玩家ID=1，韩天尊，化神初期）
  *
- * 运行：node server/scripts/test_batch_5_border_military.js
+ * 运行：node server/tests/e2e/test_batch_5_border_military.js
  */
 'use strict';
 
@@ -91,7 +91,7 @@ async function main() {
     // ===== 场景1：模块加载测试 =====
     console.log('【场景1】模块加载测试');
     try {
-        const { infrastructure } = require('../modules');
+        const { infrastructure } = require('../../modules');
         await infrastructure.ConfigLoader.initialize();
         const config = infrastructure.ConfigLoader.getConfig('border_military_data');
         assert(!!config, '配置 border_military_data 加载成功');
@@ -110,7 +110,7 @@ async function main() {
     // ===== 场景2：服务与子服务模块加载 =====
     console.log('\n【场景2】服务模块加载测试');
     try {
-        const BorderMilitaryService = require('../game/services/BorderMilitaryService');
+        const BorderMilitaryService = require('../../game/services/BorderMilitaryService');
         assert(typeof BorderMilitaryService.getStatus === 'function', 'BorderMilitaryService.getStatus 存在');
         assert(typeof BorderMilitaryService.supportMulanan === 'function', 'BorderMilitaryService.supportMulanan 存在');
         assert(typeof BorderMilitaryService.collectIntel === 'function', 'BorderMilitaryService.collectIntel 存在');
@@ -131,7 +131,7 @@ async function main() {
     }
 
     try {
-        const BeastPatrolSub = require('../game/services/BorderBeastPatrolSubService');
+        const BeastPatrolSub = require('../../game/services/BorderBeastPatrolSubService');
         assert(typeof BeastPatrolSub.patrol === 'function', 'BorderBeastPatrolSubService.patrol 存在');
         assert(typeof BeastPatrolSub.returnFromPatrol === 'function', 'BorderBeastPatrolSubService.returnFromPatrol 存在');
         assert(typeof BeastPatrolSub.getStatus === 'function', 'BorderBeastPatrolSubService.getStatus 存在');
@@ -140,7 +140,7 @@ async function main() {
     }
 
     try {
-        const RemnantMapSub = require('../game/services/RemnantMapSubService');
+        const RemnantMapSub = require('../../game/services/RemnantMapSubService');
         assert(typeof RemnantMapSub.getStatus === 'function', 'RemnantMapSubService.getStatus 存在');
         assert(typeof RemnantMapSub.combine === 'function', 'RemnantMapSubService.combine 存在');
         assert(typeof RemnantMapSub.explore === 'function', 'RemnantMapSubService.explore 存在');
@@ -149,7 +149,7 @@ async function main() {
     }
 
     try {
-        const WarImprintSub = require('../game/services/WarImprintSubService');
+        const WarImprintSub = require('../../game/services/WarImprintSubService');
         assert(typeof WarImprintSub.getStatus === 'function', 'WarImprintSubService.getStatus 存在');
         assert(typeof WarImprintSub.apply === 'function', 'WarImprintSubService.apply 存在');
     } catch (e) {
@@ -159,11 +159,11 @@ async function main() {
     // ===== 场景3：数据模型加载 =====
     console.log('\n【场景3】数据模型加载测试');
     try {
-        const BorderIntelReport = require('../models/border_intel_report');
-        const BorderBeastPatrol = require('../models/border_beast_patrol');
-        const BorderMilestoneReward = require('../models/border_milestone_reward');
-        const BorderWarImprint = require('../models/border_war_imprint');
-        const BorderSupportLog = require('../models/border_support_log');
+        const BorderIntelReport = require('../../models/border_intel_report');
+        const BorderBeastPatrol = require('../../models/border_beast_patrol');
+        const BorderMilestoneReward = require('../../models/border_milestone_reward');
+        const BorderWarImprint = require('../../models/border_war_imprint');
+        const BorderSupportLog = require('../../models/border_support_log');
         assert(!!BorderIntelReport, 'BorderIntelReport 模型加载成功');
         assert(!!BorderBeastPatrol, 'BorderBeastPatrol 模型加载成功');
         assert(!!BorderMilestoneReward, 'BorderMilestoneReward 模型加载成功');
@@ -178,12 +178,12 @@ async function main() {
     try {
         const fs = require('fs');
         const path = require('path');
-        const routePath = path.join(__dirname, '..', 'routes', 'border_military.js');
+        const routePath = path.join(__dirname, '..', '..', 'routes', 'border_military.js');
         assert(fs.existsSync(routePath), 'border_military.js 路由文件存在');
         const routeContent = fs.readFileSync(routePath, 'utf8');
         assert(routeContent.includes("require('./border_military')") || true, '路由文件已创建');
         // 检查 index.js 是否挂载
-        const indexPath = path.join(__dirname, '..', 'index.js');
+        const indexPath = path.join(__dirname, '..', '..', 'index.js');
         const indexContent = fs.readFileSync(indexPath, 'utf8');
         assert(indexContent.includes("/api/border-military"), 'index.js 已挂载 /api/border-military');
         assert(indexContent.includes("require('./routes/border_military')"), 'index.js 已 require border_military 路由');

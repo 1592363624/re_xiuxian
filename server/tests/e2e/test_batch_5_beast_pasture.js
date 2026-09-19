@@ -17,7 +17,7 @@
  *  13. 获取偷菜历史 + 被偷历史
  *  14. 直接调用 Service 验证自动结算（构造过期放养）
  *
- * 运行：node server/scripts/test_batch_5_beast_pasture.js
+ * 运行：node server/tests/e2e/test_batch_5_beast_pasture.js
  */
 'use strict';
 
@@ -127,12 +127,12 @@ async function main() {
 
     // ===== 2. 准备测试数据 =====
     console.log('\n▶ [2] 准备测试数据：清理旧记录 + 确保灵兽/药园就绪');
-    const sequelize = require('../config/database');
+    const sequelize = require('../../config/database');
     const { QueryTypes, Op } = require('sequelize');
-    const SpiritBeast = require('../models/spiritBeast');
-    const SpiritBeastPasture = require('../models/spiritBeastPasture');
-    const GardenStealLog = require('../models/gardenStealLog');
-    const PlayerGarden = require('../models/playerGarden');
+    const SpiritBeast = require('../../models/spiritBeast');
+    const SpiritBeastPasture = require('../../models/spiritBeastPasture');
+    const GardenStealLog = require('../../models/gardenStealLog');
+    const PlayerGarden = require('../../models/playerGarden');
 
     // 清理两个测试玩家之间的旧偷菜记录，避免冷却影响测试
     await GardenStealLog.destroy({
@@ -415,11 +415,11 @@ async function main() {
 
     // ===== 17. 直接调用 Service 验证自动结算（构造过期放养） =====
     console.log('\n▶ [17] 直接调用 Service 验证自动结算（构造过期放养）');
-    const BeastPastureService = require('../game/services/BeastPastureService');
+    const BeastPastureService = require('../../game/services/BeastPastureService');
     // 测试脚本独立运行时需要手动初始化 InventoryService 的 configLoader
     // 否则 _settlePasture 调用 InventoryService.addItem 会因 configLoader 为 null 而抛错
-    const InventoryService = require('../game/services/InventoryService');
-    const { infrastructure } = require('../modules');
+    const InventoryService = require('../../game/services/InventoryService');
+    const { infrastructure } = require('../../modules');
     if (infrastructure.ConfigLoader.getLoadedConfigNames().length === 0) {
         await infrastructure.ConfigLoader.loadAllConfigs();
     }

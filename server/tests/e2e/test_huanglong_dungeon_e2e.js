@@ -39,7 +39,7 @@
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const BASE = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
 const TEST_USERNAME = '1592363624';
@@ -85,7 +85,7 @@ function check(name, condition, detail = '') {
     console.log('[场景1] 静态代码扫描 - 黄龙山专属方法与变量边界');
 
     const serviceCode = fs.readFileSync(
-        path.join(__dirname, '../game/services/MultiDungeonService.js'), 'utf-8'
+        path.join(__dirname, '..', '../game/services/MultiDungeonService.js'), 'utf-8'
     );
 
     // 1.1 专属方法存在性
@@ -233,7 +233,7 @@ function check(name, condition, detail = '') {
     console.log('\n[场景2] 配置完整性 - 黄龙山 4 幕流程');
 
     const config = JSON.parse(fs.readFileSync(
-        path.join(__dirname, '../config/multi_dungeon_data.json'), 'utf8')
+        path.join(__dirname, '..', '../config/multi_dungeon_data.json'), 'utf8')
     );
 
     const huanglong = config.dungeons?.huanglong;
@@ -579,13 +579,13 @@ function check(name, condition, detail = '') {
     console.log('\n[场景3] 模型字段校验 - 黄龙山专属字段已同步至 Sequelize 模型');
 
     const instanceModelCode = fs.readFileSync(
-        path.join(__dirname, '../models/multiDungeonInstance.js'), 'utf-8'
+        path.join(__dirname, '..', '../models/multiDungeonInstance.js'), 'utf-8'
     );
     const choiceModelCode = fs.readFileSync(
-        path.join(__dirname, '../models/multiDungeonChoice.js'), 'utf-8'
+        path.join(__dirname, '..', '../models/multiDungeonChoice.js'), 'utf-8'
     );
     const memberModelCode = fs.readFileSync(
-        path.join(__dirname, '../models/multiDungeonMember.js'), 'utf-8'
+        path.join(__dirname, '..', '../models/multiDungeonMember.js'), 'utf-8'
     );
 
     // 3.1 实例模型字段（3个）
@@ -632,7 +632,7 @@ function check(name, condition, detail = '') {
     console.log('\n[场景4] 物品配置校验 - 黄龙山相关物品已定义');
 
     const itemData = JSON.parse(fs.readFileSync(
-        path.join(__dirname, '../config/item_data.json'), 'utf8')
+        path.join(__dirname, '..', '../config/item_data.json'), 'utf8')
     );
 
     const items = itemData.items || [];
@@ -681,7 +681,7 @@ function check(name, condition, detail = '') {
     // ===== 场景5：迁移脚本校验 =====
     console.log('\n[场景5] 迁移脚本校验 - migration_0060 存在且字段完整');
 
-    const migrationPath = path.join(__dirname, 'migration_0060_huanglong_fields.js');
+    const migrationPath = path.join(__dirname, '..', '..', 'scripts', 'migrations', 'migration_0060_huanglong_fields.js');
     check('migration_0060_huanglong_fields.js 文件存在', fs.existsSync(migrationPath), '');
 
     if (fs.existsSync(migrationPath)) {
@@ -742,7 +742,7 @@ function check(name, condition, detail = '') {
     console.log('\n[场景6] 接口路由 - /api/multi-dungeon/* 支持 huanglong');
 
     const routeCode = fs.readFileSync(
-        path.join(__dirname, '../routes/multi_dungeon.js'), 'utf-8'
+        path.join(__dirname, '..', '../routes/multi_dungeon.js'), 'utf-8'
     );
 
     check('路由 create 接口白名单包含 huanglong',

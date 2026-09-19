@@ -10,9 +10,9 @@
 'use strict';
 
 const path = require('path');
-process.chdir(path.resolve(__dirname, '..'));
+process.chdir(path.resolve(__dirname, '..', '..'));
 
-const WorldBossService = require('../game/services/WorldBossService');
+const WorldBossService = require('../../game/services/WorldBossService');
 
 // 测试用配置（与 game_balance.json 一致）
 const testCfg = {

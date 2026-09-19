@@ -16,7 +16,7 @@
  *   阶段 12：满级凝练兽魂逻辑（_checkLevelUp 修复后溢出经验转兽魂）
  *
  * 测试账号：1592363624 / 1592363624（管理员）
- * 运行方式：node server/scripts/test_spirit_beast_upgrade_star.js
+ * 运行方式：node server/tests/e2e/test_spirit_beast_upgrade_star.js
  *
  * @author 修仙游戏开发组
  * @created 2026-07-21
@@ -29,13 +29,13 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const sequelize = require('../config/database');
-const Player = require('../models/player');
-const SpiritBeast = require('../models/spiritBeast');
-const Item = require('../models/item');
-const { infrastructure } = require('../modules');
-const InventoryService = require('../game/services/InventoryService');
-const SpiritBeastService = require('../game/services/SpiritBeastService');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
+const SpiritBeast = require('../../models/spiritBeast');
+const Item = require('../../models/item');
+const { infrastructure } = require('../../modules');
+const InventoryService = require('../../game/services/InventoryService');
+const SpiritBeastService = require('../../game/services/SpiritBeastService');
 
 // ConfigLoader 单例（与 server 进程共享同一实例）
 const configLoader = infrastructure.ConfigLoader;
@@ -45,7 +45,7 @@ const configLoader = infrastructure.ConfigLoader;
  * 用于阶段 5/6 的配置断言（避免依赖 ConfigLoader 缓存）
  */
 function loadSpiritBeastConfig() {
-    const configPath = path.join(__dirname, '..', 'config', 'spirit_beast_data.json');
+    const configPath = path.join(__dirname, '..', '..', 'config', 'spirit_beast_data.json');
     const raw = fs.readFileSync(configPath, 'utf-8');
     return JSON.parse(raw);
 }

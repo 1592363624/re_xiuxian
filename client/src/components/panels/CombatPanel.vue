@@ -17,6 +17,7 @@ import {
 import { getMapInfo } from '../../api/map'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { formatCompact } from '../../utils/format'
 
 const props = defineProps({
   initialBattleId: {
@@ -324,42 +325,6 @@ const getPlayerMpPercent = (battle) => {
   return Math.max(0, Math.min(100, (battle.player.mp / battle.player.max_mp) * 100))
 }
 
-const formatNumber = (num) => {
-  // 修复 B12：复用 utils/format 中的字符串千分位实现，避免大数精度丢失
-  // 旧实现 `num >= 10000` 隐式 Number 转换 BigInt 字符串时精度丢失
-  // 同时保留"万/k"简写显示，便于战斗日志快速读数
-  if (num === null || num === undefined || num === '') return '0'
-  let str = typeof num === 'bigint' ? num.toString() : String(num).trim()
-  if (!/^-?\d+(\.\d+)?$/.test(str)) return '0'
-
-  // 拆分符号、整数、小数
-  let sign = ''
-  if (str.startsWith('-')) { sign = '-'; str = str.slice(1) }
-  const dotIdx = str.indexOf('.')
-  let intPart = dotIdx >= 0 ? str.slice(0, dotIdx) : str
-  const fracPart = dotIdx >= 0 ? str.slice(dotIdx) : ''
-
-  // 大数简写（仅整数部分超过 1万 时启用，便于战斗日志快速读数）
-  // 用 BigInt 比较避免大数精度丢失
-  try {
-    const bi = BigInt(intPart)
-    if (bi >= 100000000n) {
-      // 1亿以上：以"亿"为单位，保留 1 位小数
-      const yi = Number(bi / 10000000n) / 10
-      return sign + yi.toFixed(1) + '亿'
-    }
-    if (bi >= 10000n) {
-      // 1万以上：以"万"为单位，保留 1 位小数
-      const wan = Number(bi / 1000n) / 10
-      return sign + wan.toFixed(1) + '万'
-    }
-  } catch (e) { /* fallthrough */ }
-
-  // 小于 1万：千分位分隔
-  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return sign + intPart + fracPart
-}
-
 onMounted(() => {
   fetchData()
 })
@@ -411,7 +376,7 @@ onMounted(() => {
                 
                 <div class="mb-2 flex justify-between text-xs text-stone-500">
                   <span>怪物气血</span>
-                  <span>{{ formatNumber(currentBattle.monster.hp) }} / {{ formatNumber(currentBattle.monster.max_hp) }}</span>
+                  <span>{{ formatCompact(currentBattle.monster.hp) }} / {{ formatCompact(currentBattle.monster.max_hp) }}</span>
                 </div>
                 <div class="h-3 bg-stone-900 rounded-full overflow-hidden mb-4">
                   <div 
@@ -431,7 +396,7 @@ onMounted(() => {
                   </div>
                   <div class="bg-stone-900/50 rounded p-2">
                     <div class="text-xs text-stone-500">经验奖励</div>
-                    <div class="text-sm font-bold text-emerald-400">{{ formatNumber(currentBattle.monster.exp_reward) }}</div>
+                    <div class="text-sm font-bold text-emerald-400">{{ formatCompact(currentBattle.monster.exp_reward) }}</div>
                   </div>
                 </div>
               </div>
@@ -443,7 +408,7 @@ onMounted(() => {
                 
                 <div class="mb-2 flex justify-between text-xs text-stone-500">
                   <span>气血</span>
-                  <span>{{ formatNumber(currentBattle.player.hp) }} / {{ formatNumber(currentBattle.player.max_hp) }}</span>
+                  <span>{{ formatCompact(currentBattle.player.hp) }} / {{ formatCompact(currentBattle.player.max_hp) }}</span>
                 </div>
                 <div class="h-2 bg-stone-900 rounded-full overflow-hidden mb-2">
                   <div 
@@ -454,7 +419,7 @@ onMounted(() => {
 
                 <div class="mb-2 flex justify-between text-xs text-stone-500">
                   <span>灵力</span>
-                  <span>{{ formatNumber(currentBattle.player.mp) }} / {{ formatNumber(currentBattle.player.max_mp) }}</span>
+                  <span>{{ formatCompact(currentBattle.player.mp) }} / {{ formatCompact(currentBattle.player.max_mp) }}</span>
                 </div>
                 <div class="h-2 bg-stone-900 rounded-full overflow-hidden">
                   <div 
@@ -544,7 +509,7 @@ onMounted(() => {
                 </div>
                 
                 <div class="flex justify-between text-xs text-stone-500 mb-3">
-                  <span>EXP: <span class="text-emerald-400">{{ formatNumber(monster.exp) }}</span></span>
+                  <span>EXP: <span class="text-emerald-400">{{ formatCompact(monster.exp) }}</span></span>
                   <span>ATK: <span class="text-red-400">{{ monster.atk || '?' }}</span></span>
                   <span>DEF: <span class="text-amber-400">{{ monster.def || '?' }}</span></span>
                 </div>
@@ -578,7 +543,7 @@ onMounted(() => {
               <div class="mt-3 pt-3 border-t border-stone-800">
                 <div class="flex justify-between text-xs">
                   <span class="text-stone-500">总获得修为</span>
-                  <span class="text-amber-400 font-bold">{{ formatNumber(combatStats?.total_exp || 0) }}</span>
+                  <span class="text-amber-400 font-bold">{{ formatCompact(combatStats?.total_exp || 0) }}</span>
                 </div>
               </div>
             </div>

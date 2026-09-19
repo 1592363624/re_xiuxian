@@ -7,7 +7,7 @@
  * 3. 反悬赏接口参数校验（bountyId 无效、不存在等）
  * 4. 反悬赏权限校验（非 target 不可反悬赏）
  *
- * 运行方式：node server/scripts/test_bounty_counter.js
+ * 运行方式：node server/tests/e2e/test_bounty_counter.js
  *
  * @author 修仙游戏开发组
  * @created 2026-07-22
@@ -186,7 +186,7 @@ async function main() {
     try {
         const fs = require('fs');
         const path = require('path');
-        const openapiPath = path.resolve(__dirname, '../../docs/openapi.json');
+        const openapiPath = path.resolve(__dirname, '..', '../../docs/openapi.json');
         const doc = JSON.parse(fs.readFileSync(openapiPath, 'utf8'));
         assert(!!doc.paths['/api/bounty/{bountyId}/counter'], 'OpenAPI 应包含反悬赏路径');
         assert(!!doc.paths['/api/bounty/{bountyId}/counter']?.post, '反悬赏路径应包含 POST 方法');
@@ -199,7 +199,7 @@ async function main() {
     // 5. 验证配置完整性
     console.log('\n--- 阶段5: 配置完整性验证 ---');
     try {
-        const { infrastructure } = require('../modules');
+        const { infrastructure } = require('../../modules');
         const configLoader = infrastructure.ConfigLoader;
         await configLoader.initialize();
         const config = configLoader.getConfig('game_balance');

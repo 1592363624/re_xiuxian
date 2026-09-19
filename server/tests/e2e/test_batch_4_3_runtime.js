@@ -16,7 +16,7 @@
  *   场景8：admin time-travel 推进时间后，/api/player/me 的 lifespan_current 应相应增长
  *
  * 运行方式：
- *   cd server && node scripts/test_batch_4_3_runtime.js
+ *   cd server && node tests/e2e/test_batch_4_3_runtime.js
  *
  * 前置条件：
  *   - 后端服务运行在 http://localhost:5000
@@ -24,10 +24,10 @@
  */
 'use strict';
 
-const sequelize = require('../config/database');
-const Player = require('../models/player');
-const { initializeModules } = require('../modules');
-const game = require('../game');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
+const { initializeModules } = require('../../modules');
+const game = require('../../game');
 
 const BASE_URL = 'http://localhost:5000';
 const TEST_USERNAME = '1592363624';
@@ -116,10 +116,10 @@ async function main() {
 
     // 初始化模块（直接调用 Service 类需要）
     await initializeModules();
-    const configLoader = require('../modules/infrastructure/ConfigLoader');
+    const configLoader = require('../../modules/infrastructure/ConfigLoader');
     await game.initializeGameServices(configLoader);
 
-    const PlayerService = require('../game/core/PlayerService');
+    const PlayerService = require('../../game/core/PlayerService');
     // PlayerService 是单例导出（module.exports = new PlayerService()），无需 new
     const playerService = PlayerService;
 

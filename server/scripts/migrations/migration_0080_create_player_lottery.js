@@ -3,8 +3,8 @@
  *
  * 用途：保存玩家抽奖累计次数与保底计数，支撑抽奖（寻仙机缘）系统。
  */
-const { sequelize } = require('../config/database');
-const PlayerLottery = require('../models/playerLottery');
+const { sequelize } = require('../../config/database');
+const PlayerLottery = require('../../models/playerLottery');
 
 const migrationInfo = {
     description: '创建 player_lottery 表，存储抽奖累计次数、保底计数与出货统计',

@@ -33,7 +33,7 @@ import {
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 // 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
-import { formatNumber } from '../../utils/format'
+import { formatNumber, formatCompact } from '../../utils/format'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
@@ -837,7 +837,7 @@ onUnmounted(() => {
                 </div>
                 <div class="bg-[#0c0a09] rounded p-2 border border-stone-800 text-center">
                   <div class="text-xs text-stone-500 mb-1">贡献度</div>
-                  <div class="text-sm font-bold text-amber-400">{{ mySect.contribution }}</div>
+                  <div class="text-sm font-bold text-amber-400">{{ formatCompact(mySect.contribution) }}</div>
                 </div>
                 <div class="bg-[#0c0a09] rounded p-2 border border-stone-800 text-center">
                   <div class="text-xs text-stone-500 mb-1">加入时间</div>
@@ -1003,7 +1003,7 @@ onUnmounted(() => {
                   </svg>
                   宗门宝库
                 </h4>
-                <span class="text-xs text-stone-500">当前贡献: <span class="text-amber-400 font-bold">{{ mySect.contribution }}</span></span>
+                <span class="text-xs text-stone-500">当前贡献: <span class="text-amber-400 font-bold">{{ formatCompact(mySect.contribution) }}</span></span>
               </div>
 
               <div v-if="treasury.length === 0" class="text-center text-stone-500 text-sm py-4">

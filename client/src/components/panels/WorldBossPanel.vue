@@ -106,7 +106,7 @@
                       <!-- active/defeated: HP进度条 + 参与人数 + 阶段 -->
                       <div v-else class="space-y-1">
                         <div class="flex justify-between text-xs">
-                          <span class="text-stone-400">气血：{{ formatNumber(boss.hp_current) }} / {{ formatNumber(boss.hp_max) }}</span>
+                          <span class="text-stone-400">气血：{{ formatCompact(boss.hp_current) }} / {{ formatCompact(boss.hp_max) }}</span>
                           <span class="text-stone-500">{{ boss.hp_percentage }}%</span>
                         </div>
                         <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
@@ -170,7 +170,7 @@
                     <div class="flex justify-between text-xs">
                       <span class="text-red-300 font-bold">BOSS气血</span>
                       <span class="text-stone-400">
-                        {{ formatNumber(bossDetail.boss.hp_current) }} / {{ formatNumber(bossDetail.boss.hp_max) }}
+                        {{ formatCompact(bossDetail.boss.hp_current) }} / {{ formatCompact(bossDetail.boss.hp_max) }}
                         <span class="ml-1 text-stone-500">({{ bossDetail.boss.hp_percentage }}%)</span>
                       </span>
                     </div>
@@ -226,7 +226,7 @@
                         <span v-if="item.sect_name" class="text-xs text-cyan-400 truncate">{{ item.sect_name }}</span>
                       </div>
                       <div class="flex items-center gap-3 text-stone-400 shrink-0">
-                        <span class="text-red-300 font-bold">{{ formatNumber(item.total_damage) }}</span>
+                        <span class="text-red-300 font-bold">{{ formatCompact(item.total_damage) }}</span>
                         <span class="text-stone-500">{{ item.damage_percentage }}%</span>
                       </div>
                     </li>
@@ -250,7 +250,7 @@
                         <span class="text-xs text-stone-500 shrink-0">{{ item.member_count }} 人</span>
                       </div>
                       <div class="flex items-center gap-3 text-stone-400 shrink-0">
-                        <span class="text-red-300 font-bold">{{ formatNumber(item.sect_total_damage) }}</span>
+                        <span class="text-red-300 font-bold">{{ formatCompact(item.sect_total_damage) }}</span>
                         <span class="text-stone-500">{{ item.damage_percentage }}%</span>
                       </div>
                     </li>
@@ -272,7 +272,7 @@
                     <div class="flex justify-between text-xs">
                       <span class="text-cyan-300">己方气血</span>
                       <span class="text-stone-400">
-                        {{ formatNumber(battleHpCurrent) }} / {{ formatNumber(battleHpMax) }}
+                        {{ formatCompact(battleHpCurrent) }} / {{ formatCompact(battleHpMax) }}
                       </span>
                     </div>
                     <div class="h-2 bg-stone-800 rounded-full overflow-hidden">
@@ -289,7 +289,7 @@
                       <span class="text-amber-300">
                         {{ skillLabel(lastAttackResult.attack.skill_id) }} ·
                         <span :class="lastAttackResult.attack.is_crit ? 'text-red-400 font-bold' : 'text-stone-300'">
-                          伤害 {{ formatNumber(lastAttackResult.attack.damage) }}{{ lastAttackResult.attack.is_crit ? ' (暴击!)' : '' }}
+                          伤害 {{ formatCompact(lastAttackResult.attack.damage) }}{{ lastAttackResult.attack.is_crit ? ' (暴击!)' : '' }}
                         </span>
                       </span>
                     </div>
@@ -297,7 +297,7 @@
                     <div v-if="lastAttackResult.attack.damage_breakdown?.beast_assist_damage && Number(lastAttackResult.attack.damage_breakdown.beast_assist_damage) > 0"
                       class="flex items-center justify-between text-emerald-300">
                       <span>灵兽助战 · {{ lastAttackResult.spirit_beast?.beast_name || '出战灵兽' }}</span>
-                      <span>+{{ formatNumber(lastAttackResult.attack.damage_breakdown.beast_assist_damage) }}</span>
+                      <span>+{{ formatCompact(lastAttackResult.attack.damage_breakdown.beast_assist_damage) }}</span>
                     </div>
                     <!-- 五行相克提示（批次4-2-Ext2 新增） -->
                     <div v-if="lastAttackResult.elemental_counter" class="flex items-center justify-between">
@@ -314,13 +314,13 @@
                         <span v-if="lastAttackResult.counter.skill?.type === 'aoe_all' || lastAttackResult.counter.skill?.type === 'ultimate_screen_wide'"
                           class="ml-1 text-orange-400 font-bold">[群伤]</span>
                       </span>
-                      <span>-{{ formatNumber(lastAttackResult.counter.damage) }}</span>
+                      <span>-{{ formatCompact(lastAttackResult.counter.damage) }}</span>
                     </div>
                     <!-- AOE 事件（批次4-2-Ext3 新增，BOSS 释放范围技能） -->
                     <div v-if="lastAttackResult.aoe_event" class="text-orange-300 border-t border-stone-800 pt-1.5">
                       <span class="font-bold">【AOE】{{ lastAttackResult.aoe_event.skill_name || '范围技能' }}</span>
                       <span class="ml-2 text-stone-400">波及 {{ lastAttackResult.aoe_event.affected_count || '?' }} 人</span>
-                      <span class="ml-2 text-rose-400">总伤 {{ formatNumber(lastAttackResult.aoe_event.aoe_damage) }}</span>
+                      <span class="ml-2 text-rose-400">总伤 {{ formatCompact(lastAttackResult.aoe_event.aoe_damage) }}</span>
                     </div>
                     <!-- BOSS 当前 Buff（批次4-2-Ext3 新增） -->
                     <div v-if="lastAttackResult.boss?.active_buffs && lastAttackResult.boss.active_buffs.length > 0"
@@ -341,7 +341,7 @@
                       <div class="flex flex-wrap gap-1">
                         <span v-for="(minion, idx) in lastAttackResult.boss.minions" :key="idx"
                           class="px-1.5 py-0.5 bg-pink-900/50 border border-pink-700 rounded text-[10px]">
-                          {{ minion.name }} (HP {{ formatNumber(minion.hp_current) }}/{{ formatNumber(minion.hp_max) }})
+                          {{ minion.name }} (HP {{ formatCompact(minion.hp_current) }}/{{ formatCompact(minion.hp_max) }})
                         </span>
                       </div>
                     </div>
@@ -473,7 +473,7 @@
                   <span class="text-xs text-stone-500 shrink-0">{{ item.member_count || 0 }} 人</span>
                 </div>
                 <div class="flex items-center gap-3 text-stone-400 shrink-0">
-                  <span class="text-red-300 font-bold">{{ formatNumber(item.sect_total_damage || item.total_damage || 0) }}</span>
+                  <span class="text-red-300 font-bold">{{ formatCompact(item.sect_total_damage || item.total_damage || 0) }}</span>
                   <span v-if="item.damage_percentage" class="text-stone-500">{{ item.damage_percentage }}%</span>
                 </div>
               </li>
@@ -548,7 +548,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
 import Modal from '../common/Modal.vue'
-import { formatTime, formatNumber } from '../../utils/format'
+import { formatTime, formatCompact } from '../../utils/format'
 import {
   getAvailableBosses,
   getBossDetail,

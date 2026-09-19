@@ -9,7 +9,7 @@
  *   - 宗门任务系统新增"接取 → 等待 → 提交"流程，防止玩家无操作直接提交任务领奖
  *   - MySQL 5.6 TEXT 列不支持 DEFAULT，应用层（Sequelize model）处理默认值
  */
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 
 const migrationInfo = {
     description: 'player_sects 表新增 quests_accepted / quests_accepted_at 字段',

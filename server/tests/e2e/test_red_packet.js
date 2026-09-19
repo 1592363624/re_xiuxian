@@ -11,7 +11,7 @@
  *   7. OpenAPI 文档验证
  *   8. 配置完整性验证
  *
- * 用法：node scripts/test_red_packet.js
+ * 用法：node tests/e2e/test_red_packet.js
  *
  * 注意：本测试会消耗测试账号灵石，请确保账号有足够灵石。
  * 测试账号：1592363624 / 1592363624
@@ -228,7 +228,7 @@ async function main() {
     console.log('\n--- 7. OpenAPI 文档验证 ---');
     const fs = require('fs');
     const path = require('path');
-    const openapiPath = path.join(__dirname, '..', '..', 'docs', 'openapi.json');
+    const openapiPath = path.join(__dirname, '..', '..', '..', 'docs', 'openapi.json');
     if (fs.existsSync(openapiPath)) {
         const spec = JSON.parse(fs.readFileSync(openapiPath, 'utf8'));
         const paths = spec.paths || {};
@@ -248,7 +248,7 @@ async function main() {
 
     // 8. 配置完整性验证
     console.log('\n--- 8. 配置完整性验证 ---');
-    const configPath = path.join(__dirname, '..', 'config', 'game_balance.json');
+    const configPath = path.join(__dirname, '..', '..', 'config', 'game_balance.json');
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     const rpConfig = config?.chat?.red_packet;
     assert(!!rpConfig, 'game_balance.json 应包含 chat.red_packet 配置');
@@ -272,12 +272,12 @@ async function main() {
 
     // 9. 迁移脚本存在性验证
     console.log('\n--- 9. 迁移脚本验证 ---');
-    const migrationPath = path.join(__dirname, 'migration_0063_chat_red_packet.js');
+    const migrationPath = path.join(__dirname, '..', '..', 'scripts', 'migrations', 'migration_0063_chat_red_packet.js');
     assert(fs.existsSync(migrationPath), '迁移脚本 migration_0063 应存在');
 
     // 10. 状态注册文件验证
     console.log('\n--- 10. 状态注册文件验证 ---');
-    const regPath = path.join(__dirname, '..', 'game', 'state', 'registrations', 'red_packet.js');
+    const regPath = path.join(__dirname, '..', '..', 'game', 'state', 'registrations', 'red_packet.js');
     assert(fs.existsSync(regPath), '红包状态注册文件应存在');
 
     // 汇总

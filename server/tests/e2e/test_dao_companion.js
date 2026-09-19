@@ -23,7 +23,7 @@
  *   - 配置加载器已加载 dao_companion_data 配置
  *   - 状态机已注册 IN_DUAL_CULTIVATION 状态
  *
- * 运行方式：在 server 目录下执行 node scripts/test_dao_companion.js
+ * 运行方式：在 server 目录下执行 node tests/e2e/test_dao_companion.js
  */
 const axios = require('axios');
 

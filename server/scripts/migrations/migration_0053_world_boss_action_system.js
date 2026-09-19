@@ -28,11 +28,11 @@
 
 const path = require('path');
 // 切换工作目录到 server 根，保证 require 数据库配置路径正确
-process.chdir(path.resolve(__dirname, '..'));
+process.chdir(path.resolve(__dirname, '..', '..'));
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const queryInterface = sequelize.getQueryInterface();
-const logger = require('../modules').infrastructure.logger || console;
+const logger = require('../../modules').infrastructure.logger || console;
 
 /**
  * 执行迁移：为 world_bosses 与 world_boss_damage_records 添加字段
@@ -151,7 +151,7 @@ async function down() {
     }
 }
 
-// 支持直接运行：node server/scripts/migration_0053_world_boss_action_system.js
+// 支持直接运行：node server/scripts/migrations/migration_0053_world_boss_action_system.js
 if (require.main === module) {
     up().then(() => {
         console.log('[migration_0053] 直接运行完成');

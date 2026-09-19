@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 加载 .env 环境变量
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const BASE = 'http://localhost:5000';
 const TEST_USERNAME = '1592363624';
@@ -48,7 +48,7 @@ function check(name, condition, detail = '') {
     console.log('[场景1] 静态代码扫描 - 三处修复点');
 
     // 1. admin.js reset-player 应同步 realm_rank
-    const adminCode = fs.readFileSync(path.join(__dirname, '../routes/admin.js'), 'utf-8');
+    const adminCode = fs.readFileSync(path.join(__dirname, '..', '../routes/admin.js'), 'utf-8');
     check('admin.js reset-player 应包含 realm_rank = RealmService.getRealmRank(\'凡人\')',
         adminCode.includes("player.realm_rank = RealmService.getRealmRank('凡人')"),
         '缺失 realm_rank 同步代码');
@@ -64,13 +64,13 @@ function check(name, condition, detail = '') {
         '缺失 RealmService 引入');
 
     // 4. player.js reincarnate 应同步 realm_rank
-    const playerRouteCode = fs.readFileSync(path.join(__dirname, '../routes/player.js'), 'utf-8');
+    const playerRouteCode = fs.readFileSync(path.join(__dirname, '..', '../routes/player.js'), 'utf-8');
     check('player.js reincarnate 应包含 realm_rank = game.RealmService.getRealmRank(\'凡人\')',
         playerRouteCode.includes("player.realm_rank = game.RealmService.getRealmRank('凡人')"),
         '缺失 realm_rank 同步代码');
 
     // 5. RealmService.meetsRealmRequirement 应优先使用 realm_rank
-    const realmServiceCode = fs.readFileSync(path.join(__dirname, '../game/core/RealmService.js'), 'utf-8');
+    const realmServiceCode = fs.readFileSync(path.join(__dirname, '..', '..', 'game', 'core', 'RealmService.js'), 'utf-8');
     check('RealmService.meetsRealmRequirement 应优先使用 player.realm_rank',
         realmServiceCode.includes('playerOrRealm?.realm_rank && playerOrRealm.realm_rank > 0'),
         '缺失 realm_rank 优先逻辑');
@@ -78,12 +78,12 @@ function check(name, condition, detail = '') {
     // ===== 场景2：RealmService 单元测试 - 传入对象优先用 realm_rank =====
     console.log('\n[场景2] RealmService.meetsRealmRequirement 单元测试');
     // 初始化配置加载器（RealmService 依赖 realm_breakthrough 配置）
-    const { infrastructure } = require('../modules');
+    const { infrastructure } = require('../../modules');
     const configLoader = infrastructure.ConfigLoader;
     if (typeof configLoader.initialize === 'function') {
         await configLoader.initialize();
     }
-    const RealmService = require('../game/core/RealmService');
+    const RealmService = require('../../game/core/RealmService');
 
     // 模拟 realm="凡人" 但 realm_rank=23 的不一致玩家对象
     const inconsistentPlayer = { realm: '凡人', realm_rank: 23 };
@@ -146,7 +146,7 @@ function check(name, condition, detail = '') {
     // ===== 场景5：深度闭关解锁验证（化神期可用）=====
     console.log('\n[场景5] 深度闭关境界校验（化神期应可用）');
     // 静态检查 seclusion 配置中 min_realm 是筑基期，化神期（rank=23）应满足
-    const seclusionCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '../config/seclusion.json'), 'utf-8'));
+    const seclusionCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '../config/seclusion.json'), 'utf-8'));
     const minRealm = seclusionCfg.deep_seclusion?.min_realm || seclusionCfg.min_realm;
     console.log(`  深度闭关 min_realm: ${minRealm}`);
     const reqCheck = RealmService.meetsRealmRequirement(

@@ -18,13 +18,13 @@
  *  14. 参数校验与未授权访问
  *  15. OpenAPI 文档验证
  *
- * 运行方式：node scripts/test_artifact_spirit.js
+ * 运行方式：node tests/e2e/test_artifact_spirit.js
  */
 'use strict';
 
 // 显式指定 .env 路径，确保从 server/.env 加载（避免 cwd 不一致导致配置缺失）
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 const BASE = 'http://localhost:5000';
 const TEST_USERNAME = '1592363624';
 const TEST_PASSWORD = '1592363624';
@@ -87,7 +87,7 @@ async function main() {
     console.log('\n--- 2. 配置完整性验证 ---');
     const fs = require('fs');
     const path = require('path');
-    const configPath = path.join(__dirname, '..', 'config', 'artifact_spirit_data.json');
+    const configPath = path.join(__dirname, '..', '..', 'config', 'artifact_spirit_data.json');
     const configExists = fs.existsSync(configPath);
     check('artifact_spirit_data.json 配置文件存在', configExists);
     if (configExists) {
@@ -111,7 +111,7 @@ async function main() {
 
     // ===== 3. 数据库表结构验证 =====
     console.log('\n--- 3. 数据库表结构验证 ---');
-    const sequelize = require('../config/database');
+    const sequelize = require('../../config/database');
     const { QueryTypes } = require('sequelize');
     try {
         const [tableInfo] = await sequelize.query(
@@ -147,7 +147,7 @@ async function main() {
     // ===== 4. 模型验证 =====
     console.log('\n--- 4. 模型验证 ---');
     try {
-        const PlayerArtifactSpirit = require('../models/playerArtifactSpirit');
+        const PlayerArtifactSpirit = require('../../models/playerArtifactSpirit');
         const attrs = Object.keys(PlayerArtifactSpirit.rawAttributes);
         check('PlayerArtifactSpirit 模型加载成功', attrs.length > 0);
         check('模型含 spirit_type 字段', attrs.includes('spirit_type'));
@@ -331,7 +331,7 @@ async function main() {
     // ===== 15. Service 单元验证 =====
     console.log('\n--- 15. Service 单元验证 ---');
     try {
-        const ArtifactSpiritService = require('../game/services/ArtifactSpiritService');
+        const ArtifactSpiritService = require('../../game/services/ArtifactSpiritService');
         check('ArtifactSpiritService 加载成功', !!ArtifactSpiritService);
         check('Service 含 awaken 方法', typeof ArtifactSpiritService.awaken === 'function');
         check('Service 含 getMySpirits 方法', typeof ArtifactSpiritService.getMySpirits === 'function');
@@ -350,7 +350,7 @@ async function main() {
 
     // ===== 16. 路由文件验证 =====
     console.log('\n--- 16. 路由文件验证 ---');
-    const routePath = path.join(__dirname, '..', 'routes', 'artifact_spirit.js');
+    const routePath = path.join(__dirname, '..', '..', 'routes', 'artifact_spirit.js');
     check('routes/artifact_spirit.js 文件存在', fs.existsSync(routePath));
     if (fs.existsSync(routePath)) {
         const routeContent = fs.readFileSync(routePath, 'utf-8');
@@ -368,7 +368,7 @@ async function main() {
 
     // ===== 17. OpenAPI 文档验证 =====
     console.log('\n--- 17. OpenAPI 文档验证 ---');
-    const openapiPath = path.join(__dirname, '..', '..', 'docs', 'openapi.json');
+    const openapiPath = path.join(__dirname, '..', '..', '..', 'docs', 'openapi.json');
     if (fs.existsSync(openapiPath)) {
         const openapi = JSON.parse(fs.readFileSync(openapiPath, 'utf-8'));
         const paths = openapi.paths || {};

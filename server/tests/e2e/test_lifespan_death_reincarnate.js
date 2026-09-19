@@ -23,12 +23,12 @@
  *   - 轮回后所有字段正确重置
  *   - WebSocket 通知函数被调用（player_death / player_reincarnate）
  *
- * 运行方式：node server/scripts/test_lifespan_death_reincarnate.js
+ * 运行方式：node server/tests/e2e/test_lifespan_death_reincarnate.js
  */
 const path = require('path');
 const fs = require('fs');
 // 显式加载 server/.env，避免从项目根目录运行时找不到 .env
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 // 测试结果收集
 const testResults = [];
@@ -80,7 +80,7 @@ async function main() {
 
     let configLoader;
     try {
-        const { infrastructure, initializeModules } = require('../modules');
+        const { infrastructure, initializeModules } = require('../../modules');
         await initializeModules();
         configLoader = infrastructure.ConfigLoader;
         const loaded = configLoader.getLoadedConfigNames();
@@ -91,7 +91,7 @@ async function main() {
     }
 
     // 连接数据库
-    const sequelize = require('../config/database');
+    const sequelize = require('../../config/database');
     try {
         await sequelize.authenticate();
         record('初始化', '数据库连接', true);
@@ -100,8 +100,8 @@ async function main() {
         throw e;
     }
 
-    const Player = require('../models/player');
-    const LifespanService = require('../game/core/LifespanService');
+    const Player = require('../../models/player');
+    const LifespanService = require('../../game/core/LifespanService');
 
     // ────────────────────────────────────────────────────────
     // 段 2：读取测试账号当前状态作为基线快照
@@ -191,7 +191,7 @@ async function main() {
     console.log(`  📊 设置 deathAge=${deathAge.toFixed(6)}, lifespan_max=${snapshot.lifespan_max}`);
 
     // Mock WebSocketNotificationService 捕获推送事件
-    const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
+    const WebSocketNotificationService = require('../../game/services/WebSocketNotificationService');
     const notifyPlayerUpdateCalls = [];
     const broadcastNotificationCalls = [];
     const origNotifyPlayerUpdate = WebSocketNotificationService.notifyPlayerUpdate;
@@ -275,7 +275,7 @@ async function main() {
         player.death_reason = null;
         player.death_time = null;
         player.realm = '凡人';
-        const RealmService = require('../game/core/RealmService');
+        const RealmService = require('../../game/core/RealmService');
         player.realm_rank = RealmService.getRealmRank('凡人');
         player.exp = keptExp;
         player.lifespan_current = initialAge;

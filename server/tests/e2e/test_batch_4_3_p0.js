@@ -11,7 +11,7 @@
  *   - 静态代码扫描：检查关键修复点是否落地
  *   - 运行时验证：通过 HTTP 接口验证死亡流程触发链路
  *
- * 运行方式：node server/scripts/test_batch_4_3_p0.js
+ * 运行方式：node server/tests/e2e/test_batch_4_3_p0.js
  */
 const fs = require('fs');
 const path = require('path');
@@ -68,7 +68,7 @@ function filterCodeLines(content) {
  */
 function testLifespanServiceIdempotent() {
     console.log('\n=== 场景1：P0-1 LifespanService.handleLifespanEnd 幂等性 ===');
-    const filePath = path.join(__dirname, '..', 'game', 'core', 'LifespanService.js');
+    const filePath = path.join(__dirname, '..', '..', 'game', 'core', 'LifespanService.js');
     const content = readFile(filePath);
     const codeLines = filterCodeLines(content);
 
@@ -102,7 +102,7 @@ function testLifespanServiceIdempotent() {
  */
 function testLifespanServiceBatchUpdate() {
     console.log('\n=== 场景2：P0-3 LifespanService.updateLifespan 批量更新优化 ===');
-    const filePath = path.join(__dirname, '..', 'game', 'core', 'LifespanService.js');
+    const filePath = path.join(__dirname, '..', '..', 'game', 'core', 'LifespanService.js');
     const content = readFile(filePath);
     const codeLines = filterCodeLines(content);
 
@@ -150,7 +150,7 @@ function testLifespanServiceBatchUpdate() {
  */
 function testPlayerServiceDeathComplete() {
     console.log('\n=== 场景3：P0-2 PlayerService.handlePlayerDeath 完整化 ===');
-    const filePath = path.join(__dirname, '..', 'game', 'core', 'PlayerService.js');
+    const filePath = path.join(__dirname, '..', '..', 'game', 'core', 'PlayerService.js');
     const content = readFile(filePath);
     const codeLines = filterCodeLines(content);
 
@@ -207,8 +207,8 @@ function testPlayerServiceDeathComplete() {
  */
 function testDeathLossRateUnified() {
     console.log('\n=== 场景4：P1-1 死亡损失率字段统一 ===');
-    const lifespanFile = path.join(__dirname, '..', 'game', 'core', 'LifespanService.js');
-    const playerFile = path.join(__dirname, '..', 'game', 'core', 'PlayerService.js');
+    const lifespanFile = path.join(__dirname, '..', '..', 'game', 'core', 'LifespanService.js');
+    const playerFile = path.join(__dirname, '..', '..', 'game', 'core', 'PlayerService.js');
     const lifespanContent = readFile(lifespanFile);
     const playerContent = readFile(playerFile);
 
@@ -223,7 +223,7 @@ function testDeathLossRateUnified() {
         'P1-1.3 PlayerService fallback 到 combat.death_exp_penalty_rate');
 
     // 4.3 game_balance.json 中应同时存在两个配置
-    const configPath = path.join(__dirname, '..', 'config', 'game_balance.json');
+    const configPath = path.join(__dirname, '..', '..', 'config', 'game_balance.json');
     const configContent = readFile(configPath);
     assert(configContent.includes('"death_exp_loss_rate"'),
         'P1-1.4 game_balance.json 配置 lifespan.death_exp_loss_rate');
@@ -236,7 +236,7 @@ function testDeathLossRateUnified() {
  */
 function testUpdateHpDeathReason() {
     console.log('\n=== 场景5：updateHp 支持自定义死亡原因 ===');
-    const filePath = path.join(__dirname, '..', 'game', 'core', 'PlayerService.js');
+    const filePath = path.join(__dirname, '..', '..', 'game', 'core', 'PlayerService.js');
     const content = readFile(filePath);
 
     // 5.1 updateHp 函数签名应包含 deathReason 参数
@@ -253,7 +253,7 @@ function testUpdateHpDeathReason() {
  */
 function testHandlePlayerDeathReason() {
     console.log('\n=== 场景6：handlePlayerDeath 支持自定义死亡原因 ===');
-    const filePath = path.join(__dirname, '..', 'game', 'core', 'PlayerService.js');
+    const filePath = path.join(__dirname, '..', '..', 'game', 'core', 'PlayerService.js');
     const content = readFile(filePath);
 
     // 6.1 函数签名应包含 reason 参数，默认值为"战斗陨落"

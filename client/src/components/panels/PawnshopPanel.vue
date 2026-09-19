@@ -21,7 +21,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Modal from '../common/Modal.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
-import { formatTime } from '../../utils/format'
+import { formatTime, formatCompact } from '../../utils/format'
 import { getInventory } from '../../api/inventory'
 import {
   getStatus,
@@ -659,7 +659,7 @@ onUnmounted(() => {
         </div>
         <div class="bg-[#1c1917] border border-stone-700 rounded p-2 text-center">
           <div class="text-[10px] text-stone-500">灵石余额</div>
-          <div class="text-sm font-bold text-amber-300">{{ status.spirit_stones }}</div>
+          <div class="text-sm font-bold text-amber-300">{{ formatCompact(status.spirit_stones) }}</div>
         </div>
       </div>
 

@@ -137,13 +137,13 @@ async function main() {
     // ===== 场景5：RealmService 单元测试 - 化神期应满足筑基期要求 =====
     console.log('\n[场景5] RealmService.meetsRealmRequirement 单元验证');
     try {
-        const { infrastructure } = require('../modules');
+        const { infrastructure } = require('../../modules');
         infrastructure.ConfigLoader.initialize();
-        const game = require('../game');
-        await require('../config/database').authenticate();
+        const game = require('../../game');
+        await require('../../config/database').authenticate();
         await game.initializeGameServices(infrastructure.ConfigLoader);
 
-        const Player = require('../models/player');
+        const Player = require('../../models/player');
         const player = await Player.findByPk(1);
 
         const check1 = game.RealmService.meetsRealmRequirement(player, '筑基期');
@@ -200,7 +200,7 @@ async function main() {
 
     // ===== 清理测试副作用：清除闭关冷却，避免污染后续测试 =====
     try {
-        const Player = require('../models/player');
+        const Player = require('../../models/player');
         const player = await Player.findByPk(1);
         if (player) {
             player.is_secluded = false;

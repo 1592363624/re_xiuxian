@@ -22,7 +22,7 @@
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const BASE = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
 const TEST_USERNAME = '1592363624';
@@ -57,7 +57,7 @@ function check(name, condition, detail = '') {
     console.log('[场景1] 静态代码扫描 - 虚天殿专属方法与变量边界');
 
     const serviceCode = fs.readFileSync(
-        path.join(__dirname, '../game/services/MultiDungeonService.js'), 'utf-8'
+        path.join(__dirname, '..', '../game/services/MultiDungeonService.js'), 'utf-8'
     );
 
     check('MultiDungeonService 包含 _processXutianFinalAct 方法',
@@ -94,7 +94,7 @@ function check(name, condition, detail = '') {
     console.log('\n[场景2] 配置完整性 - 虚天殿 6 幕流程');
 
     const config = JSON.parse(fs.readFileSync(
-        path.join(__dirname, '../config/multi_dungeon_data.json'), 'utf-8'
+        path.join(__dirname, '..', '../config/multi_dungeon_data.json'), 'utf-8'
     ));
 
     const xutian = config.dungeons?.xutian;
@@ -231,7 +231,7 @@ function check(name, condition, detail = '') {
     console.log('\n[场景3] 接口路由 - /api/multi-dungeon/* 支持 xutian');
 
     const routeCode = fs.readFileSync(
-        path.join(__dirname, '../routes/multi_dungeon.js'), 'utf-8'
+        path.join(__dirname, '..', '../routes/multi_dungeon.js'), 'utf-8'
     );
 
     check('路由文件包含 xutian 关键字', routeCode.includes('xutian'), '');

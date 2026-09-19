@@ -20,6 +20,7 @@ import { ref, nextTick, watch, onMounted, onUnmounted, reactive, computed } from
 import { getChatHistory, sendMessage, getUnreadCount, markRead, sendRedPacket, claimRedPacket, getRedPacketDetail, showItem } from '../../api/chat'
 import { getInventory } from '../../api/inventory'
 import { socketService } from '../../services/socket'
+import { formatCompact } from '../../utils/format'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 
@@ -1011,7 +1012,7 @@ onUnmounted(() => {
 
         <!-- 消耗预览 -->
         <div class="text-xs text-stone-500 mb-3 text-center">
-          消耗 <span class="text-red-300 font-bold">{{ redPacketPreview.toLocaleString() }}</span> 灵石
+          消耗 <span class="text-red-300 font-bold">{{ formatCompact(redPacketPreview) }}</span> 灵石
         </div>
 
         <!-- 发送按钮 -->
@@ -1071,12 +1072,12 @@ onUnmounted(() => {
               "{{ redPacketDetail.data.message }}"
             </div>
             <div class="text-2xl font-bold text-amber-300 text-center py-1">
-              {{ redPacketDetail.data.total_amount.toLocaleString() }}
+              {{ formatCompact(redPacketDetail.data.total_amount) }}
               <span class="text-xs text-amber-500/60">灵石 / {{ redPacketDetail.data.total_count }}个</span>
             </div>
             <!-- 我的领取信息 -->
             <div v-if="redPacketDetail.data.my_claim" class="text-center text-xs text-emerald-300 mt-1">
-              你已领取 {{ redPacketDetail.data.my_claim.amount.toLocaleString() }} 灵石
+              你已领取 {{ formatCompact(redPacketDetail.data.my_claim.amount) }} 灵石
               <span v-if="redPacketDetail.data.my_claim.is_lucky_king" class="text-amber-300 font-bold ml-1">👑 手气最佳</span>
             </div>
           </div>
@@ -1116,7 +1117,7 @@ onUnmounted(() => {
                   <span v-if="claim.is_lucky_king" class="text-[10px] text-amber-400">👑</span>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
-                  <span class="text-xs text-amber-300 font-bold">{{ claim.amount.toLocaleString() }}</span>
+                  <span class="text-xs text-amber-300 font-bold">{{ formatCompact(claim.amount) }}</span>
                   <span class="text-[10px] text-stone-500">{{ new Date(claim.claimed_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</span>
                 </div>
               </div>

@@ -7,7 +7,7 @@ const path = require('path');
 const sequelize = require('../config/database');
 const { QueryTypes } = require('sequelize');
 
-const MIGRATION_DIR = __dirname;
+const MIGRATION_DIR = path.join(__dirname, 'migrations');
 
 /**
  * 迁移版本记录表名

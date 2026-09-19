@@ -76,7 +76,7 @@
             <div v-if="status.exp_to_next > 0" class="bg-stone-900/50 border border-stone-700/50 rounded-xl p-4">
               <div class="flex items-center justify-between mb-2">
                 <span class="text-sm text-stone-300">修炼经验</span>
-                <span class="text-xs text-stone-400">{{ status.current_exp }} / {{ status.exp_to_next }}</span>
+                <span class="text-xs text-stone-400">{{ formatCompact(status.current_exp) }} / {{ formatCompact(status.exp_to_next) }}</span>
               </div>
               <div class="w-full h-3 bg-stone-950 rounded-full overflow-hidden border border-stone-800">
                 <div class="h-full bg-gradient-to-r from-indigo-600 to-violet-500 rounded-full transition-all duration-500"
@@ -102,15 +102,15 @@
               <div class="grid grid-cols-3 gap-2 mb-3 text-center">
                 <div class="bg-stone-950/50 rounded-lg py-2">
                   <div class="text-[10px] text-stone-500">消耗修为</div>
-                  <div class="text-sm font-bold text-rose-300">{{ status.meditate.cost_exp }}</div>
+                  <div class="text-sm font-bold text-rose-300">{{ formatCompact(status.meditate.cost_exp) }}</div>
                 </div>
                 <div class="bg-stone-950/50 rounded-lg py-2">
                   <div class="text-[10px] text-stone-500">获得经验</div>
-                  <div class="text-sm font-bold text-indigo-300">+{{ status.meditate.exp_per_meditate }}</div>
+                  <div class="text-sm font-bold text-indigo-300">+{{ formatCompact(status.meditate.exp_per_meditate) }}</div>
                 </div>
                 <div class="bg-stone-950/50 rounded-lg py-2">
                   <div class="text-[10px] text-stone-500">当前修为</div>
-                  <div class="text-sm font-bold text-amber-300 truncate" :title="status.player_exp">{{ formatBigNumber(status.player_exp) }}</div>
+                  <div class="text-sm font-bold text-amber-300 truncate" :title="status.player_exp">{{ formatCompact(status.player_exp) }}</div>
                 </div>
               </div>
               <!-- 冷却提示 -->
@@ -288,7 +288,7 @@
         <p>即将尝试突破大衍诀层数，本次将消耗：</p>
         <div class="bg-stone-950/50 rounded-lg p-3 space-y-1 text-[13px]">
           <div class="flex justify-between"><span class="text-stone-500">消耗残篇</span><span class="text-violet-300 font-bold">{{ status?.next_fragment?.name }} ×{{ status?.next_fragment?.required }}</span></div>
-          <div class="flex justify-between"><span class="text-stone-500">当前经验</span><span class="text-amber-300 font-bold">{{ status?.current_exp }} / {{ status?.exp_to_next }}</span></div>
+          <div class="flex justify-between"><span class="text-stone-500">当前经验</span><span class="text-amber-300 font-bold">{{ formatCompact(status?.current_exp) }} / {{ formatCompact(status?.exp_to_next) }}</span></div>
         </div>
         <div class="bg-amber-950/30 border border-amber-800/40 rounded-lg p-3 text-[12px] text-amber-200">
           ⚠ 突破存在失败风险，失败时残篇损耗但经验保留。成功率随层数递减，请谨慎抉择。
@@ -345,6 +345,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Modal from '../common/Modal.vue'
 import { useUIStore } from '../../stores/ui'
+import { formatCompact } from '../../utils/format'
 import {
   getConfig,
   getStatus,
@@ -398,19 +399,6 @@ const levelList = computed(() => {
 })
 
 // ===== 工具方法 =====
-/**
- * 格式化大数修为显示（避免过长）
- * @param {string} numStr - 数字字符串
- * @returns {string} 格式化后的字符串
- */
-function formatBigNumber(numStr) {
-  if (!numStr) return '0'
-  const num = BigInt(numStr)
-  if (num >= 100000000n) return (Number(num) / 100000000).toFixed(2) + '亿'
-  if (num >= 10000n) return (Number(num) / 10000).toFixed(1) + '万'
-  return numStr
-}
-
 /**
  * 格式化冷却时间（秒 → 分秒）
  * @param {number} sec - 剩余秒数

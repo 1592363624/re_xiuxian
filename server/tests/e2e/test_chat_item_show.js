@@ -12,12 +12,12 @@
  *   8. 后端 API 实际响应验证（登录 → 展示物品 → 历史记录验证）
  *   9. 安全校验验证（展示未拥有物品应失败）
  *
- * 运行方式：node scripts/test_chat_item_show.js
+ * 运行方式：node tests/e2e/test_chat_item_show.js
  */
 'use strict';
 
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const fs = require('fs');
 const axios = require('axios');
@@ -48,7 +48,7 @@ async function main() {
 
     // ====== 测试1：后端路由定义验证 ======
     console.log('【测试1】后端路由定义验证');
-    const chatRoutePath = path.join(__dirname, '..', 'routes', 'chat.js');
+    const chatRoutePath = path.join(__dirname, '..', '..', 'routes', 'chat.js');
     check('chat.js 路由文件存在', fs.existsSync(chatRoutePath));
     if (fs.existsSync(chatRoutePath)) {
         const routeContent = fs.readFileSync(chatRoutePath, 'utf-8');
@@ -65,7 +65,7 @@ async function main() {
 
     // ====== 测试2：前端 chat.ts API 定义验证 ======
     console.log('【测试2】前端 chat.ts API 定义验证');
-    const chatTsPath = path.join(__dirname, '..', '..', 'client', 'src', 'api', 'chat.ts');
+    const chatTsPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'api', 'chat.ts');
     check('chat.ts 文件存在', fs.existsSync(chatTsPath));
     if (fs.existsSync(chatTsPath)) {
         const chatTsContent = fs.readFileSync(chatTsPath, 'utf-8');
@@ -82,7 +82,7 @@ async function main() {
 
     // ====== 测试3：前端 GlobalChat.vue 辅助函数和状态验证 ======
     console.log('【测试3】前端 GlobalChat.vue 辅助函数和状态验证');
-    const globalChatPath = path.join(__dirname, '..', '..', 'client', 'src', 'components', 'widgets', 'GlobalChat.vue');
+    const globalChatPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'components', 'widgets', 'GlobalChat.vue');
     check('GlobalChat.vue 文件存在', fs.existsSync(globalChatPath));
     if (fs.existsSync(globalChatPath)) {
         const chatContent = fs.readFileSync(globalChatPath, 'utf-8');
@@ -159,7 +159,7 @@ async function main() {
 
     // ====== 测试6：OpenAPI 文档验证 ======
     console.log('【测试6】OpenAPI 文档验证');
-    const openapiPath = path.join(__dirname, '..', '..', 'docs', 'openapi.json');
+    const openapiPath = path.join(__dirname, '..', '..', '..', 'docs', 'openapi.json');
     if (fs.existsSync(openapiPath)) {
         const openapiDoc = JSON.parse(fs.readFileSync(openapiPath, 'utf-8'));
         check('OpenAPI 含 /api/chat/show-item 路径', !!openapiDoc.paths['/api/chat/show-item']);
@@ -181,7 +181,7 @@ async function main() {
 
     // ====== 测试7：changelog 记录验证 ======
     console.log('【测试7】changelog 记录验证');
-    const changelogPath = path.join(__dirname, '..', '..', 'client', 'src', 'data', 'changelog.js');
+    const changelogPath = path.join(__dirname, '..', '..', '..', 'client', 'src', 'data', 'changelog.js');
     if (fs.existsSync(changelogPath)) {
         const changelogContent = fs.readFileSync(changelogPath, 'utf-8');
         check('changelog 含"聊天物品展示"section', changelogContent.includes('聊天物品展示系统'));

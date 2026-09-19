@@ -108,7 +108,7 @@ async function main() {
     console.log('\n--- 6. 配置完整性验证 ---');
     const fs = require('fs');
     const path = require('path');
-    const configPath = path.join(__dirname, '..', 'config', 'game_balance.json');
+    const configPath = path.join(__dirname, '..', '..', 'config', 'game_balance.json');
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     const battleItemsCfg = config.pvp?.battle_items;
     check('pvp.battle_items 配置段应存在', !!battleItemsCfg);
@@ -119,7 +119,7 @@ async function main() {
 
     // ===== 7. item_data.json usable_in_battle 标记验证 =====
     console.log('\n--- 7. item_data.json usable_in_battle 标记验证 ---');
-    const itemDataPath = path.join(__dirname, '..', 'config', 'item_data.json');
+    const itemDataPath = path.join(__dirname, '..', '..', 'config', 'item_data.json');
     const itemData = JSON.parse(fs.readFileSync(itemDataPath, 'utf-8'));
     const healingPills = itemData.items?.filter(it => it.subtype === 'healing') || [];
     const manaPills = itemData.items?.filter(it => it.subtype === 'mana') || [];
@@ -130,7 +130,7 @@ async function main() {
 
     // ===== 8. OpenAPI 文档验证 =====
     console.log('\n--- 8. OpenAPI 文档验证 ---');
-    const openapiPath = path.join(__dirname, '..', '..', 'docs', 'openapi.json');
+    const openapiPath = path.join(__dirname, '..', '..', '..', 'docs', 'openapi.json');
     if (fs.existsSync(openapiPath)) {
         const openapi = JSON.parse(fs.readFileSync(openapiPath, 'utf-8'));
         check('OpenAPI 应包含 /api/pvp/battle-items 路径', !!openapi.paths?.['/api/pvp/battle-items']);

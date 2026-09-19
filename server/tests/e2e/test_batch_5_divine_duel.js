@@ -11,7 +11,7 @@
  * 测试账号：1592363624 / 1592363624（玩家ID=1，韩天尊，化神初期）
  * 副账号：需要第二个化神期玩家作为对手
  *
- * 运行：node server/scripts/test_batch_5_divine_duel.js
+ * 运行：node server/tests/e2e/test_batch_5_divine_duel.js
  */
 'use strict';
 
@@ -88,7 +88,7 @@ async function main() {
     console.log('\n【场景1】模块加载测试');
 
     try {
-        const DivineDuelService = require('../game/services/DivineDuelService');
+        const DivineDuelService = require('../../game/services/DivineDuelService');
         assert(!!DivineDuelService, 'DivineDuelService 模块加载成功');
 
         const methods = ['challenge', 'accept', 'action', 'getActiveDuel', 'getHistory', 'surrender', 'checkTimeouts'];
@@ -101,7 +101,7 @@ async function main() {
 
     // 配置加载测试（独立进程需先 initialize 才能读取配置）
     try {
-        const { infrastructure } = require('../modules');
+        const { infrastructure } = require('../../modules');
         // 独立进程未初始化配置中心，调用 initialize 加载全部 JSON 配置
         if (!infrastructure.ConfigLoader.isInitialized) {
             await infrastructure.ConfigLoader.initialize();
@@ -124,7 +124,7 @@ async function main() {
     console.log('\n【场景2】数据模型加载测试');
 
     try {
-        const PlayerDivineDuel = require('../models/playerDivineDuel');
+        const PlayerDivineDuel = require('../../models/playerDivineDuel');
         assert(!!PlayerDivineDuel, 'PlayerDivineDuel 模型加载成功');
         assert(typeof PlayerDivineDuel.findOne === 'function', 'PlayerDivineDuel.findOne 存在');
         assert(typeof PlayerDivineDuel.findAll === 'function', 'PlayerDivineDuel.findAll 存在');

@@ -12,7 +12,7 @@
  *   8. 战力加成计算校验
  *
  * 测试账号：1592363624 / 1592363624
- * 运行方式：node server/scripts/test_xutian_cauldron.js
+ * 运行方式：node server/tests/e2e/test_xutian_cauldron.js
  *
  * @author 修仙游戏开发组
  * @created 2026-07-22
@@ -24,21 +24,21 @@ const fs = require('fs');
 const path = require('path');
 
 // 显式加载 server/.env
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const HOST = '127.0.0.1';
 const PORT = 5000;
 const TEST_ACCOUNT = '1592363624';
 const TEST_PASSWORD = '1592363624';
 
-const sequelize = require('../config/database');
-const Player = require('../models/player');
-const PlayerEquipment = require('../models/playerEquipment');
-const PlayerDivineSense = require('../models/playerDivineSense');
-const Item = require('../models/item');
-const { infrastructure } = require('../modules');
-const InventoryService = require('../game/services/InventoryService');
-const ArtifactDeepLineService = require('../game/services/ArtifactDeepLineService');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
+const PlayerEquipment = require('../../models/playerEquipment');
+const PlayerDivineSense = require('../../models/playerDivineSense');
+const Item = require('../../models/item');
+const { infrastructure } = require('../../modules');
+const InventoryService = require('../../game/services/InventoryService');
+const ArtifactDeepLineService = require('../../game/services/ArtifactDeepLineService');
 
 const configLoader = infrastructure.ConfigLoader;
 

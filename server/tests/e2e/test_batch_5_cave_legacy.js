@@ -18,7 +18,7 @@
  *   - 玩家 id=2 ~ id=8 中至少 1 个作为"坐化玩家"（储物袋需有 material/consumable 物品）
  *   - 测试前自动给坐化玩家添加物品（若不足）
  *
- * 运行：node server/scripts/test_batch_5_cave_legacy.js
+ * 运行：node server/tests/e2e/test_batch_5_cave_legacy.js
  */
 'use strict';
 
@@ -137,7 +137,7 @@ async function main() {
     // 资格要求：last_online 近 7 天 / total_online_time >= 30 分钟 / stats 指令数 >= 50 / exp >= 100 / createdAt >= 3 天前
     console.log('\n▶ [2.5] 为测试玩家注入资格数据（使其满足分宝 eligibility）');
     try {
-        const sequelize = require('../config/database');
+        const sequelize = require('../../config/database');
         const threeDaysAgo = new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
         const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
         // 注入：last_online=now, total_online_time=2 小时, createdAt=4 天前, stats 含足量指令计数, exp=10000
@@ -361,12 +361,12 @@ async function main() {
     // 创建一个会立即过期的遗府（通过直接操作数据库或开启 1 小时后手动改 ends_at）
     // 简化：直接通过 API 开启一个 1 小时的遗府，然后通过 SQL 修改 ends_at 为过去时间
     try {
-        const { infrastructure } = require('../modules');
+        const { infrastructure } = require('../../modules');
         if (!infrastructure.ConfigLoader.isInitialized) {
             await infrastructure.ConfigLoader.initialize();
         }
-        const sequelize = require('../config/database');
-        const CaveLegacy = require('../models/caveLegacy');
+        const sequelize = require('../../config/database');
+        const CaveLegacy = require('../../models/caveLegacy');
         // 找最近一个 closed 的遗府，将其改为 open + ends_at=过去，触发自动关闭
         const closedLegacy = await CaveLegacy.findOne({
             where: { status: 'closed' },
@@ -381,7 +381,7 @@ async function main() {
             console.log(`  📝 修改遗府 ${closedLegacy.id} 为过期状态`);
 
             // 调用调度器
-            const CaveLegacyService = require('../game/services/CaveLegacyService');
+            const CaveLegacyService = require('../../game/services/CaveLegacyService');
             CaveLegacyService.initialize(infrastructure.ConfigLoader);
             const result = await CaveLegacyService.checkExpiredLegacies();
             assert(result.expired_count >= 1, `调度器关闭至少 1 个过期遗府（实际 ${result.expired_count}）`);

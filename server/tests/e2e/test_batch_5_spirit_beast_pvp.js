@@ -18,7 +18,7 @@
  *  14. 同主魂校验（相同IP）
  *  15. 赛季到期自动结算（直接调用 Service）
  *
- * 运行：node server/scripts/test_batch_5_spirit_beast_pvp.js
+ * 运行：node server/tests/e2e/test_batch_5_spirit_beast_pvp.js
  */
 'use strict';
 
@@ -179,10 +179,10 @@ async function main() {
 
     // ===== 6. 为两个测试玩家准备出战灵兽 =====
     console.log('\n▶ [6] 为两个测试玩家准备出战灵兽');
-    const sequelize = require('../config/database');
-    const SpiritBeast = require('../models/spiritBeast');
-    const SpiritBeastPvpMatch = require('../models/spiritBeastPvpMatch');
-    const SpiritBeastPvpRanking = require('../models/spiritBeastPvpRanking');
+    const sequelize = require('../../config/database');
+    const SpiritBeast = require('../../models/spiritBeast');
+    const SpiritBeastPvpMatch = require('../../models/spiritBeastPvpMatch');
+    const SpiritBeastPvpRanking = require('../../models/spiritBeastPvpRanking');
 
     // 清理两个测试玩家之间的旧对局记录和排行数据，避免冷却影响测试
     await SpiritBeastPvpMatch.destroy({
@@ -455,9 +455,9 @@ async function main() {
     console.log('\n▶ [13] 赛季到期自动结算测试（直接调用 Service）');
     try {
         // 独立进程需先初始化 ConfigLoader
-        const { infrastructure } = require('../modules');
+        const { infrastructure } = require('../../modules');
         await infrastructure.ConfigLoader.initialize();
-        const SpiritBeastPvpService = require('../game/services/SpiritBeastPvpService');
+        const SpiritBeastPvpService = require('../../game/services/SpiritBeastPvpService');
         SpiritBeastPvpService.initialize(infrastructure.ConfigLoader);
 
         // 临时将赛季结束时间改为过去，触发结算

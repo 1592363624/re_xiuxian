@@ -17,19 +17,19 @@
  *   4. 然后测试接待/驱逐/忽略操作
  *   5. 验证寻宝联动（驱逐后无法寻宝、接待后背叛惩罚）
  *
- * 运行方式：node server/scripts/test_visitor_reception.js
+ * 运行方式：node server/tests/e2e/test_visitor_reception.js
  */
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const { QueryTypes } = require('sequelize');
-const Player = require('../models/player');
-const PlayerCave = require('../models/playerCave');
-const CaveVisitor = require('../models/caveVisitor');
-const CaveTreasureLog = require('../models/caveTreasureLog');
-const CaveSocialService = require('../game/services/CaveSocialService');
-const { infrastructure } = require('../modules');
+const Player = require('../../models/player');
+const PlayerCave = require('../../models/playerCave');
+const CaveVisitor = require('../../models/caveVisitor');
+const CaveTreasureLog = require('../../models/caveTreasureLog');
+const CaveSocialService = require('../../game/services/CaveSocialService');
+const { infrastructure } = require('../../modules');
 const configLoader = infrastructure.ConfigLoader;
 
 const testResults = [];

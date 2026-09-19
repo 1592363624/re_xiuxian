@@ -31,8 +31,8 @@
                </div>
              </div>
              <div class="grid grid-cols-2 gap-2 text-xs text-stone-400">
-                <div>灵石: <span class="text-stone-200">{{ player.spirit_stones }}</span></div>
-                <div>贡献: <span class="text-stone-200">{{ player.sect_contribution }}</span></div>
+                <div>灵石: <span class="text-stone-200">{{ formatCompact(player.spirit_stones) }}</span></div>
+                <div>贡献: <span class="text-stone-200">{{ formatCompact(player.sect_contribution) }}</span></div>
              </div>
           </div>
 
@@ -342,6 +342,7 @@
  *   两处会漂移，而且能同时叠开两个 modal。现在 actionId 就是面板标识。
  */
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { formatCompact } from '../../utils/format';
 import { getStats } from '../../api/system';
 import { getCombatStatus } from '../../api/combat';
 import { currentVersion } from '../../data/changelog';

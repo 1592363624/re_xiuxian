@@ -21,7 +21,7 @@
  *  17. 领取任务奖励（验证未完成任务被拒绝 + 已完成任务可领取）
  *  18. 清理测试数据
  *
- * 运行：node server/scripts/test_batch_5_taoism_gate.js
+ * 运行：node server/tests/e2e/test_batch_5_taoism_gate.js
  */
 'use strict';
 
@@ -120,19 +120,19 @@ async function main() {
     }
 
     // 直接连接数据库用于测试前置数据准备与状态修正
-    const sequelize = require('../config/database');
-    const Player = require('../models/player');
-    const PlayerTaoismGate = require('../models/playerTaoismGate');
-    const PlayerDivineSense = require('../models/playerDivineSense');
-    const PlayerLaw = require('../models/playerLaw');
-    const SpiritBeast = require('../models/spiritBeast');
+    const sequelize = require('../../config/database');
+    const Player = require('../../models/player');
+    const PlayerTaoismGate = require('../../models/playerTaoismGate');
+    const PlayerDivineSense = require('../../models/playerDivineSense');
+    const PlayerLaw = require('../../models/playerLaw');
+    const SpiritBeast = require('../../models/spiritBeast');
 
     // 初始化服务（确保独立运行脚本时 config 已加载）
-    const { infrastructure } = require('../modules');
+    const { infrastructure } = require('../../modules');
     if (!infrastructure.ConfigLoader.hasConfig('taoism_gate_data')) {
         await infrastructure.ConfigLoader.loadAllConfigs();
     }
-    const TaoismGateService = require('../game/services/TaoismGateService');
+    const TaoismGateService = require('../../game/services/TaoismGateService');
     if (!TaoismGateService.initialized) {
         TaoismGateService.initialize(infrastructure.ConfigLoader);
     }

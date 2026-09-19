@@ -20,14 +20,14 @@
  *     6. 验证数据库中 hp_current/mp_current 已恢复到满值
  *
  * 运行方式：
- *   cd server && node scripts/test_mp_recovery_http.js
+ *   cd server && node tests/e2e/test_mp_recovery_http.js
  */
 'use strict';
 
-const sequelize = require('../config/database');
-const Player = require('../models/player');
-const { initializeModules } = require('../modules');
-const game = require('../game');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
+const { initializeModules } = require('../../modules');
+const game = require('../../game');
 
 const BASE_URL = 'http://localhost:5000';
 const TEST_USERNAME = '1592363624';
@@ -71,7 +71,7 @@ async function main() {
     console.log('========================================');
 
     await initializeModules();
-    const configLoader = require('../modules/infrastructure/ConfigLoader');
+    const configLoader = require('../../modules/infrastructure/ConfigLoader');
     await game.initializeGameServices(configLoader);
 
     // 获取测试玩家
@@ -82,8 +82,8 @@ async function main() {
     }
 
     // 计算预期上限
-    const AttributeMaxService = require('../game/core/AttributeMaxService');
-    const RealmService = require('../game/core/RealmService');
+    const AttributeMaxService = require('../../game/core/AttributeMaxService');
+    const RealmService = require('../../game/core/RealmService');
     const realmConfig = RealmService.getRealmByName(player.realm);
     const maxValues = AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
     const maxHp = maxValues.hp_max;

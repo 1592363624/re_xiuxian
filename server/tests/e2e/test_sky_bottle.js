@@ -16,7 +16,7 @@
  *  12. 养树流程（成长度递增/满 100 自动产出）
  *
  * 测试账号：1592363624 / 1592363624
- * 运行方式：node server/scripts/test_sky_bottle.js
+ * 运行方式：node server/tests/e2e/test_sky_bottle.js
  *
  * @author 修仙游戏开发组
  * @created 2026-07-22
@@ -27,21 +27,21 @@ const http = require('http');
 const path = require('path');
 
 // 显式加载 server/.env
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const HOST = '127.0.0.1';
 const PORT = process.env.PORT || 5000;
 const TEST_ACCOUNT = '1592363624';
 const TEST_PASSWORD = '1592363624';
 
-const sequelize = require('../config/database');
-const Player = require('../models/player');
-const PlayerEquipment = require('../models/playerEquipment');
-const PlayerSect = require('../models/playerSect');
-const Item = require('../models/item');
-const { infrastructure } = require('../modules');
-const InventoryService = require('../game/services/InventoryService');
-const ArtifactDeepLineService = require('../game/services/ArtifactDeepLineService');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
+const PlayerEquipment = require('../../models/playerEquipment');
+const PlayerSect = require('../../models/playerSect');
+const Item = require('../../models/item');
+const { infrastructure } = require('../../modules');
+const InventoryService = require('../../game/services/InventoryService');
+const ArtifactDeepLineService = require('../../game/services/ArtifactDeepLineService');
 
 const configLoader = infrastructure.ConfigLoader;
 

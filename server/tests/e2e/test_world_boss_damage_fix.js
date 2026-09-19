@@ -12,7 +12,7 @@
  *   4. 查询 BOSS 详情，验证 HP 实际扣减
  *   5. 查询伤害排行，验证玩家伤害记录累加
  *
- * 运行：node scripts/test_world_boss_damage_fix.js
+ * 运行：node tests/e2e/test_world_boss_damage_fix.js
  */
 'use strict';
 

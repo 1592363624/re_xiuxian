@@ -3,7 +3,7 @@
  *
  * 验证 GM 后台修炼配置的 GET/POST 接口、热加载效果、权限校验、字段白名单、数值范围校验
  *
- * 用法：node scripts/test_admin_cultivation.js
+ * 用法：node tests/e2e/test_admin_cultivation.js
  */
 const http = require('http');
 

@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
-const Player = require('../models/player');
-const sequelize = require('../config/database');
+const Player = require('../../models/player');
+const sequelize = require('../../config/database');
 require('dotenv').config({ path: '../.env' });
 
 async function testAuth() {

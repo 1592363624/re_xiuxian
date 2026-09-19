@@ -23,8 +23,8 @@
 'use strict';
 
 const path = require('path');
-const sequelize = require('../config/database');
-const Player = require('../models/player');
+const sequelize = require('../../config/database');
+const Player = require('../../models/player');
 
 module.exports = {
     id: '0038_fix_realm_rank',
@@ -39,7 +39,7 @@ module.exports = {
 
         try {
             // 直接 require 配置文件（避免依赖 ConfigLoader 异步初始化）
-            const realmConfigPath = path.join(__dirname, '..', 'config', 'realm_breakthrough.json');
+            const realmConfigPath = path.join(__dirname, '..', '..', 'config', 'realm_breakthrough.json');
             const realmConfig = require(realmConfigPath);
 
             // 构建境界名 → rank 映射表

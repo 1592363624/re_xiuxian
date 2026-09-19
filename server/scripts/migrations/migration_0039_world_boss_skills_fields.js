@@ -20,11 +20,11 @@
 'use strict';
 
 const path = require('path');
-process.chdir(path.resolve(__dirname, '..'));
+process.chdir(path.resolve(__dirname, '..', '..'));
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const queryInterface = sequelize.getQueryInterface();
-const logger = require('../modules').infrastructure.logger || console;
+const logger = require('../../modules').infrastructure.logger || console;
 
 async function up() {
     const tableName = 'world_bosses';

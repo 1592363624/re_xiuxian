@@ -15,7 +15,7 @@
  *   - 每个子系统有独立的字段组，便于查询和管理
  *   - 玩家ID唯一索引，一人一条记录
  */
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const DataTypes = require('sequelize').DataTypes;
 
 async function up() {

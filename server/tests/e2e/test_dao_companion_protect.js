@@ -17,19 +17,19 @@
  *   - 场景7：护道统计查询
  *
  * 运行方式：
- *   cd server && node scripts/test_dao_companion_protect.js
+ *   cd server && node tests/e2e/test_dao_companion_protect.js
  */
 'use strict';
 
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const { QueryTypes, Op } = require('sequelize');
-const DaoCompanionService = require('../game/services/DaoCompanionService');
-const DaoCompanions = require('../models/daoCompanions');
-const DaoCompanionProtectLog = require('../models/daoCompanionProtectLog');
-const Player = require('../models/player');
-const migrationManager = require('./migration_manager');
-const { initializeModules } = require('../modules');
-const { infrastructure } = require('../modules');
+const DaoCompanionService = require('../../game/services/DaoCompanionService');
+const DaoCompanions = require('../../models/daoCompanions');
+const DaoCompanionProtectLog = require('../../models/daoCompanionProtectLog');
+const Player = require('../../models/player');
+const migrationManager = require('../../scripts/migration_manager');
+const { initializeModules } = require('../../modules');
+const { infrastructure } = require('../../modules');
 
 // 测试结果统计
 const testResults = { passed: 0, failed: 0, skipped: 0, total: 0 };

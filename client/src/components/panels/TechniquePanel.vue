@@ -25,9 +25,9 @@
     <!-- 玩家资源联动展示：修炼/突破/研习消耗实时抵扣，操作后会自动刷新 -->
     <div class="flex items-center justify-between gap-3 mb-3 text-xs rounded-lg border border-stone-700/50 bg-stone-900/40 px-3 py-2">
       <div class="flex flex-wrap gap-3">
-        <span class="text-amber-300">灵石 <b class="text-amber-200">{{ playerStore.player?.spirit_stones ?? '—' }}</b></span>
-        <span class="text-sky-300">灵力 <b class="text-sky-200">{{ playerStore.player?.mp ?? '—' }}<span v-if="playerStore.player?.mp_max"> / {{ playerStore.player.mp_max }}</span></b></span>
-        <span class="text-emerald-300">修为 <b class="text-emerald-200">{{ playerStore.player?.exp ?? '—' }}</b></span>
+        <span class="text-amber-300">灵石 <b class="text-amber-200">{{ playerStore.player ? formatCompact(playerStore.player.spirit_stones) : '—' }}</b></span>
+        <span class="text-sky-300">灵力 <b class="text-sky-200">{{ playerStore.player ? formatCompact(playerStore.player.mp) : '—' }}<span v-if="playerStore.player?.mp_max"> / {{ formatCompact(playerStore.player.mp_max) }}</span></b></span>
+        <span class="text-emerald-300">修为 <b class="text-emerald-200">{{ playerStore.player ? formatCompact(playerStore.player.exp) : '—' }}</b></span>
       </div>
       <button
         class="shrink-0 px-2 py-0.5 rounded bg-stone-700/50 hover:bg-stone-600/60 border border-stone-600/50"
@@ -225,6 +225,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
 import {
   getTechniqueList,

@@ -13,7 +13,7 @@
  *   6. 查询伤害排行榜
  *   7. 查询 Boss 当前 HP 变化
  *
- * 运行方式：node server/scripts/test_world_boss_flow.js
+ * 运行方式：node server/tests/e2e/test_world_boss_flow.js
  */
 const axios = require('axios');
 

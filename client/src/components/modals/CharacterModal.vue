@@ -34,13 +34,12 @@
                  </div>
                  <div class="bg-[#1c1917] p-3 rounded border border-stone-800">
                     <div class="text-xs text-stone-500 mb-1">当前修为</div>
-                    <!-- 修复 4-3-P1-2：使用 formatNumber 处理 BigInt 字符串 -->
-                    <div class="text-lg font-mono text-emerald-400">{{ formatNumber(player?.exp || 0) }}</div>
+                    <!-- 大数走万/亿单位，hover 看精确值 -->
+                    <div class="text-lg font-mono text-emerald-400" :title="formatNumber(player?.exp || 0)">{{ formatCompact(player?.exp || 0) }}</div>
                  </div>
                  <div class="bg-[#1c1917] p-3 rounded border border-stone-800">
                     <div class="text-xs text-stone-500 mb-1">当前灵石</div>
-                    <!-- 灵石也是 BigInt，统一使用 formatNumber -->
-                    <div class="text-lg font-mono text-yellow-500">{{ formatNumber(player?.spirit_stones || 0) }}</div>
+                    <div class="text-lg font-mono text-yellow-500" :title="formatNumber(player?.spirit_stones || 0)">{{ formatCompact(player?.spirit_stones || 0) }}</div>
                  </div>
               </div>
            </div>
@@ -101,8 +100,7 @@ import Modal from '../common/Modal.vue';
 import { usePlayerStore } from '../../stores/player';
 import { useUIStore } from '../../stores/ui';
 import { getFullAttributes } from '../../api/attribute';
-// 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
-import { formatNumber } from '../../utils/format';
+import { formatNumber, formatCompact } from '../../utils/format';
 
 defineEmits(['close']);
 

@@ -9,6 +9,9 @@ if (!logPath || cmd.length === 0) {
 
 const ANSI = /\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g;
 
+const logDir = require('path').dirname(logPath);
+if (logDir && logDir !== '.') fs.mkdirSync(logDir, { recursive: true });
+
 fs.writeFileSync(logPath, `=== ${new Date().toString()} ===\n$ ${cmd.join(' ')}\n\n`);
 const log = fs.createWriteStream(logPath, { flags: 'a' });
 

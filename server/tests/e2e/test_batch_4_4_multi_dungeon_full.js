@@ -42,7 +42,7 @@ function check(name, condition, detail = '') {
 
     // ===== 场景1：静态代码扫描 MultiDungeonService 核心方法 =====
     console.log('[场景1] 静态代码扫描 MultiDungeonService 核心方法');
-    const servicePath = path.join(__dirname, '../game/services/MultiDungeonService.js');
+    const servicePath = path.join(__dirname, '..', '../game/services/MultiDungeonService.js');
     const serviceCode = fs.readFileSync(servicePath, 'utf-8');
 
     const expectedMethods = [
@@ -83,7 +83,7 @@ function check(name, condition, detail = '') {
 
     // ===== 场景2：配置文件完整性检查 =====
     console.log('\n[场景2] 配置文件 multi_dungeon_data.json 完整性');
-    const configPath = path.join(__dirname, '../config/multi_dungeon_data.json');
+    const configPath = path.join(__dirname, '..', '../config/multi_dungeon_data.json');
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
     check('dungeons 配置块应存在', config.dungeons !== undefined);
@@ -112,7 +112,7 @@ function check(name, condition, detail = '') {
 
     // ===== 场景3：路由文件接口路径检查 =====
     console.log('\n[场景3] 路由文件 multi_dungeon.js 12 个接口路径');
-    const routeCode = fs.readFileSync(path.join(__dirname, '../routes/multi_dungeon.js'), 'utf-8');
+    const routeCode = fs.readFileSync(path.join(__dirname, '..', '../routes/multi_dungeon.js'), 'utf-8');
     const expectedRoutes = [
         "router.get('/help'",
         "router.post('/create'",

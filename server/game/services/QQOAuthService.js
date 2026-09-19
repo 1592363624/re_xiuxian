@@ -8,7 +8,8 @@
  *   1. token 接口返回 text/plain 的 querystring，不是 JSON
  *   2. /me 接口返回 JSONP 包裹体 `callback( {...} );`，需剥壳后再解析
  *   3. get_user_info 需要额外带 oauth_consumer_key（即 AppID），且新审核应用常拿不到
- *      昵称头像（ret != 0），因此资料获取按"尽力而为"处理，不阻断登录
+ *      昵称头像（ret != 0），因此资料获取按"尽力而为"处理，不阻断登录；头像缺失时退回
+ *      buildAvatarUrl 拼出的公开 CDN 地址，不依赖该权限
  */
 const axios = require('axios');
 const crypto = require('crypto');
@@ -62,6 +63,25 @@ function buildAuthorizeUrl(state) {
         scope: 'get_user_info'
     });
     return `${ENDPOINTS.authorize}?${params.toString()}`;
+}
+
+/**
+ * 用 appid + openid 拼 QQ 头像地址
+ *
+ * 这个 CDN 是公开的、不需要应用申请"用户信息"接口权限，QQ 互联 get_user_info 返回的
+ * figureurl_qq_2 本身就是这个格式（2018 年起域名从 q.qlogo.cn 迁到 thirdqq.qlogo.cn）。
+ *
+ * 尺寸只有 40 和 100 两个真值（实测）：传 140/640 腾讯不报错但静默回落成 40x40，
+ * 放进 64px 的头像框会糊；传 50/120/200 直接 400 空响应。appid/openid 不对时不报 404，
+ * 而是回一张默认头像，所以拼错只会看到"默认脸"而不是裂图。
+ */
+function buildAvatarUrl(appId, openId) {
+    return `https://thirdqq.qlogo.cn/qqapp/${appId}/${openId}/100`;
+}
+
+/** 腾讯的 figureurl 历史上回 http://，前端跑在 https 上时会被浏览器按混合内容拦掉 */
+function toHttps(url) {
+    return url ? url.replace(/^http:\/\//i, 'https://') : null;
 }
 
 /**
@@ -134,11 +154,17 @@ async function exchangeCode(code) {
         });
         if (infoRes.data?.ret === 0) {
             profile.nickname = infoRes.data.nickname || null;
-            profile.avatarUrl = infoRes.data.figureurl_qq_2 || infoRes.data.figureurl_qq_1 || null;
+            profile.avatarUrl = toHttps(infoRes.data.figureurl_qq_2 || infoRes.data.figureurl_qq_1) || null;
+        } else {
+            // 未开通"用户信息"权限时腾讯回 ret!=0，这里留一行日志便于判断到底是没权限还是令牌问题
+            console.warn('[QQ] get_user_info 未返回资料, ret=%s msg=%s', infoRes.data?.ret, infoRes.data?.msg);
         }
     } catch (err) {
         console.warn('[QQ] 获取用户资料失败（不影响登录）:', err.message);
     }
+
+    // 头像退回公开 CDN 地址，保证绑定之后左上角一定有图可显示
+    profile.avatarUrl = profile.avatarUrl || buildAvatarUrl(appId, me.openid);
 
     return profile;
 }

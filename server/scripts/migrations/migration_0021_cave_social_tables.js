@@ -13,7 +13,7 @@
  *   - 景观：玩家可布置景观装饰洞府，部分景观有属性加成
  *   - 商人：洞府商人货品从配置读取，定期刷新，购买记录在 cave_merchant_purchases 表
  */
-const sequelize = require('../config/database');
+const sequelize = require('../../config/database');
 const DataTypes = require('sequelize').DataTypes;
 
 async function up() {

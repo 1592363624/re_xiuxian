@@ -8,7 +8,7 @@
  *   3. 调用 RealmService.meetsRealmRequirement 验证境界校验
  *   4. 调用 POST /api/seclusion/start { mode: 'deep' }，观察是否被拦截
  *
- * 运行：node server/scripts/test_deep_seclusion_bug.js
+ * 运行：node server/tests/e2e/test_deep_seclusion_bug.js
  */
 'use strict';
 
