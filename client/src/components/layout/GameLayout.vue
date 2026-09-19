@@ -5,8 +5,8 @@
       <PlayerStatus v-if="playerStore.player" :player="playerStore.player" />
     </aside>
 
-    <!-- 移动端侧边栏 (遮罩 + 内容) -->
-    <div v-if="isMobileMenuOpen" class="fixed inset-0 z-50 md:hidden flex">
+    <!-- 移动端/窄屏功能抽屉（xl 以上由右坞承担导航） -->
+    <div v-if="isMobileMenuOpen" class="fixed inset-0 z-50 xl:hidden flex">
       <!-- 遮罩 -->
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="isMobileMenuOpen = false"></div>
       <!-- 侧边栏内容 -->
@@ -22,7 +22,8 @@
           <div class="bg-[#1c1917] rounded p-3 mb-4 border border-stone-800">
              <div class="flex items-center gap-3 mb-2">
                <div class="w-10 h-10 rounded bg-stone-800 border border-stone-700 overflow-hidden shrink-0">
-                  <img src="/vite.svg" alt="Avatar" class="w-full h-full object-cover" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNjY2IiBzdHJva2Utd2lkdGg9IjIiPjxjaXJjbGUgY3g9IjEyIiBjeT0iOCIgcj0iNCIvPjxwYXRoIGQ9Ik02IDIxdjItYTQgNCAwIDAgMSA0LTRoOGE0IDQgMCAwIDEgNCA0djIiLz48L3N2Zz4='">
+                  <img v-if="player.avatar_url && !mobileAvatarFailed" :src="player.avatar_url" alt="Avatar" class="w-full h-full object-cover" @error="mobileAvatarFailed = true">
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full p-1.5 text-stone-500"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                </div>
                <div>
                  <div class="font-bold text-stone-200">{{ player.name }}</div>
@@ -35,14 +36,32 @@
              </div>
           </div>
 
-          <button v-for="btn in displayMenuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" :class="[
-            'w-full flex items-center gap-3 px-4 py-3 text-sm rounded transition-colors border',
-            btn.name === 'GM' 
-              ? 'bg-gradient-to-r from-purple-900/40 to-pink-900/40 text-pink-300 hover:from-purple-800/60 hover:to-pink-800/60 hover:text-pink-200 border-pink-700/50 hover:border-pink-500 shadow-lg shadow-pink-900/20'
-              : 'text-stone-300 hover:bg-[#292524] hover:text-amber-500 border-transparent hover:border-stone-700'
-          ]">
-            <span v-html="btn.icon"></span>
-            {{ btn.name }}
+          <!-- 图标与文案取右坞同一份目录，避免两处清单漂移 -->
+          <div v-for="group in mobileMenuGroups" :key="group.key" class="pt-2">
+            <div class="px-4 pb-1 text-[10px] text-stone-600 tracking-[0.25em] font-serif">{{ group.label }}</div>
+            <button
+              v-for="item in group.items"
+              :key="item.id"
+              @click="handleAction(item.id)"
+              class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded transition-colors border text-stone-300 hover:bg-[#292524] hover:text-amber-500 border-transparent hover:border-stone-700"
+            >
+              <span v-html="item.icon"></span>
+              {{ item.name }}
+            </button>
+          </div>
+
+          <button
+            v-for="item in systemMenuItems"
+            :key="item.id"
+            @click="handleAction(item.id)"
+            :class="[
+              'w-full flex items-center gap-3 px-4 py-3 text-sm rounded transition-colors border',
+              item.id === 'gm'
+                ? 'bg-gradient-to-r from-purple-900/40 to-pink-900/40 text-pink-300 hover:from-purple-800/60 hover:to-pink-800/60 hover:text-pink-200 border-pink-700/50 hover:border-pink-500 shadow-lg shadow-pink-900/20'
+                : 'text-stone-300 hover:bg-[#292524] hover:text-amber-500 border-transparent hover:border-stone-700'
+            ]"
+          >
+            {{ item.name }}
           </button>
         </div>
       </div>
@@ -50,40 +69,46 @@
 
     <!-- 主区域 -->
     <main class="flex-1 flex flex-col h-full relative min-w-0 bg-[#0c0a09]">
-      <!-- 顶部 Header -->
+      <!-- 顶部 Header：功能导航已整体迁入右坞，这里只留标题与系统级入口 -->
       <header class="h-14 bg-[#1c1917] border-b border-stone-800 flex items-center justify-between px-4 shadow-md z-20 shrink-0">
-        <div class="flex items-center gap-3">
-          <!-- 移动端菜单按钮 -->
-          <button @click="isMobileMenuOpen = true" class="md:hidden p-2 -ml-2 text-stone-400 hover:text-white rounded active:bg-stone-800">
+        <div class="flex items-center gap-3 min-w-0">
+          <!-- 窄屏功能菜单按钮 -->
+          <button @click="isMobileMenuOpen = true" class="xl:hidden p-2 -ml-2 text-stone-400 hover:text-white rounded active:bg-stone-800 shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
           </button>
-          
-          <h1 class="text-xl font-serif font-bold text-amber-500 tracking-wider flex items-center gap-2">
-            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09]">{{ currentVersion }}</span>
+
+          <h1 class="text-xl font-serif font-bold text-amber-500 tracking-wider flex items-center gap-2 truncate">
+            重生之凡人修仙传 <span class="text-xs text-stone-500 font-sans font-normal border border-stone-700 px-1.5 py-0.5 rounded bg-[#0c0a09] shrink-0">{{ currentVersion }}</span>
           </h1>
         </div>
-        
-        <!-- 桌面端顶部按钮组 -->
-        <div class="hidden md:flex items-center gap-2">
-          <button v-for="btn in displayMenuButtons" :key="btn.name" @click="handleMenuClick(btn.name)" :class="[
-            'flex items-center gap-2 px-3 py-2 rounded transition-all text-sm min-w-[80px] justify-center group border',
-            btn.name === 'GM'
-              ? 'bg-gradient-to-r from-purple-900/40 to-pink-900/40 hover:from-purple-800/60 hover:to-pink-800/60 text-pink-300 hover:text-pink-200 border-pink-700/50 hover:border-pink-500 shadow-lg shadow-pink-900/20'
-              : 'bg-[#292524] hover:bg-[#44403c] border-stone-700 hover:border-stone-500 text-stone-300 hover:text-amber-100'
-          ]">
-            <span class="group-hover:scale-110 transition-transform" v-html="btn.icon"></span>
-            {{ btn.name }}
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            @click="handleAction('settings')"
+            class="flex items-center gap-2 px-3 py-2 rounded transition-all text-sm justify-center border bg-[#292524] hover:bg-[#44403c] border-stone-700 hover:border-stone-500 text-stone-300 hover:text-amber-100"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span class="hidden sm:inline">设置</span>
           </button>
-          
+
+          <button
+            v-if="player && player.role === 'admin'"
+            @click="handleAction('gm')"
+            class="flex items-center gap-2 px-3 py-2 rounded transition-all text-sm justify-center border bg-gradient-to-r from-purple-900/40 to-pink-900/40 hover:from-purple-800/60 hover:to-pink-800/60 text-pink-300 hover:text-pink-200 border-pink-700/50 hover:border-pink-500 shadow-lg shadow-pink-900/20"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span class="hidden sm:inline">GM</span>
+          </button>
+
           <!-- 退出登录按钮 (仅图标) -->
-          <button @click="handleLogoutClick" class="p-2 ml-2 text-stone-500 hover:text-rose-500 transition-colors rounded-full hover:bg-stone-800/50" title="退出登录">
+          <button @click="handleLogoutClick" class="p-2 ml-1 text-stone-500 hover:text-rose-500 transition-colors rounded-full hover:bg-stone-800/50" title="退出登录">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
         </div>
       </header>
 
       <!-- 返回战斗浮动按钮：仅当玩家有进行中战斗且战斗面板未打开时显示
-           位置：屏幕底部中央（移动端需避开横向滚动的 ActionBar rail），大号红字+脉动动画，确保玩家不会错过 -->
+           位置：屏幕底部中央（移动端需避开横向滚动的 ActionBar），大号红字+脉动动画，确保玩家不会错过 -->
       <button
         v-if="hasActiveBattle && !isCombatOpen"
         @click="handleReturnToBattle"
@@ -94,24 +119,16 @@
         <span>您有未完成的战斗，点击返回</span>
       </button>
 
-      <!-- 闭关修炼浮动状态条（header 下方，不遮挡内容） -->
-      <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
-
-      <!-- 静思悟道浮动状态条（第三阶段新增：悟道中显示进度与中断按钮） -->
-      <MeditationOverlay v-if="isStateSynced && playerStore.player?.is_meditating" />
-
-      <!-- 历练进行中浮动状态条（参考闭关设计，后端权威数据驱动） -->
-      <ExploreOverlay v-if="isStateSynced && playerStore.adventureStatus?.is_adventuring" />
-
       <!-- 赶路移动浮动状态条（header 下方，不遮挡内容） -->
       <MovingOverlay
         :show="movingState.isMoving"
         @complete="handleMoveComplete"
       />
 
-      <!-- 中部：【日志窄栏】+【右侧操作 rail】两栏并排 -->
-      <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative min-h-0">
-        <div class="flex-1 flex flex-col overflow-hidden relative min-w-0">
+      <!-- 中部三栏：【日志窄栏】+【右坞：分类导航 / 功能面板停靠】
+           xl 以下放不下三栏，日志独占宽度、导航退回底部操作条 -->
+      <div class="flex-1 flex flex-col xl:flex-row overflow-hidden relative min-h-0">
+        <div class="w-full xl:w-[560px] 2xl:w-[680px] shrink-0 flex flex-col overflow-hidden relative min-w-0">
           <!-- 窄阅读栏之外的留白用灵尘氛围层填充，避免读作渲染缺陷 -->
           <div class="absolute inset-0 pointer-events-none overflow-hidden">
             <div class="absolute inset-0 bg-[radial-gradient(90%_70%_at_72%_18%,rgba(56,189,248,0.05),transparent_65%)]"></div>
@@ -123,9 +140,20 @@
           <!-- 这里可以放战斗视觉层 (CombatVisuals) -->
           <GameLog :logs="logs" />
         </div>
-        <ActionBar :player="playerStore.player" @action="handleAction" />
+
+        <FeatureDock :player="playerStore.player" :open-panel-id="openPanel" @action="handleAction">
+          <!-- 闭关 / 悟道 / 历练 进度条收进总览的状态卡，不再各占一条 header 下方的横条 -->
+          <template #status>
+            <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
+            <MeditationOverlay v-if="isStateSynced && playerStore.player?.is_meditating" />
+            <ExploreOverlay v-if="isStateSynced && playerStore.adventureStatus?.is_adventuring" />
+          </template>
+        </FeatureDock>
       </div>
-  </main>
+
+      <!-- 移动端底部操作条（桌面端导航由右坞承担） -->
+      <ActionBar :player="playerStore.player" @action="handleAction" />
+    </main>
 
     <!-- 全局聊天组件 -->
     <GlobalChat />
@@ -138,133 +166,153 @@
 
     <!-- 设置弹窗 -->
     <SettingsModal v-if="isSettingsOpen" @close="isSettingsOpen = false" />
-    
+
     <!-- GM 管理后台 -->
     <AdminPanel v-if="isAdminPanelOpen" @close="isAdminPanelOpen = false" />
-    
+
+    <!-- ============================================================
+         功能面板：md 以上由 .panel-shell 停靠进右坞（规则见 style.css），
+         窄屏仍是全屏 modal。openPanel 单值保证同时只展开一个。
+         ============================================================ -->
+
     <!-- 地图面板 -->
-    <MapPanel v-if="isMapOpen" @close="isMapOpen = false" />
-    
+    <MapPanel v-if="openPanel === 'map'" @close="closePanel()" />
+
     <!-- 历练面板 -->
-    <ExplorePanel v-if="isExploreOpen" @close="isExploreOpen = false" @combat="handleExploreCombat" />
+    <ExplorePanel v-if="openPanel === 'explore'" @close="closePanel()" @combat="handleExploreCombat" />
 
     <!-- 闭关修炼选择面板（让玩家选择常规/深度闭关） -->
-    <SeclusionPanel v-if="isSeclusionOpen" @close="isSeclusionOpen = false" />
-    
+    <SeclusionPanel v-if="openPanel === 'cultivate'" @close="closePanel()" />
+
     <!-- 战斗面板 -->
-    <CombatPanel v-if="isCombatOpen" :initialBattleId="currentBattleId ?? undefined" @close="isCombatOpen = false" />
-    
+    <CombatPanel v-if="isCombatOpen" :initialBattleId="currentBattleId ?? undefined" @close="closePanel()" />
+
     <!-- 角色弹窗 -->
-    <CharacterModal v-if="isCharacterOpen" @close="isCharacterOpen = false" />
+    <CharacterModal v-if="openPanel === 'character'" @close="closePanel()" />
 
     <!-- 背包（储物袋）面板 -->
-    <InventoryPanel v-if="isInventoryOpen" @close="isInventoryOpen = false" />
+    <InventoryPanel v-if="openPanel === 'inventory'" @close="closePanel()" />
 
     <!-- 宗门面板 -->
-    <SectPanel v-if="isSectOpen" @close="isSectOpen = false" />
+    <SectPanel v-if="openPanel === 'sect'" @close="closePanel()" />
 
     <!-- 坊市（万宝楼）面板 -->
-    <MarketPanel v-if="isMarketOpen" @close="isMarketOpen = false" />
+    <MarketPanel v-if="openPanel === 'market'" @close="closePanel()" />
     <!-- 洞府面板（开辟洞府、升级设施、药园种植） -->
-    <CavePanel v-if="isCaveOpen" @close="isCaveOpen = false" />
+    <CavePanel v-if="openPanel === 'cave'" @close="closePanel()" />
     <!-- 法宝管理面板（祭炼/本命/祭出/收宝/调序/散念/修理） -->
-    <EquipmentPanel v-if="isTreasureOpen" @close="isTreasureOpen = false" />
+    <EquipmentPanel v-if="openPanel === 'treasure'" @close="closePanel()" />
     <!-- 炼制系统面板（炼丹/炼器、学习配方、技能成长） -->
-    <CraftingPanel v-if="isCraftingOpen" @close="isCraftingOpen = false" />
-    <!-- 功法系统面板（修炼/突破/领悟/装备） -->
-    <TechniquePanel v-if="isTechniqueOpen" @close="isTechniqueOpen = false" />
+    <CraftingPanel v-if="openPanel === 'crafting'" @close="closePanel()" />
+
+    <!-- 功法系统面板（修炼/突破/领悟/装备）
+         TechniquePanel 自身是裸内容块、没有遮罩层，这里补上统一 shell，
+         否则窄屏会把它当普通块渲染、桌面端也无法停靠。 -->
+    <div v-if="openPanel === 'technique'" class="fixed inset-0 z-50 flex items-center justify-center panel-shell" @click.self="closePanel()">
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="closePanel()"></div>
+      <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden panel-body">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-stone-800 bg-[#1c1917] shrink-0">
+          <h2 class="text-base font-bold text-amber-500 tracking-wider font-serif">功法</h2>
+          <button @click="closePanel()" class="text-stone-500 hover:text-white text-xl leading-none px-1">✕</button>
+        </div>
+        <div class="flex-1 min-h-0 overflow-y-auto p-4">
+          <TechniquePanel @close="closePanel()" />
+        </div>
+      </div>
+    </div>
+
     <!-- 成就系统面板（成就总览 / 奖励领取） -->
-    <AchievementPanel v-if="isAchievementOpen" @close="isAchievementOpen = false" />
+    <AchievementPanel v-if="openPanel === 'achievement'" @close="closePanel()" />
     <!-- 抽奖（寻仙机缘）系统面板（单次 / 十连 / 奖池预览） -->
-    <LotteryPanel v-if="isLotteryOpen" @close="isLotteryOpen = false" />
+    <LotteryPanel v-if="openPanel === 'lottery'" @close="closePanel()" />
 
     <!-- 静思悟道面板（第三阶段新增：选择时长、查看瓶颈进度） -->
-    <MeditationPanel v-if="isMeditationOpen" @close="isMeditationOpen = false" />
+    <MeditationPanel v-if="openPanel === 'meditation'" @close="closePanel()" />
 
     <!-- PVP 斗法面板（第四阶段新增：段位卡、战斗、排行榜、段位信息） -->
-    <PvpPanel v-if="isPvpOpen" @close="isPvpOpen = false" />
+    <PvpPanel v-if="openPanel === 'arena'" @close="closePanel()" />
 
     <!-- 悬赏追杀面板（PVP 延伸玩法：发布悬赏/接取追杀/悬赏榜单/我的悬赏） -->
-    <BountyPanel v-if="isBountyOpen" @close="isBountyOpen = false" />
+    <BountyPanel v-if="openPanel === 'bounty'" @close="closePanel()" />
 
     <!-- 洞府社交面板（留言板/访客录/景观布置/游商货品） -->
-    <CaveSocialPanel v-if="isCaveSocialOpen" @close="isCaveSocialOpen = false" />
+    <CaveSocialPanel v-if="openPanel === 'cave_social'" @close="closePanel()" />
 
     <!-- 封神台面板（PVP 镜像排名竞技场：排行榜/挑战/防守/赛季） -->
-    <FengshenPanel v-if="isFengshenOpen" @close="isFengshenOpen = false" />
+    <FengshenPanel v-if="openPanel === 'fengshen'" @close="closePanel()" />
 
     <!-- 器灵面板（法宝器灵养成：唤醒/抚摸/温养/试炼/护主/催发/试炼榜） -->
-    <ArtifactSpiritPanel v-if="isArtifactSpiritOpen" @close="isArtifactSpiritOpen = false" />
+    <ArtifactSpiritPanel v-if="openPanel === 'artifact_spirit'" @close="closePanel()" />
 
     <!-- 聚宝当铺面板（第四阶段新增：典当、赎回、信用额度） -->
-    <PawnshopPanel v-if="isPawnshopOpen" @close="isPawnshopOpen = false" />
+    <PawnshopPanel v-if="openPanel === 'pawnshop'" @close="closePanel()" />
 
     <!-- 聚宝股市面板（第四阶段新增：行情、持仓、交易、融资） -->
-    <StockPanel v-if="isStockOpen" @close="isStockOpen = false" />
+    <StockPanel v-if="openPanel === 'stock'" @close="closePanel()" />
 
     <!-- 拍卖竞价面板（玩法文档第27节：竞价博弈，多人经济玩法） -->
-    <AuctionPanel v-if="isAuctionOpen" @close="isAuctionOpen = false" />
+    <AuctionPanel v-if="openPanel === 'auction'" @close="closePanel()" />
 
     <!-- 元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生） -->
-    <NascentSoulPanel v-if="isNascentSoulOpen" @close="isNascentSoulOpen = false" />
+    <NascentSoulPanel v-if="openPanel === 'nascent_soul'" @close="closePanel()" />
 
     <!-- 大衍诀修炼面板（玩法文档第23节：5层修炼，神识联动，飞升前置） -->
-    <DayanPanel v-if="isDayanOpen" @close="isDayanOpen = false" />
+    <DayanPanel v-if="openPanel === 'dayan'" @close="closePanel()" />
 
     <!-- 傀儡工坊面板（玩法文档第23节：大衍诀·控傀解锁，制造/出战/护法/淬炼/维修/回收） -->
-    <PuppetPanel v-if="isPuppetOpen" @close="isPuppetOpen = false" />
+    <PuppetPanel v-if="openPanel === 'puppet'" @close="closePanel()" />
 
     <!-- 灵溪垂钓面板（玩法文档第21节：4级钓竿/鱼饵/鱼塘/钓术熟练度/剖鱼机缘/排行榜） -->
-    <FishingPanel v-if="isFishingOpen" @close="isFishingOpen = false" />
+    <FishingPanel v-if="openPanel === 'fishing'" @close="closePanel()" />
 
     <!-- 赌石面板（玩法文档第21节：生成原石/线索博弈/切石机缘/熟练度/排行榜） -->
-    <GamblingStonePanel v-if="isGamblingStoneOpen" @close="isGamblingStoneOpen = false" />
+    <GamblingStonePanel v-if="openPanel === 'gambling_stone'" @close="closePanel()" />
 
     <!-- 飞升灵界面板（批次3新增：问道/法相天地/探寻裂缝/空间节点/飞升/天机回溯/夺舍重生） -->
-    <AscensionPanel v-if="isAscensionOpen" @close="isAscensionOpen = false" />
+    <AscensionPanel v-if="openPanel === 'ascension'" @close="closePanel()" />
 
     <!-- 第二元神面板（批次3新增：凝练/分化/调度/独立修炼） -->
-    <SecondSoulPanel v-if="isSecondSoulOpen" @close="isSecondSoulOpen = false" />
+    <SecondSoulPanel v-if="openPanel === 'second_soul'" @close="closePanel()" />
 
     <!-- 小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab） -->
-    <SmallWorldPanel v-if="isSmallWorldOpen" @close="isSmallWorldOpen = false" />
+    <SmallWorldPanel v-if="openPanel === 'small_world'" @close="closePanel()" />
 
     <!-- 神识对决面板（1v1 同时选择博弈 PvP） -->
-    <DivineSenseDuelPanel v-if="isDivineSenseDuelOpen" @close="isDivineSenseDuelOpen = false" />
+    <DivineSenseDuelPanel v-if="openPanel === 'divine_sense_duel'" @close="closePanel()" />
 
     <!-- 道侣面板（批次3新增：道侣/双修/心契/心劫 4 Tab） -->
-    <CompanionPanel v-if="isCompanionOpen" @close="isCompanionOpen = false" />
+    <CompanionPanel v-if="openPanel === 'companion'" @close="closePanel()" />
 
     <!-- 侍妾面板（批次3新增：侍妾列表/红尘寻缘/远航/日志 4 Tab） -->
-    <ConcubinePanel v-if="isConcubineOpen" @close="isConcubineOpen = false" />
+    <ConcubinePanel v-if="openPanel === 'concubine'" @close="closePanel()" />
 
     <!-- 多人副本面板（批次3新增：副本大厅/我的副本/奖励池/历史记录 4 Tab） -->
-    <MultiDungeonPanel v-if="isMultiDungeonOpen" @close="isMultiDungeonOpen = false" />
+    <MultiDungeonPanel v-if="openPanel === 'multi_dungeon'" @close="closePanel()" />
 
     <!-- 灵兽面板（4阶灵兽/五行相克/捕获/喂养/互动/出战/放生） -->
-    <SpiritBeastPanel v-if="isSpiritBeastOpen" @close="isSpiritBeastOpen = false" />
+    <SpiritBeastPanel v-if="openPanel === 'spirit_beast'" @close="closePanel()" />
 
     <!-- 太一门引道面板（五行道途+神识联动+多人共鸣） -->
-    <TaoismGatePanel v-if="isTaoismGateOpen" @close="isTaoismGateOpen = false" />
+    <TaoismGatePanel v-if="openPanel === 'taoism_gate'" @close="closePanel()" />
 
     <!-- 灵兽探渊面板（异步多人 PVE+PVP 混合探索：探渊状态/开始探渊/排行榜/历史记录 4 Tab） -->
-    <BeastAbyssPanel v-if="isBeastAbyssOpen" @close="isBeastAbyssOpen = false" />
+    <BeastAbyssPanel v-if="openPanel === 'beast_abyss'" @close="closePanel()" />
 
     <!-- 道侣/双修系统面板（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫） -->
-    <DaoCompanionPanel v-if="isDaoCompanionOpen" @close="isDaoCompanionOpen = false" />
+    <DaoCompanionPanel v-if="openPanel === 'dao_companion'" @close="closePanel()" />
 
     <!-- 世界BOSS面板（批次2多人玩法：3档BOSS、3阶段切换、伤害排行、赛季结算） -->
-    <WorldBossPanel v-if="isWorldBossOpen" @close="isWorldBossOpen = false" />
+    <WorldBossPanel v-if="openPanel === 'world_boss'" @close="closePanel()" />
 
     <!-- 宗门战面板（批次2多人玩法：领地争夺、宣战、攻防、占领、赛季结算） -->
-    <SectWarPanel v-if="isSectWarOpen" @close="isSectWarOpen = false" />
+    <SectWarPanel v-if="openPanel === 'sect_war'" @close="closePanel()" />
 
     <!-- 秘境副本面板（5章节 / 三档难度 / 三星评级 / 扫荡） -->
-    <DungeonPanel v-if="isDungeonOpen" @close="isDungeonOpen = false" />
+    <DungeonPanel v-if="openPanel === 'dungeon'" @close="closePanel()" />
 
     <!-- 阵法系统面板（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成） -->
-    <FormationPanel v-if="isFormationOpen" @close="isFormationOpen = false" />
-    
+    <FormationPanel v-if="openPanel === 'formation'" @close="closePanel()" />
+
     <!-- 退出确认弹窗 -->
     <div v-if="isLogoutConfirmOpen" class="fixed inset-0 z-[60] flex items-center justify-center">
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="isLogoutConfirmOpen = false"></div>
@@ -286,18 +334,25 @@
 <script setup lang="ts">
 /**
  * 游戏主布局组件
- * 负责整体页面结构和路由管理
+ *
+ * 三栏：左角色状态 · 中日志流 · 右坞（分类导航 + 功能面板停靠）
+ *
+ * 面板开关收敛到单一 openPanel：
+ *   原先每个面板一个 isXOpen ref，顶栏与底部操作栏各维护一份 id 映射，
+ *   两处会漂移，而且能同时叠开两个 modal。现在 actionId 就是面板标识。
  */
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { getStats } from '../../api/system';
 import { getCombatStatus } from '../../api/combat';
 import { currentVersion } from '../../data/changelog';
+import { ACTIONS, DOCK_TABS } from '../../data/actionCatalog';
 import { usePlayerStore } from '../../stores/player';
 import { useUIStore } from '../../stores/ui';
 import { useNotificationStore } from '../../stores/notification';
 import PlayerStatus from '../panels/PlayerStatus.vue';
 import GameLog from '../panels/GameLog.vue';
 import ActionBar from '../panels/ActionBar.vue';
+import FeatureDock from '../dock/FeatureDock.vue';
 import GlobalChat from '../widgets/GlobalChat.vue';
 import BreakthroughPortal from '../widgets/BreakthroughPortal.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
@@ -316,14 +371,14 @@ import SectPanel from '../panels/SectPanel.vue';
 import MarketPanel from '../panels/MarketPanel.vue';
 import CavePanel from '../panels/CavePanel.vue';
 import EquipmentPanel from '../panels/EquipmentPanel.vue';
+// 炼制系统面板（炼丹/炼器、学习配方、技能成长）
+import CraftingPanel from '../panels/CraftingPanel.vue';
 // 功法系统面板（修炼/突破/领悟/装备）
 import TechniquePanel from '../panels/TechniquePanel.vue';
 // 成就系统面板（成就总览 / 奖励领取）
 import AchievementPanel from '../panels/AchievementPanel.vue';
 // 抽奖（寻仙机缘）系统面板（单次 / 十连 / 奖池预览）
 import LotteryPanel from '../panels/LotteryPanel.vue';
-// 炼制系统面板（炼丹/炼器、学习配方、技能成长）
-import CraftingPanel from '../panels/CraftingPanel.vue';
 // 静思悟道面板与浮动状态条（第三阶段新增：悟道玩法 + 瓶颈系统）
 import MeditationPanel from '../panels/MeditationPanel.vue';
 import MeditationOverlay from '../panels/MeditationOverlay.vue';
@@ -338,7 +393,7 @@ import SecondSoulPanel from '../panels/SecondSoulPanel.vue';
 // 小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
 import SmallWorldPanel from '../panels/SmallWorldPanel.vue';
 import DivineSenseDuelPanel from '../panels/DivineSenseDuelPanel.vue';
-// 道侣面板（批次3新增：道侣/双修/心契/心劫 4 Tab）
+// 道侣面板（批次3新增：道侣/双修/心契/心劫）
 import CompanionPanel from '../panels/CompanionPanel.vue';
 // 侍妾面板（批次3新增：侍妾列表/红尘寻缘/远航/日志 4 Tab）
 import ConcubinePanel from '../panels/ConcubinePanel.vue';
@@ -352,10 +407,10 @@ import TaoismGatePanel from '../panels/TaoismGatePanel.vue';
 import BeastAbyssPanel from '../panels/BeastAbyssPanel.vue';
 // 道侣/双修系统面板（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫）
 import DaoCompanionPanel from '../panels/DaoCompanionPanel.vue';
-  // 世界BOSS面板（批次2多人玩法：3档BOSS、3阶段切换、伤害排行、赛季结算）
-  import WorldBossPanel from '../panels/WorldBossPanel.vue';
-  // 宗门战面板（批次2多人玩法：领地争夺、宣战、攻防、占领、赛季结算）
-  import SectWarPanel from '../panels/SectWarPanel.vue';
+// 世界BOSS面板（批次2多人玩法：3档BOSS、3阶段切换、伤害排行、赛季结算）
+import WorldBossPanel from '../panels/WorldBossPanel.vue';
+// 宗门战面板（批次2多人玩法：领地争夺、宣战、攻防、占领、赛季结算）
+import SectWarPanel from '../panels/SectWarPanel.vue';
 // 秘境副本面板（5章节×5-7关 / 三档难度 / 三星评级 / 扫荡）
 import DungeonPanel from '../panels/DungeonPanel.vue';
 // 阵法系统面板（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成）
@@ -396,93 +451,21 @@ const uiStore = useUIStore();
 const notificationStore = useNotificationStore();
 const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
-const isCharacterOpen = ref(false);
-const isMapOpen = ref(false);
-const isExploreOpen = ref(false)
-const isCombatOpen = ref(false)
-// 闭关修炼选择面板状态（用于让玩家选择常规/深度闭关模式）
-const isSeclusionOpen = ref(false)
-// 新增功能面板状态
-const isInventoryOpen = ref(false);
-const isSectOpen = ref(false);
-const isMarketOpen = ref(false);
-const isCaveOpen = ref(false);
-// 法宝管理面板状态（祭炼/本命/祭出/收宝/调序/散念/修理）
-const isTreasureOpen = ref(false);
-// 炼制系统面板状态（炼丹/炼器）
-const isCraftingOpen = ref(false);
-// 功法系统面板状态（修炼/突破/领悟/装备）
-const isTechniqueOpen = ref(false);
-// 成就系统面板状态（成就总览 / 奖励领取）
-const isAchievementOpen = ref(false);
-// 抽奖（寻仙机缘）系统面板状态（单次 / 十连 / 奖池预览）
-const isLotteryOpen = ref(false);
-// 静思悟道面板状态（第三阶段新增）
-const isMeditationOpen = ref(false);
-// PVP 斗法面板状态（第四阶段新增）
-const isPvpOpen = ref(false);
-// 悬赏追杀面板状态（PVP 延伸玩法）
-const isBountyOpen = ref(false);
-// 洞府社交面板状态（留言/访客/景观/游商）
-const isCaveSocialOpen = ref(false);
-// 封神台面板状态（PVP 镜像排名竞技场）
-const isFengshenOpen = ref(false);
-// 器灵面板状态（法宝器灵养成）
-const isArtifactSpiritOpen = ref(false);
-// 聚宝当铺面板状态（第四阶段新增）
-const isPawnshopOpen = ref(false);
-// 聚宝股市面板状态（第四阶段新增：行情、持仓、交易、融资）
-const isStockOpen = ref(false);
-const isAuctionOpen = ref(false);
-// 元婴出窍面板状态（高阶境界扩展：出窍/归来/问道/法相天地/探寻裂缝/夺舍重生）
-const isNascentSoulOpen = ref(false);
-// 大衍诀修炼面板状态（玩法文档第23节：5层修炼，神识联动，飞升前置）
-const isDayanOpen = ref(false);
-// 傀儡工坊面板状态（玩法文档第23节：大衍诀·控傀解锁，制造/出战/护法/淬炼/维修/回收）
-const isPuppetOpen = ref(false);
-// 灵溪垂钓面板状态（玩法文档第21节：4级钓竿/鱼饵/鱼塘/钓术熟练度/剖鱼机缘/排行榜）
-const isFishingOpen = ref(false);
-const isGamblingStoneOpen = ref(false);
-// 飞升灵界面板状态（批次3新增：飞升/夺舍重生系统）
-const isAscensionOpen = ref(false);
-// 第二元神面板状态（批次3新增：凝练/分化/调度/独立修炼）
-const isSecondSoulOpen = ref(false);
-// 小世界综合面板状态（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
-const isSmallWorldOpen = ref(false);
-const isDivineSenseDuelOpen = ref(false);
-// 道侣面板状态（批次3新增：道侣/双修/心契/心劫）
-const isCompanionOpen = ref(false);
-// 侍妾面板状态（批次3新增：侍妾列表/红尘寻缘/远航/日志）
-const isConcubineOpen = ref(false);
-// 多人副本面板状态（批次3新增：副本大厅/我的副本/奖励池/历史记录）
-const isMultiDungeonOpen = ref(false);
-// 灵兽面板状态（4阶灵兽/五行相克/捕获/喂养/互动/出战/放生）
-const isSpiritBeastOpen = ref(false);
-// 太一门引道面板状态（五行道途+神识联动+多人共鸣）
-const isTaoismGateOpen = ref(false);
-// 灵兽探渊面板状态（异步多人 PVE+PVP 混合探索：探渊状态/开始探渊/排行榜/历史记录）
-const isBeastAbyssOpen = ref(false);
-// 道侣/双修系统面板状态（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫）
-const isDaoCompanionOpen = ref(false);
-  // 世界BOSS面板状态（批次2多人玩法）
-  const isWorldBossOpen = ref(false);
-  // 宗门战面板状态（批次2多人玩法）
-  const isSectWarOpen = ref(false);
-// 秘境副本面板状态（5章节 / 三档难度 / 三星评级 / 扫荡）
-const isDungeonOpen = ref(false);
-// 阵法系统面板状态（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成）
-const isFormationOpen = ref(false);
-const currentBattleId = ref<string | null>(null);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
-const onlineCount = ref(0);
-const totalPlayers = ref(0);
-// 标记是否已完成后端状态同步，防止用 localStorage 旧数据误渲染闭关遮罩
-const isStateSynced = ref(false);
-// 标记玩家是否有进行中战斗（用于显示"返回战斗"按钮）
-// 后端权威判断：调用 /combat/status（不带 battleId）查询是否有 ActiveBattle 记录
-const hasActiveBattle = ref(false);
-let statsInterval: any = null;
+const currentBattleId = ref<string | null>(null);
+
+// 移动端抽屉里的 QQ 头像加载失败时回退默认图标；换头像后重置，避免新头像被旧失败状态挡掉
+const mobileAvatarFailed = ref(false);
+watch(() => props.player?.avatar_url, () => { mobileAvatarFailed.value = false; });
+
+/**
+ * 当前展开的功能面板 id；null 表示右坞显示总览 / 分类卡片。
+ * 设置与 GM 后台是系统级 modal，不占用这个槽位。
+ */
+const openPanel = ref<string | null>(null);
+const closePanel = () => { openPanel.value = null; };
+const isCombatOpen = computed(() => openPanel.value === 'combat');
 
 /**
  * 移动状态计算属性
@@ -502,6 +485,8 @@ const handleMoveComplete = () => {
 /**
  * 获取系统统计
  */
+const onlineCount = ref(0);
+const totalPlayers = ref(0);
 const fetchStats = async () => {
   try {
     const res = await getStats();
@@ -516,233 +501,15 @@ const fetchStats = async () => {
 };
 
 /**
- * 处理操作栏动作
+ * 统一入口路由：右坞卡片、移动端操作条、移动抽屉都只发 actionId。
+ * 原先 40 多个 if 分支各自 set 一个 ref，现在 actionId 即面板标识。
  */
-const handleAction = async (actionId: string) => {
-  console.log('ActionBar emitted action:', actionId);
-  
-  if (actionId === 'cultivate') {
-    // 重构后：不再直接开始闭关，而是打开修炼选择面板
-    // 让玩家根据自身境界选择常规闭关（normal）或深度闭关（deep）
-    isSeclusionOpen.value = true;
-    return;
-  }
-  
-  if (actionId === 'explore') {
-    isExploreOpen.value = true;
-    return;
-  }
-
-  // 背包（储物袋）按钮：打开背包面板
-  if (actionId === 'inventory') {
-    isInventoryOpen.value = true;
-    return;
-  }
-
-  // 宗门按钮：打开宗门面板
-  if (actionId === 'sect') {
-    isSectOpen.value = true;
-    return;
-  }
-
-  // 坊市按钮：打开坊市（万宝楼）面板
-  if (actionId === 'market') {
-    isMarketOpen.value = true;
-    return;
-  }
-
-  // 洞府按钮：打开洞府面板（含药园种植）
-  if (actionId === 'cave') {
-    isCaveOpen.value = true;
-    return;
-  }
-
-  // 法宝按钮：打开法宝管理面板（祭炼/本命/祭出/收宝/调序/散念/修理）
-  if (actionId === 'treasure') {
-    isTreasureOpen.value = true;
-    return;
-  }
-
-  // 炼制按钮：打开炼制面板（炼丹/炼器）
-  if (actionId === 'crafting') {
-    isCraftingOpen.value = true;
-    return;
-  }
-
-  // 悟道按钮：打开静思悟道面板（第三阶段新增）
-  if (actionId === 'meditation') {
-    isMeditationOpen.value = true;
-    return;
-  }
-
-  // 斗法按钮：打开 PVP 斗法面板（第四阶段新增）
-  if (actionId === 'arena') {
-    isPvpOpen.value = true;
-    return;
-  }
-
-  // 悬赏按钮：打开悬赏追杀面板（PVP 延伸玩法）
-  if (actionId === 'bounty') {
-    isBountyOpen.value = true;
-    return;
-  }
-
-  // 洞府社交按钮：打开洞府社交面板（留言/访客/景观/游商）
-  if (actionId === 'cave_social') {
-    isCaveSocialOpen.value = true;
-    return;
-  }
-
-  // 封神台按钮：打开封神台面板（PVP 镜像排名竞技场）
-  if (actionId === 'fengshen') {
-    isFengshenOpen.value = true;
-    return;
-  }
-
-  // 器灵按钮：打开器灵面板（法宝器灵养成：唤醒/抚摸/温养/试炼/护主/催发/试炼榜）
-  if (actionId === 'artifact_spirit') {
-    isArtifactSpiritOpen.value = true;
-    return;
-  }
-
-  // 当铺按钮：打开聚宝当铺面板（第四阶段新增：典当、赎回、信用额度）
-  if (actionId === 'pawnshop') {
-    isPawnshopOpen.value = true;
-    return;
-  }
-
-  // 股市按钮：打开聚宝股市面板（第四阶段新增：行情、持仓、交易、融资）
-  if (actionId === 'stock') {
-    isStockOpen.value = true;
-    return;
-  }
-
-  // 拍卖按钮：打开拍卖竞价面板（玩法文档第27节：竞价博弈，多人经济玩法）
-  if (actionId === 'auction') {
-    isAuctionOpen.value = true;
-    return;
-  }
-
-  // 元婴按钮：打开元婴出窍面板（高阶境界扩展：出窍/归来/问道/法相/裂缝/夺舍）
-  if (actionId === 'nascent_soul') {
-    isNascentSoulOpen.value = true;
-      return;
-    }
-
-  // 大衍诀按钮：打开大衍诀修炼面板（玩法文档第23节：5层修炼，神识联动，飞升前置）
-  if (actionId === 'dayan') {
-    isDayanOpen.value = true;
-    return;
-  }
-
-  // 傀儡按钮：打开傀儡工坊面板（玩法文档第23节：制造/出战/护法/淬炼/维修/回收）
-  if (actionId === 'puppet') {
-    isPuppetOpen.value = true;
-    return;
-  }
-
-  // 垂钓按钮：打开灵溪垂钓面板（玩法文档第21节：钓竿/鱼饵/鱼塘/熟练度/剖鱼/排行榜）
-  if (actionId === 'fishing') {
-    isFishingOpen.value = true;
-    return;
-  }
-
-  // 赌石按钮：打开赌石面板（玩法文档第21节：生成原石/线索博弈/切石机缘/熟练度/排行榜）
-  if (actionId === 'gambling_stone') {
-    isGamblingStoneOpen.value = true;
-    return;
-  }
-
-  // 飞升按钮：打开飞升灵界面板（批次3新增：飞升/夺舍重生系统）
-  if (actionId === 'ascension') {
-    isAscensionOpen.value = true;
-    return;
-  }
-
-  // 第二元神按钮：打开第二元神面板（批次3新增：凝练/分化/调度/独立修炼）
-  if (actionId === 'second_soul') {
-    isSecondSoulOpen.value = true;
-    return;
-  }
-
-  // 小世界按钮：打开小世界综合面板（批次3新增：小世界/神庙/香火/神识/法则 5 Tab）
-  if (actionId === 'small_world') {
-    isSmallWorldOpen.value = true;
-    return;
-  }
-
-  // 神识对决按钮：打开神识对决面板（1v1 同时选择博弈 PvP）
-  if (actionId === 'divine_sense_duel') {
-    isDivineSenseDuelOpen.value = true;
-    return;
-  }
-
-  // 道侣按钮：打开道侣面板（批次3新增：道侣/双修/心契/心劫）
-  if (actionId === 'companion') {
-    isCompanionOpen.value = true;
-    return;
-  }
-
-  // 侍妾按钮：打开侍妾面板（批次3新增：侍妾列表/红尘寻缘/远航/日志）
-  if (actionId === 'concubine') {
-    isConcubineOpen.value = true;
-    return;
-  }
-
-  // 多人副本按钮：打开多人副本面板（批次3新增：副本大厅/我的副本/奖励池/历史记录）
-  if (actionId === 'multi_dungeon') {
-    isMultiDungeonOpen.value = true;
-    return;
-  }
-
-  // 灵兽按钮：打开灵兽面板（4阶灵兽/五行相克/捕获/喂养/互动/出战/放生）
-  if (actionId === 'spirit_beast') {
-    isSpiritBeastOpen.value = true;
-    return;
-  }
-
-  // 太一门引道按钮：打开太一门引道面板（五行道途+神识联动+多人共鸣）
-  if (actionId === 'taoism_gate') {
-    isTaoismGateOpen.value = true;
-    return;
-  }
-
-  // 灵兽探渊按钮：打开灵兽探渊面板（异步多人PVE+PVP混合探索）
-  if (actionId === 'beast_abyss') {
-    isBeastAbyssOpen.value = true;
-    return;
-  }
-
-  // 道侣/双修系统按钮：打开道侣面板（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫）
-  if (actionId === 'dao_companion') {
-    isDaoCompanionOpen.value = true;
-    return;
-  }
-
-    // 世界BOSS按钮：打开世界BOSS讨伐面板（批次2新增）
-    if (actionId === 'world_boss') {
-      isWorldBossOpen.value = true;
-      return;
-    }
-
-    // 宗门战按钮：打开宗门战面板（批次2新增）
-    if (actionId === 'sect_war') {
-      isSectWarOpen.value = true;
-      return;
-    }
-
-  // 副本按钮：打开秘境副本面板（5章节 / 三档难度 / 三星评级 / 扫荡）
-  if (actionId === 'dungeon') {
-    isDungeonOpen.value = true;
-    return;
-  }
-
-  // 阵法按钮：打开阵法系统面板（10大阵法 / 4类×4品阶 / 熟练度 / 相克 / 战力加成）
-  if (actionId === 'formation') {
-    isFormationOpen.value = true;
-    return;
-  }
-
+const handleAction = (actionId: string) => {
+  isMobileMenuOpen.value = false;
+  if (actionId === 'menu') { isMobileMenuOpen.value = true; return; }
+  if (actionId === 'settings') { isSettingsOpen.value = true; return; }
+  if (actionId === 'gm') { isAdminPanelOpen.value = true; return; }
+  openPanel.value = actionId;
   emit('action', actionId);
 };
 
@@ -753,13 +520,14 @@ const handleExploreCombat = (battleId?: string) => {
   if (battleId) {
     currentBattleId.value = battleId
   }
-  isCombatOpen.value = true
+  openPanel.value = 'combat'
 }
 
 /**
  * 检查玩家是否有进行中战斗（后端权威判断）
  * 用于显示"返回战斗"按钮，解决战斗中关闭面板后无法恢复入口的问题
  */
+const hasActiveBattle = ref(false);
 const checkActiveBattle = async () => {
   try {
     const res = await getCombatStatus()
@@ -782,57 +550,10 @@ const checkActiveBattle = async () => {
  * 点击"返回战斗"按钮：恢复战斗面板
  */
 const handleReturnToBattle = () => {
-  isCombatOpen.value = true
+  openPanel.value = 'combat'
   // 打开面板后标记为已处理，避免重复提示
   hasActiveBattle.value = false
 }
-
-/**
- * 处理菜单点击
- */
-const handleMenuClick = (btnName: string) => {
-  if (btnName === '设置') {
-    isSettingsOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '地图') {
-    isMapOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === 'GM') {
-    isAdminPanelOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '角色') {
-    isCharacterOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '储物') {
-    // 打开背包（储物袋）面板
-    isInventoryOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '宗门') {
-    // 打开宗门面板
-    isSectOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '坊市') {
-    // 打开坊市（万宝楼）面板
-    isMarketOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '灵兽') {
-    // 打开灵兽面板（4阶灵兽/五行相克/捕获/培养/出战/放生）
-    isSpiritBeastOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '功法') {
-    // 打开功法面板（修炼/突破/领悟/装备）
-    isTechniqueOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '成就') {
-    // 打开成就面板（成就总览 / 奖励领取）
-    isAchievementOpen.value = true;
-    isMobileMenuOpen.value = false;
-  } else if (btnName === '抽奖') {
-    // 打开抽奖（寻仙机缘）面板（单次 / 十连 / 奖池预览）
-    isLotteryOpen.value = true;
-    isMobileMenuOpen.value = false;
-  }
-};
 
 /**
  * 处理退出登录点击
@@ -848,6 +569,10 @@ const confirmLogout = () => {
   playerStore.logout();
   isLogoutConfirmOpen.value = false;
 };
+
+// 标记是否已完成后端状态同步，防止用 localStorage 旧数据误渲染闭关遮罩
+const isStateSynced = ref(false);
+let statsInterval: any = null;
 
 onMounted(async () => {
   // 初始化通知系统的 Socket 监听
@@ -872,28 +597,20 @@ onUnmounted(() => {
   if (statsInterval) clearInterval(statsInterval);
 });
 
-const menuButtons = [
-  { name: '地图', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' },
-  { name: '功法', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>' },
-  { name: '储物', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>' },
-  { name: '宗门', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/></svg>' },
-  { name: '坊市', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"/></svg>' },
-  { name: '角色', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
-  { name: '成就', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>' },
-  { name: '灵兽', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-2.97 7 .41 1.04 1 2.02 1.56 2.85 2.53 3.8-1.41 6.35-4.5 4.73l-3.23-1.68a19 19 0 0 0-2.57 0l-3.23 1.68c-3.09 1.62-7.03-.93-4.5-4.73.56-.83 1.15-1.81 1.56-2.85-2.55 0-4.37-6.42-2.97-7C4.62 2.25 7.87 3.09 9.65 5.09 10.3 4.92 11.33 5 12 5z"/></svg>' },
-  { name: '抽奖', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>' },
-  { name: '设置', icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>' },
-];
-
-const displayMenuButtons = computed(() => {
-  const btns = [...menuButtons];
-  if (props.player && props.player.role === 'admin') {
-    btns.push({ 
-      name: 'GM', 
-      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>' 
-    });
-  }
-  return btns;
+/**
+ * 移动端抽屉菜单：按右坞同一套分类列出全部功能
+ */
+const mobileMenuGroups = computed(() =>
+  DOCK_TABS.map(tab => ({
+    key: tab.key,
+    label: tab.label,
+    items: tab.ids.map(id => ({ id, name: ACTIONS[id].name, icon: ACTIONS[id].icon }))
+  }))
+);
+const systemMenuItems = computed(() => {
+  const items: { id: string; name: string }[] = [{ id: 'settings', name: '设置' }];
+  if (props.player && props.player.role === 'admin') items.push({ id: 'gm', name: 'GM' });
+  return items;
 });
 </script>
 

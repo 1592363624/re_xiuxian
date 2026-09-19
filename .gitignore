@@ -2,11 +2,11 @@
 node_modules/
 
 # Environment Variables (Critical for security)
-.env
-.env.production
-.env.test
-*.env
+# 用 .env* 前缀匹配，覆盖 .env_pord / .env_prod / .env.local 等手写变体（原来的 *.env 匹配不到它们）
+.env*
 !.env.example
+# 已签出的令牌样例，禁止再次入库
+token.txt
 
 # Build Outputs
 dist/

@@ -412,7 +412,7 @@ class AuctionService {
             }
 
             // ===== 灵石校验 + 扣除（冻结） =====
-            const bidderBalance = BigInt(bidder.spirit_stone || 0);
+            const bidderBalance = BigInt(bidder.spirit_stones || 0);
             const bidAmount = BigInt(bidPrice);
             if (bidderBalance < bidAmount) {
                 throw new AppError(
@@ -421,7 +421,7 @@ class AuctionService {
                 );
             }
             // 扣除竞价者灵石（冻结）
-            bidder.spirit_stone = bidderBalance - bidAmount;
+            bidder.spirit_stones = bidderBalance - bidAmount;
             await bidder.save({ transaction: t });
 
             // ===== 退还前一个最高竞价者的冻结灵石 =====
@@ -433,7 +433,7 @@ class AuctionService {
                 });
                 if (previousBidder) {
                     // 退还前一个竞价者的冻结灵石
-                    previousBidder.spirit_stone = BigInt(previousBidder.spirit_stone || 0)
+                    previousBidder.spirit_stones = BigInt(previousBidder.spirit_stones || 0)
                         + BigInt(auction.current_price);
                     await previousBidder.save({ transaction: t });
                 }
@@ -573,7 +573,7 @@ class AuctionService {
                 });
                 if (bidder) {
                     // 退还冻结灵石
-                    bidder.spirit_stone = BigInt(bidder.spirit_stone || 0)
+                    bidder.spirit_stones = BigInt(bidder.spirit_stones || 0)
                         + BigInt(auction.current_price);
                     await bidder.save({ transaction: t });
                 }
@@ -587,18 +587,18 @@ class AuctionService {
                     const cancelFeeRate = sellerCfg.cancel_fee_when_bidded || 0.02;
                     compensFee = Math.floor(Number(auction.current_price) * cancelFeeRate);
                     if (compensFee > 0) {
-                        const sellerBalance = BigInt(seller.spirit_stone || 0);
+                        const sellerBalance = BigInt(seller.spirit_stones || 0);
                         const feeAmount = BigInt(compensFee);
                         if (sellerBalance < feeAmount) {
                             // 灵石不足时扣到 0（不阻塞撤销流程）
-                            seller.spirit_stone = 0n;
+                            seller.spirit_stones = 0n;
                         } else {
-                            seller.spirit_stone = sellerBalance - feeAmount;
+                            seller.spirit_stones = sellerBalance - feeAmount;
                         }
                         await seller.save({ transaction: t });
                         // 补偿费加给竞价者
                         if (bidder) {
-                            bidder.spirit_stone = BigInt(bidder.spirit_stone || 0) + feeAmount;
+                            bidder.spirit_stones = BigInt(bidder.spirit_stones || 0) + feeAmount;
                             await bidder.save({ transaction: t });
                         }
                     }
@@ -823,7 +823,7 @@ class AuctionService {
                     lock: t.LOCK.UPDATE
                 });
                 if (seller) {
-                    seller.spirit_stone = BigInt(seller.spirit_stone || 0) + BigInt(sellerProceeds);
+                    seller.spirit_stones = BigInt(seller.spirit_stones || 0) + BigInt(sellerProceeds);
                     await seller.save({ transaction: t });
                 }
 

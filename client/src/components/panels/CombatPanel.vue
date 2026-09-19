@@ -366,10 +366,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="emit('close')"></div>
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
     
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
       <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
         <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4"/><path d="M6 12H3"/><path d="M15 6h5a3 3 0 0 1 3 3 3 3 0 0 1-3 3h-3"/><path d="M18 12l-4-6"/><path d="M18 12l4 6"/><circle cx="18" cy="18" r="3"/><path d="M6 8v8"/></svg>

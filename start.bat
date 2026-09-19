@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 title 修仙启动脚本
@@ -68,8 +68,9 @@ echo.
 echo [信息] 正在启动服务器（新窗口）...
 echo.
 
-rem 启动后端服务器（cmd /k 保活，输出写入日志，报错不关窗）
-start "修仙服务器" cmd /k "chcp 65001 >nul & cd /d server && call npm start >> ..\startup_backend.log 2>&1"
+rem 本脚本所有 start 行必须保持纯 ASCII：中文会让 cmd 的引号扫描错位，
+rem 引号内的连接符会泄漏成命令分隔符，start 就不弹窗而是内联阻塞主脚本
+start "Backend" cmd /k "%~dp0scripts\run-server.bat"
 
 rem 等待服务器启动
 timeout /t 3 /nobreak >nul
@@ -77,8 +78,8 @@ timeout /t 3 /nobreak >nul
 echo [信息] 正在启动前端客户端（新窗口）...
 echo.
 
-rem 启动前端客户端（cmd /k 保活，输出写入日志）
-start "修仙客户端" cmd /k "chcp 65001 >nul & cd /d client && call npm run dev >> ..\startup_frontend.log 2>&1"
+rem 启动前端客户端（同样保持纯 ASCII）
+start "Frontend" cmd /k "%~dp0scripts\run-client.bat"
 
 echo.
 echo ===============================================
@@ -91,7 +92,9 @@ echo.
 echo 测试账号: 1592363624
 echo 测试密码: 1592363624
 echo.
-echo 若子窗口报错，请查看 startup_backend.log / startup_frontend.log
+echo 子窗口已实时显示日志，同时写入 startup_backend.log / startup_frontend.log
+echo.
+echo 若窗口里出现方括号形式的转义乱码，启动前执行 set NO_COLOR=1 即可关闭颜色
 echo ===============================================
 echo.
 

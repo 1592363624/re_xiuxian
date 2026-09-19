@@ -952,6 +952,54 @@ const startServer = async () => {
     });
 };
 
-startServer();
+/**
+ * 进程级异常兜底
+ * 单进程部署下任一逃逸的 Promise 拒绝都会直接终结全服在线玩家，
+ * 因此这里记录完整堆栈后继续运行，把故障限制在单个玩法范围内。
+ */
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[unhandledRejection] 未捕获的 Promise 拒绝:', reason);
+    if (reason instanceof Error && reason.stack) {
+        console.error(reason.stack);
+    }
+});
+
+// 未捕获异常意味着进程状态已不可信，记录后交由 PM2 重启恢复
+process.on('uncaughtException', (error) => {
+    console.error('[uncaughtException] 未捕获异常，进程即将退出:', error);
+    shutdown('uncaughtException', 1);
+});
+
+['SIGTERM', 'SIGINT'].forEach(signal => {
+    process.on(signal, () => shutdown(signal, 0));
+});
+
+/** 优雅关闭：停止接收新请求，留出窗口让在途请求落地，再退出 */
+function shutdown(reason, exitCode) {
+    if (shutdown.started) return;
+    shutdown.started = true;
+    console.log(`收到 ${reason}，开始优雅关闭...`);
+
+    // 兜底强退：略小于 ecosystem.config.js 的 kill_timeout，避免被 PM2 直接 SIGKILL
+    const forceExit = setTimeout(() => {
+        console.error('优雅关闭超时，强制退出');
+        process.exit(exitCode);
+    }, 8000);
+    forceExit.unref();
+
+    // io.close() 会一并销毁底层 HTTP server，因此不需要再单独 server.close()
+    io.close(() => {
+        clearTimeout(forceExit);
+        process.exit(exitCode);
+    });
+}
+shutdown.started = false;
+
+// 启动失败必须显式退出：上面的 unhandledRejection 兜底会吞掉拒绝，
+// 若不加 catch，进程将停留在"已启动但未监听"的假死状态
+startServer().catch(error => {
+    console.error('服务器启动失败:', error);
+    process.exit(1);
+});
 
 module.exports = { app, server, io };

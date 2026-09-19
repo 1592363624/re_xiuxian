@@ -628,12 +628,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
     <!-- 遮罩层：点击关闭面板 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="emit('close')"></div>
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
 
     <!-- 主容器 -->
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
       <!-- 顶部标题栏 -->
       <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
         <h2 class="text-xl font-bold text-violet-400 flex items-center gap-2">

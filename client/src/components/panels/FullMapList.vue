@@ -205,10 +205,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="emit('close')"></div>
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
     
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
       <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
         <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>

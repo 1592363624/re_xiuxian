@@ -763,6 +763,12 @@
             "description": "道号（游戏内显示名）",
             "example": "韩天尊"
           },
+          "avatar_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "已绑定 QQ 的头像地址，来自 player_oauth_bindings.avatar_url；未绑定或 QQ 未返回资料时为 null，前端回退默认图标",
+            "example": "https://thirdqq.qlogo.cn/g?b=sdk&k=QK6YHcJiciaL6oJpU0TSYUJg&s=140&t=1700000000"
+          },
           "realm": {
             "type": "string",
             "description": "当前境界名称",

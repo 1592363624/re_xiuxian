@@ -5,8 +5,8 @@
     - 业务逻辑全部在后端 DivineDuelService 中处理，前端仅展示与接口调用
     - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
   -->
-  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="emit('close')">
-    <div class="relative w-full max-w-4xl max-h-[92vh] mx-4 bg-gradient-to-b from-[#1c1917] to-[#0c0a09] border border-purple-900/50 rounded-2xl shadow-2xl shadow-purple-900/30 flex flex-col">
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm panel-shell" @click.self="emit('close')">
+    <div class="relative w-full max-w-4xl max-h-[92vh] mx-4 bg-gradient-to-b from-[#1c1917] to-[#0c0a09] border border-purple-900/50 rounded-2xl shadow-2xl shadow-purple-900/30 flex flex-col panel-body">
       <!-- 头部 -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-purple-900/40 shrink-0">
         <div class="flex items-center gap-3">

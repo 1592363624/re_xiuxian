@@ -40,6 +40,7 @@ module.exports = {
     max_memory_restart: '1G',         // 内存超过 1G 自动重启（防内存泄漏）
     max_restarts: 10,                 // 最大重启次数（1分钟内超过则停止）
     min_uptime: '10s',                // 进程至少运行 10s 才算启动成功
+    kill_timeout: 10000,              // SIGKILL 前预留 10s，给 index.js 的优雅关闭留窗口（默认 1600ms 会直接强杀）
     error_file: './logs/error.log',   // 错误日志路径
     out_file: './logs/out.log',       // 输出日志路径
     merge_logs: true,                 // 合并日志（不按日期分文件）

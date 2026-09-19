@@ -80,3 +80,47 @@
   transform: translateX(-20px);
 }
 
+/* ============================================================
+ * 面板停靠（右坞）
+ *
+ * 42 个功能面板的根节点统一带 .panel-shell、遮罩层带 .panel-backdrop、
+ * 主体带 .panel-body。窄屏保持原来的全屏 modal 不变；xl 以上把
+ * .panel-shell 的矩形改成 FeatureDock 通过 ResizeObserver 发布的
+ * 停靠面坐标，面板就落在右坞里，左侧日志继续滚动。
+ *
+ * 断点与 FeatureDock 的 hidden xl:flex 必须一致，否则面板会停靠到一个
+ * 并不存在的坞上。
+ *
+ * 这里用 !important 是因为 AchievementPanel / LotteryPanel 的
+ * .panel-overlay / .panel 定义在 <style scoped> 中，特异度高于本文件。
+ * ============================================================ */
+@media (min-width: 1280px) {
+  .panel-shell {
+    top: var(--dock-top, 0) !important;
+    left: var(--dock-left, 0) !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: var(--dock-width, 100vw) !important;
+    height: var(--dock-height, 100vh) !important;
+    max-width: none !important;
+    padding: 0 !important;
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .panel-backdrop {
+    display: none !important;
+  }
+
+  .panel-body {
+    width: 100% !important;
+    /* 超宽屏上不让表格型面板被拉散，与右坞卡片视图同一档上限 */
+    max-width: 1200px !important;
+    height: 100% !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}
+

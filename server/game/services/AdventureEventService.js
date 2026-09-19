@@ -517,19 +517,30 @@ class AdventureEventService {
      * @returns {Object} 完成结果
      */
     async completeAdventure(playerId) {
+        // 修复（2026-09-19）并发双领：
+        //   原实现是「无锁读 status → 发奖 → 才把状态改成 completed」，
+        //   两个标签页共用同一个 JWT（互踢只在重新登录时触发，拦不住这个），
+        //   会各自通过状态检查、各发一遍修为/灵石/物品；
+        //   且最后那条 UPDATE 的 where 只有 id，不构成 compare-and-swap。
+        //   现在整段收进一个事务，并用 SELECT ... FOR UPDATE 锁住历练行：
+        //   第二个请求阻塞到第一个提交后，WHERE 已匹配不到 in_progress 行。
+        const transaction = await sequelize.transaction();
         try {
-            const player = await Player.findByPk(playerId);
+            const player = await Player.findByPk(playerId, { lock: transaction.LOCK.UPDATE, transaction });
             if (!player) {
+                await transaction.rollback();
                 return { success: false, code: 'PLAYER_NOT_FOUND', message: '玩家不存在' };
             }
 
-            const eventData = await this.getLastAdventureEvent(playerId);
+            const eventData = await PlayerAdventure.findOne({
+                where: { player_id: playerId, status: 'in_progress' },
+                order: [['createdAt', 'DESC']],
+                lock: transaction.LOCK.UPDATE,
+                transaction
+            });
             if (!eventData) {
+                await transaction.rollback();
                 return { success: false, code: 'NO_ADVENTURE', message: '没有进行中的历练' };
-            }
-
-            if (eventData.status !== 'in_progress') {
-                return { success: false, code: 'INVALID_STATUS', message: '当前历练状态不允许完成' };
             }
 
             const now = new Date();
@@ -570,7 +581,7 @@ class AdventureEventService {
                 base_exp: scaledExp,
                 base_spirit_stones: scaledStones
             };
-            const result = await this.grantRewards(playerId, rewards);
+            const result = await this.grantRewards(playerId, rewards, transaction);
 
             // 风险机制：历练可能受伤（损失气血），长时历练受伤概率更高
             const durationType = eventObj?.duration_type || 'medium';
@@ -578,7 +589,7 @@ class AdventureEventService {
             let injury = null;
             if (Math.random() < (durationConfig.injury_chance || 0)) {
                 // 重新获取玩家（grantRewards 已更新玩家数据）
-                const playerForInjury = await Player.findByPk(playerId);
+                const playerForInjury = await Player.findByPk(playerId, { lock: transaction.LOCK.UPDATE, transaction });
                 if (playerForInjury) {
                     const currentHp = Number(playerForInjury.hp_current);
                     const hpLoss = Math.floor(currentHp * (durationConfig.injury_hp_loss_rate || 0.08));
@@ -586,7 +597,7 @@ class AdventureEventService {
                         let newHp = BigInt(playerForInjury.hp_current) - BigInt(hpLoss);
                         if (newHp < 0n) newHp = 0n;
                         playerForInjury.hp_current = newHp;
-                        await playerForInjury.save();
+                        await playerForInjury.save({ transaction });
                         injury = { hp_loss: hpLoss };
                     }
                 }
@@ -609,9 +620,13 @@ class AdventureEventService {
                     rewards: JSON.stringify(result.granted)
                 },
                 {
-                    where: { id: eventData.id }
+                    // 再带上 status 条件：行锁已保证唯一，这里只是把"只能结算一次"写进语句本身
+                    where: { id: eventData.id, status: 'in_progress' },
+                    transaction
                 }
             );
+
+            await transaction.commit();
 
             // 修复：返回结构扁平化，rewards 直接是 granted 内容 + 额外标记
             // 避免前端 res.data.data.rewards.exp 拿到 undefined（旧版返回的是 { success, granted } 嵌套结构）
@@ -627,6 +642,7 @@ class AdventureEventService {
                 }
             };
         } catch (error) {
+            await transaction.rollback();
             console.error('[AdventureEventService] 完成历练失败:', error);
             return { success: false, code: 'COMPLETE_FAILED', message: '完成历练失败，请稍后重试' };
         }
@@ -727,10 +743,15 @@ class AdventureEventService {
      *
      * @param {number} playerId - 玩家 ID
      * @param {Object} rewards - 奖励（基础值，未应用境界加成）
+     * @param {Object} [transaction] - 外层事务。传入时全程使用该事务并按 FOR UPDATE 读玩家行，
+     *   使并发结算互相串行化；不传则维持原有的独立写入。
      * @returns {Object} 授予结果（granted 字段记录实际发放数值，已含境界加成）
      */
-    async grantRewards(playerId, rewards) {
-        const player = await Player.findByPk(playerId);
+    async grantRewards(playerId, rewards, transaction = null) {
+        const readOptions = transaction
+            ? { lock: transaction.LOCK.UPDATE, transaction }
+            : undefined;
+        const player = await Player.findByPk(playerId, readOptions);
         if (!player) {
             return { success: false, error: '玩家不存在' };
         }
@@ -780,18 +801,19 @@ class AdventureEventService {
                 // 会重复 INSERT 多条 quantity=1 记录，改为 findOrCreate + increment
                 const [itemRecord, created] = await Item.findOrCreate({
                     where: { player_id: playerId, item_key: itemKey },
-                    defaults: { player_id: playerId, item_key: itemKey, quantity: 1 }
+                    defaults: { player_id: playerId, item_key: itemKey, quantity: 1 },
+                    transaction
                 });
                 if (!created) {
                     // 已有记录则累加数量
                     itemRecord.quantity = Number(itemRecord.quantity) + 1;
-                    await itemRecord.save();
+                    await itemRecord.save({ transaction });
                 }
                 granted.items.push({ item_key: itemKey, quantity: 1 });
             }
         }
 
-        await player.save();
+        await player.save({ transaction });
 
         return {
             success: true,

@@ -3,7 +3,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import apiClient from '../../api'
 // 修复：使用统一封装的 system API 替代直接调用 apiClient
 import { getStats as getSystemStats } from '../../api/system'
-import { DEFAULT_AVATAR, ROOT_TYPE_MAP, POLL_INTERVALS, UI_CONFIG } from '../../config'
+import { ROOT_TYPE_MAP, POLL_INTERVALS, UI_CONFIG } from '../../config'
 import { formatDuration, formatNumber } from '../../utils/format'
 
 const props = defineProps({
@@ -86,8 +86,11 @@ const isConnected = computed(() => {
   return props.serverStatus === '服务器正常运行，数据库连接成功' || props.serverStatus?.includes('正常')
 })
 
-// 默认头像从配置读取，避免硬编码外部图床 URL
-const defaultAvatar = DEFAULT_AVATAR
+// 头像：后端 /player/me 下发绑定 QQ 的头像，未绑定时为空
+// 换绑/解绑后要重置加载失败标记，否则新头像会被上一次的失败状态一直挡掉
+const avatarUrl = computed(() => props.player.avatar_url || '')
+const avatarLoadFailed = ref(false)
+watch(avatarUrl, () => { avatarLoadFailed.value = false })
 
 const isExpChanged = ref(false)
 
@@ -196,9 +199,16 @@ onUnmounted(() => {
     <!-- 顶部角色信息 -->
     <div class="flex flex-col mb-6 pt-2 px-2">
        <div class="flex items-center justify-between w-full mb-3">
-         <!-- 头像 (左侧) -->
+         <!-- 头像 (左侧)：绑定 QQ 后显示 QQ 头像，未绑定或图片加载失败时回退默认图标 -->
          <div class="w-16 h-16 rounded-lg border-2 border-emerald-500/50 flex items-center justify-center bg-[#0c0a09] shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0 overflow-hidden relative group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500 group-hover:scale-110 transition-transform"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+           <img
+             v-if="avatarUrl && !avatarLoadFailed"
+             :src="avatarUrl"
+             :alt="`${player.nickname || '修仙者'}的头像`"
+             class="w-full h-full object-cover"
+             @error="avatarLoadFailed = true"
+           >
+           <svg v-else xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500 group-hover:scale-110 transition-transform"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
          </div>
 
          <!-- 名字与UID (右侧) -->

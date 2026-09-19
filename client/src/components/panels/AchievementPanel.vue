@@ -73,8 +73,8 @@ onMounted(fetchList)
 </script>
 
 <template>
-  <div class="panel-overlay" @click.self="$emit('close')">
-    <div class="panel achievement-panel">
+  <div class="panel-overlay panel-shell" @click.self="$emit('close')">
+    <div class="panel achievement-panel panel-body">
       <div class="panel-header">
         <h2>🏆 成就</h2>
         <div class="header-right">

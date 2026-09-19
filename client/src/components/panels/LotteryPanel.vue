@@ -80,8 +80,8 @@ onMounted(fetchPanel)
 </script>
 
 <template>
-  <div class="panel-overlay" @click.self="$emit('close')">
-    <div class="panel lottery-panel">
+  <div class="panel-overlay panel-shell" @click.self="$emit('close')">
+    <div class="panel lottery-panel panel-body">
       <div class="panel-header">
         <h2>🎰 寻仙机缘</h2>
         <button class="close-btn" @click="$emit('close')">✕</button>

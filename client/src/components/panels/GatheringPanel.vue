@@ -196,10 +196,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="emit('close')"></div>
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
     
-    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+    <div class="relative bg-[#141210] border border-stone-700 rounded-lg w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
       <div class="flex items-center justify-between p-4 border-b border-stone-800 bg-[#1c1917]">
         <h2 class="text-xl font-bold text-amber-500 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></svg>

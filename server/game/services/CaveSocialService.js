@@ -307,8 +307,8 @@ class CaveSocialService {
             const ssMax = selected.rewards?.spirit_stone_max || 150;
             const baseSS = Math.floor(ssMin + Math.random() * (ssMax - ssMin));
             const finalSS = Math.floor(baseSS * spiritVeinMultiplier);
-            const currentSS = player.spirit_stone || 0n;
-            player.spirit_stone = BigInt(currentSS) + BigInt(finalSS);
+            const currentSS = player.spirit_stones || 0n;
+            player.spirit_stones = BigInt(currentSS) + BigInt(finalSS);
             await player.save({ transaction });
             rewards.spirit_stone = finalSS;
         } else if (selected.type === 'trap') {
@@ -316,8 +316,8 @@ class CaveSocialService {
             const ssMin = selected.rewards?.spirit_stone_min || 20;
             const ssMax = selected.rewards?.spirit_stone_max || 100;
             const finalSS = Math.floor(ssMin + Math.random() * (ssMax - ssMin));
-            const currentSS = player.spirit_stone || 0n;
-            player.spirit_stone = BigInt(currentSS) + BigInt(finalSS);
+            const currentSS = player.spirit_stones || 0n;
+            player.spirit_stones = BigInt(currentSS) + BigInt(finalSS);
             // HP 损失（百分比，最低保留1点）
             const hpLossPercent = selected.rewards?.hp_loss_percent || 5;
             const hpMax = Number(player.hp_max) || 100;

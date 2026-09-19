@@ -158,6 +158,9 @@ async function completeLogin(res, req, profile) {
 
     const token = await LoginSession.issueLoginToken(player, req);
     binding.last_login_at = new Date();
+    // 借每次登录刷新资料：玩家换了 QQ 头像能跟上，绑定时 get_user_info 失败的也能补上
+    if (profile.nickname) binding.nickname = profile.nickname;
+    if (profile.avatarUrl) binding.avatar_url = profile.avatarUrl;
     await binding.save();
 
     return redirectToFrontend(res, { qq_ticket: loginTickets.put(token) });

@@ -92,13 +92,15 @@ class LifespanService {
 
             // P0-3 性能优化：收集非死亡玩家的更新数据，批量 UPDATE
             // 死亡玩家仍走 handleLifespanEnd（需要推送通知 + 审计）
-            const aliveUpdates = []; // [{ id, lifespan_current }]
+            // 存增量而不是目标值，原因见下方批量 UPDATE 的注释
+            const aliveUpdates = []; // [{ id, age_delta }]
 
             for (const player of players) {
                 const daysPassed = secondsPassed / secondsPerDay;
                 const ageIncrease = daysPassed / daysPerYear;
 
-                const newAge = parseFloat((player.lifespan_current || 0) + ageIncrease * agingRate);
+                const ageDelta = ageIncrease * agingRate;
+                const newAge = parseFloat((player.lifespan_current || 0) + ageDelta);
 
                 if (newAge >= (player.lifespan_max || 0)) {
                     // 寿元耗尽：先更新内存中的 lifespan_current 到 max，再走 handleLifespanEnd
@@ -110,7 +112,7 @@ class LifespanService {
                 } else {
                     // 非死亡玩家：收集到批量更新列表
                     player.lifespan_current = newAge;
-                    aliveUpdates.push({ id: player.id, lifespan_current: newAge });
+                    aliveUpdates.push({ id: player.id, age_delta: ageDelta });
                 }
 
                 processed++;
@@ -121,13 +123,26 @@ class LifespanService {
             if (aliveUpdates.length > 0) {
                 // 修复 4-3-P0-3-补丁：require 路径应为 ../../config/database（server/models 无 index.js）
                 const sequelize = require('../../config/database');
-                const ids = aliveUpdates.map(u => u.id);
+                const ids = aliveUpdates.map(u => Number(u.id)).join(',');
                 // 使用 CASE WHEN 一次更新多行不同值（比 N 次 save 快 N 倍）
+                //
+                // 修复（2026-09-19）：这里写的是"增量"，不再是读出来的绝对值。
+                //   上面的 findAll 是无锁读，读与写之间若有别的路径改过寿元
+                //   （延寿丹药、夺舍重生、GM 调整、闭关结算），绝对值写入会把
+                //   那些改动直接覆盖掉，而且因为是绝对值、下一个 tick 也不会自愈。
+                //   改成 lifespan_current = lifespan_current + delta 之后，
+                //   并发写入互相叠加而不是互相抹除，玩家只会少老一岁、不会丢寿元。
+                // WHERE 补上 is_secluded / is_dead：读到这里之间玩家可能刚闭关或刚死，
+                //   这两种都不该衰老（与上面 findAll 的过滤条件保持一致）。
                 const caseClause = aliveUpdates
-                    .map(u => `WHEN ${u.id} THEN ${Number(u.lifespan_current).toFixed(6)}`)
+                    .map(u => `WHEN ${Number(u.id)} THEN ${Number(u.age_delta).toFixed(6)}`)
                     .join(' ');
                 await sequelize.query(
-                    `UPDATE players SET lifespan_current = CASE id ${caseClause} END WHERE id IN (${ids.join(',')})`,
+                    `UPDATE players
+                        SET lifespan_current = COALESCE(lifespan_current, 0) + CASE id ${caseClause} ELSE 0 END
+                      WHERE id IN (${ids})
+                        AND is_secluded = false
+                        AND is_dead = false`,
                     { type: sequelize.QueryTypes.UPDATE }
                 );
             }

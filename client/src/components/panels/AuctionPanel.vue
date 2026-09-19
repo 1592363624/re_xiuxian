@@ -510,8 +510,8 @@ onUnmounted(() => {
 
 <template>
   <!-- 拍卖竞价面板：玫红色系主题，体现竞价博弈的热烈感 -->
-  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="emit('close')">
-    <div class="w-full max-w-4xl max-h-[90vh] bg-stone-900 border border-rose-900/50 rounded-lg shadow-2xl flex flex-col">
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm panel-shell" @click.self="emit('close')">
+    <div class="w-full max-w-4xl max-h-[90vh] bg-stone-900 border border-rose-900/50 rounded-lg shadow-2xl flex flex-col panel-body">
 
       <!-- ===== 标题栏 ===== -->
       <div class="flex items-center justify-between p-4 border-b border-rose-900/50 bg-gradient-to-r from-rose-950/40 to-stone-900">

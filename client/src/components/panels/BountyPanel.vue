@@ -21,12 +21,12 @@
  *   - cancelBounty()：取消悬赏（退灵石扣手续费）
  */
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center">
+  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
     <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="$emit('close')"></div>
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
 
     <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-amber-900/40 rounded-lg p-6 max-w-3xl w-full mx-4 shadow-2xl shadow-amber-900/20 animate-fade-in max-h-[88vh] flex flex-col">
+    <div class="relative bg-[#1c1917] border border-amber-900/40 rounded-lg p-6 max-w-3xl w-full mx-4 shadow-2xl shadow-amber-900/20 animate-fade-in max-h-[88vh] flex flex-col panel-body">
       <!-- 标题栏 -->
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-bold text-amber-400 flex items-center gap-2">

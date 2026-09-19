@@ -253,6 +253,8 @@ const doUnbind = async () => {
     await unbindQQ()
     uiStore.showToast('已解除 QQ 绑定', 'success')
     await loadQQBinding()
+    // 左上角头像取自 /player/me 下发的 avatar_url，解绑后刷一次才会立刻回到默认图标
+    await playerStore.fetchPlayer()
   } catch (error) {
     uiStore.showToast(error.response?.data?.message || '解绑失败，请稍后再试', 'error')
   } finally {

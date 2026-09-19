@@ -1,8 +1,8 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center">
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="$emit('close')"></div>
+  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
 
-    <div class="relative bg-[#1c1917] border border-stone-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl animate-fade-in max-h-[85vh] flex flex-col">
+    <div class="relative bg-[#1c1917] border border-stone-800 rounded-lg p-6 max-w-lg w-full mx-4 shadow-2xl animate-fade-in max-h-[85vh] flex flex-col panel-body">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-bold text-emerald-400 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

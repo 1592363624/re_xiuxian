@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const Player = require('../models/player');
+const PlayerOAuthBinding = require('../models/playerOAuthBinding');
 const game = require('../game');
 const authMiddleware = require('../middleware/auth');
 
@@ -29,6 +30,7 @@ router.get('/me', authMiddleware, async (req, res) => {
         const lifespanStatus = game.LifespanService.getLifespanStatus(player);
         const expResult = game.ExperienceService.getExpCap(player);
         const canBreakthrough = game.ExperienceService.canBreakthrough(player);
+        const qqAvatarUrl = await getQQAvatarUrl(player.id);
 
         const responseData = {
             code: 200,
@@ -36,6 +38,8 @@ router.get('/me', authMiddleware, async (req, res) => {
                 id: player.id,
                 username: player.username,
                 nickname: player.nickname,
+                // 绑定的 QQ 头像，未绑定时为 null，前端据此回退默认图标
+                avatar_url: qqAvatarUrl,
                 realm: player.realm,
                 // 修复 B45：暴露 realm_rank 顶层字段，避免前端需要从 realmInfo.rank 间接读取
                 // 同时为 RealmService.meetsRealmRequirement 等业务判断提供可靠数值来源
@@ -121,6 +125,25 @@ router.get('/me', authMiddleware, async (req, res) => {
         });
     }
 });
+
+/**
+ * 读取玩家绑定的 QQ 头像
+ *
+ * 未绑定、或绑定时 QQ 的 get_user_info 未返回资料时为 null。
+ * 这里吞掉查询异常是因为 /player/me 失败会直接导致前端登出，头像缺失不值得拖垮主链路。
+ */
+async function getQQAvatarUrl(playerId) {
+    try {
+        const binding = await PlayerOAuthBinding.findOne({
+            where: { provider: 'qq', player_id: playerId },
+            attributes: ['avatar_url']
+        });
+        return binding?.avatar_url || null;
+    } catch (error) {
+        console.warn('[player/me] 读取 QQ 头像失败:', error.message);
+        return null;
+    }
+}
 
 /**
  * 轮回重生

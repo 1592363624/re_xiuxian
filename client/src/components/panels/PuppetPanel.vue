@@ -6,8 +6,8 @@
     - 禁用浏览器原生 alert/confirm，使用自定义 Modal 二次确认
     - 核心交互：参悟图谱 → 制造傀儡 → 出战/护法/淬炼/维修/回收
   -->
-  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="emit('close')">
-    <div class="relative w-full max-w-4xl max-h-[92vh] mx-4 bg-gradient-to-b from-[#1c1917] to-[#0c0a09] border border-amber-900/50 rounded-2xl shadow-2xl shadow-amber-900/30 flex flex-col">
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm panel-shell" @click.self="emit('close')">
+    <div class="relative w-full max-w-4xl max-h-[92vh] mx-4 bg-gradient-to-b from-[#1c1917] to-[#0c0a09] border border-amber-900/50 rounded-2xl shadow-2xl shadow-amber-900/30 flex flex-col panel-body">
       <!-- 头部 -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-amber-900/40 shrink-0">
         <div class="flex items-center gap-3">

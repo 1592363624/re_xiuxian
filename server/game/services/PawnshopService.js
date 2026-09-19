@@ -712,19 +712,25 @@ class PawnshopService {
         // 截止时间 = 当前时间 - 宽限小时数
         const cutoff = new Date(now.getTime() - graceHours * 60 * 60 * 1000);
 
-        // 查询已超期但状态仍为 active 的当票
-        const overdueListings = await PawnshopListing.findAll({
-            where: {
-                status: 'active',
-                redeem_deadline: { [Op.lt]: cutoff }
-            },
-            limit: batchSize,
-            raw: false
-        });
-
-        let processedCount = 0;
         const t = await sequelize.transaction();
+        // 待推送的逾期通知：必须等事务提交后再发，否则回滚时玩家会收到误报
+        const pendingNotifications = [];
         try {
+            // 查询已超期但状态仍为 active 的当票
+            // 必须在本事务内加行锁：若在事务外读取，玩家可在读取与写回之间完成赎回，
+            // 此处随后会把 status 从 'redeemed' 覆盖回 'overdue'，并补一条没收记录
+            const overdueListings = await PawnshopListing.findAll({
+                where: {
+                    status: 'active',
+                    redeem_deadline: { [Op.lt]: cutoff }
+                },
+                limit: batchSize,
+                order: [['id', 'ASC']],
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+
+            let processedCount = 0;
             for (const listing of overdueListings) {
                 // 标记为逾期
                 listing.status = 'overdue';
@@ -749,22 +755,32 @@ class PawnshopService {
 
                 processedCount++;
 
-                // WebSocket 通知玩家当票逾期
                 if (notify) {
-                    try {
-                        WebSocketNotificationService.emitToPlayer(listing.player_id, 'pawnshop:overdue', {
+                    pendingNotifications.push({
+                        player_id: listing.player_id,
+                        payload: {
                             listing_id: listing.id,
                             item_key: listing.item_key,
                             item_name: listing.item_name,
                             quantity: listing.quantity,
                             pawn_amount: Number(listing.pawn_amount)
-                        });
-                    } catch (e) {
-                        console.warn('[PawnshopService] 逾期通知推送失败:', e.message);
-                    }
+                        }
+                    });
                 }
             }
             await t.commit();
+
+            // WebSocket 通知玩家当票逾期（提交后推送，失败不影响已落库的逾期状态）
+            for (const notification of pendingNotifications) {
+                try {
+                    WebSocketNotificationService.emitToPlayer(
+                        notification.player_id, 'pawnshop:overdue', notification.payload
+                    );
+                } catch (e) {
+                    console.warn('[PawnshopService] 逾期通知推送失败:', e.message);
+                }
+            }
+
             return { overdue_count: processedCount, processed_count: processedCount };
         } catch (error) {
             if (t && !t.finished) await t.rollback();

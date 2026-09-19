@@ -253,9 +253,9 @@ onMounted(() => {
 
 <template>
   <!-- 全屏遮罩 -->
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="emit('close')">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm panel-shell" @click.self="emit('close')">
     <!-- 主面板 -->
-    <div class="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+    <div class="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col panel-body">
       <!-- 头部 -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
         <h2 class="text-xl font-bold text-amber-300">法宝管理</h2>

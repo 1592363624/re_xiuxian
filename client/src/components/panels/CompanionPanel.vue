@@ -17,12 +17,12 @@
  *   - 使用 Tailwind CSS 工具类，无自定义 CSS（除淡入动画）
  */
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center">
+  <div class="fixed inset-0 z-50 flex items-center justify-center panel-shell">
     <!-- 遮罩层 -->
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="$emit('close')"></div>
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="$emit('close')"></div>
 
     <!-- 主面板 -->
-    <div class="relative bg-[#1c1917] border border-rose-900/40 rounded-lg p-6 max-w-5xl w-full mx-4 shadow-2xl animate-fade-in max-h-[90vh] flex flex-col">
+    <div class="relative bg-[#1c1917] border border-rose-900/40 rounded-lg p-6 max-w-5xl w-full mx-4 shadow-2xl animate-fade-in max-h-[90vh] flex flex-col panel-body">
       <!-- 标题栏 -->
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-bold text-rose-300 flex items-center gap-2">
