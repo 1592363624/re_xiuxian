@@ -16,6 +16,7 @@
  *   - 字段范围校验由后端统一处理
  */
 import { ref, reactive, computed, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import Modal from '../../common/Modal.vue'
 import AppButton from '../../ui/AppButton.vue'
 import {
@@ -246,7 +247,8 @@ async function handleConfirm() {
  */
 function formatTime(t: string | null): string {
   if (!t) return '-'
-  return new Date(t).toLocaleString('zh-CN', { hour12: false })
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(t, { fallback: '-' })
 }
 
 onMounted(() => {

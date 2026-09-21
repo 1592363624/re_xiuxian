@@ -475,6 +475,7 @@
  * 5 Tab 共享一个面板，按需懒加载对应子模块数据
  */
 import { ref, reactive, onMounted } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import Modal from '../common/Modal.vue';
 import PanelShell from '../ui/PanelShell.vue';
 import Tabs from '../ui/Tabs.vue';
@@ -947,8 +948,7 @@ function getFragmentName(fragmentTypes: Record<string, { name: string; descripti
  * @param time ISO 时间字符串
  */
 function formatTime(time: string | null): string {
-  if (!time) return '-';
-  const d = new Date(time);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(time, { dateStyle: 'short', seconds: false, fallback: '-' });
 }
 </script>

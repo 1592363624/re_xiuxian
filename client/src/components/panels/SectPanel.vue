@@ -12,6 +12,7 @@
  *   - 禁用浏览器原生 alert/confirm，统一使用自定义 Modal 组件
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { formatBeijing } from '../../utils/time'
 import Modal from '../common/Modal.vue'
 import PanelShell from '../ui/PanelShell.vue'
 import Tabs from '../ui/Tabs.vue'
@@ -577,14 +578,8 @@ const formatCountdown = (ms: number) => {
  * @param dateStr - 日期字符串
  */
 const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  const y = d.getFullYear()
-  const m = (d.getMonth() + 1).toString().padStart(2, '0')
-  const day = d.getDate().toString().padStart(2, '0')
-  const h = d.getHours().toString().padStart(2, '0')
-  const min = d.getMinutes().toString().padStart(2, '0')
-  return `${y}-${m}-${day} ${h}:${min}`
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(dateStr, { seconds: false, fallback: '—' })
 }
 
 // ====== 生命周期 ======

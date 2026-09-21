@@ -2,6 +2,7 @@
  * 前端通用格式化工具函数
  * 抽取自 SeclusionOverlay.vue、PlayerStatus.vue、CombatPanel.vue 中重复实现的时间/数字格式化
  */
+import { formatBeijing } from './time'
 
 /**
  * 格式化秒数为人类可读字符串
@@ -200,6 +201,6 @@ export function formatCompact(num, { sigDigits = 4 } = {}) {
  * @returns {string} 格式化后的时间字符串
  */
 export function formatTimeOfDay(time) {
-  const date = new Date(time)
-  return date.toLocaleTimeString('zh-CN', { hour12: false })
+  // 统一按北京时间展示（固定 UTC+8，不随运行环境时区漂移）
+  return formatBeijing(time, { showDate: false })
 }

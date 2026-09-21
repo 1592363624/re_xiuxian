@@ -115,6 +115,7 @@
  * 负责玩家列表展示、搜索、排序、分页
  */
 import { ref, reactive, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import { getPlayers } from '../../../api/admin'
 import AppButton from '../../ui/AppButton.vue'
@@ -203,14 +204,8 @@ const isOnline = (player) => {
  */
 const formatDate = (dateStr) => {
   if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  // 统一按北京时间展示（固定 UTC+8，不随运行环境时区漂移）
+  return formatBeijing(dateStr, { seconds: false, fallback: '-' })
 }
 
 /**

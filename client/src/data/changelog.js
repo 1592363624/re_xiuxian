@@ -10,6 +10,8 @@
  * @author 修仙游戏开发组
  * @updated 2026-07-23
  */
+import { formatBeijingDate } from '../utils/time'
+
 export const currentVersion = 'v0.4.6_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
 
 // 🛡️ 兜底数据：仅在无法连接 GitHub API 时显示
@@ -684,7 +686,7 @@ export const changelog = [
   },
   {
     version: 'fallback', 
-    date: new Date().toLocaleDateString(),
+    date: formatBeijingDate(new Date()),
     sections: [
       {
         title: '获取失败',

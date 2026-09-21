@@ -225,6 +225,7 @@
  * 业务逻辑全部通过 API 调用后端，前端只做展示与交互。
  */
 import { ref, reactive, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import {
   getSectMembers,
@@ -370,15 +371,8 @@ const formatRole = (role) => {
  */
 const formatDate = (dateStr) => {
   if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return '-'
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  // 统一按北京时间展示（固定 UTC+8，不随运行环境时区漂移）
+  return formatBeijing(dateStr, { seconds: false, fallback: '-' })
 }
 
 /**

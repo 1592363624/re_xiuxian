@@ -1,6 +1,7 @@
 <template>
-  <div class="fixed inset-0 z-system flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-    <div class="bg-surface-base border border-line w-full max-w-6xl h-[85vh] flex flex-col rounded-panel shadow-2xl shadow-black/60">
+  <!-- 全屏布局：占满整个视口，为各管理面板提供最大显示空间 -->
+  <div class="fixed inset-0 z-system bg-surface-base flex flex-col">
+    <div class="bg-surface-base w-full h-full flex flex-col">
       <!-- Header -->
       <div class="flex items-center justify-between px-4 h-12 shrink-0 border-b border-line-subtle bg-surface-raised">
         <h2 class="font-display text-[15px] font-bold text-gold-500 tracking-[0.08em] truncate">GM 管理后台</h2>

@@ -380,6 +380,7 @@
  * 4 Tab 共享一个面板，按需懒加载对应子模块数据
  */
 import { ref, reactive, computed, onMounted } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import Modal from '../common/Modal.vue';
 import PanelShell from '../ui/PanelShell.vue';
 import PanelCard from '../ui/PanelCard.vue';
@@ -997,8 +998,7 @@ function formatTime(seconds: number): string {
  * @param time ISO 时间字符串
  */
 function formatTimeString(time: string | null): string {
-  if (!time) return '-';
-  const d = new Date(time);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(time, { dateStyle: 'short', seconds: false, fallback: '-' });
 }
 </script>

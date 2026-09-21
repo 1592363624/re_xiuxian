@@ -453,6 +453,7 @@
  * 所有写操作均要求填写操作原因，记录到 admin_logs 审计日志。
  */
 import { ref, reactive, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
 import AppButton from '../../ui/AppButton.vue'
@@ -787,8 +788,8 @@ const actionTypeTextClass = (actionType) => {
 const formatDate = (dateStr) => {
   if (!dateStr) return '-'
   try {
-    const d = new Date(dateStr)
-    return d.toLocaleString('zh-CN', { hour12: false })
+    // 统一按北京时间展示（固定 UTC+8）
+    return formatBeijing(dateStr, { fallback: dateStr })
   } catch {
     return dateStr
   }

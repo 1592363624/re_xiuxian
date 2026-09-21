@@ -368,6 +368,7 @@
  *   - 4维线索可能含假线索，玩家根据熟练度解读博弈
  */
 import { ref, onMounted } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import CustomModal from '../common/Modal.vue';
 import PanelShell from '../ui/PanelShell.vue';
 import Tabs from '../ui/Tabs.vue';
@@ -436,11 +437,9 @@ function getQualityColor(quality: string): string {
   return colors[quality] || 'text-fg-muted';
 }
 
-/** 格式化时间 */
+/** 格式化时间（统一按北京时间展示） */
 function formatTime(t: string): string {
-  if (!t) return '';
-  const d = new Date(t);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  return formatBeijing(t, { dateStyle: 'short', seconds: false, fallback: '' });
 }
 
 /** 格式化诅咒剩余时间 */

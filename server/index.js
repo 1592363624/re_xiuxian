@@ -8,6 +8,14 @@ const path = require('path');
 const sequelize = require('./config/database');
 require('dotenv').config();
 
+// 统一进程时区为北京时间（UTC+8）
+// 为什么必须在这里设：Node 的本地时间方法（getHours / toLocaleString）以及依赖本地时区的
+// 日期计算都跟随 TZ，而容器/CI 默认常为 UTC，会让日志时间与业务计算整体偏移 8 小时。
+// 放在业务模块 require 之前生效；若 .env 里显式配了 TZ，则以 .env 为准（dotenv 不覆盖已有值）。
+if (!process.env.TZ) {
+  process.env.TZ = 'Asia/Shanghai';
+}
+
 // 解决 BigInt 序列化问题
 BigInt.prototype.toJSON = function() {
   return this.toString();

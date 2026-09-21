@@ -218,6 +218,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { formatBeijing } from '../../utils/time'
 import { useUIStore } from '../../stores/ui'
 import { useAsyncTask } from '../../composables/useAsyncTask'
 import { formatTime, formatNumber } from '../../utils/format'
@@ -353,9 +354,8 @@ const switchView = (newView) => {
  * 格式化日期
  */
 const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(dateStr, { seconds: false })
 }
 
 /**

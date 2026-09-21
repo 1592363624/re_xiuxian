@@ -29,6 +29,7 @@
  * @created 2026-07-23
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { formatBeijing } from '../../utils/time'
 import Modal from '../common/Modal.vue'
 import PanelShell from '../ui/PanelShell.vue'
 import Tabs from '../ui/Tabs.vue'
@@ -241,10 +242,8 @@ const auctionStatusTone = (status) => (
  * @param {string} timeStr - ISO 时间字符串
  */
 const formatDateTime = (timeStr) => {
-  if (!timeStr) return '-'
-  const d = new Date(timeStr)
-  if (isNaN(d.getTime())) return '-'
-  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  // 统一按北京时间展示（固定 UTC+8，不随运行环境时区漂移）
+  return formatBeijing(timeStr, { dateStyle: 'short', seconds: false, fallback: '-' })
 }
 
 /**

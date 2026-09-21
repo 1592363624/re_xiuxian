@@ -309,6 +309,7 @@
  *   - 字段校验：前端做基础必填校验，后端做数值范围校验（权威校验在后端）
  */
 import { reactive, ref, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import AppButton from '../../ui/AppButton.vue'
 import {
@@ -537,10 +538,8 @@ const doRollback = async (backup) => {
  */
 const formatBackupTime = (isoTime) => {
   if (!isoTime) return '-'
-  return new Date(isoTime).toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
-  })
+  // 统一按北京时间展示（备份时间）
+  return formatBeijing(isoTime, { fallback: '-' })
 }
 
 /**

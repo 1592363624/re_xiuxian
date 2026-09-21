@@ -310,6 +310,7 @@
  *   - formatTime：时间格式化
  */
 import { ref, onMounted } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import { formatCompact } from '../../utils/format';
 import Modal from '../common/Modal.vue';
 import PanelShell from '../ui/PanelShell.vue';
@@ -500,10 +501,8 @@ function getRankBadgeClass(rank) {
  * @returns {string} 格式化后的时间
  */
 function formatTime(isoStr) {
-  if (!isoStr) return '—';
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return '—';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(isoStr, { seconds: false, fallback: '—' });
 }
 
 // ===== 生命周期 =====

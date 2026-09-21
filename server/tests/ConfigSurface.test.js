@@ -3,7 +3,8 @@
  *
  * 钉的是三件事：
  *   1. 匿名可读的配置集合里，绝不能出现"文件里带密钥类字段"的那份 ——
- *      `config/ai_config.json` 有 13 个 provider 槽位，后台保存 AI 配置时会把 apiKey 写进这个文件。
+ *      `config/ai_config.json` 顶层带 apiKey 字段（现仅保留单一 OpenAI 兼容 provider），
+ *      后台保存 AI 配置时会把 apiKey 写进这个文件。
  *      这条不靠人记住：它每次都去扫 config 目录里的实际字段，所以"以后谁往公开配置里塞了密钥"会当场红。
  *   2. 后台可管理的配置集合来自目录扫描，新增一份配置文件不需要再回来改路由（这次就差点没改过来：
  *      路由里写死过 6 个名字，而目录里有 53 份）。
@@ -64,7 +65,7 @@ describe('配置管理面的安全与可扩张不变量', () => {
             const keys = collectKeys(JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, `${name}.json`), 'utf-8')));
             if ([...keys].some(k => SECRETISH_KEY.test(k))) secretHolders.push(name);
         }
-        // 先确认这个判据不是空转：ai_config 必须被抓到（它有 13 个 provider 的 apiKey 槽位）
+        // 先确认这个判据不是空转：ai_config 必须被抓到（它的顶层带 apiKey 字段）
         expect(secretHolders).toContain('ai_config');
         const leaked = secretHolders.filter(n => publicNames.includes(n));
         expect(leaked).toEqual([]);

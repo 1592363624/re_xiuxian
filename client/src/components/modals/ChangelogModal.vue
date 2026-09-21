@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import apiClient from '../../api'
+import { formatBeijingDate } from '../../utils/time'
 import { changelog, currentVersion } from '../../data/changelog'
 
 const props = defineProps({
@@ -18,7 +19,7 @@ const close = () => {
 
 const currentLog = ref({
   version: currentVersion,
-  date: new Date().toLocaleDateString(),
+  date: formatBeijingDate(new Date()),
   sections: []
 })
 const isLoading = ref(false)
@@ -41,7 +42,7 @@ const fetchChangelog = async () => {
       // 按日期分组
       const groups = {}
       commits.forEach(commit => {
-        const date = new Date(commit.date).toLocaleDateString()
+        const date = formatBeijingDate(commit.date)
         if (!groups[date]) groups[date] = []
         
         let type = 'other'
@@ -72,7 +73,7 @@ const fetchChangelog = async () => {
         }))
         
       currentLog.value.version = 'Latest Commits'
-      currentLog.value.date = groupedCommits.value[0]?.date || new Date().toLocaleDateString()
+      currentLog.value.date = groupedCommits.value[0]?.date || formatBeijingDate(new Date())
       
     } else {
       // Fallback to local data

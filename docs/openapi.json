@@ -638,10 +638,9 @@
           "protocol": {
             "type": "string",
             "enum": [
-              "openai",
-              "anthropic"
+              "openai"
             ],
-            "description": "通信协议"
+            "description": "通信协议（现恒为 openai）"
           },
           "temperature": {
             "type": "number",
@@ -18245,12 +18244,12 @@
                 "properties": {
                   "provider": {
                     "type": "string",
-                    "example": "deepseek",
-                    "description": "提供商标识"
+                    "example": "openai",
+                    "description": "提供商标识（现仅 openai）"
                   },
                   "display_name": {
                     "type": "string",
-                    "example": "DeepSeek 测试"
+                    "example": "DeepSeek 兼容接口"
                   },
                   "base_url": {
                     "type": "string",
@@ -18267,10 +18266,10 @@
                   "protocol": {
                     "type": "string",
                     "enum": [
-                      "openai",
-                      "anthropic"
+                      "openai"
                     ],
-                    "default": "openai"
+                    "default": "openai",
+                    "description": "通信协议（现恒为 openai）"
                   },
                   "temperature": {
                     "type": "number",
@@ -18305,8 +18304,8 @@
     },
     "/api/admin/ai-config/providers": {
       "get": {
-        "summary": "获取可选 AI 提供商列表",
-        "description": "从 ai_config.json 读取可选提供商列表，供前端下拉选择。需要管理员权限。",
+        "summary": "获取可选 AI 接口列表",
+        "description": "从 ai_config.json 读取可选接口列表（现仅含单一 OpenAI 兼容接口），供前端展示。需要管理员权限。",
         "tags": [
           "AI",
           "Admin"
@@ -18335,25 +18334,22 @@
                         "properties": {
                           "provider": {
                             "type": "string",
-                            "example": "deepseek"
+                            "example": "openai"
                           },
                           "name": {
                             "type": "string",
-                            "example": "DeepSeek 深度求索"
+                            "example": "OpenAI 兼容接口"
                           },
                           "models": {
                             "type": "array",
                             "items": {
                               "type": "string"
                             },
-                            "example": [
-                              "deepseek-chat",
-                              "deepseek-reasoner"
-                            ]
+                            "example": []
                           },
                           "default_endpoint": {
                             "type": "string",
-                            "example": "https://api.deepseek.com/v1"
+                            "example": ""
                           },
                           "compatible_with": {
                             "type": "string",
@@ -18419,8 +18415,7 @@
                   "protocol": {
                     "type": "string",
                     "enum": [
-                      "openai",
-                      "anthropic"
+                      "openai"
                     ]
                   },
                   "temperature": {

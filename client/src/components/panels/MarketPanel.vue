@@ -12,6 +12,7 @@
  *   - 业务逻辑全部通过 API 调用后端，前端只做展示与交互
  */
 import { ref, computed, onMounted } from 'vue'
+import { formatBeijing } from '../../utils/time'
 import apiClient from '../../api'
 import { useUIStore } from '../../stores/ui'
 import {
@@ -422,10 +423,8 @@ const statusTone = (status) => {
  * 格式化时间显示
  */
 const formatTime = (timeStr) => {
-  if (!timeStr) return '-'
-  const d = new Date(timeStr)
-  if (isNaN(d.getTime())) return '-'
-  return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(timeStr, { dateStyle: 'short', seconds: false, fallback: '-' })
 }
 
 /**

@@ -196,6 +196,7 @@
  *   - formatDetailsPreview 中递归 countChanges 也已移除，改用简洁文案展示
  */
 import { ref, reactive, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { getLogs } from '../../../api/admin'
 import { getConfigDiff } from '../../../api/admin_cultivation'
 import AppButton from '../../ui/AppButton.vue'
@@ -399,15 +400,8 @@ const getActionClass = (action) => {
  */
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(dateStr, { fallback: '-' })
 }
 
 // 暴露刷新方法给父组件

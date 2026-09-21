@@ -51,8 +51,13 @@ apiClient.interceptors.response.use(
       (error as any).__uiNotified = true;
     };
 
+    // 请求路径：排障时最关键的定位信息（如 /admin/ai-config/3/test）
+    const requestUrl = (error.config as any)?.url || '';
+
     if (error.response) {
       const { status, data } = error.response;
+      // 后端统一错误体是 { code, message }，能拿到具体原因就用具体原因，不再吞掉
+      const serverMessage = (data as any)?.message;
 
       if (status === 401) {
         const playerStore = usePlayerStore();
@@ -61,13 +66,26 @@ apiClient.interceptors.response.use(
       } else if (status === 403) {
         notify('没有权限执行此操作');
       } else if (status === 404) {
-        notify('请求的资源不存在');
+        notify(`请求的资源不存在：${requestUrl}`);
       } else if (status === 500) {
-        notify('服务器错误，请稍后重试');
+        notify(serverMessage ? `服务器错误：${serverMessage}` : `服务器错误，请稍后重试：${requestUrl}`);
       }
       // 400 等业务错误不在此处弹 toast，由调用方组件处理
     } else if (error.request) {
-      notify('网络错误，请检查网络连接');
+      // 请求已发出但没拿到响应：细分原因，避免"网络错误，请检查网络连接"这种无法定位的提示
+      const timeoutSeconds = error.config?.timeout ? Math.round(error.config.timeout / 1000) : 0;
+      const code = (error as any).code || '';
+
+      if (code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
+        // 前端主动超时：后端可能仍在处理（例如代理第三方 AI 接口），所以提示等待上限而非断言"断网"
+        notify(`请求超时${timeoutSeconds ? `（${timeoutSeconds} 秒）` : ''}：${requestUrl}`);
+      } else if (code === 'ERR_CANCELED') {
+        notify(`请求已取消：${requestUrl}`);
+      } else if (code === 'ERR_NETWORK') {
+        notify(`网络不可达：${requestUrl}（请确认后端服务已启动且地址可访问）`);
+      } else {
+        notify(`网络请求失败：${requestUrl}${error.message ? `（${error.message}）` : ''}`);
+      }
     } else {
       uiStore.showToast('请求配置错误', 'error');
       (error as any).__uiNotified = true;

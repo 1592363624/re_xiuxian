@@ -17,6 +17,7 @@
  *   - 红包卡片使用红色/金色主题，区分于普通消息
  */
 import { ref, nextTick, watch, onMounted, onUnmounted, reactive, computed } from 'vue'
+import { formatBeijing } from '../../utils/time'
 import { getChatHistory, sendMessage, getUnreadCount, markRead, sendRedPacket, claimRedPacket, getRedPacketDetail, showItem } from '../../api/chat'
 import { getInventory } from '../../api/inventory'
 import { socketService } from '../../services/socket'
@@ -769,7 +770,7 @@ onUnmounted(() => {
               class="num"
               :class="msg.type === 'self' ? 'order-first' : ''"
             >
-              {{ new Date(msg.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
+              {{ formatBeijing(msg.createdAt, { showDate: false, seconds: false }) }}
             </span>
           </div>
 
@@ -860,7 +861,7 @@ onUnmounted(() => {
 
           <!-- 系统消息显示时间 -->
           <span v-if="msg.type === 'system'" class="text-[10px] text-fg-faint mt-0.5 px-1 num">
-            {{ new Date(msg.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
+            {{ formatBeijing(msg.createdAt, { showDate: false, seconds: false }) }}
           </span>
 
           <!-- Divider for system msgs -->
@@ -1133,7 +1134,7 @@ onUnmounted(() => {
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                   <span class="text-xs text-gold-300 font-bold num">{{ formatCompact(claim.amount) }}</span>
-                  <span class="text-[10px] text-fg-faint num">{{ new Date(claim.claimed_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                  <span class="text-[10px] text-fg-faint num">{{ formatBeijing(claim.claimed_at, { showDate: false, seconds: false }) }}</span>
                 </div>
               </div>
             </div>

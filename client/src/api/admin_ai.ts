@@ -16,7 +16,8 @@ export interface AiConfigItem {
   api_key_masked: string;
   /** 是否已配置 Key */
   has_api_key: boolean;
-  protocol: 'openai' | 'anthropic';
+  /** 通信协议（现恒为 openai；字段仅为兼容历史数据保留） */
+  protocol: 'openai';
   temperature: number;
   max_tokens: number;
   timeout: number;
@@ -109,7 +110,11 @@ export const activateAiConfig = (id: number) => {
 
 /**
  * 测试 AI 配置连接性
+ *
+ * 该接口要等后端去请求第三方大模型，耗时可能远超默认 30s 超时。
+ * 这里单独放宽到 120s（后端自身会在 90s 内返回并说明具体失败原因），
+ * 否则前端会先超时，用户只能看到"请求超时"，拿不到后端的详细诊断信息。
  */
 export const testAiConfig = (id: number) => {
-  return apiClient.post(`/admin/ai-config/${id}/test`);
+  return apiClient.post(`/admin/ai-config/${id}/test`, null, { timeout: 120000 });
 };

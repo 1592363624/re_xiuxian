@@ -336,6 +336,7 @@
  * 数据来源：GET /api/admin/state-cleaner/metrics
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { formatBeijing } from '../../../utils/time';
 import {
   getStateCleanerMetrics,
   triggerStateCleanerRun,
@@ -398,8 +399,7 @@ function getCleanedCount(stat: any): number {
 function formatTime(iso: string): string {
   if (!iso) return '-';
   try {
-    const d = new Date(iso);
-    return d.toLocaleString('zh-CN', { hour12: false });
+    return formatBeijing(iso, { fallback: iso });
   } catch {
     return iso;
   }
@@ -416,7 +416,7 @@ async function fetchMetrics() {
     if (body?.code === 200) {
       metrics.value = body.data;
       health.value = body.health || 'healthy';
-      lastRefreshAt.value = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      lastRefreshAt.value = formatBeijing(new Date(), { showDate: false, fallback: '-' });
     }
   } catch (err: any) {
     console.error('[StateCleanerMonitor] 获取监控指标失败:', err);

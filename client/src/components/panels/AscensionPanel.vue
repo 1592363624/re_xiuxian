@@ -383,6 +383,7 @@
  * 使用 Composition API，所有状态从后端拉取，禁止硬编码业务数据
  */
 import { ref, onMounted, computed } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import {
   getProfile,
   searchNode,
@@ -755,8 +756,7 @@ function getRiskTone(risk: number): string {
  * 格式化时间显示
  */
 function formatTime(time: string | null): string {
-  if (!time) return '-';
-  const d = new Date(time);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(time, { dateStyle: 'short', seconds: false, fallback: '-' });
 }
 </script>

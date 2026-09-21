@@ -454,6 +454,7 @@
  * 使用 Composition API，所有状态从后端拉取，禁止硬编码业务数据
  */
 import { ref, reactive, onMounted } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import Modal from '../common/Modal.vue';
 import PanelShell from '../ui/PanelShell.vue';
 import Tabs from '../ui/Tabs.vue';
@@ -858,13 +859,8 @@ async function handleTribulationRespond(eventId: number, option: HeartTribulatio
  * @param time 时间字符串
  */
 function formatTime(time?: string | null): string {
-  if (!time) return '未知';
-  try {
-    const d = new Date(time);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  } catch {
-    return time;
-  }
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(time, { seconds: false, fallback: '未知' });
 }
 
 /**

@@ -468,6 +468,7 @@
  * @created 2026-07-23
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import * as fishingApi from '../../api/fishing';
 import type {
   FishingProfile, FishingShop, FishingStatus, FishCreel, FishAlbum,
@@ -626,11 +627,9 @@ function formatMaterialName(key: string): string {
   return map[key] || key;
 }
 
-/** 格式化时间 */
+/** 格式化时间（统一按北京时间展示） */
 function formatTime(t: string): string {
-  if (!t) return '';
-  const d = new Date(t);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatBeijing(t, { dateStyle: 'short', seconds: false, fallback: '' });
 }
 
 // ==================== 数据加载 ====================

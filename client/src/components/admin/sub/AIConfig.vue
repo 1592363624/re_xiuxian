@@ -47,7 +47,7 @@
                 <span :class="cfg.last_test_status === 'success' ? 'text-green-400' : 'text-red-400'">
                   {{ cfg.last_test_status === 'success' ? '✓ 成功' : '✗ 失败' }}
                 </span>
-                <div class="text-fg-faint num">{{ cfg.last_tested_at }}</div>
+                <div class="text-fg-faint num">{{ formatBeijing(cfg.last_tested_at, { fallback: '-' }) }}</div>
               </div>
               <span v-else class="text-line-strong">未测试</span>
             </td>
@@ -76,18 +76,12 @@
         <h3 class="text-lg font-bold text-fg-primary mb-4">{{ editMode ? '编辑 AI 配置' : '新增 AI 配置' }}</h3>
 
         <div class="space-y-4">
-          <!-- 提供商选择 -->
+          <!-- 接口类型：仅保留 OpenAI 兼容接口，无需用户选择 -->
           <div>
-            <label class="block text-sm text-fg-muted mb-1">提供商 *</label>
-            <select v-if="!editMode" v-model="form.provider" @change="onProviderChange"
-              class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600">
-              <option value="">请选择</option>
-              <option v-for="p in providers" :key="p.provider" :value="p.provider">
-                {{ p.name }}（{{ p.provider }}）
-              </option>
-            </select>
-            <input v-else :value="form.provider" disabled
+            <label class="block text-sm text-fg-muted mb-1">接口类型</label>
+            <input :value="activeProviderName" disabled
               class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-faint">
+            <p class="mt-1 text-xs text-fg-faint">{{ activeProviderDescription }}</p>
           </div>
 
           <!-- 显示名称 -->
@@ -131,15 +125,7 @@
           <!-- 高级设置 -->
           <details class="text-fg-muted">
             <summary class="cursor-pointer text-sm">高级设置</summary>
-            <div class="grid grid-cols-2 gap-4 mt-3">
-              <div>
-                <label class="block text-sm mb-1">通信协议</label>
-                <select v-model="form.protocol"
-                  class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600">
-                  <option value="openai">openai（默认，兼容所有 OpenAI 协议模型）</option>
-                  <option value="anthropic">anthropic（仅 Claude）</option>
-                </select>
-              </div>
+            <div class="grid grid-cols-3 gap-4 mt-3">
               <div>
                 <label class="block text-sm mb-1">采样温度</label>
                 <input v-model.number="form.temperature" type="number" step="0.1" min="0" max="2"
@@ -195,7 +181,8 @@
  * 供 GM 后台管理 AI 服务参数（提供商、URL、模型、API Key 等）
  * 支持测试连接性、激活配置、加密存储 API Key
  */
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import {
   getAiConfigs, getAiProviders,
@@ -219,14 +206,13 @@ const showModal = ref(false)
 const editMode = ref(false)
 const editingConfig = ref(null)
 
-// 表单数据
+// 表单数据（provider 固定为唯一的 OpenAI 兼容接口，不再由用户选择）
 const form = reactive({
   provider: '',
   display_name: '',
   base_url: '',
   model: '',
   api_key: '',
-  protocol: 'openai',
   temperature: 0.7,
   max_tokens: 1000,
   timeout: 30000,
@@ -240,6 +226,12 @@ const confirmDialog = reactive({
   message: '',
   onConfirm: () => {}
 })
+
+// 当前唯一的接口类型（来自后端 providers，仅用于只读展示）
+const activeProviderName = computed(() => providers.value[0]?.name || 'OpenAI 兼容接口')
+const activeProviderDescription = computed(
+  () => providers.value[0]?.description || '填入 Base URL、模型名与 API Key 即可接入任意 OpenAI 兼容服务'
+)
 
 /**
  * 获取配置列表
@@ -258,7 +250,7 @@ const fetchConfigs = async () => {
 }
 
 /**
- * 获取可选提供商列表
+ * 获取可选接口列表（现仅一个 OpenAI 兼容接口，用于只读展示）
  */
 const fetchProviders = async () => {
   try {
@@ -277,8 +269,10 @@ const openCreateModal = () => {
   editMode.value = false
   editingConfig.value = null
   Object.assign(form, {
-    provider: '', display_name: '', base_url: '', model: '',
-    api_key: '', protocol: 'openai', temperature: 0.7,
+    // provider 固定为唯一接口；后端 providers 尚未返回时兜底 openai
+    provider: providers.value[0]?.provider || 'openai',
+    display_name: '', base_url: '', model: '',
+    api_key: '', temperature: 0.7,
     max_tokens: 1000, timeout: 30000, is_active: false
   })
   availableModels.value = []
@@ -297,7 +291,6 @@ const openEditModal = (cfg) => {
     base_url: cfg.base_url,
     model: cfg.model,
     api_key: '',   // 编辑时不回填，留空表示不修改
-    protocol: cfg.protocol,
     temperature: cfg.temperature,
     max_tokens: cfg.max_tokens,
     timeout: cfg.timeout
@@ -314,35 +307,6 @@ const openEditModal = (cfg) => {
 const closeModal = () => {
   showModal.value = false
   editingConfig.value = null
-}
-
-/**
- * 提供商变更时自动填充默认值
- */
-const onProviderChange = () => {
-  const p = providers.value.find(p => p.provider === form.provider)
-  if (!p) {
-    availableModels.value = []
-    return
-  }
-  // 自动填充默认 endpoint
-  if (p.default_endpoint && !form.base_url) {
-    form.base_url = p.default_endpoint
-  }
-  // 自动填充显示名
-  if (!form.display_name) {
-    form.display_name = p.name
-  }
-  // 自动填充协议
-  if (p.compatible_with) {
-    form.protocol = p.compatible_with
-  }
-  // 加载可选模型列表
-  availableModels.value = p.models || []
-  // 默认选择第一个模型
-  if (availableModels.value.length > 0 && !form.model) {
-    form.model = availableModels.value[0]
-  }
 }
 
 /**
@@ -363,7 +327,6 @@ const handleSave = async () => {
         display_name: form.display_name,
         base_url: form.base_url,
         model: form.model,
-        protocol: form.protocol,
         temperature: form.temperature,
         max_tokens: form.max_tokens,
         timeout: form.timeout
@@ -382,7 +345,6 @@ const handleSave = async () => {
         base_url: form.base_url,
         model: form.model,
         api_key: form.api_key,
-        protocol: form.protocol,
         temperature: form.temperature,
         max_tokens: form.max_tokens,
         timeout: form.timeout,

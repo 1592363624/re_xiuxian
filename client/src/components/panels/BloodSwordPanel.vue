@@ -17,6 +17,7 @@
  *   - 操作按钮根据状态/冷却动态启用/禁用
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { formatBeijing } from '../../utils/time'
 import Modal from '../common/Modal.vue'
 import {
   getBloodSwordStatus,
@@ -558,7 +559,7 @@ onUnmounted(() => {
                 >{{ heldStatus.imprint_name }}</span>
               </div>
               <div class="text-xs text-gray-400">
-                上次铭印：{{ heldStatus.last_imprint_at ? new Date(heldStatus.last_imprint_at).toLocaleString('zh-CN') : '从未铭印' }}
+                上次铭印：{{ heldStatus.last_imprint_at ? formatBeijing(heldStatus.last_imprint_at, { seconds: false }) : '从未铭印' }}
               </div>
             </div>
           </div>

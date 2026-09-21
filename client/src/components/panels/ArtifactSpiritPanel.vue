@@ -350,6 +350,7 @@
  * 所有业务逻辑在后端，前端仅做展示与接口调用
  */
 import { ref, computed, onMounted, reactive } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import PanelShell from '../ui/PanelShell.vue';
 import Tabs from '../ui/Tabs.vue';
 import AppButton from '../ui/AppButton.vue';
@@ -717,9 +718,8 @@ function getRankBadgeClass(rank: number): string {
  * 格式化时间
  */
 function formatTime(dateStr: string | null): string {
-  if (!dateStr) return '无';
-  const d = new Date(dateStr);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
+  // 统一按北京时间展示（固定 UTC+8，仅时分秒）
+  return formatBeijing(dateStr, { showDate: false, fallback: '无' });
 }
 
 // 组件挂载时加载我的器灵

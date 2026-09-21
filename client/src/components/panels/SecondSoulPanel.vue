@@ -248,6 +248,7 @@
  * 使用 Composition API，所有状态从后端拉取，禁止硬编码业务数据
  */
 import { ref, computed, onMounted } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import Modal from '../common/Modal.vue';
 import PanelShell from '../ui/PanelShell.vue';
 import AppButton from '../ui/AppButton.vue';
@@ -434,8 +435,7 @@ function getDispatchModeLabel(mode: string): string {
  * @param time ISO 时间字符串
  */
 function formatTime(time: string | null): string {
-  if (!time) return '-';
-  const d = new Date(time);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(time, { dateStyle: 'short', seconds: false, fallback: '-' });
 }
 </script>

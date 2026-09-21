@@ -8,7 +8,7 @@
  *   4. DELETE /api/admin/ai-config/:id    - 删除 AI 配置
  *   5. POST   /api/admin/ai-config/:id/activate - 激活指定配置（其他自动停用）
  *   6. POST   /api/admin/ai-config/:id/test     - 测试连接性（不下发 Key 到前端）
- *   7. GET    /api/admin/ai-config/providers    - 获取可选提供商列表（从 ai_config.json 读取）
+ *   7. GET    /api/admin/ai-config/providers    - 获取可选接口列表（现仅含单一 OpenAI 兼容接口）
  *
  * 安全设计：
  *   - 所有接口需要 JWT 认证 + admin 权限
@@ -125,7 +125,7 @@ router.get('/', auth, adminCheck, async (req, res, next) => {
 
 /**
  * GET /api/admin/ai-config/providers
- * 获取可选的提供商列表（从 ai_config.json 读取，供前端下拉选择）
+ * 获取可选接口列表（从 ai_config.json 读取，现仅含单一 OpenAI 兼容接口）
  * 注意：不返回 apiKey 等敏感字段
  */
 router.get('/providers', auth, adminCheck, async (req, res, next) => {
@@ -370,25 +370,18 @@ router.post('/:id/test', auth, adminCheck, async (req, res, next) => {
         }
         const apiKey = cryptoHelper.decrypt(config.encrypted_api_key);
 
-        // 构造测试请求（最小 token 消耗）
+        // 构造测试请求（统一走 OpenAI 兼容协议，最小 token 消耗）
         const baseUrl = config.base_url.replace(/\/$/, '');
-        let endpoint;
-        const headers = { 'Content-Type': 'application/json' };
-
-        if (config.protocol === 'anthropic') {
-            endpoint = `${baseUrl}/messages`;
-            headers['x-api-key'] = apiKey;
-            headers['anthropic-version'] = '2023-06-01';
-        } else {
-            // OpenAI 兼容协议
-            endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
-            headers['Authorization'] = `Bearer ${apiKey}`;
-        }
+        const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        };
 
         const requestBody = {
             model: config.model,
             messages: [{ role: 'user', content: '你好' }],
-            max_tokens: 10,    // 极小 token 数，降低测试成本
+            max_tokens: 32,    // 不宜过小：推理型模型在 token 预算过小时会把正文挤没，导致误判失败
             temperature: 0
         };
 
@@ -399,16 +392,24 @@ router.post('/:id/test', auth, adminCheck, async (req, res, next) => {
         try {
             const response = await axios.post(endpoint, requestBody, {
                 headers,
-                timeout: Math.max(config.timeout, 10000)
+                // 下限 10s 保证慢接口不被误杀，上限 90s 保证后端一定先于前端（120s）返回，
+                // 这样失败时前端总能拿到后端给出的具体原因，而不是干等一条"请求超时"
+                timeout: Math.min(Math.max(config.timeout, 10000), 90000)
             });
 
-            // 判断响应是否正常
-            if (response.status === 200 && (response.data?.choices?.[0]?.message?.content || response.data?.content?.[0]?.text)) {
+            // 判定成功只看"是否返回了 OpenAI 兼容的 choices 结构"。
+            // 不再要求正文非空：推理型模型在 max_tokens 很小时 content 可能为空，
+            // 但此时连接与鉴权都已通过，旧判据会把它误报成"响应结构不符合预期"。
+            const choices = response.data?.choices;
+            if (response.status === 200 && Array.isArray(choices) && choices.length > 0) {
                 testStatus = 'success';
-                testMessage = `连接成功，模型响应正常（HTTP ${response.status}）`;
+                const text = choices[0]?.message?.content;
+                testMessage = text
+                    ? `连接成功，模型响应正常（HTTP ${response.status}）`
+                    : `连接成功（HTTP ${response.status}，本次正文为空，通常是 max_tokens 偏小）`;
             } else {
                 testStatus = 'failed';
-                testMessage = `响应异常：HTTP ${response.status}，响应结构不符合预期`;
+                testMessage = `响应异常：HTTP ${response.status}，未返回 OpenAI 兼容的 choices 结构`;
             }
         } catch (err) {
             testStatus = 'failed';

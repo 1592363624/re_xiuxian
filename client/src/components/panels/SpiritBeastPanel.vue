@@ -321,6 +321,7 @@
  * - 放生操作通过自定义 Modal 二次确认
  */
 import { ref, reactive, onMounted } from 'vue';
+import { formatBeijing } from '../../utils/time';
 import PanelShell from '../ui/PanelShell.vue';
 import Tabs from '../ui/Tabs.vue';
 import AppButton from '../ui/AppButton.vue';
@@ -641,13 +642,8 @@ const getElementName = (key: string): string => {
  * 格式化时间
  */
 const formatTime = (iso: string | null): string => {
-  if (!iso) return '未知';
-  try {
-    const d = new Date(iso);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  } catch {
-    return iso;
-  }
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(iso, { seconds: false, fallback: '未知' });
 };
 
 /**

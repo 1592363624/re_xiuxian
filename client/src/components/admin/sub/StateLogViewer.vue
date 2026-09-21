@@ -145,6 +145,7 @@
  * 数据来源：GET /api/admin/state-logs
  */
 import { ref, reactive, onMounted } from 'vue';
+import { formatBeijing } from '../../../utils/time';
 import { getStateLogs } from '../../../api/admin';
 import { useUIStore } from '../../../stores/ui';
 import AppButton from '../../ui/AppButton.vue';
@@ -208,7 +209,7 @@ function resetFilters() {
 function formatTime(iso: string): string {
   if (!iso) return '-';
   try {
-    return new Date(iso).toLocaleString('zh-CN', { hour12: false });
+    return formatBeijing(iso, { fallback: iso });
   } catch {
     return iso;
   }

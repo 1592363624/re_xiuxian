@@ -394,6 +394,7 @@
  *  - 所有操作均通过自定义 Modal 二次确认
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { formatBeijing } from '../../utils/time'
 import Modal from '../common/Modal.vue'
 import PanelShell from '../ui/PanelShell.vue'
 import Tabs from '../ui/Tabs.vue'
@@ -513,13 +514,8 @@ function settleReasonLabel(reason) {
   return map[reason] || reason || '未知'
 }
 function formatTime(isoStr) {
-  if (!isoStr) return '-'
-  try {
-    const d = new Date(isoStr)
-    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  } catch {
-    return isoStr
-  }
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(isoStr, { dateStyle: 'short', seconds: false, fallback: '-' })
 }
 
 // ===== 业务方法 =====

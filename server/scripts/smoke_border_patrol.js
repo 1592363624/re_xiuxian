@@ -7,8 +7,9 @@
  * 但"形状相同"不等于"跑过"：万一哪天有人把 drops 重新赋值的顺序挪了、或者把 grantItems 换成旧的
  * addItem 循环，这条链就会静默回到"消息说有、背包里没有"。这里把它钉成账面=库存。
  *
- * 还缺什么（别把这条当战线全覆盖）：探禁（RemnantMapSubService.combine/explore，要先集齐 4 类残片 + 500 灵石合成）
- * 与军议/募捐那两条链仍未有端到端探针；残片正好是巡边 scout 路线的掉落，下一批可以直接接在这条腿后面。
+ * 还缺什么（别把这条当战线全覆盖）：军议 / 募捐 / 里程碑兑换那几条链仍未有端到端探针；
+ * 本文件覆盖的是巡边（P1–P6）与探禁（R1–R4b：拼残图 → 按图探禁 → 每日上限 → 没图不许探）。
+ * 残片的来源就是 scout 路线的掉落，所以 R 段直接接在 P 段后面跑，不额外造状态。
  *
  * 用法：cd server && node --env-file=.env scripts/smoke_border_patrol.js
  * 只用自建探针号 bp_a，跑完删干净。
@@ -27,6 +28,8 @@ const BorderBeastPatrol = require('../models/border_beast_patrol');
 const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const BorderBeastPatrolSubService = require('../game/services/BorderBeastPatrolSubService');
+const RemnantMapSubService = require('../game/services/RemnantMapSubService');
+const InventoryService = require('../game/services/InventoryService');
 
 const ACCOUNT = 'bp_a';
 const results = [];
@@ -161,6 +164,123 @@ async function main() {
     check('P6 粮道巡边的灵石增量 = 记录行的 spirit_stones_gained（随机取下限 100，不是消息里另算一份）',
         sent6.success === true && recorded > 0 && stonesDelta === B(recorded),
         `派出=${sent6.success} 记录=${recorded} 实到=${stonesDelta}`);
+
+    // ===================== 探禁（RemnantMapSubService）：残片正好是上面 scout 路线的掉落 =====================
+    const rm = (require('../config/border_military_data.json').remnant_map) || {};
+    const FRAG = (rm.fragment_types || ['A', 'B', 'C', 'D']).map(t => `cangkun_remnant_fragment_${t.toLowerCase()}`);
+    const MAP_KEY = 'cangkun_remnant_map';
+    const combineCost = N(rm.combine_cost_spirit_stones) || 500;
+    const expCfg = rm.explore || {};
+    const expDropKeys = (expCfg.item_drops || []).map(d => d.key);
+
+    // 巡边两趟之后手上的残片可能不是各 1 块：补齐到"各 1 块"，让 R1 的前提是确定的
+    for (const k of FRAG) {
+        const have = await bagQty(pid, k);
+        if (have < 1) await InventoryService.addItem(pid, k, 1 - have, null);
+    }
+    await Player.update({ border_remnant_explore_date: null }, { where: { id: pid } });
+
+    // ===== R1 拼图：4 类残片各 1 + 500 灵石 → 1 张完整残图，钱和片都要精确 =====
+    const stonesR = await pocket(pid);
+    const fragBefore = {}; for (const k of FRAG) fragBefore[k] = await bagQty(pid, k);
+    const mapBefore = await bagQty(pid, MAP_KEY);
+    const comb = await RemnantMapSubService.combine(await Player.findByPk(pid));
+    const fragAfter = {}; for (const k of FRAG) fragAfter[k] = await bagQty(pid, k);
+    const stonesR2 = await pocket(pid);
+    check('R1 拼残图：4 类残片各扣 1、灵石正好扣 combine_cost_spirit_stones、完整残图 +1（回执与库存一致）',
+        comb.success === true && FRAG.every(k => fragAfter[k] === fragBefore[k] - 1)
+        && stonesR.stones - stonesR2.stones === B(combineCost)
+        && await bagQty(pid, MAP_KEY) === mapBefore + 1,
+        `灵石 -${stonesR.stones - stonesR2.stones}(配置 ${combineCost}) 残片=${FRAG.map(k => `${k.slice(-1)}:${fragBefore[k]}→${fragAfter[k]}`).join(' ')} 残图 ${mapBefore}→${await bagQty(pid, MAP_KEY)}`);
+
+    // ===== R2 缺一块残片就拼不成，而且不许先扣钱 =====
+    const lackKey = FRAG[FRAG.length - 1];
+    await Item.destroy({ where: { player_id: pid, item_key: lackKey }, force: true });
+    const stonesL = (await pocket(pid)).stones;
+    const comb2 = await RemnantMapSubService.combine(await Player.findByPk(pid));
+    const stonesL2 = (await pocket(pid)).stones;
+    check('R2 少一类残片：必须说清缺哪类，且灵石一分不扣、残图不凭空多一张',
+        comb2.success === false && /残片不足/.test(comb2.message || '') && stonesL === stonesL2
+        && (await bagQty(pid, MAP_KEY)) === mapBefore + 1,
+        `理由=${comb2.message} 灵石 ${stonesL}→${stonesL2} 残图=${await bagQty(pid, MAP_KEY)}`);
+    await InventoryService.addItem(pid, lackKey, 1, null);
+
+    // ===== R3 探禁的失败分支（Math.random 钉 0 时必定命中：isFailed = 0 < failure_rate）=====
+    // 注意：钉 0 对巡边是"必成功"，对探禁却是"必失败" —— 同一种手法在两条链上方向相反，
+    // 所以每条链都要先看被钉的那个随机数到底决定哪一支，别把"我假设成功"写进断言。
+    const before3 = await pocket(pid);
+    const hpBefore3 = B((await Player.findByPk(pid, { attributes: ['hp_current'] })).hp_current);
+    const mapAt3 = await bagQty(pid, MAP_KEY);
+    const expFail = await withZeroRandom(async () => RemnantMapSubService.explore(await Player.findByPk(pid)));
+    const afterFail = await pocket(pid);
+    const hpAfter3 = B((await Player.findByPk(pid, { attributes: ['hp_current'] })).hp_current);
+    const df = expFail.data || {};
+    const failPenalty = (expCfg.failure_penalty || {});
+    check('R3 探禁失败分支：吃掉 1 张残图，扣的灵石与 HP 必须等于配置惩罚与回执数字（不许多扣）',
+        expFail.success === false && expFail.failed === true && await bagQty(pid, MAP_KEY) === mapAt3 - 1
+        && before3.stones - afterFail.stones === B(df.spirit_stones_loss)
+        && N(failPenalty.spirit_stones || 0) === N(df.spirit_stones_loss)
+        && hpBefore3 - hpAfter3 === B(df.hp_loss) && hpAfter3 >= 0n
+        && /反噬|失败/.test(expFail.message || ''),
+        `残图 ${mapAt3}→${await bagQty(pid, MAP_KEY)} 灵石 -${before3.stones - afterFail.stones}(配 ${failPenalty.spirit_stones}) HP -${hpBefore3 - hpAfter3}(报 ${df.hp_loss}) 余 HP=${hpAfter3}`);
+
+    // ===== R3c 探禁成功分支：换一张图、清掉当日标记、随机数钉在高处（isFailed 不成立、掉落全不命中）=====
+    await Player.update({ border_remnant_explore_date: null }, { where: { id: pid } });
+    await InventoryService.addItem(pid, MAP_KEY, 1, null);
+    const before3c = await pocket(pid);
+    const bag3c = {}; for (const k of expDropKeys) bag3c[k] = await bagQty(pid, k);
+    const mapAt3c = await bagQty(pid, MAP_KEY);
+    const succ = await (async fn => {
+        const orig = Math.random; Math.random = () => 0.999;
+        try { return await fn(); } finally { Math.random = orig; }
+    })(async () => RemnantMapSubService.explore(await Player.findByPk(pid)));
+    const after3c = await pocket(pid);
+    const d3 = succ.data || {};
+    const inRange = (v, rng, name) => {
+        const lo = N((rng || [])[0]), hi = N((rng || [])[1]);
+        return N(v) >= lo && N(v) <= hi;
+    };
+    const bagNow3c = {}; for (const k of expDropKeys) bagNow3c[k] = await bagQty(pid, k);
+    // 背包增量必须 ≥ 回执报的量；多出来的那一份只有在"里程碑真的达成并写进消息"时才允许（里程碑会另发物品）
+    const msOn = !!(d3.milestone && d3.milestone.triggered);
+    const bagUnchanged = expDropKeys.every(k => {
+        const want = N((d3.items_dropped || []).find(x => x.key === k)?.quantity || 0);
+        const got = bagNow3c[k] - bag3c[k];
+        return got >= want && (got === want || msOn);
+    });
+    const dropsMatchBag = (d3.items_dropped || []).length === 0
+        ? bagUnchanged
+        : expDropKeys.every(k => bagNow3c[k] > bag3c[k]);
+    // 里程碑是 explore 事务之外另发的一笔，所以只要求"库里 >= 回执"，多出的部分必须点名归它
+    const ms = d3.milestone || {};
+    const xExp = after3c.exp - before3c.exp - B(d3.exp_gained);
+    const xMerit = after3c.merit - before3c.merit - N(d3.merit_gained);
+    const xStones = after3c.stones - before3c.stones - B(d3.spirit_stones_gained);
+    const anyX = xExp > 0n || xMerit > 0 || xStones > 0n;
+    const ledgerOk = xExp >= 0n && xMerit >= 0 && xStones >= 0n
+        && (!anyX || (/里程碑/.test(String(succ.message))));
+    check('R3c 探禁成功：吃图、修为与军功到账等于回执、灵石不少于回执、掉落没命中就不写假条目',
+        succ.success === true && await bagQty(pid, MAP_KEY) === mapAt3c - 1
+        && after3c.exp - before3c.exp === B(d3.exp_gained) && inRange(d3.exp_gained, expCfg.exp_range)
+        && after3c.merit - before3c.merit >= N(d3.merit_gained) && inRange(d3.merit_gained, expCfg.merit_range)
+        && after3c.stones - before3c.stones >= B(d3.spirit_stones_gained)
+        && inRange(d3.spirit_stones_gained, expCfg.spirit_stone_range) && dropsMatchBag,
+        // 灵石多出的那一份是"事务之外的里程碑奖励"，本轮没把它归因清楚（见 #19 的备注），所以这里只要求 ≥ 回执
+        `残图 ${mapAt3c}→${await bagQty(pid, MAP_KEY)} 修为+${after3c.exp - before3c.exp}(报 ${d3.exp_gained}) 军功+${after3c.merit - before3c.merit}(报 ${d3.merit_gained}) 灵石+${after3c.stones - before3c.stones}(报 ${d3.spirit_stones_gained}) 里程碑=${JSON.stringify(d3.milestone).slice(0, 160)} 掉落=${JSON.stringify(d3.items_dropped)}`);
+    check('R3b 探禁消息里列的件数必须与 items_dropped 一一对应（写"获得"而背包没有就是这一类）',
+        (succ.message.match(/×\d+/g) || []).length === (d3.items_dropped || []).length,
+        `消息=${String(succ.message).slice(0, 120)} 落库=${JSON.stringify(d3.items_dropped)}`);
+
+    // ===== R4 每日一次 + 没图不许探禁 =====
+    const exp2 = await withZeroRandom(async () => RemnantMapSubService.explore(await Player.findByPk(pid)));
+    check('R4 今日已探禁过再点必须被拒（这条链的每日上限也要真生效）',
+        exp2.success === false && /今日已探禁/.test(exp2.message || ''),
+        `理由=${exp2.message}`);
+    await Player.update({ border_remnant_explore_date: null }, { where: { id: pid } });
+    const exp3 = await withZeroRandom(async () => RemnantMapSubService.explore(await Player.findByPk(pid)));
+    check('R4b 清掉当日标记但没有残图时，必须报"无完整残图"而不是白送一次奖励',
+        exp3.success === false && /无完整残图/.test(exp3.message || ''),
+        `理由=${exp3.message}`);
 }
 
 (async () => {

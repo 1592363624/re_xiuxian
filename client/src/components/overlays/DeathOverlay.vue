@@ -20,6 +20,7 @@ import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import apiClient from '../../api'
 import { formatNumber } from '../../utils/format'
+import { formatBeijing } from '../../utils/time'
 import AppButton from '../ui/AppButton.vue'
 
 const playerStore = usePlayerStore()
@@ -150,7 +151,7 @@ const handleLogout = () => {
           </div>
           <div v-if="deathTime" class="flex justify-between text-sm">
             <span class="text-fg-faint">陨落时刻</span>
-            <span class="text-fg-secondary num">{{ deathTime.toLocaleString('zh-CN') }}</span>
+            <span class="text-fg-secondary num">{{ formatBeijing(deathTime, { seconds: false }) }}</span>
           </div>
           <div class="flex justify-between text-sm">
             <span class="text-fg-faint">剩余修为</span>

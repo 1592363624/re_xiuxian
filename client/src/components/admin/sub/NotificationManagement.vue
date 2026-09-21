@@ -95,6 +95,7 @@
  * 负责发送全服公告和管理通知列表
  */
 import { ref, reactive, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import { deleteNotification, sendAnnouncement, getAdminNotifications } from '../../../api/admin'
 import AppButton from '../../ui/AppButton.vue'
@@ -211,15 +212,8 @@ const getPriorityClass = (priority) => {
  */
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(dateStr, { fallback: '-' })
 }
 
 // 暴露刷新方法给父组件

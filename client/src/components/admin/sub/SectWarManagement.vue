@@ -310,6 +310,7 @@
  * 参考：server/routes/admin_sect_war.js
  */
 import { ref, reactive, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
 import AppButton from '../../ui/AppButton.vue'
@@ -761,14 +762,8 @@ const confirmSettleProduction = () => {
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
   try {
-    const d = new Date(dateStr)
-    if (isNaN(d.getTime())) return String(dateStr)
-    const yyyy = d.getFullYear()
-    const MM = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    const HH = String(d.getHours()).padStart(2, '0')
-    const mm = String(d.getMinutes()).padStart(2, '0')
-    return `${yyyy}-${MM}-${dd} ${HH}:${mm}`
+    // 统一按北京时间展示（固定 UTC+8）
+    return formatBeijing(dateStr, { seconds: false, fallback: String(dateStr) })
   } catch {
     return String(dateStr)
   }

@@ -379,6 +379,7 @@
  * 所有数据通过 api/bounty 模块调用后端，前端只做展示与接口调用。
  */
 import { ref, computed, onMounted } from 'vue'
+import { formatBeijing } from '../../utils/time'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { formatCompact } from '../../utils/format'
@@ -494,9 +495,8 @@ function statusBadgeTone(status) {
  * 格式化时间
  */
 function formatTime(timeStr) {
-  if (!timeStr) return '-'
-  const d = new Date(timeStr)
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  // 统一按北京时间展示（固定 UTC+8）
+  return formatBeijing(timeStr, { dateStyle: 'short', seconds: false, fallback: '-' })
 }
 
 /**

@@ -310,6 +310,7 @@
  * 所有操作均通过 admin_meditation API 调用后端，前端只做展示与接口调用。
  */
 import { ref, reactive, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
 import {
@@ -600,8 +601,8 @@ const bottleneckStateTextClass = (state) => {
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
   try {
-    const d = new Date(dateStr)
-    return d.toLocaleString('zh-CN', { hour12: false })
+    // 统一按北京时间展示（固定 UTC+8）
+    return formatBeijing(dateStr, { fallback: dateStr })
   } catch {
     return dateStr
   }

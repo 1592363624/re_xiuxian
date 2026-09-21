@@ -6,13 +6,13 @@
  *
  * 表结构：ai_configs
  *   - id: 自增主键
- *   - provider: 提供商标识（openai/deepseek/moonshot 等，对应 ai_config.json 的 providers 键）
+ *   - provider: 提供商标识（现仅 openai，对应 ai_config.json 的 providers 键）
  *   - display_name: 显示名称（中文友好名）
  *   - base_url: API 基础 URL（含版本号路径，如 https://api.deepseek.com/v1）
  *   - model: 模型名称（如 gpt-4o、deepseek-chat）
  *   - encrypted_api_key: AES-256-CBC 加密后的 API Key
  *   - is_active: 是否启用（同一时间仅允许一条 is_active=1 的记录生效）
- *   - protocol: 通信协议（openai / anthropic）
+ *   - protocol: 通信协议（现恒为 openai，仅支持 OpenAI 兼容接口）
  *   - temperature: 采样温度
  *   - max_tokens: 最大输出 token 数
  *   - timeout: 请求超时时间（毫秒）
@@ -34,8 +34,7 @@ const AiConfig = sequelize.define('AiConfig', {
         comment: '主键 ID'
     },
 
-    // 提供商标识，对应 ai_config.json 的 providers 节点键名
-    // 如 openai / deepseek / moonshot / anthropic / qwen / zhipu / xiaomi / custom 等
+    // 提供商标识，对应 ai_config.json 的 providers 节点键名（现仅保留 openai）
     provider: {
         type: DataTypes.STRING(50),
         allowNull: false,
@@ -71,12 +70,12 @@ const AiConfig = sequelize.define('AiConfig', {
         comment: 'AES-256-CBC 加密后的 API Key'
     },
 
-    // 通信协议：openai（默认，兼容所有 OpenAI 协议模型）或 anthropic
+    // 通信协议：现恒为 openai（仅支持 OpenAI 兼容接口），字段保留以兼容历史数据
     protocol: {
         type: DataTypes.STRING(20),
         allowNull: false,
         defaultValue: 'openai',
-        comment: '通信协议：openai / anthropic'
+        comment: '通信协议：openai（唯一支持项）'
     },
 
     // 采样温度（0-2，值越大随机性越强）

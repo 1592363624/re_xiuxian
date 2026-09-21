@@ -311,6 +311,7 @@
  *   5. 所有接口调用均带 loading 状态与错误处理，错误信息通过 uiStore.showToast 反馈
  */
 import { ref, reactive, computed, onMounted } from 'vue'
+import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
 import AppButton from '../../ui/AppButton.vue'
@@ -792,9 +793,8 @@ const formatHp = (hpStr) => {
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
   try {
-    const d = new Date(dateStr)
-    if (isNaN(d.getTime())) return dateStr
-    return d.toLocaleString('zh-CN', { hour12: false })
+    // 统一按北京时间展示（固定 UTC+8）
+    return formatBeijing(dateStr, { fallback: dateStr })
   } catch {
     return dateStr
   }
