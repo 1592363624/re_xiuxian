@@ -14,6 +14,7 @@
  */
 
 const { DataTypes } = require('sequelize');
+const { readJsonColumn } = require('./jsonColumn');
 const sequelize = require('../config/database');
 
 const DungeonRecord = sequelize.define('DungeonRecord', {
@@ -73,9 +74,7 @@ const DungeonRecord = sequelize.define('DungeonRecord', {
         allowNull: true,
         get() {
             // 自动反序列化 JSON 字段
-            const raw = this.getDataValue('items_gained');
-            if (!raw) return [];
-            try { return JSON.parse(raw); } catch (e) { return []; }
+            return readJsonColumn('dungeonRecord', 'items_gained', this.getDataValue('items_gained'), []);
         },
         set(value) {
             this.setDataValue('items_gained', Array.isArray(value) ? JSON.stringify(value) : value);

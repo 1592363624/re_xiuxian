@@ -339,9 +339,11 @@ class RealmService {
 
             // 计算最终突破概率
             // 基础概率来自 realm_breakthrough.json 的 breakthrough_probability 字段
+            // 神通/资料片给的加成走属性解析层（breakthrough_bonus），与预览口径同一个来源
             // 瓶颈已破除（broken）时获得 broken_breakthrough_bonus 加成
             // 瓶颈失败状态（failed）时受 breakthrough_prob_penalty 扣减
-            let baseProb = this.calculateBreakthroughProbability(player, nextRealm);
+            const skillBonus = await this.resolveBreakthroughBonus(player);
+            let baseProb = this.calculateBreakthroughProbability(player, nextRealm, skillBonus);
             if (player.bottleneck_state === 'broken') {
                 baseProb += (btCfg.broken_breakthrough_bonus || 0);
             } else if (player.bottleneck_state === 'failed') {
@@ -494,7 +496,7 @@ class RealmService {
      * @param {Object} nextRealm - 下一境界配置
      * @returns {number} 成功率 (0-100)
      */
-    calculateBreakthroughProbability(player, nextRealm) {
+    calculateBreakthroughProbability(player, nextRealm, extraBonus = 0) {
         const currentRealm = this.getRealmByName(player.realm);
         if (!currentRealm || !nextRealm) {
             throw new Error('境界配置不存在，无法计算突破概率');
@@ -504,7 +506,26 @@ class RealmService {
             throw new Error(`境界【${currentRealm.name}】未配置突破成功率，请检查配置文件`);
         }
 
-        return currentRealm.breakthrough_probability;
+        // extraBonus 是"百分点"，来自属性注册表（神通折进 breakthrough_bonus，见 game/combat/skillEffects.js）
+        const bonus = Math.max(0, Number(extraBonus) || 0);
+        return Math.min(100, currentRealm.breakthrough_probability + bonus);
+    }
+
+    /**
+     * 取玩家身上的突破加成（百分点）。
+     * 走属性解析层而不是 player.attributes 那份建号快照：装备/功法/资料片给的加成才看得见。
+     * 解析失败按 0 处理——突破不该因为一个加成来源挂掉。
+     */
+    async resolveBreakthroughBonus(player) {
+        try {
+            // 懒加载：CombatResolver → AttributeService → RealmService 会成环
+            const CombatResolver = require('../combat/CombatResolver');
+            const resolved = await CombatResolver.resolveCombatStats(player);
+            return Number(resolved.stats?.breakthrough_bonus) || 0;
+        } catch (error) {
+            console.warn(`[RealmService] 突破加成解析失败，按 0 处理: ${error.message}`);
+            return 0;
+        }
     }
 }
 

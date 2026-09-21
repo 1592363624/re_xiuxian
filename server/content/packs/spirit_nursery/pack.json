@@ -1,0 +1,8 @@
+{
+  "id": "spirit_nursery",
+  "name": "黄枫谷药圃",
+  "version": "1.0.0",
+  "enabled": true,
+  "priority": 90,
+  "description": "以《凡人修仙传》黄枫谷药园与《了不起的修仙模拟器》的灵植炼丹循环为参照的种植型资料片：两株新灵草、两粒新种、一条丹方、一处洞府景观、一处放养场所，全部为数据，不含代码。它专门走本轮刚登记进内容层的那几条集合（cave_data 的灵种、行脚商货摊、景观 与 spirit_beast_pasture_data 的放养场所），用来证明只往内容里加条目就能扩出一整条玩法链。刻意没有新增洞府设施：设施等级是一设施一列存在 player_caves 上，光加内容没有列，CaveService.getFacilityTypes() 会把它筛掉并响一次日志。"
+}

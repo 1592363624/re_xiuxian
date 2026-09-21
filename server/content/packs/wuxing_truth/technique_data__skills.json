@@ -1,0 +1,15 @@
+{
+  "dataset": "technique_data",
+  "into": "skills",
+  "comment": "五行斡旋：本资料片 five_element_power 属性的出手机会，damage_profile 指向同目录 combat_formulas.json 登记的档位。",
+  "add": [
+    {
+      "id": "five_element_burst",
+      "name": "五行斡旋",
+      "element": "none",
+      "description": "五行流转成一击，走五行之力伤害档位，被五行抗性减免。",
+      "damage_profile": "player_five_element",
+      "effects": { "extra_damage_rate": 0.18, "trigger_chance": 0.12 }
+    }
+  ]
+}

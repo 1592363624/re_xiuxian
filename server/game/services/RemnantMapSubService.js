@@ -18,6 +18,7 @@
  * 配置：border_military_data.json#remnant_map
  */
 const { infrastructure } = require('../../modules');
+const { grantItems } = require('../items/itemGrant');
 const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 const BorderMilitaryService = require('./BorderMilitaryService');
@@ -26,7 +27,6 @@ const sequelize = require('../../config/database');
 
 // 单例状态
 let _initialized = false;
-let _config = null;
 
 class RemnantMapSubService {
     /**
@@ -34,30 +34,19 @@ class RemnantMapSubService {
      */
     initialize() {
         if (_initialized) return;
-        try {
-            _config = configLoader.getConfig('border_military_data');
-        } catch (e) {
-            console.warn('[RemnantMapSubService] 配置 border_military_data 未加载:', e.message);
+        if (!configLoader.peekConfig('border_military_data')) {
+            console.warn('[RemnantMapSubService] 配置 border_military_data 未加载，子服务不可用');
             return;
         }
-        if (!_config) return;
         _initialized = true;
         console.log('[RemnantMapSubService] 残图匣子服务初始化完成');
     }
 
     /**
-     * 获取配置（懒加载兜底）
+     * 获取配置：每次都现读（为什么不再缓存在模块变量里，见 ConfigLoader.peekConfig）
      */
     _getConfig() {
-        if (!_initialized || !_config) {
-            try {
-                _config = configLoader.getConfig('border_military_data');
-                _initialized = !!_config;
-            } catch (e) {
-                return null;
-            }
-        }
-        return _config;
+        return configLoader.peekConfig('border_military_data');
     }
 
     /**
@@ -338,7 +327,7 @@ class RemnantMapSubService {
             const expGained = self._randomInt(expRange[0], expRange[1]);
             const stoneRange = exploreConfig.spirit_stone_range || [200, 800];
             const stonesGained = self._randomInt(stoneRange[0], stoneRange[1]);
-            const drops = self._rollDrops(exploreConfig.item_drops);
+            let drops = self._rollDrops(exploreConfig.item_drops);
 
             // 更新玩家
             freshPlayer.border_military_merit_total = (freshPlayer.border_military_merit_total || 0) + meritGained;
@@ -348,15 +337,10 @@ class RemnantMapSubService {
             freshPlayer.border_remnant_explore_date = today;
             await freshPlayer.save({ transaction: t });
 
-            // 发放物品
+            // 发放物品：只把真发到的留在 drops 里（它既进玩家消息也进返回给界面的 items_dropped）
             if (drops.length > 0) {
-                try {
-                    for (const drop of drops) {
-                        await InventoryService.addItem(freshPlayer.id, drop.key, drop.quantity, t);
-                    }
-                } catch (e) {
-                    console.warn('[RemnantMapSubService] 物品发放失败（不影响主线）:', e.message);
-                }
+                const grant = await grantItems(freshPlayer.id, drops, t, { label: '战线·探禁奖励' });
+                drops = grant.granted.map(g => ({ key: g.item_key, quantity: g.quantity, item_name: g.item_name }));
             }
 
             await t.commit();
@@ -366,7 +350,7 @@ class RemnantMapSubService {
 
             return {
                 success: true,
-                message: `探禁成功！获得军功 ${meritGained}、灵石 ${stonesGained}、修为 ${expGained}${drops.length > 0 ? `、物品 ${drops.map(d => d.key + '×' + d.quantity).join(', ')}` : ''}${milestoneResult.triggered ? `；里程碑达成：${milestoneResult.title}` : ''}`,
+                message: `探禁成功！获得军功 ${meritGained}、灵石 ${stonesGained}、修为 ${expGained}${drops.length > 0 ? `、物品 ${drops.map(d => (d.item_name || d.key) + '×' + d.quantity).join(', ')}` : ''}${milestoneResult.triggered ? `；里程碑达成：${milestoneResult.title}` : ''}`,
                 data: {
                     merit_gained: meritGained,
                     spirit_stones_gained: stonesGained,

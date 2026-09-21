@@ -30,7 +30,11 @@ function registerAdventureState() {
             try {
                 const adventure = await PlayerAdventure.findOne({
                     where: { player_id: playerId, status: 'in_progress' },
-                    order: [['created_at', 'DESC']]
+                    // models/playerAdventure.js 没开 underscored，表里只有 createdAt 这一列
+                    // （实测 re_xiuxian_test：player_adventures.createdAt / updatedAt）。
+                    // 写 'created_at' 会让这条 SQL 直接报 Unknown column，被下面的 catch 吞成
+                    // "{ is_adventuring: false }" —— 玩家正在历练也永远读不出来。
+                    order: [['createdAt', 'DESC']]
                 });
                 if (!adventure) return snapshot;
 

@@ -151,7 +151,9 @@
         "merit_range": [1, 3],
         "item_drops": [
           { "key": "cangkun_remnant_fragment_a", "drop_rate": 0.20, "quantity_range": [1, 1] },
-          { "key": "cangkun_remnant_fragment_b", "drop_rate": 0.15, "quantity_range": [1, 1] }
+          { "key": "cangkun_remnant_fragment_b", "drop_rate": 0.15, "quantity_range": [1, 1] },
+          { "key": "cangkun_remnant_fragment_c", "drop_rate": 0.12, "quantity_range": [1, 1] },
+          { "key": "cangkun_remnant_fragment_d", "drop_rate": 0.10, "quantity_range": [1, 1] }
         ],
         "beast_exp": 50
       },

@@ -38,12 +38,37 @@ const PlayerAscension = require('../../models/playerAscension');
 const sequelize = require('../../config/database');
 const InventoryService = require('./InventoryService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
+const { itemName, withItemNames } = require('../items/itemNaming');
 const { Op } = require('sequelize');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 
 class GamblingStoneService {
     static _initialized = false;
     static _config = null;
+
+    /**
+     * 可切的切法清单以内容为准（`gambling_stone_data.cut_methods`）。
+     * 以前路由层与这里的错误提示各自写死一份 rough/fine/divine_sense，
+     * 资料片加一种切法会被路由直接挡掉。
+     * @returns {string[]}
+     */
+    static cutMethodKeys() {
+        return Object.keys(this._config?.cut_methods || {});
+    }
+
+    /**
+     * 赌石品质序列：按内容里每个品质自己的 `tier` 由低到高排。
+     * 改造前这份列表在两个地方各抄一遍，资料片加一档品质（或改 tier 顺序）之后，
+     * 线索生成会把新品质当成"不在表里"而算出 index = -1。
+     * @returns {string[]}
+     */
+    static _qualityKeys() {
+        const qualities = this._config?.qualities || {};
+        return Object.entries(qualities)
+            .filter(([, cfg]) => cfg && Number.isFinite(Number(cfg.tier)))
+            .sort((a, b) => Number(a[1].tier) - Number(b[1].tier))
+            .map(([key]) => key);
+    }
 
     /**
      * 初始化服务（从 ConfigLoader 读取 gambling_stone_data 配置）
@@ -176,7 +201,7 @@ class GamblingStoneService {
     static _generateClues(realQuality, skillLevel, origin) {
         const clueCfg = this._config.clues;
         const qualities = this._config.qualities;
-        const qualityList = ['common', 'spirit_vein', 'treasure_glow', 'fairy_mist'];
+        const qualityList = this._qualityKeys();
         const realQualityIdx = qualityList.indexOf(realQuality);
 
         // 假线索基础概率30%，熟练度每级降低0.5%
@@ -627,7 +652,7 @@ class GamblingStoneService {
             const methodCfg = this._config.cut_methods[cutMethod];
             if (!methodCfg) {
                 await t.rollback();
-                return { success: false, message: '切法无效，可选：rough/fine/divine_sense' };
+                return { success: false, message: `切法无效，可选：${this.cutMethodKeys().join('/')}` };
             }
 
             // 锁定原石记录
@@ -774,13 +799,17 @@ class GamblingStoneService {
             await stone.save({ transaction: t });
             await t.commit();
 
+            // 库里存的仍是引用，名字只在这份"给人看"的产出里解析（改 item_data 立刻生效）。
+            // WS 推送和 HTTP 响应共用它，避免两条路只补了一条。
+            const yieldForPlayer = { ...yieldData, items: withItemNames(yieldData.items) };
+
             // 推送通知（commit 后推送，避免数据回滚不一致）
             try {
                 const msg = this._buildCutResultMessage(yieldData, stone, methodCfg);
                 WebSocketNotificationService.notifyPlayer(playerId, {
                     type: 'gambling_stone_cut',
                     message: msg,
-                    data: { stone_id: stoneId, yield: yieldData, curse_triggered: yieldData.curse_triggered }
+                    data: { stone_id: stoneId, yield: yieldForPlayer, curse_triggered: yieldData.curse_triggered }
                 });
 
                 // 稀有掉落全服广播
@@ -808,12 +837,9 @@ class GamblingStoneService {
                     cut_method_name: methodCfg.name,
                     cut_cost: cutCost.toString(),
                     yield: {
+                        ...yieldForPlayer,
                         spirit_stones: yieldData.spirit_stones.toString(),
-                        cultivation: yieldData.cultivation.toString(),
-                        items: yieldData.items,
-                        ldc: yieldData.ldc,
-                        rare_drops: yieldData.rare_drops,
-                        curse_triggered: yieldData.curse_triggered
+                        cultivation: yieldData.cultivation.toString()
                     },
                     yield_value: yieldValue.toString(),
                     net_profit: (yieldValue - Number(cutCost)).toString(),
@@ -843,7 +869,7 @@ class GamblingStoneService {
         if (yieldData.cultivation > 0) parts.push(`修为+${yieldData.cultivation}`);
         if (yieldData.ldc > 0) parts.push(`LDC+${yieldData.ldc}`);
         if (yieldData.items.length > 0) {
-            const itemStr = yieldData.items.map(i => `${i.item_id}×${i.quantity}`).join('、');
+            const itemStr = yieldData.items.map(i => `${itemName(i.item_id) || i.item_id}×${i.quantity}`).join('、');
             parts.push(`物品：${itemStr}`);
         }
         if (yieldData.rare_drops.length > 0) {
@@ -870,20 +896,23 @@ class GamblingStoneService {
                 offset: offset
             });
 
-            const records = rows.map(r => ({
-                id: r.id,
-                origin: r.origin,
-                origin_name: this._config.origins[r.origin]?.name,
-                quality: r.quality,
-                real_quality: r.real_quality,
-                real_quality_name: this._config.qualities[r.real_quality]?.name,
-                cut_method: r.cut_method,
-                cut_method_name: this._config.cut_methods[r.cut_method]?.name,
-                cut_at: r.cut_at,
-                cut_cost: r.cut_cost.toString(),
-                yield: r.yield_data,
-                yield_value: r.yield_value.toString()
-            }));
+            const records = rows.map(r => {
+                const y = r.yield_data;
+                return {
+                    id: r.id,
+                    origin: r.origin,
+                    origin_name: this._config.origins[r.origin]?.name,
+                    quality: r.quality,
+                    real_quality: r.real_quality,
+                    real_quality_name: this._config.qualities[r.real_quality]?.name,
+                    cut_method: r.cut_method,
+                    cut_method_name: this._config.cut_methods[r.cut_method]?.name,
+                    cut_at: r.cut_at,
+                    cut_cost: r.cut_cost.toString(),
+                    yield: y ? { ...y, items: withItemNames(y.items) } : y,
+                    yield_value: r.yield_value.toString()
+                };
+            });
 
             return {
                 success: true,
@@ -1082,7 +1111,7 @@ class GamblingStoneService {
             // 透示真实品质（不直接告诉，而是给一条真实线索）
             const clues = stone.clues || {};
             const realQuality = stone.real_quality;
-            const qualityList = ['common', 'spirit_vein', 'treasure_glow', 'fairy_mist'];
+            const qualityList = this._qualityKeys();
             const realQualityIdx = qualityList.indexOf(realQuality);
 
             // 随机选一个维度透示真实线索

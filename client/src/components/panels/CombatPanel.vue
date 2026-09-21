@@ -169,7 +169,7 @@ const handleAttack = async () => {
 
     if (result.rewards?.items && result.rewards.items.length > 0) {
       uiStore.addLog({
-        content: `获得物品: ${result.rewards.items.map(r => r.item_id + 'x' + r.quantity).join('、')}`,
+        content: `获得物品: ${result.rewards.items.map(r => (r.item_name || r.item_id) + 'x' + r.quantity).join('、')}`,
         type: 'loot',
         actorId: 'self'
       })
@@ -223,7 +223,7 @@ const handleUseSkill = async (skillIndex) => {
 
     if (result.rewards?.items && result.rewards.items.length > 0) {
       uiStore.addLog({
-        content: `获得物品: ${result.rewards.items.map(r => r.item_id + 'x' + r.quantity).join('、')}`,
+        content: `获得物品: ${result.rewards.items.map(r => (r.item_name || r.item_id) + 'x' + r.quantity).join('、')}`,
         type: 'loot',
         actorId: 'self'
       })

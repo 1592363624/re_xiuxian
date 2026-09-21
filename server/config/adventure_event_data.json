@@ -1,0 +1,135 @@
+{
+  "_comment": "历练事件内容。改造前分四份抄在 AdventureEventService 的代码里：事件模板 loadEventTemplates()、抽取权重 selectEventType()、AI 事件标题 getEventTitle()、AI 保底经验 getDefaultRewards()，四份都按同一组 type 各抄一遍。后果有两个：内容层的启动期校验（物品引用、掉落键、属性键）看不见它们 —— treasure_2 的 ancient_token 指着一条不存在的物品躺了很久，玩家领到的是一条既没名字也没定义的背包行；资料片想加一类事件得更改代码，只加 JSON 加不进来。现在四份合一：加事件＝加条目，加一类＝在 event_types 里加一条（weight 为 0 等于永远抽不到，启动期会报）。type 还必须是 player_adventures.event_type 那个 ENUM 里的值，新增一类要改表，先走业主。数值与改造前逐字一致。",
+  "event_types": {
+    "peaceful": { "label": "修炼感悟", "weight": 40, "base_exp": { "min": 10, "max": 30 } },
+    "combat": { "label": "战斗遭遇", "weight": 35, "base_exp": { "min": 50, "max": 150 } },
+    "treasure": { "label": "意外发现", "weight": 10, "base_exp": { "min": 20, "max": 60 } },
+    "encounter": { "label": "途中偶遇", "weight": 10, "base_exp": { "min": 10, "max": 40 } },
+    "discovery": { "label": "新见所闻", "weight": 5, "base_exp": { "min": 15, "max": 45 } }
+  },
+  "events": [
+    {
+      "id": "peaceful_1",
+      "type": "peaceful",
+      "title": "灵气充盈",
+      "description": "此地的灵气颇为充盈，你寻得一处僻静之地，静坐吐纳，吸纳天地灵气",
+      "duration": 60,
+      "rewards": { "exp": 10, "mp": 5 }
+    },
+    {
+      "id": "peaceful_2",
+      "type": "peaceful",
+      "title": "心境平和",
+      "description": "漫步于山水之间，心中杂念渐消，道心愈发通透",
+      "duration": 45,
+      "rewards": { "exp": 8, "wisdom": 1 }
+    },
+    {
+      "id": "peaceful_3",
+      "type": "peaceful",
+      "title": "偶有所悟",
+      "description": "观摩天地自然之道，忽然心有所感，仿佛触摸到了某条大道的一丝脉络",
+      "duration": 90,
+      "rewards": { "exp": 15, "realm_insight": 1 }
+    },
+    {
+      "id": "combat_1",
+      "type": "combat",
+      "title": "妖兽袭击",
+      "description": "林中忽然窜出一只凶兽，眼中闪着血红的光芒，似乎已将你锁定为目标",
+      "duration": 120,
+      "monsterType": "beast",
+      "rewards": { "exp": 50 }
+    },
+    {
+      "id": "combat_2",
+      "type": "combat",
+      "title": "拦路劫修",
+      "description": "一道黑影从林中窜出，却是一名等级不低的劫修，眼中满是贪婪之色",
+      "duration": 150,
+      "monsterType": "cultivator",
+      "rewards": { "exp": 80, "spirit_stones": true }
+    },
+    {
+      "id": "combat_3",
+      "type": "combat",
+      "title": "守护灵兽",
+      "description": "你惊动了一只正在守护某物的灵兽，它怒吼着向你扑来",
+      "duration": 180,
+      "monsterType": "guardian_beast",
+      "rewards": { "exp": 100, "treasure": true }
+    },
+    {
+      "id": "treasure_1",
+      "type": "treasure",
+      "title": "灵草发现",
+      "description": "拨开草丛，你发现了一株散发着淡淡荧光的灵草，正是炼制丹药的稀有材料",
+      "duration": 30,
+      "rewards": { "items": ["spirit_herb"] }
+    },
+    {
+      "id": "treasure_2",
+      "type": "treasure",
+      "title": "前人遗府",
+      "description": "在一处隐蔽的崖壁下，你发现了一处前人遗留下的洞府遗迹",
+      "duration": 60,
+      "rewards": { "items": ["ancient_token"], "exp": 30 }
+    },
+    {
+      "id": "treasure_3",
+      "type": "treasure",
+      "title": "灵泉",
+      "description": "你发现了一处天然的灵泉，泉水散发着诱人的灵气",
+      "duration": 45,
+      "rewards": { "exp": 25, "mp": 20 }
+    },
+    {
+      "id": "encounter_1",
+      "type": "encounter",
+      "title": "神秘散修",
+      "description": "偶遇一位行色匆匆的散修，彼此点头示意后各自离去",
+      "duration": 20,
+      "rewards": { "exp": 5, "information": "附近有异宝" }
+    },
+    {
+      "id": "encounter_2",
+      "type": "encounter",
+      "title": "高人指点",
+      "description": "一位灰袍老者从你身旁经过，深深看了你一眼，留下一句指点后飘然远去",
+      "duration": 30,
+      "rewards": { "exp": 20, "technique_hint": true }
+    },
+    {
+      "id": "encounter_3",
+      "type": "encounter",
+      "title": "坊市见闻",
+      "description": "来到一处小型坊市，人声鼎沸，各种修仙者在此交易",
+      "duration": 40,
+      "rewards": { "exp": 15, "trade_opportunity": true }
+    },
+    {
+      "id": "discovery_1",
+      "type": "discovery",
+      "title": "奇景",
+      "description": "站在高处远眺，云海翻涌，气象万千，令你心境开阔",
+      "duration": 35,
+      "rewards": { "exp": 12, "realm_insight": 1 }
+    },
+    {
+      "id": "discovery_2",
+      "type": "discovery",
+      "title": "古迹",
+      "description": "此处似乎是一处远古遗迹，虽已斑驳，但仍能感受到当年的辉煌",
+      "duration": 50,
+      "rewards": { "exp": 20, "ancient_knowledge": true }
+    },
+    {
+      "id": "discovery_3",
+      "type": "discovery",
+      "title": "天然阵法",
+      "description": "此处天地灵气流转有异，似乎有一处天然形成的阵法",
+      "duration": 60,
+      "rewards": { "exp": 25, "array_insight": 1 }
+    }
+  ]
+}

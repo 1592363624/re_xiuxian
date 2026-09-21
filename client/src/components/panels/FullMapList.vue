@@ -54,7 +54,9 @@ const fetchData = async () => {
     allMaps.value = configRes.data.data.maps
     currentMapId.value = infoRes.data.data.current_map?.id
     playerRealm.value = playerStore.player?.realm || '凡人'
-    playerSpeed.value = playerStore.player?.attributes?.speed || 10
+    // 速度取服务端解析后的值：player.attributes.speed 是旧属性管线留下的基数，
+    // 装备/功法/灵根加成都不在里面，照它显示就成了"面板写 10、赶路按真实速度算"
+    playerSpeed.value = Number(infoRes.data?.data?.player_speed) || 10
 
     // 优化：使用批量接口一次性获取所有地图的移动消耗
     // 旧实现对每个地图发一次 /calculate-move-cost 请求（N 次请求），

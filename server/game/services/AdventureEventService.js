@@ -18,6 +18,10 @@ const { infrastructure } = require('../../modules');
 const configLoader = infrastructure.ConfigLoader;
 // 修复 B24：怪物属性需基于境界配置计算，避免硬编码 hp:100/atk:15/def:5
 const RealmService = require('../core/RealmService');
+// 内容声明层 + 境界基础值：与野外怪、副本怪、世界 BOSS 同一套 stats / power_multiplier 规则
+const { buildRealmMonsterStats } = require('../combat/MonsterStats');
+const { withItemNames } = require('../items/itemNaming');
+const { grantItems } = require('../items/itemGrant');
 
 /**
  * 工具函数：根据怪物境界名计算怪物战斗属性
@@ -26,35 +30,21 @@ const RealmService = require('../core/RealmService');
  * 导致高境界地图的怪物（如化神期地图的怪）也是 100 HP，玩家一击必杀毫无挑战；
  * 低境界地图的怪物反而 15 攻击可能击杀凡人玩家。
  *
- * 现在根据怪物配置的 realm 字段查询 realm_breakthrough.json，
- * 取对应境界的 base_hp / base_atk / base_def 作为怪物属性，
- * 保证怪物强度与境界一致。
+ * 数值表现在只在 MonsterStats.buildRealmMonsterStats 一处：境界基础值查 realm_breakthrough，
+ * 再并上 map_data 里这只怪声明的 stats / power_multiplier。以前"按境界给怪配数值"在
+ * 历练、AI 降级模板、野外遭遇各存了一份，改境界表只能改到其中几处。
  *
  * @param {string} monsterRealm - 怪物境界名（如 "炼气1层"、"凡人"）
  * @param {number} fallbackExp - 兜底经验值
- * @returns {{hp: number, atk: number, def: number, exp_reward: number}}
+ * @param {Object} [monsterConfig] - map_data 里那只怪的原条目（提供 stats / power_multiplier 声明层）
+ * @returns {Object} 整块战斗属性（hp/max_hp/atk/def/speed/exp_reward + 声明的额外属性）
  */
-function computeMonsterStatsByRealm(monsterRealm, fallbackExp = 10) {
-    // 默认值（境界查询失败时兜底）
-    const defaultStats = { hp: 100, atk: 10, def: 5, exp_reward: fallbackExp };
-    if (!monsterRealm) return defaultStats;
-
-    try {
-        const realmConfig = RealmService.getRealmByName(monsterRealm);
-        if (!realmConfig) {
-            console.warn(`[AdventureEventService] 怪物境界配置不存在: ${monsterRealm}，使用默认属性`);
-            return defaultStats;
-        }
-        return {
-            hp: realmConfig.base_hp || 100,
-            atk: realmConfig.base_atk || 10,
-            def: realmConfig.base_def || 5,
-            exp_reward: fallbackExp
-        };
-    } catch (e) {
-        console.warn('[AdventureEventService] 计算怪物属性失败:', e.message);
-        return defaultStats;
-    }
+function computeMonsterStatsByRealm(monsterRealm, fallbackExp = 10, monsterConfig = {}) {
+    return buildRealmMonsterStats(monsterRealm, {
+        expFallback: fallbackExp,
+        enemyConfig: monsterConfig,
+        warnLabel: 'AdventureEventService'
+    });
 }
 
 class AdventureEventService {
@@ -64,7 +54,6 @@ class AdventureEventService {
      */
     constructor(aiService = null) {
         this.aiService = aiService;
-        this.eventTemplates = this.loadEventTemplates();
     }
 
     /**
@@ -107,127 +96,55 @@ class AdventureEventService {
      * @returns {Object} 事件模板
      */
     loadEventTemplates() {
-        return {
-            peaceful: [
-                {
-                    id: 'peaceful_1',
-                    title: '灵气充盈',
-                    description: '此地的灵气颇为充盈，你寻得一处僻静之地，静坐吐纳，吸纳天地灵气',
-                    duration: 60,
-                    rewards: { exp: 10, mp: 5 }
-                },
-                {
-                    id: 'peaceful_2',
-                    title: '心境平和',
-                    description: '漫步于山水之间，心中杂念渐消，道心愈发通透',
-                    duration: 45,
-                    rewards: { exp: 8, wisdom: 1 }
-                },
-                {
-                    id: 'peaceful_3',
-                    title: '偶有所悟',
-                    description: '观摩天地自然之道，忽然心有所感，仿佛触摸到了某条大道的一丝脉络',
-                    duration: 90,
-                    rewards: { exp: 15, realm_insight: 1 }
-                }
-            ],
-            combat: [
-                {
-                    id: 'combat_1',
-                    title: '妖兽袭击',
-                    description: '林中忽然窜出一只凶兽，眼中闪着血红的光芒，似乎已将你锁定为目标',
-                    duration: 120,
-                    monsterType: 'beast',
-                    rewards: { exp: 50, items: true }
-                },
-                {
-                    id: 'combat_2',
-                    title: '拦路劫修',
-                    description: '一道黑影从林中窜出，却是一名等级不低的劫修，眼中满是贪婪之色',
-                    duration: 150,
-                    monsterType: 'cultivator',
-                    rewards: { exp: 80, spirit_stones: true }
-                },
-                {
-                    id: 'combat_3',
-                    title: '守护灵兽',
-                    description: '你惊动了一只正在守护某物的灵兽，它怒吼着向你扑来',
-                    duration: 180,
-                    monsterType: 'guardian_beast',
-                    rewards: { exp: 100, treasure: true }
-                }
-            ],
-            treasure: [
-                {
-                    id: 'treasure_1',
-                    title: '灵草发现',
-                    description: '拨开草丛，你发现了一株散发着淡淡荧光的灵草，正是炼制丹药的稀有材料',
-                    duration: 30,
-                    rewards: { items: ['spirit_herb'] }
-                },
-                {
-                    id: 'treasure_2',
-                    title: '前人遗府',
-                    description: '在一处隐蔽的崖壁下，你发现了一处前人遗留下的洞府遗迹',
-                    duration: 60,
-                    rewards: { items: ['ancient_token'], exp: 30 }
-                },
-                {
-                    id: 'treasure_3',
-                    title: '灵泉',
-                    description: '你发现了一处天然的灵泉，泉水散发着诱人的灵气',
-                    duration: 45,
-                    rewards: { exp: 25, mp: 20 }
-                }
-            ],
-            encounter: [
-                {
-                    id: 'encounter_1',
-                    title: '神秘散修',
-                    description: '偶遇一位行色匆匆的散修，彼此点头示意后各自离去',
-                    duration: 20,
-                    rewards: { exp: 5, information: '附近有异宝' }
-                },
-                {
-                    id: 'encounter_2',
-                    title: '高人指点',
-                    description: '一位灰袍老者从你身旁经过，深深看了你一眼，留下一句指点后飘然远去',
-                    duration: 30,
-                    rewards: { exp: 20, technique_hint: true }
-                },
-                {
-                    id: 'encounter_3',
-                    title: '坊市见闻',
-                    description: '来到一处小型坊市，人声鼎沸，各种修仙者在此交易',
-                    duration: 40,
-                    rewards: { exp: 15, trade_opportunity: true }
-                }
-            ],
-            discovery: [
-                {
-                    id: 'discovery_1',
-                    title: '奇景',
-                    description: '站在高处远眺，云海翻涌，气象万千，令你心境开阔',
-                    duration: 35,
-                    rewards: { exp: 12, realm_insight: 1 }
-                },
-                {
-                    id: 'discovery_2',
-                    title: '古迹',
-                    description: '此处似乎是一处远古遗迹，虽已斑驳，但仍能感受到当年的辉煌',
-                    duration: 50,
-                    rewards: { exp: 20, ancient_knowledge: true }
-                },
-                {
-                    id: 'discovery_3',
-                    title: '天然阵法',
-                    description: '此处天地灵气流转有异，似乎有一处天然形成的阵法',
-                    duration: 60,
-                    rewards: { exp: 25, array_insight: 1 }
-                }
-            ]
-        };
+        const byType = {};
+        for (const entry of this.adventureConfig().events || []) {
+            const list = byType[entry.type] || (byType[entry.type] = []);
+            list.push(entry);
+        }
+        return byType;
     }
+
+    /**
+     * 历练内容（事件模板 + 类型表）。每次都用合并视图，不存构造期快照：
+     * 资料片开关、GM 热更配置之后，下一场历练就该看到新内容。
+     * @returns {Object} adventure_event_data
+     */
+    adventureConfig() {
+        return configLoader.getConfig('adventure_event_data') || { events: [], event_types: {} };
+    }
+
+    /**
+     * 事件类型 → 抽取权重 / 标题 / AI 保底经验，一张表说清（以前是三份按同一组键抄的字典）
+     * @returns {Object} event_types
+     */
+    eventTypes() {
+        return this.adventureConfig().event_types || {};
+    }
+
+    /**
+     * 一类事件的配置（label / weight / base_exp）。类型没声明时退回第一类，
+     * 与改造前 `titles[eventType] || '历练事件'`、`baseExp[eventType] || baseExp.peaceful` 的降级一致。
+     * @param {string} eventType - 事件类型
+     * @returns {Object} 类型配置
+     */
+    typeConfig(eventType) {
+        const types = this.eventTypes();
+        return types[eventType] || types[Object.keys(types)[0]] || {};
+    }
+
+    /**
+     * @param {string} eventType - 事件类型
+     * @returns {Array<Object>} 该类型的模板清单（按内容里的顺序）
+     */
+    templatesForType(eventType) {
+        const byType = this.loadEventTemplates();
+        const list = byType[eventType] || byType[Object.keys(byType)[0]];
+        if (!list || !list.length) {
+            throw new Error('adventure_event_data.events 是空的：没有任何历练事件可发');
+        }
+        return list;
+    }
+
 
     /**
      * 开始历练
@@ -371,25 +288,21 @@ class AdventureEventService {
      * @returns {string} 事件类型
      */
     selectEventType() {
-        const weights = {
-            peaceful: 40,
-            combat: 35,
-            treasure: 10,
-            encounter: 10,
-            discovery: 5
-        };
+        const weights = Object.entries(this.eventTypes())
+            .map(([type, cfg]) => [type, Number(cfg?.weight) || 0]);
 
-        const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
+        const totalWeight = weights.reduce((a, [, w]) => a + w, 0);
         let random = Math.random() * totalWeight;
 
-        for (const [type, weight] of Object.entries(weights)) {
+        for (const [type, weight] of weights) {
             if (random < weight) {
                 return type;
             }
             random -= weight;
         }
 
-        return 'peaceful';
+        // 一类都抽不到 = weight 全为 0：退回内容里声明的第一类（改造前是硬退回 peaceful）
+        return weights.length ? weights[0][0] : null;
     }
 
     /**
@@ -407,7 +320,7 @@ class AdventureEventService {
      * @returns {Object} 事件数据
      */
     generateEventFromTemplate(eventType) {
-        const templates = this.eventTemplates[eventType] || this.eventTemplates.peaceful;
+        const templates = this.templatesForType(eventType);
         const template = templates[Math.floor(Math.random() * templates.length)];
 
         return {
@@ -427,14 +340,7 @@ class AdventureEventService {
      * @returns {string} 标题
      */
     getEventTitle(eventType) {
-        const titles = {
-            peaceful: '修炼感悟',
-            combat: '战斗遭遇',
-            treasure: '意外发现',
-            encounter: '途中偶遇',
-            discovery: '新见所闻'
-        };
-        return titles[eventType] || '历练事件';
+        return this.typeConfig(eventType).label || '历练事件';
     }
 
     /**
@@ -497,15 +403,9 @@ class AdventureEventService {
      * @returns {Object} 奖励
      */
     getDefaultRewards(eventType) {
-        const baseExp = {
-            peaceful: { min: 10, max: 30 },
-            combat: { min: 50, max: 150 },
-            treasure: { min: 20, max: 60 },
-            encounter: { min: 10, max: 40 },
-            discovery: { min: 15, max: 45 }
-        };
-
-        const range = baseExp[eventType] || baseExp.peaceful;
+        // 类型没配 base_exp 时退回内容里第一类的区间（改造前是硬退回 baseExp.peaceful）
+        const types = this.eventTypes();
+        const range = this.typeConfig(eventType).base_exp || types[Object.keys(types)[0]]?.base_exp;
         const exp = range.min + Math.floor(Math.random() * (range.max - range.min));
 
         return { exp };
@@ -581,25 +481,24 @@ class AdventureEventService {
                 base_exp: scaledExp,
                 base_spirit_stones: scaledStones
             };
-            const result = await this.grantRewards(playerId, rewards, transaction);
+            const result = await this.grantRewards(player, rewards, transaction);
 
             // 风险机制：历练可能受伤（损失气血），长时历练受伤概率更高
             const durationType = eventObj?.duration_type || 'medium';
             const durationConfig = this.getAdventureDurationConfig(durationType);
             let injury = null;
             if (Math.random() < (durationConfig.injury_chance || 0)) {
-                // 重新获取玩家（grantRewards 已更新玩家数据）
-                const playerForInjury = await Player.findByPk(playerId, { lock: transaction.LOCK.UPDATE, transaction });
-                if (playerForInjury) {
-                    const currentHp = Number(playerForInjury.hp_current);
-                    const hpLoss = Math.floor(currentHp * (durationConfig.injury_hp_loss_rate || 0.08));
-                    if (hpLoss > 0) {
-                        let newHp = BigInt(playerForInjury.hp_current) - BigInt(hpLoss);
-                        if (newHp < 0n) newHp = 0n;
-                        playerForInjury.hp_current = newHp;
-                        await playerForInjury.save({ transaction });
-                        injury = { hp_loss: hpLoss };
-                    }
+                // 就用同一份锁住的实例：grantRewards 已经在它上面改过并落库，这里读到的是最新值。
+                // 原来这里再补一次 FOR UPDATE（"重新获取玩家"）—— 行本来就锁在手里，补读不加快也不变准，
+                // 只在取锁次序上看着像 adventure→players 的反向，还会留下第二份实例互相覆盖。
+                const currentHp = Number(player.hp_current);
+                const hpLoss = Math.floor(currentHp * (durationConfig.injury_hp_loss_rate || 0.08));
+                if (hpLoss > 0) {
+                    let newHp = BigInt(player.hp_current) - BigInt(hpLoss);
+                    if (newHp < 0n) newHp = 0n;
+                    player.hp_current = newHp;
+                    await player.save({ transaction });
+                    injury = { hp_loss: hpLoss };
                 }
             }
 
@@ -635,6 +534,8 @@ class AdventureEventService {
                 message: '历练完成',
                 rewards: {
                     ...result.granted,
+                    // 落库的 rewards 仍是引用，名字只在这份出参里按 item_data 解析
+                    items: withItemNames(result.granted.items),
                     // 透传提前结束 / 受伤等额外标记，前端可直接 rewards.early_finish 读取
                     early_finish: result.early_finish || false,
                     reward_scale: result.reward_scale || null,
@@ -671,6 +572,9 @@ class AdventureEventService {
             }
             if (plainData.rewards && typeof plainData.rewards === 'string') {
                 plainData.rewards = JSON.parse(plainData.rewards);
+            }
+            if (plainData.rewards?.items) {
+                plainData.rewards = { ...plainData.rewards, items: withItemNames(plainData.rewards.items) };
             }
             
             return plainData;
@@ -741,17 +645,13 @@ class AdventureEventService {
      *      实际是 INSERT，多次获得同一物品会创建多条 quantity=1 记录，
      *      改为 findOrCreate + increment 正确累加数量
      *
-     * @param {number} playerId - 玩家 ID
+     * @param {Object} player - 调用方**已加锁**的玩家实例（同一笔事务里同一行只留一份实例：
+     *   读两次再分别 save，谁后写谁覆盖对方那一份，见 completeAdventure）
      * @param {Object} rewards - 奖励（基础值，未应用境界加成）
-     * @param {Object} [transaction] - 外层事务。传入时全程使用该事务并按 FOR UPDATE 读玩家行，
-     *   使并发结算互相串行化；不传则维持原有的独立写入。
+     * @param {Object} [transaction] - 外层事务；传入时所有写入都挂在这笔事务上，并发结算互相串行化。
      * @returns {Object} 授予结果（granted 字段记录实际发放数值，已含境界加成）
      */
-    async grantRewards(playerId, rewards, transaction = null) {
-        const readOptions = transaction
-            ? { lock: transaction.LOCK.UPDATE, transaction }
-            : undefined;
-        const player = await Player.findByPk(playerId, readOptions);
+    async grantRewards(player, rewards, transaction = null) {
         if (!player) {
             return { success: false, error: '玩家不存在' };
         }
@@ -796,20 +696,17 @@ class AdventureEventService {
         granted.base_spirit_stones = baseStonesValue;
 
         if (rewards.items && Array.isArray(rewards.items)) {
-            for (const itemKey of rewards.items) {
-                // 修复 Item.upsert 错误用法：upsert 依赖主键 id，但传入数据无 id，
-                // 会重复 INSERT 多条 quantity=1 记录，改为 findOrCreate + increment
-                const [itemRecord, created] = await Item.findOrCreate({
-                    where: { player_id: playerId, item_key: itemKey },
-                    defaults: { player_id: playerId, item_key: itemKey, quantity: 1 },
-                    transaction
-                });
-                if (!created) {
-                    // 已有记录则累加数量
-                    itemRecord.quantity = Number(itemRecord.quantity) + 1;
-                    await itemRecord.save({ transaction });
-                }
-                granted.items.push({ item_key: itemKey, quantity: 1 });
+            // 走全仓唯一的"诚实发货门"（game/items/itemGrant.js）。改前这里自己 `Item.findOrCreate + increment`，
+            // 于是四件事同时不成立：
+            //   ① 绕过储物袋容量校验 —— 别的奖励路径（副本/探渊/战线/战斗掉落）都会因背包满而拒发，历练不会；
+            //   ② 不查这件东西配不配发 —— 内容里写错键会静默变成背包里的垃圾行，而不是"没发到"；
+            //   ③ 回执无条件记 `quantity: 1` —— 背包塞不下也照样告诉前端"已发放"（落库的 rewards 与库存两张皮）；
+            //   ④ 每条只肯发 1 件 —— 资料片/新事件想配"给 3 枚"表达不出来，只能回来改这段硬编码。
+            // grantItems 同时吃 `['key']` 与 `[{item_key, quantity}]` 两种写法：老内容照跑，新内容可以带数量。
+            const grant = await grantItems(player.id, rewards.items, transaction, { label: '历练奖励' });
+            granted.items = grant.granted;
+            if (grant.failed.length) {
+                granted.items_failed = grant.failed;
             }
         }
 
@@ -847,10 +744,13 @@ class AdventureEventService {
 
             let monsterResult;
             if (this.aiService) {
+                // 奖励上限取自这张图里最强的一条怪：模型（或被注入的提示词）不许比手绘怪还肥
+                const expCeiling = Math.max(0, ...currentMap.monsters.map(m => Number(m.exp) || 0));
                 monsterResult = await this.aiService.generateMonster({
                     playerRealm: player.realm,
                     mapEnvironment: currentMap.environment,
-                    difficulty: 'normal'
+                    difficulty: 'normal',
+                    expCeiling
                 });
             }
 
@@ -858,17 +758,16 @@ class AdventureEventService {
                 const randomMonster = currentMap.monsters[Math.floor(Math.random() * currentMap.monsters.length)];
                 // 修复 B24：怪物属性基于其境界计算，避免硬编码 hp:100/atk:15/def:5
                 // 这样高境界地图的怪物强度与境界一致，玩家无法一击秒杀高境界怪
-                const monsterStats = computeMonsterStatsByRealm(randomMonster.realm, randomMonster.exp || 10);
+                const monsterStats = computeMonsterStatsByRealm(randomMonster.realm, randomMonster.exp || 10, randomMonster);
                 monsterResult = {
                     success: true,
+                    // 整块递过去：这里以前只挑 hp/atk/def/exp_reward 四个键，
+                    // 于是资料片给这只怪声明的暴击/闪避在野外生效、进历练就凭空消失。
                     monster: {
                         id: randomMonster.id,
                         name: randomMonster.name,
                         realm: randomMonster.realm,
-                        hp: monsterStats.hp,
-                        atk: monsterStats.atk,
-                        def: monsterStats.def,
-                        exp_reward: monsterStats.exp_reward
+                        ...monsterStats
                     },
                     fromAI: false
                 };
@@ -1008,3 +907,5 @@ class AdventureEventService {
 }
 
 module.exports = AdventureEventService;
+// 怪物属性表是纯函数，摊出来给单测直接喂境界与声明（真跑一次历练要连库、还要 AI 状态）
+module.exports.computeMonsterStatsByRealm = computeMonsterStatsByRealm;

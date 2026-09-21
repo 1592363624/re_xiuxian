@@ -125,22 +125,54 @@ export interface BossDetail {
   server_time: string;
 }
 
+/** BOSS 本记释放的技能（服务端 WorldBossSkillManager.executeSkill 的结果） */
+export interface BossCounterSkill {
+  name: string;
+  type: string;
+  damage_multiplier: number;
+  description: string;
+  is_aoe: boolean;
+  is_summon: boolean;
+  is_buff: boolean;
+  /** 本记反击是否暴击 / 被玩家闪避（missed 为真时 damage 为 0） */
+  crit: boolean;
+  missed: boolean;
+  effect: string | null;
+  minions_summoned: Array<Record<string, any>>;
+  buff_applied: Record<string, any> | null;
+  lifesteal_amount: number;
+  boss_hp_recovered: number;
+}
+
 /** 攻击BOSS结果 */
 export interface AttackBossResult {
   attack: {
     skill_id: string;
     damage: number;
     is_crit: boolean;
+    /**
+     * 结算明细。伤害形状收进 combat_formulas.json 的档位之后，服务端回传的是
+     * "用了哪条档位 + 这一记掷出了什么"，不再有 damage_reduce_rate / crit_factor /
+     * random_factor 这类逐项系数（减伤与浮动都在档位里，逐项回传只会和配置对不上）。
+     */
     damage_breakdown: {
       player_atk: number;
       skill_multiplier: number;
       boss_def: number;
-      damage_reduce_rate: number;
-      crit_factor: number;
-      random_factor: number;
+      damage_profile: string;
+      crit: boolean;
+      missed: boolean;
+      external_multiplier: number;
       solo_ratio: number;
-      base_damage: number;
+      team_factor: number;
+      active_participant_count: number;
+      realm_suppression: number;
+      player_realm_rank: number;
+      boss_realm_rank_min: number;
+      elemental_factor: number;
       final_damage: number;
+      beast_assist_damage?: number;
+      beast_atk_bonus?: number;
     };
   };
   boss: {
@@ -156,9 +188,16 @@ export interface AttackBossResult {
     defeated: boolean;
   };
   counter: {
+    /** 玩家实际承受的伤害（道侣护道会分担，所以可能小于 original_damage） */
     damage: number;
+    original_damage: number;
+    damage_profile: string | null;
+    crit: boolean;
+    missed: boolean;
     phase_multiplier: number;
-    boss_skill_factor: number;
+    elemental_factor: number;
+    skill?: BossCounterSkill;
+    bonus_breakdown?: Record<string, number> | null;
   };
   player: {
     battle_hp_before: string;

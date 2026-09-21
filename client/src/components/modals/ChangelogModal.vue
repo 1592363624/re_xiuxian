@@ -30,7 +30,10 @@ const fetchChangelog = async () => {
   isLoading.value = true
   try {
     const res = await apiClient.get('/system/changelog')
-    const commits = res.data
+    // 后端一律回 { code, data }；原来直接拿 res.data 当数组用，Array.isArray 永远是 false，
+    // 于是这份"最新提交"列表从来没显示过，只有本地兜底文案在跑。
+    const body = res.data || res
+    const commits = Array.isArray(body) ? body : body.data
     
     if (Array.isArray(commits) && commits.length > 0) {
       hasCommits.value = true
@@ -141,7 +144,7 @@ watch(() => props.isOpen, (open) => {
                   <div class="flex-1 min-w-0">
                     <p class="text-fg-secondary text-sm leading-relaxed whitespace-pre-wrap">{{ commit.message }}</p>
                     <div class="flex items-center gap-2 mt-1.5">
-                       <span class="text-[10px] text-fg-faint font-mono bg-surface-hover px-1.5 py-0.5 rounded border border-line">{{ commit.sha.substring(0, 7) }}</span>
+                       <span class="text-[10px] text-fg-faint font-mono bg-surface-hover px-1.5 py-0.5 rounded border border-line">{{ commit.sha?.substring(0, 7) }}</span>
                        <span class="text-[10px] text-line-strong">by {{ commit.author }}</span>
                     </div>
                   </div>

@@ -12,6 +12,8 @@
  *   - 兑换宝库物品时复用 InventoryService.addItem，避免重复实现背包入库逻辑
  */
 const sequelize = require('../../config/database');
+const { Op } = require('sequelize');
+const { contentLabel } = require('../content/ContentRegistry');
 const Player = require('../../models/player');
 const PlayerSect = require('../../models/playerSect');
 const InventoryService = require('./InventoryService');
@@ -130,6 +132,24 @@ class SectService {
         }
         // 兜底：通过境界名查配置
         return this._getRealmRank(player.realm);
+    }
+
+    /**
+     * 宗门加成的展示元数据（中文名 + 换算方式），来源是内容 sect_data.global.bonus_labels。
+     *
+     * 以前这两样抄在客户端 SectPanel 里：一份 10 条的中文字典 + "看键名后缀决定怎么换算"的判断，
+     * 而且面板是按字典顺序遍历 bonus 的 —— 内容里新增一种宗门加成，前端不改就**整条不显示**，
+     * 表现是"宗门面板上凭空少一行加成"，没有任何报错。
+     * 键顺序即展示顺序（内容里写一次，各宗门一致）。
+     * @returns {Object} { [bonusKey]: { label, format } }
+     */
+    getBonusMeta() {
+        const labels = this.configLoader?.peekConfig('sect_data', 'global')?.bonus_labels || {};
+        // 只把展示要用的两项交给客户端：资料片经 map 集合加进来的条目会带 id / __content_origin 等内部标记，
+        // 而标签本身允许"字符串（基础配置）/ 对象（资料片）"两种形状，这里统一成 {label, format}。
+        return Object.fromEntries(Object.entries(labels)
+            .filter(([key]) => key !== '_note')
+            .map(([key, meta]) => [key, { label: contentLabel(meta, key), format: (meta && meta.format) || null }]));
     }
 
     /**
@@ -352,6 +372,8 @@ class SectService {
             alignment: sect.alignment,
             element: sect.element,
             bonus: sect.bonus,
+            // 加成的中文名与换算方式（见 getBonusMeta：内容是唯一来源，面板不再抄一份）
+            bonus_meta: this.getBonusMeta(),
             contribution: playerSect.contribution,
             role: playerSect.role,
             joined_at: playerSect.joined_at,
@@ -610,15 +632,13 @@ class SectService {
             throw new AppError('宗门配置已失效', 500, ErrorCodes.CONFIG_ERROR);
         }
 
-        // 检查并重置每日任务（读取时若跨天则清零已完成列表和已接取列表）
-        let needsSave = this._checkAndResetDailyQuests(playerSect);
-        if (needsSave) {
-            await playerSect.save();
-        }
+        // 跨天清零：以前是"无锁读 → 整列写回 []"，会把并发提交的加锁写入吃掉，
+        // 详见 _resetDailyQuestsForRead 的注释。
+        const shown = await this._resetDailyQuestsForRead(playerSect);
 
         // 标记今日是否已完成、是否已接取
-        const completedIds = playerSect.daily_quests_completed || [];
-        const acceptedIds = playerSect.quests_accepted || [];
+        const completedIds = shown.daily_quests_completed || [];
+        const acceptedIds = shown.quests_accepted || [];
         const quests = (sect.quests || []).map(q => ({
             id: q.id,
             name: q.name,
@@ -635,7 +655,7 @@ class SectService {
             sect_id: sect.id,
             sect_name: sect.name,
             quests: quests,
-            quests_reset_at: playerSect.quests_reset_at
+            quests_reset_at: shown.quests_reset_at
         };
     }
 
@@ -860,6 +880,43 @@ class SectService {
             return true; // 标记已修改，需调用方保存
         }
         return false;
+    }
+
+    /**
+     * GET 面板用的跨天清零：**带条件写**，不是"无锁读 → 整列写回"。
+     *
+     * 旧写法会吃掉玩家的日常任务完成标记：
+     *   1) 任务面板读到昨天那份已过期的（daily_quests_completed 还是空）；
+     *   2) 与此同时 submitQuest 走的是加锁写入，把今天完成的 Q 记进去、并把 quests_reset_at 推到明天；
+     *   3) 面板那次 save() 无条件把整列写回 []。
+     * 标记没了，可奖励已经在 2) 发过 —— 同一个日常任务今天还能再领一遍。跟太一门
+     * claimTaskReward 双领是同一类，只是要跨过零点才撞得上。
+     *
+     * 条件用"这一行**仍然**到期"，不用"仍等于我读到的那个时间戳"：后者要把 DATETIME 原样
+     * 往返一遍，秒/时区精度一丢就永远匹配不上，等于悄悄退回无条件写。
+     * 打不中 CAS 说明别人已经推进过这行（那次清零与我们这次等价），重读一份来渲染，
+     * 别让面板拿旧快照显示。
+     *
+     * @param {Object} playerSect - 无锁读到的玩家宗门记录
+     * @returns {Promise<Object>} 该拿去渲染的那份记录
+     */
+    async _resetDailyQuestsForRead(playerSect) {
+        const resetAt = playerSect.quests_reset_at ? new Date(playerSect.quests_reset_at) : null;
+        const now = new Date();
+        if (resetAt && now < resetAt) return playerSect;          // 没跨天：一个键都不写
+
+        await PlayerSect.update({
+            daily_quests_completed: [],
+            quests_accepted: [],
+            quests_accepted_at: {},
+            quests_reset_at: this._getNextResetTime()
+        }, {
+            where: {
+                id: playerSect.id,
+                [Op.or]: [{ quests_reset_at: null }, { quests_reset_at: { [Op.lt]: now } }]
+            }
+        });
+        return await PlayerSect.findByPk(playerSect.id) || playerSect;
     }
 
     // ==================== GM 管理后台辅助方法 ====================

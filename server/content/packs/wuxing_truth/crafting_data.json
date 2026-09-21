@@ -1,0 +1,24 @@
+{
+  "dataset": "crafting_data",
+  "into": "alchemy_recipes",
+  "comment": "五气朝元丹的丹方：材料用现网已有的灵草，产物是本资料片新增的丹药。",
+  "add": [
+    {
+      "id": "craft_five_qi_pill",
+      "name": "炼制五气朝元丹",
+      "type": "alchemy",
+      "description": "以五株灵草合灵炭炼制五气朝元丹2枚",
+      "product": { "item_key": "five_qi_pill", "quantity": 2 },
+      "materials": [
+        { "item_key": "wild_herb", "quantity": 8 },
+        { "item_key": "spirit_charcoal", "quantity": 2 }
+      ],
+      "required_realm_rank": 6,
+      "required_skill_level": 2,
+      "base_success_rate": 0.6,
+      "skill_exp": 25,
+      "cooldown_sec": 60,
+      "learn_source": "sect"
+    }
+  ]
+}

@@ -360,10 +360,14 @@ class WorldMovementService {
     getSectName(sectId) {
         if (!sectId) return null;
         try {
-            const config = require('../../config/sect_data.json');
+            // 走 ConfigLoader 的合并视图：以前是 require('../../config/sect_data.json')，
+            // Node 会永久缓存这个 require，所以资料片新开的宗门在跨图播报里永远没有名字。
+            const { infrastructure } = require('../../modules');
+            const config = infrastructure.ConfigLoader.getConfig('sect_data') || {};
             const sect = (config.sects || []).find(s => s.id === sectId);
             return sect ? sect.name : null;
         } catch (e) {
+            console.warn(`[WorldMovementService] 读取 sect_data 失败，跨图播报按宗门ID兜底: ${e.message}`);
             return null;
         }
     }

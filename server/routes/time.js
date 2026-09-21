@@ -12,6 +12,7 @@ const router = express.Router();
 const sequelize = require('../config/database');
 const Player = require('../models/player');
 const game = require('../game');
+const PlayerStateStore = require('../game/persistence/PlayerStateStore');
 const authMiddleware = require('../middleware/auth');
 
 /**
@@ -110,11 +111,7 @@ router.post('/start_activity', authMiddleware, async (req, res) => {
             });
         }
 
-        const currentTimeData = { ...(player.time_system_data || {}) };
-        const pendingActivities = Array.isArray(currentTimeData.pending_activities)
-            ? currentTimeData.pending_activities
-            : [];
-        pendingActivities.push({
+        const newActivity = {
             id: crypto.randomUUID(),
             activity_type: timeResult.activity_type,
             name: timeResult.name,
@@ -122,13 +119,35 @@ router.post('/start_activity', authMiddleware, async (req, res) => {
             time_cost_years: timeResult.time_cost_years,
             wait_seconds: timeResult.wait_seconds,
             completion_time: timeResult.completion_time
-        });
-        currentTimeData.pending_activities = pendingActivities;
+        };
 
-        await player.update({
-            heavenly_age: (Number(player.heavenly_age) || 0) + timeResult.heavenly_time_elapsed,
-            time_system_data: currentTimeData
+        // 追加活动 + 累加天年在同一个行锁内完成。
+        // 旧实现是在无锁的 req.player 上"读整块 time_system_data → push → 整块写回"：
+        // 连点两次会各读到同一份旧数组，后写的把先写的那条活动直接抹掉（玩家表现为
+        // "活动凭空消失、寿元白扣"），而 /complete_activity 那边是加了锁的，两边不对称。
+        const rejected = { reason: null };
+        await PlayerStateStore.mutatePlayer(player.id, (fresh) => {
+            const currentData = { ...(fresh.time_system_data || {}) };
+            const pending = Array.isArray(currentData.pending_activities) ? currentData.pending_activities : [];
+
+            // 加锁后二次校验：同名活动唯一 + 并发上限（compare-then-act 必须在锁内）
+            const freshAvailable = game.DualTimeService.getAvailableActivities(fresh);
+            if (!freshAvailable.includes(timeResult.activity_type)) {
+                rejected.reason = '进行中活动已达上限或该活动已在进行中';
+                return null;
+            }
+
+            return {
+                timeSystemData: { pending_activities: pending.concat([newActivity]) },
+                columns: {
+                    heavenly_age: (Number(fresh.heavenly_age) || 0) + timeResult.heavenly_time_elapsed
+                }
+            };
         });
+
+        if (rejected.reason) {
+            return res.status(400).json({ code: 400, message: rejected.reason });
+        }
 
         res.json({
             code: 200,

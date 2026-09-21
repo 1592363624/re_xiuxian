@@ -28,6 +28,11 @@ const SpiritBeast = require('../../models/spiritBeast');
 const SpiritBeastAbyssExplore = require('../../models/spiritBeastAbyss');
 const AbyssEncounterLog = require('../../models/abyssEncounterLog');
 const InventoryService = require('./InventoryService');
+const { grantItems } = require('../items/itemGrant');
+// 探渊的每回合伤害走声明式档位（beast_abyss_round），怪物属性走与其他敌人来源同一层声明
+const CombatResolver = require('../combat/CombatResolver');
+const { withDeclaredStats } = require('../combat/MonsterStats');
+const { scaleStatBlock } = require('../combat/CombatStats');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 
 class BeastAbyssService {
@@ -646,6 +651,14 @@ class BeastAbyssService {
             return { message: '探渊记录已结算', data: { explore_id: explore.id } };
         }
 
+        // 取锁次序（口径见 game/persistence/lockOrder.js）：players 先于 spirit_beasts。
+        // 改造前是 explore → beast → …… → players：本服务（玩家召回 + index.js 里周期跑的 checkExpirations）
+        // 持着灵兽行去等 players，而玩家那边喂灵兽/放归/巡边归来都是 players→beast —— 一先一后就成环。
+        const player = await Player.findByPk(exploreLocked.player_id, {
+            transaction,
+            lock: transaction.LOCK.UPDATE
+        });
+
         const beast = await SpiritBeast.findByPk(exploreLocked.beast_id, {
             transaction,
             lock: transaction.LOCK.UPDATE
@@ -704,6 +717,12 @@ class BeastAbyssService {
         // 灵兽当前层数从起始层开始
         let currentFloor = exploreLocked.start_floor;
 
+        // 灵兽主人的境界门槛：读那份已加锁的 players 行。
+        // 原来写的是 beast.player?.realm_rank —— 取灵兽那没带 include，这个关联属性永远是 undefined，
+        // 于是门槛恒等于 1：floors 里 2~9 层要求 realm_rank 3/6/11/…/26，**谁都进不去**，
+        // 探渊收益被静默卡在首层，而内容看起来是"九层都配好了"。
+        const ownerRealmRank = Number(player && player.realm_rank) || 1;
+
         for (let i = 0; i < floorsToExplore; i++) {
             // 检查HP和体力
             if (currentHp <= 0) {
@@ -717,7 +736,7 @@ class BeastAbyssService {
             // 检查境界限制
             const floorConfig = this.config.floors.find(f => f.floor === currentFloor);
             if (!floorConfig) break;
-            if (floorConfig.min_realm_rank > (beast.player?.realm_rank || 1)) {
+            if (floorConfig.min_realm_rank > ownerRealmRank) {
                 // 灵兽主人境界不足，不能进入更高层
                 break;
             }
@@ -868,11 +887,8 @@ class BeastAbyssService {
         }
         await beast.save({ transaction });
 
-        // 发放奖励给玩家
-        const player = await Player.findByPk(exploreLocked.player_id, {
-            transaction,
-            lock: transaction.LOCK.UPDATE
-        });
+        // 发放奖励给玩家：用开头那次已加锁的 players 实例（原来在这里又 FOR UPDATE 读一次同一行，
+        // 既留下第二份互相覆盖的实例，也让取锁次序看着像 beast→players 的反向）
         if (player) {
             // 增加灵石
             if (totalSpiritStones > 0) {
@@ -885,17 +901,14 @@ class BeastAbyssService {
             }
             await player.save({ transaction });
 
-            // 发放物品到背包（容错：单个物品添加失败不影响整体结算）
-            for (const item of totalItems) {
-                if (item.qty > 0 && item.item_id) {
-                    try {
-                        // 灵石类奖励已直接加到玩家灵石，跳过背包
-                        if (item.is_spirit_stone) continue;
-                        await InventoryService.addItem(player.id, item.item_id, item.qty, transaction);
-                    } catch (e) {
-                        console.warn(`[BeastAbyssService] 添加探渊奖励 ${item.item_id} 失败（已跳过）: ${e.message}`);
-                    }
-                }
+            // 发放物品到背包：没发到的不能继续留在 totalItems 里 —— 它同时是 items_gained 的来源，
+            // 留着就是"面板与日志说玩家拿到了，背包里却没有"（见 game/items/itemGrant.js）
+            const payable = totalItems.filter(i => i.qty > 0 && i.item_id && !i.is_spirit_stone);
+            const grant = await grantItems(player.id, payable, transaction, { label: '探渊奖励' });
+            const grantedKeys = new Set(grant.granted.map(g => g.item_key));
+            for (let i = totalItems.length - 1; i >= 0; i--) {
+                const it = totalItems[i];
+                if (payable.includes(it) && !grantedKeys.has(it.item_id)) totalItems.splice(i, 1);
             }
         }
 
@@ -989,21 +1002,24 @@ class BeastAbyssService {
         // 计算元素克制
         const elementMult = this._getElementMultiplier(snapshot.element, monster.element);
 
-        // 简化战斗：按攻击/防御/HP计算胜负
-        const beastAtk = Number(snapshot.atk) * elementMult;
-        const beastDef = Number(snapshot.def);
-        const beastHp = currentHp;
+        // 这只怪有什么数值：层难度整块缩放，再并上内容声明层（stats / power_multiplier）。
+        // 以前这里是 `Number(monster.atk) * difficulty` 逐字段手写三行，给怪加一个属性就得
+        // 记得回来补一行，漏的那个字段于是"不吃难度"；现在块里有什么就缩放什么。
+        const monsterStats = withDeclaredStats(
+            scaleStatBlock(monster, floorConfig.monster_difficulty),
+            monster
+        );
+        const beastStats = {
+            atk: Math.floor(Number(snapshot.atk) * elementMult),
+            def: Number(snapshot.def),
+            hp_max: currentHp
+        };
 
-        const monsterAtk = Number(monster.atk) * floorConfig.monster_difficulty;
-        const monsterDef = Number(monster.def) * floorConfig.monster_difficulty;
-        const monsterHp = Number(monster.hp) * floorConfig.monster_difficulty;
-
-        // 计算回合数（灵兽击杀怪物所需的回合数）
-        const beastDamagePerRound = Math.max(1, beastAtk - monsterDef * 0.5);
-        const monsterDamagePerRound = Math.max(1, monsterAtk - beastDef * 0.5);
-
-        const roundsToKillMonster = Math.ceil(monsterHp / beastDamagePerRound);
-        const roundsToKillBeast = Math.ceil(beastHp / monsterDamagePerRound);
+        // 简化战斗：比的是"谁先打死谁"所需的回合数（档位在 combat_formulas.json 的 beast_abyss_round）
+        const damageToMonster = this._roundDamage(beastStats, monsterStats);
+        const damageToBeast = this._roundDamage(monsterStats, beastStats);
+        const roundsToKillMonster = Math.ceil(Number(monsterStats.hp) / damageToMonster);
+        const roundsToKillBeast = Math.ceil(currentHp / damageToBeast);
 
         const victory = roundsToKillMonster <= roundsToKillBeast;
 
@@ -1011,7 +1027,7 @@ class BeastAbyssService {
         let hpAfter = currentHp;
         if (victory) {
             // 胜利：损失怪物造成的伤害
-            hpAfter = Math.max(0, currentHp - Math.floor(monsterDamagePerRound * roundsToKillMonster));
+            hpAfter = Math.max(0, currentHp - Math.floor(damageToBeast * roundsToKillMonster));
         } else {
             // 失败：HP归零
             hpAfter = 0;
@@ -1032,10 +1048,19 @@ class BeastAbyssService {
                 monster_key: monster.key,
                 monster_name: monster.name,
                 monster_element: monster.element,
-                monster_hp: monsterHp,
+                monster_hp: Number(monsterStats.hp),
                 rounds: victory ? roundsToKillMonster : roundsToKillBeast
             }
         };
+    }
+
+    /**
+     * 一回合打多少血：与野外/副本/兽潮同一套结算，不再在服务里抄"攻 - 防×0.5"。
+     * 档位里 random_range=0、procs 关掉，所以同一个输入永远得到同一个输出（探渊要可复现）。
+     * @private
+     */
+    _roundDamage(attackerStats, defenderStats) {
+        return CombatResolver.computeDamage('beast_abyss_round', { attackerStats, defenderStats }).damage;
     }
 
     /**
@@ -1063,26 +1088,28 @@ class BeastAbyssService {
         const elementMult = this._getElementMultiplier(snapshot.element, opponentBeast.element);
         const reverseElementMult = this._getElementMultiplier(opponentBeast.element, snapshot.element);
 
-        // 简化战斗
-        const beastAtk = Number(snapshot.atk) * elementMult;
-        const beastDef = Number(snapshot.def);
-        const beastHp = currentHp;
+        // 简化战斗：与打野怪同一条回合公式（档位见 combat_formulas.json），只是对手换成别的玩家的灵兽
+        const beastStats = {
+            atk: Math.floor(Number(snapshot.atk) * elementMult),
+            def: Number(snapshot.def),
+            hp_max: currentHp
+        };
+        const opponentStats = {
+            atk: Math.floor(Number(opponentBeast.atk) * reverseElementMult),
+            def: Number(opponentBeast.def),
+            hp_max: Number(opponentBeast.hp_max)
+        };
 
-        const opponentAtk = Number(opponentBeast.atk) * reverseElementMult;
-        const opponentDef = Number(opponentBeast.def);
-        const opponentHp = Number(opponentBeast.hp_max);
-
-        const beastDamagePerRound = Math.max(1, beastAtk - opponentDef * 0.5);
-        const opponentDamagePerRound = Math.max(1, opponentAtk - beastDef * 0.5);
-
-        const roundsToKillOpponent = Math.ceil(opponentHp / beastDamagePerRound);
-        const roundsToKillBeast = Math.ceil(beastHp / opponentDamagePerRound);
+        const damageToOpponent = this._roundDamage(beastStats, opponentStats);
+        const damageToBeast = this._roundDamage(opponentStats, beastStats);
+        const roundsToKillOpponent = Math.ceil(opponentStats.hp_max / damageToOpponent);
+        const roundsToKillBeast = Math.ceil(currentHp / damageToBeast);
 
         const victory = roundsToKillOpponent <= roundsToKillBeast;
 
         let hpAfter = currentHp;
         if (victory) {
-            hpAfter = Math.max(0, currentHp - Math.floor(opponentDamagePerRound * roundsToKillOpponent));
+            hpAfter = Math.max(0, currentHp - Math.floor(damageToBeast * roundsToKillOpponent));
         } else {
             hpAfter = 0;
         }

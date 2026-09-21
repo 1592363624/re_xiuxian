@@ -1,27 +1,18 @@
 /**
- * 属性最大值服务模块
- * 处理属性最大值计算、恢复机制、丹药效果等核心业务逻辑
+ * 属性最大值服务：恢复、丹药上限、寿元/灵力上限的时序结算。
+ *
+ * 与 AttributeService 的关系（2026-09-20 统一）：
+ *   改造前这里是"第二条属性管线"——自己按 realm.base_hp × hp_multiplier 算 hp_max、
+ *   自己按 spirit_system 算 mp_max，完全不看玩家的 *_bonus 与装备/功法，
+ *   于是同一个玩家会同时存在两个 hp_max：面板显示 483、恢复结算按 200 钳制，
+ *   结果就是"回满后再上线，气血上限把当前值压掉"这类丢数据表现。
+ *   现在 hp_max / mp_max / lifespan_max 全部转托 AttributeService 的静态解析，
+ *   本服务只负责"随时间恢复"与"丹药上限"这些自己真正擅长的部分。
+ *
+ * 丹药白名单同样由属性注册表推导：新增一个可被丹药永久提升的属性，
+ * 只需要在 stat_definitions 里把该属性标为 pill:true。
  */
-
-/**
- * 丹药永久属性上限加成白名单：config/item_data.json 的 effect 字段 → player.attributes 存储键
- * 只有列在此处的键会被服务端采信；hp_restore / breakthrough_bonus / longevity_add 等
- * 由各自子系统（战斗回复、突破、寿元）单独处理，不属于属性上限加成
- */
-const PILL_BONUS_KEY_MAP = {
-    hp_max: 'hp_bonus',
-    mp_max: 'mp_bonus',
-    atk: 'atk_bonus',
-    def: 'def_bonus',
-    speed: 'speed_bonus',
-    sense: 'sense_bonus'
-};
-
-/** 存储键 → 属性上限键，用于回显丹药使用后的上限值 */
-const PILL_BONUS_TO_MAX_KEY = {
-    hp_bonus: 'hp_max',
-    mp_bonus: 'mp_max'
-};
+const { ensureStatRegistryLoaded } = require('../stats');
 
 /** 兜底上限，attribute_system.json: attribute_pill_limits 缺失时生效 */
 const DEFAULT_PILL_LIMITS = {
@@ -41,6 +32,11 @@ class AttributeMaxService {
         this.configLoader = null;
         this.attributeConfig = null;
         this.spiritConfig = null;
+    }
+
+    /** 丹药可永久提升的字段：物品 effect 键 → attributes 存储键（由属性注册表推导） */
+    get pillBonusKeyMap() {
+        return ensureStatRegistryLoaded(this.configLoader).pillEffectMap();
     }
 
     /**
@@ -63,169 +59,37 @@ class AttributeMaxService {
     /**
      * 计算玩家属性最大值
      *
-     * 修复（2026-07-20）：
-     *   原代码 `realmConfig?.[realm]` 把 realmConfig 当作 map 用（按境界名索引），
-     *   但所有调用者传的都是 `RealmService.getRealmByName(player.realm)` 返回的
-     *   单个境界对象（含 name 字段），导致 realmData 永远为 {}，最终所有境界
-     *   的属性上限都退化为默认值（HP=100, MP=0）。
-     *   现在智能识别 realmConfig 参数类型：
-     *     - 数组（realms 列表）：按 player.realm 查找
-     *     - 单个境界对象（含 name 字段）：直接使用
-     *     - map（按境界名索引）：用 realmConfig[player.realm]
-     *     - 空值：从 RealmService 实时查询
+     * 转托统一管线：hp_max / mp_max / lifespan_max 与面板取同一份静态解析结果，
+     * 保证"恢复结算的上限"和"玩家看到的上限"是同一个数。
      *
      * @param {Object} player - 玩家对象
-     * @param {Object|Array} realmConfig - 境界配置（单个境界对象 / realms 数组 / 按境界名索引的 map）
-     * @returns {Object} 属性最大值对象
+     * @param {Object|Array} [realmConfig] - 单个境界对象（如突破预览的下一境界）/ realms 数组 / 省略则按 player.realm 查
+     * @returns {Object} { hp_max, mp_max, lifespan_max }
      */
     calculateAttributeMaxValues(player, realmConfig) {
-        const attributes = player.attributes || {};
-        const realm = player.realm || '凡人';
+        const AttributeService = require('./AttributeService');
+        const realmData = this._resolveRealmData(player, realmConfig, AttributeService);
+        const { final } = AttributeService.calculateFullAttributes(player, { realmOverride: realmData });
 
-        // 智能识别 realmConfig 参数类型，提取当前境界的数据
-        let realmData = {};
-        if (Array.isArray(realmConfig)) {
-            // 数组形式：按 name 字段查找
-            realmData = realmConfig.find(r => r.name === realm) || {};
-        } else if (realmConfig && typeof realmConfig === 'object') {
-            if (realmConfig.name === realm) {
-                // 单个境界对象：直接使用
-                realmData = realmConfig;
-            } else if (realmConfig[realm]) {
-                // map 形式：按境界名索引
-                realmData = realmConfig[realm];
-            } else if (realmConfig.realms && Array.isArray(realmConfig.realms)) {
-                // 包装对象：{ realms: [...] }
-                realmData = realmConfig.realms.find(r => r.name === realm) || {};
-            } else {
-                // 兜底：尝试从 RealmService 实时查询
-                try {
-                    const RealmService = require('./RealmService');
-                    const r = RealmService.getRealmByName(realm);
-                    if (r) realmData = r;
-                } catch (e) { /* 忽略，使用默认 {} */ }
-            }
-        } else if (!realmConfig) {
-            // 未传：从 RealmService 实时查询
-            try {
-                const RealmService = require('./RealmService');
-                const r = RealmService.getRealmByName(realm);
-                if (r) realmData = r;
-            } catch (e) { /* 忽略 */ }
-        }
-
-        // 根据境界计算最大值
-        const maxValues = {
-            hp_max: this.calculateHPMax(attributes, realmData),
-            mp_max: this.calculateMPMax(attributes, realmData, realm),
-            lifespan_max: this.calculateLifespanMax(attributes, realmData)
+        return {
+            hp_max: final.hp_max,
+            mp_max: final.mp_max,
+            lifespan_max: final.lifespan_max
         };
-
-        return maxValues;
     }
 
     /**
-     * 计算气血最大值
+     * 兼容旧调用方传入的各种 realmConfig 形状（历史上这里踩过 `realmConfig[realm]` 的坑）：
+     * 数组 → 按 name 找；单个境界对象 → 直接用；{ realms: [...] } → 内部找；空 → 交给 AttributeService 按 player.realm 查。
      */
-    calculateHPMax(attributes, realmData) {
-        const baseHP = realmData.base_hp || 100;
-        const realmMultiplier = realmData.hp_multiplier || 1;
-
-        return Math.floor(baseHP * realmMultiplier);
-    }
-
-    /**
-     * 计算灵力最大值
-     *
-     * 修复（2026-07-20）：
-     *   原代码 `realmData.realm || '凡人'` 读取的是境界对象的 realm 字段，
-     *   但 realm_breakthrough.json 中境界对象的字段名是 name（不是 realm），
-     *   导致 realm 永远为 '凡人'，非凡人境界的 MP 上限全部错误退化为 0。
-     *   现在从 player.realm 直接传入，避免字段名不匹配。
-     */
-    calculateMPMax(attributes, realmData, realm) {
-        // 优先使用传入的 realm，否则尝试从 realmData.name 读取，最后兜底 '凡人'
-        const actualRealm = realm || realmData?.name || '凡人';
-
-        // 使用灵力系统配置
-        if (this.spiritConfig && this.spiritConfig.realm_settings && this.spiritConfig.realm_settings[actualRealm]) {
-            return this.spiritConfig.realm_settings[actualRealm].spirit_power_max || 0;
-        }
-        
-        // 备用计算逻辑：按小境界自动计算
-        if (realm === '凡人') {
-            return 0; // 凡人阶段无灵力
-        }
-        
-        // 解析境界层级（炼气/筑基用层数，其他用初期/中期/后期/大圆满）
-        const realmMatch = realm.match(/(炼气期|筑基期)(\d+)层/);
-        if (realmMatch) {
-            const realmType = realmMatch[1];
-            const layer = parseInt(realmMatch[2]);
-            const growthCurve = this.spiritConfig?.spirit_power?.growth_curve || {};
-            
-            // 根据境界类型选择增长曲线
-            if (growthCurve.linear?.apply_to?.includes(realmType)) {
-                const linearConfig = growthCurve.linear;
-                return linearConfig.base + (layer * linearConfig.per_level);
-            } else {
-                // 默认线性增长
-                const baseValue = this.spiritConfig?.spirit_power?.base_value || 100;
-                const increase = this.spiritConfig?.spirit_power?.realm_increase || 100;
-                return baseValue + (layer * increase);
-            }
-        } else {
-            // 其他境界用初期/中期/后期/大圆满格式
-            const realmType = realm.replace(/(初期|中期|后期|大圆满)/, '');
-            const growthCurve = this.spiritConfig?.spirit_power?.growth_curve || {};
-            
-            // 根据境界类型选择增长曲线
-            if (growthCurve.exponential?.apply_to?.includes(realmType)) {
-                const exponentialConfig = growthCurve.exponential;
-                // 初期：1倍，中期：1.5倍，后期：2.25倍，大圆满：3.375倍
-                const stageMultipliers = { '初期': 1, '中期': 1.5, '后期': 2.25, '大圆满': 3.375 };
-                const stage = realm.match(/(初期|中期|后期|大圆满)/)[1];
-                return Math.floor(exponentialConfig.base * stageMultipliers[stage]);
-            } else if (growthCurve.logarithmic?.apply_to?.includes(realmType)) {
-                const logarithmicConfig = growthCurve.logarithmic;
-                // 初期：1倍，中期：1.2倍，后期：1.44倍，大圆满：1.728倍
-                const stageMultipliers = { '初期': 1, '中期': 1.2, '后期': 1.44, '大圆满': 1.728 };
-                const stage = realm.match(/(初期|中期|后期|大圆满)/)[1];
-                return Math.floor(logarithmicConfig.base * stageMultipliers[stage]);
-            } else {
-                // 默认线性增长
-                const baseValue = this.spiritConfig?.spirit_power?.base_value || 100;
-                return baseValue * 10;
-            }
-        }
-        
-        // 兜底计算
-        const baseMP = realmData.base_mp || 0;
-        const realmMultiplier = realmData.mp_multiplier || 1;
-        
-        return Math.floor(baseMP * realmMultiplier);
-    }
-
-    /**
-     * 计算寿命最大值
-     */
-    calculateLifespanMax(attributes, realmData) {
-        const baseLifespan = realmData.base_lifespan || 60;
-        const realmBonus = realmData.lifespan_bonus || 0;
-        
-        return Math.floor(baseLifespan + realmBonus);
-    }
-
-    /**
-     * 计算装备道具对属性最大值的加成
-     * @param {Object} player - 玩家对象
-     * @param {string} attributeKey - 属性键名
-     * @returns {number} 加成值
-     */
-    calculateItemBonus(player, attributeKey) {
-        // TODO: 实现装备道具加成计算
-        // 这里需要集成物品系统来计算装备加成
-        return 0;
+    _resolveRealmData(player, realmConfig, AttributeService) {
+        const realmName = player?.realm || '凡人';
+        if (Array.isArray(realmConfig)) return realmConfig.find(r => r.name === realmName) || null;
+        if (!realmConfig || typeof realmConfig !== 'object') return null;
+        if (realmConfig.name === realmName) return realmConfig;
+        if (realmConfig[realmName]) return realmConfig[realmName];
+        if (Array.isArray(realmConfig.realms)) return realmConfig.realms.find(r => r.name === realmName) || null;
+        return null;
     }
 
     /**
@@ -341,16 +205,17 @@ class AttributeMaxService {
     }
 
     /**
-     * 生成"恢复已结算"时点的 attributes 快照，调用方负责落库
-     * 所有 HP/MP 恢复入口（登录离线恢复、在线定时恢复、/recover 接口）共用该基准，
-     * 避免同一段时间被重复结算
-     * @param {Object} player - 玩家对象
-     * @returns {Object} 新的 attributes 对象
+     * 生成"恢复已结算"时点的 attributes 补丁
+     *
+     * 所有 HP/MP 恢复入口（登录离线恢复、在线定时恢复、/recover 接口）共用这个基准，
+     * 避免同一段时间被重复结算。返回的是键级补丁而不是整份 attributes ——
+     * 恢复只需要落一个时间戳，返回整块会让调用方把它读到的那份旧快照原样写回去，
+     * 覆盖掉这段时间内别的流程写入的键。
+     *
+     * @returns {Object} 可直接交给 PlayerStateStore.patchPlayerState 的 attributes 补丁
      */
-    buildAttributesAfterRecovery(player) {
-        const attributes = { ...(player?.attributes || {}) };
-        attributes.last_recovery_time = new Date().toISOString();
-        return attributes;
+    buildRecoveryWatermarkPatch() {
+        return { last_recovery_time: new Date().toISOString() };
     }
 
     /**
@@ -403,7 +268,7 @@ class AttributeMaxService {
         if (!rawEffect || typeof rawEffect !== 'object') return null;
 
         const attributes = {};
-        for (const [effectKey, bonusKey] of Object.entries(PILL_BONUS_KEY_MAP)) {
+        for (const [effectKey, bonusKey] of Object.entries(this.pillBonusKeyMap)) {
             const raw = rawEffect[effectKey];
             if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) continue;
             attributes[bonusKey] = Math.floor(raw);
@@ -436,7 +301,7 @@ class AttributeMaxService {
     sanitizePillEffect(pillEffect) {
         if (!pillEffect || typeof pillEffect !== 'object') return null;
 
-        const allowedBonusKeys = Object.values(PILL_BONUS_KEY_MAP);
+        const allowedBonusKeys = Object.values(this.pillBonusKeyMap);
         const limits = this.getPillLimitsConfig();
         const rawAttributes = (pillEffect.attributes && typeof pillEffect.attributes === 'object')
             ? pillEffect.attributes : {};
@@ -505,7 +370,7 @@ class AttributeMaxService {
     diffAttributeBonuses(previousAttributes, nextAttributes) {
         const before = previousAttributes || {};
         const after = nextAttributes || {};
-        const allowedBonusKeys = Object.values(PILL_BONUS_KEY_MAP);
+        const allowedBonusKeys = Object.values(this.pillBonusKeyMap);
 
         const diff = {};
         for (const key of allowedBonusKeys) {
@@ -517,33 +382,27 @@ class AttributeMaxService {
     }
 
     /**
-     * 应用丹药效果到属性最大值（用于回显，落库由 applyPillBonusToAttributes 负责）
-     * @param {Object} player - 玩家对象
+     * 回显丹药使用后的属性上限（落库由 applyPillBonusToAttributes + PlayerStateStore 负责）
+     *
+     * 注意：属性上限现在已包含 attributes 里的 *_bonus（两条管线合并后），
+     * 所以这里绝不能再手动加一遍加成值——改造前之所以要加，是因为当时的
+     * calculateAttributeMaxValues 压根不看 *_bonus。
+     * 临时上限增益（temporary_max_boost）不进 attributes，仍以附加字段回显。
+     *
+     * @param {Object} player - 玩家对象（应传入加成已落库后的那一行）
      * @param {Object} pillEffect - 丹药效果配置（内部会再清洗一次）
-     * @returns {Object} 更新后的属性最大值
+     * @returns {Object} 更新后的属性上限
      */
     applyPillEffect(player, pillEffect) {
         const maxValues = this.calculateAttributeMaxValues(player);
         const effect = this.sanitizePillEffect(pillEffect);
-        if (!effect) return maxValues;
+        if (!effect || effect.type !== 'temporary_max_boost') return maxValues;
 
-        if (effect.type === 'permanent_max_increase') {
-            // 永久提升最大值
-            for (const [bonusKey, increase] of Object.entries(effect.attributes)) {
-                const maxKey = PILL_BONUS_TO_MAX_KEY[bonusKey];
-                if (maxKey && maxValues[maxKey] !== undefined) {
-                    maxValues[maxKey] += increase;
-                }
-            }
-        } else if (effect.type === 'temporary_max_boost') {
-            // 临时提升最大值（需要记录时效）
-            const boostKey = `temp_max_boost_${Date.now()}`;
-            maxValues[boostKey] = {
-                attributes: effect.attributes,
-                expires_at: Date.now() + (effect.duration * 60 * 1000) // 转换为毫秒
-            };
-        }
-
+        const boostKey = `temp_max_boost_${Date.now()}`;
+        maxValues[boostKey] = {
+            attributes: effect.attributes,
+            expires_at: Date.now() + (effect.duration * 60 * 1000) // 转换为毫秒
+        };
         return maxValues;
     }
 

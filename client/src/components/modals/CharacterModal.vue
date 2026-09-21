@@ -43,6 +43,31 @@
               </div>
            </div>
 
+           <!-- 属性明细：整块由服务端属性注册表驱动 -->
+           <!-- 左栏只放 panel.spot=sidebar 的几格，其余属性（法攻/法防/暴击/闪避/吸血/
+                资料片新增的五行抗性…）全靠这里露出。资料片加一个属性，这张表自动多一行。 -->
+           <div>
+              <h3 class="text-lg font-bold text-fg-primary mb-3 flex items-center gap-2 font-display">
+                 <span class="text-emerald-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16V9"/><path d="M11 16V5"/><path d="M15 16v-4"/><path d="M19 16v-7"/></svg>
+                 </span>
+                 属性明细
+              </h3>
+              <div v-if="detailRows.length" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                 <div
+                    v-for="row in detailRows"
+                    :key="row.key"
+                    class="bg-surface-raised p-3 rounded border border-line-subtle"
+                 >
+                    <div class="text-xs text-fg-faint mb-1 truncate" :title="row.description">{{ row.label }}</div>
+                    <div class="text-lg num text-fg-primary" :title="row.exact">{{ row.shown }}</div>
+                 </div>
+              </div>
+              <div v-else class="bg-surface-raised p-4 rounded border border-line-subtle text-center text-fg-faint text-sm">
+                 暂无属性数据
+              </div>
+           </div>
+
            <!-- 战斗统计 -->
            <div>
               <h3 class="text-lg font-bold text-fg-primary mb-3 flex items-center gap-2 font-display">
@@ -97,7 +122,10 @@ import PanelShell from '../ui/PanelShell.vue';
 import { usePlayerStore } from '../../stores/player';
 import { useUIStore } from '../../stores/ui';
 import { getFullAttributes } from '../../api/attribute';
+import { useStatSchema } from '../../composables/useStatSchema';
 import { formatNumber, formatCompact } from '../../utils/format';
+
+const { detailStats, gridCell } = useStatSchema();
 
 defineEmits(['close']);
 
@@ -118,6 +146,18 @@ const attributes = ref({
     player_stats: {},
     attribute_points: 0,
     validation: {} 
+});
+
+/**
+ * 属性明细行：字段清单来自服务端属性注册表（panel.spot !== 'sidebar' 的那些），
+ * 数值来自 /api/attribute/full 的 final_attributes。
+ * 只渲染 payload 里真的存在的键，避免服务端还没算某属性时露 0 骗人。
+ */
+const detailRows = computed(() => {
+  const final = attributes.value.final_attributes || {};
+  return detailStats.value
+    .filter(entry => final[entry.key] !== undefined)
+    .map(entry => gridCell(entry, final[entry.key]));
 });
 
 const fetchAttributes = async () => {

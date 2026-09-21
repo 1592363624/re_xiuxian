@@ -19,9 +19,11 @@ const PlayerAchievement = require('../../models/playerAchievement');
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+const { logOnce } = require('../../utils/logOnce');
 
 // metric -> 取数函数。集中登记，避免把字段映射散落在多处。
 // 返回数字；取不到时返回 0，保证进度计算不报错。
+// 允许写成 async（要查库的统计），调用方一律走 _metricValue() 并 await。
 const METRIC_SOURCES = {
     // 闭关次数（player.meditation_count 近似记录闭关修炼次数）
     seclusion_count: (p) => Number(p.meditation_count) || 0,
@@ -33,8 +35,17 @@ const METRIC_SOURCES = {
     exp: (p) => Number(p.exp) || 0,
     // 当前灵石（近似累计获得，作为 wealth 类成就度量）
     total_spirit_stones: (p) => Number(p.spirit_stones) || 0,
-    // 好友 / 道侣数（player 暂无独立字段，预留为 0，等待社交系统接入后扩展）
-    friend_count: () => 0,
+    // 广结善缘：到访过玩家洞府的**不同访客数**。
+    // 以前这里是 `() => 0` 的占位实现，于是 social_butterfly（目标 5）永远停在 0% ——
+    // 一条玩家根本拿不到的成就挂在正式内容里，且没有任何地方报出来。
+    friend_count: async (p) => {
+        const CaveVisitor = require('../../models/caveVisitor');
+        return Number(await CaveVisitor.count({
+            where: { cave_owner_id: p.id },
+            distinct: true,
+            col: 'visitor_id'
+        })) || 0;
+    },
     // 境界序号（凡人=0，按 RealmService 的 rank 计算）
     realm_index: (p) => {
         if (!p.realm) return 0;
@@ -42,6 +53,9 @@ const METRIC_SOURCES = {
         return cfg && cfg.rank ? Number(cfg.rank) : 0;
     }
 };
+
+/** 已经报过"没有取数函数"的度量，避免每次刷新成就列表都刷一遍日志 */
+const WARNED_METRICS = new Set();
 
 class AchievementService {
     /**
@@ -53,6 +67,30 @@ class AchievementService {
     }
 
     /**
+     * 取一条成就度量的实时值。三处消费点（列表 / 同步进度 / 领取校验）都只走这里。
+     *
+     * 度量没有登记取数函数时明确报一次错：以前是 `getter ? getter(p) : 0`，
+     * 于是"achievement_data 里加了一条新度量但代码没登记"表现成这条成就永远 0%，
+     * 玩家以为是自己没做到，实际上是内容根本没接上。
+     */
+    async _metricValue(metric, player) {
+        const getter = METRIC_SOURCES[metric];
+        if (!getter) {
+            if (!WARNED_METRICS.has(metric)) {
+                WARNED_METRICS.add(metric);
+                console.error(`[AchievementService] 成就度量 "${metric}" 没有登记取数函数（METRIC_SOURCES），进度会一直是 0`);
+            }
+            return 0;
+        }
+        return Number(await getter(player)) || 0;
+    }
+
+    /** 供内容体检/后台展示：当前代码真的计算了哪些度量 */
+    static knownMetrics() {
+        return Object.keys(METRIC_SOURCES);
+    }
+
+    /**
      * 读取成就配置（缺失时兜底空对象，防止配置未加载导致链路崩溃）
      * @returns {Object}
      */
@@ -60,6 +98,7 @@ class AchievementService {
         try {
             return this.configLoader?.getConfig('achievement_data') || {};
         } catch (e) {
+            logOnce('AchievementService.getConfig', 'achievement_data 配置读取失败，成就链路按"未配置"兜底: ' + e.message);
             return {};
         }
     }
@@ -97,9 +136,9 @@ class AchievementService {
         records.forEach(r => { recMap[r.achievement_id] = r; });
 
         // 对每个成就计算当前实时进度（即使未记录过也给出实时值）
-        const items = list.map(a => {
-            const getter = METRIC_SOURCES[a.metric];
-            const progress = getter ? getter(player) : 0;
+        // 度量可能是异步的（要查库的统计），所以这里是 async map + Promise.all
+        const items = await Promise.all(list.map(async a => {
+            const progress = await this._metricValue(a.metric, player);
             const target = Number(a.target) || 0;
             const rec = recMap[a.achievement_id];
 
@@ -124,7 +163,7 @@ class AchievementService {
                 claimed: !!rec?.claimed,
                 reward: a.reward || {}
             };
-        });
+        }));
 
         const completedCount = items.filter(i => i.completed).length;
         return {
@@ -154,8 +193,7 @@ class AchievementService {
         const now = new Date();
 
         for (const a of list) {
-            const getter = METRIC_SOURCES[a.metric];
-            const progress = getter ? getter(player) : 0;
+            const progress = await this._metricValue(a.metric, player);
             const target = Number(a.target) || 0;
             const completed = progress >= target;
 
@@ -217,8 +255,7 @@ class AchievementService {
                 await this.syncProgress(playerId);
             }
             const target = Number(def.target) || 0;
-            const getter = METRIC_SOURCES[def.metric];
-            const progress = getter ? getter(player) : 0;
+            const progress = await this._metricValue(def.metric, player);
             if (progress < target) {
                 throw new AppError('成就尚未达成', 400, ErrorCodes.CONDITION_NOT_MET);
             }

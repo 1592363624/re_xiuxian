@@ -3,6 +3,23 @@
   "enabled": true,
   "unlock_realm_rank": 3,
   "_unlock_realm_rank_comment": "筑基期(rank=3)解锁器灵，符合玩法文档筑基期解锁深度闭关调性",
+  "spirit_bonus_stat_labels": {
+    "_note": "器灵面板上「攻击 +5%（每级 +2%）」这类文案由服务端按数值拼出来，键名中文名只写在这里：客户端不再抄一份器灵类型清单，资料片加一档器灵或加一种加成键就自动显示。缺标签会被启动期校验拦下。",
+    "atk_percent": "攻击",
+    "def_percent": "防御",
+    "crit_percent": "暴击",
+    "dodge_percent": "闪避"
+  },
+  "spirit_effect_labels": {
+    "_note": "护主/催发效果的中文名与「要不要带百分比」。value_format=none 表示该效果没有数值语义（净化负面状态）。",
+    "damage_reflect": { "label": "反弹伤害", "value_format": "percent" },
+    "damage_reduction": { "label": "减伤", "value_format": "percent" },
+    "heal": { "label": "回血", "value_format": "percent" },
+    "cleanse": { "label": "净化负面状态", "value_format": "none" },
+    "crit_boost": { "label": "暴击率提升", "value_format": "percent" },
+    "lifesteal": { "label": "吸血", "value_format": "percent" },
+    "all_boost": { "label": "全属性提升", "value_format": "percent" }
+  },
   "spirit_types": {
     "attack": {
       "name": "攻灵型",

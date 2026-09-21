@@ -32,6 +32,60 @@
   },
 
   "global": {
+    "variable_labels": {
+      "_note": "副本变量的中文名与归属由内容供给前端渲染：面板不再自己写死字典，资料片加变量只要在这里补一行就能显示（缺标签会被启动期校验拦下，避免「变量存在却永不显示」）",
+      "morale": "士气",
+      "vigilance": "警戒",
+      "demon_corruption": "魔染",
+      "seal_stability": "封印稳定度",
+      "soul_stability": "神魂稳定度",
+      "harvest_multiplier": "收获倍率",
+      "demonic_qi": "魔气",
+      "mountain_seal": "山禁",
+      "treasure_pressure": "宝压/夺宝压力",
+      "linglong": "玲珑",
+      "seal_progress": "封印进度",
+      "tower_shadow_hp": "塔心魔影HP",
+      "path_choice": "道路选择",
+      "formation_power": "阵法强度",
+      "void_soul_hp": "虚天主魂HP",
+      "curse_disorder": "咒扰值",
+      "ice_seal_power": "冰封之力",
+      "flame_power": "火焰之力",
+      "yinluo_banner_qi": "阴罗幡煞气",
+      "spirit_vein_power": "灵脉之力",
+      "root_stability": "根脉稳定",
+      "branch_vigor": "枝桠活力",
+      "spirit_plant_aura": "灵植灵气",
+      "act3_choice": "灵胎抉择",
+      "forbidden_rift": "禁制裂隙",
+      "scroll_clue": "卷轴线索",
+      "escape_difficulty": "脱身难度",
+      "escape_choice": "脱身抉择",
+      "cangkun_guardian_hp": "苍坤守灵HP",
+      "blood_qi_avg": "团队平均血气",
+      "blood_fury": "血怒",
+      "eliminations": "累计淘汰人数",
+      "survivor_count": "幸存人数",
+      "xuese_boss_hp": "血色尊者HP",
+      "avg_heart_demon": "团队平均心魔",
+      "avg_dao_heart": "团队平均道心",
+      "demon_boss_hp": "心魔BossHP",
+      "huanglong_formation_power": "阵法强度",
+      "huanglong_resonance_count": "共鸣数",
+      "huanglong_boss_hp": "黄龙BossHP"
+    },
+    "reward_type_labels": {
+      "_note": "奖励条目的 type 中文名：奖励池按 type 汇总展示，服务不再自己认类型，资料片加一种奖励只要在这里补一行（缺标签会被启动期校验拦下，避免印出裸键名）",
+      "exp": "修为",
+      "spirit_stones": "灵石",
+      "honor": "荣誉值",
+      "divine_sense": "神识提升",
+      "sect_contribution": "宗门贡献",
+      "title": "称号",
+      "item": "物品",
+      "global_announce": "全服公告"
+    },
     "boss_hp_threshold_phase2": 0.6,
     "boss_hp_threshold_phase3": 0.3,
     "harvest_multiplier_min": 0.5,
@@ -640,6 +694,14 @@
       "init_linglong": 50,
       "init_tower_shadow_hp": 1000000,
       "init_seal_progress": 50,
+      "instance_vars": {
+        "demonic_qi": 0,
+        "mountain_seal": 30,
+        "treasure_pressure": 0,
+        "linglong": 50,
+        "tower_shadow_hp": 1000000,
+        "seal_progress": 50
+      },
 
       "final_act_number": 4,
       "final_seal_progress_target": 80,
@@ -1011,6 +1073,12 @@
       "init_path_choice": 0,
       "init_formation_power": 30,
       "init_void_soul_hp": 1500000,
+      "instance_vars": {
+        "path_choice": 0,
+        "formation_power": 30,
+        "treasure_pressure": 0,
+        "void_soul_hp": { "from": null, "default": null }
+      },
 
       "final_act_number": 6,
       "final_formation_power_target": 70,
@@ -1422,6 +1490,12 @@
       "init_ice_seal_power": 50,
       "init_flame_power": 0,
       "init_yinluo_banner_qi": 0,
+      "instance_vars": {
+        "curse_disorder": 0,
+        "ice_seal_power": 50,
+        "flame_power": 0,
+        "yinluo_banner_qi": 0
+      },
 
       "final_act_number": 4,
       "final_ice_seal_target": 100,
@@ -1677,6 +1751,13 @@
       "init_root_stability": 80,
       "init_branch_vigor": 50,
       "init_spirit_plant_aura": 30,
+      "instance_vars": {
+        "spirit_vein_power": 60,
+        "root_stability": 80,
+        "branch_vigor": 50,
+        "spirit_plant_aura": 30,
+        "act3_choice": { "from": null, "default": null }
+      },
 
       "final_act_number": 3,
       "final_root_stability_target": 50,
@@ -1888,6 +1969,13 @@
       "init_forbidden_rift": 0,
       "init_scroll_clue": 0,
       "init_escape_difficulty": 30,
+      "instance_vars": {
+        "forbidden_rift": 0,
+        "scroll_clue": 0,
+        "escape_difficulty": 30,
+        "escape_choice": { "from": null, "default": null },
+        "cangkun_guardian_hp": { "from": null, "default": null }
+      },
 
       "final_act_number": 4,
       "final_max_rounds": 5,
@@ -2190,6 +2278,18 @@
       "init_survivor_count": 0,
       "member_init_blood_qi": 100,
       "member_init_kill_score": 0,
+      "instance_vars": {
+        "blood_qi_avg": 100,
+        "blood_fury": 0,
+        "eliminations": 0,
+        "survivor_count": 0,
+        "xuese_boss_hp": { "from": null, "default": null }
+      },
+      "member_vars": {
+        "blood_qi": 100,
+        "kill_score": 0,
+        "is_eliminated": { "from": null, "default": 0 }
+      },
       "elimination_enabled_acts": [1, 3],
       "final_act_number": 4,
       "final_max_rounds": 6,
@@ -2489,6 +2589,16 @@
       "init_avg_dao_heart": 100,
       "member_init_heart_demon": 0,
       "member_init_dao_heart": 100,
+      "instance_vars": {
+        "avg_heart_demon": 0,
+        "avg_dao_heart": 100,
+        "demon_boss_hp": { "from": null, "default": null }
+      },
+      "member_vars": {
+        "heart_demon": 0,
+        "dao_heart": 100,
+        "is_fallen": { "from": null, "default": 0 }
+      },
       "fallen_threshold_heart_demon": 100,
       "broken_threshold_dao_heart": 0,
       "final_act_number": 4,
@@ -2785,6 +2895,16 @@
       "member_init_eye_position": "unassigned",
       "member_init_contribution_score": 0,
       "member_init_is_defecting": false,
+      "instance_vars": {
+        "huanglong_formation_power": { "from": "init_formation_power", "default": 0 },
+        "huanglong_resonance_count": { "from": "init_resonance_count", "default": 0 },
+        "huanglong_boss_hp": { "from": null, "default": null }
+      },
+      "member_vars": {
+        "huanglong_eye_position": { "from": "member_init_eye_position", "default": "unassigned" },
+        "huanglong_contribution_score": { "from": "member_init_contribution_score", "default": 0 },
+        "huanglong_is_defecting": { "from": "member_init_is_defecting", "default": 0 }
+      },
       "formation_power_max": 200,
       "resonance_threshold": 2,
       "final_act_number": 4,

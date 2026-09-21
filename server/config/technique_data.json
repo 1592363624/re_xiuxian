@@ -278,14 +278,14 @@
     "_comment_match": "灵根与功法属性一致时，功法加成提升的百分比",
     "conflict_penalty_pct": 15,
     "_comment_conflict": "灵根与功法属性相克时，功法加成衰减的百分比",
-    "_comment_conflicts": "相克表：key 灵根 克 value 中的属性。注意灵根键名须与 attribute_system.json 的 spirit_root_bonus 一致（金为 gold 而非 metal），否则永远匹配不上。雷/冰为变异灵根，各自克制两种属性以体现其稀有强度。",
+    "_comment_conflicts": "相克表：key 灵根 克 value 中的属性。灵根键必须是 role_init.spirit_roots 的 type（金为 metal，不是 gold），功法属性必须是 techniques[].element 里真实出现的值——两者不一致就会永远匹配不上（tests/TechniqueService.test.js 有断言把关）。雷/冰为变异灵根，各自克制两种属性以体现其稀有强度。",
     "conflicts": {
-      "fire": ["gold"],
-      "gold": ["wood"],
+      "fire": ["metal"],
+      "metal": ["wood"],
       "wood": ["earth"],
       "earth": ["water"],
       "water": ["fire"],
-      "thunder": ["gold", "wood"],
+      "thunder": ["metal", "wood"],
       "ice": ["water", "fire"]
     }
   },

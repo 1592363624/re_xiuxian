@@ -1,0 +1,21 @@
+{
+  "dataset": "drop_data",
+  "into": "drops",
+  "comment": "凡人遗宝的掉落表。原来这里挂了两个自己新造的怪（噬金虫群 / 月蛟），地图上一只都不刷，于是这些遗宝玩家永远拿不到，而掉落校验只看物品 id 所以一声不响 —— 现在内容层多了 _validateDropMonsters 这道闸，这类「配了但打不出」的内容会在启动期直接失败。这一版把它们并到妖王身上，掉率与原表一致。",
+  "add": [
+    {
+      "monster_id": "demon_king",
+      "monster_name": "妖王",
+      "drops": [
+        { "item_id": "shijin_gu", "quantity": [1, 2], "chance": 0.25 },
+        { "item_id": "low_spirit_stone", "quantity": [3, 9], "chance": 0.7 },
+        { "item_id": "qingzhu_fengyun_sword", "quantity": 1, "chance": 0.01 },
+        { "item_id": "qibao_jiayi", "quantity": 1, "chance": 0.08 },
+        { "item_id": "ningcui_dan", "quantity": [1, 3], "chance": 0.35 },
+        { "item_id": "high_spirit_stone", "quantity": [2, 6], "chance": 0.6 }
+      ],
+      "exp_reward": 12000
+    }
+  ],
+  "boss_drops_note": "首领掉落见 into=boss_drops 的另一个文件；此包不改动首领表。"
+}

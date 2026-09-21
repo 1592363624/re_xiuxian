@@ -37,30 +37,21 @@ export interface ServiceResponse<T> {
 
 /** 副本 key（与后端配置对齐） */
 // 2026-07-21 新增 xutian（虚天殿）
-export type DungeonKey = 'yanyue' | 'duanwu' | 'kunwu' | 'xutian';
+/**
+ * 副本键由内容决定（server/config/multi_dungeon_data.json 的 dungeons 键，现网 10 个），
+ * 以前这里是 4 个键的联合类型：新增副本要么编译不过、要么被 `as DungeonKey` 糊过去，
+ * 而界面上的奖励池子页签也确实只列了这 4 个，另外 6 个副本的奖励表进不去。
+ */
+export type DungeonKey = string;
 
 /** 副本实例状态 */
 export type DungeonStatus = 'forming' | 'active' | 'choosing' | 'finished' | 'dissolved';
 
-/** 副本变量名（GM 调整 / 前端进度条展示使用） */
-export type DungeonVariable =
-  | 'morale'              // 士气
-  | 'vigilance'           // 警戒
-  | 'demon_corruption'    // 魔染
-  | 'seal_stability'      // 封印稳定度
-  | 'soul_stability'      // 神魂稳定度
-  | 'harvest_multiplier'  // 收获倍率
-  // 昆吾山·封魔塔专属变量（2026-07-21 新增）
-  | 'demonic_qi'          // 魔气值（0-100，>=100 失败）
-  | 'mountain_seal'       // 山禁值（0-100）
-  | 'treasure_pressure'   // 宝压值（0-100）/ 虚天殿·夺宝压力（0-100）
-  | 'linglong'            // 玲珑值（0-100，越高决战伤害越高）
-  | 'seal_progress'       // 封印推进值（第四幕，需>=80通关）
-  | 'tower_shadow_hp'     // 塔心魔影HP（第四幕）
-  // 虚天殿专属变量（2026-07-21 新增）
-  | 'path_choice'         // 道路选择（0=未选 / 1=冰道 / 2=火道）
-  | 'formation_power'     // 阵法强度（0-100，影响第六幕决战伤害）
-  | 'void_soul_hp';       // 虚天主魂HP（第六幕，BIGINT 字符串）
+/**
+ * 副本变量名就是实例列名，取值范围由内容决定（/help 与 /status 的 variable_meta，现网 40 个）。
+ * 以前这里是 15 个键的联合类型：资料片新增的变量在 GM 面板里选不到、在服务端白名单里也过不了。
+ */
+export type DungeonVariable = string;
 
 /** 副本成员信息 */
 export interface MultiDungeonMember {
@@ -148,6 +139,8 @@ export interface MultiDungeonInstance {
   members: MultiDungeonMember[];
   /** 副本变量（key 为变量名，value 为当前值） */
   variables?: Partial<Record<DungeonVariable, number>>;
+  /** 变量的中文名与归属副本，来自服务端内容（global.variable_labels + 各副本 instance_vars） */
+  variable_meta?: Record<string, { label: string; dungeons: string[] | null }>;
   /** 当前幕可选项 */
   current_choices?: MultiDungeonChoice[];
   /** 当前幕剧情描述 */

@@ -21,7 +21,9 @@ const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 router.get('/list', auth, async (req, res, next) => {
     try {
         const list = SectService.getSectList();
-        res.json({ code: 200, data: { sects: list } });
+        // bonus_meta：宗门加成的中文名与换算方式，由内容 sect_data.global.bonus_labels 给出。
+        // 以前这份映射抄在客户端面板里（还按字典顺序过滤，内容新增的加成会整条不显示）。
+        res.json({ code: 200, data: { sects: list, bonus_meta: SectService.getBonusMeta() } });
     } catch (error) {
         next(error);
     }

@@ -25,6 +25,7 @@
 'use strict';
 
 const { infrastructure } = require('../../modules');
+const { contentLabel } = require('../content/ContentRegistry');
 const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 const MultiDungeonInstance = require('../../models/multiDungeonInstance');
@@ -32,9 +33,11 @@ const MultiDungeonMember = require('../../models/multiDungeonMember');
 const MultiDungeonChoice = require('../../models/multiDungeonChoice');
 const MultiDungeonCooldown = require('../../models/multiDungeonCooldown');
 const sequelize = require('../../config/database');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const InventoryService = require('./InventoryService');
+const { grantItems } = require('../items/itemGrant');
 // 大五行幻世轮服务（同目录引用，用于多人副本通关后被动积累悟印）
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
@@ -108,6 +111,248 @@ const VARIABLE_BOUNDS = {
 };
 
 class MultiDungeonService {
+    // ==================== 内容驱动的主键清单 ====================
+
+    /**
+     * 有哪些副本可进 / 可领奖 / 可 GM：完全以内容为准。
+     *
+     * 改造前这份清单在同一个文件里抄了 4 遍、GM 路由里又抄了 2 遍（而且那两份只列了 4 个副本，
+     * 另外 6 个早就上线的副本从此发不了奖、重置不了冷却）。每加一个副本都要记得改这 6 处，
+     * 漏掉的地方的表现是"内容加进去了、接口回一句 dungeon_key 无效" —— 而内容层的日志一切正常。
+     *
+     * @param {string[]} extra - 该入口额外接受的哨兵值（例如 GM 的 'all'）
+     * @returns {string[]} 副本键列表
+     */
+    static _dungeonKeys(extra = []) {
+        return Object.keys(MultiDungeonService._dungeons()).concat(extra);
+    }
+
+    /** 当前内容里的全部副本（资料片加进来也算） */
+    static _dungeons() {
+        return configLoader.getConfig('multi_dungeon_data')?.dungeons || {};
+    }
+
+    /**
+     * 校验副本键，失败时返回可以直接回给调用方的结果（提示里的副本名也取自内容，不再手写一遍）
+     * @param {string} dungeonKey
+     * @param {string[]} extra - 允许的哨兵值
+     * @returns {Object|null} 合法返回 null；非法返回 { success:false, message, error_code }
+     */
+    static invalidDungeonKey(dungeonKey, extra = []) {
+        if (this._dungeonKeys(extra).includes(dungeonKey)) return null;
+        const hint = Object.entries(this._dungeons())
+            .map(([key, cfg]) => `${key}(${cfg && cfg.name ? cfg.name : '?'})`).join(' / ');
+        return {
+            success: false,
+            message: `dungeon_key 必须为 ${hint}${extra.length ? ' / ' + extra.join(' / ') : ''}`,
+            error_code: ErrorCodes.VALIDATION_ERROR
+        };
+    }
+
+    // ==================== 副本专属变量（内容驱动） ====================
+
+    /**
+     * 把内容里声明的副本专属变量铺到实例/成员行上。
+     *
+     * 声明位置：`multi_dungeon_data.dungeons[<key>].instance_vars` / `.member_vars`，键是列名，值两种写法：
+     *   `<列名>: <默认值>`                  → 初值取 `dungeonCfg['init_' + 列名]`（成员是 `member_init_`），没有就用默认值
+     *   `<列名>: { from, default }`         → 显式指定来源键；列名与 init 键不同名时用（黄龙山的列带 `huanglong_` 前缀），
+     *                                        `from: null` 表示"固定值，不读任何 init 键"——第六幕主魂/守灵 HP 要留 null，
+     *                                        用来区分"还没进最终幕"和"主魂已被打成 0"，配置里那两个 init 键是给最终幕读的初值。
+     * 只写模型上真实存在的列：资料片写错列名时这里告警并跳过（`Model.create` 会静默丢掉未知字段，比报错更难查）。
+     * 副本**独有的玩法判定**（血色试炼的淘汰规则等）仍然是代码；这里收掉的只是"每条内容都要改一次"的变量初始化。
+     */
+    static _applyDeclaredVars(target, dungeonCfg, declared, { prefix, columns, label }) {
+        for (const [column, rawSpec] of Object.entries(declared || {})) {
+            if (!columns.has(column)) {
+                console.warn(`[MultiDungeonService] 副本 ${label} 声明了 ${prefix} 不存在的列 ${column}，已跳过`);
+                continue;
+            }
+            const spec = rawSpec && typeof rawSpec === 'object' && !Array.isArray(rawSpec) && 'from' in rawSpec
+                ? rawSpec
+                : { from: `${prefix}${column}`, default: rawSpec };
+            let value = spec.from ? dungeonCfg[spec.from] : undefined;
+            if (value === undefined || value === null) value = spec.default;
+            // 配置里写 true/false 更直观，落库仍是 0/1（这些列是 TINYINT）
+            target[column] = typeof value === 'boolean' ? (value ? 1 : 0) : value;
+        }
+        return target;
+    }
+
+    static _instanceColumns() {
+        if (!this.__instanceColumns) this.__instanceColumns = new Set(Object.keys(MultiDungeonInstance.rawAttributes));
+        return this.__instanceColumns;
+    }
+
+    static _memberColumns() {
+        if (!this.__memberColumns) this.__memberColumns = new Set(Object.keys(MultiDungeonMember.rawAttributes));
+        return this.__memberColumns;
+    }
+
+    /**
+     * 把抉择里"本副本的短变量名"补成下游一律使用的列名。
+     *
+     * 为什么需要：抉择记录表与效果应用代码用的是**列名**（`huanglong_formation_power_change`、
+     * `huanglong_eye_position`…），而内容里是按副本自己的短名写的（`formation_power_change`、`eye_position`）。
+     * 两边对不上时不会报错，只会静默不生效 —— 黄龙山（migration_0060）的阵眼/共鸣/贡献/叛道就是这么哑掉的：
+     * 玩家看到"驻守前锋阵眼，自身贡献+10"，实际两个字段都没动。
+     *
+     * 短名从哪来：内容里声明过的 `instance_vars` / `member_vars` 的列名，去掉 `<副本名>_` 前缀。
+     * 所以资料片新增一个带前缀的副本变量，只写内容就能被认出来，不必改这个文件。
+     * 这里每次都用当前内容现算（不缓存），热更新才能立刻生效。
+     */
+    static _canonicalizeVarKeys(choice, dungeonKey) {
+        if (!choice || !dungeonKey) return choice;
+        const dungeon = MultiDungeonService._dungeons()[dungeonKey];
+        if (!dungeon) return choice;
+        const columns = new Set([
+            ...Object.keys(dungeon.instance_vars || {}),
+            ...Object.keys(dungeon.member_vars || {})
+        ]);
+        // 长后缀先试，避免 _self_change 被 _change 抢先切掉词干
+        const suffixes = ['_others_change_highest', '_self_change', '_others_change', '_change', '_self', ''];
+
+        const out = {};
+        for (const [key, value] of Object.entries(choice)) {
+            let canonical = null;
+            for (const suffix of suffixes) {
+                if (!key.endsWith(suffix)) continue;
+                const stem = key.slice(0, key.length - suffix.length);
+                if (!stem || columns.has(key)) break;             // 已经是列名，原样用
+                if (columns.has(`${dungeonKey}_${stem}`)) {
+                    canonical = `${dungeonKey}_${stem}${suffix}`;
+                }
+                break;
+            }
+            if (canonical) out[canonical] = value;
+            else out[key] = value;
+        }
+        return out;
+    }
+
+    /**
+     * 内容声明的变量边界：全局 `variable_bounds` 与副本自己的 `var_bounds` 合并（副本覆盖全局）。
+     * 没声明返回空对象，调用方决定兜底（历史表 / 不设上限）。
+     */
+    static _declaredVarBounds(dungeonKey) {
+        const config = configLoader.getConfig('multi_dungeon_data') || {};
+        return {
+            ...(config.variable_bounds || {}),
+            ...((config.dungeons && config.dungeons[dungeonKey] && config.dungeons[dungeonKey].var_bounds) || {})
+        };
+    }
+
+    /**
+     * 变量边界：优先读内容（全局 `variable_bounds` 与副本自己的 `var_bounds` 合并），
+     * 没写就退回代码里那份历史表，最后才是 0-100。`max` 省略表示不设上限（BIGINT 的 Boss 血量那一类）。
+     */
+    static _varBounds(dungeonKey, variable) {
+        const declared = MultiDungeonService._declaredVarBounds(dungeonKey);
+        const bounds = declared[variable] || VARIABLE_BOUNDS[variable] || { min: 0, max: 100 };
+        return {
+            min: Number.isFinite(Number(bounds.min)) ? Number(bounds.min) : 0,
+            max: Number.isFinite(Number(bounds.max)) ? Number(bounds.max) : Infinity
+        };
+    }
+
+    /**
+     * 兜底应用：内容里声明过（是实例列名）、但上面那串手写分支没认领的 `<变量>_change`，
+     * 统一按"累加 + 夹边界"生效，并写进 applied 让前端与日志看得见。
+     * 成员级变量（`*_self_change` / 前缀列在 member 表上）不在这里处理 —— 它们要按人分配，仍走专门分支。
+     */
+    static _applyRemainingVarChanges(instance, choice, applied) {
+        const columns = MultiDungeonService._instanceColumns();
+        for (const [key, raw] of Object.entries(choice || {})) {
+            if (!key.endsWith('_change')) continue;
+            const variable = key.slice(0, -'_change'.length);
+            if (!columns.has(variable)) continue;
+            if (applied[variable] !== undefined) continue;
+            const delta = Number(raw);
+            if (!Number.isFinite(delta) || delta === 0) continue;
+            const bounds = MultiDungeonService._varBounds(instance.instance_key, variable);
+            const next = Math.max(bounds.min, Math.min(bounds.max, Number(instance[variable] || 0) + delta));
+            instance[variable] = next;
+            applied[variable] = next;
+        }
+    }
+
+    /**
+     * 面板要展示的副本变量清单 = 内容里 `global.variable_labels` 的键 ∩ 实例表有的列。
+     * 一份清单同时管三件事：外发哪些字段、每个字段的中文名、以及"漏了标签就启动失败"。
+     * （以前是 5 处各写一份 30 多行的 `morale: instance.morale, …` 手抄本，加一个变量要挨个补。）
+     */
+    static _panelVariableColumns() {
+        const config = configLoader.getConfig('multi_dungeon_data') || {};
+        const labels = (config.global && config.global.variable_labels) || {};
+        const columns = MultiDungeonService._instanceColumns();
+        return Object.keys(labels).filter(key => key !== '_note' && columns.has(key));
+    }
+
+    static _isBigIntColumn(column) {
+        const attr = MultiDungeonInstance.rawAttributes[column];
+        const type = attr && attr.type ? String(attr.type.key || attr.type) : '';
+        return /BIGINT/i.test(type);
+    }
+
+    /** 变量块：BIGINT 列（Boss 血量那一类）沿用历史契约 —— 按字符串外发，0 或 null 一律给 null */
+    static _variablesOf(instance) {
+        const out = {};
+        for (const column of MultiDungeonService._panelVariableColumns()) {
+            const raw = instance[column];
+            if (raw === undefined) continue;
+            out[column] = MultiDungeonService._isBigIntColumn(column) ? (raw ? String(raw) : null) : raw;
+        }
+        return out;
+    }
+
+    /**
+     * 变量元信息：label 来自内容；dungeons 是"哪些副本声明过它"，null 表示所有副本通用（六个基础变量）。
+     * 客户端以前自己写死两份字典（中文名 + 归属副本），于是资料片加的变量永远不显示 ——
+     * 黄龙山的阵法强度在服务侧修好之后，仍然会因为那份字典里没有它而不进面板。
+     */
+    static _variableMeta() {
+        const dungeons = MultiDungeonService._dungeons();
+        const config = configLoader.getConfig('multi_dungeon_data') || {};
+        const labels = (config.global && config.global.variable_labels) || {};
+        const meta = {};
+        for (const [dungeonKey, dungeon] of Object.entries(dungeons)) {
+            for (const column of Object.keys(dungeon.instance_vars || {})) {
+                meta[column] = meta[column] || { dungeons: [] };
+                if (!meta[column].dungeons.includes(dungeonKey)) meta[column].dungeons.push(dungeonKey);
+            }
+        }
+        const dungeonCount = Object.keys(dungeons).length;
+        for (const [column, label] of Object.entries(labels)) {
+            if (column === '_note') continue;
+            if (!meta[column]) meta[column] = { dungeons: null };        // 只由 init_* 声明的通用变量
+            else if (meta[column].dungeons.length >= dungeonCount) meta[column].dungeons = null;
+        }
+        // 标签可能是字符串（基础配置）也可能是资料片经 map 集合加进来的对象 —— 两种形状都要认
+        for (const [column, entry] of Object.entries(meta)) entry.label = contentLabel(labels[column], column);
+        return meta;
+    }
+
+    /**
+     * GM 可调的变量清单：与 _variableMeta 同源，内容加一个副本变量就自动能调，不用再改代码。
+     * @returns {string[]} 实例列名
+     */
+    static adjustableVariables() {
+        return Object.keys(MultiDungeonService._variableMeta());
+    }
+
+    /**
+     * 这个变量归不归该副本用：meta.dungeons 为 null 表示六个通用变量（所有副本共用）。
+     * 拦的是"在黄龙山实例上改昆吾山的山禁"——列在同一张表上，写进去既不生效也查不出错。
+     * @param {string} dungeonKey
+     * @param {string} variable
+     * @returns {boolean}
+     */
+    static variableBelongsToDungeon(dungeonKey, variable) {
+        const entry = MultiDungeonService._variableMeta()[variable];
+        if (!entry) return false;
+        return !Array.isArray(entry.dungeons) || entry.dungeons.includes(dungeonKey);
+    }
+
     // ==================== 玩家方法 ====================
 
     /**
@@ -147,7 +392,10 @@ class MultiDungeonService {
             data: {
                 dungeons: help,
                 state_machine: config.state_machine,
-                global_bounds: config.global
+                global_bounds: config.global,
+                // 变量中文名与归属副本：玩家面板的"副本变量"与 GM 面板的变量下拉共用这一份，
+                // 客户端不再各抄一份字典（以前抄了两份，资料片新增的变量在界面上永远不出现）
+                variable_meta: MultiDungeonService._variableMeta()
             }
         };
     }
@@ -162,19 +410,9 @@ class MultiDungeonService {
     static async create(playerId, dungeonKey) {
         // 2026-07-21 新增 kunwu（昆吾山·封魔塔）5人剧情副本
         // 2026-07-21 新增 xutian（虚天殿）4-6人剧情副本
-        // 2026-07-21 新增 xiaoji（北冥小极宫）4-5人剧情副本
-        // 2026-07-21 新增 luoyun（落云秘圃）3-5人剧情副本
-        // 2026-07-21 新增 cangkun（苍坤洞府）3-5人剧情副本，掩月抢亲前置副本
-        // 2026-07-21 新增 xuese（血色试炼）4-6人 PVPvE 淘汰制副本
-        // 2026-07-21 新增 zhuimo（坠魔谷）3-5人 PVE 心魔博弈副本
-        // 2026-07-21 新增 huanglong（黄龙山）5人固定编制宗门协同阵法副本（首个同宗门强制副本）
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeonKey)) {
-            return {
-                success: false,
-                message: 'dungeon_key 必须为 yanyue(掩月抢亲) / duanwu(端午镇蛟) / kunwu(昆吾山·封魔塔) / xutian(虚天殿) / xiaoji(北冥小极宫) / luoyun(落云秘圃) / cangkun(苍坤洞府) / xuese(血色试炼) / zhuimo(坠魔谷) / huanglong(黄龙山)',
-                error_code: ErrorCodes.VALIDATION_ERROR
-            };
-        }
+        // 副本清单取自内容（见 _dungeonKeys）：以前这里抄了一份键白名单，新副本会被它挡在门外
+        const invalidCreate = MultiDungeonService.invalidDungeonKey(dungeonKey);
+        if (invalidCreate) return invalidCreate;
 
         const t = await sequelize.transaction();
         try {
@@ -272,88 +510,9 @@ class MultiDungeonService {
                 cooldown_hours: dungeonCfg.cooldown_hours,
                 cooldown_until: null
             };
-            // 昆吾山·封魔塔专属变量初始化
-            if (dungeonKey === 'kunwu') {
-                instanceData.demonic_qi = dungeonCfg.init_demonic_qi ?? 0;
-                instanceData.mountain_seal = dungeonCfg.init_mountain_seal ?? 30;
-                instanceData.treasure_pressure = dungeonCfg.init_treasure_pressure ?? 0;
-                instanceData.linglong = dungeonCfg.init_linglong ?? 50;
-                instanceData.tower_shadow_hp = dungeonCfg.init_tower_shadow_hp ?? 1000000;
-                instanceData.seal_progress = dungeonCfg.init_seal_progress ?? 50;
-            }
-            // 虚天殿专属变量初始化（2026-07-21 新增）
-            if (dungeonKey === 'xutian') {
-                instanceData.path_choice = dungeonCfg.init_path_choice ?? 0;          // 0=未选 / 1=冰道 / 2=火道
-                instanceData.formation_power = dungeonCfg.init_formation_power ?? 30;  // 阵法强度初始30
-                // void_soul_hp 初始为 null，由 _processXutianFinalAct 在首次进入第六幕时初始化
-                // 这样设计的目的：明确区分"未进入第六幕"和"虚天主魂HP=0"两种状态
-                instanceData.void_soul_hp = null;
-                // 复用 treasure_pressure 字段（虚天殿也使用宝压变量）
-                instanceData.treasure_pressure = dungeonCfg.init_treasure_pressure ?? 0;
-            }
-            // 小极宫专属变量初始化（2026-07-21 新增）
-            // curse_disorder 咒扰值、ice_seal_power 冰封之力、flame_power 火焰之力、yinluo_banner_qi 阴罗幡煞气
-            // yinluo_banner_qi 在队员加入时按阴罗宗成员累加（见 join 方法）
-            if (dungeonKey === 'xiaoji') {
-                instanceData.curse_disorder = dungeonCfg.init_curse_disorder ?? 0;
-                instanceData.ice_seal_power = dungeonCfg.init_ice_seal_power ?? 50;
-                instanceData.flame_power = dungeonCfg.init_flame_power ?? 0;
-                instanceData.yinluo_banner_qi = dungeonCfg.init_yinluo_banner_qi ?? 0;
-            }
-            // 落云秘圃专属变量初始化（2026-07-21 新增，migration_0055）
-            // spirit_vein_power 灵脉之力、root_stability 根脉稳定、branch_vigor 枝桠活力、spirit_plant_aura 灵植灵气
-            // act3_choice 第3幕抉择键，初始为 null，第3幕抉择时设置
-            if (dungeonKey === 'luoyun') {
-                instanceData.spirit_vein_power = dungeonCfg.init_spirit_vein_power ?? 60;
-                instanceData.root_stability = dungeonCfg.init_root_stability ?? 80;
-                instanceData.branch_vigor = dungeonCfg.init_branch_vigor ?? 50;
-                instanceData.spirit_plant_aura = dungeonCfg.init_spirit_plant_aura ?? 30;
-                instanceData.act3_choice = null;
-            }
-            // 苍坤洞府专属变量初始化（2026-07-21 新增，migration_0057）
-            // forbidden_rift 禁制裂隙（默认0，第1幕强破禁制/第3幕破禁抉择累加）
-            // scroll_clue 卷轴线索（默认0，第2幕搜寻宝物抉择累加，影响门票线索掉率）
-            // escape_difficulty 脱身难度（默认30，第4幕自动决战中累积，越高决战回合数越长）
-            // escape_choice 第4幕脱身抉择键（null，决战后由队长抉择设置）
-            // cangkun_guardian_hp 苍坤守灵HP（null，第4幕决战首次进入时初始化为 cangkun_guardian_hp_base）
-            if (dungeonKey === 'cangkun') {
-                instanceData.forbidden_rift = dungeonCfg.init_forbidden_rift ?? 0;
-                instanceData.scroll_clue = dungeonCfg.init_scroll_clue ?? 0;
-                instanceData.escape_difficulty = dungeonCfg.init_escape_difficulty ?? 30;
-                instanceData.escape_choice = null;
-                instanceData.cangkun_guardian_hp = null;
-            }
-            // 血色试炼专属变量初始化（2026-07-21 新增，migration_0058）
-            // blood_qi_avg 团队平均血气（默认100，第4幕决战每回合-10，归零团灭）
-            // blood_fury 血怒（默认0，前3幕抉择累加，第4幕决战伤害加成）
-            // eliminations 累计淘汰人数（默认0，第1/3幕各淘汰1人时累加）
-            // survivor_count 最终幸存人数（默认0，第3幕结束后更新为幸存者数量）
-            // xuese_boss_hp 血色尊者HP（null，第4幕决战首次进入时初始化为 xuese_boss_hp_base）
-            if (dungeonKey === 'xuese') {
-                instanceData.blood_qi_avg = dungeonCfg.init_blood_qi_avg ?? 100;
-                instanceData.blood_fury = dungeonCfg.init_blood_fury ?? 0;
-                instanceData.eliminations = dungeonCfg.init_eliminations ?? 0;
-                instanceData.survivor_count = dungeonCfg.init_survivor_count ?? 0;
-                instanceData.xuese_boss_hp = null;
-            }
-            // 坠魔谷专属变量初始化（2026-07-21 新增，migration_0059）
-            // avg_heart_demon 团队平均心魔（默认0，第4幕决战每回合+5，满100团灭）
-            // avg_dao_heart 团队平均道心（默认100，第4幕决战每回合-5，归0团灭）
-            // demon_boss_hp 心魔Boss HP（null，第4幕决战首次进入时初始化为 demon_boss_hp_base）
-            if (dungeonKey === 'zhuimo') {
-                instanceData.avg_heart_demon = dungeonCfg.init_avg_heart_demon ?? 0;
-                instanceData.avg_dao_heart = dungeonCfg.init_avg_dao_heart ?? 100;
-                instanceData.demon_boss_hp = null;
-            }
-            // 黄龙山专属变量初始化（2026-07-21 新增，migration_0060）
-            // huanglong_formation_power 阵法强度（默认0，0-200，第1幕起由阵眼选择与共鸣累加）
-            // huanglong_resonance_count 共鸣数（默认0，0-5，相同阵眼≥2人触发共鸣累加）
-            // huanglong_boss_hp 黄龙Boss HP（null，第4幕决战首次进入时初始化为 huanglong_boss_hp_base）
-            if (dungeonKey === 'huanglong') {
-                instanceData.huanglong_formation_power = dungeonCfg.init_formation_power ?? 0;
-                instanceData.huanglong_resonance_count = dungeonCfg.init_resonance_count ?? 0;
-                instanceData.huanglong_boss_hp = null;
-            }
+            MultiDungeonService._applyDeclaredVars(instanceData, dungeonCfg, dungeonCfg.instance_vars, {
+                prefix: 'init_', columns: MultiDungeonService._instanceColumns(), label: dungeonKey
+            });
             const instance = await MultiDungeonInstance.create(instanceData, { transaction: t });
 
             // 创建队长成员记录
@@ -373,30 +532,9 @@ class MultiDungeonService {
                 zongzi_invested: 0,
                 cooldown_end_time: null
             };
-            // 血色试炼：初始化个人血气与杀戮分（migration_0058）
-            if (dungeonKey === 'xuese') {
-                memberInitData.blood_qi = dungeonCfg.member_init_blood_qi ?? 100;
-                memberInitData.kill_score = dungeonCfg.member_init_kill_score ?? 0;
-                memberInitData.is_eliminated = 0;
-            }
-            // 坠魔谷：初始化个人心魔与道心（migration_0059）
-            // heart_demon 心魔（默认0，满100则堕魔淘汰）
-            // dao_heart 道心（默认100，归0则道心破碎淘汰）
-            // is_fallen 是否已堕魔（默认0）
-            if (dungeonKey === 'zhuimo') {
-                memberInitData.heart_demon = dungeonCfg.member_init_heart_demon ?? 0;
-                memberInitData.dao_heart = dungeonCfg.member_init_dao_heart ?? 100;
-                memberInitData.is_fallen = 0;
-            }
-            // 黄龙山：初始化阵眼位置、贡献分、叛道标记（migration_0060）
-            // huanglong_eye_position 阵眼位置（默认'unassigned'，第1幕入阵固守抉择后更新）
-            // huanglong_contribution_score 个人贡献分（默认0，第1-3幕抉择累加，叛道双倍）
-            // huanglong_is_defecting 是否已叛道（默认0，第3幕叛道抉择后置1）
-            if (dungeonKey === 'huanglong') {
-                memberInitData.huanglong_eye_position = dungeonCfg.member_init_eye_position ?? 'unassigned';
-                memberInitData.huanglong_contribution_score = dungeonCfg.member_init_contribution_score ?? 0;
-                memberInitData.huanglong_is_defecting = dungeonCfg.member_init_is_defecting ? 1 : 0;
-            }
+            MultiDungeonService._applyDeclaredVars(memberInitData, dungeonCfg, dungeonCfg.member_vars, {
+                prefix: 'member_init_', columns: MultiDungeonService._memberColumns(), label: dungeonKey
+            });
             await MultiDungeonMember.create(memberInitData, { transaction: t });
 
             await t.commit();
@@ -596,30 +734,9 @@ class MultiDungeonService {
                 zongzi_invested: 0,
                 cooldown_end_time: null
             };
-            // 血色试炼：队员加入时初始化个人血气与杀戮分（migration_0058）
-            if (instance.instance_key === 'xuese') {
-                const xueseCfg = dungeonCfg;
-                joinMemberData.blood_qi = xueseCfg?.member_init_blood_qi ?? 100;
-                joinMemberData.kill_score = xueseCfg?.member_init_kill_score ?? 0;
-                joinMemberData.is_eliminated = 0;
-            }
-            // 坠魔谷：队员加入时初始化个人心魔与道心（migration_0059）
-            if (instance.instance_key === 'zhuimo') {
-                const zhuimoCfg = dungeonCfg;
-                joinMemberData.heart_demon = zhuimoCfg?.member_init_heart_demon ?? 0;
-                joinMemberData.dao_heart = zhuimoCfg?.member_init_dao_heart ?? 100;
-                joinMemberData.is_fallen = 0;
-            }
-            // 黄龙山：队员加入时初始化阵眼位置、贡献分、叛道标记（migration_0060）
-            //   - huanglong_eye_position 默认 'unassigned'，第1幕入阵固守后由抉择更新
-            //   - huanglong_contribution_score 默认 0，第1-3幕抉择累加
-            //   - huanglong_is_defecting 默认 0，第3幕叛道抉择后置 1
-            if (instance.instance_key === 'huanglong') {
-                const huanglongCfg = dungeonCfg;
-                joinMemberData.huanglong_eye_position = huanglongCfg?.member_init_eye_position ?? 'unassigned';
-                joinMemberData.huanglong_contribution_score = huanglongCfg?.member_init_contribution_score ?? 0;
-                joinMemberData.huanglong_is_defecting = huanglongCfg?.member_init_is_defecting ? 1 : 0;
-            }
+            MultiDungeonService._applyDeclaredVars(joinMemberData, dungeonCfg, dungeonCfg.member_vars, {
+                prefix: 'member_init_', columns: MultiDungeonService._memberColumns(), label: instance.instance_key
+            });
             await MultiDungeonMember.create(joinMemberData, { transaction: t });
 
             instance.member_count += 1;
@@ -787,14 +904,7 @@ class MultiDungeonService {
                         text: c.text,
                         desc: c.desc
                     })),
-                    variables: {
-                        morale: instance.morale,
-                        vigilance: instance.vigilance,
-                        demon_corruption: instance.demon_corruption,
-                        seal_stability: instance.seal_stability,
-                        soul_stability: instance.soul_stability,
-                        harvest_multiplier: instance.harvest_multiplier
-                    }
+                    variables: MultiDungeonService._variablesOf(instance)
                 }
             };
         } catch (err) {
@@ -904,56 +1014,8 @@ class MultiDungeonService {
                     is_leader: instance.leader_player_id === playerId,
                     role: membership.role
                 },
-                variables: {
-                    morale: instance.morale,
-                    vigilance: instance.vigilance,
-                    demon_corruption: instance.demon_corruption,
-                    seal_stability: instance.seal_stability,
-                    soul_stability: instance.soul_stability,
-                    harvest_multiplier: instance.harvest_multiplier,
-                    // 昆吾山专属变量（非昆吾副本这些字段为默认值，前端可按 dungeon_key 判断是否展示）
-                    demonic_qi: instance.demonic_qi,
-                    mountain_seal: instance.mountain_seal,
-                    treasure_pressure: instance.treasure_pressure,
-                    linglong: instance.linglong,
-                    seal_progress: instance.seal_progress,
-                    tower_shadow_hp: instance.tower_shadow_hp ? instance.tower_shadow_hp.toString() : null,
-                    // 虚天殿专属变量（2026-07-21 新增，非虚天殿副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    path_choice: instance.path_choice,                 // 0=未选 / 1=冰道 / 2=火道
-                    formation_power: instance.formation_power,         // 阵法强度 0-100
-                    void_soul_hp: instance.void_soul_hp ? instance.void_soul_hp.toString() : null, // 虚天主魂HP（第六幕使用）
-                    // 小极宫专属变量（2026-07-21 新增，非小极宫副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    curse_disorder: instance.curse_disorder,           // 咒扰值 0-100，完美通关需 < 30
-                    ice_seal_power: instance.ice_seal_power,           // 冰封之力 0-100，第4幕需达到 100 通关
-                    flame_power: instance.flame_power,                 // 火焰之力 0-100，第2幕机关机制
-                    yinluo_banner_qi: instance.yinluo_banner_qi,       // 阴罗幡煞气，第3幕阴幡镇魂需 ≥ 50
-                    // 落云秘圃专属变量（2026-07-21 新增，migration_0055，非落云副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    spirit_vein_power: instance.spirit_vein_power,     // 灵脉之力 0-100，影响灵植生长
-                    root_stability: instance.root_stability,           // 根脉稳定 0-100，第3幕需 ≥ 50 才不致失败
-                    branch_vigor: instance.branch_vigor,               // 枝桠活力 0-100，影响灵眼树胚掉落
-                    spirit_plant_aura: instance.spirit_plant_aura,     // 灵植灵气 0-100，影响最终奖励
-                    act3_choice: instance.act3_choice,                 // 第3幕抉择键（cut_seal/branch_care/balanced_harvest）
-                    // 苍坤洞府专属变量（2026-07-21 新增，migration_0057，非苍坤副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    forbidden_rift: instance.forbidden_rift,           // 禁制裂隙 0-100，影响门票线索掉率与脱身难度
-                    scroll_clue: instance.scroll_clue,                 // 卷轴线索 0-100，千机残篇线索累积度
-                    escape_difficulty: instance.escape_difficulty,     // 脱身难度 0-100，影响决战回合数与门票掉率
-                    escape_choice: instance.escape_choice,             // 第4幕脱身抉择键（forced_breakout/formation_escape/stealth_escape）
-                    cangkun_guardian_hp: instance.cangkun_guardian_hp ? instance.cangkun_guardian_hp.toString() : null, // 苍坤守灵HP（第4幕使用）
-                    // 血色试炼专属变量（2026-07-21 新增，migration_0058，非血色副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    blood_qi_avg: instance.blood_qi_avg,               // 团队平均血气 0-100，第4幕决战每回合-10，归零团灭
-                    blood_fury: instance.blood_fury,                   // 血怒 0-200，第4幕决战伤害加成
-                    eliminations: instance.eliminations,               // 累计淘汰人数
-                    survivor_count: instance.survivor_count,           // 最终幸存人数
-                    xuese_boss_hp: instance.xuese_boss_hp ? instance.xuese_boss_hp.toString() : null, // 血色尊者HP（第4幕使用）
-                    // 坠魔谷专属变量（2026-07-21 新增，migration_0059，非坠魔副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    avg_heart_demon: instance.avg_heart_demon,         // 团队平均心魔 0-100，第4幕决战每回合+5，满100团灭
-                    avg_dao_heart: instance.avg_dao_heart,             // 团队平均道心 0-100，第4幕决战每回合-5，归0团灭
-                    demon_boss_hp: instance.demon_boss_hp ? instance.demon_boss_hp.toString() : null, // 心魔Boss HP（第4幕使用）
-                    // 黄龙山专属变量（2026-07-21 新增，migration_0060，非黄龙山副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    huanglong_formation_power: instance.huanglong_formation_power,  // 阵法强度 0-200，影响决战伤害与称号奖励
-                    huanglong_resonance_count: instance.huanglong_resonance_count,  // 共鸣数 0-5，相同阵眼≥2人触发
-                    huanglong_boss_hp: instance.huanglong_boss_hp ? instance.huanglong_boss_hp.toString() : null // 黄龙Boss HP（第4幕使用）
-                },
+                variables: MultiDungeonService._variablesOf(instance),
+                variable_meta: MultiDungeonService._variableMeta(),
                 current_act: currentAct ? {
                     act_number: currentAct.act_number,
                     act_name: currentAct.act_name,
@@ -1035,6 +1097,17 @@ class MultiDungeonService {
 
         const t = await sequelize.transaction();
         try {
+            // 取锁次序按 game/persistence/lockOrder.js：players 先于 multi_dungeon_instances。
+            // 原来先锁队长那行的 active 副本，走到"这次抉择要花灵石"时才回头锁 players
+            //（不要灵石的抉择干脆不锁），而 join/leave/结算那批方法是 players → 副本行 ——
+            // 同一个人在副本面板点抉择、另一条路点别的花钱操作，就是 ABBA。
+            // 玩家行只在这里锁一次，下面的花费分支复用同一份实例。
+            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!player) {
+                await t.rollback();
+                return { success: false, message: '玩家不存在' };
+            }
+
             // 锁定玩家作为队长的 active 副本
             const instance = await MultiDungeonInstance.findOne({
                 where: {
@@ -1170,7 +1243,7 @@ class MultiDungeonService {
 
             // 校验抉择消耗（灵石/神识）
             if (choice.cost_spirit_stones > 0) {
-                const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+                // 玩家行已在事务开头按次序锁好，这里直接用那份实例扣（原来在这里才第二次 FOR UPDATE）
                 const playerStones = BigInt(player.spirit_stones || 0);
                 if (playerStones < BigInt(choice.cost_spirit_stones)) {
                     await t.rollback();
@@ -1183,6 +1256,11 @@ class MultiDungeonService {
                 await player.save({ transaction: t });
             }
 
+            // 内容里可以用"本副本的短变量名"写变化（formation_power_change / eye_position），
+            // 下游（效果应用、抉择记录表列名）统一用带前缀的列名（huanglong_formation_power_change）。
+            // 没有这一步就会静默失效：抉择照写不误、字段一个不动（黄龙山 2026-07-21 就是这样哑了两个月）。
+            choice = MultiDungeonService._canonicalizeVarKeys(choice, instance.instance_key);
+
             // 应用抉择效果（修改变量、消耗物品、HP 损失等）
             const effectResult = await MultiDungeonService._applyChoiceEffect(instance, choice, playerId, t);
 
@@ -1191,15 +1269,11 @@ class MultiDungeonService {
             if (Array.isArray(choice.items_granted) && choice.items_granted.length > 0) {
                 const shouldGrantItems = !successRateRoll || successRateRoll.passed;
                 if (shouldGrantItems) {
-                    try {
-                        for (const itemKey of choice.items_granted) {
-                            await InventoryService.addItem(playerId, itemKey, 1, t);
-                        }
-                        effectResult.items_granted = choice.items_granted;
-                    } catch (e) {
-                        // 物品发放失败不阻塞抉择流程，仅记录日志
-                        console.warn(`[MultiDungeonService] 小极宫 items_granted 发放失败: ${e.message}`);
-                        effectResult.items_granted_error = e.message;
+                    // 逐件发、逐件记：原来第一件成功第二件失败时，已发的那件不再上报、失败的那件也不说
+                    const grant = await grantItems(playerId, choice.items_granted, t, { label: '多人副本·小极宫抉择' });
+                    effectResult.items_granted = grant.granted.map(g => g.item_key);
+                    if (grant.failed.length) {
+                        effectResult.items_granted_error = grant.failed.map(f => `${f.item_name}：${f.reason}`).join('；');
                     }
                 } else {
                     effectResult.items_granted_skipped = true;
@@ -1526,30 +1600,7 @@ class MultiDungeonService {
                             is_auto_advance: true,
                             choices: [],  // 自动决战无需手动抉择
                             rounds_max: nextAct.rounds_max || 5,
-                            variables: {
-                                morale: instance.morale,
-                                vigilance: instance.vigilance,
-                                demon_corruption: instance.demon_corruption,
-                                seal_stability: instance.seal_stability,
-                                soul_stability: instance.soul_stability,
-                                harvest_multiplier: instance.harvest_multiplier,
-                                // 昆吾山专属变量（含第四幕初始化前的状态）
-                                demonic_qi: instance.demonic_qi,
-                                mountain_seal: instance.mountain_seal,
-                                treasure_pressure: instance.treasure_pressure,
-                                linglong: instance.linglong,
-                                seal_progress: instance.seal_progress,
-                                tower_shadow_hp: instance.tower_shadow_hp ? instance.tower_shadow_hp.toString() : null,
-                    // 虚天殿专属变量（2026-07-21 新增，非虚天殿副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    path_choice: instance.path_choice,                 // 0=未选 / 1=冰道 / 2=火道
-                    formation_power: instance.formation_power,         // 阵法强度 0-100
-                    void_soul_hp: instance.void_soul_hp ? instance.void_soul_hp.toString() : null, // 虚天主魂HP（第六幕使用）
-                    // 小极宫专属变量（2026-07-21 新增，非小极宫副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    curse_disorder: instance.curse_disorder,           // 咒扰值 0-100，完美通关需 < 30
-                    ice_seal_power: instance.ice_seal_power,           // 冰封之力 0-100，第4幕需达到 100 通关
-                    flame_power: instance.flame_power,                 // 火焰之力 0-100，第2幕机关机制
-                    yinluo_banner_qi: instance.yinluo_banner_qi        // 阴罗幡煞气，第3幕阴幡镇魂需 ≥ 50
-                            },
+                            variables: MultiDungeonService._variablesOf(instance),
                             effect_applied: effectResult
                         }
                     };
@@ -1571,29 +1622,7 @@ class MultiDungeonService {
                             text: c.text,
                             desc: c.desc
                         })) : [],
-                        variables: {
-                            morale: instance.morale,
-                            vigilance: instance.vigilance,
-                            demon_corruption: instance.demon_corruption,
-                            seal_stability: instance.seal_stability,
-                            soul_stability: instance.soul_stability,
-                            harvest_multiplier: instance.harvest_multiplier,
-                            demonic_qi: instance.demonic_qi,
-                            mountain_seal: instance.mountain_seal,
-                            treasure_pressure: instance.treasure_pressure,
-                            linglong: instance.linglong,
-                            seal_progress: instance.seal_progress,
-                            tower_shadow_hp: instance.tower_shadow_hp ? instance.tower_shadow_hp.toString() : null,
-                    // 虚天殿专属变量（2026-07-21 新增，非虚天殿副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    path_choice: instance.path_choice,                 // 0=未选 / 1=冰道 / 2=火道
-                    formation_power: instance.formation_power,         // 阵法强度 0-100
-                    void_soul_hp: instance.void_soul_hp ? instance.void_soul_hp.toString() : null, // 虚天主魂HP（第六幕使用）
-                    // 小极宫专属变量（2026-07-21 新增，非小极宫副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    curse_disorder: instance.curse_disorder,           // 咒扰值 0-100，完美通关需 < 30
-                    ice_seal_power: instance.ice_seal_power,           // 冰封之力 0-100，第4幕需达到 100 通关
-                    flame_power: instance.flame_power,                 // 火焰之力 0-100，第2幕机关机制
-                    yinluo_banner_qi: instance.yinluo_banner_qi        // 阴罗幡煞气，第3幕阴幡镇魂需 ≥ 50
-                        },
+                        variables: MultiDungeonService._variablesOf(instance),
                         effect_applied: effectResult
                     }
                 };
@@ -1639,29 +1668,7 @@ class MultiDungeonService {
                         text: c.text,
                         desc: c.desc
                     })) : [],
-                    variables: {
-                        morale: instance.morale,
-                        vigilance: instance.vigilance,
-                        demon_corruption: instance.demon_corruption,
-                        seal_stability: instance.seal_stability,
-                        soul_stability: instance.soul_stability,
-                        harvest_multiplier: instance.harvest_multiplier,
-                        demonic_qi: instance.demonic_qi,
-                        mountain_seal: instance.mountain_seal,
-                        treasure_pressure: instance.treasure_pressure,
-                        linglong: instance.linglong,
-                        seal_progress: instance.seal_progress,
-                        tower_shadow_hp: instance.tower_shadow_hp ? instance.tower_shadow_hp.toString() : null,
-                    // 虚天殿专属变量（2026-07-21 新增，非虚天殿副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    path_choice: instance.path_choice,                 // 0=未选 / 1=冰道 / 2=火道
-                    formation_power: instance.formation_power,         // 阵法强度 0-100
-                    void_soul_hp: instance.void_soul_hp ? instance.void_soul_hp.toString() : null, // 虚天主魂HP（第六幕使用）
-                    // 小极宫专属变量（2026-07-21 新增，非小极宫副本为默认值，前端可按 dungeon_key 判断是否展示）
-                    curse_disorder: instance.curse_disorder,           // 咒扰值 0-100，完美通关需 < 30
-                    ice_seal_power: instance.ice_seal_power,           // 冰封之力 0-100，第4幕需达到 100 通关
-                    flame_power: instance.flame_power,                 // 火焰之力 0-100，第2幕机关机制
-                    yinluo_banner_qi: instance.yinluo_banner_qi        // 阴罗幡煞气，第3幕阴幡镇魂需 ≥ 50
-                    },
+                    variables: MultiDungeonService._variablesOf(instance),
                     effect_applied: effectResult
                 }
             };
@@ -1949,14 +1956,8 @@ class MultiDungeonService {
      * @returns {Promise<Object>} { success, data }
      */
     static async getRewards(dungeonKey) {
-        // 2026-07-21 新增 kunwu（昆吾山·封魔塔）/ xutian（虚天殿）/ xiaoji（北冥小极宫）/ luoyun（落云秘圃）/ cangkun（苍坤洞府）/ xuese（血色试炼）/ zhuimo（坠魔谷）/ huanglong（黄龙山）
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeonKey)) {
-            return {
-                success: false,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong',
-                error_code: ErrorCodes.VALIDATION_ERROR
-            };
-        }
+        const invalidRewards = MultiDungeonService.invalidDungeonKey(dungeonKey);
+        if (invalidRewards) return invalidRewards;
 
         const config = configLoader.getConfig('multi_dungeon_data');
         const dungeonCfg = config.dungeons[dungeonKey];
@@ -2092,16 +2093,12 @@ class MultiDungeonService {
      * @returns {string} 显示名
      */
     static _getRewardDisplayName(r) {
-        const typeMap = {
-            exp: '修为',
-            spirit_stones: '灵石',
-            honor: '荣誉值',
-            divine_sense: '神识提升',
-            title: '称号',
-            item: '物品',
-            global_announce: '全服公告'
-        };
-        return typeMap[r.type] || r.type || '未知奖励';
+        // 类型中文名取自内容的 global.reward_type_labels。
+        // 这里以前是一份 7 个类型的手写表：内容里第 8 种类型（sect_contribution）一出现，
+        // 奖励池界面就印出裸键名，而且没有任何地方报错。
+        const labels = (configLoader.peekConfig('multi_dungeon_data', 'global') || {}).reward_type_labels || {};
+        // contentLabel：资料片经 map 集合加进来的标签是对象（{id, label, …}），直接取会把对象当名字返回
+        return contentLabel(labels[r.type], r.type || '未知奖励');
     }
 
     /**
@@ -2163,8 +2160,7 @@ class MultiDungeonService {
      */
     static async getCooldown(playerId) {
         const cooldowns = {};
-        // 2026-07-21 扩展：覆盖全部8个副本键（含 luoyun 落云秘圃 / cangkun 苍坤洞府 / xuese 血色试炼）
-        for (const key of ['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong']) {
+        for (const key of MultiDungeonService._dungeonKeys()) {
             const latest = await MultiDungeonCooldown.findOne({
                 where: { player_id: playerId, dungeon_key: key },
                 order: [['cooldown_end_time', 'DESC']]
@@ -2266,19 +2262,10 @@ class MultiDungeonService {
      * @returns {Promise<Object>} { success, message, data }
      */
     static async gmAdjustVariable(instanceId, variable, value, adminId) {
-        // 2026-07-21 扩展：支持昆吾山/虚天殿/小极宫/落云秘圃专属变量
-        const allowedVars = [
-            // 通用变量
-            'morale', 'vigilance', 'demon_corruption', 'seal_stability', 'soul_stability', 'harvest_multiplier',
-            // 昆吾山·封魔塔专属变量
-            'demonic_qi', 'mountain_seal', 'treasure_pressure', 'linglong', 'seal_progress', 'tower_shadow_hp',
-            // 虚天殿专属变量
-            'path_choice', 'formation_power', 'void_soul_hp',
-            // 小极宫专属变量
-            'curse_disorder', 'ice_seal_power', 'flame_power', 'yinluo_banner_qi',
-            // 落云秘圃专属变量（2026-07-21 新增，migration_0055）
-            'spirit_vein_power', 'root_stability', 'branch_vigor', 'spirit_plant_aura', 'act3_choice'
-        ];
+        // 可调变量清单取自内容（各副本 instance_vars 的列名 + global.variable_labels）。
+        // 这里以前抄了一份 24 个变量的白名单，路由里还另有一份 19 个的：坠魔谷/血色试炼/
+        // 苍坤洞府/黄龙山的变量一个都调不动，资料片新增变量更是永远进不了 GM 面板。
+        const allowedVars = MultiDungeonService.adjustableVariables();
         if (!allowedVars.includes(variable)) {
             return {
                 success: false,
@@ -2312,16 +2299,28 @@ class MultiDungeonService {
                 return { success: false, message: '副本实例不存在' };
             }
 
-            // 边界校验：VARIABLE_BOUNDS 中定义的变量按 min/max 限制
-            // tower_shadow_hp / void_soul_hp 为 BIGINT 无边界限制，直接使用传入值
+            // 边界校验：内容声明的边界优先，其次历史表 VARIABLE_BOUNDS
+            // tower_shadow_hp / void_soul_hp 这类无边界 BIGINT 变量只保证非负
             // act3_choice 为字符串枚举，直接使用传入值
-            const bounds = VARIABLE_BOUNDS[variable];
+            if (!MultiDungeonService.variableBelongsToDungeon(instance.instance_key, variable)) {
+                await t.rollback();
+                return {
+                    success: false,
+                    message: `变量 ${variable} 不属于副本【${instance.instance_key}】，调整后既不会生效也查不出错`,
+                    error_code: ErrorCodes.VALIDATION_ERROR
+                };
+            }
+            const declared = MultiDungeonService._declaredVarBounds(instance.instance_key);
+            const bounds = declared[variable] || VARIABLE_BOUNDS[variable];
             let clampedValue;
             if (variable === 'act3_choice') {
                 // 字符串枚举，直接使用传入值
                 clampedValue = value;
             } else if (bounds) {
-                clampedValue = Math.max(bounds.min, Math.min(bounds.max, value));
+                // 内容可以只写 min 或只写 max（省略即不设那一侧的上限）
+                const lo = Number.isFinite(Number(bounds.min)) ? Number(bounds.min) : 0;
+                const hi = Number.isFinite(Number(bounds.max)) ? Number(bounds.max) : Infinity;
+                clampedValue = Math.max(lo, Math.min(hi, value));
             } else {
                 // 无边界的 BIGINT 变量（tower_shadow_hp / void_soul_hp），不允许负数
                 clampedValue = Math.max(0, Math.floor(value));
@@ -2369,15 +2368,8 @@ class MultiDungeonService {
      * @returns {Promise<Object>} { success, message, data }
      */
     static async gmGrantReward(playerId, dungeonKey, rewardKey, adminId) {
-        // 2026-07-21 扩展：支持 kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeonKey)) {
-            return {
-                success: false,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong',
-                error_code: ErrorCodes.VALIDATION_ERROR
-            };
-        }
-
+        const invalidGrant = MultiDungeonService.invalidDungeonKey(dungeonKey);
+        if (invalidGrant) return invalidGrant;
         const config = configLoader.getConfig('multi_dungeon_data');
         const dungeonCfg = config.dungeons[dungeonKey];
 
@@ -2493,14 +2485,8 @@ class MultiDungeonService {
      * @returns {Promise<Object>} { success, message, data }
      */
     static async gmResetCooldown(playerId, dungeonKey, adminId) {
-        // 2026-07-21 扩展：支持 kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong', 'all'].includes(dungeonKey)) {
-            return {
-                success: false,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong / all',
-                error_code: ErrorCodes.VALIDATION_ERROR
-            };
-        }
+        const invalidReset = MultiDungeonService.invalidDungeonKey(dungeonKey, ['all']);
+        if (invalidReset) return invalidReset;
 
         const whereClause = { player_id: playerId };
         if (dungeonKey !== 'all') {
@@ -3179,6 +3165,11 @@ class MultiDungeonService {
             applied.team_hp_loss_percent = choice.team_hp_loss_percent;
         }
 
+        // 内容里声明过、上面却没有专门分支处理的副本变量：统一"累加 + 夹边界"兜底。
+        // 有了这一步，资料片加一个新副本变量 = 在 instance_vars 里声明初值 + 抉择里写 <变量>_change，
+        // 不必再回这个文件补一个 if 块（漏补的后果是抉择静默不生效，正是黄龙山那次）。
+        MultiDungeonService._applyRemainingVarChanges(instance, choice, applied);
+
         return applied;
     }
 
@@ -3356,16 +3347,27 @@ class MultiDungeonService {
             lock: transaction.LOCK.UPDATE
         });
 
+        // 所有在场成员的 players 行在这里一次按 id 升序锁齐（口径见 game/persistence/lockOrder.js）。
+        // 原来发奖是"每种掉落 × 每个成员"各做一次 findByPk + FOR UPDATE（本方法里 20 多处），
+        // 加锁次序跟着成员表的返回顺序走：两个队同时结算、或结算与别的 players 写路径交叉，
+        // 就是 ABBA；而且同一行在一次结算里被反复读改写，多一份实例就多一次互相覆盖的机会。
+        // 下面所有发奖分支都改查 lockedMembers 这份唯一实例 —— 锁一次、每个成员一份。
+        const lockedMembers = new Map(
+            (await lockRowsByIdsAsc(transaction, Player, members.map(m => m.player_id)))
+                .map(p => [Number(p.id), p])
+        );
+
         // 1. 普通掉落：每个成员独立掉落
         if (rewards.normal_drops) {
             for (const m of members) {
                 const memberDrops = [];
+                const memberDropFailures = [];
                 for (const drop of rewards.normal_drops) {
                     if (Math.random() < drop.chance) {
                         const count = Math.floor(drop.count_min + Math.random() * (drop.count_max - drop.count_min + 1));
                         if (drop.is_spirit_stones || drop.item_key === 'spirit_stones') {
                             // 灵石直接加
-                            const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                            const player = lockedMembers.get(Number(m.player_id));
                             if (player) {
                                 const oldStones = BigInt(player.spirit_stones || 0);
                                 const actualGain = BigInt(Math.floor(count * instance.harvest_multiplier));
@@ -3374,17 +3376,13 @@ class MultiDungeonService {
                                 memberDrops.push({ item_key: 'spirit_stones', count: actualGain.toString() });
                             }
                         } else {
-                            try {
-                                await InventoryService.addItem(m.player_id, drop.item_key, count, transaction);
-                                memberDrops.push({ item_key: drop.item_key, count });
-                            } catch (e) {
-                                // 物品配置不存在等错误，跳过但记录日志
-                                console.warn(`[MultiDungeonService] 发放物品 ${drop.item_key} 给玩家 ${m.player_id} 失败:`, e.message);
-                            }
+                            const grant = await grantItems(m.player_id, [{ item_key: drop.item_key, quantity: count }], transaction, { label: '多人副本·普通掉落' });
+                            for (const g of grant.granted) memberDrops.push({ item_key: g.item_key, count });
+                            for (const f of grant.failed) memberDropFailures.push({ item_key: f.item_key, count, reason: f.reason });
                         }
                     }
                 }
-                summary.normal_drops.push({ player_id: m.player_id, drops: memberDrops });
+                summary.normal_drops.push({ player_id: m.player_id, drops: memberDrops, failed: memberDropFailures });
             }
         }
 
@@ -3392,9 +3390,10 @@ class MultiDungeonService {
         if (rewards.base_rewards) {
             for (const m of members) {
                 const memberBaseRewards = [];
+                const memberBaseRewardsFailures = [];
                 for (const baseReward of rewards.base_rewards) {
                     if (baseReward.type === 'exp') {
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const oldExp = BigInt(player.exp || 0);
                             const actualGain = BigInt(Math.floor(baseReward.count * instance.harvest_multiplier));
@@ -3403,22 +3402,19 @@ class MultiDungeonService {
                             memberBaseRewards.push({ type: 'exp', count: actualGain.toString() });
                         }
                     } else if (baseReward.type === 'honor') {
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             player.honor_value = (player.honor_value || 0) + baseReward.count;
                             await player.save({ transaction });
                             memberBaseRewards.push({ type: 'honor', count: baseReward.count });
                         }
                     } else if (baseReward.type === 'item' && baseReward.item_key) {
-                        try {
-                            await InventoryService.addItem(m.player_id, baseReward.item_key, baseReward.count, transaction);
-                            memberBaseRewards.push({ type: 'item', item_key: baseReward.item_key, count: baseReward.count });
-                        } catch (e) {
-                            console.warn(`[MultiDungeonService] 发放基础奖励 ${baseReward.item_key} 给玩家 ${m.player_id} 失败:`, e.message);
-                        }
+                        const grant = await grantItems(m.player_id, [{ item_key: baseReward.item_key, quantity: baseReward.count }], transaction, { label: '多人副本·基础奖励' });
+                        for (const g of grant.granted) memberBaseRewards.push({ type: 'item', item_key: g.item_key, count: baseReward.count });
+                        for (const f of grant.failed) memberBaseRewardsFailures.push({ item_key: f.item_key, count: baseReward.count, reason: f.reason });
                     } else if (baseReward.type === 'spirit_stones') {
                         // 2026-07-21 新增：基础灵石奖励（昆吾山基础奖励用）
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const oldStones = BigInt(player.spirit_stones || 0);
                             const actualGain = BigInt(Math.floor(baseReward.count * instance.harvest_multiplier));
@@ -3428,7 +3424,7 @@ class MultiDungeonService {
                         }
                     } else if (baseReward.type === 'divine_sense') {
                         // 2026-07-21 新增：昆吾山通关永久神识加成
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const oldDs = player.divine_sense_balance || 0;
                             player.divine_sense_balance = oldDs + baseReward.count;
@@ -3442,7 +3438,7 @@ class MultiDungeonService {
                 if (existing) {
                     existing.drops.push(...memberBaseRewards);
                 } else {
-                    summary.normal_drops.push({ player_id: m.player_id, drops: memberBaseRewards });
+                    summary.normal_drops.push({ player_id: m.player_id, drops: memberBaseRewards, failed: memberBaseRewardsFailures });
                 }
             }
         }
@@ -3451,10 +3447,11 @@ class MultiDungeonService {
         if (instance.first_clear === 1 && rewards.first_clear_bonus) {
             for (const m of members) {
                 const memberFirstClear = [];
+                const memberFirstClearFailures = [];
                 for (const bonus of rewards.first_clear_bonus) {
                     if (bonus.type === 'title') {
                         // 称号奖励：将称号ID加入玩家 titles 数组
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const titles = player.titles || [];
                             if (!titles.includes(bonus.title_id)) {
@@ -3465,14 +3462,11 @@ class MultiDungeonService {
                             memberFirstClear.push({ type: 'title', title_id: bonus.title_id });
                         }
                     } else if (bonus.type === 'item' && bonus.item_key) {
-                        try {
-                            await InventoryService.addItem(m.player_id, bonus.item_key, bonus.count, transaction);
-                            memberFirstClear.push({ type: 'item', item_key: bonus.item_key, count: bonus.count });
-                        } catch (e) {
-                            console.warn(`[MultiDungeonService] 发放首通物品 ${bonus.item_key} 给玩家 ${m.player_id} 失败:`, e.message);
-                        }
+                        const grant = await grantItems(m.player_id, [{ item_key: bonus.item_key, quantity: bonus.count }], transaction, { label: '多人副本·首通奖励' });
+                        for (const g of grant.granted) memberFirstClear.push({ type: 'item', item_key: g.item_key, count: bonus.count });
+                        for (const f of grant.failed) memberFirstClearFailures.push({ item_key: f.item_key, count: bonus.count, reason: f.reason });
                     } else if (bonus.type === 'spirit_stones') {
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const oldStones = BigInt(player.spirit_stones || 0);
                             player.spirit_stones = (oldStones + BigInt(bonus.count)).toString();
@@ -3491,7 +3485,7 @@ class MultiDungeonService {
                         }
                     }
                 }
-                summary.first_clear.push({ player_id: m.player_id, bonuses: memberFirstClear });
+                summary.first_clear.push({ player_id: m.player_id, bonuses: memberFirstClear, failed: memberFirstClearFailures });
             }
         }
 
@@ -3548,7 +3542,7 @@ class MultiDungeonService {
             const linglongBonusExp = Math.floor(instance.linglong / 10) * expPer10;
             const linglongBonusStones = Math.floor(instance.linglong / 10) * stonesPer10;
             for (const m of members) {
-                const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                const player = lockedMembers.get(Number(m.player_id));
                 if (player) {
                     if (linglongBonusExp > 0) {
                         const oldExp = BigInt(player.exp || 0);
@@ -3595,7 +3589,7 @@ class MultiDungeonService {
                 const bonusContribution = rewards.perfect_bonus.contribution || 0;
                 const PlayerSect = require('../../models/playerSect');
                 for (const m of members) {
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player && bonusExp > 0) {
                         const oldExp = BigInt(player.exp || 0);
                         player.exp = (oldExp + BigInt(bonusExp)).toString();
@@ -3704,7 +3698,7 @@ class MultiDungeonService {
                         players: []
                     };
                     for (const m of members) {
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const titles = player.titles || [];
                             const alreadyHad = titles.includes(rewards.title);
@@ -3750,7 +3744,7 @@ class MultiDungeonService {
                 const bonusContribution = rewards.perfect_bonus.contribution || 0;
                 const PlayerSect = require('../../models/playerSect');
                 for (const m of members) {
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player && bonusExp > 0) {
                         const oldExp = BigInt(player.exp || 0);
                         player.exp = (oldExp + BigInt(bonusExp)).toString();
@@ -3882,7 +3876,7 @@ class MultiDungeonService {
                         players: []
                     };
                     for (const m of members) {
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const titles = player.titles || [];
                             const alreadyHad = titles.includes(rewards.title);
@@ -3931,7 +3925,7 @@ class MultiDungeonService {
                 const bonusExp = rewards.perfect_bonus.exp || 0;
                 const bonusStones = rewards.perfect_bonus.spirit_stones || 0;
                 for (const m of members) {
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player) {
                         const perfectBonus = [];
                         if (bonusExp > 0) {
@@ -3964,7 +3958,7 @@ class MultiDungeonService {
                 const bonusExp = Math.floor(instance.scroll_clue / 10) * expPer10;
                 const bonusStones = Math.floor(instance.scroll_clue / 10) * stonesPer10;
                 for (const m of members) {
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player) {
                         const scrollBonus = [];
                         if (bonusExp > 0) {
@@ -4072,7 +4066,7 @@ class MultiDungeonService {
                         players: []
                     };
                     for (const m of members) {
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const titles = player.titles || [];
                             const alreadyHad = titles.includes(rewards.title);
@@ -4120,7 +4114,7 @@ class MultiDungeonService {
                     if (memberKillScore <= 0) continue;
                     const bonusExp = Math.floor(memberKillScore / 10) * expPer10;
                     const bonusStones = Math.floor(memberKillScore / 10) * stonesPer10;
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player && (bonusExp > 0 || bonusStones > 0)) {
                         const killScoreBonus = [];
                         if (bonusExp > 0) {
@@ -4155,7 +4149,7 @@ class MultiDungeonService {
                 const bonusStones = stonesPerSurvivor * instance.survivor_count;
                 for (const m of members) {
                     if (m.is_eliminated) continue;
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player) {
                         const survivorBonus = [];
                         if (bonusExp > 0) {
@@ -4186,7 +4180,7 @@ class MultiDungeonService {
                 const bonusExp = rewards.perfect_bonus.exp || 0;
                 const bonusStones = rewards.perfect_bonus.spirit_stones || 0;
                 for (const m of members) {
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player) {
                         const perfectBonus = [];
                         if (bonusExp > 0) {
@@ -4223,7 +4217,7 @@ class MultiDungeonService {
                     };
                     for (const m of members) {
                         if (m.is_eliminated) continue; // 仅幸存者可获得称号
-                        const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                        const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
                             const titles = player.titles || [];
                             const alreadyHad = titles.includes(rewards.title);
@@ -4278,7 +4272,7 @@ class MultiDungeonService {
                 for (const m of members) {
                     // 仅未堕魔者可获得道心加成
                     if (m.is_fallen) continue;
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player && (bonusExp > 0 || bonusStones > 0)) {
                         const daoHeartBonus = [];
                         if (bonusExp > 0) {
@@ -4310,7 +4304,7 @@ class MultiDungeonService {
                 const bonusExp = rewards.perfect_bonus.exp || 0;
                 const bonusStones = rewards.perfect_bonus.spirit_stones || 0;
                 for (const m of members) {
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player) {
                         const perfectBonus = [];
                         if (bonusExp > 0) {
@@ -4351,7 +4345,7 @@ class MultiDungeonService {
                         };
                         for (const m of members) {
                             if (m.is_fallen) continue; // 仅未堕魔者可获得称号
-                            const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                            const player = lockedMembers.get(Number(m.player_id));
                             if (player) {
                                 const titles = player.titles || [];
                                 const alreadyHad = titles.includes(rewards.title);
@@ -4407,7 +4401,7 @@ class MultiDungeonService {
                 const bonusExp = Math.floor(formationPower / 10) * expPer10;
                 const bonusStones = Math.floor(formationPower / 10) * stonesPer10;
                 for (const m of members) {
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player && (bonusExp > 0 || bonusStones > 0)) {
                         const formationPowerBonus = [];
                         if (bonusExp > 0) {
@@ -4439,7 +4433,7 @@ class MultiDungeonService {
                 const bonusExp = rewards.perfect_bonus.exp || 0;
                 const bonusStones = rewards.perfect_bonus.spirit_stones || 0;
                 for (const m of members) {
-                    const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = lockedMembers.get(Number(m.player_id));
                     if (player) {
                         const perfectBonus = [];
                         if (bonusExp > 0) {
@@ -4480,7 +4474,7 @@ class MultiDungeonService {
                         };
                         for (const m of members) {
                             if (m.huanglong_is_defecting) continue; // 仅未叛道者可获得称号
-                            const player = await Player.findByPk(m.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                            const player = lockedMembers.get(Number(m.player_id));
                             if (player) {
                                 const titles = player.titles || [];
                                 const alreadyHad = titles.includes(rewards.title);

@@ -1,56 +1,31 @@
 /**
- * 属性服务模块
- * 处理玩家属性计算、成长、加点等核心业务逻辑
+ * 属性服务：对外的属性计算入口，内部委托给 StatEngine + StatRegistry。
  *
- * 装备加成集成说明：
- *   - calculateFullAttributes 保持同步，通过 player._equipmentBonus 读取装备加成
- *   - calculateFullAttributesAsync 为异步版本，内部获取装备加成后调用同步方法
- *   - 需要装备加成的调用方应使用 calculateFullAttributesAsync
+ * 改造要点（2026-09-20）：
+ *   旧实现在这一个函数里手写 9 个加成来源、并硬编码 3 份属性词表
+ *   （base 初值、可加点白名单、描述与图标），且三种百分比口径互相冲突：
+ *   天赋/称号按"基础值"乘算、法宝深线按"最终值"乘算、修炼速度又是另一套。
+ *   结果是给一件武器加一个新属性，需要同时改本文件、AttributeMaxService、
+ *   game_balance 的祭炼表、各 Service 的战力公式和前端标签表共 23+ 处。
  *
- * 灵兽加成集成说明（2026-07-20 新增）：
- *   - 出战灵兽会按比例加成玩家属性（atk/def/hp_max/speed）
- *   - 加成比例 = base_rate + star_level * star_rate + level * level_rate（上限 max_rate）
- *   - 通过 player._spiritBeastBonus 传入（异步版本自动填充）
- *   - 加成来源记录在 breakdown.spirit_beast 中，便于前端展示
+ *   现在：词表来自 stat_definitions（可被资料片追加），来源以 provider 注册，
+ *   聚合口径全游戏唯一 —— value = clamp((base + Σflat) × (1 + Σpct))。
+ *   加属性只改数据；加来源只注册 provider；本文件不再认识具体玩法。
  *
- * 法宝深线加成集成说明（2026-07-22 新增）：
- *   - 三条法宝深线（血魔剑/虚天鼎/大五行幻世轮）提供战力加成
- *   - 血魔剑：百分比加成（atk/def + battle 特效：暴击/吸血/反噬）
- *   - 虚天鼎：绝对值加成（atk/def + 化极倍率 + 反噬）
- *   - 大五行幻世轮：百分比加成（atk/def/hp_max/speed + 相位 × 阶数倍率）
- *   - 掌天瓶为纯辅助法宝，无战力加成，不参与属性计算
- *   - 通过 player._artifactDeepLineBonus 传入（异步版本自动填充）
- *   - 归一化结构：{ is_active, absolute, percent, effects, breakdown }
- *   - absolute 直接叠加到 final；percent 基于 final 乘算；effects 记录在 breakdown.artifact_deep_line.effects
+ * 口径变化（唯一的数值行为变更，需要留意平衡）：
+ *   天赋/称号的 *_pct 加成正从"只乘境界基础值"变为"乘含装备等全部绝对值后的基数"。
+ *   同时旧代码会把 atk_pct 这类键原样留在 final 里污染属性面板，现在不会了。
+ *
+ * 同步 / 异步两条路径的边界与改造前保持一致：
+ *   calculateFullAttributes(player)        静态快照：境界 + 灵根 + 加点/丹药 + 天赋 + 称号
+ *   calculateFullAttributesAsync(player)   完整快照：再叠加 装备 / 灵兽 / 功法 / 法宝深线
+ *   （副本与宗门战开局刻意使用静态快照，避免战斗中途换装导致属性突变。）
  */
-const EquipmentService = require('../services/EquipmentService');
-const SpiritBeastService = require('../services/SpiritBeastService');
-const ArtifactDeepLineService = require('../services/ArtifactDeepLineService');
-
-/**
- * 可加点属性白名单：前端属性名 → player.attributes 存储键
- * 必须与 calculateFullAttributes 中 allocated 读取的键保持一致，否则加点不生效
- */
-const ALLOCATABLE_BONUS_KEYS = {
-    hp: 'hp_bonus',
-    mp: 'mp_bonus',
-    atk: 'atk_bonus',
-    def: 'def_bonus',
-    speed: 'speed_bonus',
-    sense: 'sense_bonus'
-};
-
-/** 单属性单次加点上限与累计总量上限 */
-const MAX_POINTS_PER_ATTRIBUTE = 100;
-const MAX_TOTAL_BONUS_PER_ATTRIBUTE = 1000000;
-
-/** 存储键 → 前端属性名，用于回收加点时反查 */
-const BONUS_KEY_TO_ALLOCATABLE = Object.fromEntries(
-    Object.entries(ALLOCATABLE_BONUS_KEYS).map(([attr, bonusKey]) => [bonusKey, attr])
-);
-
-/** attributes 中记录"加点来源"的账本键，用于区分加点与丹药等其他加成来源 */
-const ALLOCATION_LEDGER_KEY = 'attribute_point_allocations';
+const { statRegistry, ensureStatRegistryLoaded } = require('../stats');
+const { StatEngine } = require('../stats');
+const { buildProviders } = require('../stats/providers');
+const { spiritRootBonus } = require('../stats/SpiritRoot');
+const PlayerStateStore = require('../persistence/PlayerStateStore');
 
 /** attribute_system.json: attribute_reset 缺失时的兜底规则 */
 const DEFAULT_RESET_CONFIG = {
@@ -58,9 +33,32 @@ const DEFAULT_RESET_CONFIG = {
     cooldown_minutes: 1440
 };
 
+/** 存储键 → 前端属性名，由注册表推导，用于回收加点时反查 */
+const ALLOCATION_LEDGER_KEY = 'attribute_point_allocations';
+
+/** 单属性单次加点上限（总量上限仍由 attribute_pill_limits 统一钳制） */
+const MAX_POINTS_PER_ATTRIBUTE = 100;
+const MAX_TOTAL_BONUS_PER_ATTRIBUTE = 1000000;
+
+/** provider id → 旧 breakdown 分组名，保持前端与 WorldBossService 等调用点的读取路径不变 */
+const LEGACY_BREAKDOWN_GROUPS = [
+    ['spirit_root', 'spirit_root'],
+    ['allocated', 'allocated'],
+    ['talent', 'talent'],
+    ['title', 'title'],
+    ['equipment', 'equipment'],
+    ['spirit_beast', 'spirit_beast'],
+    ['artifact_deep_line', 'artifact_deep_line'],
+    ['technique', 'cultivation'],
+    // 傀儡此前只在 by_stat / info 里有，legacy breakdown 里没有这一组：
+    // 任何按来源分组读明细的地方（"加成来自哪里"列表）都会漏掉出战傀儡。
+    ['puppet', 'puppet']
+];
+
 class AttributeService {
     constructor() {
         this.configLoader = null;
+        this._engine = null;
     }
 
     /**
@@ -69,6 +67,23 @@ class AttributeService {
      */
     initialize(configLoader) {
         this.configLoader = configLoader;
+        this._engine = null; // 换配置源时重建
+    }
+
+    /** 属性词表：正常由内容层装配，独立使用本服务时退回基础定义 */
+    get registry() {
+        return ensureStatRegistryLoaded(this.configLoader);
+    }
+
+    /** 懒建引擎：provider 依赖 configLoader 与注册表，装配发生在内容层就绪之后 */
+    get engine() {
+        if (!this._engine) {
+            this._engine = new StatEngine(this.registry, { strict: false });
+            for (const provider of buildProviders(this.registry, this.configLoader)) {
+                this._engine.registerProvider(provider);
+            }
+        }
+        return this._engine;
     }
 
     /**
@@ -85,9 +100,42 @@ class AttributeService {
      * @returns {Object|null} 境界配置
      */
     getRealmConfig(realmName) {
-        const config = this.configLoader?.getConfig('realm_breakthrough');
-        if (!config?.realms) return null;
-        return config.realms.find(r => r.name === realmName) || null;
+        let config = null;
+        try {
+            config = this.configLoader?.getConfig('realm_breakthrough');
+        } catch (error) {
+            // 配置文件缺失/未加载时按"无境界数据"兜底，属性回落到定义里的 default，
+            // 而不是让整个属性面板挂掉
+            this._warnConfigOnce(error.message);
+            return null;
+        }
+        if (!config?.realms) {
+            // 走到这里属性会整体落到定义里的 default —— 表现为"真仙也算成凡人"，
+            // 而面板照样打得开、也不抛错，所以必须喊一声（ConfigLoader 没注入是最常见成因）
+            this._warnConfigOnce('realm_breakthrough 配置不可用（ConfigLoader 未初始化或数据集缺失）');
+            return null;
+        }
+        const realm = config.realms.find(r => r.name === realmName) || null;
+        if (!realm && realmName) this._warnUnknownRealmOnce(realmName);
+        return realm;
+    }
+
+    /** 同一个境界名只报一次，避免每个请求刷一条日志；不同名字分别报（要能看出到底哪些名字坏了） */
+    _warnUnknownRealmOnce(realmName) {
+        this._unknownRealms = this._unknownRealms || new Set();
+        if (this._unknownRealms.has(realmName)) return;
+        this._unknownRealms.add(realmName);
+        console.warn(
+            `[AttributeService] 境界「${realmName}」在 realm_breakthrough 里查不到，` +
+            '该玩家的属性按定义里的 default 兜底（境界加成全部丢失）。' +
+            '常见成因：资料片删/改了基础境界链，或 players.realm 里存了一个不存在的名号。'
+        );
+    }
+
+    _warnConfigOnce(message) {
+        if (this._configWarned) return;
+        this._configWarned = true;
+        console.warn(`[AttributeService] 配置读取失败，属性按默认兜底: ${message}`);
     }
 
     /**
@@ -113,342 +161,237 @@ class AttributeService {
         return this.configLoader?.getConfig('titles') || [];
     }
 
-    /**
-     * 计算玩家完整属性
-     *
-     * 修复（2026-07-20）：
-     *   原代码 base.mp_max = realm?.base_mp || 0，使用 realm_breakthrough.json 的 base_mp，
-     *   但 AttributeMaxService.calculateMPMax 使用 spirit_system.json 的 spirit_power_max，
-     *   两套 MP 上限系统数值不一致（化神初期 base_mp=3200 vs spirit_power_max=100000），
-     *   导致 mp_current 可恢复到 100000，但前端显示 mp_max=3200，出现 mp_current > mp_max 的混乱。
-     *   现在统一使用 spirit_system.json 的 spirit_power_max 作为 MP 上限，与 AttributeMaxService 保持一致。
-     *
-     * @param {Object} player - 玩家对象
-     * @returns {Object} 完整属性对象 { final, breakdown, info }
-     */
-    calculateFullAttributes(player) {
-        const attributes = typeof player.attributes === 'string'
-            ? JSON.parse(player.attributes)
-            : (player.attributes || {});
-
-        const realm = this.getRealmConfig(player.realm);
-        const roleConfig = this.getRoleInitConfig();
-
-        // 1. 基础属性 (Realm Base)
-        // 如果没有境界配置，使用默认值
-        // 修复：mp_max 统一使用 spirit_system.json 的 spirit_power_max，与 AttributeMaxService 保持一致
-        const spiritSystemConfig = this.configLoader?.getConfig('spirit_system');
-        const spiritPowerMax = spiritSystemConfig?.realm_settings?.[player.realm]?.spirit_power_max;
-        const base = {
-            hp_max: realm?.base_hp || 100,
-            mp_max: (typeof spiritPowerMax === 'number') ? spiritPowerMax : (realm?.base_mp || 0),
-            atk: realm?.base_atk || 10,
-            def: realm?.base_def || 5,
-            speed: realm?.base_speed || 10,
-            sense: realm?.base_sense || 10,
-            luck: attributes.luck || 10,
-            wisdom: attributes.wisdom || 10,
-            cultivate_speed: 10 // 基础修炼速度
-        };
-
-        // 计算衍生基础属性
-        // 2. 灵根加成
-        const spiritRoot = player.spirit_root || '无';
-        const spiritRootBonuses = roleConfig.spiritRootBonuses?.[spiritRoot] || {};
-        
-        // 3. 分配点数/丹药加成 (Allocated/Pills)
-        const allocated = {
-            hp_max: attributes.hp_bonus || 0,
-            mp_max: attributes.mp_bonus || 0,
-            atk: attributes.atk_bonus || 0,
-            def: attributes.def_bonus || 0,
-            speed: attributes.speed_bonus || 0,
-            sense: attributes.sense_bonus || 0
-        };
-
-        // 4. 天赋加成
-        const talent = this.getTalentConfig(player.talent_id);
-        // 天赋可能有百分比加成，需要基于当前基础(base)计算
-        const talentBonus = this.calculateBonuses(base, talent?.bonuses);
-
-        // 5. 称号加成
-        const title = this.getTitleConfig(player.equipped_title_id);
-        const titleBonus = this.calculateBonuses(base, title?.bonuses);
-
-        // 6. 装备加成（由调用方通过 player._equipmentBonus 传入，异步版本会自动填充）
-        const equipmentBonus = player._equipmentBonus || {};
-
-        // 7. 灵兽加成（由调用方通过 player._spiritBeastBonus 传入，异步版本会自动填充）
-        // 出战灵兽按比例加成 atk/def/hp_max/speed 等
-        const spiritBeastBonus = player._spiritBeastBonus || {};
-        const spiritBeastInfo = spiritBeastBonus.beast_info || null;
-        // 剔除 beast_info 字段后剩下的就是纯属性加成
-        const spiritBeastAttrBonus = {};
-        for (const [k, v] of Object.entries(spiritBeastBonus)) {
-            if (k !== 'beast_info' && typeof v === 'number') {
-                spiritBeastAttrBonus[k] = v;
+    /** 解析 attributes 存储列（TEXT 列的 getter 已反序列化，这里兼容裸字符串与实例） */
+    _attributesOf(player) {
+        const raw = player?.attributes;
+        if (typeof raw === 'string') {
+            try {
+                return JSON.parse(raw) || {};
+            } catch {
+                return {};
             }
         }
+        return raw || {};
+    }
 
-        // 8. 法宝深线加成（由调用方通过 player._artifactDeepLineBonus 传入，异步版本会自动填充）
-        // 归一化结构：{ is_active, absolute, percent, effects, breakdown }
-        //   - absolute: 绝对值加成（直接叠加到 final）
-        //   - percent: 百分比加成（基于 final 乘算，0.05 表示 +5%）
-        //   - effects: 战斗特殊效果（暴击/吸血/反噬等，不体现在属性面板）
-        const artifactDeepLineBonus = player._artifactDeepLineBonus || null;
-
-        // 9. 功法加成（由调用方通过 player._techniqueBonus 传入，异步版本会自动填充）
-        // 结构：{ hp_max, mp_max, atk, def, speed, cultivate_speed_pct, skills[] }
-        //   - 属性字段直接叠加到 final（注意可能为负值，如魔功反噬减损气血上限）
-        //   - cultivate_speed_pct 参与修炼速度百分比汇总
-        //   - skills 为已领悟神通，不影响面板属性，供战斗系统读取
-        const techniqueBonus = player._techniqueBonus || {};
-        // 剔除非数值字段（skills 数组），只保留纯属性加成用于叠加
-        const techniqueAttrBonus = {};
-        for (const [k, v] of Object.entries(techniqueBonus)) {
-            if (typeof v === 'number' && k !== 'cultivate_speed_pct') {
-                techniqueAttrBonus[k] = v;
-            }
+    /** 组装求解上下文：所有 base 取值环境都在这里备齐，引擎自身不碰配置 */
+    _buildContext(player, { sourceOverrides = null, realmOverride = null, realmNameOverride = null } = {}) {
+        const realmName = realmNameOverride || player?.realm;
+        const realm = realmOverride || this.getRealmConfig(realmName) || {};
+        let spiritRealm = null;
+        try {
+            spiritRealm = this.configLoader?.getConfig('spirit_system')?.realm_settings?.[realmName] || null;
+        } catch {
+            spiritRealm = null;
         }
-
-        // 汇总计算
-        const final = { ...base };
-
-        // 辅助函数：叠加属性
-        const addAttr = (target, source) => {
-            if (!source) return;
-            for (const [k, v] of Object.entries(source)) {
-                if (typeof v === 'number') {
-                    target[k] = (target[k] || 0) + v;
-                }
-            }
-        };
-
-        addAttr(final, spiritRootBonuses);
-        addAttr(final, allocated);
-        addAttr(final, talentBonus);
-        addAttr(final, titleBonus);
-        addAttr(final, equipmentBonus);
-        addAttr(final, spiritBeastAttrBonus);
-        addAttr(final, techniqueAttrBonus);
-
-        // 8.1 法宝深线 - 绝对值加成（虚天鼎的 atk/def 绝对值）
-        if (artifactDeepLineBonus && artifactDeepLineBonus.is_active) {
-            addAttr(final, artifactDeepLineBonus.absolute);
-        }
-
-        // 8.2 法宝深线 - 百分比加成（血魔剑/大五行幻世轮的 atk/def/hp_max/speed 百分比）
-        // 百分比加成基于当前 final 属性乘算（在绝对值加成之后，确保基数最大）
-        const artifactDeepLinePercentApplied = {};
-        if (artifactDeepLineBonus && artifactDeepLineBonus.is_active && artifactDeepLineBonus.percent) {
-            for (const [key, rate] of Object.entries(artifactDeepLineBonus.percent)) {
-                if (typeof rate === 'number' && rate !== 0 && typeof final[key] === 'number') {
-                    const bonusValue = Math.floor(final[key] * rate);
-                    final[key] += bonusValue;
-                    artifactDeepLinePercentApplied[key] = bonusValue;
-                }
-            }
-        }
-
-        // 重新计算依赖最终属性的衍生属性
-        // 修炼速度 = 基础 + 智慧*0.5 + 神识*0.3
-        const wisdom = final.wisdom;
-        const sense = final.sense;
-        final.cultivate_speed = Math.floor(final.cultivate_speed + wisdom * 0.5 + sense * 0.3);
-
-        // 应用修炼速度加成 (如果有百分比)
-        // 检查各来源是否有 cultivate_speed_pct
-        let cultivateSpeedPct = 0;
-        if (talent?.bonuses?.cultivate_speed_pct) cultivateSpeedPct += talent.bonuses.cultivate_speed_pct;
-        if (title?.bonuses?.cultivate_speed_pct) cultivateSpeedPct += title.bonuses.cultivate_speed_pct;
-        // 功法提供的修炼速度加成（主修全额 + 辅修按比例，已在 TechniqueService 中折算完毕）
-        if (techniqueBonus.cultivate_speed_pct) cultivateSpeedPct += techniqueBonus.cultivate_speed_pct;
-
-        final.cultivate_speed = Math.floor(final.cultivate_speed * (1 + cultivateSpeedPct / 100));
-
         return {
-            final,
-            breakdown: {
-                base,
-                spirit_root: spiritRootBonuses,
-                allocated,
-                talent: talentBonus,
-                title: titleBonus,
-                equipment: equipmentBonus,
-                spirit_beast: spiritBeastAttrBonus, // 灵兽属性加成
-                artifact_deep_line: { // 法宝深线加成（2026-07-22 新增）
-                    is_active: !!(artifactDeepLineBonus && artifactDeepLineBonus.is_active),
-                    absolute: artifactDeepLineBonus?.absolute || {},
-                    percent_applied: artifactDeepLinePercentApplied, // 实际叠加的百分比值（已转换为绝对值）
-                    effects: artifactDeepLineBonus?.effects || {}, // 战斗特殊效果（暴击/吸血/反噬等）
-                    sources: artifactDeepLineBonus?.breakdown || {} // 各法宝深线原始返回
-                },
-                cultivation: { // 功法加成（2026-08-04 接通 TechniqueService，此前为硬编码占位）
-                    ...techniqueAttrBonus,
-                    cultivate_speed_pct: techniqueBonus.cultivate_speed_pct || 0
-                }
-            },
-            info: {
-                talent,
-                title,
-                spirit_root: spiritRoot,
-                spirit_beast: spiritBeastInfo, // 灵兽简要信息（beast_id/beast_name/element/star_level/level/bonus_rate/combat_power）
-                artifact_deep_line: artifactDeepLineBonus?.effects || null, // 法宝深线战斗特效（供战斗系统读取）
-                technique_skills: techniqueBonus.skills || [] // 功法已领悟神通（供战斗系统读取）
-            }
+            player,
+            realm,
+            spiritRealm,
+            attributes: this._attributesOf(player),
+            sourceOverrides,
+            baseInfo: {},
+            contentVersion: player?.content_version ?? null
         };
     }
 
     /**
-     * 计算玩家完整属性（异步版本，包含装备加成 + 灵兽加成 + 法宝深线加成）
-     * 内部获取装备加成、灵兽加成和法宝深线加成后临时挂载到 player 对象，再调用同步方法计算
-     * 调用后自动清理临时属性，不影响 player 原始数据
-     *
-     * 2026-07-22 新增法宝深线加成集成：
-     *   - 三条法宝深线（血魔剑/虚天鼎/大五行幻世轮）的战力加成并行查询
-     *   - 血魔剑：百分比加成 + 战斗特效（暴击/吸血/反噬）
-     *   - 虚天鼎：绝对值加成（atk/def）+ 化极倍率 + 反噬
-     *   - 大五行幻世轮：百分比加成（相位 × 阶数倍率）
-     *
+     * 计算玩家完整属性（静态快照，不查库）
      * @param {Object} player - 玩家对象
-     * @returns {Promise<Object>} 完整属性对象 { final, breakdown, info }
+     * @param {Object} [options] - { realmOverride: 单个境界对象（如突破后的下一境界预览） }
+     * @returns {Object} { final, breakdown, info }
      */
-    async calculateFullAttributesAsync(player) {
-        // 并行获取装备总加成、灵兽加成和法宝深线加成（提升性能）
-        // 功法服务采用延迟 require，避免 TechniqueService → AttributeService 的循环依赖
-        const TechniqueService = require('../services/TechniqueService');
-
-        const [equipmentBonus, spiritBeastBonus, artifactDeepLineBonus, techniqueBonus] = await Promise.all([
-            EquipmentService.getEquipmentBonus(player.id),
-            SpiritBeastService.getActiveBeastBonus(player.id),
-            // 法宝深线加成查询失败时回退到 inactive 状态，不影响属性计算主流程
-            ArtifactDeepLineService.getAllArtifactDeepLineCombatBonuses(player.id).catch(() => ({ is_active: false, absolute: {}, percent: {}, effects: {}, breakdown: {} })),
-            // 功法加成失败时回退为空对象（服务内部已做兜底，此处为双保险）
-            TechniqueService.getTechniqueBonus(player.id, player).catch(() => ({}))
-        ]);
-        // 临时挂载到 player 对象，供同步方法读取
-        player._equipmentBonus = equipmentBonus;
-        player._spiritBeastBonus = spiritBeastBonus;
-        player._artifactDeepLineBonus = artifactDeepLineBonus;
-        player._techniqueBonus = techniqueBonus;
-        const result = this.calculateFullAttributes(player);
-        // 清理临时属性，避免污染 player 原始数据
-        delete player._equipmentBonus;
-        delete player._spiritBeastBonus;
-        delete player._artifactDeepLineBonus;
-        delete player._techniqueBonus;
-        return result;
+    calculateFullAttributes(player, options = {}) {
+        if (!player) return { final: {}, breakdown: {}, info: {} };
+        const ctx = this._buildContext(player, options);
+        return this._shape(player, ctx, this.engine.resolveStatic(ctx));
     }
 
     /**
-     * 计算属性加成 (处理数值和百分比)
+     * 计算玩家完整属性（完整快照：含装备/灵兽/功法/法宝深线）
+     *
+     * 不再往 player 对象上挂 _equipmentBonus 之类的临时字段：
+     * 旧做法在同一 player 实例上并发两次求解时会互相覆盖、并在先结束的一方 delete 掉
+     * 另一方正在用的值。改为把预计算加成通过 ctx.sourceOverrides 传递，纯函数式。
+     *
+     * @param {Object} player - 玩家对象
+     * @param {Object} [options] - { sourceOverrides: { equipment, spirit_beast, technique, artifact_deep_line } }
+     * @returns {Promise<Object>} { final, breakdown, info }
      */
-    calculateBonuses(base, bonuses) {
-        const result = {};
-        if (!bonuses) return result;
+    async calculateFullAttributesAsync(player, options = {}) {
+        if (!player) return { final: {}, breakdown: {}, info: {} };
+        const ctx = this._buildContext(player, options);
+        return this._shape(player, ctx, await this.engine.resolve(ctx));
+    }
 
-        for (const [key, value] of Object.entries(bonuses)) {
-            if (key.endsWith('_pct')) {
-                // 百分比加成，不直接加到属性上，而是单独处理或转换
-                // 这里我们只处理直接属性的百分比转换? 
-                // 比如 atk_pct -> atk += base.atk * pct
-                const baseKey = key.replace('_pct', '');
-                if (base[baseKey] !== undefined) {
-                    result[baseKey] = (result[baseKey] || 0) + Math.floor(base[baseKey] * value / 100);
+    /** 把引擎输出整形成改造前的 { final, breakdown, info } 契约 */
+    _shape(player, ctx, resolved) {
+        const { final, breakdown: byStat, meta } = resolved;
+
+        // 旧 breakdown：按来源分组，值为该来源对各属性的实际贡献绝对值
+        const breakdown = { base: {} };
+        for (const statKey of Object.keys(byStat)) {
+            breakdown.base[statKey] = byStat[statKey].base;
+        }
+        for (const [providerId, legacyGroup] of LEGACY_BREAKDOWN_GROUPS) {
+            const group = {};
+            for (const [statKey, detail] of Object.entries(byStat)) {
+                for (const contribution of detail.sources) {
+                    if (contribution.from !== providerId) continue;
+                    const pctBasis = detail.base + detail.flat_total;
+                    const effective = contribution.flat + (detail.agg === 'flat_then_pct'
+                        ? Math.floor(pctBasis * contribution.pct)
+                        : 0);
+                    if (effective !== 0) group[statKey] = (group[statKey] || 0) + effective;
                 }
-                // 保留百分比字段以便后续使用
-                result[key] = value;
+            }
+            if (providerId === 'artifact_deep_line') {
+                const artifact = ctx.artifactDeepLine;
+                breakdown[legacyGroup] = {
+                    is_active: !!(artifact && artifact.is_active),
+                    absolute: artifact?.absolute || {},
+                    percent: artifact?.percent || {},
+                    effects: artifact?.effects || {},
+                    sources: artifact?.breakdown || {}
+                };
             } else {
-                result[key] = value;
+                breakdown[legacyGroup] = group;
             }
         }
-        return result;
+
+        const info = {
+            talent: ctx.talentConfig || null,
+            title: ctx.titleConfig || null,
+            spirit_root: player.spirit_root || '无',
+            spirit_beast: ctx.beastInfo || null,
+            artifact_deep_line: ctx.artifactDeepLine?.is_active ? (ctx.artifactDeepLine.effects || null) : null,
+            technique_skills: ctx.techniqueSkills || []
+        };
+
+        return { final, breakdown, info, by_stat: byStat, meta };
     }
 
     /**
      * 获取灵根属性加成
-     * @param {string} spiritRoot - 灵根类型
-     * @returns {Object} 加成信息
+     * @param {Object} player - 玩家对象（灵根存储形状由 SpiritRoot 统一归一）
+     * @returns {Object} 加成信息，未登记灵根时为空对象
      */
-    getSpiritRootBonus(spiritRoot) {
-        const roleConfig = this.getRoleInitConfig();
-        return roleConfig.spiritRootBonuses?.[spiritRoot] || null;
+    getSpiritRootBonus(player) {
+        return spiritRootBonus(player, this.getRoleInitConfig());
+    }
+
+    /** 可加点白名单：客户端属性名 → attributes 存储键，全部由属性注册表推导 */
+    get allocatableBonusKeys() {
+        return this.registry.allocatableMap();
     }
 
     /**
-     * 属性加点
+     * 加点结算（纯策略，不碰数据库）
      *
-     * 安全约束：属性名必须命中白名单（与 calculateFullAttributes 读取的 *_bonus 键一致），
-     * 加点数必须为正整数。旧实现允许负数通过求和校验后反向累加 attribute_points，
-     * 等于凭空刷出属性点，这里一并堵掉。
+     * 拆出来的原因：入参是"当前 attributes 快照"，返回值是"应该写回的那份 attributes"，
+     * 于是调用方可以在行锁内拿最新一份再算，而不是拿请求开始时的旧快照算完就整块写回。
+     *
+     * @param {Object} attributes - 当前 attributes（锁内新鲜读出的那份）
+     * @param {Object} points - 加点分配 { hp: 2, atk: 1 }
+     * @param {number} availablePoints - 可用属性点
+     * @returns {{ok: boolean, message?: string, attributes?: Object, totalPointsNeeded?: number}}
+     */
+    buildAllocationPlan(attributes, points, availablePoints) {
+        const whitelist = this.allocatableBonusKeys;
+
+        if (!points || typeof points !== 'object' || Array.isArray(points)) {
+            return { ok: false, message: '加点参数格式错误' };
+        }
+
+        const entries = Object.entries(points);
+        if (entries.length === 0) {
+            return { ok: false, message: '加点参数不能为空' };
+        }
+
+        for (const [attr, value] of entries) {
+            // hasOwnProperty 判定：防止 '__proto__' 等键取到原型对象而绕过白名单
+            if (!Object.prototype.hasOwnProperty.call(whitelist, attr)) {
+                return { ok: false, message: `未知的属性项: ${attr}` };
+            }
+            if (!Number.isInteger(value) || value < 1) {
+                return { ok: false, message: `${attr} 的加点数必须为正整数` };
+            }
+            if (value > MAX_POINTS_PER_ATTRIBUTE) {
+                return { ok: false, message: `${attr} 单次加点不能超过 ${MAX_POINTS_PER_ATTRIBUTE} 点` };
+            }
+        }
+
+        const totalPointsNeeded = entries.reduce((sum, [, value]) => sum + value, 0);
+        if (totalPointsNeeded > (availablePoints || 0)) {
+            return {
+                ok: false,
+                message: `可用属性点不足，需要 ${totalPointsNeeded} 点，仅有 ${availablePoints || 0} 点`
+            };
+        }
+
+        const nextAttributes = { ...attributes };
+        const ledger = { ...(attributes[ALLOCATION_LEDGER_KEY] || {}) };
+        for (const [attr, value] of entries) {
+            const bonusAttr = whitelist[attr];
+            const before = Number(nextAttributes[bonusAttr]) || 0;
+            nextAttributes[bonusAttr] = Math.min(before + value, MAX_TOTAL_BONUS_PER_ATTRIBUTE);
+            // 账本只记实际入账的点数（受总量上限截断），否则重置时会多退属性点
+            const credited = nextAttributes[bonusAttr] - before;
+            if (credited > 0) {
+                ledger[bonusAttr] = (Number(ledger[bonusAttr]) || 0) + credited;
+            }
+        }
+        nextAttributes[ALLOCATION_LEDGER_KEY] = ledger;
+
+        return { ok: true, attributes: nextAttributes, totalPointsNeeded };
+    }
+
+    /**
+     * 属性加点（落库）
+     *
+     * 读-算-写全程在同一事务的行锁内完成，写回走 PlayerStateStore 的补丁接口：
+     * 连点两次"确认加点"时，第二次不会把第一次的 *_bonus 与加点账本一起抹掉
+     * （旧实现是 req.player 的旧快照整块回写，账本被回退后属性点还能再花一遍）。
      *
      * @param {Object} player - 玩家对象
      * @param {Object} points - 加点分配 { hp: 2, atk: 1 }
      * @returns {Object} 加点结果
      */
     async allocatePoints(player, points) {
-        const attributes = typeof player.attributes === 'string' 
-            ? JSON.parse(player.attributes) 
-            : (player.attributes || {});
+        const outcome = await PlayerStateStore.withTransaction(async (t) => {
+            const fresh = await PlayerStateStore.readForUpdate(player.id, { transaction: t });
+            const plan = this.buildAllocationPlan(
+                this._attributesOf(fresh),
+                points,
+                fresh.attribute_points || 0
+            );
+            if (!plan.ok) return { failure: plan.message };
 
-        if (!points || typeof points !== 'object' || Array.isArray(points)) {
-            return { success: false, message: '加点参数格式错误' };
-        }
+            const remaining = (fresh.attribute_points || 0) - plan.totalPointsNeeded;
+            const updated = await PlayerStateStore.patchPlayerState(
+                fresh.id,
+                { attributes: plan.attributes, columns: { attribute_points: remaining } },
+                { transaction: t }
+            );
+            return { player: updated, remainingPoints: remaining };
+        });
 
-        const entries = Object.entries(points);
-        if (entries.length === 0) {
-            return { success: false, message: '加点参数不能为空' };
-        }
+        if (outcome.failure) return { success: false, message: outcome.failure };
 
-        for (const [attr, value] of entries) {
-            // hasOwnProperty 判定：防止 '__proto__' 等键取到原型对象而绕过白名单
-            if (!Object.prototype.hasOwnProperty.call(ALLOCATABLE_BONUS_KEYS, attr)) {
-                return { success: false, message: `未知的属性项: ${attr}` };
-            }
-            if (!Number.isInteger(value) || value < 1) {
-                return { success: false, message: `${attr} 的加点数必须为正整数` };
-            }
-            if (value > MAX_POINTS_PER_ATTRIBUTE) {
-                return { success: false, message: `${attr} 单次加点不能超过 ${MAX_POINTS_PER_ATTRIBUTE} 点` };
-            }
-        }
-        
-        const availablePoints = player.attribute_points || 0;
-        const totalPointsNeeded = entries.reduce((sum, [, value]) => sum + value, 0);
-        
-        if (totalPointsNeeded > availablePoints) {
-            return { 
-                success: false, 
-                message: `可用属性点不足，需要 ${totalPointsNeeded} 点，仅有 ${availablePoints} 点` 
-            };
-        }
+        const updated = outcome.player;
+        // 让调用方手上的实例反映最新状态，但写库只发生过一次（来自锁内那份）：
+        // attributes 只镜像、不标脏，否则这个实例之后任何一次 save() 都会拿它覆盖
+        // 这期间别的流程写进 attributes 的键。
+        PlayerStateStore.mirrorPatchedBlob(player, updated);
+        player.attribute_points = updated.attribute_points;
 
-        const newAttributes = { ...attributes };
-        const ledger = { ...(attributes[ALLOCATION_LEDGER_KEY] || {}) };
-        for (const [attr, value] of entries) {
-            const bonusAttr = ALLOCATABLE_BONUS_KEYS[attr];
-            const before = Number(newAttributes[bonusAttr]) || 0;
-            newAttributes[bonusAttr] = Math.min(before + value, MAX_TOTAL_BONUS_PER_ATTRIBUTE);
-            // 账本只记实际入账的点数（受总量上限截断），否则重置时会多退属性点
-            const credited = newAttributes[bonusAttr] - before;
-            if (credited > 0) {
-                ledger[bonusAttr] = (Number(ledger[bonusAttr]) || 0) + credited;
-            }
-        }
-        newAttributes[ALLOCATION_LEDGER_KEY] = ledger;
-
-        player.attributes = newAttributes;
-        player.attribute_points = availablePoints - totalPointsNeeded;
-        await player.save();
-
-        // 重新计算并返回完整属性，以便前端更新
-        const fullStats = this.calculateFullAttributes(player);
+        const fullStats = this.calculateFullAttributes(updated);
 
         return {
             success: true,
             message: '属性点分配成功',
-            newAttributes: fullStats.final, // 返回最新的最终属性
-            remainingPoints: player.attribute_points
+            newAttributes: fullStats.final,
+            remainingPoints: outcome.remainingPoints
         };
     }
 
@@ -477,17 +420,18 @@ class AttributeService {
      * @returns {Object} { refundablePoints, refunded: {hp_bonus: n}, attributes }
      */
     buildAllocatedPointsReset(player) {
-        const attributes = typeof player.attributes === 'string'
-            ? JSON.parse(player.attributes)
-            : { ...(player.attributes || {}) };
+        const attributes = { ...this._attributesOf(player) };
         const ledger = attributes[ALLOCATION_LEDGER_KEY];
         const nextAttributes = { ...attributes };
         const refunded = {};
         let refundablePoints = 0;
 
+        // 可回收的存储键同样由注册表推导，且只限"可加点"的属性
+        const pointable = new Set(Object.values(this.registry.allocatableMap()));
+
         if (ledger && typeof ledger === 'object' && !Array.isArray(ledger)) {
             for (const [bonusKey, amountRaw] of Object.entries(ledger)) {
-                if (!Object.prototype.hasOwnProperty.call(BONUS_KEY_TO_ALLOCATABLE, bonusKey)) continue;
+                if (!pointable.has(bonusKey)) continue;
 
                 const amount = Math.floor(Number(amountRaw));
                 if (!Number.isFinite(amount) || amount <= 0) continue;
@@ -521,28 +465,16 @@ class AttributeService {
     }
 
     /**
-     * 获取属性介绍
+     * 获取属性介绍（文案与图标全部取自注册表定义）
      * @param {string} attributeName - 属性名称
      * @returns {Object} 属性介绍
      */
     getAttributeDescription(attributeName) {
-        const descriptions = {
-            hp_max: '最大生命值，影响角色存活能力',
-            mp_max: '最大灵力值，影响技能使用',
-            atk: '攻击力，影响战斗伤害',
-            def: '防御力，影响受到的伤害减免',
-            speed: '速度，影响行动顺序和闪避率',
-            sense: '感知，影响突破成功率和危险预知',
-            luck: '幸运，影响暴击率和掉落奖励',
-            wisdom: '智慧，影响修炼效率和技能领悟',
-            cultivate_speed: '修炼速度，影响修为积累速度',
-            talent: '天赋，影响突破概率和境界上限'
-        };
-
+        const def = this.registry.get(attributeName);
         return {
             name: attributeName,
-            description: descriptions[attributeName] || '未知属性',
-            icon: this.getAttributeIcon(attributeName)
+            description: def?.description || '未知属性',
+            icon: def?.icon || '📊'
         };
     }
 
@@ -552,19 +484,12 @@ class AttributeService {
      * @returns {string} 图标标识
      */
     getAttributeIcon(attributeName) {
-        const icons = {
-            hp_max: '❤️',
-            mp_max: '💙',
-            atk: '⚔️',
-            def: '🛡️',
-            speed: '💨',
-            sense: '👁️',
-            luck: '🍀',
-            wisdom: '📚',
-            cultivate_speed: '📈',
-            talent: '⭐'
-        };
-        return icons[attributeName] || '📊';
+        return this.registry.get(attributeName)?.icon || '📊';
+    }
+
+    /** 属性面板字段定义（前端按此渲染，不再各自硬编码标签） */
+    getPanelSchema() {
+        return this.registry.panelStats();
     }
 }
 

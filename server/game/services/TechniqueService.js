@@ -14,10 +14,14 @@
  */
 const sequelize = require('../../config/database');
 const Player = require('../../models/player');
+const CombatResolver = require('../combat/CombatResolver');
+const { resolveSpiritRoot, spiritRootTypes } = require('../stats/SpiritRoot');
+const { foldSkillStats } = require('../combat/skillEffects');
 const Realm = require('../../models/realm');
 const PlayerSect = require('../../models/playerSect');
 const PlayerTechnique = require('../../models/playerTechnique');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+const { logOnce } = require('../../utils/logOnce');
 
 // 装备槽位常量（与配置中 max_equipped_main / max_equipped_auxiliary 对应）
 const SLOT_MAIN = 'main';
@@ -44,6 +48,7 @@ class TechniqueService {
         try {
             return this.configLoader?.getConfig('technique_data') || {};
         } catch (e) {
+            logOnce('TechniqueService.getConfig', 'technique_data 配置读取失败，功法加成按"未配置"兜底（属性面板会少一整块）: ' + e.message);
             return {};
         }
     }
@@ -145,26 +150,31 @@ class TechniqueService {
      *   - 玩家灵根克制功法属性：衰减 -conflict_penalty_pct%
      * 这是功法选择的策略深度来源——玩家需要根据自身灵根挑功法，而非无脑选最高阶。
      *
+     * 灵根一律经 SpiritRoot 归一成 role_init.spirit_roots 的 type（metal/wood/...）。
+     * 旧实现直接 Object.keys(player.spirit_roots) 并要求值是正数，而真实数据是
+     * { type: 'thunder' } 或 { '金灵根': {level, affinity} } 两种形状，
+     * 两种都过不了 Number(...) > 0，于是 rootKeys 恒为空、这条机制恒返回 1.0——
+     * 五行契合/相克从来没有生效过。
+     *
      * @param {Object} player - 玩家实例
      * @param {string} element - 功法五行属性
      * @returns {number} 修正系数（如 1.2 / 1.0 / 0.85）
      */
     getElementMultiplier(player, element) {
-        const cfg = this.getConfig().element_match || {};
         if (!element || element === 'none') return 1.0;
 
-        const roots = player?.spirit_roots || {};
-        const rootKeys = Object.keys(roots).filter(k => Number(roots[k]) > 0);
-        if (rootKeys.length === 0) return 1.0;
+        const cfg = this.getConfig().element_match || {};
+        const roots = spiritRootTypes(player, this.configLoader?.getConfig('role_init'));
+        if (roots.length === 0) return 1.0;
 
-        // 灵根属性与功法属性一致 → 契合加成
-        if (rootKeys.includes(element)) {
+        // 灵根属性与功法属性一致 → 契合加成（多灵根时契合优先于相冲）
+        if (roots.includes(element)) {
             return 1 + (Number(cfg.match_bonus_pct) || 0) / 100;
         }
 
         // 玩家灵根克制功法属性 → 相冲衰减
         const conflicts = cfg.conflicts || {};
-        for (const root of rootKeys) {
+        for (const root of roots) {
             if (Array.isArray(conflicts[root]) && conflicts[root].includes(element)) {
                 return 1 - (Number(cfg.conflict_penalty_pct) || 0) / 100;
             }
@@ -202,6 +212,20 @@ class TechniqueService {
         const growth = Number(p.cost_growth_per_layer) || 0;
         const coef = Number(gradeCfg.attr_coefficient) || 1;
         return Math.floor(base * (1 + layer * growth) * coef);
+    }
+
+    /**
+     * 单次修炼的灵力消耗 = 玩家灵力上限 × practice.mp_cost_ratio。
+     *
+     * 为什么要单独一个方法：功法面板的"消耗预览"（getPlayerTechniques）与实际扣蓝（practice）
+     * 必须是同一个数，以前只有 practice 里一行内联写法，而面板引用的 getMpCost 根本不存在——
+     * 任何一本功法在身的人打开面板就 500（owned 为空的玩家不会走到那一行，所以从未暴露）。
+     * 传进来的 mpMax 也统一是解析后的完整属性（含装备/功法/灵兽），不再读 attributes 里的陈旧镜像，
+     * 否则"预览按 3500 蓝算、实际按 5000 蓝算"这类对不上又会回来。
+     */
+    getMpCost(playerMpMax) {
+        const ratio = Number(this.getConfig().practice?.mp_cost_ratio) || 0;
+        return Math.floor((Number(playerMpMax) || 0) * ratio);
     }
 
     /**
@@ -263,6 +287,9 @@ class TechniqueService {
 
         const wisdom = this.getWisdom(player);
         const settings = this.getSettings();
+        // Player 模型没有 mp_max 列（旧写法 player.mp_max 恒为 undefined，
+        // 灵力消耗预览因此一直按兜底值显示）；上限走统一属性解析，整张列表共用一次解析结果。
+        const playerMpMax = (await CombatResolver.resolveCombatStats(player)).stats.mp_max;
 
         // 组装已习得功法的完整视图（静态配置 + 动态进度 + 实时计算值）
         const ownedList = owned.map(row => {
@@ -292,7 +319,7 @@ class TechniqueService {
                 daily_practice_limit: settings.daily_practice_limit,
                 practice_cost: this.getPracticeCost(cfg.grade, row.layer),
                 // 单次修炼的灵力消耗（依赖玩家灵力上限，前端消耗预览用）
-                mp_cost: this.getMpCost(cfg.grade, row.layer, player.mp_max),
+                mp_cost: this.getMpCost(playerMpMax),
                 // 突破灵石消耗 = 单次修炼消耗 × 突破倍数（前端消耗预览用，避免客户端重复计算）
                 breakthrough_cost: Math.round(
                     this.getPracticeCost(cfg.grade, row.layer) *
@@ -331,7 +358,7 @@ class TechniqueService {
         }
 
         // 查找当前主修功法，用于前端预览切换代价（灵石 / 熟练度衰减 / 冷却）
-        const currentMainRow = ownedRows.find(r => r.equip_slot === SLOT_MAIN) || null;
+        const currentMainRow = owned.find(r => r.equip_slot === SLOT_MAIN) || null;
         const currentMainCfg = currentMainRow ? this.getTechniqueConfig(currentMainRow.technique_id) : null;
         const currentMain = currentMainRow && currentMainCfg ? {
             technique_id: currentMainRow.technique_id,
@@ -609,10 +636,11 @@ class TechniqueService {
                 throw new AppError(`灵石不足，需要 ${cost}`, 400, ErrorCodes.INSUFFICIENT_RESOURCES);
             }
 
-            // —— 灵力消耗校验 ——
+            // —— 灵力消耗校验 ——（与面板预览同一个算法：解析后的 mp_max × practice.mp_cost_ratio，
+            // 不再读 attributes.mp_max 那份陈旧镜像，否则"预览说 525、实际按 75 判定"又会出现）
             const attrs = player.attributes || {};
-            const mpMax = Number(attrs.mp_max) || 0;
-            const mpCost = Math.floor(mpMax * (Number(p.mp_cost_ratio) || 0));
+            const { stats: practiceStats } = await CombatResolver.resolveCombatStats(player);
+            const mpCost = this.getMpCost(practiceStats.mp_max);
             const mpCurrent = Number(player.mp_current ?? attrs.mp_current) || 0;
             if (mpCost > 0 && mpCurrent < mpCost) {
                 throw new AppError(`灵力不足，需要 ${mpCost}`, 400, ErrorCodes.INSUFFICIENT_RESOURCES);
@@ -1116,12 +1144,19 @@ class TechniqueService {
                 for (const skillId of (row.comprehended_skills || [])) {
                     const skillCfg = this.getSkillConfig(skillId);
                     if (skillCfg) {
-                        result.skills.push({
+                        const skill = {
                             id: skillId,
                             name: skillCfg.name,
                             effects: skillCfg.effects || {},
+                            // 声明这条神通打的是哪一种伤害档位；战斗侧据此选 profile，
+                            // 没有声明就沿用默认的 player_skill
+                            damage_profile: skillCfg.damage_profile || null,
                             from: cfg.name
-                        });
+                        };
+                        result.skills.push(skill);
+                        // 属性类特效（暴击/暴伤/吸血/防%/修炼速度/突破加成）折进本来源的数值产出，
+                        // 于是面板、战力、战斗、突破预览四个消费点同时看到它，不用各自再接一遍
+                        foldSkillStats([skill], result);
                     }
                 }
             }

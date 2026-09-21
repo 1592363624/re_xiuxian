@@ -1,0 +1,51 @@
+{
+  "dataset": "item_data",
+  "into": "items",
+  "comment": "两株灵草、两粒种子、一枚丹药：药圃这条链的产物与投入都在这里，后面的灵种表、行脚商货摊、放养场所与丹方只引用这些 id，启动期会校验引用是否指向真物品。数值是草案，等业主签字（与既有低阶灵草同档，不越过 condensing_flame/blood_grass 那一层）。",
+  "add": [
+    {
+      "id": "zi_yun_shen",
+      "name": "紫云参",
+      "type": "material",
+      "subtype": "herb",
+      "quality": "uncommon",
+      "description": "黄枫谷药圃里种得活的一味灵参，出土时参身缠着一层淡紫云气，补气养元的底子比寻常灵草厚得多。",
+      "price": 34
+    },
+    {
+      "id": "qi_ye_qing",
+      "name": "七叶青",
+      "type": "material",
+      "subtype": "herb",
+      "quality": "common",
+      "description": "一茎七叶、四时不凋的贱草，却是许多培元丹药的引子。药圃里撒把种子就能长，是入门修士最常自己种的一味。",
+      "price": 12
+    },
+    {
+      "id": "zi_yun_shen_seed",
+      "name": "紫云参种子",
+      "type": "material",
+      "subtype": "seed",
+      "description": "可在洞府药园种植，成熟后产出紫云参。种它要有二阶以上的灵脉，不然云气聚不起来。",
+      "price": 150
+    },
+    {
+      "id": "qi_ye_qing_seed",
+      "name": "七叶青种子",
+      "type": "material",
+      "subtype": "seed",
+      "description": "可在洞府药园种植，成熟后产出七叶青。耐阴耐瘠，新开府的弟子多半先撒这一味。",
+      "price": 60
+    },
+    {
+      "id": "ju_yuan_dan",
+      "name": "聚元丹",
+      "type": "consumable",
+      "subtype": "knowledge",
+      "quality": "uncommon",
+      "description": "紫云参为君、七叶青为使，慢煨三时辰成一炉。服后一口气行开，修为涨得比打坐半日来得实在。",
+      "effect": { "exp": 900 },
+      "price": 560
+    }
+  ]
+}

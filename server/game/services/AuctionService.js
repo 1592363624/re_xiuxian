@@ -11,6 +11,10 @@
  *   - 手续费快照：创建拍卖时快照当前手续费率，避免后续配置变更影响在拍拍卖
  *   - 自动结算：调度器每30秒检查到期拍卖，独立事务结算，失败不影响其他拍卖
  *   - 所有写操作使用事务 + 行级锁保证并发安全
+ *   - 取锁次序：auctions 行 → players（本方法涉及的两个人按主键升序一次锁齐）→ 背包行。
+ *     auctions 只被本服务锁、且永远是本服务事务里的第一把锁，所以"拍卖行在前"在这一块自成闭环；
+ *     players 与 items 的相对次序仍跟全局口径一致（见 game/persistence/lockOrder.js），
+ *     两边锁 players 都按 id 升序 —— 两个人分别在两场拍卖里互相顶价 / 同时撤销对方领先的拍卖都不会再撞。
  *
  * 多人交互设计：
  *   - 与万宝楼"标价直购"差异化：拍卖是"竞价博弈"，多人竞争 + 倒计时 + 防秒杀
@@ -24,6 +28,9 @@ const Auction = require('../../models/auction');
 const AuctionBid = require('../../models/auctionBid');
 const InventoryService = require('./InventoryService');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
+// 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
+const RETURNED = { allowUnknownItem: true };
 
 // 单例库存服务实例（与 CaveSocialService 等保持一致的引用方式）
 const inventoryService = InventoryService;
@@ -378,10 +385,15 @@ class AuctionService {
             }
             // 当前最高竞价者重复竞价允许（加价），但需要满足加价幅度
 
-            const bidder = await Player.findByPk(bidderId, {
-                transaction: t,
-                lock: t.LOCK.UPDATE
-            });
+            // 竞价者 + 前一个最高竞价者：一次按主键**升序**锁齐（口径见 game/persistence/lockOrder.js）。
+            // 原来这里是"先锁竞价者、再锁前竞价者"两笔单行 FOR UPDATE —— 次序由业务角色决定，
+            // 两个人各自在对方领先的那场拍卖里顶价时，两笔事务锁的不是同一条拍卖行（拍卖行挡不住），
+            // players 两行就以相反次序撞上了：实测 12 轮互相顶价出 1 次 Deadlock（scripts/smoke_auction.js A14）。
+            const previousId = auction.current_bidder_id === null ? null : Number(auction.current_bidder_id);
+            const lockedSides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [bidderId, previousId])).map(p => [Number(p.id), p])
+            );
+            const bidder = lockedSides.get(Number(bidderId));
             if (!bidder) {
                 throw new AppError('竞价者不存在', 404, ErrorCodes.NOT_FOUND);
             }
@@ -392,6 +404,25 @@ class AuctionService {
             const minLevelRank = bidderCfg.min_level_rank || 1;
             if ((bidder.realm_rank || 0) < minLevelRank) {
                 throw new AppError('境界不足，无法参与竞价', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            // 同时领先的竞价数上限：routes/auction.js 的接口文档一直写着这条，服务里从来没执行过
+            // （配置 bidder.max_concurrent_bids 是个死键 —— 改它没反应，正是"内容/配置扩展不生效"那一类）。
+            const maxConcurrentBids = Number(bidderCfg.max_concurrent_bids) || 0;
+            if (maxConcurrentBids > 0) {
+                const leadingCount = await Auction.count({
+                    where: {
+                        current_bidder_id: bidderId,
+                        status: 'open',
+                        id: { [Op.ne]: auctionId }   // 本场已在领先的不算，加价不该被自己的领先卡住
+                    },
+                    transaction: t
+                });
+                if (leadingCount >= maxConcurrentBids) {
+                    throw new AppError(
+                        `同时领先的竞价已达上限（${maxConcurrentBids} 场），请先处理其它拍卖`,
+                        400, ErrorCodes.BUSINESS_LOGIC_ERROR
+                    );
+                }
             }
 
             // ===== 出价校验 =====
@@ -425,18 +456,19 @@ class AuctionService {
             await bidder.save({ transaction: t });
 
             // ===== 退还前一个最高竞价者的冻结灵石 =====
+            // 用的就是上面那次批锁回来的同一份实例：一笔事务里同一行只留一份，
+            // 再 FOR UPDATE 读一次就会出现"两份实例、谁后 save 谁覆盖对方"。
             let previousBidder = null;
-            if (auction.current_bidder_id !== null) {
-                previousBidder = await Player.findByPk(auction.current_bidder_id, {
-                    transaction: t,
-                    lock: t.LOCK.UPDATE
-                });
-                if (previousBidder) {
-                    // 退还前一个竞价者的冻结灵石
-                    previousBidder.spirit_stones = BigInt(previousBidder.spirit_stones || 0)
-                        + BigInt(auction.current_price);
-                    await previousBidder.save({ transaction: t });
+            if (previousId !== null) {
+                previousBidder = lockedSides.get(previousId);
+                if (!previousBidder) {
+                    // 改前这里是"读不到就静默跳过"，那笔冻结灵石就此蒸发在拍卖行里
+                    throw new AppError('前一个竞价者的玩家行不存在，冻结灵石无法退还', 500, ErrorCodes.INTERNAL_ERROR);
                 }
+                // 退还前一个竞价者的冻结灵石
+                previousBidder.spirit_stones = BigInt(previousBidder.spirit_stones || 0)
+                    + BigInt(auction.current_price);
+                await previousBidder.save({ transaction: t });
             }
 
             // ===== 更新拍卖记录 =====
@@ -556,53 +588,48 @@ class AuctionService {
                 throw new AppError('拍卖已结束，无法撤销', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
+            // 卖家 + 当前最高竞价者：一次按主键**升序**锁齐，而且要**在动背包之前**锁（口径 players → items）。
+            // 改前是 addItem 先锁卖家背包行 → 回头锁竞价者 → 再锁卖家 players：
+            // ① 两个卖家同时撤销"对方正领先"的拍卖，players 两行以相反次序相撞（实测 6 轮 1 次 Deadlock，
+            //    scripts/smoke_auction.js A15）；② 卖家一边撤拍卖一边被货摊买走东西，
+            //    就是 players↔items 跨表 ABBA（货摊那条已经是 players → items，见 MarketService.buyListing）。
+            const bidderId = auction.current_bidder_id === null ? null : Number(auction.current_bidder_id);
+            const lockedSides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [playerId, bidderId])).map(p => [Number(p.id), p])
+            );
+            const seller = lockedSides.get(Number(playerId));
+            if (!seller) {
+                throw new AppError('卖家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
             // 退还物品给卖家（无论是否有人竞价）
             const addOk = await inventoryService.addItem(
-                playerId, auction.item_key, auction.quantity, t
+                playerId, auction.item_key, auction.quantity, t, null, RETURNED
             );
             if (!addOk.success) {
                 throw new AppError('物品退还失败（储物袋可能已满）', 500, ErrorCodes.INTERNAL_ERROR);
             }
 
             // 处理已竞价情况：退还冻结灵石给最高竞价者 + 扣卖家补偿费
-            let compensFee = 0;
-            if (auction.current_bidder_id !== null) {
-                const bidder = await Player.findByPk(auction.current_bidder_id, {
-                    transaction: t,
-                    lock: t.LOCK.UPDATE
-                });
-                if (bidder) {
-                    // 退还冻结灵石
-                    bidder.spirit_stones = BigInt(bidder.spirit_stones || 0)
-                        + BigInt(auction.current_price);
-                    await bidder.save({ transaction: t });
+            let compensFee = 0n;
+            if (bidderId !== null) {
+                const bidder = lockedSides.get(bidderId);
+                if (!bidder) {
+                    // 改前这里是"读不到就静默跳过"，那笔冻结灵石就此蒸发在拍卖行里
+                    throw new AppError('最高竞价者的玩家行不存在，冻结灵石无法退还', 500, ErrorCodes.INTERNAL_ERROR);
                 }
-                // 扣卖家补偿费（补偿给竞价者）
-                const seller = await Player.findByPk(playerId, {
-                    transaction: t,
-                    lock: t.LOCK.UPDATE
-                });
-                if (seller) {
-                    const sellerCfg = cfg.seller || {};
-                    const cancelFeeRate = sellerCfg.cancel_fee_when_bidded || 0.02;
-                    compensFee = Math.floor(Number(auction.current_price) * cancelFeeRate);
-                    if (compensFee > 0) {
-                        const sellerBalance = BigInt(seller.spirit_stones || 0);
-                        const feeAmount = BigInt(compensFee);
-                        if (sellerBalance < feeAmount) {
-                            // 灵石不足时扣到 0（不阻塞撤销流程）
-                            seller.spirit_stones = 0n;
-                        } else {
-                            seller.spirit_stones = sellerBalance - feeAmount;
-                        }
-                        await seller.save({ transaction: t });
-                        // 补偿费加给竞价者
-                        if (bidder) {
-                            bidder.spirit_stones = BigInt(bidder.spirit_stones || 0) + feeAmount;
-                            await bidder.save({ transaction: t });
-                        }
-                    }
-                }
+                const sellerCfg = cfg.seller || {};
+                const cancelFeeRate = sellerCfg.cancel_fee_when_bidded || 0.02;
+                // 补偿费以卖家**实际付得出**的那部分为限：改前卖家余额不足时照样把整笔费用记给竞价者，
+                // 差额就是凭空印出来的灵石（探针 A15c 实测：卖家余额 0、竞价者白得 21）。
+                const wantFee = BigInt(Math.floor(Number(auction.current_price) * cancelFeeRate));
+                const sellerBalance = BigInt(seller.spirit_stones || 0);
+                compensFee = wantFee > sellerBalance ? sellerBalance : wantFee;
+                // 冻结额与补偿一次结清：同一行只 save 一次（改前竞价者被 save 两回，中间还夹着卖家）
+                bidder.spirit_stones = BigInt(bidder.spirit_stones || 0) + BigInt(auction.current_price) + compensFee;
+                seller.spirit_stones = sellerBalance - compensFee;
+                await bidder.save({ transaction: t });
+                await seller.save({ transaction: t });
             }
 
             // 更新拍卖状态
@@ -624,7 +651,7 @@ class AuctionService {
                             item_name: auction.item_name,
                             reason: auction.cancel_reason,
                             refunded: Number(auction.current_price),
-                            compensation: compensFee
+                            compensation: Number(compensFee)
                         });
                     }
                 } catch (notifyErr) {
@@ -636,7 +663,7 @@ class AuctionService {
                 success: true,
                 message: '拍卖已撤销，物品已退回储物袋',
                 auction_id: auctionId,
-                compensation_fee: compensFee
+                compensation_fee: Number(compensFee)
             };
         } catch (err) {
             if (t && !t.finished) await t.rollback();
@@ -800,15 +827,30 @@ class AuctionService {
             }
 
             const finalPrice = Number(auction.current_price);
+            const buyerId = auction.current_bidder_id === null ? null : Number(auction.current_bidder_id);
 
-            if (auction.current_bidder_id !== null) {
+            // 得标者 + 卖家：一次按主键**升序**锁齐，并且锁在 addItem 之前（口径 players → items）。
+            // 改前是 addItem 先锁得标者背包行 → 回头才锁卖家 players，而发货/收货那些路径是 players → items，
+            // 结算一跑就和任何一次背包操作反向；顺带把"卖家行读不到就当没有这回事"改成中止，
+            // 否则成交的灵石会既不在得标者也不在卖家手里，静默蒸发。
+            const lockedSides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [buyerId, auction.seller_id])).map(p => [Number(p.id), p])
+            );
+            const seller = lockedSides.get(Number(auction.seller_id));
+            if (!seller) {
+                throw new AppError(`拍卖 ${auctionId} 的卖家玩家行不存在，结算中止`, 500, ErrorCodes.INTERNAL_ERROR);
+            }
+
+            if (buyerId !== null) {
                 // ===== 有人竞价：成交 =====
                 // 1. 物品给得标者（已从卖家扣除，无需再扣）
                 const addOk = await inventoryService.addItem(
-                    auction.current_bidder_id,
+                    buyerId,
                     auction.item_key,
                     auction.quantity,
-                    t
+                    t,
+                    null,
+                    RETURNED
                 );
                 if (!addOk.success) {
                     throw new Error('得标者储物袋已满，物品发放失败');
@@ -818,14 +860,8 @@ class AuctionService {
                 const feeRate = Number(auction.fee_rate) || 0;
                 const fee = Math.floor(finalPrice * feeRate);
                 const sellerProceeds = finalPrice - fee;
-                const seller = await Player.findByPk(auction.seller_id, {
-                    transaction: t,
-                    lock: t.LOCK.UPDATE
-                });
-                if (seller) {
-                    seller.spirit_stones = BigInt(seller.spirit_stones || 0) + BigInt(sellerProceeds);
-                    await seller.save({ transaction: t });
-                }
+                seller.spirit_stones = BigInt(seller.spirit_stones || 0) + BigInt(sellerProceeds);
+                await seller.save({ transaction: t });
 
                 // 3. 更新拍卖状态
                 auction.status = 'closed';
@@ -875,7 +911,9 @@ class AuctionService {
                     auction.seller_id,
                     auction.item_key,
                     auction.quantity,
-                    t
+                    t,
+                    null,
+                    RETURNED
                 );
                 if (!addOk.success) {
                     throw new Error('卖家储物袋已满，物品退还失败');

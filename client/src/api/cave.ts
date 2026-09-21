@@ -6,8 +6,12 @@
  */
 import apiClient from './index';
 
-/** 设施类型 */
-export type FacilityType = 'spirit_vein' | 'quiet_room' | 'pill_room' | 'tool_room' | 'grand_formation';
+/**
+ * 设施类型：取自内容（cave_data.cave.facilities 的键），服务端还会筛掉
+ * player_caves 里还没有等级列的那些，所以这里不封成联合类型 —— 抄一份在客户端，
+ * 资料片加了设施就得两边一起改。
+ */
+export type FacilityType = string;
 
 /** 设施信息 */
 export interface FacilityInfo {
@@ -21,6 +25,8 @@ export interface FacilityInfo {
     spirit_stone: number;
     material: string | null;
     material_count: number;
+    /** 材料中文名：由服务端按 item_data 补，客户端不抄物品名典 */
+    material_name?: string | null;
   } | null;
 }
 

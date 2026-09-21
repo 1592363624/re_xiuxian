@@ -92,14 +92,8 @@ router.post('/force-dissolve', auth, adminCheck, async (req, res, next) => {
 
 /**
  * POST /api/admin/multi-dungeon/adjust-variable
- * GM 调整副本变量（通用变量 + 昆吾山/虚天殿/小极宫专属变量）
+ * GM 调整副本变量（可调整哪些变量由内容决定：各副本 instance_vars + global.variable_labels）
  * 请求体：{ instance_id: number, variable: string, value: number }
- *
- * 2026-07-21 扩展：支持昆吾山/虚天殿/小极宫专属变量调整
- *   - 通用：morale/vigilance/demon_corruption/seal_stability/soul_stability/harvest_multiplier
- *   - 昆吾山专属：demonic_qi/mountain_seal/treasure_pressure/linglong/seal_progress/tower_shadow_hp
- *   - 虚天殿专属：path_choice/formation_power/void_soul_hp
- *   - 小极宫专属：curse_disorder/ice_seal_power/flame_power/yinluo_banner_qi
  */
 router.post('/adjust-variable', auth, adminCheck, async (req, res, next) => {
     try {
@@ -111,17 +105,9 @@ router.post('/adjust-variable', auth, adminCheck, async (req, res, next) => {
                 message: 'instance_id 必填且必须为数字'
             });
         }
-        // 2026-07-21 扩展：支持昆吾山/虚天殿/小极宫专属变量
-        const allowedVars = [
-            // 通用变量
-            'morale', 'vigilance', 'demon_corruption', 'seal_stability', 'soul_stability', 'harvest_multiplier',
-            // 昆吾山·封魔塔专属变量
-            'demonic_qi', 'mountain_seal', 'treasure_pressure', 'linglong', 'seal_progress', 'tower_shadow_hp',
-            // 虚天殿专属变量
-            'path_choice', 'formation_power', 'void_soul_hp',
-            // 小极宫专属变量（2026-07-21 新增）
-            'curse_disorder', 'ice_seal_power', 'flame_power', 'yinluo_banner_qi'
-        ];
+        // 可调变量清单取自内容（MultiDungeonService.adjustableVariables）：
+        // 这里以前另抄了一份 19 个变量的白名单，比服务侧那份还少，资料片新增的变量在 HTTP 层就被拒了
+        const allowedVars = MultiDungeonService.adjustableVariables();
         if (!allowedVars.includes(variable)) {
             return res.status(400).json({
                 code: 400,
@@ -170,11 +156,13 @@ router.post('/grant-reward', auth, adminCheck, async (req, res, next) => {
                 message: 'player_id 必填且必须为数字'
             });
         }
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian'].includes(dungeon_key)) {
+        // 副本键以内容为准（GM 路由里这份手抄清单只列了 4 个副本，另外 6 个已经上线的根本发不了奖）
+        const invalidDungeon = MultiDungeonService.invalidDungeonKey(dungeon_key);
+        if (invalidDungeon) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian'
+                message: invalidDungeon.message
             });
         }
         if (!reward_key || typeof reward_key !== 'string') {
@@ -219,11 +207,12 @@ router.post('/reset-cooldown', auth, adminCheck, async (req, res, next) => {
                 message: 'player_id 必填且必须为数字'
             });
         }
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'all'].includes(dungeon_key)) {
+        const invalidCooldownKey = MultiDungeonService.invalidDungeonKey(dungeon_key, ['all']);
+        if (invalidCooldownKey) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / all'
+                message: invalidCooldownKey.message
             });
         }
 

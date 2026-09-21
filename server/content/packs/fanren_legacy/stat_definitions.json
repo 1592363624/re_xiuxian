@@ -1,0 +1,43 @@
+{
+  "dataset": "stat_definitions",
+  "into": "stats",
+  "comment": "资料片新增属性：剑意。只写这一条，面板/加点/丹药/祭炼/战力/战斗公式就都认识它了。",
+  "add": [
+    {
+      "key": "sword_intent",
+      "label": "剑意",
+      "icon": "🗡️",
+      "group": "offense",
+      "unit": "point",
+      "agg": "flat_then_pct",
+      "base": { "default": 0 },
+      "min": 0,
+      "allocatable": true,
+      "bonusKey": "sword_intent_bonus",
+      "pill": true,
+      "refineRate": 0.05,
+      "powerWeight": 2.4,
+      "panel": { "visible": true, "order": 34, "spot": "sidebar" },
+      "description": "剑修意斩，无视部分肉身防御，由剑类法宝与剑修功法提供",
+      "battleRoles": ["damage_sword"]
+    },
+    {
+      "key": "element_resist",
+      "label": "五行抗性",
+      "icon": "🌀",
+      "group": "defense",
+      "unit": "percent",
+      "agg": "flat_only",
+      "base": { "default": 0 },
+      "min": 0,
+      "max": 60,
+      "allocatable": false,
+      "bonusKey": "element_resist_bonus",
+      "pill": false,
+      "powerWeight": 0.7,
+      "panel": { "visible": true, "order": 135, "suffix": "%" },
+      "description": "减免五行术法与妖兽吐息伤害的比例（百分点）",
+      "battleRoles": ["mitigate_element"]
+    }
+  ]
+}

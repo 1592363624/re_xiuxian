@@ -45,4 +45,8 @@ const sequelize = new Sequelize(
     }
 );
 
+// 时间戳读法兼容：模型里 createdAt / created_at 两种拼法并存，读错一边不报错、只静默拿到 undefined。
+// 必须在任何 sequelize.define 之前包上，所以放在这里（模型文件都从本模块取 sequelize 实例）。
+require('../models/timestampCompat').installTimestampCompat(sequelize);
+
 module.exports = sequelize;

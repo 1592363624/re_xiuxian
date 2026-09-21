@@ -1,0 +1,21 @@
+{
+  "dataset": "spirit_beast_pasture_data",
+  "into": "pasture.locations",
+  "comment": "第 5 处灵兽放养场所，也是这条集合第一次被资料片用到（以前整份文件没登记，资料片加不了场所）。放养产出写在这里而不是写在代码里：BeastPastureService.getLocations 直接把这四条字段摊给前端，开始放养时按 location_key 回内容里查。yield_items 的 item_id 受启动期物品引用校验管。",
+  "add": [
+    {
+      "location_key": "huangfeng_valley",
+      "name": "黄枫谷废圃",
+      "description": "旧年药修撤离后留下的畦垄，土性未散。木、土属性的灵兽在此放养最肯出力，拱出来的多是当年没收尽的灵草。",
+      "min_realm_rank": 12,
+      "preferred_elements": ["wood", "earth"],
+      "element_bonus_multiplier": 1.25,
+      "yield_items": [
+        { "item_id": "qi_ye_qing", "name": "七叶青", "weight": 40, "min_qty": 1, "max_qty": 3 },
+        { "item_id": "zi_yun_shen", "name": "紫云参", "weight": 18, "min_qty": 1, "max_qty": 1 },
+        { "item_id": "wild_herb", "name": "普通灵草", "weight": 27, "min_qty": 1, "max_qty": 2 },
+        { "item_id": "qi_ye_qing_seed", "name": "七叶青种子", "weight": 15, "min_qty": 1, "max_qty": 1 }
+      ]
+    }
+  ]
+}

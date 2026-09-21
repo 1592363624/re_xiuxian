@@ -350,7 +350,19 @@ const handleSubmit = async () => {
           :disabled="loading"
           class="w-full flex items-center justify-center gap-2 bg-[#12B7F5]/90 text-surface-sunken font-bold py-2 rounded-control hover:bg-[#12B7F5] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span class="w-5 h-5 flex items-center justify-center rounded-full bg-black text-[#12B7F5] text-[10px] font-black leading-none">QQ</span>
+          <!--
+            QQ 官方企鹅标识，路径取自 simple-icons 的 icons/qq.svg（24×24 视图框）。
+            用 currentColor 跟随按钮文字色，换深色模式时不必再单独调色。
+          -->
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            class="w-5 h-5 shrink-0"
+            role="img"
+            aria-label="QQ"
+          >
+            <path d="M21.395 15.035a40 40 0 0 0-.803-2.264l-1.079-2.695c.001-.032.014-.562.014-.836C19.526 4.632 17.351 0 12 0S4.474 4.632 4.474 9.241c0 .274.013.804.014.836l-1.08 2.695a39 39 0 0 0-.802 2.264c-1.021 3.283-.69 4.643-.438 4.673.54.065 2.103-2.472 2.103-2.472 0 1.469.756 3.387 2.394 4.771-.612.188-1.363.479-1.845.835-.434.32-.379.646-.301.778.343.578 5.883.369 7.482.189 1.6.18 7.14.389 7.483-.189.078-.132.132-.458-.301-.778-.483-.356-1.233-.646-1.846-.836 1.637-1.384 2.393-3.302 2.393-4.771 0 0 1.563 2.537 2.103 2.472.251-.03.581-1.39-.438-4.673"/>
+          </svg>
           使用 QQ 登录
         </button>
         <p class="mt-2 text-xs text-fg-faint text-center">首次使用需用 QQ 验证后绑定或注册一个账号</p>

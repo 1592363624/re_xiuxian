@@ -11,6 +11,7 @@
  *   strategic    - 战略点，无产出但 +10% 战役胜率
  */
 const { DataTypes } = require('sequelize');
+const { readJsonColumn } = require('./jsonColumn');
 const sequelize = require('../config/database');
 
 const SectWarTerritory = sequelize.define('SectWarTerritory', {
@@ -76,9 +77,7 @@ const SectWarTerritory = sequelize.define('SectWarTerritory', {
         allowNull: true,
         comment: '驻防玩家ID列表（JSON数组）',
         get() {
-            const raw = this.getDataValue('defender_player_ids');
-            if (!raw) return [];
-            try { return JSON.parse(raw); } catch { return []; }
+            return readJsonColumn('sectWarTerritory', 'defender_player_ids', this.getDataValue('defender_player_ids'), []);
         },
         set(value) {
             this.setDataValue('defender_player_ids', Array.isArray(value) ? JSON.stringify(value) : '[]');

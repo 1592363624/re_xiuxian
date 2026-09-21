@@ -21,7 +21,25 @@
 import apiClient from './index';
 
 /** 器灵类型 */
-export type SpiritType = 'attack' | 'defense' | 'support' | 'balance';
+/**
+ * 器灵类型由内容决定（artifact_spirit_data.spirit_types 的键，现网 4 档）。
+ * 以前是 4 个键的联合类型：资料片加一档，面板的选择器与对比表都不会出现它。
+ */
+export type SpiritType = string;
+
+/** 一档器灵的展示数据：文案全部由服务端按内容数值拼好（ArtifactSpiritService.spiritTypeCatalog） */
+export interface SpiritTypeCatalogEntry {
+  key: SpiritType;
+  name: string;
+  desc: string;
+  base_bonus: Record<string, number>;
+  level_bonus_per_level: Record<string, number>;
+  bonus_text: string;
+  protect_effect: string | null;
+  protect_text: string;
+  activate_effect: string | null;
+  activate_text: string;
+}
 
 /** 器灵状态 */
 export type SpiritState = 'idle' | 'protecting' | 'activating';
@@ -237,7 +255,12 @@ export async function awakenSpirit(data: AwakenSpiritRequest): Promise<ApiRespon
 /**
  * 获取我的器灵列表
  */
-export async function getMySpirits(): Promise<ApiResponse<{ spirits: MySpiritEntry[]; count: number }>> {
+export async function getMySpirits(): Promise<ApiResponse<{
+  spirits: MySpiritEntry[];
+  count: number;
+  /** 器灵类型清单（内容驱动）；老版本服务端没这一项时面板的类型区为空，不再前端兜底抄一份 */
+  spirit_types?: SpiritTypeCatalogEntry[];
+}>> {
   const response = await apiClient.get('/artifact-spirit/list');
   return response.data;
 }

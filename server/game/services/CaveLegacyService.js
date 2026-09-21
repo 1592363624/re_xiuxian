@@ -58,10 +58,12 @@ const CaveLegacyDistributionLog = require('../../models/caveLegacyDistributionLo
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const InventoryService = require('./InventoryService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
+const { logOnce } = require('../../utils/logOnce');
+// 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
+const RETURNED = { allowUnknownItem: true };
 
 // 单例状态
 let _initialized = false;
-let _config = null;
 
 /**
  * 工具函数：安全转换 BigInt 为 Number（用于修为/灵石等）
@@ -84,15 +86,9 @@ class CaveLegacyService {
      */
     initialize(configLoaderInstance) {
         if (_initialized) return;
-        try {
-            const loader = configLoaderInstance || configLoader;
-            _config = loader.getConfig('cave_legacy_data')?.cave_legacy;
-        } catch (e) {
-            console.warn('[CaveLegacyService] 配置 cave_legacy_data.cave_legacy 未加载，服务不可用:', e.message);
-            return;
-        }
-        if (!_config) {
-            console.warn('[CaveLegacyService] 配置 cave_legacy 为空，服务不可用');
+        const loader = configLoaderInstance || configLoader;
+        if (!loader.peekConfig('cave_legacy_data', 'cave_legacy')) {
+            console.warn('[CaveLegacyService] 配置 cave_legacy_data.cave_legacy 未加载或为空，服务不可用');
             return;
         }
         _initialized = true;
@@ -100,20 +96,11 @@ class CaveLegacyService {
     }
 
     /**
-     * 获取配置
-     * 防御性加载：未初始化时尝试重新加载，失败返回 null
+     * 获取配置：每次都现读（为什么不再缓存在模块变量里，见 ConfigLoader.peekConfig）
      * @returns {Object|null}
      */
     getConfig() {
-        if (!_initialized || !_config) {
-            try {
-                _config = configLoader.getConfig('cave_legacy_data')?.cave_legacy;
-                _initialized = !!_config;
-            } catch (e) {
-                return null;
-            }
-        }
-        return _config;
+        return configLoader.peekConfig('cave_legacy_data', 'cave_legacy');
     }
 
     // ==================== 管理员接口 ====================
@@ -724,6 +711,7 @@ class CaveLegacyService {
                     legacy_id: legacy.id,
                     owner_nickname: legacy.owner_nickname_snapshot,
                     distributed_items: spinResult.distributed_items,
+                    skipped_items: spinResult.skipped_items,
                     total_quantity: participant.total_quantity
                 });
             } catch (e) {
@@ -732,11 +720,13 @@ class CaveLegacyService {
 
             return {
                 success: true,
-                message: `分宝成功，共获得 ${participant.total_item_types} 种 ${participant.total_quantity} 件物品`,
+                message: `分宝成功，共获得 ${participant.total_item_types} 种 ${participant.total_quantity} 件物品`
+                    + (spinResult.message ? `；${spinResult.message}` : ''),
                 data: {
                     legacy_id: legacy.id,
                     owner_nickname: legacy.owner_nickname_snapshot,
                     distributed_items: spinResult.distributed_items,
+                    skipped_items: spinResult.skipped_items,
                     total_item_types: participant.total_item_types,
                     total_quantity: participant.total_quantity,
                     spun_at: participant.spun_at
@@ -1049,14 +1039,14 @@ class CaveLegacyService {
      *   3. 每个物品分配数量 = ceil(item.remaining_quantity * weight / sum(weights) * lucky_factor)
      *      但不超过 distribution.max_item_types_per_player 和 distribution.quantity_cap_per_player
      *   4. 扣减 CaveLegacyItem.remaining_quantity
-     *   5. 写入 CaveLegacyDistributionLog
-     *   6. 通过 InventoryService.addItem 将物品加入玩家储物袋
+     *   5. 通过 InventoryService.addItem 将物品加入玩家储物袋
+     *   6. 只有真发到的一件才写入 CaveLegacyDistributionLog（日志 = "分宝记录"面板的数据源）
      *
      * @param {Object} player - 玩家对象（已锁）
      * @param {Object} legacy - 遗府对象（已锁）
      * @param {Object} participant - 参与者对象（已锁）
      * @param {Object} t - 事务实例
-     * @returns {Promise<Object>} { success, distributed_items: [{ item_key, item_name, quantity }] }
+     * @returns {Promise<Object>} { success, distributed_items: [{ item_key, item_name, quantity }], skipped_items }
      */
     async _executeSpin(player, legacy, participant, t) {
         const config = this.getConfig();
@@ -1096,6 +1086,7 @@ class CaveLegacyService {
         const ratio = Math.min(0.3, maxItemTypes / Math.max(1, items.length));
 
         const distributed = [];
+        const skipped = [];
         let totalDistributed = 0;
         let typeCount = 0;
 
@@ -1119,7 +1110,22 @@ class CaveLegacyService {
             item.remaining_quantity -= qty;
             await item.save({ transaction: t });
 
-            // 写入分配日志
+            // 先真正发进储物袋，再写分配日志：
+            // 日志是"分宝记录"面板的数据源（_listDistributionLogs），先发后记意味着
+            // 背包满而跳过的那件不会留下一条玩家看得见、却永远拿不到的收获。
+            try {
+                await InventoryService.addItem(player.id, item.item_key, qty, t, null, RETURNED);
+            } catch (addItemErr) {
+                // 容量不足等错误：回滚此物品分配（不分配此物品、不记日志）
+                logOnce(`caveLegacy.distribute:${player.id}:${item.item_key}`,
+                    `[CaveLegacyService] 玩家 ${player.id} 储物袋已满，跳过 ${item.item_name_snapshot}: ${addItemErr.message}`);
+                // 恢复物品剩余数量
+                item.remaining_quantity += qty;
+                await item.save({ transaction: t });
+                skipped.push({ item_key: item.item_key, item_name: item.item_name_snapshot, quantity: qty });
+                continue;
+            }
+
             await CaveLegacyDistributionLog.create({
                 legacy_id: legacy.id,
                 player_id: player.id,
@@ -1128,18 +1134,6 @@ class CaveLegacyService {
                 quantity: qty,
                 source: 'spin'
             }, { transaction: t });
-
-            // 将物品加入玩家储物袋（事务内）
-            try {
-                await InventoryService.addItem(player.id, item.item_key, qty, t);
-            } catch (addItemErr) {
-                // 容量不足等错误：回滚此物品分配（不分配此物品）
-                console.warn(`[CaveLegacyService] 玩家 ${player.id} 储物袋已满，跳过 ${item.item_name_snapshot}:`, addItemErr.message);
-                // 恢复物品剩余数量
-                item.remaining_quantity += qty;
-                await item.save({ transaction: t });
-                continue;
-            }
 
             distributed.push({
                 item_key: item.item_key,
@@ -1151,10 +1145,25 @@ class CaveLegacyService {
         }
 
         if (distributed.length === 0) {
-            return { success: false, message: '储物袋容量不足，无法分宝' };
+            return {
+                success: false,
+                message: skipped.length > 0
+                    ? `储物袋容量不足，${skipped.map(s => `${s.item_name}×${s.quantity}`).join('、')} 都放不下，本次未分得任何物品（物品仍留在遗府中）`
+                    : '储物袋容量不足，无法分宝',
+                skipped_items: skipped
+            };
         }
 
-        return { success: true, distributed_items: distributed };
+        return {
+            success: true,
+            distributed_items: distributed,
+            skipped_items: skipped,
+            // 有些件因为背包满没落袋：不报出来的话，玩家只看到"分了 N 件"，
+            // 而遗府里那几件还剩着数量，他会以为分宝逻辑吞了东西。
+            message: skipped.length > 0
+                ? `背包容量不足，${skipped.map(s => `${s.item_name}×${s.quantity}`).join('、')} 未能放入（仍留在遗府中）`
+                : null
+        };
     }
 
     /**
@@ -1200,7 +1209,7 @@ class CaveLegacyService {
             if (owner && !owner.is_dead) {
                 for (const item of unclaimedItems) {
                     try {
-                        await InventoryService.addItem(owner.id, item.item_key, item.remaining_quantity, t);
+                        await InventoryService.addItem(owner.id, item.item_key, item.remaining_quantity, t, null, RETURNED);
                         summary.returned_to_owner += item.remaining_quantity;
                     } catch (e) {
                         // 原主储物袋满等错误：销毁

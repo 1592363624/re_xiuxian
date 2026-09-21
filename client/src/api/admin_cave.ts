@@ -140,6 +140,22 @@ export const getCaveList = (params: CaveListParams = {}) => {
 };
 
 /**
+ * 设施下拉的数据源（值 + 中文名 + 上限），由服务端的"内容 ∩ 有等级列"给出
+ * GET /admin/cave/facilities
+ */
+export interface CaveFacilityOption {
+  value: string;
+  label: string;
+  max_level: number | null;
+}
+
+export const getCaveFacilityOptions = () => {
+  return apiClient.get<{ code: number; data: { facilities: CaveFacilityOption[] } }>(
+    '/admin/cave/facilities'
+  );
+};
+
+/**
  * 获取指定玩家洞府详情
  * GET /admin/cave/:playerId
  * @param playerId 玩家ID

@@ -1,0 +1,25 @@
+{
+  "dataset": "stat_definitions",
+  "into": "stats",
+  "comment": "五行之力：只写这一条，面板/加点/丹药/祭炼/战力就都认识它；伤害侧的接入点在 combat_formulas.json，同样只有数据。",
+  "add": [
+    {
+      "key": "five_element_power",
+      "label": "五行之力",
+      "icon": "☯️",
+      "group": "offense",
+      "unit": "point",
+      "agg": "flat_then_pct",
+      "base": { "default": 0 },
+      "min": 0,
+      "allocatable": true,
+      "bonusKey": "five_element_power_bonus",
+      "pill": true,
+      "refineRate": 0.04,
+      "powerWeight": 1.8,
+      "panel": { "visible": true, "order": 46 },
+      "description": "五行生克之功，克制同系妖兽与术法，被五行抗性减免",
+      "battleRoles": ["damage_element"]
+    }
+  ]
+}

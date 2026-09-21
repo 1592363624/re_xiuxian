@@ -145,6 +145,18 @@ class InventoryService {
 
         const t = await sequelize.transaction();
         try {
+            // 取锁次序按 game/persistence/lockOrder.js：players 先于 items。
+            // 改造前先锁背包行再回头锁玩家行，而战斗中"使用物品"（CombatService.useItem）是 players→items ——
+            // 同一个人从两个面板各点一次同一枚丹药就是标准 ABBA（谁被数据库挑掉谁看到一次失败）。
+            // 查询玩家
+            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+            if (player.is_dead) {
+                throw new AppError('已陨落，无法使用物品', 400, ErrorCodes.VALIDATION_ERROR);
+            }
+
             // 查询玩家物品记录（加锁防并发）
             const playerItem = await Item.findOne({
                 where: { player_id: playerId, item_key: itemKey },
@@ -154,15 +166,6 @@ class InventoryService {
 
             if (!playerItem || playerItem.quantity < quantity) {
                 throw new AppError('物品数量不足', 400, ErrorCodes.VALIDATION_ERROR);
-            }
-
-            // 查询玩家
-            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
-            if (!player) {
-                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-            }
-            if (player.is_dead) {
-                throw new AppError('已陨落，无法使用物品', 400, ErrorCodes.VALIDATION_ERROR);
             }
 
             // 应用物品效果
@@ -252,14 +255,22 @@ class InventoryService {
      * @param {Object} transaction - 可选的事务实例
      * @returns {Promise<Object>} 添加结果
      */
-    async addItem(playerId, itemKey, quantity = 1, transaction = null, metadata = null) {
+    async addItem(playerId, itemKey, quantity = 1, transaction = null, metadata = null, addOptions = {}) {
         if (quantity < 1) {
             throw new AppError('添加数量必须大于 0', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
         const config = this.getItemConfig(itemKey);
         if (!config) {
-            throw new AppError(`物品配置不存在: ${itemKey}`, 400, ErrorCodes.VALIDATION_ERROR);
+            // 内容被下架或资料片被关闭时，"把玩家本来就有的东西还给他"绝不能失败：
+            // 背包/装备面板都能显示"未知物品"，但如果这里抛错，玩家那件装备就永久卡在槽位里
+            // （卸下走 addItem），遗府/拍卖/典当行的退还同理会变成"东西没了"。
+            // 所以只对"凭空发一件不存在的物品"（掉落/产出/奖励，这类引用在启动期就被
+            // ContentRegistry._validateReferences 校验过）保持严格。
+            if (!addOptions.allowUnknownItem) {
+                throw new AppError(`物品配置不存在: ${itemKey}`, 400, ErrorCodes.VALIDATION_ERROR);
+            }
+            console.warn(`[InventoryService] 玩家 ${playerId} 的既有物品 ${itemKey} 配置已不在当前内容中（资料片停用或内容下架？），按原样退回背包`);
         }
 
         // 容量检查（必须在同一事务内查询，否则会读到旧数据导致误判容量不足）
@@ -274,9 +285,12 @@ class InventoryService {
         }
 
         // 查找已有记录，存在则累加
+        // 必须在本事务内对该行加锁：战斗掉落/采集/炼制都会往同一个 item_key 上叠数量，
+        // 无锁的"读数量 → 加 → 存"会让并发到账互相覆盖（玩家表现为"掉的东西不见了"）。
         const existing = await Item.findOne({
             where: { player_id: playerId, item_key: itemKey },
-            ...options
+            ...options,
+            lock: transaction ? transaction.LOCK.UPDATE : undefined
         });
 
         if (existing) {
@@ -285,7 +299,7 @@ class InventoryService {
             if (metadata && typeof metadata === 'object') {
                 existing.metadata = metadata;
             }
-            await existing.save(options);
+            await existing.save({ ...options, lock: undefined });
         } else {
             await Item.create({
                 player_id: playerId,
@@ -298,7 +312,8 @@ class InventoryService {
         return {
             success: true,
             item_key: itemKey,
-            item_name: config.name,
+            // 退还既有物品时配置可能已经不在（资料片关闭）：这里只是回给调用方一个展示名
+            item_name: config?.name || '未知物品',
             quantity_added: quantity
         };
     }
@@ -378,20 +393,29 @@ class InventoryService {
         // 数量倍率与品质倍率叠加（品质倍率来自炼制产出的 effect_multiplier，打通"品质→收益"断链）
         const totalMultiplier = Number(multiplier) * Number(qualityMultiplier || 1);
         const attrs = player.attributes;
-        const hpMax = attrs.hp_max || 100;
-        const mpMax = attrs.mp_max || 0;
+        // 上限取解析后的属性。blob 里的 hp_max/mp_max 是旧管线（换境界时写入的 realm 基数）留下的
+        // 输出键，不含装备/功法加成：拿它当钳制，气血 4000/5000 的玩家吃一颗 +500 的回春丹
+        // 会被 Math.min(1000, 4500) "补"到 1000 —— 吃药反而掉血，而且不报任何错。
+        const CombatResolver = require('../combat/CombatResolver');
+        const { stats: resolvedStats } = await CombatResolver.resolveCombatStats(player);
+        const capOf = (resolved, mirrored, fallback) =>
+            Number(resolved) > 0 ? Number(resolved) : (Number(mirrored) || fallback);
+        const hpMax = capOf(resolvedStats.hp_max, attrs.hp_max, 100);
+        const mpMax = capOf(resolvedStats.mp_max, attrs.mp_max, 0);
 
         // 恢复气血
         if (effect.hp_restore) {
             const restore = effect.hp_restore * totalMultiplier;
-            player.hp_current = Math.min(hpMax, Number(player.hp_current) + restore);
+            // max(当前值, …)：恢复类道具在任何内容里增量都是正的，
+            // 一旦上限算低了（或气血本身高于上限），宁可少补也不许把玩家打成残血。
+            player.hp_current = Math.max(Number(player.hp_current), Math.min(hpMax, Number(player.hp_current) + restore));
             applied.hp_restore = restore;
         }
 
         // 恢复灵力
         if (effect.mp_restore) {
             const restore = effect.mp_restore * totalMultiplier;
-            player.mp_current = Math.min(mpMax, Number(player.mp_current) + restore);
+            player.mp_current = Math.max(Number(player.mp_current), Math.min(mpMax, Number(player.mp_current) + restore));
             applied.mp_restore = restore;
         }
 

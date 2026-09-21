@@ -26,7 +26,7 @@
 <template>
   <PanelShell
     title="多人副本 · 群英会战"
-    hint="掩月抢亲 · 端午镇蛟 · 昆吾山 · 虚天殿"
+    :hint="dungeonHint"
     size="xl"
     @close="$emit('close')"
   >
@@ -519,6 +519,8 @@ interface MHelpData {
   dungeons: Record<string, MDungeonHelp>;
   state_machine?: Record<string, { next_states?: string[]; description?: string }>;
   global_bounds?: Record<string, unknown>;
+  /** 变量中文名与归属副本（GM 管理面板的下拉用它，玩家面板的变量名来自 /status 的同名字段） */
+  variable_meta?: Record<string, { label?: string; dungeons?: string[] | null }>;
 }
 
 /** GET /status → data.current_act（currentAct.multi_choice_progress 仅阵眼幕非空） */
@@ -648,16 +650,20 @@ const activeTab = ref('hall');
 /** 已加载过的 Tab 集合，避免重复请求 */
 const loadedTabs = reactive<Set<string>>(new Set());
 
-/** 奖励池子页签配置（key/label 契约见 ui/Tabs.vue） */
-// 2026-07-21 新增 xutian（虚天殿）
-const rewardSubTabs = [
-  { key: 'yanyue' as DungeonKey, label: '掩月抢亲' },
-  { key: 'duanwu' as DungeonKey, label: '端午镇蛟' },
-  { key: 'kunwu' as DungeonKey, label: '昆吾山·封魔塔' },
-  { key: 'xutian' as DungeonKey, label: '虚天殿' }
-];
-/** 奖励池当前子页签 */
-const rewardSubTab = ref<DungeonKey>('yanyue');
+/**
+ * 奖励池子页签配置（key/label 契约见 ui/Tabs.vue）
+ *
+ * 副本清单与中文名取自 /help 的 dungeons（内容是 multi_dungeon_data.json）。
+ * 这里以前写死 4 个副本，其余 6 个副本的奖励表在界面上根本进不去，
+ * 新增一个 DLC 副本还得回来改这一处。
+ */
+const rewardSubTabs = computed<Array<{ key: string; label: string }>>(() =>
+  Object.entries(helpData.value?.dungeons || {}).map(([key, dgn]) => ({ key, label: dgn?.name || key }))
+);
+/** 奖励池当前子页签；空串表示副本清单还没到手，由 ensureRewardSub() 兜首个 */
+const rewardSubTab = ref('');
+/** 面板副标题：可打的副本名，跟着内容走 */
+const dungeonHint = computed(() => rewardSubTabs.value.map(t => t.label).join(' · '));
 
 /** 各模块加载状态 */
 const loading = reactive({
@@ -724,57 +730,27 @@ function actCountOf(key: string | undefined | null): number | null {
 const totalActs = computed(() => actCountOf(instance.value?.dungeon_key));
 
 /**
- * 变量中文名字典：仅本面板已知的变量参与渲染，
- * 后端新增变量在未补文案前整条不显示，避免印出裸键名。
+ * 当前可见变量：名字与归属全部来自后端 /status 的 variable_meta
+ * （内容由 config/multi_dungeon_data.json 的 global.variable_labels 与各副本的 instance_vars/member_vars 生成）。
+ *
+ * 这里以前另抄着一份 15 条的中文名字典和一份 9 条的归属字典：内容里已经写了 40 个变量，
+ * 抄的那份既少（25 个键只能走兜底）又新（两处文案已经和内容对不上）。
+ * 现在新增副本变量只改内容就行，面板不用再动 —— 没有标签的键一律不显示，不印裸键名。
  */
-const VARIABLE_LABELS: Record<string, string> = {
-  morale: '士气',
-  vigilance: '警戒',
-  demon_corruption: '魔染',
-  seal_stability: '封印稳定度',
-  soul_stability: '神魂稳定度',
-  harvest_multiplier: '收获倍率',
-  // 昆吾山·封魔塔专属变量
-  demonic_qi: '魔气',
-  mountain_seal: '山禁',
-  treasure_pressure: '宝压/夺宝压力',
-  linglong: '玲珑',
-  seal_progress: '封印推进',
-  tower_shadow_hp: '塔心魔影HP',
-  // 虚天殿专属变量
-  path_choice: '道路选择',
-  formation_power: '阵法强度',
-  void_soul_hp: '虚天主魂HP'
-};
-/**
- * 归属副本：后端 /status 会为所有副本返回全套变量（非本副本的是库表默认值），
- * 这里按副本键过滤掉与当前副本无关的默认值，避免在掩月副本里印出「魔气 0」。
- * 不在表内的六个变量（士气/警戒/魔染/封印/神魂/收获）为各副本共用，一律展示。
- */
-const VARIABLE_OWNERS: Record<string, string[]> = {
-  demonic_qi: ['kunwu'],
-  mountain_seal: ['kunwu'],
-  treasure_pressure: ['kunwu', 'xutian'],
-  linglong: ['kunwu'],
-  seal_progress: ['kunwu'],
-  tower_shadow_hp: ['kunwu'],
-  path_choice: ['xutian'],
-  formation_power: ['xutian'],
-  void_soul_hp: ['xutian']
-};
-/** 当前可见变量：后端返回 null（未进入对应幕）或未知变量一律不显示 */
 const visibleVariables = computed<Array<{ key: string; label: string; value: number | string }>>(() => {
   const vars = statusData.value?.variables;
   const dungeonKey = instance.value?.dungeon_key;
   if (!vars || !dungeonKey) return [];
+  const meta = statusData.value?.variable_meta || {};
   const out: Array<{ key: string; label: string; value: number | string }> = [];
   for (const [key, value] of Object.entries(vars)) {
     if (value === null || value === undefined) continue;
-    const label = VARIABLE_LABELS[key];
-    if (!label) continue;
-    const owners = VARIABLE_OWNERS[key];
-    if (owners && !owners.includes(dungeonKey)) continue;
-    out.push({ key, label, value });
+    const entry = meta[key];
+    if (!entry?.label) continue;
+    // dungeons 为 null 表示各副本通用；否则只在列出的副本里显示，
+    // 免得在掩月副本里印出「魔气 0」这类属于别的副本的库表默认值
+    if (Array.isArray(entry.dungeons) && !entry.dungeons.includes(dungeonKey)) continue;
+    out.push({ key, label: entry.label, value });
   }
   return out;
 });
@@ -806,9 +782,20 @@ async function switchTab(tabId: string) {
   if (loadedTabs.has(tabId)) return;
   if (tabId === 'hall') await loadHall();
   else if (tabId === 'mine') await loadStatus();
-  else if (tabId === 'rewards') await loadRewards(rewardSubTab.value);
+  else if (tabId === 'rewards') await loadRewards(await ensureRewardSub());
   else if (tabId === 'history') await loadHistory();
   loadedTabs.add(tabId);
+}
+
+/**
+ * 奖励池要先有个子页签：副本清单来自 /help，没到手就补拉一次，然后选中第一个副本。
+ * @returns 可用的 dungeon_key；内容里一个副本都没有时返回空串
+ */
+async function ensureRewardSub() {
+  if (!helpData.value) await loadHall();
+  const keys = rewardSubTabs.value.map(t => t.key);
+  if (!keys.includes(rewardSubTab.value)) rewardSubTab.value = keys[0] || '';
+  return rewardSubTab.value;
 }
 
 /**
@@ -899,6 +886,7 @@ async function loadStatus() {
  * @param key 副本 key
  */
 async function loadRewards(key: DungeonKey) {
+  if (!key) return; // 副本清单没到手（/help 失败或内容里没有副本），不发无 key 的请求
   loading.rewards = true;
   try {
     const resp = await multiDungeonGetRewards(key);

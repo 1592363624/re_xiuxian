@@ -198,7 +198,7 @@
  * 道侣 / 侍妾系统 GM 管理组件脚本
  * 使用 Composition API，2 大子模块共享 emit showConfirm 委托二次确认
  */
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useUIStore } from '../../../stores/ui';
 import AppButton from '../../ui/AppButton.vue'
 import {
@@ -209,6 +209,7 @@ import {
   adminSetConcubineAttr,
   adminFinishVoyage
 } from '../../../api/companion';
+import { getContentKeyOptions } from '../../../api/config';
 
 const uiStore = useUIStore();
 
@@ -252,16 +253,23 @@ const finishVoyageForm = reactive({
   voyageId: null as number | null
 });
 
-/** 侍妾原型选项（7 种，与 server/config/companion_data.json 的 concubine_key 严格对齐） */
-const concubineKeyOptions = [
-  { value: 'nangong_wan', label: '南宫婉' },
-  { value: 'ziling', label: '紫灵' },
-  { value: 'wen_qing', label: '温清' },
-  { value: 'mu_pei', label: '慕沛' },
-  { value: 'liu_yu', label: '柳雨' },
-  { value: 'han_xue', label: '寒雪' },
-  { value: 'xue_ji', label: '血姬' }
-];
+/**
+ * 侍妾原型选项：取自内容（GET /config/content/keys/companion_data）。
+ * 这里以前抄了 7 条并注释"与 concubine_key 严格对齐"—— 资料片加一位，下拉里就没有她。
+ */
+const concubineKeyOptions = ref<Array<{ value: string; label: string }>>([])
+
+/** 拉侍妾原型清单；拉不到要响，别留一个空下拉 */
+async function loadConcubineKeyOptions() {
+  try {
+    const res = await getContentKeyOptions('companion_data')
+    concubineKeyOptions.value = (res.data?.data?.entries || []).map(e => ({ value: e.key, label: e.name }))
+  } catch (err: any) {
+    uiStore.showToast(err?.message || '获取侍妾原型清单失败', 'error')
+  }
+}
+
+onMounted(loadConcubineKeyOptions);
 
 /**
  * 校验玩家ID 是否已填写
@@ -370,7 +378,7 @@ function submitGrantConcubine() {
     uiStore.showToast('请选择侍妾原型', 'warning');
     return;
   }
-  const concubineLabel = concubineKeyOptions.find(o => o.value === grantConcubineForm.concubineKey)?.label || grantConcubineForm.concubineKey;
+  const concubineLabel = concubineKeyOptions.value.find(o => o.value === grantConcubineForm.concubineKey)?.label || grantConcubineForm.concubineKey;
   emit('showConfirm',
     '发放侍妾',
     `确认向玩家 ID=${grantConcubineForm.playerId} 发放侍妾「${concubineLabel}」？`,

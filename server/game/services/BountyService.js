@@ -28,6 +28,7 @@ const PvpBattleRecord = require('../../models/pvpBattleRecord');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
 
 /**
  * BigInt 安全转换工具
@@ -152,11 +153,14 @@ class BountyService {
 
         const t = await sequelize.transaction();
         try {
-            // 行级锁发布者
-            const publisher = await Player.findByPk(playerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 发布者 + 目标玩家：一次按主键**升序**锁齐（口径见 game/persistence/lockOrder.js）。
+            // 改前是"发布者 → 目标"两笔按业务角色的单行 FOR UPDATE：两人互相把对方设为悬赏目标时，
+            // 两笔事务以相反次序伸手要同两行 —— 实测 5 轮互发 5 次 Deadlock（scripts/smoke_bounty.js B4，
+            // 这五轮每轮两边都真的在取两行锁，不是被前置条件挡在锁之外）。
+            const lockedSides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [playerId, targetId])).map(p => [Number(p.id), p])
+            );
+            const publisher = lockedSides.get(Number(playerId));
             if (!publisher) {
                 await t.commit();
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -200,11 +204,8 @@ class BountyService {
                 );
             }
 
-            // 行级锁目标玩家
-            const target = await Player.findByPk(targetId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 目标玩家用的就是上面那次批锁回来的同一份实例（一笔事务里同一行只留一份）
+            const target = lockedSides.get(Number(targetId));
             if (!target) {
                 await t.commit();
                 throw new AppError('目标玩家不存在', 404, ErrorCodes.NOT_FOUND);

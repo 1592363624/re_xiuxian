@@ -40,6 +40,7 @@ const Player = require('../../models/player');
 const PlayerDivineDuel = require('../../models/playerDivineDuel');
 const PlayerDivineSense = require('../../models/playerDivineSense');
 const sequelize = require('../../config/database');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
 const { Op } = require('sequelize');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
@@ -48,7 +49,6 @@ const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 // 单例状态
 let _initialized = false;
-let _config = null;
 let _realmService = null;
 
 /**
@@ -74,20 +74,14 @@ function safeBigInt(value) {
 class DivineDuelService {
     /**
      * 初始化服务：加载配置与 RealmService
-     * 防御性配置加载：包裹 try/catch，配置缺失时仅警告不阻塞
+     * 配置缺失时仅警告不阻塞（服务方法自己会判 getConfig() 为 null）
      * @param {Object} configLoaderInstance - 配置加载器实例
      */
     initialize(configLoaderInstance) {
         if (_initialized) return;
-        try {
-            const loader = configLoaderInstance || configLoader;
-            _config = loader.getConfig('late_stage_data')?.divine_duel;
-        } catch (e) {
-            console.warn('[DivineDuelService] 配置 late_stage_data.divine_duel 未加载，服务不可用:', e.message);
-            return;
-        }
-        if (!_config) {
-            console.warn('[DivineDuelService] 配置 divine_duel 为空，服务不可用');
+        const loader = configLoaderInstance || configLoader;
+        if (!loader.peekConfig('late_stage_data', 'divine_duel')) {
+            console.warn('[DivineDuelService] 配置 late_stage_data.divine_duel 未加载或为空，服务不可用');
             return;
         }
         // 延迟获取 RealmService（避免循环依赖）
@@ -102,20 +96,11 @@ class DivineDuelService {
     }
 
     /**
-     * 获取配置
-     * 防御性加载：未初始化时尝试重新加载，失败返回 null
+     * 获取配置：每次都现读（为什么不再缓存在模块变量里，见 ConfigLoader.peekConfig）
      * @returns {Object|null}
      */
     getConfig() {
-        if (!_initialized || !_config) {
-            try {
-                _config = configLoader.getConfig('late_stage_data')?.divine_duel;
-                _initialized = !!_config;
-            } catch (e) {
-                return null;
-            }
-        }
-        return _config;
+        return configLoader.peekConfig('late_stage_data', 'divine_duel');
     }
 
     /**
@@ -292,11 +277,13 @@ class DivineDuelService {
 
         const t = await sequelize.transaction();
         try {
-            // 行级锁发起方玩家
-            const challengerLocked = await Player.findByPk(challenger.id, {
-                transaction: t,
-                lock: t.LOCK.UPDATE
-            });
+            // 双方 players 按 id 升序一次锁齐（game/persistence/lockOrder.js 的 lockRowsByIdsAsc）。
+            // 改造前是"锁发起方 → 校验一串 → 再锁应战方"：两人互相发起时两边传参正好相反，
+            // 实测 3 轮里 2 轮直接 Deadlock（scripts/smoke_divine_duel.js 的 D6）—— 不是边角，是两个玩家
+            // 各自点"挑战对方"就会撞。校验次序保持原样（先判发起方，再判应战方），只是把锁一次拿齐。
+            const lockedSides = await lockRowsByIdsAsc(t, Player, [challenger.id, defenderIdNum]);
+            const challengerLocked = lockedSides.find(p => Number(p.id) === Number(challenger.id));
+            const defender = lockedSides.find(p => Number(p.id) === Number(defenderIdNum));
             if (!challengerLocked) {
                 await t.rollback();
                 return { success: false, message: '玩家不存在' };
@@ -310,11 +297,7 @@ class DivineDuelService {
                 return { success: false, message: '已身死道消，无法发起神识对决' };
             }
 
-            // 行级锁目标玩家
-            const defender = await Player.findByPk(defenderIdNum, {
-                transaction: t,
-                lock: t.LOCK.UPDATE
-            });
+            // 行级锁目标玩家：已在上面按升序一起锁好，这里只判（不再第二次 FOR UPDATE）
             if (!defender) {
                 await t.rollback();
                 return { success: false, message: '目标玩家不存在' };
@@ -551,16 +534,26 @@ class DivineDuelService {
 
         const t = await sequelize.transaction();
         try {
-            const playerLocked = await Player.findByPk(player.id, {
-                transaction: t,
-                lock: t.LOCK.UPDATE
-            });
+            // 次序：players（双方按 id 升序一次锁齐）→ player_divine_duels。
+            // 原来先锁自己、再锁对局行；对面那位的 challenge 是"两人锁 → 对局行"，
+            // 而后台 checkTimeouts 每轮都在扫对局行（对局行 → players）—— 方向天生相反，
+            // 一个在点接受、另一个在点别的对决就是环。这里先无锁 peek 一次，只为拿双方 id。
+            const peek = await PlayerDivineDuel.findByPk(duelIdNum, { transaction: t });
+            if (!peek) {
+                await t.rollback();
+                return { success: false, message: '对局不存在' };
+            }
+            const sides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [player.id, peek.challenger_id, peek.defender_id]))
+                    .map(p => [Number(p.id), p])
+            );
+            const playerLocked = sides.get(Number(player.id));
             if (!playerLocked) {
                 await t.rollback();
                 return { success: false, message: '玩家不存在' };
             }
 
-            // 行级锁对局记录
+            // 对局行现在才锁：加锁读看的是最新已提交版本，peek 之后被对方处理掉在这里能重看到
             const duel = await PlayerDivineDuel.findByPk(duelIdNum, {
                 transaction: t,
                 lock: t.LOCK.UPDATE
@@ -568,6 +561,11 @@ class DivineDuelService {
             if (!duel) {
                 await t.rollback();
                 return { success: false, message: '对局不存在' };
+            }
+            if (Number(duel.challenger_id) !== Number(peek.challenger_id)) {
+                // 锁是按 peek 那两人的 id 升序取的，换了人等于锁错了人
+                await t.rollback();
+                return { success: false, message: '对局已变更，请刷新后重试' };
             }
             if (duel.status !== 'pending') {
                 await t.rollback();
@@ -707,7 +705,20 @@ class DivineDuelService {
 
         const t = await sequelize.transaction();
         try {
-            // 行级锁对局记录
+            // 同 accept：players（双方按 id 升序锁齐）先于 player_divine_duels。
+            // 行动阶段双方玩家行会被 _settleRound → _settleDuel 改写（赌注发放），
+            // 持着对局行再伸手要 players 就是这个服务与 challenge/accept 反向的那一半。
+            const peek = await PlayerDivineDuel.findByPk(duelIdNum, { transaction: t });
+            if (!peek) {
+                await t.rollback();
+                return { success: false, message: '对局不存在' };
+            }
+            const sides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [peek.challenger_id, peek.defender_id]))
+                    .map(p => [Number(p.id), p])
+            );
+
+            // 行级锁对局记录（现在才锁），锁回来重看状态
             const duel = await PlayerDivineDuel.findByPk(duelIdNum, {
                 transaction: t,
                 lock: t.LOCK.UPDATE
@@ -715,6 +726,10 @@ class DivineDuelService {
             if (!duel) {
                 await t.rollback();
                 return { success: false, message: '对局不存在' };
+            }
+            if (Number(duel.challenger_id) !== Number(peek.challenger_id)) {
+                await t.rollback();
+                return { success: false, message: '对局已变更，请刷新后重试' };
             }
             if (duel.status !== 'active') {
                 await t.rollback();
@@ -772,7 +787,7 @@ class DivineDuelService {
             }
 
             // 双方都已提交，触发结算
-            const settleResult = await this._settleRound(duel, t);
+            const settleResult = await this._settleRound(duel, t, sides);
             await t.commit();
 
             // 大五行幻世轮：神识对决结算后双方自动积累悟印（未装备时静默返回）
@@ -829,7 +844,7 @@ class DivineDuelService {
      * @param {Object} transaction - 事务实例
      * @returns {Promise<Object>} { message, data, roundResult }
      */
-    async _settleRound(duel, transaction) {
+    async _settleRound(duel, transaction, sides) {
         const config = this.getConfig();
         const focusCost = Number(config.focus_cost) || 15;
         const focusDamage = Number(config.focus_damage) || 20;
@@ -947,7 +962,7 @@ class DivineDuelService {
             await duel.save({ transaction });
 
             // 发放赌注
-            const settleResult = await this._settleDuel(duel, transaction);
+            const settleResult = await this._settleDuel(duel, transaction, sides);
             roundResult.duel_finished = true;
             roundResult.winner_id = winnerId;
             roundResult.settle_reason = settleReason;
@@ -988,7 +1003,7 @@ class DivineDuelService {
      * @param {Object} transaction - 事务实例
      * @returns {Promise<Object>} { bet_settlement }
      */
-    async _settleDuel(duel, transaction) {
+    async _settleDuel(duel, transaction, sides) {
         const config = this.getConfig();
         const winnerFactor = Number(config.reward_factor_winner) || 1.0;
         const drawFactor = Number(config.reward_factor_draw) || 0.5;
@@ -1002,34 +1017,31 @@ class DivineDuelService {
             settle_reason: duel.settle_reason
         };
 
+        // 双方实例由调用方在**锁对局行之前**按 id 升序一次锁齐后传进来（口径见 lockOrder.js）。
+        // 结算自己再去 FOR UPDATE 就是"持着对局行回头要 players"的反向次序；而且同一笔事务里
+        // 同一行留两份实例，谁后 save 谁把对方覆盖掉。
+        if (!sides) throw new AppError('神识对决结算没有拿到已锁的玩家实例', 500, ErrorCodes.INTERNAL_ERROR);
+
         if (duel.winner_id) {
             // 有胜者：胜者获得双方赌注总和 * winnerFactor
             const totalReward = Math.floor(betAmount * 2 * winnerFactor);
-            const winner = await Player.findByPk(duel.winner_id, {
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
-            if (winner) {
-                if (betType === 'spirit_stone') {
-                    winner.spirit_stones = safeBigInt(winner.spirit_stones) + BigInt(totalReward);
-                } else if (betType === 'divine_sense') {
-                    winner.divine_sense_balance = Number(winner.divine_sense_balance || 0) + totalReward;
-                    await this._syncDivineSenseTable(winner.id, winner.divine_sense_balance, transaction);
-                }
-                await winner.save({ transaction });
+            const winner = sides.get(Number(duel.winner_id));
+            if (!winner) {
+                throw new AppError('神识对决胜者不在这场对局里', 500, ErrorCodes.INTERNAL_ERROR);
             }
+            if (betType === 'spirit_stone') {
+                winner.spirit_stones = safeBigInt(winner.spirit_stones) + BigInt(totalReward);
+            } else if (betType === 'divine_sense') {
+                winner.divine_sense_balance = Number(winner.divine_sense_balance || 0) + totalReward;
+                await this._syncDivineSenseTable(winner.id, winner.divine_sense_balance, transaction);
+            }
+            await winner.save({ transaction });
             betSettlement.winner_reward = totalReward;
         } else {
             // 平局：双方各退还 betAmount * drawFactor
             const refund = Math.floor(betAmount * drawFactor);
-            const challenger = await Player.findByPk(duel.challenger_id, {
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
-            const defender = await Player.findByPk(duel.defender_id, {
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
+            const challenger = sides.get(Number(duel.challenger_id));
+            const defender = sides.get(Number(duel.defender_id));
             for (const p of [challenger, defender]) {
                 if (!p) continue;
                 if (betType === 'spirit_stone') {
@@ -1185,6 +1197,16 @@ class DivineDuelService {
 
         const t = await sequelize.transaction();
         try {
+            // 同 action：players（双方升序锁齐）先于对局行，投降要发赌注就是要在结算里写 players
+            const peek = await PlayerDivineDuel.findByPk(duelIdNum, { transaction: t });
+            if (!peek) {
+                await t.rollback();
+                return { success: false, message: '对局不存在' };
+            }
+            const sides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [peek.challenger_id, peek.defender_id]))
+                    .map(p => [Number(p.id), p])
+            );
             const duel = await PlayerDivineDuel.findByPk(duelIdNum, {
                 transaction: t,
                 lock: t.LOCK.UPDATE
@@ -1192,6 +1214,10 @@ class DivineDuelService {
             if (!duel) {
                 await t.rollback();
                 return { success: false, message: '对局不存在' };
+            }
+            if (Number(duel.challenger_id) !== Number(peek.challenger_id)) {
+                await t.rollback();
+                return { success: false, message: '对局已变更，请刷新后重试' };
             }
             if (duel.status !== 'active') {
                 await t.rollback();
@@ -1216,7 +1242,7 @@ class DivineDuelService {
             await duel.save({ transaction: t });
 
             // 发放赌注
-            const settleResult = await this._settleDuel(duel, t);
+            const settleResult = await this._settleDuel(duel, t, sides);
             await t.commit();
 
             // 大五行幻世轮：神识对决结算后双方自动积累悟印（未装备时静默返回）
@@ -1334,6 +1360,14 @@ class DivineDuelService {
     async _cancelPendingDuel(duel) {
         const t = await sequelize.transaction();
         try {
+            // 后台回收也要 players 先于对局行：这个扫描每轮都在扫全服 pending 的对局行，
+            // 而玩家那头的 challenge/accept/action 全是 players → 对局行 —— 方向反着就是环，
+            // 而且这是"后台 vs 任意玩家"的撞法，跟在线人数没关系，人一多必然撞。
+            // 传进来的 duel 已经带着双方 id，不必再 peek。
+            const sides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [duel.challenger_id, duel.defender_id]))
+                    .map(p => [Number(p.id), p])
+            );
             // 重新加锁查询
             const duelLocked = await PlayerDivineDuel.findByPk(duel.id, {
                 transaction: t,
@@ -1344,11 +1378,8 @@ class DivineDuelService {
                 return;
             }
 
-            // 退还发起方赌注和入场神识
-            const challenger = await Player.findByPk(duelLocked.challenger_id, {
-                transaction: t,
-                lock: t.LOCK.UPDATE
-            });
+            // 退还发起方赌注和入场神识（玩家行已在上面按次序锁好）
+            const challenger = sides.get(Number(duelLocked.challenger_id));
             if (challenger) {
                 const betType = duelLocked.bet_type;
                 const betAmount = Number(duelLocked.bet_amount);
@@ -1398,6 +1429,12 @@ class DivineDuelService {
     async _handleActionTimeout(duel) {
         const t = await sequelize.transaction();
         try {
+            // 同 _cancelPendingDuel：后台扫描这条路也必须 players 先，否则与玩家手里的
+            // challenge/accept/action 正好反向（超时自动固元会走到结算，结算要写双方 players）
+            const sides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [duel.challenger_id, duel.defender_id]))
+                    .map(p => [Number(p.id), p])
+            );
             const duelLocked = await PlayerDivineDuel.findByPk(duel.id, {
                 transaction: t,
                 lock: t.LOCK.UPDATE
@@ -1422,7 +1459,7 @@ class DivineDuelService {
             await duelLocked.save({ transaction: t });
 
             // 触发结算
-            const settleResult = await this._settleRound(duelLocked, t);
+            const settleResult = await this._settleRound(duelLocked, t, sides);
             await t.commit();
 
             // 大五行幻世轮：神识对决结算后双方自动积累悟印（未装备时静默返回）

@@ -16,13 +16,15 @@
  *   - 每日行动标记用 DATE 字段，跨日自动重置，无需后台任务
  *   - 军议每日随机生成 3 个特殊路线（密令/险棋/粮道），支援时根据匹配情况加成
  *   - 军报真假概率 50%，辨报成功率 = 50% + 军衔加成 - 混淆度
- *   - 里程碑奖励通过 UNIQUE KEY (player_id, milestone_merit) 保证幂等
+ *   - 里程碑奖励：UNIQUE KEY (player_id, milestone_merit) 兜底幂等，发放与"已发放"记录同处一笔事务，
+ *     失败整笔回滚（下一轮支援会重试），灵石写在持锁的 players 行上做
  *   - 临战刻印24小时过期，支援时自动检查匹配并触发
  *
  * 配置：server/config/border_military_data.json
  * 数据库：migration_0041_border_military_tables.js
  */
 const { infrastructure } = require('../../modules');
+const { grantItems } = require('../items/itemGrant');
 const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 const BorderIntelReport = require('../../models/border_intel_report');
@@ -34,9 +36,8 @@ const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const game = require('../index');
 
-// 单例状态
+// 单例状态（配置不在这里缓存：见 getConfig 的说明）
 let _initialized = false;
-let _config = null;
 
 // 每日军议缓存（每日0点重置）：{ date: 'YYYY-MM-DD', secret_order: 'scout', risky_route: 'raid', grain_route: 'array_guard' }
 let _dailyBriefingCache = null;
@@ -47,14 +48,9 @@ class BorderMilitaryService {
      */
     initialize(configLoaderInstance) {
         if (_initialized) return;
-        try {
-            _config = configLoaderInstance.getConfig('border_military_data');
-        } catch (e) {
-            console.warn('[BorderMilitaryService] 配置 border_military_data 未加载，服务不可用:', e.message);
-            return;
-        }
-        if (!_config) {
-            console.warn('[BorderMilitaryService] 配置 border_military_data 为空，服务不可用');
+        const loader = configLoaderInstance || configLoader;
+        if (!loader.peekConfig('border_military_data')) {
+            console.warn('[BorderMilitaryService] 配置 border_military_data 未加载或为空，服务不可用');
             return;
         }
         _initialized = true;
@@ -62,19 +58,10 @@ class BorderMilitaryService {
     }
 
     /**
-     * 获取配置
+     * 获取配置：每次都现读（为什么不再缓存在模块变量里，见 ConfigLoader.peekConfig）
      */
     getConfig() {
-        if (!_initialized || !_config) {
-            try {
-                _config = configLoader.getConfig('border_military_data');
-                _initialized = !!_config;
-            } catch (e) {
-                // 配置未加载，返回 null，业务方法会判断处理
-                return null;
-            }
-        }
-        return _config;
+        return configLoader.peekConfig('border_military_data');
     }
 
     /**
@@ -157,9 +144,11 @@ class BorderMilitaryService {
             return _dailyBriefingCache;
         }
 
-        // 生成今日军议：3 个特殊路线
-        const routes = config.daily_briefing?.routes || ['scout', 'lamp_breaker', 'array_guard', 'raid'];
-        const shuffled = [...routes].sort(() => Math.random() - 0.5);
+        // 生成今日军议：3 个特殊路线。路线清单取自内容（daily_briefing.routes，退到 support_routes 的键），
+        // 不再写死在代码里 —— 资料片新增一条后勤路线时，军议与下面的中文名都要跟着自动扩。
+        const declared = (config.daily_briefing?.routes || []).filter(r => !String(r).startsWith('_'));
+        const allRoutes = declared.length ? declared : this.supportRouteKeys(config);
+        const shuffled = [...allRoutes].sort(() => Math.random() - 0.5);
 
         _dailyBriefingCache = {
             date: today,
@@ -173,11 +162,23 @@ class BorderMilitaryService {
     }
 
     /**
-     * 路线键转中文名
+     * 内容里声明的后勤路线键（资料片新增的路线自动包含在内）。
+     * `_comment` 之类的说明键不是路线，必须滤掉。
+     * @param {Object} [config] 已读好的配置，省略则现读
+     * @returns {Array<string>}
+     */
+    supportRouteKeys(config) {
+        const routes = (config || this.getConfig())?.support_routes || {};
+        return Object.keys(routes).filter(key => !key.startsWith('_'));
+    }
+
+    /**
+     * 路线键转中文名：名字就写在 support_routes.<键>.name 里，代码不再抄一份
+     * （抄的那份不会跟着资料片扩，新路线在军议里只会显示成裸键名）
      */
     _routeName(routeKey) {
-        const names = { scout: '斥候', lamp_breaker: '破灯', array_guard: '护阵', raid: '奇袭' };
-        return names[routeKey] || routeKey;
+        const route = this.getConfig()?.support_routes?.[routeKey];
+        return route?.name || routeKey;
     }
 
     /**
@@ -259,10 +260,10 @@ class BorderMilitaryService {
             return { success: false, message: `境界不足：${realmCheck.reason}` };
         }
 
-        // 路线校验
+        // 路线校验（可选清单同样取自内容，别在提示语里再抄一份路线名）
         const routeConfig = config.support_routes?.[route];
         if (!routeConfig) {
-            return { success: false, message: `无效路线：${route}（可选：scout/lamp_breaker/array_guard/raid）` };
+            return { success: false, message: `无效路线：${route}（可选：${this.supportRouteKeys(config).join('/')}）` };
         }
 
         // 每日次数检查
@@ -431,7 +432,7 @@ class BorderMilitaryService {
             }
 
             // 物品掉落
-            const drops = this._rollDrops(routeConfig.item_drops);
+            let drops = this._rollDrops(routeConfig.item_drops);
 
             // 更新玩家军功（累计+可用）
             freshPlayer.border_military_merit_total = (freshPlayer.border_military_merit_total || 0) + finalMerit;
@@ -442,16 +443,10 @@ class BorderMilitaryService {
 
             await freshPlayer.save({ transaction: t });
 
-            // 发放物品（调用 InventoryService，第 4 参数直接传 transaction 实例）
+            // 发放物品：只把真发到的留在 drops 里（它既进玩家消息也进 items_dropped 记录）
             if (drops.length > 0) {
-                try {
-                    const InventoryService = game.InventoryService;
-                    for (const drop of drops) {
-                        await InventoryService.addItem(freshPlayer.id, drop.key, drop.quantity, t);
-                    }
-                } catch (e) {
-                    console.warn('[BorderMilitaryService] 物品发放失败（不影响主线）:', e.message);
-                }
+                const grant = await grantItems(freshPlayer.id, drops, t, { label: '战线·支援奖励' });
+                drops = grant.granted.map(g => ({ key: g.item_key, quantity: g.quantity, item_name: g.item_name }));
             }
 
             // 写入支援日志
@@ -481,7 +476,7 @@ class BorderMilitaryService {
 
             return {
                 success: true,
-                message: `支援${this._routeName(route)}成功！获得军功 ${finalMerit}、灵石 ${spiritStonesGained}${drops.length > 0 ? `、物品 ${drops.map(d => d.key + '×' + d.quantity).join(', ')}` : ''}${isSecretOrder ? '（密令路线加成）' : ''}${isRiskyRoute ? '（险棋路线加成）' : ''}${isGrainRoute ? '（粮道路线加成）' : ''}${imprintTriggered ? '（临战刻印触发）' : ''}${intelBonusRate > 0 ? '（军报加成）' : ''}${milestoneResult.triggered ? `；里程碑达成：${milestoneResult.title}` : ''}`,
+                message: `支援${this._routeName(route)}成功！获得军功 ${finalMerit}、灵石 ${spiritStonesGained}${drops.length > 0 ? `、物品 ${drops.map(d => (d.item_name || d.key) + '×' + d.quantity).join(', ')}` : ''}${isSecretOrder ? '（密令路线加成）' : ''}${isRiskyRoute ? '（险棋路线加成）' : ''}${isGrainRoute ? '（粮道路线加成）' : ''}${imprintTriggered ? '（临战刻印触发）' : ''}${intelBonusRate > 0 ? '（军报加成）' : ''}${milestoneResult.triggered ? `；里程碑达成：${milestoneResult.title}` : ''}`,
                 data: {
                     route,
                     route_name: this._routeName(route),
@@ -507,63 +502,80 @@ class BorderMilitaryService {
     }
 
     /**
-     * 检查里程碑奖励发放
-     * 通过 UNIQUE KEY (player_id, milestone_merit) 保证幂等
+     * 检查并发放里程碑奖励
+     *
+     * 三个调用点（后勤支援、灵兽巡边结算、残图探禁结算）都是在**自己的事务已经 commit 之后**才调这里，
+     * 所以这里必须自己开一笔事务。旧写法有两处会咬人：
+     *   1. `Player.findByPk(id)` + `save()` 是不持锁的读改写。players 是多人共用行，同一时刻别的玩法
+     *      （战斗奖励、兑换、传送扣灵石）也在写它，两边各按自己读到的值加 —— 后写那一笔会把先写的覆盖掉，
+     *      丢的就是这一档里程碑的 500~10000 灵石。
+     *   2. 先插"已发放"记录、再发奖，并且把发奖异常 console.warn 吞掉。于是物品发不出去时玩家既拿不到东西、
+     *      也永远领不到第二次（记录已经在了）；本轮补上 4 件商品之前，四个档位里有三档就是这么静默丢的。
+     * 现在：锁住 players 行 → 加锁读确认这一档没发过 → 灵石与物品在同一笔事务里落 → 最后才写"已发放"。
+     * 任何一步失败整笔回滚，下一轮支援自然重试；失败不向外抛（支援本身已经落库，不该被说成"支援失败"）。
+     * @param {Object} player - 玩家实例（用它的 id 与累计军功）
+     * @returns {Promise<Object>} { triggered, title, merit, rewards, granted[], error? }
      */
     async _checkMilestones(player) {
         const config = this.getConfig();
-        if (!config) return { triggered: false };
+        if (!config) return { triggered: false, granted: [] };
 
-        const meritTotal = player.border_military_merit_total || 0;
-        const thresholds = config.milestones?.thresholds || [];
+        const t = await sequelize.transaction();
+        try {
+            const result = await this._grantPendingMilestones(player, t);
+            await t.commit();
+            return result;
+        } catch (err) {
+            if (!t.finished) await t.rollback();
+            console.error('[BorderMilitaryService] 里程碑奖励发放失败（本次已回滚，下次支援会重试）:', err.message);
+            return { triggered: false, granted: [], error: err.message };
+        }
+    }
+
+    async _grantPendingMilestones(player, t) {
+        const meritTotal = Number(player.border_military_merit_total) || 0;
+        const thresholds = this.getConfig()?.milestones?.thresholds || [];
+        const granted = [];
+
+        // 先锁玩家行：同一玩家的里程碑由此串行化，也让下面的灵石写是"持锁写"
+        const locked = await Player.findByPk(player.id, { lock: t.LOCK.UPDATE, transaction: t });
+        if (!locked) return { triggered: false, granted: [] };
 
         for (const threshold of thresholds) {
-            if (meritTotal >= threshold.merit) {
-                // 检查是否已发放
-                const existing = await BorderMilestoneReward.findOne({
-                    where: {
-                        player_id: player.id,
-                        milestone_merit: threshold.merit
-                    }
-                });
-                if (!existing) {
-                    // 发放奖励
-                    try {
-                        await BorderMilestoneReward.create({
-                            player_id: player.id,
-                            milestone_merit: threshold.merit,
-                            milestone_title: threshold.title,
-                            rewards_data: JSON.stringify(threshold.rewards)
-                        });
+            if (meritTotal < threshold.merit) continue;
 
-                        // 发放具体奖励
-                        const rewards = threshold.rewards || {};
-                        if (rewards.spirit_stones) {
-                            const freshPlayer = await Player.findByPk(player.id);
-                            freshPlayer.spirit_stones = BigInt(freshPlayer.spirit_stones?.toString() || '0') + BigInt(rewards.spirit_stones);
-                            await freshPlayer.save();
-                        }
-                        if (rewards.items && Array.isArray(rewards.items)) {
-                            try {
-                                const InventoryService = game.InventoryService;
-                                for (const item of rewards.items) {
-                                    await InventoryService.addItem(player.id, item.key, item.quantity);
-                                }
-                            } catch (e) {
-                                console.warn('[BorderMilitaryService] 里程碑物品发放失败:', e.message);
-                            }
-                        }
+            // 加锁读查"是否已发放"：普通 SELECT 读的是本事务快照，并发时可能看不见另一笔刚提交的记录
+            const existing = await BorderMilestoneReward.findOne({
+                where: { player_id: locked.id, milestone_merit: threshold.merit },
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (existing) continue;
 
-                        return { triggered: true, title: threshold.title, merit: threshold.merit, rewards: threshold.rewards };
-                    } catch (e) {
-                        // 唯一约束冲突表示已被其他并发流程发放
-                        console.log('[BorderMilitaryService] 里程碑奖励已被并发流程发放:', e.message);
-                    }
-                }
+            const rewards = threshold.rewards || {};
+            if (rewards.spirit_stones) {
+                locked.spirit_stones = BigInt(locked.spirit_stones?.toString() || '0') + BigInt(rewards.spirit_stones);
+                await locked.save({ transaction: t });
             }
+            const InventoryService = game.InventoryService;
+            for (const item of (Array.isArray(rewards.items) ? rewards.items : [])) {
+                // 不包 try/catch：物品发不出去就整笔回滚，"已发放"记录也不会留下，下次还能领
+                await InventoryService.addItem(locked.id, item.key, item.quantity, t);
+            }
+            await BorderMilestoneReward.create({
+                player_id: locked.id,
+                milestone_merit: threshold.merit,
+                milestone_title: threshold.title,
+                rewards_data: JSON.stringify(rewards)
+            }, { transaction: t });
+
+            granted.push({ merit: threshold.merit, title: threshold.title, rewards });
         }
 
-        return { triggered: false };
+        if (!granted.length) return { triggered: false, granted: [] };
+        // 一次跨过两档时取最高档做展示，granted 里是全部
+        const top = granted[granted.length - 1];
+        return { triggered: true, title: top.title, merit: top.merit, rewards: top.rewards, granted };
     }
 
     /**

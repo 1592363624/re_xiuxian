@@ -29,9 +29,10 @@
  *   守方积分 = 防守成功资源点数 × 100 + 击杀数 × 5
  *   积分高者胜，平局则守方胜（守方优势）
  *
- * 战斗公式（简化版，参考 PvpService）：
- *   单次伤害 = max(1, 攻击方ATK × 技能倍率 - 防守方DEF × 减伤系数) × 暴击系数 × 随机浮动
- *   减伤系数：0.5 / 暴击概率：5% / 暴击倍率：1.5 / 随机浮动：±15%
+ * 战斗公式：
+ *   统一交给 CombatResolver，形状声明在 config/combat_formulas.json 的 sect_war_attack / sect_war_skill
+ *   两个档位（防御只算一半、±15% 乘算浮动）；暴击/闪避/神通特效按属性注册表掷骰，
+ *   所以装备与功法给的暴击对宗门战同样有效（改造前这里是写死的 5% / 1.5×）。
  */
 'use strict';
 
@@ -47,6 +48,7 @@ const Player = require('../../models/player');
 
 // ===== 核心服务依赖 =====
 const AttributeService = require('../core/AttributeService');
+const PlayerStateStore = require('../persistence/PlayerStateStore');
 const RealmService = require('../core/RealmService');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
@@ -58,7 +60,9 @@ const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const { infrastructure } = require('../../modules');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const sequelize = require('../../config/database');
-const { Op } = require('sequelize');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
+const { Op, literal } = require('sequelize');
+const CombatResolver = require('../combat/CombatResolver');
 
 // 配置加载器（与 PvpService 风格一致，从 infrastructure 注入）
 const configLoader = infrastructure.ConfigLoader;
@@ -833,26 +837,20 @@ class SectWarService {
             participant.is_online = 0;
             await participant.save({ transaction: t });
 
-            // 战役参战人数递减（不低于 0）
-            const war = await SectWar.findByPk(warId, { transaction: t });
-            if (war) {
-                if (participant.side === 'attacker') {
-                    war.attacker_participants = Math.max(0, (war.attacker_participants || 0) - 1);
-                } else {
-                    war.defender_participants = Math.max(0, (war.defender_participants || 0) - 1);
-                }
-                await war.save({ transaction: t });
-            }
+            // 战役参战人数递减（不低于 0）：在列上做原子加减，而不是"无锁读整行 → 改一个数 → 整块写回"。
+            // 原来两个人同时离开只会把计数减 1，还会顺带把这段时间内别人写的战役字段一起抹掉。
+            const participantDelta = participant.side === 'attacker'
+                ? { attacker_participants: literal('GREATEST(`attacker_participants` - 1, 0)') }
+                : { defender_participants: literal('GREATEST(`defender_participants` - 1, 0)') };
+            await SectWar.update(participantDelta, { where: { id: warId }, transaction: t });
 
             // 清理玩家 attributes 中的宗门战临时字段
-            const player = await Player.findByPk(playerId, { transaction: t });
-            if (player) {
-                const attrs = { ...(player.attributes || {}) };
-                delete attrs.sect_war_defend_until;
-                delete attrs.sect_war_death_time;
-                player.attributes = attrs;
-                await player.save({ transaction: t });
-            }
+            // 用补丁写入而不是无锁整块回写：这里的 findByPk 原先没有 FOR UPDATE，
+            // 在 REPEATABLE READ 下读到的是事务快照，写回会把这段时间内
+            // attackPlayer 写入的 sect_war_defend_until / sect_war_death_time 一起抹掉。
+            await PlayerStateStore.patchPlayerState(playerId, {
+                attributes: { sect_war_defend_until: null, sect_war_death_time: null }
+            }, { transaction: t });
 
             await t.commit();
 
@@ -879,8 +877,7 @@ class SectWarService {
      *   4. 攻击方未在占领资源点（占领中移动则中断）
      *   5. 防守方未死亡或已过复活冷却
      *
-     * 伤害计算（参考 PvpService.executeAction）：
-     *   单次伤害 = max(1, atk × 技能倍率 - def × 减伤系数) × 暴击系数 × 随机浮动
+     * 伤害计算：sect_war_* 档位 + 双方完整解析属性（含神通战斗特效），见 CombatResolver
      *
      * @param {number} attackerId - 攻击方玩家ID
      * @param {number} warId - 战役ID
@@ -901,21 +898,28 @@ class SectWarService {
             throw new AppError('不可攻击自己', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
+        // 统一的加锁顺序：A 与 B 互为攻守时，两笔事务必须按同一顺序取锁，
+        // 否则 MySQL 判死锁（实测 Deadlock found when trying to get lock）。
+        const [firstId, secondId] = Number(attackerId) < Number(targetPlayerId)
+            ? [attackerId, targetPlayerId] : [targetPlayerId, attackerId];
+
         const t = await sequelize.transaction();
         try {
-            // 行级锁查询双方参战记录
-            const [attackerP, defenderP] = await Promise.all([
-                SectWarParticipant.findOne({
-                    where: { war_id: warId, player_id: attackerId, leave_time: null },
-                    lock: t.LOCK.UPDATE,
-                    transaction: t
-                }),
-                SectWarParticipant.findOne({
-                    where: { war_id: warId, player_id: targetPlayerId, leave_time: null },
-                    lock: t.LOCK.UPDATE,
-                    transaction: t
-                })
-            ]);
+            // 行级锁查询双方参战记录：按 player_id 升序**串行**取锁。
+            // 原来是 Promise.all 并发按"先攻后守"取锁 —— 下面的玩家行已经修成升序了，
+            // 参战记录这一层漏掉了，于是 A 打 B、B 同时打 A 仍然会死锁。
+            const firstParticipant = await SectWarParticipant.findOne({
+                where: { war_id: warId, player_id: firstId, leave_time: null },
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            const secondParticipant = await SectWarParticipant.findOne({
+                where: { war_id: warId, player_id: secondId, leave_time: null },
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            const attackerP = Number(attackerId) === Number(firstId) ? firstParticipant : secondParticipant;
+            const defenderP = Number(targetPlayerId) === Number(firstId) ? firstParticipant : secondParticipant;
             if (!attackerP) {
                 await t.commit();
                 throw new AppError('你未在该战役中或已离开', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
@@ -940,11 +944,16 @@ class SectWarService {
                 throw new AppError('战役不在交战期，无法攻击', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 行级锁双方玩家
-            const [attacker, defender] = await Promise.all([
-                Player.findByPk(attackerId, { lock: t.LOCK.UPDATE, transaction: t }),
-                Player.findByPk(targetPlayerId, { lock: t.LOCK.UPDATE, transaction: t })
-            ]);
+            // 行级锁双方玩家：按 id 升序一次锁齐（firstId/secondId 已经是升序的一对），后面就用这份实例。
+            // 原来这里先是两次单行 FOR UPDATE，紧接着又 Promise.all **无锁**重读一遍同一对人 ——
+            // 于是同一笔事务里每个玩家行留着两份实例，写下去的是后读的那份（读锁与写实例不是一份，
+            // 次序上也没了意义）。口径见 game/persistence/lockOrder.js。
+            const sides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [firstId, secondId]))
+                    .map(p => [Number(p.id), p])
+            );
+            const attacker = sides.get(Number(attackerId));
+            const defender = sides.get(Number(targetPlayerId));
             if (!attacker || !defender) {
                 await t.commit();
                 throw new AppError('玩家数据异常', 404, ErrorCodes.NOT_FOUND);
@@ -953,8 +962,6 @@ class SectWarService {
             // 计算双方完整属性（含装备加成）
             const attackerFull = await AttributeService.calculateFullAttributesAsync(attacker);
             const defenderFull = await AttributeService.calculateFullAttributesAsync(defender);
-            const attackerAtk = Number(attackerFull.final.atk) || 10;
-            const defenderDef = Number(defenderFull.final.def) || 5;
             const attackerHpMax = Number(attackerFull.final.hp_max) || 100;
             const defenderHpMax = Number(defenderFull.final.hp_max) || 100;
 
@@ -996,35 +1003,42 @@ class SectWarService {
                 defenderAttrs.sect_war_death_time = null;
             }
 
-            // 读取战斗相关配置（减伤系数/暴击/随机浮动）
-            const reduceRate = 0.5;          // 减伤系数：DEF × 0.5
-            const critRate = 0.05;           // 暴击概率：5%
-            const critMultiplier = 1.5;      // 暴击倍率：1.5
-            const randomRange = 0.15;        // 随机浮动：±15%
-            const skillMpCost = configLoader.getConfig('game_balance')?.combat?.skill_mp_cost || 20;
+            // 技能灵力消耗来自配置；伤害形状、暴击/闪避/神通特效全部交给 CombatResolver
+            const balanceConfig = configLoader.getConfig('game_balance') || {};
+            const skillMpCost = balanceConfig?.combat?.skill_mp_cost || 20;
 
-            // 计算伤害
+            // 计算伤害（档位见 combat_formulas.json 的 sect_war_*：防御只算一半、±15% 乘算浮动）
+            // 改造前这里写死 reduceRate 0.5 / critRate 0.05 / critMultiplier 1.5 / ±15%，
+            // 于是玩家在装备上堆的暴击率对宗门战完全无效——现在按真实属性掷骰。
             let damage = 0n;
             let actualAction = action;
             let isCrit = false;
+            let strike = null;
+            const strikeWith = (profile) => {
+                strike = CombatResolver.computeDamage(profile, {
+                    attackerStats: attackerFull.final,
+                    defenderStats: defenderFull.final,
+                    skills: attackerFull.info?.technique_skills,
+                    defenderSkills: defenderFull.info?.technique_skills,
+                    balanceConfig
+                });
+                isCrit = strike.crit;
+                return BigInt(strike.damage);
+            };
             if (action === 'attack') {
-                // 普攻：技能倍率 1.0
-                damage = this._calculateDamage(attackerAtk, 1.0, defenderDef, reduceRate, critRate, critMultiplier, randomRange);
-                isCrit = damage.isCrit;
-                damage = damage.value;
+                // 普攻：走 sect_war_attack 档位
+                damage = strikeWith('sect_war_attack');
             } else if (action === 'skill') {
-                // 技能攻击：技能倍率 1.5，消耗 MP
+                // 技能攻击：技能倍率 1.5，消耗 MP；具体档位仍由神通声明
                 if (attackerMp >= skillMpCost) {
                     attackerMp -= skillMpCost;
-                    damage = this._calculateDamage(attackerAtk, 1.5, defenderDef, reduceRate, critRate, critMultiplier, randomRange);
-                    isCrit = damage.isCrit;
-                    damage = damage.value;
+                    damage = strikeWith(CombatResolver.selectSkillProfile(
+                        attackerFull.info?.technique_skills, 'sect_war_skill'
+                    ));
                 } else {
                     // MP 不足，降级为普通攻击
                     actualAction = 'attack';
-                    damage = this._calculateDamage(attackerAtk, 1.0, defenderDef, reduceRate, critRate, critMultiplier, randomRange);
-                    isCrit = damage.isCrit;
-                    damage = damage.value;
+                    damage = strikeWith('sect_war_attack');
                 }
             } else if (action === 'defend') {
                 // 防御：本回合不造成伤害，恢复少量 MP，设置 5 秒防御 buff（受击伤害减半）
@@ -1049,6 +1063,14 @@ class SectWarService {
 
             // 应用伤害到防守方
             defenderHp = Math.max(0, defenderHp - Number(actualDamage));
+
+            // 吸血：按真正打出去的伤害回血，封顶到攻方气血上限
+            let healed = 0;
+            if (strike && strike.lifesteal_rate > 0 && Number(actualDamage) > 0) {
+                const before = attackerHp;
+                attackerHp = Math.min(attackerHpMax, attackerHp + Math.floor(Number(actualDamage) * strike.lifesteal_rate));
+                healed = attackerHp - before;
+            }
 
             // 检查防守方是否阵亡
             let defenderKilled = false;
@@ -1102,6 +1124,8 @@ class SectWarService {
                 action: actualAction,
                 damage: actualDamage.toString(),
                 is_crit: isCrit,
+                missed: !!(strike && (strike.missed || strike.blocked)),
+                damage_profile: strike ? strike.profile : null,
                 hp_current: defenderHp,
                 hp_max: defenderHpMax,
                 killed: defenderKilled
@@ -1113,6 +1137,9 @@ class SectWarService {
                 action: actualAction,
                 damage: actualDamage.toString(),
                 is_crit: isCrit,
+                missed: !!(strike && (strike.missed || strike.blocked)),
+                damage_profile: strike ? strike.profile : null,
+                lifesteal: healed || undefined,
                 killed: defenderKilled,
                 contribution_score: attackerP.contribution_score
             });
@@ -1122,6 +1149,9 @@ class SectWarService {
                 action: actualAction,
                 damage: actualDamage.toString(),
                 is_crit: isCrit,
+                missed: !!(strike && (strike.missed || strike.blocked)),
+                damage_profile: strike ? strike.profile : null,
+                lifesteal: healed || undefined,
                 attacker_hp: attackerHp,
                 defender_hp: defenderHp,
                 defender_killed: defenderKilled,
@@ -1978,30 +2008,7 @@ class SectWarService {
         return null;
     }
 
-    /**
-     * 计算单次伤害（参考 PvpService 战斗公式）
-     * 单次伤害 = max(1, atk × 技能倍率 - def × 减伤系数) × 暴击系数 × 随机浮动
-     * @param {number} atk - 攻击方攻击力
-     * @param {number} skillMultiplier - 技能倍率（1.0 普攻 / 1.5 技能）
-     * @param {number} def - 防守方防御力
-     * @param {number} reduceRate - 减伤系数（默认 0.5）
-     * @param {number} critRate - 暴击概率（默认 0.05）
-     * @param {number} critMultiplier - 暴击倍率（默认 1.5）
-     * @param {number} randomRange - 随机浮动范围（默认 0.15 = ±15%）
-     * @returns {{value: bigint, isCrit: boolean}} 伤害值（BigInt）与是否暴击
-     */
-    static _calculateDamage(atk, skillMultiplier, def, reduceRate = 0.5, critRate = 0.05, critMultiplier = 1.5, randomRange = 0.15) {
-        // 基础伤害：max(1, atk × 倍率 - def × 减伤系数)
-        const baseDamage = Math.max(1, Math.floor(atk * skillMultiplier - def * reduceRate));
-        // 暴击判定
-        const isCrit = Math.random() < critRate;
-        const critMul = isCrit ? critMultiplier : 1.0;
-        // 随机浮动：±15%
-        const randomFactor = 1 + (Math.random() * 2 - 1) * randomRange;
-        // 最终伤害
-        const finalDamage = Math.max(1, Math.floor(baseDamage * critMul * randomFactor));
-        return { value: BigInt(finalDamage), isCrit };
-    }
+    
 
     /**
      * 完成 30 秒占领计时（由 setTimeout 触发）
@@ -2087,9 +2094,11 @@ class SectWarService {
                 transaction: t
             });
 
-            // 占领贡献分
-            participant.contribution_score = (participant.contribution_score || 0) + 50;
-            await participant.save({ transaction: t });
+            // 占领贡献分：列上原子累加。同一个玩家可以在两块地上同时占领，
+            // "读整行 → +50 → save()" 会让后提交的那笔把先提交的那笔覆盖掉（少算 50 分）。
+            await SectWarParticipant.increment('contribution_score', {
+                by: 50, where: { id: participant.id }, transaction: t
+            });
 
             await t.commit();
 

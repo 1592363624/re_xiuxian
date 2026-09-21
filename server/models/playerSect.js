@@ -9,6 +9,7 @@
  *   - daily_quests_completed 字段使用 TEXT 存 JSON 数组，通过 get/set 访问器自动序列化
  */
 const { DataTypes } = require('sequelize');
+const { readJsonColumn } = require('./jsonColumn');
 const sequelize = require('../config/database');
 
 const PlayerSect = sequelize.define('PlayerSect', {
@@ -59,13 +60,7 @@ const PlayerSect = sequelize.define('PlayerSect', {
         comment: '当日已完成任务ID（JSON数组）',
         get() {
             // 读取时反序列化为数组，避免外部手动 JSON.parse
-            const rawValue = this.getDataValue('daily_quests_completed');
-            try {
-                return rawValue ? JSON.parse(rawValue) : [];
-            } catch (e) {
-                // 容错：数据损坏时返回空数组，避免单条脏数据阻塞整个接口
-                return [];
-            }
+            return readJsonColumn('playerSect', 'daily_quests_completed', this.getDataValue('daily_quests_completed'), []);
         },
         set(value) {
             // 写入时序列化为字符串存储
@@ -77,12 +72,7 @@ const PlayerSect = sequelize.define('PlayerSect', {
         defaultValue: '[]',
         comment: '当日已接取任务ID（JSON数组）',
         get() {
-            const rawValue = this.getDataValue('quests_accepted');
-            try {
-                return rawValue ? JSON.parse(rawValue) : [];
-            } catch (e) {
-                return [];
-            }
+            return readJsonColumn('playerSect', 'quests_accepted', this.getDataValue('quests_accepted'), []);
         },
         set(value) {
             this.setDataValue('quests_accepted', JSON.stringify(value || []));
@@ -93,12 +83,7 @@ const PlayerSect = sequelize.define('PlayerSect', {
         defaultValue: '{}',
         comment: '接取任务时间戳（JSON对象，key=questId, value=ISO时间字符串）',
         get() {
-            const rawValue = this.getDataValue('quests_accepted_at');
-            try {
-                return rawValue ? JSON.parse(rawValue) : {};
-            } catch (e) {
-                return {};
-            }
+            return readJsonColumn('playerSect', 'quests_accepted_at', this.getDataValue('quests_accepted_at'), {});
         },
         set(value) {
             this.setDataValue('quests_accepted_at', JSON.stringify(value || {}));

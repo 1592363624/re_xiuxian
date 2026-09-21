@@ -35,6 +35,7 @@ const DaoCompanion = require('../../models/daoCompanion');
 const HeartTribulationEvent = require('../../models/heartTribulationEvent');
 const Concubine = require('../../models/concubine');
 const sequelize = require('../../config/database');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
@@ -86,6 +87,39 @@ async function findCompanionByPlayerId(playerId, transaction = null, lock = null
  */
 function getPartnerId(companion, playerId) {
     return companion.player_a_id === playerId ? companion.player_b_id : companion.player_a_id;
+}
+
+
+/**
+ * 结侣类互动的统一取锁头（口径见 game/persistence/lockOrder.js）。
+ *
+ * 原来这四个方法（双修 / 温养 / 采补 / 解除）都是"锁自己 → 锁关系行 → 再锁对方"：
+ * 两个人各点自己那一头（互相温养）就是 ABBA —— 实测直接 Deadlock，见
+ * scripts/smoke_dao_companion.js 的 D9。先锁自己这一步已经把自己那行握住了，
+ * 之后再按 id 升序也救不回来（两边都已经反过来），所以必须把"两人的锁"合成一次升序批锁：
+ * 先无锁 peek 关系行拿对方 id → 两人按 id 升序一次锁齐 → 再锁关系行重看状态与当事人。
+ *
+ * 返回值带 reason，由调用方按自己原来的话术拒绝（不把"玩家不存在/没道侣/关系变了"糊成一条）。
+ */
+async function lockCompanionPair(playerId, transaction, { requireActive = true } = {}) {
+    const peek = await findCompanionByPlayerId(playerId);
+    if (!peek) return { reason: 'no_companion' };
+    const peekPartnerId = getPartnerId(peek, playerId);
+    if (!peekPartnerId) return { reason: 'no_companion' };
+    const rows = await lockRowsByIdsAsc(transaction, Player, [playerId, peekPartnerId]);
+    const player = rows.find(p => Number(p.id) === Number(playerId));
+    const partner = rows.find(p => Number(p.id) === Number(peekPartnerId));
+    if (!player) return { reason: 'no_player' };
+    if (!partner) return { reason: 'no_companion' };
+    // 关系行现在才锁：加锁读看的是最新已提交版本，peek 之后的变更在这里重看到
+    const companion = await findCompanionByPlayerId(playerId, transaction, transaction.LOCK.UPDATE);
+    if (!companion) return { reason: 'no_companion' };
+    // 玩家自己那条必须是 active；GM 那条（requireActive:false）允许 pending，只拒已解除
+    if (requireActive ? companion.relation_state !== 'active' : companion.relation_state === 'broken') {
+        return { reason: 'no_companion' };
+    }
+    if (Number(getPartnerId(companion, playerId)) !== Number(peekPartnerId)) return { reason: 'changed' };
+    return { player, partner, companion, partnerId: Number(peekPartnerId) };
 }
 
 class CompanionService {
@@ -180,7 +214,20 @@ class CompanionService {
 
         const t = await sequelize.transaction();
         try {
-            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            // 取锁次序按 game/persistence/lockOrder.js：players 先于 dao_companions，
+            // 并且同表的两个玩家行**按 id 升序一次锁齐**。
+            // 改造前是"锁发起方 → 夹一次 dao_companions 的 FOR UPDATE → 再锁目标"：
+            //   1) A 邀 B 与 B 邀 A 同时点 = 标准 ABBA（两个真人互点即可触发，不需要开两个面板）；
+            //   2) 方向还与 respond 相反（那边先锁求婚行再锁 players），互答时又是一种环。
+            const wantedIds = [Number(playerId), Number(targetPlayerId)].sort((a, b) => a - b);
+            const lockedPlayers = await Player.findAll({
+                where: { id: wantedIds },
+                order: [['id', 'ASC']],
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+            const player = lockedPlayers.find(x => Number(x.id) === Number(playerId));
+            const target = lockedPlayers.find(x => Number(x.id) === Number(targetPlayerId));
             if (!player) {
                 await t.rollback();
                 return { success: false, message: '玩家不存在' };
@@ -217,8 +264,7 @@ class CompanionService {
                 return { success: false, message: '您已有道侣关系，无法再次寻找道侣' };
             }
 
-            // 校验目标玩家
-            const target = await Player.findByPk(targetPlayerId, { transaction: t, lock: t.LOCK.UPDATE });
+            // 校验目标玩家（行已在事务开头按升序锁好，直接用那份实例，不再补一次 FOR UPDATE）
             if (!target) {
                 await t.rollback();
                 return { success: false, message: '目标玩家不存在' };
@@ -305,6 +351,31 @@ class CompanionService {
 
         const t = await sequelize.transaction();
         try {
+            // 先无锁 peek 一次，只为知道这段关系牵涉哪两个玩家
+            const peek = await DaoCompanion.findByPk(companionId, { transaction: t });
+            if (!peek) {
+                await t.rollback();
+                return { success: false, message: '道侣关系不存在' };
+            }
+
+            // 取锁次序按 game/persistence/lockOrder.js：players 先于 dao_companions，两人按 id 升序一次锁齐。
+            // 改造前是"锁关系行 → 逐个锁 A、锁 B"：对面那位同时点"寻找道侣"（players → dao_companions）
+            // 就是一对 ABBA；而且两个玩家行按"发起方、接受方"的固定业务顺序锁，双方互操作时方向天然相反。
+            const bothIds = [Number(peek.player_a_id), Number(peek.player_b_id)].sort((a, b) => a - b);
+            const lockedPlayers = await Player.findAll({
+                where: { id: bothIds },
+                order: [['id', 'ASC']],
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+            const playerA = lockedPlayers.find(x => Number(x.id) === Number(peek.player_a_id));
+            const playerB = lockedPlayers.find(x => Number(x.id) === Number(peek.player_b_id));
+            if (!playerA || !playerB) {
+                await t.rollback();
+                return { success: false, message: '玩家不存在' };
+            }
+
+            // 关系行到这里才锁；加锁读看的是最新已提交版本，peek 之后被对方处理掉的话这里重看到
             const companion = await DaoCompanion.findByPk(companionId, { transaction: t, lock: t.LOCK.UPDATE });
             if (!companion) {
                 await t.rollback();
@@ -318,13 +389,10 @@ class CompanionService {
                 await t.rollback();
                 return { success: false, message: '只能接受发给自己的道侣邀请' };
             }
-
-            // 锁定双方玩家
-            const playerA = await Player.findByPk(companion.player_a_id, { transaction: t, lock: t.LOCK.UPDATE });
-            const playerB = await Player.findByPk(companion.player_b_id, { transaction: t, lock: t.LOCK.UPDATE });
-            if (!playerA || !playerB) {
+            if (Number(companion.player_a_id) !== Number(peek.player_a_id)) {
+                // 锁是按 peek 那两人的 id 升序取的，换了人等于锁错了人 —— 让客户端重试而不是猜
                 await t.rollback();
-                return { success: false, message: '玩家不存在' };
+                return { success: false, message: '道侣邀请已变更，请刷新后重试' };
             }
 
             // 缔结道侣关系
@@ -387,20 +455,24 @@ class CompanionService {
 
         const t = await sequelize.transaction();
         try {
-            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
-            if (!player) {
+            const pair = await lockCompanionPair(playerId, t);
+            if (pair.reason === 'no_player') {
                 await t.rollback();
                 return { success: false, message: '玩家不存在' };
             }
-
-            const companion = await findCompanionByPlayerId(playerId, t, t.LOCK.UPDATE);
-            if (!companion || companion.relation_state !== 'active') {
+            if (pair.reason === 'changed') {
+                await t.rollback();
+                return { success: false, message: '道侣关系已变更，请刷新后重试' };
+            }
+            if (pair.reason === 'no_companion') {
                 await t.rollback();
                 return { success: false, message: '当前没有可解除的道侣关系' };
             }
+            const { player, companion } = pair;
 
-            const partnerId = getPartnerId(companion, playerId);
-            const partner = await Player.findByPk(partnerId, { transaction: t, lock: t.LOCK.UPDATE });
+            // 对方那行已在 lockCompanionPair 里按 id 升序锁齐，这里只取用，不再第二次 FOR UPDATE
+            const partnerId = pair.partnerId;
+            const partner = pair.partner;
 
             // 标记道侣关系为已解除
             companion.relation_state = 'broken';
@@ -486,17 +558,21 @@ class CompanionService {
     static async dualCultivate(playerId) {
         const t = await sequelize.transaction();
         try {
-            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
-            if (!player) {
+            const pair = await lockCompanionPair(playerId, t);
+            if (pair.reason === 'no_player') {
                 await t.rollback();
                 return { success: false, message: '玩家不存在' };
             }
-
-            const companion = await findCompanionByPlayerId(playerId, t, t.LOCK.UPDATE);
-            if (!companion || companion.relation_state !== 'active') {
+            if (pair.reason === 'no_companion') {
                 await t.rollback();
-                return { success: false, message: '当前没有道侣关系，无法双修' };
+                return { success: false, message: 'undefined' };
             }
+            if (pair.reason === 'changed') {
+                await t.rollback();
+                return { success: false, message: '道侣关系已变更，请刷新后重试' };
+            }
+            const { player, companion, partnerId } = pair;
+            let partner = pair.partner;
 
             const config = configLoader.getConfig('companion_data');
             const daoCfg = config.dao_companion;
@@ -534,8 +610,8 @@ class CompanionService {
                 };
             }
 
-            const partnerId = getPartnerId(companion, playerId);
-            const partner = await Player.findByPk(partnerId, { transaction: t, lock: t.LOCK.UPDATE });
+            // partnerId 由 lockCompanionPair 一并给出（那里也已经按 id 升序把对方的行锁好了）
+            // 对方那行已在 lockCompanionPair 里按 id 升序锁齐，这里不再第二次 FOR UPDATE
             if (!partner) {
                 await t.rollback();
                 return { success: false, message: '道侣玩家不存在' };
@@ -632,17 +708,21 @@ class CompanionService {
     static async warmNourish(playerId) {
         const t = await sequelize.transaction();
         try {
-            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
-            if (!player) {
+            const pair = await lockCompanionPair(playerId, t);
+            if (pair.reason === 'no_player') {
                 await t.rollback();
                 return { success: false, message: '玩家不存在' };
             }
-
-            const companion = await findCompanionByPlayerId(playerId, t, t.LOCK.UPDATE);
-            if (!companion || companion.relation_state !== 'active') {
+            if (pair.reason === 'no_companion') {
                 await t.rollback();
-                return { success: false, message: '当前没有道侣关系，无法温养' };
+                return { success: false, message: 'undefined' };
             }
+            if (pair.reason === 'changed') {
+                await t.rollback();
+                return { success: false, message: '道侣关系已变更，请刷新后重试' };
+            }
+            const { player, companion, partnerId } = pair;
+            let partner = pair.partner;
 
             const config = configLoader.getConfig('companion_data');
             const daoCfg = config.dao_companion;
@@ -672,8 +752,8 @@ class CompanionService {
                 };
             }
 
-            const partnerId = getPartnerId(companion, playerId);
-            const partner = await Player.findByPk(partnerId, { transaction: t, lock: t.LOCK.UPDATE });
+            // partnerId 由 lockCompanionPair 一并给出（那里也已经按 id 升序把对方的行锁好了）
+            // 对方那行已在 lockCompanionPair 里按 id 升序锁齐，这里不再第二次 FOR UPDATE
             if (!partner) {
                 await t.rollback();
                 return { success: false, message: '道侣玩家不存在' };
@@ -747,17 +827,21 @@ class CompanionService {
     static async pluckSupplement(playerId) {
         const t = await sequelize.transaction();
         try {
-            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
-            if (!player) {
+            const pair = await lockCompanionPair(playerId, t);
+            if (pair.reason === 'no_player') {
                 await t.rollback();
                 return { success: false, message: '玩家不存在' };
             }
-
-            const companion = await findCompanionByPlayerId(playerId, t, t.LOCK.UPDATE);
-            if (!companion || companion.relation_state !== 'active') {
+            if (pair.reason === 'no_companion') {
                 await t.rollback();
-                return { success: false, message: '当前没有道侣关系，无法采补' };
+                return { success: false, message: 'undefined' };
             }
+            if (pair.reason === 'changed') {
+                await t.rollback();
+                return { success: false, message: '道侣关系已变更，请刷新后重试' };
+            }
+            const { player, companion, partnerId } = pair;
+            let partner = pair.partner;
 
             const config = configLoader.getConfig('companion_data');
             const daoCfg = config.dao_companion;
@@ -791,8 +875,8 @@ class CompanionService {
                 };
             }
 
-            const partnerId = getPartnerId(companion, playerId);
-            const partner = await Player.findByPk(partnerId, { transaction: t, lock: t.LOCK.UPDATE });
+            // partnerId 由 lockCompanionPair 一并给出（那里也已经按 id 升序把对方的行锁好了）
+            // 对方那行已在 lockCompanionPair 里按 id 升序锁齐，这里不再第二次 FOR UPDATE
             if (!partner) {
                 await t.rollback();
                 return { success: false, message: '道侣玩家不存在' };
@@ -1183,20 +1267,25 @@ class CompanionService {
     static async gmBreakDaoCompanion(playerId) {
         const t = await sequelize.transaction();
         try {
-            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
-            if (!player) {
+            // GM 这条允许 pending（只拒已解除），所以 requireActive:false
+            const pair = await lockCompanionPair(playerId, t, { requireActive: false });
+            if (pair.reason === 'no_player') {
                 await t.rollback();
                 return { success: false, message: '玩家不存在' };
             }
-
-            const companion = await findCompanionByPlayerId(playerId, t, t.LOCK.UPDATE);
-            if (!companion || companion.relation_state === 'broken') {
+            if (pair.reason === 'changed') {
+                await t.rollback();
+                return { success: false, message: '道侣关系已变更，请刷新后重试' };
+            }
+            if (pair.reason === 'no_companion') {
                 await t.rollback();
                 return { success: false, message: '玩家当前没有可解除的道侣关系' };
             }
+            const { player, companion } = pair;
 
-            const partnerId = getPartnerId(companion, playerId);
-            const partner = await Player.findByPk(partnerId, { transaction: t, lock: t.LOCK.UPDATE });
+            // 对方那行已在 lockCompanionPair 里按 id 升序锁齐，这里只取用
+            const partnerId = pair.partnerId;
+            const partner = pair.partner;
 
             companion.relation_state = 'broken';
             companion.broken_at = new Date();

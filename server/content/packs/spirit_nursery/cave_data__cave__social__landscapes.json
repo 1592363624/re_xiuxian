@@ -1,0 +1,15 @@
+{
+  "dataset": "cave_data",
+  "into": "cave.social.landscapes",
+  "comment": "第 6 处洞府景观。景观清单与可摆放项都由内容驱动（CaveSocialService.getLandscapesConfig 直接读合并视图），bonus 键沿用现网已有的 meditation_exp_bonus，不另造新键 —— 新键要先有代码消费它，否则只是界面上多一行数字。",
+  "add": [
+    {
+      "id": "nursery_herbs",
+      "name": "药圃移春",
+      "description": "引一畦黄枫谷的药圃入门前，四时常青。坐在里头行功，呼气里都带着草木气。",
+      "cost": 2400,
+      "bonus": { "meditation_exp_bonus": 0.04 },
+      "required_realm_rank": 8
+    }
+  ]
+}

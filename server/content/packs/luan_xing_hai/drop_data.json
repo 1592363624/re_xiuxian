@@ -1,0 +1,21 @@
+{
+  "dataset": "drop_data",
+  "into": "drops",
+  "comment": "海上市舶的货从海里来：鲨鱼精在乱星海潮汛里翻了身，银沙与月魂都从它身上讨。用 override 是因为 drops 按 monster_id 聚成一张表，一张表不能有两个主人；数组会被整块替换，所以原有 4 条掉落必须照抄进来（tests/LuanXingHaiPack.test.js 里有一条专门盯这件事，别让下一次改表把基础掉落弄丢）。",
+  "override": {
+    "shark": {
+      "monster_name": "鲨鱼精（乱星海潮汛）",
+      "drops": [
+        { "item_id": "shark_fin", "quantity": 1, "chance": 0.4 },
+        { "item_id": "fish_meat", "quantity": [3, 5], "chance": 0.8 },
+        { "item_id": "mid_spirit_stone", "quantity": [2, 4], "chance": 0.5 },
+        { "item_id": "high_spirit_stone", "quantity": 1, "chance": 0.1 },
+        { "item_id": "xingsha", "quantity": [2, 6], "chance": 0.55 },
+        { "item_id": "yuehun_shi", "quantity": [1, 2], "chance": 0.18 },
+        { "item_id": "yinsha_ling", "quantity": 1, "chance": 0.04 },
+        { "item_id": "juyue_dan", "quantity": [1, 2], "chance": 0.15 }
+      ],
+      "exp_reward": 320
+    }
+  }
+}

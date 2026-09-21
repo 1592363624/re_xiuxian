@@ -22,29 +22,21 @@ export interface JoinRequirement {
 }
 
 /**
- * 宗门加成配置（不同宗门加成字段不同，全部可选）
+ * 宗门加成配置（不同宗门加成字段不同，全部可选）。
+ * 键由内容 sect_data 决定，所以这里不逐个写死：以前抄了 10 个键，
+ * 内容新增一种宗门加成就要改前端，面板还会因为字典里没这个键而整条不显示。
  */
-export interface SectBonus {
-  /** 修为获取倍率 */
-  exp_multiplier?: number;
-  /** 采集产出加成 */
-  gather_bonus?: number;
-  /** 感知倍率 */
-  sense_multiplier?: number;
-  /** 突破成功率加成 */
-  breakthrough_bonus?: number;
-  /** 幸运加成 */
-  luck_bonus?: number;
-  /** 攻击倍率 */
-  atk_multiplier?: number;
-  /** 魔道功法加成 */
-  dark_arts_bonus?: number;
-  /** 魅惑加成 */
-  charm_bonus?: number;
-  /** 灵力倍率 */
-  mp_multiplier?: number;
-  /** 道心强度加成 */
-  mental_strength?: number;
+export type SectBonus = Record<string, number | undefined>;
+
+/**
+ * 单项加成的展示元数据，来自后端 bonus_meta（内容 sect_data.global.bonus_labels）。
+ * 中文名和"这个数是倍率还是比例"都由内容给，前端不再靠键名后缀猜。
+ */
+export interface SectBonusMeta {
+  /** 中文名，如"修为加成" */
+  label: string;
+  /** multiplier=倍率（1.1 显示 +10%）；ratio=加成比例（0.15 显示 +15%） */
+  format: 'multiplier' | 'ratio';
 }
 
 /**
@@ -131,6 +123,8 @@ export interface MySect {
   element: string;
   /** 宗门加成 */
   bonus: SectBonus;
+  /** 加成项的中文名与换算方式（内容驱动，见 SectBonusMeta） */
+  bonus_meta?: Record<string, SectBonusMeta>;
   /** 当前贡献度 */
   contribution: number;
   /** 身份：disciple 弟子 / elder 长老 */

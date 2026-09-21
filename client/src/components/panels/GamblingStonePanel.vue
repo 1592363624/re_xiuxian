@@ -294,7 +294,7 @@
           </div>
           <div v-if="resultModal.data.yield.items.length > 0" class="flex justify-between bg-violet-950/30 rounded px-3 py-2">
             <span class="text-fg-muted">物品</span>
-            <span class="text-violet-300 font-bold">{{ resultModal.data.yield.items.map((i:any)=>`${i.item_id}×${i.quantity}`).join('、') }}</span>
+            <span class="text-violet-300 font-bold">{{ resultModal.data.yield.items.map((i:any)=>`${i.item_name || i.item_id}×${i.quantity}`).join('、') }}</span>
           </div>
           <div v-if="resultModal.data.yield.rare_drops.length > 0" class="flex justify-between bg-rose-950/30 rounded px-3 py-2 animate-pulse">
             <span class="text-fg-muted">🌟 稀有掉落</span>

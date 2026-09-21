@@ -27,6 +27,8 @@ const InventoryService = require('./InventoryService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const { infrastructure } = require('../../modules');
+// 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
+const RETURNED = { allowUnknownItem: true };
 
 // 通过 ConfigLoader 获取 game_balance.pawnshop 配置（支持热更新，避免硬编码阈值）
 const configLoader = infrastructure.ConfigLoader;
@@ -543,7 +545,7 @@ class PawnshopService {
             await player.save({ transaction: t });
 
             // 物品归还玩家背包
-            await InventoryService.addItem(playerId, listing.item_key, listing.quantity, t);
+            await InventoryService.addItem(playerId, listing.item_key, listing.quantity, t, null, RETURNED);
 
             // 更新当票状态
             listing.status = 'redeemed';
@@ -830,7 +832,7 @@ class PawnshopService {
             }
 
             // 物品归还玩家背包（不扣灵石）
-            await InventoryService.addItem(playerId, listing.item_key, listing.quantity, t);
+            await InventoryService.addItem(playerId, listing.item_key, listing.quantity, t, null, RETURNED);
 
             // 更新当票状态（GM 代赎不扣玩家灵石，但记录 redeemed_by）
             listing.status = 'redeemed';
@@ -920,7 +922,7 @@ class PawnshopService {
             }
 
             // 物品归还玩家背包（不扣灵石，不退还 GM 已发的灵石）
-            await InventoryService.addItem(listing.player_id, listing.item_key, listing.quantity, t);
+            await InventoryService.addItem(listing.player_id, listing.item_key, listing.quantity, t, null, RETURNED);
 
             // 更新当票状态为 cancelled（数据库字段 status 兼容 cancelled，但模型枚举仅 4 类，
             // 故复用 'overdue' 状态避免破坏 schema；通过 detail 区分 cancelled）

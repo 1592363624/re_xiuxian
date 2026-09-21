@@ -28,7 +28,6 @@ const { Op } = require('sequelize');
 
 // 单例状态
 let _initialized = false;
-let _config = null;
 
 class WarImprintSubService {
     /**
@@ -36,30 +35,19 @@ class WarImprintSubService {
      */
     initialize() {
         if (_initialized) return;
-        try {
-            _config = configLoader.getConfig('border_military_data');
-        } catch (e) {
-            console.warn('[WarImprintSubService] 配置 border_military_data 未加载:', e.message);
+        if (!configLoader.peekConfig('border_military_data')) {
+            console.warn('[WarImprintSubService] 配置 border_military_data 未加载，子服务不可用');
             return;
         }
-        if (!_config) return;
         _initialized = true;
         console.log('[WarImprintSubService] 临战刻印子服务初始化完成');
     }
 
     /**
-     * 获取配置（懒加载兜底）
+     * 获取配置：每次都现读（为什么不再缓存在模块变量里，见 ConfigLoader.peekConfig）
      */
     _getConfig() {
-        if (!_initialized || !_config) {
-            try {
-                _config = configLoader.getConfig('border_military_data');
-                _initialized = !!_config;
-            } catch (e) {
-                return null;
-            }
-        }
-        return _config;
+        return configLoader.peekConfig('border_military_data');
     }
 
     /**
@@ -178,12 +166,13 @@ class WarImprintSubService {
             return { success: false, message: '玩家已死亡，无法刻印' };
         }
 
-        // 刻印类型校验
+        // 刻印类型校验（可选清单取自内容，资料片新增刻印类型时提示语自动跟着变）
         const imprintConfig = config.war_imprint?.imprint_types?.[imprintType];
         if (!imprintConfig) {
+            const known = Object.keys(config.war_imprint?.imprint_types || {}).filter(k => !k.startsWith('_'));
             return {
                 success: false,
-                message: `无效刻印类型：${imprintType}（可选：lamp_breaker/array_guard/scout_stealth）`
+                message: `无效刻印类型：${imprintType}（可选：${known.join('/')}）`
             };
         }
 

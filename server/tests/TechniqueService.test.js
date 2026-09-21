@@ -34,29 +34,33 @@ const PlayerTechnique = require('../models/playerTechnique');
 
 // 真实配置文件：用于校验随代码交付的数值是否自洽
 const realConfig = require('../config/technique_data.json');
-// 属性系统配置：功法的 element 必须是这里定义的真实灵根，否则五行匹配永远不会命中
 const attributeSystem = require('../config/attribute_system.json');
+const realRoleInit = require('../config/role_init.json');
 
 /**
- * 从 attribute_system.json 动态推导合法的功法属性集合
- * 说明：不硬编码五行列表——本游戏存在 thunder/ice 变异灵根，
- *       硬编码会导致测试与实际灵根体系脱节。'none' 表示无属性功法。
+ * 玩家侧真正能拿到的灵根 type —— 全游戏只有一张灵根表：role_init.spirit_roots。
+ * 功法 element、相克表的键与值、attribute_system 的镜像表都必须以它为基准，
+ * 曾经 attribute_system 写 gold 而 role_init/战斗侧写 metal，相克表永远匹配不上。
  */
-const VALID_ELEMENTS = [
-    ...Object.keys(attributeSystem.attribute_bonuses.spirit_root_bonus),
-    'none'
-];
+const VALID_ROOT_TYPES = realRoleInit.spirit_roots.map(r => r.type);
+
+/** 合法的功法属性集合：'none' 表示无属性功法；本游戏存在 thunder/ice/wind 变异灵根，故不硬编码五行 */
+const VALID_ELEMENTS = [...VALID_ROOT_TYPES, 'none'];
 
 /**
  * 构造测试用配置加载器
+ * 灵根解析走 SpiritRoot → role_init，所以必须一并投喂真实的 role_init，
+ * 否则 getElementMultiplier 拿不到灵根、整块五行匹配会退化成恒 1.0。
  * @param {Object} cfg - 要返回的 technique_data 配置
  */
 function buildConfigLoader(cfg) {
     return {
         getConfig: (name) => {
             if (name === 'technique_data') return cfg;
+            if (name === 'role_init') return realRoleInit;
             return {};
-        }
+        },
+        hasConfig: (name) => name === 'technique_data' || name === 'role_init'
     };
 }
 
@@ -109,8 +113,8 @@ const testConfig = {
         match_bonus_pct: 20,
         conflict_penalty_pct: 15,
         conflicts: {
-            gold: ['wood'], wood: ['earth'], earth: ['water'],
-            water: ['fire'], fire: ['gold']
+            metal: ['wood'], wood: ['earth'], earth: ['water'],
+            water: ['fire'], fire: ['metal']
         }
     },
     techniques: {
@@ -131,8 +135,11 @@ const testConfig = {
         }
     },
     skills: {
-        fire_ball: { name: '烈火球', element: 'fire', effects: { damage_pct: 30 } },
-        common_shield: { name: '护体罡气', element: 'none', effects: { def_pct: 20 } }
+        // effects 键必须落在 game/combat/skillEffects.js 的词表里（启动期会校验真实配置），
+        // 属性类键会被折进 getTechniqueBonus 的数值产出
+        fire_ball: { name: '烈火球', element: 'fire', effects: { extra_damage_rate: 0.3, trigger_chance: 0.5 } },
+        common_shield: { name: '护体罡气', element: 'none', effects: { def_bonus_pct: 0.2 } },
+        sharp_intent: { name: '锐念', element: 'none', effects: { crit_rate_bonus: 0.12, breakthrough_rate_bonus: 0.05 } }
     }
 };
 
@@ -449,6 +456,34 @@ describe('getTechniqueBonus 属性加成聚合', () => {
         });
     });
 
+    test('神通的属性类特效折进功法加成（面板/战力/战斗/突破一次全有）', async () => {
+        PlayerTechnique.findAll.mockResolvedValue([
+            {
+                technique_id: 'fire_art', layer: 1, equip_slot: 'main',
+                comprehended_skills: ['sharp_intent']
+            }
+        ]);
+        const bonus = await TechniqueService.getTechniqueBonus(1, player);
+        // effects 里写 0.12（小数），面板口径是百分点
+        expect(bonus.crit_rate).toBeCloseTo(12);
+        expect(bonus.breakthrough_bonus).toBeCloseTo(5);
+        // 神通仍然原样透出，供战斗侧读战斗特效
+        expect(bonus.skills[0].effects).toMatchObject({ crit_rate_bonus: 0.12 });
+    });
+
+    test('现网每一门神通的 effects 键都在特效词表内（拼错不会再来一次静默失效）', () => {
+        const { isKnownSkillEffectKey } = require('../game/combat/skillEffects');
+        const realSkills = require('../config/technique_data.json').skills;
+        const offenders = [];
+        for (const [id, cfg] of Object.entries(realSkills)) {
+            if (id.startsWith('_') || !cfg || typeof cfg !== 'object') continue;
+            for (const key of Object.keys(cfg.effects || {})) {
+                if (!isKnownSkillEffectKey(key)) offenders.push(`${id}.${key}`);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
     test('comprehended_skills 为 null 时不报错', async () => {
         PlayerTechnique.findAll.mockResolvedValue([
             { technique_id: 'basic_qi', layer: 1, equip_slot: 'main', comprehended_skills: null }
@@ -538,6 +573,28 @@ describe('technique_data.json 真实配置校验', () => {
         }
     });
 
+    test('相克表的键与值都是真实灵根名（否则那条克制永远不会触发）', () => {
+        const conflicts = (realConfig.element_match || {}).conflicts || {};
+        // 键 = 玩家可能拥有的灵根 type；值 = 功法可能拥有的属性。
+        // 值允许指向"现网还没有功法在用"的属性（例如 metal）：那是给后续内容预留的，
+        // 但绝不允许拼错——一旦拼成 gold 这类不存在的键，整条克制就是死配置。
+        expect(Object.keys(conflicts).filter(k => !k.startsWith('_') && !VALID_ROOT_TYPES.includes(k))).toEqual([]);
+        const badValues = Object.entries(conflicts)
+            .filter(([root]) => !root.startsWith('_'))
+            .flatMap(([root, list]) => list.filter(e => !VALID_ROOT_TYPES.includes(e)).map(e => `${root}→${e}`));
+        expect(badValues).toEqual([]);
+    });
+
+    test('灵根词表只有一张权威表，镜像表不得自造拼写', () => {
+        // 权威表：role_init.spirit_roots[].type —— SpiritRoot 解析、战斗五行、功法契合都读它
+        expect(VALID_ROOT_TYPES).toContain('metal');
+        expect(VALID_ROOT_TYPES).not.toContain('gold');
+        // attribute_system 里那份 spirit_root_bonus 是同一张表的镜像（当前无代码读取），
+        // 允许它落后于权威表，但不能出现权威表里没有的拼写——那才是这次 bug 的成因。
+        const mirror = Object.keys(attributeSystem.attribute_bonuses.spirit_root_bonus);
+        expect(mirror.filter(k => !VALID_ROOT_TYPES.includes(k))).toEqual([]);
+    });
+
     test('功法引用的属性均为真实存在的灵根', () => {
         for (const [id, cfg] of Object.entries(realConfig.techniques)) {
             if (id.startsWith('_')) continue;
@@ -545,7 +602,7 @@ describe('technique_data.json 真实配置校验', () => {
         }
     });
 
-    test('相克表中的灵根键名均真实存在（金应为 gold 而非 metal）', () => {
+    test('相克表中的灵根键名均真实存在（金为 metal，不是 gold）', () => {
         for (const root of Object.keys(realConfig.element_match.conflicts)) {
             if (root.startsWith('_')) continue;
             expect(VALID_ELEMENTS).toContain(root);
@@ -573,7 +630,7 @@ describe('technique_data.json 真实配置校验', () => {
 
     test('五行相克表构成完整循环（金木水火土各克至少一个）', () => {
         const conflicts = realConfig.element_match.conflicts;
-        for (const el of ['gold', 'wood', 'water', 'fire', 'earth']) {
+        for (const el of ['metal', 'wood', 'water', 'fire', 'earth']) {
             expect(Array.isArray(conflicts[el])).toBe(true);
             expect(conflicts[el].length).toBeGreaterThan(0);
         }
@@ -583,5 +640,61 @@ describe('technique_data.json 真实配置校验', () => {
         const ratio = realConfig.settings.auxiliary_ratio;
         expect(ratio).toBeGreaterThan(0);
         expect(ratio).toBeLessThan(1);
+    });
+});
+
+/**
+ * 灵根 × 功法五行匹配系数。
+ * 这条机制曾经恒返回 1.0：实现按 { gold: 0.2 } 这种"权重表"形状读 spirit_roots，
+ * 而真实数据是 { type: 'thunder' } 或 { '金灵根': { level, affinity } }，
+ * Number(...) > 0 全为 false，rootKeys 恒空。下面这些用例就是为了让它不能再悄悄躺平。
+ */
+describe('getElementMultiplier（灵根契合/相克真的生效）', () => {
+    const realTechnique = realConfig;
+
+    // beforeEach 而非 beforeAll：文件顶层的 beforeEach 会给每个用例重置成 testConfig，
+    // 放在 beforeAll 会被它覆盖掉，真实配置根本没机会生效。
+    beforeEach(() => {
+        TechniqueService.initialize(buildConfigLoader(realTechnique));
+    });
+
+    const playerWith = (spiritRoots) => ({ id: 1, realm: '炼气3层', spirit_roots: spiritRoots, attributes: {} });
+    const matchPct = 1 + (realTechnique.element_match.match_bonus_pct || 0) / 100;
+    const penaltyPct = 1 - (realTechnique.element_match.conflict_penalty_pct || 0) / 100;
+
+    test('老形状 { type } 能匹配：火灵根修火系功法拿契合加成', () => {
+        expect(TechniqueService.getElementMultiplier(playerWith({ type: 'fire' }), 'fire')).toBe(matchPct);
+    });
+
+    test('老形状能相克：火克金、雷克木都按表衰减', () => {
+        // 现网还没有 metal 系功法，但相克表按五行循环预留了火克金——
+        // 一旦后续内容（或 DLC）加一本金系功法，这条克制要立刻生效，不需要改代码。
+        expect(TechniqueService.getElementMultiplier(playerWith({ type: 'fire' }), 'metal')).toBe(penaltyPct);
+        expect(TechniqueService.getElementMultiplier(playerWith({ type: 'thunder' }), 'wood')).toBe(penaltyPct);
+        // 反向不成立：金灵根修火系功法不会被"火克金"惩罚，表是有方向的
+        expect(TechniqueService.getElementMultiplier(playerWith({ type: 'metal' }), 'fire')).toBe(1.0);
+    });
+
+    test('新建角色形状 { "金灵根": {...} } 同样生效', () => {
+        expect(TechniqueService.getElementMultiplier(playerWith({ '火灵根': { level: '基础', affinity: 90 } }), 'fire'))
+            .toBe(matchPct);
+    });
+
+    test('无属性功法与无灵根玩家都是 1.0（不打折也不误伤）', () => {
+        expect(TechniqueService.getElementMultiplier(playerWith({ type: 'fire' }), 'none')).toBe(1.0);
+        expect(TechniqueService.getElementMultiplier(playerWith({}), 'fire')).toBe(1.0);
+        expect(TechniqueService.getElementMultiplier(playerWith({ type: 'chaos' }), 'fire')).toBe(1.0);
+    });
+
+    test('至少存在一条会真正触发的相克（防止相克表整张变成死配置）', () => {
+        const conflicts = realTechnique.element_match.conflicts || {};
+        const techniqueElements = new Set(
+            Object.values(realTechnique.techniques).filter(t => t && t.element).map(t => t.element)
+        );
+        const rootTypes = new Set(realRoleInit.spirit_roots.map(r => r.type));
+        const live = Object.entries(conflicts)
+            .filter(([root, list]) => rootTypes.has(root))
+            .flatMap(([root, list]) => list.filter(e => techniqueElements.has(e)).map(e => `${root}→${e}`));
+        expect(live.length).toBeGreaterThan(0);
     });
 });

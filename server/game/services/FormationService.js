@@ -73,6 +73,17 @@ function checkCooldown(player, timeField, cooldownSec) {
 
 class FormationService {
     /**
+     * 阵法流派清单（"对手流派"这个参数的可选值）以内容为准：
+     * `formation_data.global.category_display_names` 里有什么就允许什么。
+     * 以前路由层写死了一份四元素清单，资料片加一档流派（比如"毒"）就会被接口挡掉。
+     * @returns {string[]}
+     */
+    formationCategories() {
+        const cfg = getFormationConfig();
+        return Object.keys(cfg?.global?.category_display_names || {});
+    }
+
+    /**
      * 获取阵法全局配置（供前端展示规则说明）
      * @returns {Object}
      */

@@ -27,25 +27,6 @@ class PlayerService {
     }
 
     /**
-     * 获取玩家属性面板
-     */
-    async getPlayerAttributes(playerId) {
-        const player = await this.getPlayerData(playerId);
-        if (!player) return null;
-
-        return {
-            hp_max: player.attributes?.hp_max || 100,
-            mp_max: player.attributes?.mp_max || 0,
-            atk: player.attributes?.atk || 10,
-            def: player.attributes?.def || 5,
-            speed: player.attributes?.speed || 10,
-            sense: player.attributes?.sense || 10,
-            luck: player.attributes?.luck || 10,
-            wisdom: player.attributes?.wisdom || 10
-        };
-    }
-
-    /**
      * 初始化玩家数据（实例方法）
      * 统一的玩家创建逻辑，供 auth 路由调用，避免业务逻辑散落到路由层
      * 说明：本模块导出的是 PlayerService 实例（module.exports = new PlayerService()），
@@ -72,12 +53,16 @@ class PlayerService {
             wisdom: 10
         };
 
-        const probabilities = roleInitConfig?.spiritRootProbabilities || {
-            '金': 0.2, '木': 0.2, '水': 0.2, '火': 0.2, '土': 0.2
-        };
+        // 抽灵根：概率表缺省时按"声明过的灵根等分"，而不是再抄一份五个中文名 ——
+        // 抄的那份在资料片加了灵根之后会把新灵根直接排除在抽取池外（而它 bonus 都配好了）。
+        const declaredRoots = (roleInitConfig?.spirit_roots || [])
+            .map(root => root.name)
+            .filter(Boolean);
+        const probabilities = roleInitConfig?.spiritRootProbabilities
+            || Object.fromEntries(declaredRoots.map(name => [name, 1 / (declaredRoots.length || 1)]));
 
         let random = Math.random();
-        let selectedRoot = '木';
+        let selectedRoot = Object.keys(probabilities)[0] || declaredRoots[0] || '木';
         let cumulative = 0;
         for (const [root, prob] of Object.entries(probabilities)) {
             cumulative += prob;
@@ -118,32 +103,25 @@ class PlayerService {
     }
 
     /**
-     * 更新玩家属性
+     * 更新玩家属性（键级补丁）
+     *
+     * 走 PlayerStateStore：行锁内读出最新 attributes，只覆盖 newAttributes 里点名的键。
+     * 旧实现是"无锁读整块 → 合并 → 整块写回"，会把这段时间内别处写的键抹掉。
      */
     async updateAttributes(playerId, newAttributes) {
-        const player = await Player.findByPk(playerId);
-        if (!player) return null;
-
-        const currentAttrs = typeof player.attributes === 'string' 
-            ? JSON.parse(player.attributes) 
-            : (player.attributes || {});
-
-        const updatedAttrs = { ...currentAttrs, ...newAttributes };
-        player.attributes = updatedAttrs;
-        await player.save();
-
-        return updatedAttrs;
+        const PlayerStateStore = require('../persistence/PlayerStateStore');
+        const player = await PlayerStateStore.patchPlayerState(playerId, { attributes: newAttributes || {} });
+        return player ? player.attributes : null;
     }
 
     /**
-     * 增加玩家修为
+     * 增加玩家修为（列上原子累加，不做读-改-写）
      */
     async addExp(playerId, amount) {
+        const PlayerStateStore = require('../persistence/PlayerStateStore');
+        await PlayerStateStore.grantAmount(playerId, 'exp', amount);
         const player = await Player.findByPk(playerId);
         if (!player) return null;
-
-        player.exp = (BigInt(player.exp) + BigInt(amount)).toString();
-        await player.save();
 
         return {
             currentExp: player.exp.toString(),
@@ -153,67 +131,47 @@ class PlayerService {
 
     /**
      * 更新玩家气血
+     *
      * @param {number} playerId - 玩家ID
      * @param {number|bigint} currentHp - 当前气血值
-     * @param {number|bigint} [maxHp] - 可选，最大气血值（用于同步更新 hp_max）
-     * @param {string} [deathReason='战斗陨落'] - 可选，死亡原因（HP<=0 时传入 handlePlayerDeath）
+     * @param {number|bigint} [maxHp] - 已废弃：气血上限是解析出来的派生值，不能再当存储字段写入
+     *                                   （旧代码往 attributes.hp_max 写，而解析链路根本不读它，
+     *                                    写进去只会让"面板上限"和"恢复上限"各说各话）
+     * @param {string} [deathReason='战斗陨落'] - 死亡原因（HP<=0 时传入 handlePlayerDeath）
      */
     async updateHp(playerId, currentHp, maxHp, deathReason = '战斗陨落') {
+        const PlayerStateStore = require('../persistence/PlayerStateStore');
         const player = await Player.findByPk(playerId);
         if (!player) return null;
 
-        // 检查是否死亡
         if (currentHp <= 0) {
             await this.handlePlayerDeath(playerId, deathReason);
-            // 死亡处理后，返回更新后的玩家数据（HP已重置）
             return await Player.findByPk(playerId);
         }
 
-        player.hp_current = currentHp;
-        if (maxHp !== undefined) {
-            const attrs = typeof player.attributes === 'string' 
-                ? JSON.parse(player.attributes) 
-                : (player.attributes || {});
-            attrs.hp_max = maxHp;
-            player.attributes = attrs;
-        }
-        await player.save();
-
-        return player;
+        return PlayerStateStore.patchPlayerState(playerId, {
+            columns: { hp_current: currentHp }
+        });
     }
 
     /**
-     * 更新玩家灵力
+     * 更新玩家灵力（同 updateHp：mp_max 是派生值，不在此写回）
      */
     async updateMp(playerId, currentMp, maxMp) {
-        const player = await Player.findByPk(playerId);
-        if (!player) return null;
-
-        player.mp_current = currentMp;
-        if (maxMp !== undefined) {
-            const attrs = typeof player.attributes === 'string' 
-                ? JSON.parse(player.attributes) 
-                : (player.attributes || {});
-            attrs.mp_max = maxMp;
-            player.attributes = attrs;
-        }
-        await player.save();
-
-        return player;
+        const PlayerStateStore = require('../persistence/PlayerStateStore');
+        return PlayerStateStore.patchPlayerState(playerId, {
+            columns: { mp_current: currentMp }
+        });
     }
 
     /**
-     * 更新玩家灵石
+     * 增减玩家灵石（列上原子累加，不允许被并发写丢）
      */
     async updateSpiritStones(playerId, amount) {
-        const player = await Player.findByPk(playerId);
-        if (!player) return null;
-
-        player.spirit_stones = BigInt(player.spirit_stones) + BigInt(amount);
-        if (player.spirit_stones < 0n) player.spirit_stones = 0n;
-        await player.save();
-
-        return player.spirit_stones.toString();
+        const PlayerStateStore = require('../persistence/PlayerStateStore');
+        return PlayerStateStore.patchPlayerState(playerId, {
+            amounts: { spirit_stones: amount }
+        });
     }
 
     /**

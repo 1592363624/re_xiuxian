@@ -18,31 +18,58 @@ const adminCheck = (req, res, next) => {
 };
 
 /**
+ * 可以**匿名**读取全文的配置白名单。
+ *
+ * 这里刻意不写成"config 目录里有什么就开放什么"：`GET /api/config/:configName` 不要 token，
+ * 而 53 个配置文件里有 `ai_config.json`（后台 AI 设置会把 provider 的 apiKey 写进这个文件）、
+ * `game_balance.json`（内部调度与战斗系数）等 —— 一旦按目录枚举，玩家界面能看到的接口就会顺手
+ * 把密钥和内部数值一起发给任何请求者。新增**玩家可见**的数据集时才往这里加一行。
+ * 管理员要读任意配置走 GET /api/config/full/:configName（带鉴权）。
+ */
+const PUBLIC_CONFIG_NAMES = [
+    'realm_breakthrough',
+    'role_init',
+    'item_data',
+    'map_data',
+    'ui_layout',
+    'ui_routes'
+];
+
+/** 后台可管理的配置集合：由 ConfigLoader 扫描目录得出（新增配置文件不需要改这个路由） */
+function manageableConfigNames() {
+    const loader = infrastructure.ConfigLoader;
+    return loader && typeof loader.discoverConfigNames === 'function' ? loader.discoverConfigNames() : [];
+}
+
+/**
  * 获取所有配置列表
  * GET /api/config/list
  */
 router.get('/list', async (req, res) => {
     try {
-        const configNames = [
-            'realm_breakthrough',
-            'role_init',
-            'item_data',
-            'map_data',
-            'ui_layout',
-            'ui_routes'
-        ];
-
+        // 名单来自 ConfigLoader 的目录扫描：以前这里写死 6 个名字，新加一份配置（比如这次的
+        // stat_definitions / combat_formulas）在后台就"不存在"，只能回来改代码。
+        // 这里只报"有没有加载上"，不报体积：那要把 53 份配置各 stringify 一遍，而这个接口不要 token。
+        const configNames = manageableConfigNames();
         const configs = {};
         for (const name of configNames) {
-            const config = infrastructure.ConfigLoader?.getConfig(name);
-            configs[name] = config ? { loaded: true, size: JSON.stringify(config).length } : { loaded: false };
+            let config = null;
+            try {
+                config = infrastructure.ConfigLoader?.getConfig(name);
+            } catch { /* 未加载就算 false，不该让整份列表 500 */ }
+            configs[name] = {
+                loaded: !!config,
+                public: PUBLIC_CONFIG_NAMES.includes(name)
+            };
         }
 
         res.json({
             code: 200,
             data: {
                 configs: configs,
-                available_configs: configNames
+                available_configs: configNames,
+                public_configs: PUBLIC_CONFIG_NAMES,
+                config_count: configNames.length
             }
         });
     } catch (error) {
@@ -61,19 +88,11 @@ router.get('/list', async (req, res) => {
 router.get('/:configName', async (req, res) => {
     try {
         const { configName } = req.params;
-        const validConfigs = [
-            'realm_breakthrough',
-            'role_init',
-            'item_data',
-            'map_data',
-            'ui_layout',
-            'ui_routes'
-        ];
 
-        if (!validConfigs.includes(configName)) {
+        if (!PUBLIC_CONFIG_NAMES.includes(configName)) {
             return res.status(400).json({ 
                 code: 400, 
-                message: '无效的配置名称' 
+                message: '无效的配置名称'
             });
         }
 
@@ -99,6 +118,37 @@ router.get('/:configName', async (req, res) => {
             code: 500, 
             message: '服务器错误' 
         });
+    }
+});
+
+/**
+ * 管理员读取任意配置的全文
+ * GET /api/config/full/:configName   （仅管理员）
+ *
+ * 上面那个匿名接口只能读白名单里的 6 份（见 PUBLIC_CONFIG_NAMES 的说明）。
+ * 后台/排查需要看任意一份时走这里，鉴权挡住，`ai_config` 里的 apiKey 不会再落到匿名响应里。
+ */
+router.get('/full/:configName', auth, adminCheck, async (req, res) => {
+    try {
+        const { configName } = req.params;
+        // 只承认"目录里真实存在的配置文件名"：这个集合由 readdirSync 得出，不可能含 `/`，
+        // 所以它同时挡掉了路径穿越与任意文件名。
+        if (!manageableConfigNames().includes(configName)) {
+            return res.status(404).json({ code: 404, message: '配置文件不存在' });
+        }
+
+        const config = infrastructure.ConfigLoader?.getConfig(configName);
+        if (!config) {
+            return res.status(404).json({ code: 404, message: '配置未加载或不存在' });
+        }
+
+        res.json({
+            code: 200,
+            data: { config_name: configName, config: config }
+        });
+    } catch (error) {
+        console.error('获取配置失败:', error);
+        res.status(500).json({ code: 500, message: '服务器错误' });
     }
 });
 
@@ -333,17 +383,104 @@ router.get('/data/maps', async (req, res) => {
  * 触发配置热更新（需要管理员权限）
  * POST /api/config/hot-update
  */
+/**
+ * 内容主键清单（只读，仅管理员）
+ * GET /api/config/content/keys/:dataset?collection=<集合名>
+ *
+ * 给后台下拉用，返回 `{dataset, entries:[{key, name}]}`；`name` 取自内容自己的显示名字段。
+ * 为什么要有：GM 面板以前各自抄了一份主键清单（侍妾 7 个、宗门 6 个、灵兽 4 个），
+ * 资料片加一条内容，下拉里就是没有它 —— 而服务端一直按内容认，本来选得出来。
+ * 只认 DATASET_SPECS 里登记过的数据集，其余一律 400（不给人拿它去探任意配置）。
+ */
+router.get('/content/keys/:dataset', auth, adminCheck, async (req, res) => {
+    try {
+        const { contentRegistry } = require('../game/content');
+        const { DATASET_SPECS } = require('../game/content/ContentRegistry');
+        const content = contentRegistry();
+        if (!content) {
+            return res.status(503).json({ code: 503, message: '内容层尚未初始化' });
+        }
+        const dataset = req.params.dataset;
+        if (!DATASET_SPECS[dataset]) {
+            return res.status(400).json({ code: 400, message: `数据集未登记，不能按内容出清单: ${dataset}` });
+        }
+        const collection = typeof req.query.collection === 'string' && req.query.collection ? req.query.collection : null;
+        res.json({ code: 200, data: { dataset, entries: content.entryOptions(dataset, collection) } });
+    } catch (error) {
+        res.status(400).json({ code: 400, message: error.message });
+    }
+});
+
+/**
+ * 资料片（DLC）运行态视图
+ * GET /api/config/content/status   （仅管理员）
+ *
+ * 为什么要有：加/撤一个资料片是"往 server/content/packs 放目录 + 改 pack.json 的 enabled"，
+ * 生效与否以前只能翻启动日志。这里把内容层的实际结果摊开：发现了哪些 pack、
+ * 每个 pack 的哪个文件写进了哪个数据集的哪个集合、合并后各数据集有多少条、
+ * 属性词表和效果词表最终长什么样、合并过程中的告警，以及限流器实际在用的阈值。
+ * 只读：不改任何东西——热更走 POST /api/config/hot-update（那份内容有校验+回滚）。
+ */
+router.get('/content/status', auth, adminCheck, async (req, res) => {
+    try {
+        const { contentRegistry } = require('../game/content');
+        const { statRegistry } = require('../game/stats');
+        const content = contentRegistry();
+        if (!content) {
+            return res.status(503).json({ code: 503, message: '内容层尚未初始化' });
+        }
+
+        const status = content.status();
+        res.json({
+            code: 200,
+            data: {
+                packs: status.packs,
+                datasets: status.datasets,
+                warnings: status.warnings,
+                wildcard_effects: content.wildcardEffectKeys(),
+                effect_vocabulary: content.effectVocabulary(),
+                // stats 为空数组时，这一项能区分"游戏没有属性"和"内容层没把词表装进来"
+                stat_definitions_loaded: statRegistry.isLoaded,
+                stats: statRegistry.all().map(def => ({
+                    key: def.key,
+                    label: def.label,
+                    unit: def.unit,
+                    aggregate: def.aggregate,
+                    aliases: def.aliases || [],
+                    battle_roles: def.battleRoles || [],
+                    visible: def.panel?.visible !== false,
+                    spot: def.panel?.spot || null
+                })),
+                server_time: new Date().toISOString(),
+                // 限流器**实际在跑**的阈值与重建代数：配置里的数字是否真的生效、
+                // 后台改完之后有没有换进运行中的实例（以前只能靠重启后的行为反推）
+                rate_limit: require('../middleware/rateLimit').getRuntimeRateLimitState()
+            }
+        });
+    } catch (error) {
+        console.error('查询资料片运行态失败:', error);
+        res.status(500).json({ code: 500, message: '查询资料片运行态失败', error: error.message });
+    }
+});
+
+/**
+ * 配置热更新接口
+ * POST /api/config/hot-update
+ *
+ * 白名单只有 6 项是刻意的：DATASET_SPECS 登记过的数据集（如 item_data）热更时会走内容层
+ * 的重新合并 + 全套校验，校验不过就退回上一份在用的视图；其余数据集没有这层保护。
+ *
+ * @param {Object} req.body - { configName: string }
+ */
 router.post('/hot-update', auth, adminCheck, async (req, res) => {
     try {
         const { configName } = req.body;
-        const validConfigs = [
-            'realm_breakthrough',
-            'role_init',
-            'item_data',
-            'map_data',
-            'ui_layout',
-            'ui_routes'
-        ];
+        // 可热更的名单 = config 目录里真实存在的配置文件（ConfigLoader 扫描得出）。
+        // 以前这里也写死 6 个名字，于是这次新加的 stat_definitions / combat_formulas 以及
+        // 资料片合并进来的任何数据集都想热更就得回来改代码；而 game_balance 早就被专用后台
+        // 界面单独调 hotUpdateConfig('game_balance') 绕过了这份名单 —— 两处名单已经对不上。
+        // 名称形状校验在 ConfigLoader.loadConfig 里（挡 `../`），这里再确认文件确实存在。
+        const validConfigs = manageableConfigNames();
 
         if (!configName) {
             return res.status(400).json({ 
@@ -355,7 +492,7 @@ router.post('/hot-update', auth, adminCheck, async (req, res) => {
         if (!validConfigs.includes(configName)) {
             return res.status(400).json({ 
                 code: 400, 
-                message: '无效的配置名称' 
+                message: '无效的配置名称'
             });
         }
 
@@ -411,3 +548,5 @@ router.get('/status', async (req, res) => {
 });
 
 module.exports = router;
+/** 暴露给测试：匿名可读的配置集合（见 PUBLIC_CONFIG_NAMES 定义处的规则） */
+module.exports.PUBLIC_CONFIG_NAMES = PUBLIC_CONFIG_NAMES;

@@ -12,6 +12,10 @@
  * 用户可通过 ai_config.json 的 providers[].compatibleWith 字段强制指定协议
  */
 const axios = require('axios');
+// 模型生成的怪物是外部输入：进战斗前先按境界基础值与属性注册表钳一遍（见 MonsterStats）
+// 降级模板同样从 MonsterStats 取境界基础值，不再自带一份数值表
+const { normalizeGeneratedMonster, buildRealmMonsterStats } = require('../combat/MonsterStats');
+const { scaleStatBlock } = require('../combat/CombatStats');
 
 class AIService {
     /**
@@ -596,10 +600,15 @@ class AIService {
 
         if (result.content) {
             try {
-                const monsterData = JSON.parse(result.content);
                 return {
                     success: true,
-                    monster: monsterData,
+                    // 模型返回什么不能就信什么：hp/atk/def/exp 按这只怪境界的基础值钳制，
+                    // 未登记的属性键丢掉，境界名必须是配置里有的（详见 MonsterStats 的注释）
+                    monster: normalizeGeneratedMonster(JSON.parse(result.content), {
+                        realmFallback: playerRealm,
+                        // 奖励上限来自这张地图本身（调用方把手绘怪里最高的 exp 传进来）
+                        expCeiling: context.expCeiling
+                    }),
                     fromAI: true
                 };
             } catch (parseError) {
@@ -669,18 +678,17 @@ class AIService {
 
         const envMonsters = monsterNames[mapEnvironment] || monsterNames['平原'];
         const name = envMonsters[Math.floor(Math.random() * envMonsters.length)];
-        
-        const realmLevels = {
-            '凡人': { hp: 80, atk: 10, def: 5, exp: 10 },
-            '炼气1层': { hp: 100, atk: 15, def: 8, exp: 20 },
-            '炼气3层': { hp: 150, atk: 25, def: 12, exp: 40 },
-            '炼气6层': { hp: 250, atk: 40, def: 20, exp: 80 },
-            '筑基期': { hp: 500, atk: 80, def: 40, exp: 200 },
-            '筑基中期': { hp: 800, atk: 120, def: 60, exp: 350 }
-        };
 
-        const baseStats = realmLevels[playerRealm] || realmLevels['炼气1层'];
+        // 数值表只留一份：境界基础值由 MonsterStats 查 realm_breakthrough（与历练、野外同一入口）。
+        // 这里以前自带一张只有 6 个境界的表，筑基后期以上的玩家一律遇到"炼气1层"强度的怪，
+        // 而 speed 用 atk*0.6 推出来 —— 加一个境界要记得回来改这张表，谁也记不住。
+        const baseStats = buildRealmMonsterStats(playerRealm, {
+            // 经验以这张地图里最强怪的 exp 为参照（内容给的），而不是模板里写死的 10~350
+            expFallback: context.expCeiling || 10,
+            warnLabel: 'AIService'
+        });
         const variance = 0.9 + Math.random() * 0.2;
+        const stats = scaleStatBlock(baseStats, variance, { except: [] });
 
         return {
             success: true,
@@ -688,11 +696,7 @@ class AIService {
                 name: name,
                 realm: playerRealm,
                 description: `一只在${mapEnvironment}中修行的${name}，眼中闪烁着幽幽光芒`,
-                hp: Math.floor(baseStats.hp * variance),
-                atk: Math.floor(baseStats.atk * variance),
-                def: Math.floor(baseStats.def * variance),
-                speed: Math.floor(baseStats.atk * 0.6 * variance),
-                exp_reward: Math.floor(baseStats.exp * variance)
+                ...stats
             },
             fromAI: false
         };

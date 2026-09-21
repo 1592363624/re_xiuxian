@@ -26,6 +26,7 @@
 'use strict';
 
 const Player = require('../../models/player');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
 const PvpBattleRecord = require('../../models/pvpBattleRecord');
 const PvpRanking = require('../../models/pvpRanking');
 const Item = require('../../models/item');
@@ -40,6 +41,8 @@ const FormationService = require('./FormationService');
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 // 背包服务（PVP 战斗中使用消耗品时扣除物品）
 const InventoryService = require('./InventoryService');
+const CombatResolver = require('../combat/CombatResolver');
+const PlayerStateStore = require('../persistence/PlayerStateStore');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -120,23 +123,32 @@ class PvpService {
     }
 
     /**
-     * 计算玩家战力
-     * 战力公式：atk * 2 + def * 1.5 + speed * 1.2 + hp_max * 0.1 + realm_rank * 100
-     * 权重说明：攻击双倍权重（输出为斗法主导），防御 1.5 倍（决定生存），
-     *           速度 1.2 倍（影响先手），气血最大值 0.1 倍（防爆发秒杀），
-     *           境界排名 * 100（境界差距应显著影响战力，避免低境界乱虐高境界）
+     * 计算玩家战力。
+     * 公式只有一个地方：CombatResolver.computePower（按属性注册表遍历 def.powerWeight，
+     * game_balance.pvp_extended.combat_power 里的 base_*_weight 只是覆盖某几档的数值）。
+     * 这里以前抄写过一份 `atk*2 + def*1.5 + speed*1.2 + hp_max*0.1 + realm_rank*100`：
+     * 那种副本正是"加一档属性要改很多处"的来源，别再写回来。
      * @param {Object} player - 玩家实例
-     * @returns {number} 战力值
+     * @returns {Promise<number>} 战力值
      */
-    static _calculatePower(player) {
-        const attrs = player.attributes || {};
-        // 统一 Number 转换，防御 JSON 中可能为字符串的情况
-        const atk = Number(attrs.atk) || 0;
-        const def = Number(attrs.def) || 0;
-        const speed = Number(attrs.speed) || 0;
-        const hpMax = Number(attrs.hp_max) || 0;
-        const realmRank = Number(player.realm_rank) || 0;
-        return Math.floor(atk * 2 + def * 1.5 + speed * 1.2 + hpMax * 0.1 + realmRank * 100);
+    static async _calculatePower(player) {
+        const { power } = await this._statsAndPower(player);
+        return power;
+    }
+
+    /**
+     * 解析一次战斗属性，同时给出战力。
+     * 先手判定要用的 speed 与战力必须来自同一份解析结果：players.attributes 里那份 speed
+     * 是旧管线留下的基数（不含装备/功法加成），照它判先手等于让慢的人抢先出手。
+     * @returns {Promise<{stats: Object, power: number}>}
+     */
+    static async _statsAndPower(player) {
+        const CombatResolver = require('../combat/CombatResolver');
+        const { stats } = await CombatResolver.resolveCombatStats(player);
+        return {
+            stats,
+            power: CombatResolver.computePower(stats, Number(player.realm_rank) || 0, configLoader.getConfig('game_balance'))
+        };
     }
 
     /**
@@ -158,18 +170,34 @@ class PvpService {
     }
 
     /**
+     * 参与克制表的属性集合：完全由内容里的 overcomes/element_names 派生。
+     * 为什么不在这里写死 metal/wood/water/fire/earth —— 克制表本身是 `game_balance.pvp.five_elements.overcomes`
+     * 这份数据，写死一份副本的结果就是：资料片加了"雷克风"，玩家灵根也配好了，
+     * 但这一关先把 thunder 判成"无属性"，那条数据永远走不到倍率计算。
+     * @returns {Set<string>} 内容声明过的属性 key
+     */
+    static _elementKeysInCycle() {
+        const cfg = this.getPvpConfig()?.five_elements || {};
+        const overcomes = cfg.overcomes || {};
+        const keys = new Set([...Object.keys(overcomes), ...Object.values(overcomes)]);
+        for (const key of Object.keys(cfg.element_names || {})) if (overcomes[key]) keys.add(key);
+        return keys;
+    }
+
+    /**
      * 获取玩家五行属性（基于灵根 type）
      * 灵根 type: metal(金)/wood(木)/water(水)/fire(火)/earth(土)
-     * 非五行灵根（如 thunder/wind/ice 等）返回 null，视为无属性（不参与五行克制）
+     * 不在克制表里的灵根（thunder/wind/ice 等）返回 null，视为无属性（不参与克制）
      * @param {Object} player - 玩家实例
-     * @returns {string|null} 五行属性 key（metal/wood/water/fire/earth）或 null
+     * @returns {string|null} 内容里配过克制关系的属性 key，或 null
      */
     static _getPlayerElement(player) {
-        const spiritRoots = player.spirit_roots;
-        if (!spiritRoots || typeof spiritRoots !== 'object') return null;
-        const rootType = spiritRoots.type;
-        const validElements = ['metal', 'wood', 'water', 'fire', 'earth'];
-        return validElements.includes(rootType) ? rootType : null;
+        // 走统一解析：新建角色的灵根写成 { '金灵根': {...} }，老角色写成 { type: 'metal' }，
+        // 只认后者的话前者会被判成"无属性"，五行克制对一半玩家静默失效。
+        const { resolveSpiritRoot } = require('../stats/SpiritRoot');
+        const roleInit = configLoader.getConfig('role_init') || {};
+        const root = resolveSpiritRoot(player, roleInit);
+        return root && this._elementKeysInCycle().has(root.type) ? root.type : null;
     }
 
     /**
@@ -455,11 +483,11 @@ class PvpService {
         // 事务包裹：玩家行 + 段位记录 + 战斗记录 原子性
         const t = await sequelize.transaction();
         try {
-            // 行级锁发起方玩家
-            const attacker = await Player.findByPk(playerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 双方 players 按 id 升序一次锁齐（口径见 game/persistence/lockOrder.js 的 lockRowsByIdsAsc）。
+            // 原来"先锁发起方、判完一串再回头锁目标"：两个人互相发起挑战时两边传参正好相反 = ABBA。
+            const lockedSides = await lockRowsByIdsAsc(t, Player, [playerId, targetPlayerId]);
+            const attacker = lockedSides.find(p => Number(p.id) === Number(playerId));
+            const defender = lockedSides.find(p => Number(p.id) === Number(targetPlayerId));
             if (!attacker) {
                 await t.commit();
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -490,11 +518,7 @@ class PvpService {
                 throw new AppError('虚弱状态中，无法发起挑战', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 行级锁目标玩家
-            const defender = await Player.findByPk(targetPlayerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 行级锁目标玩家：已在事务开头随发起方一起按升序锁齐，这里只做校验（不再第二次 FOR UPDATE）
             if (!defender) {
                 await t.commit();
                 throw new AppError('目标玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -606,16 +630,18 @@ class PvpService {
             attackerRanking.last_battle_time = now;
             defenderRanking.daily_defend_count += 1;
 
-            // 计算双方战力（用于结算奖励）
-            const attackerPower = this._calculatePower(attacker);
-            const defenderPower = this._calculatePower(defender);
+            // 计算双方战力（用于结算奖励），并留下同一份解析结果给先手判定用
+            const attackerCombat = await this._statsAndPower(attacker);
+            const defenderCombat = await this._statsAndPower(defender);
+            const attackerPower = attackerCombat.power;
+            const defenderPower = defenderCombat.power;
 
             // 战力差距欺凌校验：若差距超过 power_gap_bullying_threshold，提示但允许
             // 此处不阻断，仅用于 karma 累加判断（在 _settleBattle 中处理）
 
             // 先手判定：基于速度，速度快者先攻；速度相同则随机
-            const attackerSpeed = Number(attacker.attributes?.speed) || 0;
-            const defenderSpeed = Number(defender.attributes?.speed) || 0;
+            const attackerSpeed = Number(attackerCombat.stats.speed) || 0;
+            const defenderSpeed = Number(defenderCombat.stats.speed) || 0;
             let firstAttacker;  // 'attacker' | 'defender'
             if (attackerSpeed > defenderSpeed) {
                 firstAttacker = 'attacker';
@@ -757,15 +783,11 @@ class PvpService {
                 throw new AppError('没有正在进行的斗法', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 行级锁双方玩家
-            const attacker = await Player.findByPk(battle.attacker_id, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
-            const defender = await Player.findByPk(battle.defender_id, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 行级锁双方：按 id 升序一次锁齐（原来"先 attacker 后 defender"是业务顺序，
+            // 对面那个人跑的正好相反 —— 同一场斗法两边同时出手就是 ABBA）
+            const lockedSides = await lockRowsByIdsAsc(t, Player, [battle.attacker_id, battle.defender_id]);
+            const attacker = lockedSides.find(p => Number(p.id) === Number(battle.attacker_id));
+            const defender = lockedSides.find(p => Number(p.id) === Number(battle.defender_id));
             if (!attacker || !defender) {
                 await t.commit();
                 throw new AppError('玩家数据异常', 404, ErrorCodes.NOT_FOUND);
@@ -793,17 +815,24 @@ class PvpService {
                 throw new AppError('未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 读取双方战斗属性（attributes 中存储的当前 HP/MP/ATK/DEF/SPEED）
+            // 参战属性走统一解析（境界+灵根+加点+天赋+称号+装备+灵兽+功法+法宝+傀儡）。
+            // 改造前这里读的是 attributes.atk/def/hp_max 这份建号时写进去的静态快照：
+            // 换装、学功法、吃丹药都不影响 PvP，而且 hp_max 取的是初始值，
+            // 于是出现"刚突破或刚换装进来，开场却按 100 上限算血"的必败局。
+            const actorResolved = await CombatResolver.resolveCombatStats(actor);
+            const targetResolved = await CombatResolver.resolveCombatStats(target);
+            const actorStats = actorResolved.stats;
+            const targetStats = targetResolved.stats;
+
             const actorAttrs = { ...(actor.attributes || {}) };
             const targetAttrs = { ...(target.attributes || {}) };
 
-            const actorAtk = Number(actorAttrs.atk) || 10;
-            const targetDef = Number(targetAttrs.def) || 5;
-            const actorHpMax = Number(actorAttrs.hp_max) || 100;
-            const targetHpMax = Number(targetAttrs.hp_max) || 100;
+            const actorHpMax = Number(actorStats.hp_max) || 100;
+            const targetHpMax = Number(targetStats.hp_max) || 100;
+            const actorMpMax = Number(actorStats.mp_max) || 0;
 
-            // 初始化双方当前 HP/MP（取 attributes 中的 hp_current/mp_current）
-            // 注意：PVP 战斗中 HP 变化保存在 attributes 中，避免污染 players.hp_current（怪物战斗字段）
+            // 本场战斗的当前 HP/MP 仍然存在 attributes.hp_current/mp_current：
+            // 这是刻意的，players.hp_current 那一列归 PVE/采集等世界状态用，两条线共用一列会互相踩。
             let actorHp = Number(actorAttrs.hp_current);
             if (!Number.isFinite(actorHp) || actorHp <= 0) actorHp = actorHpMax;
             let actorMp = Number(actorAttrs.mp_current) || 0;
@@ -812,10 +841,8 @@ class PvpService {
             let targetMp = Number(targetAttrs.mp_current) || 0;
 
             // 读取伤害相关配置
-            const combatConfig = configLoader.getConfig('game_balance')?.combat || {};
-            const dmgRange = combatConfig.damage_random_range ?? 15;
-            const dmgOffset = combatConfig.damage_random_offset ?? 7;
-            const skillDamageMul = combatConfig.skill_damage_multiplier ?? 1.5;
+            const balanceConfig = configLoader.getConfig('game_balance') || {};
+            const combatConfig = balanceConfig.combat || {};
             const skillMpCost = combatConfig.skill_mp_cost ?? 20;
 
             // ===== 五行相克计算（基于灵根属性，增加 PVP 策略深度）=====
@@ -828,22 +855,47 @@ class PvpService {
             // 计算伤害
             let damage = 0;
             let actualAction = action;
+            // 伤害形状来自 config/combat_formulas.json，与 PVE 共用同一份声明；
+            // 五行克制倍率仍乘在公式之外（它是"谁打谁"的关系，不是属性算式的一部分）
+            let lastStrike = null;
+            const strikeFor = (profile) => {
+                lastStrike = CombatResolver.computeDamage(profile, {
+                    attackerStats: actorStats,
+                    defenderStats: targetStats,
+                    // 双方已领悟的神通都参与结算：出手方吃增伤/破防，承受方吃减免/格挡
+                    skills: actorResolved.info?.technique_skills,
+                    defenderSkills: targetResolved.info?.technique_skills,
+                    balanceConfig
+                });
+                // 被闪避就是 0 伤，不能再套用"至少 1 点"的下限
+                if (lastStrike.missed) return 0;
+                return Math.max(1, Math.floor(lastStrike.damage * elementResult.multiplier));
+            };
+            // 本回合实际使用的伤害档位，写进战斗日志：
+            // 没有它，"资料片新增的档位到底有没有被打出来"在真实对局里无从查证
+            let usedProfile = 'player_basic';
+
             if (action === 'attack') {
-                // 基础攻击：max(1, atk - def + random_range)，再乘五行克制倍率
-                damage = Math.max(1, Math.floor((actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset) * elementResult.multiplier));
+                usedProfile = 'player_basic';
+                damage = strikeFor('player_basic');
             } else if (action === 'skill') {
                 // 技能攻击：需消耗 MP，否则降级为普通攻击
+                // 用哪条伤害档位由神通自己声明（资料片可加新档位），没声明时仍是 player_skill
+                const skillProfile = CombatResolver.selectSkillProfile(
+                    actorResolved.info?.technique_skills, 'player_skill'
+                );
                 if (actorMp >= skillMpCost) {
                     actorMp -= skillMpCost;
-                    damage = Math.max(1, Math.floor((actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset) * skillDamageMul * elementResult.multiplier));
+                    usedProfile = skillProfile;
+                    damage = strikeFor(skillProfile);
                 } else {
                     // MP 不足，降级为普通攻击
                     actualAction = 'attack';
-                    damage = Math.max(1, Math.floor((actorAtk - targetDef + Math.floor(Math.random() * dmgRange) - dmgOffset) * elementResult.multiplier));
+                    damage = strikeFor('player_basic');
                 }
             } else if (action === 'defend') {
                 // 防御：本回合不造成伤害，但受到伤害减半，恢复少量 MP
-                actorMp = Math.min(actorMp + 10, Number(actorAttrs.mp_max) || 0);
+                actorMp = Math.min(actorMp + 10, actorMpMax);
                 damage = 0;
             } else if (action === 'item') {
                 // ===== 使用消耗品（丹药）：不造成伤害，恢复自身 HP/MP，消耗一个回合 =====
@@ -897,7 +949,7 @@ class PvpService {
                 }
                 if (effect.mp_restore) {
                     const before = actorMp;
-                    actorMp = Math.min(actorMp + effect.mp_restore, Number(actorAttrs.mp_max) || 0);
+                    actorMp = Math.min(actorMp + effect.mp_restore, actorMpMax);
                     itemEffectInfo.mp_restore = actorMp - before;
                 }
 
@@ -934,7 +986,7 @@ class PvpService {
                             battleId: battle.id,
                             battleRound: (battle.total_rounds || 0) + 1,
                             attackerId: actor.id,
-                            protectorAtk: 0,  // PVP 中暂不传递护道方 ATK（道侣不在战场），反击伤害计算时取配置默认
+                            protectorAtk: 0,  // 反击这一路今天永远不触发（`protectorAtk > 0` 才判概率；配置里只有概率/倍率，没有 ATK。接线是战斗数值改动，待业主拍板：#24）
                             transaction: t  // 复用当前事务
                         }
                     );
@@ -975,15 +1027,28 @@ class PvpService {
 
             // 应用伤害
             targetHp = Math.max(0, targetHp - actualDamage);
-            // 同步回写到目标 attributes（注意：attributes 是 getter/setter，必须重新 set 整个对象）
+
+            // 吸血：按本回合真正打出去的伤害回血（克制/防御/护道削减之后），封顶到气血上限
+            let lifestealHeal = 0;
+            if (lastStrike?.lifesteal_rate > 0 && actualDamage > 0) {
+                const before = actorHp;
+                actorHp = Math.min(actorHp + Math.floor(actualDamage * lastStrike.lifesteal_rate), actorHpMax);
+                lifestealHeal = actorHp - before;
+            }
+
+            // 键级补丁写回：只动 attributes 里的 hp_current/mp_current 两个键。
+            // 原来是"读整块 → 改两个键 → 写整块"，虽然在同一事务的行锁内不至于覆盖对方，
+            // 但只要有任何锁外读到这份 blob 的路径，这里就会把它回退掉；补丁写从根上排除。
+            await PlayerStateStore.patchPlayerState(target.id, {
+                attributes: { hp_current: targetHp, mp_current: targetMp }
+            }, { transaction: t });
+            await PlayerStateStore.patchPlayerState(actor.id, {
+                attributes: { hp_current: actorHp, mp_current: actorMp }
+            }, { transaction: t });
             targetAttrs.hp_current = targetHp;
             targetAttrs.mp_current = targetMp;
-            target.attributes = targetAttrs;
-
-            // 同步回写 actor 的 MP 与 HP
             actorAttrs.hp_current = actorHp;
             actorAttrs.mp_current = actorMp;
-            actor.attributes = actorAttrs;
 
             // 累加回合数
             battle.total_rounds = currentRound + 1;
@@ -995,7 +1060,12 @@ class PvpService {
                 actor_id: actor.id,
                 actor_nickname: actor.nickname,
                 action: actualAction,
+                damage_profile: usedProfile,
                 damage: actualDamage,
+                // 战斗触发属性的结果：玩家面板上的暴击率/闪避率/吸血要有可见反馈
+                crit: !!lastStrike?.crit,
+                missed: !!lastStrike?.missed,
+                lifesteal: lifestealHeal || undefined,
                 actor_hp: actorHp,
                 defender_hp: targetHp,
                 // 五行相克信息（供前端战斗日志展示克制效果）
@@ -1317,15 +1387,10 @@ class PvpService {
         const cfg = this.getPvpConfig();
         const now = new Date();
 
-        // 获取双方玩家（事务内行级锁）
-        const attacker = await Player.findByPk(battle.attacker_id, {
-            lock: t.LOCK.UPDATE,
-            transaction: t
-        });
-        const defender = await Player.findByPk(battle.defender_id, {
-            lock: t.LOCK.UPDATE,
-            transaction: t
-        });
+        // 获取双方玩家（按 id 升序一次锁齐：这里被多个调用方复用，逐个锁会把调用顺序带进加锁顺序）
+        const lockedSides = await lockRowsByIdsAsc(t, Player, [battle.attacker_id, battle.defender_id]);
+        const attacker = lockedSides.find(p => Number(p.id) === Number(battle.attacker_id));
+        const defender = lockedSides.find(p => Number(p.id) === Number(battle.defender_id));
         if (!attacker || !defender) {
             throw new AppError('玩家数据异常', 404, ErrorCodes.NOT_FOUND);
         }
@@ -1335,8 +1400,8 @@ class PvpService {
         const defenderRanking = await this._getOrCreateRanking(defender.id, t);
 
         // 战力计算（基于属性）
-        const attackerPower = this._calculatePower(attacker);
-        const defenderPower = this._calculatePower(defender);
+        const attackerPower = await this._calculatePower(attacker);
+        const defenderPower = await this._calculatePower(defender);
 
         // 判断境界差距：attacker_realm_rank - defender_realm_rank
         const attackerRealmRank = Number(attacker.realm_rank) || 0;
@@ -2049,11 +2114,9 @@ class PvpService {
     }
 
     /**
-     * 查询玩家战力
-     * 战力公式（权重来自 game_balance.json -> pvp_extended.combat_power）：
-     *   战力 = hp_max * hp_weight + atk * atk_weight + def * def_weight
-     *          + speed * speed_weight + sense * sense_weight
-     *          + realm_rank * realm_rank_multiplier
+     * 查询玩家战力（含阵法加成与明细展示）。
+     * 战力公式同 _calculatePower：只有 CombatResolver.computePower 一份，
+     * cpCfg 在这里只用于显示精度与 realm_rank 倍率的覆盖，不再另立一套加权式。
      * @param {number} playerId - 玩家ID
      * @returns {Promise<Object>} 战力数值与属性明细
      */
@@ -2069,37 +2132,19 @@ class PvpService {
         const fullConfig = configLoader.getConfig('game_balance');
         const cpCfg = fullConfig?.pvp_extended?.combat_power || {};
 
-        // 读取玩家基础属性
-        const attrs = player.attributes || {};
-        const atk = Number(attrs.atk) || 0;
-        const def = Number(attrs.def) || 0;
-        const hpMax = Number(attrs.hp_max) || 0;
-        const speed = Number(attrs.speed) || 0;
-        const sense = Number(attrs.sense) || 0;
+        // 属性与权重都取自统一来源：解析后的完整属性块 + CombatResolver 的单一看板公式
+        const CombatResolver = require('../combat/CombatResolver');
+        const resolved = await CombatResolver.resolveCombatStats(player);
+        const stats = resolved.stats;
         const realmRank = Number(player.realm_rank) || 0;
-
-        // 读取权重（带兜底默认值）
-        const hpWeight = cpCfg.base_hp_weight ?? 1.0;
-        const atkWeight = cpCfg.base_atk_weight ?? 5.0;
-        const defWeight = cpCfg.base_def_weight ?? 3.0;
-        const speedWeight = cpCfg.base_speed_weight ?? 2.0;
-        const senseWeight = cpCfg.base_sense_weight ?? 1.5;
-        const realmMul = cpCfg.realm_rank_multiplier ?? 100;
+        const rawPower = CombatResolver.computePower(stats, realmRank, fullConfig);
         const maxDecimals = cpCfg.max_display_decimals ?? 0;
-
-        // 计算战力
-        const rawPower = (hpMax * hpWeight)
-            + (atk * atkWeight)
-            + (def * defWeight)
-            + (speed * speedWeight)
-            + (sense * senseWeight)
-            + (realmRank * realmMul);
 
         // 阵法战力加成（从 FormationService 获取当前激活阵法效果）
         let formationBonus = 0;
         let formationInfo = null;
         try {
-            formationBonus = await FormationService.calculateCombatPowerBonus(player, { atk, def, hp_max: hpMax, speed, sense });
+            formationBonus = await FormationService.calculateCombatPowerBonus(player, stats);
             if (formationBonus > 0) {
                 const formationEffect = await FormationService.getActiveFormationEffect(player);
                 formationInfo = {
@@ -2127,20 +2172,31 @@ class PvpService {
             realm_rank: realmRank,
             combat_power: combatPower,
             details: {
-                atk,
-                def,
-                hp_max: hpMax,
-                speed,
-                sense,
+                atk: stats.atk,
+                def: stats.def,
+                hp_max: stats.hp_max,
+                speed: stats.speed,
+                sense: stats.sense,
                 realm_rank: realmRank,
                 weights: {
-                    hp_weight: hpWeight,
-                    atk_weight: atkWeight,
-                    def_weight: defWeight,
-                    speed_weight: speedWeight,
-                    sense_weight: senseWeight,
-                    realm_rank_multiplier: realmMul
+                    hp_weight: cpCfg.base_hp_weight ?? 1.0,
+                    atk_weight: cpCfg.base_atk_weight ?? 5.0,
+                    def_weight: cpCfg.base_def_weight ?? 3.0,
+                    speed_weight: cpCfg.base_speed_weight ?? 2.0,
+                    sense_weight: cpCfg.base_sense_weight ?? 1.5,
+                    realm_rank_multiplier: cpCfg.realm_rank_multiplier ?? 100
                 },
+                // 逐项贡献明细：由属性注册表推导，新增带权重的属性会自动出现在这里
+                contributions: CombatResolver.registry.all()
+                    .filter(def => def.powerWeight || cpCfg[`base_${def.key}_weight`] !== undefined)
+                    .map(def => ({
+                        stat: def.key,
+                        label: def.label,
+                        value: Number(stats[def.key]) || 0,
+                        weight: cpCfg[`base_${def.key}_weight`] ?? def.powerWeight,
+                        score: (Number(stats[def.key]) || 0) * (cpCfg[`base_${def.key}_weight`] ?? def.powerWeight)
+                    }))
+                    .filter(item => item.score !== 0),
                 base_power: Math.floor(rawPower * factor) / factor,
                 formation_bonus: formationBonus,
                 formation: formationInfo
@@ -2296,15 +2352,18 @@ class PvpService {
                 speed: Math.floor(baseSpeed * dummyMultiplier)
             };
 
-            // 读取玩家属性（使用副本，零惩罚不持久化 HP/MP 变化）
-            const playerAttrsRaw = player.attributes || {};
+            // 读取玩家属性：与正式战斗同一套解析（境界+灵根+加点+天赋+称号+装备+灵兽+功法+法宝+傀儡）。
+            // 这里过去直接读 player.attributes —— 那份是建号时写下的快照，不含任何装备/功法加成，
+            // 于是"面板 480 攻、切磋按 25 攻结算"，和改造前的战斗入口是同一个病。
+            const playerResolved = await CombatResolver.resolveCombatStats(player);
+            const playerAttrsRaw = playerResolved.stats || {};
             const playerAtk = Number(playerAttrsRaw.atk) || 10;
             const playerDef = Number(playerAttrsRaw.def) || 5;
             const playerHpMax = Number(playerAttrsRaw.hp_max) || 100;
             const playerSpeed = Number(playerAttrsRaw.speed) || 10;
             const playerMpMax = Number(playerAttrsRaw.mp_max) || 0;
 
-            // 模拟战斗（复用 executeAction 的伤害公式，全程内存计算不落库）
+            // 模拟战斗（与 executeAction 共用同一套公式与触发结算，全程内存计算不落库）
             const maxRounds = pvpCfg.max_rounds || 30;
             const battleResult = this._simulateSparringBattle(
                 {
@@ -2316,7 +2375,8 @@ class PvpService {
                 },
                 dummyAttrs,
                 maxRounds,
-                combatCfg
+                combatCfg,
+                playerResolved.info?.technique_skills
             );
 
             // 计算经验奖励 = exp_reward_base + |targetRealmRank - playerRealmRank| * exp_reward_per_realm_gap
@@ -2367,7 +2427,7 @@ class PvpService {
 
     /**
      * 内部方法：模拟切磋木人战斗
-     * 复用 executeAction 的伤害公式（attack/skill），在内存中完成整场战斗
+     * 复用与 executeAction 相同的 CombatResolver 公式声明（attack/skill），在内存中完成整场战斗
      * 木人仅使用普通攻击（无法术），玩家自动决策：MP 足够时用技能，否则普通攻击
      * 先手判定基于速度，速度快者先攻；速度相同则随机
      *
@@ -2375,9 +2435,10 @@ class PvpService {
      * @param {Object} dummyAttrs - 木人战斗属性 { atk, def, hp_max, speed }
      * @param {number} maxRounds - 最大回合数
      * @param {Object} combatConfig - 战斗配置（伤害随机范围等）
+     * @param {Array} [playerSkills] - 玩家已领悟神通（战斗特效参与结算）
      * @returns {Object} 战斗结果 { winner, isDraw, rounds, battleLog, finalPlayerHp, finalDummyHp }
      */
-    static _simulateSparringBattle(playerAttrs, dummyAttrs, maxRounds, combatConfig) {
+    static _simulateSparringBattle(playerAttrs, dummyAttrs, maxRounds, combatConfig, playerSkills) {
         // 先手判定：基于速度
         const playerSpeed = Number(playerAttrs.speed) || 0;
         const dummySpeed = Number(dummyAttrs.speed) || 0;
@@ -2395,11 +2456,23 @@ class PvpService {
         let playerMp = Number(playerAttrs.mp_max) || 0;
         let dummyHp = Number(dummyAttrs.hp_max) || 500;
 
-        // 读取伤害相关配置
-        const dmgRange = combatConfig.damage_random_range ?? 15;
-        const dmgOffset = combatConfig.damage_random_offset ?? 7;
-        const skillDamageMul = combatConfig.skill_damage_multiplier ?? 1.5;
+        // 战斗配置只取灵力消耗；伤害形状交给 CombatResolver 的 profile
         const skillMpCost = combatConfig.skill_mp_cost ?? 20;
+        let lastStrike = null;
+        const strike = (profile, attackerStats, defenderStats, skills) => {
+            lastStrike = CombatResolver.computeDamage(profile, {
+                attackerStats, defenderStats, skills,
+                balanceConfig: { combat: combatConfig }
+            });
+            return lastStrike.missed ? 0 : lastStrike.damage;
+        };
+        // 木人演练同样吃吸血：按本回合打出去的伤害回血，封顶到该方气血上限
+        const withLifesteal = (hp, damageDealt, maxHp) => {
+            const rate = Number(lastStrike?.lifesteal_rate) || 0;
+            if (rate <= 0 || damageDealt <= 0) return hp;
+            const cap = Number(maxHp) > 0 ? Number(maxHp) : Infinity;
+            return Math.min(cap, hp + Math.floor(damageDealt * rate));
+        };
 
         const battleLog = [];
         let round = 0;
@@ -2420,15 +2493,13 @@ class PvpService {
                 if (playerMp >= skillMpCost) {
                     action = 'skill';
                     playerMp -= skillMpCost;
-                    damage = Math.max(1, Math.floor(
-                        (playerAttrs.atk - dummyAttrs.def + Math.floor(Math.random() * dmgRange) - dmgOffset)
-                        * skillDamageMul
-                    ));
+                    damage = strike(CombatResolver.selectSkillProfile(playerSkills, 'player_skill'),
+                        playerAttrs, dummyAttrs, playerSkills);
                 } else {
-                    damage = Math.max(1, playerAttrs.atk - dummyAttrs.def
-                        + Math.floor(Math.random() * dmgRange) - dmgOffset);
+                    damage = strike('player_basic', playerAttrs, dummyAttrs, playerSkills);
                 }
                 dummyHp = Math.max(0, dummyHp - damage);
+                playerHp = withLifesteal(playerHp, damage, playerAttrs.hp_max);
                 battleLog.push({
                     round: round + 1,
                     actor: 'player',
@@ -2444,10 +2515,10 @@ class PvpService {
                     break;
                 }
             } else {
-                // 木人行动：仅普通攻击（木人无法术）
-                const damage = Math.max(1, dummyAttrs.atk - playerAttrs.def
-                    + Math.floor(Math.random() * dmgRange) - dmgOffset);
+                // 木人行动：仅普通攻击（木人无法术），与玩家普攻共用同一条公式
+                const damage = strike('player_basic', dummyAttrs, playerAttrs);
                 playerHp = Math.max(0, playerHp - damage);
+                dummyHp = withLifesteal(dummyHp, damage, dummyAttrs.hp_max);
                 battleLog.push({
                     round: round + 1,
                     actor: 'dummy',

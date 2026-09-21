@@ -66,11 +66,11 @@ router.post('/awaken', auth, async (req, res, next) => {
                 message: 'equipment_id 必须为正整数'
             });
         }
-        if (!['attack', 'defense', 'support', 'balance'].includes(spirit_type)) {
+        if (!ArtifactSpiritService.spiritTypeKeys().includes(spirit_type)) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'spirit_type 仅支持 attack/defense/support/balance'
+                message: `spirit_type 仅支持 ${ArtifactSpiritService.spiritTypeKeys().join('/')}`
             });
         }
         if (spirit_name !== undefined && spirit_name !== null && typeof spirit_name !== 'string') {

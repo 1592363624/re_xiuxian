@@ -1,0 +1,8 @@
+{
+  "id": "fanren_legacy",
+  "name": "凡人遗宝",
+  "version": "1.0.0",
+  "enabled": true,
+  "priority": 100,
+  "description": "参考《凡人修仙传》世界观的资料片：新增剑意属性、法修装备与功法、上古妖虫与掉落表。全部为数据，不含代码。"
+}

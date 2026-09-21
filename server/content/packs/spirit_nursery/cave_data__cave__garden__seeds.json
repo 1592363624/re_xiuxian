@@ -1,0 +1,29 @@
+{
+  "dataset": "cave_data",
+  "into": "cave.garden.seeds",
+  "comment": "洞府药园的两粒新种。这条集合本轮才登记进内容层（cave_data 整份以前不在 DATASET_SPECS 里），登记之前资料片加不进灵种，界面永远只有原来那四种。seed_id 必须等于背包里那件种子的 item_key：GardenService.plant 直接拿 seed_id 去 removeItem，两者不一致的表现是永远提示种子不足。min_cave_level 落在现网阶梯（1/2/3/5）之间，可种清单由它筛。",
+  "add": [
+    {
+      "seed_id": "qi_ye_qing_seed",
+      "name": "七叶青种子",
+      "produce_item_id": "qi_ye_qing",
+      "produce_name": "七叶青",
+      "grow_time_seconds": 2700,
+      "base_yield": 4,
+      "yield_per_level": 0.6,
+      "quality_rates": { "common": 0.65, "fine": 0.28, "rare": 0.07 },
+      "min_cave_level": 1
+    },
+    {
+      "seed_id": "zi_yun_shen_seed",
+      "name": "紫云参种子",
+      "produce_item_id": "zi_yun_shen",
+      "produce_name": "紫云参",
+      "grow_time_seconds": 9000,
+      "base_yield": 2,
+      "yield_per_level": 0.4,
+      "quality_rates": { "common": 0.35, "fine": 0.45, "rare": 0.2 },
+      "min_cave_level": 2
+    }
+  ]
+}

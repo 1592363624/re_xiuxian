@@ -21,6 +21,8 @@ const Player = require('../../models/player');
 const MarketListing = require('../../models/marketListing');
 const Item = require('../../models/item');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+// 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
+const RETURNED = { allowUnknownItem: true };
 
 /** game_balance.market.max_price_ratio 缺失时的兜底折价倍数 */
 const DEFAULT_MAX_PRICE_RATIO = 5;
@@ -326,7 +328,36 @@ class MarketService {
     async buyListing(playerId, listingId) {
         const t = await sequelize.transaction();
         try {
-            // 查询挂单（加锁防并发购买）
+            // 先无锁看一眼挂单：只有知道卖家是谁，才能按口径把"这一单涉及的两个人"的玩家行一次按主键升序锁齐。
+            // 取锁次序：players（双方，id 升序）→ 挂单行 → 背包行。改造前是 挂单 → 买家背包行 → 买家 players
+            // →（addItem 里）卖家背包行 → 卖家 players，而卖家自己在用同一枚物品走的是 players → items，
+            // 两边各持一行互等就是跨玩家 ABBA —— 与"同一人双击"无关，两个活跃玩家同时交易就会撞。
+            const peek = await MarketListing.findOne({ where: { id: listingId }, transaction: t });
+            if (!peek) {
+                throw new AppError('挂单不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+            if (peek.status !== 'active') {
+                throw new AppError('该挂单已交易或已下架', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            if (Number(peek.seller_id) === Number(playerId)) {
+                throw new AppError('不能购买自己的挂单', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            const lockedPlayers = await Player.findAll({
+                where: { id: [Number(playerId), Number(peek.seller_id)].sort((a, b) => a - b) },
+                order: [['id', 'ASC']],
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+            const buyer = lockedPlayers.find(p => Number(p.id) === Number(playerId));
+            if (!buyer) {
+                throw new AppError('买家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+            if (buyer.is_dead) {
+                throw new AppError('已陨落，无法购买', 400, ErrorCodes.VALIDATION_ERROR);
+            }
+
+            // 查询挂单（加锁防并发购买）：锁内这份才是成交依据
             const listing = await MarketListing.findOne({
                 where: { id: listingId },
                 transaction: t,
@@ -356,15 +387,6 @@ class MarketService {
                 throw new AppError(`换取物品不足，需要 ${listing.want_item_name} x${listing.want_quantity}`, 400, ErrorCodes.VALIDATION_ERROR);
             }
 
-            // 校验买家存在且未死亡
-            const buyer = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
-            if (!buyer) {
-                throw new AppError('买家不存在', 404, ErrorCodes.NOT_FOUND);
-            }
-            if (buyer.is_dead) {
-                throw new AppError('已陨落，无法购买', 400, ErrorCodes.VALIDATION_ERROR);
-            }
-
             // 1. 扣减买家换取物品
             const removeOk = await InventoryService.removeItem(
                 playerId,
@@ -381,7 +403,9 @@ class MarketService {
                 listing.seller_id,
                 listing.want_item_key,
                 listing.want_quantity,
-                t
+                t,
+                null,
+                RETURNED
             );
 
             // 3. 给买家添加上架物品
@@ -389,7 +413,9 @@ class MarketService {
                 playerId,
                 listing.item_key,
                 listing.quantity,
-                t
+                t,
+                null,
+                RETURNED
             );
 
             // 4. 扣减卖家上架物品（上架时已扣减，此处无需再扣）
@@ -451,7 +477,9 @@ class MarketService {
                 playerId,
                 listing.item_key,
                 listing.quantity,
-                t
+                t,
+                null,
+                RETURNED
             );
 
             // 更新挂单状态为已下架

@@ -5,6 +5,7 @@
  */
 const jwt = require('jsonwebtoken');
 const eventBus = require('../../modules/infrastructure/EventBus');
+const configLoader = require('../../modules/infrastructure/ConfigLoader');
 const Player = require('../../models/player');
 
 class WebSocketNotificationService {
@@ -285,8 +286,11 @@ class WebSocketNotificationService {
      * @returns {string} 图标标识
      */
     getNotificationIcon(type) {
-        const iconConfig = require('../../config/notification_icons.json');
-        return iconConfig.icons[type] || iconConfig.icons.default;
+        // 走 ConfigLoader：以前 require('../../config/notification_icons.json') 会被 Node 永久缓存，
+        // 热更接口改了这份配置，图标也不会变。
+        const iconConfig = configLoader.getConfig('notification_icons') || {};
+        const icons = iconConfig.icons || {};
+        return icons[type] || icons.default;
     }
 
     /**

@@ -4,7 +4,10 @@
         { "id": "wood", "name": "木", "displayName": "木", "type": "wood", "description": "木属性灵根，气血加成" },
         { "id": "water", "name": "水", "displayName": "水", "type": "water", "description": "水属性灵根，速度加成" },
         { "id": "fire", "name": "火", "displayName": "火", "type": "fire", "description": "火属性灵根，攻击加成" },
-        { "id": "earth", "name": "土", "displayName": "土", "type": "earth", "description": "土属性灵根，防御加成" }
+        { "id": "earth", "name": "土", "displayName": "土", "type": "earth", "description": "土属性灵根，防御加成" },
+        { "id": "thunder", "name": "雷", "displayName": "雷", "type": "thunder", "description": "雷属性灵根，攻击加成" },
+        { "id": "ice", "name": "冰", "displayName": "冰", "type": "ice", "description": "冰属性灵根，灵力与防御加成" },
+        { "id": "wind", "name": "风", "displayName": "风", "type": "wind", "description": "风属性灵根，速度加成" }
     ],
     "spiritRootProbabilities": {
         "金": 0.2,
@@ -33,7 +36,10 @@
         "木": { "hp_max": 30, "mp_max": 8 },
         "水": { "speed": 3, "mp_max": 10 },
         "火": { "atk": 5, "speed": 2 },
-        "土": { "def": 4, "hp_max": 25 }
+        "土": { "def": 4, "hp_max": 25 },
+        "雷": { "atk": 6, "speed": 1 },
+        "冰": { "def": 3, "mp_max": 12 },
+        "风": { "speed": 4, "sense": 2 }
     },
     "expGrowthRate": 3,
     "attributeGrowthRate": 1.5

@@ -42,6 +42,8 @@ const InventoryService = require('./InventoryService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { Op } = require('sequelize');
 const { ErrorCodes } = require('../../middleware/errorHandler');
+// 傀儡属性与其他战斗单位（敌人、木人、探渊怪）共用同一套折算与血量别名口径
+const { HP_KEYS, scaleStatBlock } = require('../combat/CombatStats');
 
 class PuppetService {
     static _initialized = false;
@@ -70,20 +72,33 @@ class PuppetService {
     }
 
     /**
-     * 计算傀儡当前属性（base_stats × (1 + (level-1) × growth_rate)）
+     * 计算傀儡当前属性（base_stats × (1 + (level-1) × 该属性自己的增长率)）
+     *
+     * 改造前两件事：逐字段手写四行，而且 atk/def/hp 一律乘 `stat_growth_rate.atk`
+     * ——配置里明明有独立的 `def`、`hp` 增长率，调它们不会有任何效果（现网三个值都是 0.08，
+     * 所以数值一直没变，改错了也没人发现）。现在每个键读自己那一档，
+     * 资料片给傀儡类型加一个新属性也自动跟着等级走。
+     *
      * @param {Object} typeCfg - 傀儡类型配置
      * @param {number} level - 当前等级
-     * @returns {Object} { atk, def, hp, speed }
+     * @returns {Object} 整块属性（base_stats 里有什么就算什么）
      */
     static _calcStats(typeCfg, level) {
-        const growth = this._config.quench.stat_growth_rate;
-        const multiplier = 1 + (level - 1) * growth.atk; // 各属性增长率相同
-        return {
-            atk: Math.floor(typeCfg.base_stats.atk * multiplier),
-            def: Math.floor(typeCfg.base_stats.def * multiplier),
-            hp: Math.floor(typeCfg.base_stats.hp * multiplier),
-            speed: Math.floor(typeCfg.base_stats.speed * (1 + (level - 1) * growth.speed))
+        const growth = this._config.quench.stat_growth_rate || {};
+        const steps = (Number(level) || 1) - 1;
+        const rateFor = (key) => {
+            const rate = Number(HP_KEYS.includes(key) ? growth.hp : growth[key]);
+            // 没登记增长率的属性按"不随等级成长"处理：宁可平着不动，也不要凭空替玩家发明一个数
+            return Number.isFinite(rate) ? rate : 0;
         };
+
+        const stats = {};
+        for (const [key, raw] of Object.entries(typeCfg.base_stats || {})) {
+            const value = Number(raw);
+            if (!Number.isFinite(value)) continue;
+            stats[key] = Math.floor(value * (1 + steps * rateFor(key)));
+        }
+        return stats;
     }
 
     /**
@@ -885,9 +900,42 @@ class PuppetService {
     }
 
     /**
+     * 一只傀儡当前的完整属性块
+     *
+     * 行里的四个老键（atk/def/hp/speed）仍以制造/淬炼时写入的快照为准 —— 现网语义一字不变；
+     * 其余键按"内容声明 × 该属性自己的等级成长"补上。这样资料片给傀儡类型加一个新属性
+     * 不必先给 player_puppets 加一列就能生效（那才是真正的堵点：老路上属性只能住在列里）。
+     *
+     * 内容里查不到这个类型（下架/关掉资料片）时退回行里的快照，不让一只已有的傀儡变成空壳。
+     *
+     * @param {Object} puppet - PlayerPuppet 实例或纯对象
+     * @returns {Object} 整块属性（数值一律整数，血量三种叫法一致）
+     * @private
+     */
+    static _statsOf(puppet) {
+        const row = typeof puppet.get === 'function' ? puppet.get({ plain: true }) : puppet;
+        const typeCfg = (this._config.puppet_types || {})[row.puppet_type] || {};
+        const block = { ...this._calcStats(typeCfg, Number(row.level) || 1) };
+        for (const key of HP_KEYS.concat('atk', 'def', 'speed')) {
+            const value = Number(row[key]);
+            if (Number.isFinite(value)) block[key] = value;
+        }
+        // 老快照与新声明都带血量叫法时只留一个真相（"面板 900、结算 100"就是这么来的）
+        const hp = Number(block.hp ?? block.max_hp ?? block.hp_max);
+        if (Number.isFinite(hp)) for (const key of HP_KEYS) if (key in block) block[key] = hp;
+        return block;
+    }
+
+    /**
      * 辅助方法：获取玩家出战傀儡的属性加成（供 CombatService 调用）
+     *
+     * 整块折算：以前这里手写四行"傀儡属性列 × ratio"，
+     * 于是傀儡带上任何一个新属性（暴伤、五行抗性…）都要记得回来补一行；忘了的那一个
+     * 不报错，只是"这个属性对傀儡永远不生效"。registeredOnly 只折算属性注册表登记过的键，
+     * 所以 id / level / exp / durability 这些同在一行里的数字不会被倍率带走。
+     *
      * @param {number} playerId - 玩家ID
-     * @returns {Promise<Object|null>} { atk, def, hp, speed, puppet_name } 或 null
+     * @returns {Promise<Object|null>} 折算后的属性块 + puppet_name / puppet_id
      */
     static async getBattlePuppetBonus(playerId) {
         const puppet = await PlayerPuppet.findOne({
@@ -895,21 +943,17 @@ class PuppetService {
         });
         if (!puppet || puppet.durability <= 0) return null;
 
-        const ratio = this._config.battle_stat_ratio;
         return {
-            atk: Math.floor(puppet.atk * ratio),
-            def: Math.floor(puppet.def * ratio),
-            hp: Math.floor(puppet.hp * ratio),
-            speed: Math.floor(puppet.speed * ratio),
+            ...scaleStatBlock(this._statsOf(puppet), this._config.battle_stat_ratio, { registeredOnly: true }),
             puppet_name: puppet.name,
             puppet_id: puppet.id
         };
     }
 
     /**
-     * 辅助方法：获取玩家护法傀儡的反击伤害（供 SeclusionService/PvpService 调用）
+     * 辅助方法：获取玩家护法傀儡的反击属性（供 SeclusionService/PvpService 调用）
      * @param {number} playerId - 玩家ID
-     * @returns {Promise<Object|null>} { counter_atk, puppet_name, puppet_id } 或 null
+     * @returns {Promise<Object|null>} { counter_atk, ...整块折算后的属性, puppet_name, puppet_id } 或 null
      */
     static async getGuardPuppetCounter(playerId) {
         const puppet = await PlayerPuppet.findOne({
@@ -917,12 +961,11 @@ class PuppetService {
         });
         if (!puppet || puppet.durability <= 0) return null;
 
-        const ratio = this._config.guard_counter_ratio;
-        return {
-            counter_atk: Math.floor(puppet.atk * ratio),
-            puppet_name: puppet.name,
-            puppet_id: puppet.id
-        };
+        const stats = scaleStatBlock(
+            this._statsOf(puppet), this._config.guard_counter_ratio, { registeredOnly: true }
+        );
+        // counter_atk 是既有调用方读的键，保留它；整块一起给，新属性才有落点而不必再改这里
+        return { ...stats, counter_atk: stats.atk, puppet_name: puppet.name, puppet_id: puppet.id };
     }
 }
 

@@ -13,11 +13,13 @@ class MapService {
      * 计算移动到目标地图的消耗
      * 算法参数从 game_balance 配置读取，避免硬编码
      * @param {Object} targetMap - 目标地图配置
-     * @param {Object} player - 玩家对象
+     * @param {Object} player - 玩家实例
      * @param {Object|null} currentMap - 当前地图配置（可选）
-     * @returns {Object} { cost, time, distance }
+     * @param {Object|null} resolvedStats - 已解析的战斗属性（同一次请求里算多个地图时传进来，
+     *        省掉逐个地图重复解析；不传则内部自己解析）
+     * @returns {Promise<Object>} { cost, time, distance }
      */
-    static calculateTravelCost(targetMap, player, currentMap = null) {
+    static async calculateTravelCost(targetMap, player, currentMap = null, resolvedStats = null) {
         const gameBalance = configLoader.getConfig('game_balance') || {};
         const travelConfig = gameBalance.map?.travel || {};
         const typeMultiplier = gameBalance.map?.type_multiplier || {};
@@ -45,7 +47,11 @@ class MapService {
                 Math.pow(targetMap.y - currentMap.y, 2)
             );
             const terrainMod = terrainFactor[environment] ?? 1;
-            const playerSpeed = player.attributes?.speed ?? 10;
+            // 速度取解析后的属性：blob 里那份 speed 是旧管线留下的基数，装备/功法/灵根加成
+            // 都不在里面，照它算会让"实际更快的玩家花更长的赶路时间"。
+            const stats = resolvedStats
+                || (await require('../combat/CombatResolver').resolveCombatStats(player)).stats;
+            const playerSpeed = Number(stats.speed) || 10;
             time = Math.floor(baseTime + (distance * terrainMod * terrainMultiplier) / (playerSpeed / speedDivisor));
         } else {
             time = travelTime * baseTime;

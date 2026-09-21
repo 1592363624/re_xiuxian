@@ -34,6 +34,7 @@ const PlayerRecipe = require('../../models/playerRecipe');
 const Player = require('../../models/player');
 const InventoryService = require('./InventoryService');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+const { logOnce } = require('../../utils/logOnce');
 
 class CraftingService {
     constructor() {
@@ -107,7 +108,8 @@ class CraftingService {
         // 使各计算函数回退到内置默认值而非中断炼制流程
         try {
             return this.configLoader?.getConfig('game_balance')?.crafting || {};
-        } catch (err) {
+        } catch (e) {
+            logOnce('CraftingService.getBalanceConfig', 'game_balance.crafting 配置读取失败，炼制回退内置默认值: ' + e.message);
             return {};
         }
     }

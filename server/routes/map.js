@@ -22,6 +22,8 @@ const { infrastructure } = require('../modules');
 const configLoader = infrastructure.ConfigLoader;
 // 修复：引入 MapService，将业务算法下沉到 Service 层
 const MapService = require('../game/services/MapService');
+// 赶路时间要看解析后的速度（含装备/功法加成），与 MapService 同源
+const CombatResolver = require('../game/combat/CombatResolver');
 // 引入 WebSocket 通知服务，用于历练关键节点主动推送玩家数据更新
 const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 
@@ -75,8 +77,10 @@ router.get('/info', auth, async (req, res) => {
             return res.status(404).json({ code: 404, message: '地图不存在' });
         }
 
-        const connectedMaps = mapConfig.getConnectedMaps(mapId).map(m => {
-            const costInfo = MapService.calculateTravelCost(m, player, mapConfigData);
+        // 一次请求里要给每张相连地图都算赶路时间：解析一次属性传下去，别每张图重算一遍
+        const { stats: resolvedStats } = await CombatResolver.resolveCombatStats(player);
+        const connectedMaps = await Promise.all(mapConfig.getConnectedMaps(mapId).map(async m => {
+            const costInfo = await MapService.calculateTravelCost(m, player, mapConfigData, resolvedStats);
             return {
                 id: m.id,
                 name: m.name,
@@ -90,7 +94,7 @@ router.get('/info', auth, async (req, res) => {
                 move_time: costInfo.time,
                 move_distance: costInfo.distance
             };
-        });
+        }));
 
         const responseData = {
             ...mapConfigData,
@@ -110,7 +114,10 @@ router.get('/info', auth, async (req, res) => {
                 connected_maps: connectedMaps,
                 is_moving: player.is_moving || false,
                 // 返回玩家当前灵力，供前端展示判断
-                player_mp_current: player.mp_current?.toString() || '0'
+                player_mp_current: player.mp_current?.toString() || '0',
+                // 移动速度取解析后的属性：players.attributes 里那份是旧管线留下的基数，
+                // 客户端照它显示就是"面板 10、赶路时间却按 60 算"（现在两边同一个数）
+                player_speed: Number(resolvedStats.speed) || 0
             }
         });
     } catch (error) {
@@ -139,7 +146,7 @@ router.post('/calculate-move-cost', auth, async (req, res) => {
             return res.status(404).json({ code: 404, message: '地图配置不存在' });
         }
 
-        const travelCostInfo = MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
+        const travelCostInfo = await MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
 
         res.json({
             code: 200,
@@ -189,7 +196,8 @@ router.post('/batch-calculate-move-cost', auth, async (req, res) => {
             return res.status(404).json({ code: 404, message: '当前地图配置不存在' });
         }
 
-        // 批量计算所有目标地图的移动消耗
+        // 批量计算所有目标地图的移动消耗（属性只解析一次，逐张图传下去）
+        const { stats: resolvedStats } = await CombatResolver.resolveCombatStats(player);
         const costs = {};
         for (const targetMapId of targetMapIds) {
             const targetMapConfig = mapConfig.getMap(targetMapId);
@@ -197,7 +205,7 @@ router.post('/batch-calculate-move-cost', auth, async (req, res) => {
                 // 配置不存在的地图跳过，不写入结果
                 continue;
             }
-            const travelCostInfo = MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
+            const travelCostInfo = await MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig, resolvedStats);
             costs[targetMapId] = {
                 cost: travelCostInfo.cost,
                 time: travelCostInfo.time,
@@ -264,7 +272,7 @@ router.post('/start-move', auth, async (req, res) => {
             });
         }
 
-        const travelCostInfo = MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
+        const travelCostInfo = await MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
 
         if (player.mp_current < travelCostInfo.cost) {
             return res.status(400).json({ 

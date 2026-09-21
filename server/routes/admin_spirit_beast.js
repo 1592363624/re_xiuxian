@@ -28,12 +28,14 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const SpiritBeast = require('../models/spiritBeast');
+const SpiritBeastService = require('../game/services/SpiritBeastService');
 const Player = require('../models/player');
 const AdminLog = require('../models/admin_log');
 const auth = require('../middleware/auth');
 const sequelize = require('../config/database');
 const { infrastructure } = require('../modules');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
+const { ensureStatRegistryLoaded } = require('../game/stats');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -71,17 +73,9 @@ async function logAdminAction(adminId, action, details, req) {
 }
 
 /**
- * 工具函数：根据配置基础值和灵兽等级/星级计算实际属性
- * 与 SpiritBeastService.calcAttr 保持一致的公式：base * (1 + (level-1)*0.1) * star_level
- * @param {number} baseValue - 配置中的基础值
- * @param {number} level - 灵兽等级
- * @param {number} starLevel - 星级
- * @returns {number} 计算后的属性值
+ * 灵兽属性算式不在这里重复：一律走 SpiritBeastService.computeStats（内容里声明的每个 base_<属性>）。
+ * 这个路由以前自己复制了一份 calcAttr + 四行手写赋值，注释还写着"与 SpiritBeastService.calcAttr 保持一致"。
  */
-function calcAttr(baseValue, level, starLevel) {
-    const levelFactor = 1 + (level - 1) * 0.1;
-    return Math.floor(Number(baseValue) * levelFactor * starLevel);
-}
 
 /**
  * 校验灵兽种类是否存在并返回配置
@@ -487,11 +481,8 @@ router.post('/give', auth, adminCheck, async (req, res, next) => {
             );
         }
 
-        // 按公式计算属性：base * (1 + (level-1)*0.1) * star_level
-        const hpMax = calcAttr(beastType.base_hp, finalLevel, finalStar);
-        const atk = calcAttr(beastType.base_atk, finalLevel, finalStar);
-        const def = calcAttr(beastType.base_def, finalLevel, finalStar);
-        const speed = calcAttr(beastType.base_speed, finalLevel, finalStar);
+        // 属性一律由内容声明的 base_<属性> 算出（与玩家侧捕获/升级同一份算式）
+        const stats = SpiritBeastService.computeStats(beastType, finalLevel, finalStar);
 
         // 创建灵兽
         const newBeast = await SpiritBeast.create({
@@ -503,10 +494,7 @@ router.post('/give', auth, adminCheck, async (req, res, next) => {
             star_level: finalStar,
             level: finalLevel,
             exp: 0,
-            hp_max: hpMax,
-            atk,
-            def,
-            speed,
+            ...stats,
             loyalty: finalLoyalty,
             is_active: finalIsActive,
             last_feed_time: null,
@@ -642,24 +630,44 @@ router.put('/beasts/:beastId', auth, adminCheck, async (req, res, next) => {
             changes.is_active = { from: beast.is_active, to: newActive };
         }
 
-        // 处理 atk/def/hp_max/speed（手动覆盖）
-        ['atk', 'def', 'speed'].forEach(field => {
-            if (req.body[field] !== undefined) {
-                const val = parseInt(req.body[field]);
-                if (isNaN(val) || val < 0) {
+        // 可手改的属性 = 属性注册表里的键 ∩ spirit_beasts 上真有的列（现在是 hp_max/atk/def/speed）。
+        // 这么取有两个好处：注册表新加一档属性、又给表加了列，这里不用改就认得；
+        // 反过来"注册了但没列"的属性不会悄悄丢掉 —— 下面单独点名拒掉，因为加列属于改表，要先走授权。
+        const statRegistry = ensureStatRegistryLoaded();
+        const statColumns = Object.keys(SpiritBeast.rawAttributes).filter(name => statRegistry.has(name));
+        for (const field of statColumns) {
+            if (req.body[field] === undefined) continue;
+            const isBigInt = /BIGINT/i.test(String(SpiritBeast.rawAttributes[field].type));
+            let value;
+            if (isBigInt) {
+                try {
+                    value = BigInt(String(req.body[field]));
+                } catch (e) {
+                    throw new AppError(`${field} 必须是整数`, 400, ErrorCodes.VALIDATION_ERROR);
+                }
+                if (value < 0n) {
+                    throw new AppError(`${field} 不能为负数`, 400, ErrorCodes.VALIDATION_ERROR);
+                }
+            } else {
+                value = parseInt(req.body[field], 10);
+                if (isNaN(value) || value < 0) {
                     throw new AppError(`${field} 必须为非负整数`, 400, ErrorCodes.VALIDATION_ERROR);
                 }
-                updates[field] = val;
-                changes[field] = { from: beast[field], to: val };
             }
-        });
-        if (req.body.hp_max !== undefined) {
-            const val = BigInt(String(req.body.hp_max));
-            if (val < 0n) {
-                throw new AppError('hp_max 不能为负数', 400, ErrorCodes.VALIDATION_ERROR);
-            }
-            updates.hp_max = val.toString();
-            changes.hp_max = { from: beast.hp_max?.toString() || '0', to: val.toString() };
+            const stored = isBigInt ? value.toString() : value;
+            updates[field] = stored;
+            changes[field] = { from: isBigInt ? (beast[field]?.toString() || '0') : beast[field], to: stored };
+        }
+
+        // 传了注册表认得、但这张表没有列的属性：明说，别当没看见（只改名字顺带传个 mdef 时最容易漏）
+        const dropped = Object.keys(req.body)
+            .filter(key => statRegistry.has(key) && !statColumns.includes(key));
+        if (dropped.length) {
+            throw new AppError(
+                `这些属性改不了，因为 spirit_beasts 上没有对应列：${dropped.join('/')}。`
+                + `当前可改的列：${statColumns.join('/')}（要给灵兽加一档属性 = 先加列，改表需要授权）`,
+                400, ErrorCodes.VALIDATION_ERROR
+            );
         }
 
         // 是否按新 level/star 重算属性
@@ -668,25 +676,13 @@ router.put('/beasts/:beastId', auth, adminCheck, async (req, res, next) => {
             if (beastType) {
                 const finalLevel = updates.level ?? beast.level;
                 const finalStar = updates.star_level ?? beast.star_level;
-                const hpMax = calcAttr(beastType.base_hp, finalLevel, finalStar);
-                const atk = calcAttr(beastType.base_atk, finalLevel, finalStar);
-                const def = calcAttr(beastType.base_def, finalLevel, finalStar);
-                const speed = calcAttr(beastType.base_speed, finalLevel, finalStar);
-                updates.hp_max = String(hpMax);
-                updates.atk = atk;
-                updates.def = def;
-                updates.speed = speed;
+                const stats = SpiritBeastService.computeStats(beastType, finalLevel, finalStar);
+                Object.assign(updates, stats);
+                if (updates.hp_max !== undefined) updates.hp_max = String(updates.hp_max);
                 changes.recalculated = {
-                    base_hp: beastType.base_hp,
-                    base_atk: beastType.base_atk,
-                    base_def: beastType.base_def,
-                    base_speed: beastType.base_speed,
                     final_level: finalLevel,
                     final_star: finalStar,
-                    new_hp_max: String(hpMax),
-                    new_atk: atk,
-                    new_def: def,
-                    new_speed: speed
+                    stats
                 };
             }
         }

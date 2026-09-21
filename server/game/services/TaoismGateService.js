@@ -58,8 +58,7 @@ class TaoismGateService {
     async getProfile(player) {
         if (!this.initialized) throw new Error('服务未初始化');
 
-        const gate = await this._getOrCreateGate(player.id);
-        await this._checkDailyReset(gate);
+        const gate = await this._resetDailyTasksForRead(player.id);
 
         const pathConfig = gate.dao_path ? this.config.dao_paths[gate.dao_path] : null;
         const levelConfig = this.config.level_table[String(gate.dao_level)] || this.config.level_table['1'];
@@ -148,7 +147,7 @@ class TaoismGateService {
             throw new AppError(`需达到境界rank ${this.config.taoism_gate.min_realm_rank}（元婴期）才能选择道途`, 400, ErrorCodes.VALIDATION_ERROR);
         }
 
-        const gate = await this._getOrCreateGate(player.id);
+        let gate = await this._getOrCreateGate(player.id);
 
         // 校验是否已选择道途
         if (gate.dao_path) {
@@ -165,6 +164,12 @@ class TaoismGateService {
         // 事务更新
         const t = await sequelize.transaction();
         try {
+            // 锁内重判"是否已选过道途"：并发双开 choose 时两边都会从各自快照看到空值，
+            // 后提交的会把先提交的那一份（含 dao_level/dao_exp/冷却）整体盖掉
+            gate = await this._lockGate(player.id, t);
+            if (gate.dao_path) {
+                throw new AppError(`已选择道途 ${this.config.dao_paths[gate.dao_path].name}，请使用切换接口`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
             gate.dao_path = pathKey;
             gate.dao_level = 1;
             gate.dao_exp = 0;
@@ -204,7 +209,7 @@ class TaoismGateService {
             throw new AppError('无效的道途，可选：metal/wood/water/fire/earth', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
-        const gate = await this._getOrCreateGate(player.id);
+        let gate = await this._getOrCreateGate(player.id);
         if (!gate.dao_path) {
             throw new AppError('尚未选择道途，请使用 choose 接口首次选择', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
@@ -213,20 +218,32 @@ class TaoismGateService {
         }
 
         // 校验切换冷却（7天）
-        if (gate.last_switch_time) {
-            const cooldownHours = this.config.taoism_gate.switch_cooldown_hours;
-            const elapsed = (Date.now() - new Date(gate.last_switch_time).getTime()) / (1000 * 60 * 60);
-            if (elapsed < cooldownHours) {
-                const remaining = Math.ceil(cooldownHours - elapsed);
-                throw new AppError(`道途切换冷却中，还需 ${remaining} 小时`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-            }
+        const cooldownLeft = this._switchCooldownHoursLeft(gate);
+        if (cooldownLeft > 0) {
+            throw new AppError(`道途切换冷却中，还需 ${cooldownLeft} 小时`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
         // 计算切换费用：每月1次免费，之后消耗法则碎片
-        const needFragment = !this._isFreeSwitchThisMonth(gate);
+        let needFragment = !this._isFreeSwitchThisMonth(gate);
 
         const t = await sequelize.transaction();
         try {
+            // 锁次序与本服务其它写路径一致：taoism_gate → （divine_sense）→ law。
+            // 切换冷却/是否免费/当前道途都要照锁住的那一份重判：last_switch_time 与切换次数都在整块列里，
+            // 两个并发切换会双双通过外面的检查，然后后提交的把前一次的切换记录盖掉。
+            gate = await this._lockGate(player.id, t);
+            if (!gate.dao_path) {
+                throw new AppError('尚未选择道途，请使用 choose 接口首次选择', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            if (gate.dao_path === newPathKey) {
+                throw new AppError('当前已是该道途，无需切换', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            const freshCooldown = this._switchCooldownHoursLeft(gate);
+            if (freshCooldown > 0) {
+                throw new AppError(`道途切换冷却中，还需 ${freshCooldown} 小时`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            needFragment = !this._isFreeSwitchThisMonth(gate);
+
             // 扣除法则碎片（如需）
             if (needFragment) {
                 const law = await PlayerLaw.findOne({ where: { player_id: player.id }, transaction: t, lock: t.LOCK.UPDATE });
@@ -281,7 +298,7 @@ class TaoismGateService {
     async cultivate(player) {
         if (!this.initialized) throw new Error('服务未初始化');
 
-        const gate = await this._getOrCreateGate(player.id);
+        let gate = await this._getOrCreateGate(player.id);
         if (!gate.dao_path) {
             throw new AppError('尚未选择道途，无法修炼', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
@@ -289,7 +306,7 @@ class TaoismGateService {
             throw new AppError('道途已满级，无需继续修炼', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
-        await this._checkDailyReset(gate);
+        await this._resetDailyTasksForRead(player.id);
 
         // 校验每日修炼次数（使用专门的 daily_cultivate_count 字段，避免与日常任务进度混淆）
         // 跨日重置：如果 last_cultivate_date 不是今天，重置 daily_cultivate_count
@@ -306,6 +323,20 @@ class TaoismGateService {
         const divineSenseCost = this.config.taoism_gate.cultivate_divine_sense_cost;
         const t = await sequelize.transaction();
         try {
+            // 先锁道途行再锁神识（本服务统一次序），并把"今日次数上限"照锁住的那一份重判一遍：
+            // daily_cultivate_count 在整块列上，两个并发修炼会各自从旧快照 +1，后提交的抹掉前一个 → 上限形同虚设
+            gate = await this._lockGate(player.id, t);
+            if (!gate.dao_path) {
+                throw new AppError('尚未选择道途，无法修炼', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            if (gate.last_cultivate_date !== todayDateStr) {
+                gate.daily_cultivate_count = 0;
+                gate.last_cultivate_date = todayDateStr;
+            }
+            if (gate.daily_cultivate_count >= this.config.taoism_gate.daily_cultivate_limit) {
+                throw new AppError(`今日修炼次数已达上限（${this.config.taoism_gate.daily_cultivate_limit}次）`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
             // 扣除神识
             const divineSense = await PlayerDivineSense.findOne({ where: { player_id: player.id }, transaction: t, lock: t.LOCK.UPDATE });
             if (!divineSense || divineSense.divine_sense_current < divineSenseCost) {
@@ -362,13 +393,14 @@ class TaoismGateService {
     async useSkill(player, targetPlayerId = null, targetBeastId = null) {
         if (!this.initialized) throw new Error('服务未初始化');
 
-        const gate = await this._getOrCreateGate(player.id);
+        // 快速失败用的预读；真正的判定在锁内重做一遍（见 _lockGate）
+        let gate = await this._getOrCreateGate(player.id);
         if (!gate.dao_path) {
             throw new AppError('尚未选择道途，无法使用技能', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
-        const pathConfig = this.config.dao_paths[gate.dao_path];
-        const skillId = pathConfig.skill_id;
+        let pathConfig = this.config.dao_paths[gate.dao_path];
+        let skillId = pathConfig.skill_id;
 
         // 校验等级
         if (gate.dao_level < pathConfig.skill_min_level) {
@@ -382,8 +414,7 @@ class TaoismGateService {
             throw new AppError(`技能冷却中，还需 ${remaining} 小时`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
-        // 校验神识
-        const divineSense = await PlayerDivineSense.findOne({ where: { player_id: player.id } });
+        let divineSense = await PlayerDivineSense.findOne({ where: { player_id: player.id } });
         if (!divineSense || divineSense.divine_sense_current < pathConfig.skill_divine_sense_cost) {
             throw new AppError(`神识不足，使用 ${pathConfig.skill_name} 需 ${pathConfig.skill_divine_sense_cost} 神识`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
@@ -391,10 +422,36 @@ class TaoismGateService {
         // 执行技能效果
         const t = await sequelize.transaction();
         try {
+            // 涉及的玩家行一次按 player_id 升序取齐再判定：火眼会消耗目标的水镜盾（写对方那一行），
+            // 双方互放时"先锁自己再锁对方"就是 ABBA 死锁
+            const lockedGates = await this._lockGatesByPlayerIdAsc([player.id, targetPlayerId], t);
+            gate = lockedGates.get(Number(player.id)) || await this._lockGate(player.id, t);
+            const targetGate = targetPlayerId ? (lockedGates.get(Number(targetPlayerId)) || null) : null;
+            // 锁内重取道途与技能：外面那份 pathConfig 可能已经过期（并发里刚切过道途，冷却会记到别的技能上）
+            pathConfig = this.config.dao_paths[gate.dao_path];
+            if (!pathConfig) {
+                throw new AppError('尚未选择道途，无法使用技能', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            skillId = pathConfig.skill_id;
+            if (gate.dao_level < pathConfig.skill_min_level) {
+                throw new AppError(`道途等级不足，需 ${pathConfig.skill_min_level} 级才能使用技能 ${pathConfig.skill_name}`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            const freshCooldown = gate.skill_cooldowns?.[skillId];
+            if (freshCooldown && new Date(freshCooldown) > new Date()) {
+                throw new AppError(`技能冷却中，还需 ${Math.ceil((new Date(freshCooldown) - new Date()) / (1000 * 60 * 60))} 小时`,
+                    400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            divineSense = await PlayerDivineSense.findOne({
+                where: { player_id: player.id }, transaction: t, lock: t.LOCK.UPDATE
+            });
+            if (!divineSense || divineSense.divine_sense_current < pathConfig.skill_divine_sense_cost) {
+                throw new AppError(`神识不足，使用 ${pathConfig.skill_name} 需 ${pathConfig.skill_divine_sense_cost} 神识`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
             let skillResult;
             switch (skillId) {
                 case 'metal_blade':
-                    skillResult = await this._executeMetalBlade(player, gate, targetPlayerId, targetBeastId, t);
+                    skillResult = await this._executeMetalBlade(player, gate, targetPlayerId, targetBeastId, t, targetGate);
                     break;
                 case 'wood_heal':
                     skillResult = await this._executeWoodHeal(player, gate, targetBeastId, t);
@@ -403,10 +460,10 @@ class TaoismGateService {
                     skillResult = await this._executeWaterMirror(player, gate, t);
                     break;
                 case 'fire_eye':
-                    skillResult = await this._executeFireEye(player, gate, targetPlayerId, t);
+                    skillResult = await this._executeFireEye(player, gate, targetPlayerId, t, targetGate);
                     break;
                 case 'earth_prison':
-                    skillResult = await this._executeEarthPrison(player, gate, targetPlayerId, targetBeastId, t);
+                    skillResult = await this._executeEarthPrison(player, gate, targetPlayerId, targetBeastId, t, targetGate);
                     break;
                 default:
                     throw new AppError('未知技能', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
@@ -460,8 +517,7 @@ class TaoismGateService {
     async getDailyTasks(player) {
         if (!this.initialized) throw new Error('服务未初始化');
 
-        const gate = await this._getOrCreateGate(player.id);
-        await this._checkDailyReset(gate);
+        const gate = await this._resetDailyTasksForRead(player.id);
 
         // 如果未选择道途，返回空列表
         if (!gate.dao_path) {
@@ -485,19 +541,19 @@ class TaoismGateService {
     async claimTaskReward(player, taskIndex) {
         if (!this.initialized) throw new Error('服务未初始化');
 
-        const gate = await this._getOrCreateGate(player.id);
+        let gate = await this._getOrCreateGate(player.id);
         if (!gate.dao_path) {
             throw new AppError('尚未选择道途，无任务奖励', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
-        await this._checkDailyReset(gate);
+        gate = await this._resetDailyTasksForRead(player.id);
 
-        const tasks = gate.daily_tasks || [];
+        let tasks = gate.daily_tasks || [];
         if (taskIndex < 0 || taskIndex >= tasks.length) {
             throw new AppError('任务索引无效', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
-        const task = tasks[taskIndex];
+        let task = tasks[taskIndex];
         if (!task.completed) {
             throw new AppError('任务尚未完成', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
@@ -507,6 +563,22 @@ class TaoismGateService {
 
         const t = await sequelize.transaction();
         try {
+            // 锁住之后重判一遍：rewards_claimed 只是整块 daily_tasks 里的一个标记，两个并发"领取"
+            // 都从外面那份快照通过检查，就会把同一条任务的奖励发两次（神识/法则碎片/经验都重复给）。
+            gate = await this._lockGate(player.id, t);
+            await this._checkDailyReset(gate, t);
+            tasks = gate.daily_tasks || [];
+            if (taskIndex < 0 || taskIndex >= tasks.length) {
+                throw new AppError('任务索引无效', 400, ErrorCodes.VALIDATION_ERROR);
+            }
+            task = tasks[taskIndex];
+            if (!task.completed) {
+                throw new AppError('任务尚未完成', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+            if (task.rewards_claimed) {
+                throw new AppError('任务奖励已领取', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
             // 发放奖励
             const rewards = task.rewards || {};
             const divineSenseGain = rewards.divine_sense || 0;
@@ -669,10 +741,101 @@ class TaoismGateService {
     }
 
     /**
-     * 检查并执行跨日重置
-     * 同时处理：玩家首次选择道途后任务列表为空但当日 resetTime 已设置的边界情况
+     * 事务内取自己的道途行并锁住 —— 所有"改 skill_cooldowns / daily_tasks / dao_exp"的写路径都要先过这里。
+     *
+     * 为什么必须锁：`_getOrCreateGate` 是事务外的快照，而这一行的技能冷却、日常任务、经验都是
+     * **整块 JSON 列**（读出来改一改再整体写回）。两个并发请求会各自拿一份快照，后提交的把先提交的
+     * 那一块原样盖掉，表现不是"少一条日志"而是可以复现的外挂：
+     *   - 冷却被抹掉 → 同一个道途技能当场可以再放一次；
+     *   - `rewards_claimed` 被抹掉 → 同一条日常任务奖励领两次（神识/法则碎片/经验都重复发）；
+     *   - `daily_cultivate_count` 被抹掉 → 突破每日修炼上限。
+     * 因此判定也要重做一遍：外面那次检查只能算快速失败，锁住之后读到的那份才算数。
+     *
+     * 取锁次序（本服务统一）：taoism_gate → divine_sense → law。反过来写会和处理神识/法则的流程
+     * 在同一玩家身上形成 ABBA。
+     * @param {number} playerId - 玩家ID
+     * @param {Object} t - 事务
+     * @returns {Promise<Object>} 已加锁的道途行
      */
-    async _checkDailyReset(gate) {
+    async _lockGate(playerId, t) {
+        const locked = await PlayerTaoismGate.findOne({
+            where: { player_id: playerId },
+            transaction: t,
+            lock: t.LOCK.UPDATE
+        });
+        if (locked) return locked;
+        // 行还不存在：先建（唯一约束兜住并发建号），再按同一次序锁回来
+        await PlayerTaoismGate.findOrCreate({
+            where: { player_id: playerId },
+            defaults: { player_id: playerId },
+            transaction: t
+        });
+        return PlayerTaoismGate.findOne({ where: { player_id: playerId }, transaction: t, lock: t.LOCK.UPDATE });
+    }
+
+    /**
+     * 一批玩家 → 他们的道途行（已加锁），**按 player_id 升序取锁**。
+     *
+     * 为什么必须排序：技能会写别人的那一行（火眼要消耗目标的水镜盾）。若两条并发请求
+     * 各自"先锁自己、再锁对方"，A 持 A 行等 B 行、B 持 B 行等 A 行 —— 就是 ABBA 死锁
+     * （和封神台、宗门战那两处同一形状）。所以凡是要同时碰多张玩家行的写路径，
+     * 都只能一次按升序把锁取齐，再开始判定与写入。
+     * @param {Array<number>} playerIds - 涉及的玩家 id（可含 undefined/自己）
+     * @param {Object} t - 事务
+     * @returns {Promise<Map<number, Object>>} player_id → 已加锁的道途行（没这一行的玩家不在表里）
+     */
+    async _lockGatesByPlayerIdAsc(playerIds, t) {
+        const ids = [...new Set(playerIds.map(Number).filter(id => Number.isFinite(id) && id > 0))]
+            .sort((a, b) => a - b);
+        if (!ids.length) return new Map();
+        const rows = await PlayerTaoismGate.findAll({
+            where: { player_id: { [Op.in]: ids } },
+            order: [['player_id', 'ASC']],
+            transaction: t,
+            lock: t.LOCK.UPDATE
+        });
+        return new Map(rows.map(row => [Number(row.player_id), row]));
+    }
+
+    /**
+     * 道途切换还要等多久（小时，0 = 可以切换）。冷却时长取自内容 taoism_gate.switch_cooldown_hours。
+     * 检查切换冷却的地方有两处（快速失败 + 锁内重判），所以算法定在这一处。
+     * @param {Object} gate - 道途行
+     * @returns {number} 剩余小时数
+     */
+    _switchCooldownHoursLeft(gate) {
+        if (!gate?.last_switch_time) return 0;
+        const cooldownHours = Number(this.config.taoism_gate.switch_cooldown_hours) || 0;
+        const elapsed = (Date.now() - new Date(gate.last_switch_time).getTime()) / (1000 * 60 * 60);
+        return elapsed >= cooldownHours ? 0 : Math.ceil(cooldownHours - elapsed);
+    }
+
+    /**
+     * 今日任务要不要重置：情况1 跨日（含从未设置过 stamp），
+     * 情况2 同一天但玩家刚选完道途、任务还没生成。
+     * 面板的"无锁预看"与锁内重判共用这一份算法，两边判定必须一致。
+     */
+    _dailyResetDue(gate) {
+        const now = new Date();
+        const resetTime = gate.daily_task_reset_time ? new Date(gate.daily_task_reset_time) : null;
+        const isSameDay = resetTime
+            && now.getDate() === resetTime.getDate()
+            && now.getMonth() === resetTime.getMonth()
+            && now.getFullYear() === resetTime.getFullYear();
+        if (!isSameDay) return true;
+        return !!(gate.dao_path && (!gate.daily_tasks || gate.daily_tasks.length === 0));
+    }
+
+    /**
+     * 检查并执行跨日重置。**必须在调用方的事务里写回。**
+     * @param {Object} t 调用方事务。少了它会这样：claimTaskReward 刚在 t 里用 FOR UPDATE 锁住这行，
+     *   不带事务的 save() 走的是**另一条连接**去 UPDATE 同一行，正好被自己手上的锁挡住 ——
+     *   只能干等 innodb_lock_wait_timeout（默认 50 秒）再抛 ER_LOCK_WAIT_TIMEOUT。
+     */
+    async _checkDailyReset(gate, t) {
+        if (!t) throw new Error('_checkDailyReset 必须带调用方的事务（不带事务会撞自己持有的行锁）');
+        if (!this._dailyResetDue(gate)) return;
+
         const now = new Date();
         const resetTime = gate.daily_task_reset_time ? new Date(gate.daily_task_reset_time) : null;
         const isSameDay = resetTime
@@ -680,24 +843,34 @@ class TaoismGateService {
             && now.getMonth() === resetTime.getMonth()
             && now.getFullYear() === resetTime.getFullYear();
 
-        // 情况1：跨日重置（resetTime 未设置 或 不是今天）
-        if (!isSameDay) {
-            // 生成新任务
-            if (gate.dao_path) {
-                gate.daily_tasks = this._generateDailyTasks();
-            } else {
-                gate.daily_tasks = [];
-            }
-            gate.daily_task_reset_time = now;
-            await gate.save();
-            return;
-        }
+        gate.daily_tasks = gate.dao_path ? this._generateDailyTasks() : [];
+        if (!isSameDay) gate.daily_task_reset_time = now;
+        await gate.save({ transaction: t });
+    }
 
-        // 情况2：同一天但玩家刚选择道途（daily_tasks 为空但 dao_path 已设置）
-        // 此时需要补生成今日任务（避免选择道途前 _checkDailyReset 已设置 resetTime）
-        if (gate.dao_path && (!gate.daily_tasks || gate.daily_tasks.length === 0)) {
-            gate.daily_tasks = this._generateDailyTasks();
-            await gate.save();
+    /**
+     * 读面板路径上的跨日重置：先无锁看一眼要不要重置（绝大多数请求进不到事务里），
+     * 真要重置就开一个短事务、锁行、锁内重判再写。
+     *
+     * 以前 getProfile / getDailyTasks 是"无锁读 → _checkDailyReset → gate.save()"，
+     * 与 claimTaskReward 的加锁写交错就会互相覆盖：面板把刚领完的整块 daily_tasks
+     * （带 rewards_claimed）按自己那份旧快照写回去，标记没了 → 同一条任务今天还能再领一次。
+     * @param {number} playerId
+     * @returns {Promise<Object>} 该拿去渲染的那一行
+     */
+    async _resetDailyTasksForRead(playerId) {
+        const peek = await this._getOrCreateGate(playerId);
+        if (!this._dailyResetDue(peek)) return peek;
+
+        const t = await sequelize.transaction();
+        try {
+            const gate = await this._lockGate(playerId, t);
+            await this._checkDailyReset(gate, t);
+            await t.commit();
+            return gate;
+        } catch (error) {
+            await t.rollback().catch(() => {});
+            throw error;
         }
     }
 
@@ -830,7 +1003,7 @@ class TaoismGateService {
      * 金道·金锋裂魂：攻击目标灵兽，造成HP损失
      * 伤害 = 神识消耗量 × 道途等级 × 0.5
      */
-    async _executeMetalBlade(player, gate, targetPlayerId, targetBeastId, t) {
+    async _executeMetalBlade(player, gate, targetPlayerId, targetBeastId, t, targetGate) {
         if (!targetPlayerId || !targetBeastId) {
             throw new AppError('金锋裂魂需指定目标玩家和目标灵兽', 400, ErrorCodes.VALIDATION_ERROR);
         }
@@ -848,7 +1021,7 @@ class TaoismGateService {
         }
 
         // 查询目标玩家道途（用于五行相克）
-        const targetGate = await PlayerTaoismGate.findOne({ where: { player_id: targetPlayerId }, transaction: t });
+        // targetGate 由 useSkill 按 player_id 升序取锁后传进来（这里再自己 findOne 就是无锁读）
         const restraintBonus = targetGate?.dao_path ? this._checkRestraint(gate.dao_path, targetGate.dao_path) : 0;
 
         // 计算伤害
@@ -934,7 +1107,7 @@ class TaoismGateService {
      * 火道·火眼金睛：探查目标玩家储物袋
      * 成功率 = 基础30% + 道途等级×5% + 神识差×0.1% + 五行相克20%
      */
-    async _executeFireEye(player, gate, targetPlayerId, t) {
+    async _executeFireEye(player, gate, targetPlayerId, t, targetGate) {
         if (!targetPlayerId) {
             throw new AppError('火眼金睛需指定目标玩家', 400, ErrorCodes.VALIDATION_ERROR);
         }
@@ -958,16 +1131,19 @@ class TaoismGateService {
         }
 
         // 检查目标水镜盾
-        const targetGate = await PlayerTaoismGate.findOne({ where: { player_id: targetPlayerId }, transaction: t });
+        // targetGate 由 useSkill 按 player_id 升序取锁后传进来（这里再自己 findOne 就是无锁读）
         if (targetGate?.skill_cooldowns?.water_mirror_shield) {
             const shieldEnd = new Date(targetGate.skill_cooldowns.water_mirror_shield);
             if (shieldEnd > new Date()) {
                 // 反弹50%神识消耗给探查者
-                const反弹Cost = Math.floor(this.config.dao_paths.fire.skill_divine_sense_cost * 0.5);
+                // 变量名必须 ASCII 且 const 后要有空格：这里原本写的是 `const反弹Cost = ...`，
+                // 声明没成立，严格模式下当成给未声明变量赋值 → 每次"目标有水镜盾"时火眼都抛
+                // ReferenceError，整笔施法回滚（探针 T5 实测）
+                const reflectCost = Math.floor(this.config.dao_paths.fire.skill_divine_sense_cost * 0.5);
                 const divineSense = await PlayerDivineSense.findOne({ where: { player_id: player.id }, transaction: t, lock: t.LOCK.UPDATE });
                 if (divineSense) {
-                    divineSense.divine_sense_current = Math.max(0, divineSense.divine_sense_current - 反弹Cost);
-                    divineSense.total_consumed += 反弹Cost;
+                    divineSense.divine_sense_current = Math.max(0, divineSense.divine_sense_current - reflectCost);
+                    divineSense.total_consumed += reflectCost;
                     await divineSense.save({ transaction: t });
                 }
                 // 清除目标水镜盾（一次性）
@@ -981,8 +1157,8 @@ class TaoismGateService {
                     target_player_id: targetPlayerId,
                     success: false,
                     reflected: true,
-                    message: `目标有水镜映心护体，探查被反弹，损失 ${反弹Cost} 神识`,
-                    extra_divine_sense_cost: 反弹Cost
+                    message: `目标有水镜映心护体，探查被反弹，损失 ${reflectCost} 神识`,
+                    extra_divine_sense_cost: reflectCost
                 };
             }
         }
@@ -1040,7 +1216,7 @@ class TaoismGateService {
     /**
      * 土道·土牢定身：定身目标灵兽2小时
      */
-    async _executeEarthPrison(player, gate, targetPlayerId, targetBeastId, t) {
+    async _executeEarthPrison(player, gate, targetPlayerId, targetBeastId, t, targetGate) {
         if (!targetPlayerId || !targetBeastId) {
             throw new AppError('土牢定身需指定目标玩家和目标灵兽', 400, ErrorCodes.VALIDATION_ERROR);
         }
@@ -1058,7 +1234,7 @@ class TaoismGateService {
         }
 
         // 查询目标玩家道途（五行相克）
-        const targetGate = await PlayerTaoismGate.findOne({ where: { player_id: targetPlayerId }, transaction: t });
+        // targetGate 由 useSkill 按 player_id 升序取锁后传进来（这里再自己 findOne 就是无锁读）
         const restraintBonus = targetGate?.dao_path ? this._checkRestraint(gate.dao_path, targetGate.dao_path) : 0;
 
         // 计算成功率（基础80% + 五行相克20%）

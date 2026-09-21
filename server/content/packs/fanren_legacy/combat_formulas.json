@@ -1,0 +1,19 @@
+{
+  "dataset": "combat_formulas",
+  "into": "profiles",
+  "comment": "剑意伤害档位跟着 sword_intent 属性走，所以定义在本资料片里：基础公式表引用一个只有资料片才登记的属性，关掉资料片就会留下打不出伤害的空档位。attack_fallback_stat 让没堆剑意的剑修按普攻结算。",
+  "add": [
+    {
+      "id": "player_sword_intent",
+      "label": "剑修意斩（剑意直击，减半计算防御）",
+      "attack_stat": "sword_intent",
+      "attack_fallback_stat": "atk",
+      "mitigate_stat": "def",
+      "skill_multiplier": 1.2,
+      "defense_coef": 0.5,
+      "random_range_config": "player_damage_random_range",
+      "random_offset_config": "player_damage_random_offset",
+      "min_damage": 1
+    }
+  ]
+}

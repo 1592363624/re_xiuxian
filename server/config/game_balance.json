@@ -218,8 +218,7 @@
     "cave_facility_min_level": 0,
     "cave_facility_max_level": 10,
     "cave_garden_plots_min": 0,
-    "cave_garden_plots_max": 9,
-    "cave_facility_whitelist": ["spirit_vein", "quiet_room", "pill_room", "tool_room", "grand_formation"]
+    "cave_garden_plots_max": 9
   },
   "equipment": {
     "valid_slots": [
@@ -259,14 +258,7 @@
       "material_cost_per_level": 1,
       "fail_break_rate": 0,
       "fail_downgrade_rate": 0.3,
-      "bonus_per_level": {
-        "atk": 0.05,
-        "def": 0.05,
-        "hp_max": 0.05,
-        "mp_max": 0.05,
-        "speed": 0.03,
-        "sense": 0.03
-      }
+      "_refine_rates_note": "祭炼每级系数已迁到 config/stat_definitions.json 的 refineRate（含资料片），此处不再重复定义。"
     },
     "repair": {
       "comment": "修理配置：每点耐久消耗灵石，每次修理会扣减最大耐久上限",
@@ -723,9 +715,6 @@
     "min_team_size": 3,
     "active_window_ms": 300000,
     "realm_suppression_per_rank": 0.05,
-    "crit_rate": 0.05,
-    "crit_multiplier": 1.5,
-    "damage_random_range": 0.15,
     "state_cleaner_interval_ms": 5000,
     "revive_cost_spirit_stones": 1000,
     "revive_cooldown_seconds": 60,
@@ -746,9 +735,6 @@
     "death_exp_penalty_rate": 0.05,
     "phase_thresholds": [1.0, 0.6, 0.3],
     "phase_multipliers": [1.0, 1.3, 1.8],
-    "crit_rate": 0.05,
-    "crit_multiplier": 1.5,
-    "damage_random_range": 0.15,
     "damage_share_thresholds": {
       "top": 0.15,
       "mid": 0.05,

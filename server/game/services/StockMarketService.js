@@ -153,6 +153,62 @@ class StockMarketService {
     }
 
     /**
+     * 出清某玩家全部持仓前，按口径一次把要动的行锁齐：stocks(主键升序) → stock_holdings(主键升序)。
+     * 调用方必须已持有该玩家的 players 行锁，并在本函数之后再锁 stock_margin_accounts
+     * （完整次序见 game/persistence/lockOrder.js）。
+     * 为什么不能"遍历持仓、逐笔现锁股票行"：股票之间的先后就交给了持仓返回次序，
+     * 两次出清（后台强平 vs GM 强平 vs 玩家买卖）交错时双方各持一行互等，就是 ABBA。
+     * @param {number} playerId - 玩家ID
+     * @param {Object} t - 事务实例
+     * @returns {Promise<{holdings: Object[], stockById: Map<number, Object>}>}
+     */
+    static async _lockHoldingsForSettlement(playerId, t) {
+        const peek = await StockHolding.findAll({
+            where: { player_id: playerId, quantity: { [Op.gt]: 0 } },
+            transaction: t,
+            raw: true
+        });
+        const stockIds = [...new Set(peek.map(h => Number(h.stock_id)))].sort((a, b) => a - b);
+        const stocks = stockIds.length > 0 ? await Stock.findAll({
+            where: { id: { [Op.in]: stockIds } },
+            order: [['id', 'ASC']],
+            transaction: t,
+            lock: t.LOCK.UPDATE
+        }) : [];
+        const holdings = await StockHolding.findAll({
+            where: { player_id: playerId, quantity: { [Op.gt]: 0 } },
+            order: [['id', 'ASC']],
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+            raw: true
+        });
+        return { holdings, stockById: new Map(stocks.map(s => [Number(s.id), s])) };
+    }
+
+    /**
+     * 出清所得偿还负债：现金与负债一起落账，两列按同一份 remainingDebt 写。
+     * 为什么单独一层：强平任务与 GM 强平原来各抄了一份"优先用卖出所得偿还"，两份都有同一个洞 ——
+     * 账户现金为 0 时"卖出所得 ≥ 本次偿还额"必然成立，于是走满额分支把 stock_margin_debt 直接写成 0：
+     * 只还进了卖出所得那一截，剩下的债却凭空抹掉（探针实测 100 万债、卖回 1.78 万，债却清零，
+     * 而 stock_margin_accounts.debt 还留着 98.22 万，两张表各说一套）。
+     * @param {Object} player - 已加锁的玩家实例
+     * @param {bigint} balance - 偿还前的股市账户现金
+     * @param {bigint} debt - 偿还前负债
+     * @param {bigint} totalProceeds - 本次市价卖出所得
+     * @returns {{actualRepay: bigint, remainingDebt: bigint}}
+     */
+    static _settleLiquidationRepayment(player, balance, debt, totalProceeds) {
+        const totalAvailable = balance + totalProceeds;
+        const actualRepay = totalAvailable > debt ? debt : totalAvailable;
+        const remainingDebt = debt - actualRepay;
+        player.stock_account_balance = totalProceeds >= actualRepay
+            ? balance + (totalProceeds - actualRepay)
+            : balance - (actualRepay - totalProceeds);
+        player.stock_margin_debt = remainingDebt;
+        return { actualRepay, remainingDebt };
+    }
+
+    /**
      * 应用价格变动 + 熔断检测
      * 校验：单次更新不超过 single_update_limit、日内涨跌幅不超过 daily_price_limit_up
      * 若日内涨跌幅超 circuit_breaker_threshold 则触发熔断 60 分钟
@@ -1017,6 +1073,18 @@ class StockMarketService {
                 throw new AppError('股市交易已被锁定，请联系 GM 解锁', 403, ErrorCodes.UNAUTHORIZED);
             }
 
+            // 取锁次序与本文件其它写路径一致：players → stocks → stock_holdings → margin。
+            // 改造前先锁持仓再锁股票，与 buyStock 反向——买持一行等另一行、卖持另一行等这一行，就是 ABBA 的形状。
+            // 行级锁查询股票
+            const stock = await Stock.findByPk(stockIdNum, {
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+            if (!stock) {
+                throw new AppError('股票不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+            this._validateStockTradeable(stock, cfg);
+
             // 行级锁查询持仓
             const holding = await StockHolding.findOne({
                 where: { player_id: playerId, stock_id: stockIdNum },
@@ -1034,16 +1102,6 @@ class StockMarketService {
                     ErrorCodes.BUSINESS_LOGIC_ERROR
                 );
             }
-
-            // 行级锁查询股票
-            const stock = await Stock.findByPk(stockIdNum, {
-                transaction: t,
-                lock: t.LOCK.UPDATE
-            });
-            if (!stock) {
-                throw new AppError('股票不存在', 404, ErrorCodes.NOT_FOUND);
-            }
-            this._validateStockTradeable(stock, cfg);
 
             // 当日交易次数校验
             const today = new Date().toISOString().slice(0, 10);
@@ -1740,6 +1798,10 @@ class StockMarketService {
     static async checkMarginAccounts() {
         const cfg = this._getStockMarketConfig();
         const maintenanceRate = cfg.maintenance_margin_rate || 0.3;
+        // 维持保证金率 = (总资产 - 负债) / 总资产。判定阶段与锁内各算一次，抽出来免得两份算式跑偏。
+        const ratioOf = (assets, liability) => assets > 0n
+            ? Number((assets - safeBigInt(liability)) * 10000n / assets) / 10000
+            : 0;
 
         // 查询所有未爆仓的融资账户
         const accounts = await StockMarginAccount.findAll({
@@ -1752,18 +1814,12 @@ class StockMarketService {
 
         for (const account of accounts) {
             checkedCount++;
+            let settledNow = false;      // 本账户这一笔是否真的提交成功（见下面加计数的地方）
             const t = await sequelize.transaction();
             try {
-                // 行级锁查询账户
-                const acc = await StockMarginAccount.findByPk(account.id, {
-                    transaction: t,
-                    lock: t.LOCK.UPDATE
-                });
-                if (!acc || acc.is_liquidated) {
-                    await t.commit();
-                    continue;
-                }
-
+                // 取锁次序按 game/persistence/lockOrder.js：players → stocks → stock_holdings → stock_margin_accounts。
+                // 改造前先锁融资账户行、再回头锁 players，而 buy/sell/repay 全是 players→margin：
+                // 本任务每 60 秒把所有融资账户扫一遍，撞上同一玩家那一笔融资买入就是标准 ABBA（玩家侧直接 500）。
                 const player = await Player.findByPk(account.player_id, {
                     transaction: t,
                     lock: t.LOCK.UPDATE
@@ -1773,34 +1829,61 @@ class StockMarketService {
                     continue;
                 }
 
+                // 判定阶段用无锁读：本事务已握住该玩家的 players 行，他的买卖/偿还都排在 players 之后，
+                // 此期间还能变的只有全服价格与利息任务写的 debt —— 下面拿到账户行锁后会用锁内读数重算。
+                const peekAcc = await StockMarginAccount.findOne({
+                    where: { player_id: account.player_id },
+                    transaction: t,
+                    raw: true
+                });
+                if (!peekAcc || peekAcc.is_liquidated) {
+                    await t.commit();
+                    continue;
+                }
+
                 const balance = safeBigInt(player.stock_account_balance);
                 const holdingsValue = await this._calculatePlayerHoldingsValue(account.player_id, t);
                 const totalAssets = balance + holdingsValue;
-                const debt = safeBigInt(acc.debt);
+                const mayNeedLiquidation = safeBigInt(peekAcc.debt) > 0n
+                    && ratioOf(totalAssets, peekAcc.debt) < maintenanceRate;
 
-                // 维持保证金率 = (总资产 - 负债) / 总资产
-                const marginRatio = totalAssets > 0n
-                    ? Number((totalAssets - debt) * 10000n / totalAssets) / 10000
-                    : 0;
+                // 只在真要出清时才多锁股票行与持仓行（取锁次序见 _lockHoldingsForSettlement）
+                let holdings = [];
+                let stockById = new Map();
+                if (mayNeedLiquidation) {
+                    ({ holdings, stockById } = await this._lockHoldingsForSettlement(account.player_id, t));
+                }
+
+                const acc = await StockMarginAccount.findByPk(account.id, {
+                    transaction: t,
+                    lock: t.LOCK.UPDATE
+                });
+                if (!acc || acc.is_liquidated) {
+                    await t.commit();
+                    continue;
+                }
+
+                // 负债取锁内值：判定阶段那份只用来决定"要不要多锁几张表"
+                const debt = safeBigInt(acc.debt);
+                const marginRatio = ratioOf(totalAssets, debt);
 
                 // 更新账户快照
                 acc.total_assets = totalAssets;
-                acc.margin_ratio = marginRatio;
+                // margin_ratio 列是 DECIMAL(5,4)，只装得下 ±9.9999。资不抵债越深真值越小（-55、-500…），
+                // 直接写会让整笔强平事务被 "Out of range" 顶回去 —— 改造前正是这样：越该平的账户越平不掉，
+                // 每 60 秒失败一次只留一行日志。要精确值用 total_assets 与 debt 两列自己算，接口返回里给的就是真值。
+                acc.margin_ratio = Math.max(-9.9999, Math.min(9.9999, marginRatio));
                 acc.last_liquidation_check = new Date();
 
-                // 触发强平：保证金率低于维持保证金率
-                if (marginRatio < maintenanceRate && debt > 0n) {
+                // 触发强平：保证金率低于维持保证金率。
+                // mayNeedLiquidation 一并作为条件：持仓与股票行只在那时锁过，缺了它们这条分支会只清现金不出清。
+                // 极端情况（利息任务恰好在判定之后抬高 debt）本轮会漏平，下一轮 60 秒后判定就用的是新债，自愈。
+                if (mayNeedLiquidation && marginRatio < maintenanceRate && debt > 0n) {
                     acc.is_liquidated = true;
-                    // 市价卖出全部持仓偿还负债
-                    const holdings = await StockHolding.findAll({
-                        where: { player_id: account.player_id, quantity: { [Op.gt]: 0 } },
-                        transaction: t,
-                        lock: t.LOCK.UPDATE,
-                        raw: true
-                    });
+                    // 市价卖出全部持仓偿还负债（holdings 与 stockById 已在上面按次序锁齐）
                     let totalProceeds = 0n;
                     for (const h of holdings) {
-                        const stock = await Stock.findByPk(h.stock_id, { transaction: t, lock: t.LOCK.UPDATE });
+                        const stock = stockById.get(Number(h.stock_id));
                         if (!stock) continue;
                         const price = safeBigInt(stock.current_price);
                         const qty = safeBigInt(h.quantity);
@@ -1828,26 +1911,13 @@ class StockMarketService {
                         stock.daily_volume = safeBigInt(stock.daily_volume) + qty;
                         await stock.save({ transaction: t });
                     }
-                    // 偿还负债：现金 + 卖出所得 → 负债
-                    const totalAvailable = balance + totalProceeds;
-                    const actualRepay = totalAvailable > debt ? debt : totalAvailable;
-                    const remainingDebt = debt - actualRepay;
-                    // 优先用卖出所得偿还
-                    let remainingProceeds = totalProceeds;
-                    if (remainingProceeds >= actualRepay) {
-                        remainingProceeds -= actualRepay;
-                        // 剩余卖出所得转入余额
-                        player.stock_account_balance = balance + remainingProceeds;
-                        player.stock_margin_debt = 0n;
-                    } else {
-                        // 卖出所得全部偿还，剩余从余额扣
-                        const repayFromBalance = actualRepay - remainingProceeds;
-                        player.stock_account_balance = balance - repayFromBalance;
-                        player.stock_margin_debt = remainingDebt;
-                    }
+                    // 偿还负债：现金 + 卖出所得 → 负债（两份偿还算式并成一处，见 _settleLiquidationRepayment）
+                    const { actualRepay, remainingDebt } = this._settleLiquidationRepayment(player, balance, debt, totalProceeds);
                     await player.save({ transaction: t });
                     acc.debt = remainingDebt;
-                    liquidatedCount++;
+                    // 计数留到提交之后再加：出清写在事务里，回滚了就不算平过仓（原来在提交前 ++，
+                    // 结果"触发强平 N 个"里含着一笔都没落库的那些）
+                    settledNow = true;
 
                     console.warn(`[StockMarket] 玩家 ${account.player_id} 触发强平：保证金率 ${(marginRatio * 100).toFixed(2)}%，卖出全部持仓偿还负债`);
 
@@ -1873,6 +1943,7 @@ class StockMarketService {
 
                 await acc.save({ transaction: t });
                 await t.commit();
+                if (settledNow) liquidatedCount++;
             } catch (error) {
                 if (t && !t.finished) await t.rollback();
                 console.error(`[StockMarket] 强平检查玩家 ${account.player_id} 失败:`, error.message);
@@ -2315,16 +2386,11 @@ class StockMarketService {
             if (!player) {
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             }
-            // 市价卖出全部持仓
-            const holdings = await StockHolding.findAll({
-                where: { player_id: playerId, quantity: { [Op.gt]: 0 } },
-                transaction: t,
-                lock: t.LOCK.UPDATE,
-                raw: true
-            });
+            // 市价卖出全部持仓：先按口径把股票行、持仓行一次锁齐（次序见 _lockHoldingsForSettlement）
+            const { holdings, stockById } = await this._lockHoldingsForSettlement(playerId, t);
             let totalProceeds = 0n;
             for (const h of holdings) {
-                const stock = await Stock.findByPk(h.stock_id, { transaction: t, lock: t.LOCK.UPDATE });
+                const stock = stockById.get(Number(h.stock_id));
                 if (!stock) continue;
                 const price = safeBigInt(stock.current_price);
                 const qty = safeBigInt(h.quantity);
@@ -2349,23 +2415,10 @@ class StockMarketService {
                 stock.daily_volume = safeBigInt(stock.daily_volume) + qty;
                 await stock.save({ transaction: t });
             }
-            // 偿还负债
+            // 偿还负债（与后台强平共用同一份算式，见 _settleLiquidationRepayment）
             const debt = safeBigInt(player.stock_margin_debt);
             const balance = safeBigInt(player.stock_account_balance);
-            const totalAvailable = balance + totalProceeds;
-            const actualRepay = totalAvailable > debt ? debt : totalAvailable;
-            const remainingDebt = debt - actualRepay;
-            // 优先用卖出所得偿还
-            let remainingProceeds = totalProceeds;
-            if (remainingProceeds >= actualRepay) {
-                remainingProceeds -= actualRepay;
-                player.stock_account_balance = balance + remainingProceeds;
-                player.stock_margin_debt = 0n;
-            } else {
-                const repayFromBalance = actualRepay - remainingProceeds;
-                player.stock_account_balance = balance - repayFromBalance;
-                player.stock_margin_debt = remainingDebt;
-            }
+            const { actualRepay, remainingDebt } = this._settleLiquidationRepayment(player, balance, debt, totalProceeds);
             await player.save({ transaction: t });
 
             // 更新融资账户

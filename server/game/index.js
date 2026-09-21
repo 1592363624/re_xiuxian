@@ -51,6 +51,8 @@ async function initializeGameServices(configLoader) {
     ItemService.initialize(configLoader);
     ExperienceService.initialize(configLoader);
     AttributeService.initialize(configLoader);
+    // 战斗数值解析层（伤害/战力公式来自 config/combat_formulas.json，属性权重来自属性注册表）
+    require('./combat/CombatResolver').initialize(configLoader);
     // AttributeMaxService.initialize 是异步方法，需要等待
     await AttributeMaxService.initialize(configLoader);
     DualTimeService.initialize(configLoader);

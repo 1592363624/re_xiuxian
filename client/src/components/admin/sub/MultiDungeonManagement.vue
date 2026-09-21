@@ -43,7 +43,7 @@
       <div class="text-sm font-bold text-purple-300 mb-2">调整副本变量</div>
       <div class="text-xs text-fg-faint mb-3">
         · 直接覆盖指定副本实例的某项变量值<br>
-        · 变量含义：morale=士气 / vigilance=警戒 / demon_corruption=魔染 / seal_stability=封印稳定度 / soul_stability=神魂稳定度 / harvest_multiplier=收获倍率
+        · 可调变量与中文名取自内容，共 {{ variableOptions.length }} 个（下拉里选，不再抄一份名单在这里）
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
         <div>
@@ -146,10 +146,11 @@
  * 多人副本系统 GM 管理组件脚本
  * 4 个操作模块共享 emit showConfirm 委托二次确认
  */
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useUIStore } from '../../../stores/ui';
 import AppButton from '../../ui/AppButton.vue'
 import {
+  multiDungeonGetHelp,
   adminForceDissolve,
   adminAdjustVariable,
   adminGrantReward,
@@ -191,36 +192,39 @@ const resetCooldownForm = reactive({
   dungeonKey: '' as '' | DungeonKey | 'all'
 });
 
-/** 副本变量选项（与后端配置对齐） */
-// 2026-07-21 扩展：支持昆吾山/虚天殿专属变量
-const variableOptions: Array<{ value: DungeonVariable; label: string }> = [
-  // 通用变量
-  { value: 'morale', label: '士气' },
-  { value: 'vigilance', label: '警戒' },
-  { value: 'demon_corruption', label: '魔染' },
-  { value: 'seal_stability', label: '封印稳定度' },
-  { value: 'soul_stability', label: '神魂稳定度' },
-  { value: 'harvest_multiplier', label: '收获倍率' },
-  // 昆吾山·封魔塔专属变量
-  { value: 'demonic_qi', label: '魔气（昆吾山）' },
-  { value: 'mountain_seal', label: '山禁（昆吾山）' },
-  { value: 'treasure_pressure', label: '宝压/夺宝压力' },
-  { value: 'linglong', label: '玲珑（昆吾山）' },
-  { value: 'seal_progress', label: '封印推进（昆吾山）' },
-  { value: 'tower_shadow_hp', label: '塔心魔影HP（昆吾山）' },
-  // 虚天殿专属变量
-  { value: 'path_choice', label: '道路选择（虚天殿）' },
-  { value: 'formation_power', label: '阵法强度（虚天殿）' },
-  { value: 'void_soul_hp', label: '虚天主魂HP（虚天殿）' }
-];
+/**
+ * /help 的返回：副本清单（dungeon_key → 中文名）与变量元信息（列名 → 中文名/归属副本）。
+ * 这两个下拉以前是本文件手写的两份名单（4 个副本、15 个变量），
+ * 而内容里有 10 个副本、40 个变量 —— 另外 6 个副本的奖励与冷却没法重置，
+ * 坠魔谷/血色试炼/苍坤洞府/黄龙山的变量在 GM 面板里选都选不到。
+ */
+const helpData = ref<MDungeonHelpPayload | null>(null);
+/** 副本变量选项：取自 /help 的 variable_meta */
+const variableOptions = computed<Array<{ value: DungeonVariable; label: string }>>(() =>
+  Object.entries(helpData.value?.variable_meta || {}).map(([value, meta]) => ({ value, label: meta?.label || value }))
+);
 
-/** 副本 key 选项（4 种，2026-07-21 扩展为 4 个副本） */
-const dungeonKeyOptions: Array<{ value: DungeonKey; label: string }> = [
-  { value: 'yanyue', label: '掩月抢亲' },
-  { value: 'duanwu', label: '端午镇蛟' },
-  { value: 'kunwu', label: '昆吾山·封魔塔' },
-  { value: 'xutian', label: '虚天殿' }
-];
+/** GET /multi-dungeon/help → data（GM 面板只用得到这两块） */
+interface MDungeonHelpPayload {
+  dungeons?: Record<string, { name?: string }>;
+  variable_meta?: Record<string, { label?: string; dungeons?: string[] | null }>;
+}
+
+/** 副本 key 选项：取自 /help 的 dungeons */
+const dungeonKeyOptions = computed<Array<{ value: DungeonKey; label: string }>>(() =>
+  Object.entries(helpData.value?.dungeons || {}).map(([value, dgn]) => ({ value, label: dgn?.name || value }))
+);
+
+/** 进面板就拉一次清单；拉不到要让 GM 看见，而不是留一个空下拉 */
+onMounted(async () => {
+  try {
+    const resp = await multiDungeonGetHelp();
+    if (resp.data?.code === 200 && resp.data.data) helpData.value = resp.data.data as MDungeonHelpPayload;
+    else uiStore.showToast(resp.data?.message || '获取副本/变量清单失败', 'error');
+  } catch (e: any) {
+    uiStore.showToast(e?.message || '获取副本/变量清单失败', 'error');
+  }
+});
 
 /**
  * 校验实例 ID 是否已填写
@@ -288,7 +292,7 @@ function submitAdjustVariable() {
     uiStore.showToast('请输入有效的变量值（非负数）', 'warning');
     return;
   }
-  const varLabel = variableOptions.find(o => o.value === adjustVariableForm.variable)?.label || adjustVariableForm.variable;
+  const varLabel = variableOptions.value.find(o => o.value === adjustVariableForm.variable)?.label || adjustVariableForm.variable;
   emit('showConfirm',
     '调整副本变量',
     `确认将副本实例 ID=${adjustVariableForm.instanceId} 的「${varLabel}」调整为 ${adjustVariableForm.value}？`,
@@ -330,7 +334,7 @@ function submitGrantReward() {
     uiStore.showToast('请输入奖励 key', 'warning');
     return;
   }
-  const dgnLabel = dungeonKeyOptions.find(o => o.value === grantRewardForm.dungeonKey)?.label || grantRewardForm.dungeonKey;
+  const dgnLabel = dungeonKeyOptions.value.find(o => o.value === grantRewardForm.dungeonKey)?.label || grantRewardForm.dungeonKey;
   emit('showConfirm',
     '发放副本奖励',
     `确认向玩家 ID=${grantRewardForm.playerId} 发放副本「${dgnLabel}」的奖励「${grantRewardForm.rewardKey}」？`,
@@ -372,7 +376,7 @@ function submitResetCooldown() {
   // 'all' 特殊文案，其他副本查表获取中文名
   const dgnLabel = resetCooldownForm.dungeonKey === 'all'
     ? '全部副本'
-    : (dungeonKeyOptions.find(o => o.value === resetCooldownForm.dungeonKey)?.label || resetCooldownForm.dungeonKey);
+    : (dungeonKeyOptions.value.find(o => o.value === resetCooldownForm.dungeonKey)?.label || resetCooldownForm.dungeonKey);
   emit('showConfirm',
     '重置玩家冷却',
     `确认重置玩家 ID=${resetCooldownForm.playerId} 的副本「${dgnLabel}」冷却？\n· 重置后玩家可立即再次开启/加入该副本`,

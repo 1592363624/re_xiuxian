@@ -46,6 +46,11 @@ const { Op } = require('sequelize');
 const CaveService = require('./CaveService');
 
 const configLoader = infrastructure.ConfigLoader;
+// 伤害结算统一走解析层（ratio_mitigation 档位 + 按属性注册表掷暴击/闪避）
+const CombatResolver = require('../combat/CombatResolver');
+// BOSS 的内容声明层（与野外怪、副本怪同一套 stats 规则）
+const { mergeDeclaredStats } = require('../combat/MonsterStats');
+const { logOnce } = require('../../utils/logOnce');
 
 /**
  * BigInt 安全转换工具
@@ -606,16 +611,6 @@ class WorldBossService {
             const phaseMultipliers = cfg.phase_multipliers || [1.0, 1.3, 1.8];
             const phaseMultiplier = phaseMultipliers[Math.min(boss.phase - 1, phaseMultipliers.length - 1)] || 1.0;
 
-            // 暴击判定（5% 暴击率，1.5 倍暴击伤害）
-            const critRate = cfg.crit_rate || 0.05;
-            const critMultiplier = cfg.crit_multiplier || 1.5;
-            const isCrit = Math.random() < critRate;
-            const critFactor = isCrit ? critMultiplier : 1.0;
-
-            // 随机浮动（±15%）
-            const randomRange = cfg.damage_random_range || 0.15;
-            const randomFactor = 1 + (Math.random() * 2 - 1) * randomRange;
-
             // ========== 五行相克系统 ==========
             // 取 BOSS 静态元素（boss_key → world_boss_data.json bosses[].element）
             // 取玩家灵兽元素（无出战灵兽时为 null，按中性 1.0x 处理）
@@ -624,36 +619,28 @@ class WorldBossService {
             //   - 灵兽被 BOSS 克：0.75x（如木灵兽 vs 金BOSS）
             //   - 同元素/无灵兽：1.0x
             const bossStaticData = this.getBossStaticData(boss.boss_key) || {};
+            // BOSS 也走同一层内容声明：实例行上只有 atk/def/speed/hp 四个数，
+            // world_boss_data 里给这只 BOSS 写的 stats（暴击/闪避/五行抗性…）在这里并进同一份属性块，
+            // 攻守两侧都用它 —— 改造前玩家打 BOSS 时守方只递 `{def}`，BOSS 既不会闪也不会抗，
+            // 而玩家堆的暴击在 BOSS 战里早已生效、BOSS 自己却没有任何触发属性可用。
+            const bossStats = mergeDeclaredStats({
+                atk: Number(boss.atk) || 0,
+                def: Number(boss.def) || 0,
+                speed: Number(boss.speed) || 0,
+                hp_max: Number(boss.hp_max) || 0,
+                max_hp: Number(boss.hp_max) || 0
+            }, bossStaticData.stats);
             const bossElement = bossStaticData.element || null;
             const playerBeastElement = spiritBeastInfo?.element || null;
             const elementalCounter = this._calculateElementalCounter(playerBeastElement, bossElement, cfg);
             const playerElementalFactor = elementalCounter.factor; // 玩家攻击 BOSS 的相克系数
             const elementalTag = elementalCounter.tag; // 'advantage' / 'disadvantage' / 'neutral'
 
-            // ========== 伤害计算（2026-07-21 修复） ==========
-            // 原公式：max(1, atk * skill - boss.def * 0.5) * soloRatio(0.3)
-            //   问题：当玩家ATK与BOSS DEF接近时（如625 vs 800），baseDamage 仅剩 225，
-            //         再乘 soloRatio=0.3 后 finalDamage≈67，化神初期玩家需攻击 74627 次才能击杀，
-            //         完全不可玩。此外 soloRatio=0.3 让单人挑战完全不可行，违背"多人鼓励但不强制"的设计。
-            //
-            // 新公式：max(1, atk * skill * (1 - def_reduction)) * soloRatio * teamFactor * crit * random * elemental
-            //   def_reduction = boss.def / (boss.def + playerAtk * 2 + 1000)
-            //   设计理由：
-            //     1. 使用除法减伤曲线，避免 ATK 与 DEF 接近时伤害断崖式下跌
-            //     2. 当 atk=625, def=800 时：def_reduction = 800/(800+1250+1000) = 0.262
-            //        baseDamage = 625 * 1.0 * 0.738 = 461（原公式为 225）
-            //     3. 当 atk=2000, def=800 时：def_reduction = 800/(800+4000+1000) = 0.138
-            //        baseDamage = 2000 * 1.0 * 0.862 = 1724（高境界玩家有合理压制力）
-            //     4. 当 atk=100, def=800 时：def_reduction = 800/(800+200+1000) = 0.4
-            //        baseDamage = 100 * 1.0 * 0.6 = 60（低境界玩家仍能蹭伤害拿参与奖）
-            //
-            // soloRatio 调整：0.3 → 1.0
-            //   原设计 soloRatio=0.3 是为强制多人组队，但实际效果是单人完全无法挑战，
-            //   组队加成应通过 team_bonus_ratio 体现，而非削弱单人。
-            //   修复后：soloRatio=1.0（单人完整伤害），组队人数>=min_team_size 时额外 +team_bonus_ratio
-            const defReduction = boss.def / (boss.def + playerAtk * 2 + 1000);
-            const baseDamage = Math.max(1, Math.floor(playerAtk * skillMultiplier * (1 - defReduction)));
-
+            // ========== 伤害计算 ==========
+            // 减伤曲线的形状（以及"为什么是除法而不是减法"）写在 combat_formulas.json 的
+            // ratio_mitigation 档位里，这里只剩与属性无关的玩法倍率：单人比例 / 组队 / 境界压制 / 行动系统。
+            // soloRatio 曾从 0.3 调到 1.0：0.3 名义上"鼓励组队"，实际是单人根本打不动；
+            // 组队应当用 team_bonus_ratio 做加法激励，而不是拿削弱单人当筹码。
             // 单人挑战伤害比例（鼓励但不强制组队）
             const soloRatio = cfg.single_player_damage_ratio ?? 1.0;
 
@@ -696,14 +683,24 @@ class WorldBossService {
             //     * repetitionPenaltyFactor     （重复行动惩罚，连续>=3 次同行动触发 0.5 倍）
             //   设计目的：通过行动类型 + 阶段状态联动，让玩家不能无脑强攻，必须配合破幡/镇魂/护阵
             const actionMultiplier = Number(actionConfig.damage_multiplier) || 1.0;
-            let finalDamage = Math.floor(
-                baseDamage * soloRatio * teamFactor * realmSuppression
-                * critFactor * randomFactor * playerElementalFactor
-                * actionMultiplier
-                * (1 - bannerSoulDamageReduction)
-                * (1 - magicPressurePlayerPenalty)
-                * repetitionPenaltyFactor
-            );
+            // 上面这些系数（单人比例/组队/境界压制/五行相克/行动/幡魂减伤/魔压/重复惩罚）
+            // 都是"玩法倍率"，不是属性，所以作为 external_multiplier 乘在同一套结算之后。
+            const externalMultiplier = soloRatio * teamFactor * realmSuppression * playerElementalFactor
+                * actionMultiplier * (1 - bannerSoulDamageReduction)
+                * (1 - magicPressurePlayerPenalty) * repetitionPenaltyFactor;
+            // 减伤曲线与 ±15% 浮动写在 combat_formulas.json 的 ratio_mitigation 档位里；
+            // 暴击/闪避/神通特效按属性注册表取玩家真实属性——改造前这里是写死的 5% / 1.5x，
+            // 玩家堆的暴击在 BOSS 战里毫无作用。
+            const strike = CombatResolver.computeDamage('ratio_mitigation', {
+                attackerStats: finalAttrs,
+                defenderStats: bossStats,
+                skills: attrResult?.info?.technique_skills,
+                skill_multiplier: skillMultiplier,
+                external_multiplier: externalMultiplier,
+                balanceConfig: configLoader.getConfig('game_balance') || {}
+            });
+            const isCrit = strike.crit;
+            let finalDamage = strike.damage;
             // 防御性兜底：极端减伤情况下伤害至少为 1（保证参与奖可拿）
             if (finalDamage < 1) finalDamage = 1;
 
@@ -800,12 +797,19 @@ class WorldBossService {
                 bossKey: boss.boss_key,
                 bossElement: bossElement,
                 cfgBalance: cfg,
+                // 技能反击也用这只 BOSS 的内容声明属性（暴击/吸血/五行…）；
+                // 攻方基础值由管理器按"含 Buff 与阶段"的有效攻击覆盖，所以这里只给声明
+                declaredStats: bossStaticData.stats || null,
                 playerId: playerId
             };
             const skillTarget = {
                 battleHp: 0, // executeSkill 不直接扣血，由外层根据 counter_damage 扣减
                 battleHpMax: playerHpMax,
                 playerDef: playerDef,
+                // 把玩家解析后的完整属性与神通交给档位：BOSS 技能同样要掷玩家闪避、
+                // 吃神通的伤害减免/格挡，否则"减免"只在玩家打 BOSS 时半边有效
+                playerStats: finalAttrs,
+                playerSkills: attrResult?.info?.technique_skills,
                 playerBeastElement: playerBeastElement
             };
             const skillResult = WorldBossSkillManager.executeSkill(boss, selectedSkill, skillTarget, skillCtx);
@@ -913,7 +917,7 @@ class WorldBossService {
                         battleId: String(bossId),             // BOSS ID
                         battleRound: runtimeState.attackCount,// 攻击次数作为回合数
                         attackerId: null,                     // PVE 中攻击方是BOSS，无玩家ID
-                        protectorAtk: 0,                      // 道侣不在战场，反击伤害计算时取配置默认
+                        protectorAtk: 0,                      // 与 PVP/野外同一处死链：传 0 就不反击（配置里只有概率与倍率，没有 ATK；接线属战斗数值改动，见 #24）
                         transaction: t                        // 复用当前事务
                     }
                 );
@@ -1122,12 +1126,11 @@ class WorldBossService {
                         player_atk: playerAtk,
                         skill_multiplier: skillMultiplier,
                         boss_def: boss.def,
-                        // 新增：除法减伤曲线的减伤比例（0~1，越低表示 BOSS 防御削减越少）
-                        def_reduction: Number(defReduction.toFixed(4)),
-                        // 基础伤害（未乘系数前）
-                        base_damage: Math.floor(baseDamage),
-                        crit_factor: critFactor,
-                        random_factor: Number(randomFactor.toFixed(4)),
+                        // 结算档位与本记的触发结果（减伤曲线/浮动都在档位内，不再逐项回传旧系数）
+                        damage_profile: strike.profile,
+                        crit: isCrit,
+                        missed: !!strike.missed,
+                        external_multiplier: Number(externalMultiplier.toFixed(4)),
                         // 单人挑战伤害比例（1.0=完整伤害，配置可调）
                         solo_ratio: soloRatio,
                         // 组队加成系数（多人合作时 >1.0）
@@ -1203,6 +1206,10 @@ class WorldBossService {
                 counter: {
                     damage: actualCounterToPlayer,
                     original_damage: bossCounterDamage,
+                    // 结算档位 + 掷骰结果：反击现在也走暴击/闪避，前端要能如实显示"闪避"
+                    damage_profile: skillResult.damage_profile,
+                    crit: !!skillResult.crit,
+                    missed: !!skillResult.missed,
                     phase_multiplier: phaseMultiplier,
                     elemental_factor: skillResult.is_aoe
                         ? WorldBossSkillManager._calculateElementalCounter(bossElement, playerBeastElement)
@@ -1216,6 +1223,8 @@ class WorldBossService {
                         is_aoe: skillResult.is_aoe,
                         is_summon: skillResult.is_summon,
                         is_buff: skillResult.is_buff,
+                        crit: !!skillResult.crit,
+                        missed: !!skillResult.missed,
                         effect: skillResult.effect || null,
                         minions_summoned: skillResult.minions_summoned,
                         buff_applied: skillResult.buff_applied,
@@ -2191,9 +2200,13 @@ class WorldBossService {
         const attrs = typeof player.attributes === 'string'
             ? JSON.parse(player.attributes)
             : (player.attributes || {});
-        const currentExp = Number(attrs.exp) || 0;
-        const penalty = Math.floor(currentExp * penaltyRate);
-        attrs.exp = Math.max(0, currentExp - penalty);
+        // 修为的权威值是 players.exp 列（BIGINT）。旧实现只改 attributes.exp 这个镜像，
+        // 于是世界BOSS/妖兽入侵的"死亡扣修为"从来没真的扣到修为，还让两处数值互相矛盾。
+        const currentExp = BigInt(player.exp || 0);
+        const penalty = (currentExp * BigInt(Math.round(penaltyRate * 10000))) / 10000n;
+        const remaining = currentExp - penalty > 0n ? currentExp - penalty : 0n;
+        player.exp = remaining;
+        attrs.exp = Number(remaining);   // 镜像同步，避免读旧键的子系统看到两个数
         // 写回（player.attributes 的 setter 会自动 JSON.stringify）
         player.attributes = attrs;
     }
@@ -2298,6 +2311,7 @@ class WorldBossService {
             const sect = sectConfig?.sects?.find(s => s.id === sectId);
             return sect?.name || null;
         } catch (e) {
+            logOnce('WorldBossService._getSectNameById', 'sect_data 配置读取失败，BOSS 归属宗门名按空兜底: ' + e.message);
             return null;
         }
     }

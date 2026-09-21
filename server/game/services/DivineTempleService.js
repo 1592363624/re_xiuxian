@@ -541,36 +541,53 @@ class DivineTempleService {
             return { success: false, message: '神庙等级必须为 1-10 之间的整数', error_code: ErrorCodes.VALIDATION_ERROR };
         }
 
-        const temple = await PlayerDivineTemple.findOne({ where: { player_id: playerId } });
-        if (!temple) {
-            return { success: false, message: '玩家尚未创建神庙' };
-        }
-
-        const config = configLoader.getConfig('late_stage_data');
-        const templeCfg = config.divine_temple;
-
-        const oldLevel = temple.temple_level;
-        temple.temple_level = level;
-        temple.defense_max = templeCfg.defense_max_base * (1 + (level - 1) * 0.5);
-        // 同步解锁供奉池
-        const unlockedOfferings = templeCfg.offerings
-            .filter(o => o.min_temple_level <= level)
-            .map(o => o.offering_id);
-        temple.offering_pool = unlockedOfferings;
-
-        await temple.save();
-
-        return {
-            success: true,
-            message: `神庙等级已从 ${oldLevel} 调整为 ${level}`,
-            data: {
-                temple_id: temple.id,
-                old_level: oldLevel,
-                new_level: level,
-                defense_max: temple.defense_max,
-                offering_pool: temple.offering_pool
+        // GM 改级别与玩家自己的 upgrade 写的是同一行（player_divine_temple 是整块 JSON 列的宿主）。
+        // 原来这里是"无锁 findOne → 改三个字段 → save()"：与玩家那次加锁写交错时，
+        // 按 GM 手上那份旧快照把 offering_pool / defense_max 盖回去。GM 操作量小，但形状与
+        // 其它"读-改-整行写回"没区别，所以照 upgrade 的次序把行锁上（只锁 temple，
+        // 它是 upgrade 锁序 players→temple 的子集，不会反过来咬成 ABBA）。
+        const t = await sequelize.transaction();
+        try {
+            const temple = await PlayerDivineTemple.findOne({
+                where: { player_id: playerId },
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+            if (!temple) {
+                await t.rollback();
+                return { success: false, message: '玩家尚未创建神庙' };
             }
-        };
+
+            const config = configLoader.getConfig('late_stage_data');
+            const templeCfg = config.divine_temple;
+
+            const oldLevel = temple.temple_level;
+            temple.temple_level = level;
+            temple.defense_max = templeCfg.defense_max_base * (1 + (level - 1) * 0.5);
+            // 同步解锁供奉池
+            const unlockedOfferings = templeCfg.offerings
+                .filter(o => o.min_temple_level <= level)
+                .map(o => o.offering_id);
+            temple.offering_pool = unlockedOfferings;
+
+            await temple.save({ transaction: t });
+            await t.commit();
+
+            return {
+                success: true,
+                message: `神庙等级已从 ${oldLevel} 调整为 ${level}`,
+                data: {
+                    temple_id: temple.id,
+                    old_level: oldLevel,
+                    new_level: level,
+                    defense_max: temple.defense_max,
+                    offering_pool: temple.offering_pool
+                }
+            };
+        } catch (error) {
+            if (t && !t.finished) await t.rollback();
+            throw error;
+        }
     }
 }
 

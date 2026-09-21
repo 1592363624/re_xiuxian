@@ -96,6 +96,10 @@ router.get('/metrics', auth, adminCheck, async (req, res, next) => {
 
         // 当前配置
         const cfg = WorldBossService.getWorldBossConfig();
+        // 可刷新的 BOSS 清单：GM 面板的"手动刷新BOSS"下拉用它，内容加一只 BOSS 就自动多一项。
+        // 以前客户端自己抄了一份 ['qingyuanzi','yaoshou','mulan']，新资料片的 BOSS 在后台根本刷不出来。
+        const bossCatalog = WorldBossService.getAllBossStaticData()
+            .map(b => ({ boss_key: b.boss_key, boss_name: b.boss_name || b.boss_key }));
 
         res.json({
             code: 200,
@@ -105,6 +109,7 @@ router.get('/metrics', auth, adminCheck, async (req, res, next) => {
                 active_season_count: activeSeasonCount,
                 total_seasons: totalSeasons,
                 today_participants: todayParticipants,
+                bosses: bossCatalog,
                 config: {
                     enabled: cfg.enabled !== false,
                     attack_cooldown_seconds: cfg.attack_cooldown_seconds || 5,

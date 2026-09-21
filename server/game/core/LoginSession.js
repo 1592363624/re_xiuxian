@@ -40,7 +40,8 @@ async function applyOfflineRecovery(player) {
         if (offlineDurationSec < 60) return;
 
         const DualTimeService = require('./DualTimeService');
-        const recovery = DualTimeService.processOfflineTime(player, offlineDurationSec);
+        // processOfflineTime 现在自己在行锁内落库，不再依赖调用方的 player.save()
+        const recovery = await DualTimeService.processOfflineTime(player, offlineDurationSec);
         if (recovery.hp_recovered > 0 || recovery.mp_recovered > 0) {
             console.log(`[Login] 玩家 ${player.username} 离线 ${Math.floor(offlineDurationSec / 60)} 分钟，恢复 HP +${recovery.hp_recovered} / MP +${recovery.mp_recovered}`);
         }
@@ -81,6 +82,8 @@ async function issueLoginToken(player, req) {
 
     await applyOfflineRecovery(player);
 
+    // 实例上此刻只有 token_version / ip_address / last_online 是脏字段
+    // （恢复结果已经由 PlayerStateStore 写库），所以这次 save 不会再整块回写 attributes
     player.last_online = new Date();
     await player.save();
 

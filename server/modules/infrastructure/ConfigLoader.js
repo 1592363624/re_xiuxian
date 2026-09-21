@@ -34,54 +34,21 @@ class ConfigLoader extends EventEmitter {
 
     /**
      * 批量加载所有配置文件
+     *
+     * 改为目录扫描：以前这里写死 43 个文件名，新增配置文件必须回来加一行，
+     * 漏加的后果是 getConfig 抛"配置未加载"，而多数服务把它 catch 成空对象——
+     * technique_data / achievement_data / lottery_data 就是这么静默变成"功能不可用"的。
      */
+    discoverConfigNames() {
+        if (!fs.existsSync(this.configPath)) return [];
+        return fs.readdirSync(this.configPath)
+            .filter(name => name.endsWith('.json'))
+            .map(name => name.replace(/\.json$/, ''))
+            .sort();
+    }
+
     async loadAllConfigs() {
-        const configFiles = [
-            'realm_breakthrough',
-            'role_init',
-            'item_data',
-            'map_data',
-            'ui_layout',
-            'ui_routes',
-            'seclusion',      // 闭关修炼配置
-            'system',         // 系统全局配置
-            'talents',        // 天赋配置
-            'titles',         // 称号配置
-            'game_balance',   // 游戏平衡配置
-            'ai_config',      // AI 大模型配置（支持多厂商 OpenAI 兼容协议）
-            'sect_data',      // 宗门静态配置（6 大宗门信息、宝库、任务）
-            'sect_special_data', // 宗门专属玩法配置（灵眼之树/观星台/命盘/天阶/魔道/炉鼎）
-            'cave_data',       // 洞府静态配置（设施升级消耗、药园地块、种子数据）
-            'stock_data',      // 股市静态配置（股票定义、总股本、基础价格）
-            'crafting_data',   // 炼制系统配置（炼丹/炼器配方、技能等级表）
-            'dungeon_data',    // 副本系统静态配置（章节、关卡、奖励、难度系数）
-            'formation_data',  // 阵法系统静态配置（10大阵法、4类×4品阶、熟练度、相克关系）
-            'world_boss_data', // 世界BOSS静态配置（批次2：3个BOSS属性/技能/掉落/刷新计划）
-            'sect_war_data',   // 宗门战资源点静态配置（批次2：9个资源点坐标/类型/产出）
-            'ascension_data',  // 飞升+夺舍重生系统配置（批次3：问道/法相天地/探寻裂缝/飞升/空间节点/夺舍目标）
-            'late_stage_data', // 后期系统配置（批次3：第二元神/小世界/神庙/香火/神识/法则）
-            'companion_data',  // 道侣/双修/侍妾系统配置（批次3：道侣关系/侍妾/远航/心劫）
-            'multi_dungeon_data',  // 多人副本系统配置（批次3：掩月抢亲/端午镇蛟）
-            'spirit_beast_data',   // 灵兽系统静态配置（4阶灵兽/五行相克/培养参数）
-            'dao_companion_data',  // 道侣/双修系统配置（玩家间 1v1 长期社交：求婚/双修/心契/心印/心劫）
-            'spirit_system',       // 灵力系统配置（各境界灵力上限/恢复速率/消耗/增长曲线）
-            'attribute_system',    // 属性系统配置（HP/MP 自然恢复与冥想恢复速率）
-            'border_military_data', // 慕兰战线配置（批次5：军议/支援/谍影/军功司/灵兽边境/残图匣/临战刻印）
-            'cave_legacy_data',      // 坐化遗府配置（批次5：异步多人 PvP/协作玩法，退坑玩家资产分配）
-            'spirit_beast_pvp_data', // 灵兽PVP竞技场配置（批次5：押注/段位/赛季/战术/自动战斗）
-            'spirit_beast_pasture_data', // 灵兽放养与偷菜配置（批次5：放养场所/产物/偷菜概率/护院机制）
-            'spirit_beast_abyss_data',  // 灵兽探渊配置（批次5：9层深渊/PVE怪物/PVP遭遇/兽魂凝练）
-            'taoism_gate_data',         // 太一门引道配置（批次5：5种道途/等级/技能/任务/共鸣）
-            'beast_invasion_data',      // 妖兽入侵静态配置（多人公共事件：3只妖兽属性/捐献需求/奖励池/技能表）
-            'artifact_deep_lines',      // 法宝深线配置（玩法文档第19节：血魔剑/虚天鼎/掌天瓶/幻世轮四条线）
-            'artifact_spirit_data',     // 器灵系统配置（玩法文档第7节：唤醒/试炼/护主/催发/抚摸/温养/试炼榜）
-            'auction_data',             // 拍卖系统配置（玩法文档第27节：竞价博弈/防秒杀/手续费/灵石冻结）
-            'dayan_data',               // 大衍诀配置（玩法文档第23节：5层修炼/神识倍率/残篇突破/飞升前置）
-            'puppet_data',              // 傀儡工坊配置（玩法文档第23节：5种傀儡/图谱/淬炼/维修/回收）
-            'fishing_data',             // 灵溪垂钓配置（玩法文档第21节：4级钓竿/鱼饵/鱼塘/钓术熟练度/剖鱼/伴生物品/LDC产出）
-            'gambling_stone_data',      // 赌石系统配置（玩法文档第21节：4+1产地/4档品质/4维线索/3种切法/熟练度/诅咒PVP/原石流转）
-            'time_system'               // 双时间系统配置（天道事件周期 + 红尘活动时长与寿元消耗）
-        ];
+        const configFiles = this.discoverConfigNames();
         const results = {};
 
         for (const configName of configFiles) {
@@ -105,10 +72,24 @@ class ConfigLoader extends EventEmitter {
     }
 
     /**
+     * 配置名是否是一个"就是一个文件名（不含扩展名）"。
+     * loadConfig 走 path.join(configPath, `${name}.json`)，名字来自后台请求，
+     * 所以这一眼校验放在真正读文件之前 —— 白名单只能挡已知名字，规则挡的是 `../` 这类构造。
+     * @param {string} configName
+     * @returns {boolean}
+     */
+    static isSafeConfigName(configName) {
+        return typeof configName === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(configName);
+    }
+
+    /**
      * 加载单个配置文件
      * @param {string} configName - 配置文件名称（不含扩展名）
      */
     async loadConfig(configName) {
+        if (!ConfigLoader.isSafeConfigName(configName)) {
+            throw new Error(`配置名称不合法: ${JSON.stringify(configName)}`);
+        }
         const filePath = path.join(this.configPath, `${configName}.json`);
         
         if (!fs.existsSync(filePath)) {
@@ -130,18 +111,46 @@ class ConfigLoader extends EventEmitter {
 
     /**
      * 加载备份配置
+     *
+     * 修复：备份文件名由后台写入时带时间戳（<name>_<ISO时间>.json），
+     * 旧实现只找 <name>.json，因此这条兜底路径永远命中不了、等于没有回滚。
+     * 现在取时间戳最新的一份。
      */
     loadBackupConfig(configName) {
-        const backupPath = path.join(this.configPath, 'backup', `${configName}.json`);
-        if (fs.existsSync(backupPath)) {
+        const backupDir = path.join(this.configPath, 'backup');
+        if (!fs.existsSync(backupDir)) return null;
+
+        const plain = path.join(backupDir, `${configName}.json`);
+        if (fs.existsSync(plain)) {
             try {
-                const backupContent = fs.readFileSync(backupPath, 'utf-8');
-                return JSON.parse(backupContent);
+                return JSON.parse(fs.readFileSync(plain, 'utf-8'));
             } catch (error) {
                 console.error(`加载备份配置 ${configName} 失败:`, error);
             }
         }
-        return null;
+
+        const prefix = `${configName}_`;
+        const candidates = fs.readdirSync(backupDir)
+            .filter(name => name.startsWith(prefix) && name.endsWith('.json'))
+            .sort(); // 时间戳格式字典序即时间序
+        const latest = candidates[candidates.length - 1];
+        if (!latest) return null;
+
+        try {
+            return JSON.parse(fs.readFileSync(path.join(backupDir, latest), 'utf-8'));
+        } catch (error) {
+            console.error(`加载备份配置 ${latest} 失败:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * 注入合并后的数据集（基础配置 + 资料片），由 ContentRegistry 在启动/热更时调用。
+     * 这样现网所有 getConfig('item_data') 调用点无需改动即可看到资料片内容。
+     */
+    setMergedConfig(configName, data) {
+        this.configCache.set(configName, data);
+        this.emit('configMerged', { configName, timestamp: Date.now() });
     }
 
     /**
@@ -163,28 +172,62 @@ class ConfigLoader extends EventEmitter {
     }
 
     /**
+     * 读配置，但"还没加载"时返回 null 而不是抛错。
+     *
+     * 给"配置缺了整个玩法就不可用"的服务用。这些服务本来就要判 null，而 getConfig 是抛错的，
+     * 于是调用点只能自己包 try/catch —— 有人为了少包一次就把结果存进模块变量，
+     * 那一存就再也拿不到热更新后的新值（慕兰战线、洞府遗府、神念对决都是这个形状）。
+     * 这里给一个"每次读、读不到就 null"的入口，缓存就没有存在理由了：
+     * getConfig 本身只是 Map.get，不解析文件。
+     * @param {string} configName
+     * @param {string} [key] 只要配置里的某一段（如 peekConfig('cave_legacy_data','cave_legacy')）
+     * @returns {*} 配置（或某一段），没加载/没有这一段时返回 null
+     */
+    peekConfig(configName, key = null) {
+        let config = null;
+        try {
+            config = this.getConfig(configName);
+        } catch {
+            return null;
+        }
+        if (config === null || config === undefined) return null;
+        return key === null ? config : (config[key] ?? null);
+    }
+
+    /**
      * 热更新配置
      * @param {string} configName - 配置名称
      */
     async hotUpdateConfig(configName) {
+        let newConfig;
         try {
-            const newConfig = await this.loadConfig(configName);
-            
-            const oldConfig = this.configCache.get(configName);
-            this.configCache.set(configName, newConfig);
-
-            this.emit('configHotUpdated', { 
-                configName, 
-                oldConfig, 
-                newConfig,
-                timestamp: Date.now()
-            });
-
-            return { success: true, configName };
+            newConfig = await this.loadConfig(configName);
         } catch (error) {
             console.error(`热更新配置 ${configName} 失败:`, error);
             throw error;
         }
+
+        const oldConfig = this.configCache.get(configName);
+        this.configCache.set(configName, newConfig);
+
+        try {
+            this.emit('configHotUpdated', {
+                configName,
+                oldConfig,
+                newConfig,
+                timestamp: Date.now()
+            });
+        } catch (error) {
+            // 监听者（内容层）会在校验不过时抛错。此时必须把缓存退回上一份在用的视图：
+            // 上面刚写进去的是"裸基础配置"，留着它就等于运行中的进程突然看不到资料片内容，
+            // 一次失败的后台编辑会变成线上道具/属性凭空消失，而不是一个报错。
+            if (oldConfig !== undefined) this.configCache.set(configName, oldConfig);
+            else this.configCache.delete(configName);
+            console.error(`热更新配置 ${configName} 被下游校验拒绝，已退回上一份配置:`, error.message);
+            throw error;
+        }
+
+        return { success: true, configName };
     }
 
     /**
@@ -211,3 +254,5 @@ class ConfigLoader extends EventEmitter {
 }
 
 module.exports = new ConfigLoader();
+// 运行期一律用上面的单例；测试里需要独立实例（临时配置目录、不同 configPath）所以再导出类
+module.exports.ConfigLoader = ConfigLoader;

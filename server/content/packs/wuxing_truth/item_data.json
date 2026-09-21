@@ -1,0 +1,45 @@
+{
+  "dataset": "item_data",
+  "into": "items",
+  "comment": "五行法宝与丹方；并把现有天火剑从『只有攻击』扩成带五行之力——这正是『后期给老物品加新属性』的写法。",
+  "add": [
+    {
+      "id": "wuxing_banner",
+      "name": "五行神光旗",
+      "type": "equipment",
+      "subtype": "artifact",
+      "quality": "legendary",
+      "description": "五杆一组的先天灵旗，各执一系，旗展处五行流转，可攻可守。",
+      "effect": { "atk": 70, "five_element_power": 90, "element_resist": 12, "mp_max": 400 },
+      "price": 36000,
+      "required_realm_rank": 18
+    },
+    {
+      "id": "qiankun_ruler",
+      "name": "乾坤戊己尺",
+      "type": "equipment",
+      "subtype": "weapon",
+      "quality": "epic",
+      "description": "以戊己土精炼成的量天尺，砸下去自带五行镇压之意。",
+      "effect": { "atk": 95, "def": 40, "five_element_power": 35 },
+      "price": 21000,
+      "required_realm_rank": 16
+    },
+    {
+      "id": "five_qi_pill",
+      "name": "五气朝元丹",
+      "type": "consumable",
+      "subtype": "pill",
+      "quality": "rare",
+      "description": "聚五气归丹田，服之五行之力渐生。",
+      "effect": { "five_element_power": 20 },
+      "price": 2600
+    }
+  ],
+  "override": {
+    "skyfire_sword": {
+      "effect": { "five_element_power": 18 },
+      "description": "天火剑本以火系锋锐见长，得五行真解之人能在剑身上再刻一道流转五气，攻伐之外兼生克制。"
+    }
+  }
+}

@@ -69,6 +69,12 @@ export const ROOT_TYPE_MAP = {
   wind: { name: '风灵根', class: 'text-teal-400' }
 }
 
+// 中文灵根名 → 展示配置：服务端归一后可能只给中文名（新建角色存的是 { '金灵根': {...} } 形状），
+// 从 ROOT_TYPE_MAP 反推，避免两份表各自漂移
+export const ROOT_NAME_MAP = Object.fromEntries(
+  Object.entries(ROOT_TYPE_MAP).map(([type, entry]) => [entry.name.replace(/灵根$/, ''), entry])
+)
+
 // Socket 事件白名单（与服务端保持一致）
 export const SOCKET_EVENTS = [
   'player:updated',

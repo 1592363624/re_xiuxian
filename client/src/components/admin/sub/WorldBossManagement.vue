@@ -245,9 +245,9 @@
           <select v-model="spawnForm.boss_key"
             class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
             <option value="" disabled>请选择BOSS</option>
-            <option v-for="key in BOSS_KEY_LIST" :key="key" :value="key">{{ key }}</option>
+            <option v-for="b in bossCatalog" :key="b.boss_key" :value="b.boss_key">{{ b.boss_name }}（{{ b.boss_key }}）</option>
           </select>
-          <p class="mt-1 text-xs text-fg-faint">可选：qingyuanzi（青元子）、yaoshou（上古妖兽）、mulan（慕兰神将）</p>
+          <p class="mt-1 text-xs text-fg-faint">共 {{ bossCatalog.length }} 只，清单取自内容 world_boss_data.json</p>
         </div>
         <div>
           <label class="block text-fg-muted mb-1">自定义HP（可选）</label>
@@ -310,7 +310,7 @@
  *   4. 创建/刷新操作使用项目通用 Modal 组件，禁用浏览器原生弹窗
  *   5. 所有接口调用均带 loading 状态与错误处理，错误信息通过 uiStore.showToast 反馈
  */
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
 import AppButton from '../../ui/AppButton.vue'
@@ -329,12 +329,6 @@ const emit = defineEmits(['showConfirm'])
 const uiStore = useUIStore()
 
 // ====== 常量配置（避免硬编码） ======
-
-/**
- * BOSS key 列表（与后端 config/world_boss_data.json 的 bosses[].boss_key 保持一致）
- * 用 select 下拉避免输入错误
- */
-const BOSS_KEY_LIST = ['qingyuanzi', 'yaoshou', 'mulan']
 
 /**
  * BOSS 状态筛选选项（pending/active/defeated/expired）
@@ -368,6 +362,13 @@ const operating = ref(false)
 
 /** 统计指标数据 */
 const metrics = ref(null)
+
+/**
+ * 可刷新的 BOSS 清单：来自 GET /admin/world-boss/metrics 的 bosses（内容是 world_boss_data.json）。
+ * 这里以前自己抄了一份 ['qingyuanzi','yaoshou','mulan']，还注释着"与后端保持一致"——
+ * 资料片加一只 BOSS，后台"手动刷新BOSS"的下拉里就没有它（服务端 spawn 一直是按内容认的，本来刷得出来）。
+ */
+const bossCatalog = computed(() => metrics.value?.bosses || [])
 
 /** 子 Tab 配置 */
 const subTabs = [

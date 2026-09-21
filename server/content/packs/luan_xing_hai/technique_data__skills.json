@@ -1,0 +1,21 @@
+{
+  "dataset": "technique_data",
+  "into": "skills",
+  "comment": "两门神通。effects 键必须写在 combat/skillEffects.js 的词表里：trigger_chance 是这一记的发动概率，属性类（lifesteal_rate/crit_rate_bonus…）折进面板与战斗同一份数，战斗期类（block_chance/damage_reduction/extra_damage_rate）由 CombatResolver 结算时掷。键名拼错会在启动期直接被 _validateSkillEffects 拒绝。",
+  "add": [
+    {
+      "id": "xingchen_yin",
+      "name": "星辰引",
+      "element": "none",
+      "description": "引一颗星落下护身，挡下的那一下连法术都被震散。",
+      "effects": { "block_chance": 0.18, "damage_reduction": 0.12, "trigger_chance": 0.2 }
+    },
+    {
+      "id": "yueman_zhe_kui",
+      "name": "月满则亏",
+      "element": "water",
+      "description": "月满之时潮力最盛，一击之下尽数汲取对手气血。",
+      "effects": { "extra_damage_rate": 0.18, "lifesteal_rate": 0.15, "trigger_chance": 0.18 }
+    }
+  ]
+}

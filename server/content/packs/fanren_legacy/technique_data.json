@@ -1,0 +1,29 @@
+{
+  "dataset": "technique_data",
+  "into": "techniques",
+  "comment": "凡人遗宝新增两部功法：一部法修（混元剑意诀）、一部体修（玄龟吐纳法）。bonuses 为每层加成，与基础词表一致。",
+  "add": [
+    {
+      "id": "hunyun_jianyi_jue",
+      "name": "混元剑意诀",
+      "grade": "xuan",
+      "element": "metal",
+      "description": "不修剑招只养剑意，意至则剑至。残卷出自凡人修士之手，却为后世剑修所重。",
+      "required_realm": "元婴初期",
+      "bonuses": { "sword_intent": 18, "atk": 8, "matk": 6 },
+      "cultivate_speed_pct_per_layer": 2,
+      "acquire": { "source": "recipe_scroll", "item_id": "fanren_dao_can" }
+    },
+    {
+      "id": "xuanguituna_fa",
+      "name": "玄龟吐纳法",
+      "grade": "di",
+      "element": "water",
+      "description": "仿玄龟伏息之法，主养气血与五行抗性，是散修保命的根基功法。",
+      "required_realm": "筑基初期",
+      "bonuses": { "hp_max": 120, "mdef": 6, "element_resist": 1 },
+      "cultivate_speed_pct_per_layer": 1,
+      "acquire": { "source": "sect_treasury" }
+    }
+  ]
+}

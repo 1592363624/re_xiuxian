@@ -95,9 +95,9 @@
                 { "id": "coral", "name": "珊瑚", "type": "gathering", "difficulty": 10, "yield": [1, 1] }
             ],
             "monsters": [
-                { "id": "fish", "name": "海鱼", "realm": "炼气3层", "exp": 30 },
+                { "id": "fish", "name": "海鱼", "realm": "炼气3层", "exp": 30, "stats": { "dodge_rate": 12 } },
                 { "id": "crab", "name": "螃蟹精", "realm": "炼气6层", "exp": 60 },
-                { "id": "shark", "name": "鲨鱼精", "realm": "筑基初期", "exp": 200 },
+                { "id": "shark", "name": "鲨鱼精", "realm": "筑基初期", "exp": 200, "stats": { "crit_rate": 20, "crit_damage": 30 } },
                 { "id": "bandit", "name": "山贼", "realm": "炼气5层", "exp": 70 }
             ],
             "dangerLevel": 6,

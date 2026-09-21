@@ -7,6 +7,7 @@ const router = express.Router();
 const Player = require('../models/player');
 const PlayerOAuthBinding = require('../models/playerOAuthBinding');
 const game = require('../game');
+const { resolveSpiritRoot } = require('../game/stats/SpiritRoot');
 const authMiddleware = require('../middleware/auth');
 
 /**
@@ -63,10 +64,13 @@ router.get('/me', authMiddleware, async (req, res) => {
                 exp_cap: expResult.toString(),
                 exp_progress: game.ExperienceService.calculateExpProgress(player.exp, expResult),
                 can_breakthrough: canBreakthrough.canBreak,
-                spirit_roots: player.spirit_roots ? {
-                    type: player.spirit_roots.type || 'wood',
-                    value: player.spirit_roots.value || 0
-                } : null,
+                // 灵根：由 SpiritRoot 按 role_init.spirit_roots 归一后下发。
+                // 旧写法 player.spirit_roots.type || 'wood' 会把新建角色的 { '金灵根': {...} }
+                // 读成"木"，等于每个新号的灵根显示都是错的。
+                spirit_roots: (() => {
+                    const root = resolveSpiritRoot(player, game.AttributeService.getRoleInitConfig());
+                    return root ? { type: root.type, name: root.name, value: root.value } : null;
+                })(),
                 spirit_stones: player.spirit_stones?.toString() || '0',
                 // 第四阶段新增字段同步暴露给前端（保证前后端数据一致）
                 pawnshop_credit: player.pawnshop_credit || 0,        // 当铺信用额度
@@ -267,7 +271,7 @@ router.get('/attributes', authMiddleware, async (req, res) => {
             code: 200,
             data: {
                 basic_attributes: fullAttributes,
-                spirit_root_bonus: game.AttributeService.getSpiritRootBonus(player.spirit_roots)
+                spirit_root_bonus: game.AttributeService.getSpiritRootBonus(player)
             }
         });
     } catch (error) {

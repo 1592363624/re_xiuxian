@@ -119,4 +119,14 @@ const SectWarParticipant = sequelize.define('SectWarParticipant', {
     ]
 });
 
+/**
+ * 参战记录 → 战役本体。
+ * SectWarService.getMyWarRecords 用 include as: 'war' 一次带出战役信息，
+ * 但关联此前没有在任何地方声明过，于是 /api/sect-war/myrecords 稳定 500
+ * （SequelizeEagerLoadingError: SectWar is not associated to SectWarParticipant）。
+ * sectWar.js 不反向引用本文件，这里 require 不会成环。
+ */
+const SectWar = require('./sectWar');
+SectWarParticipant.belongsTo(SectWar, { foreignKey: 'war_id', as: 'war' });
+
 module.exports = SectWarParticipant;

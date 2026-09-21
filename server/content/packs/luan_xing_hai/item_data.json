@@ -1,0 +1,122 @@
+{
+  "dataset": "item_data",
+  "into": "items",
+  "comment": "乱星海市舶的装备与丹药。三处刻意安排：① 暴击伤害(crit_damage)、闪避、吸血这些以前只有属性定义、现网没有任何内容给出，玩家堆不到——这批装备把它们变成可获取的取舍；② 对两件现有一阶装备做 override，演示「早期只做攻击、后期补防御/暴击伤害」只改数据；③ 悟真丹给 hidden 属性 breakthrough_bonus，走的是注册表里那条与突破预览同一来源的键。effect 键名（含 crit/dodge 这类别名）由属性注册表解析，装备面板/战力/战斗/突破四处不需要各自认识新属性。",
+  "add": [
+    {
+      "id": "yueguang_jian",
+      "name": "月华剑",
+      "type": "equipment",
+      "subtype": "weapon",
+      "quality": "epic",
+      "description": "星海夜潮里浸过百年月精的一口剑，出鞘时剑身泛白，斩中要害格外狠。",
+      "effect": { "atk": 88, "speed": 8, "crit": 7, "crit_damage": 22 },
+      "price": 26000,
+      "required_realm_rank": 16
+    },
+    {
+      "id": "xuanyu_shan",
+      "name": "玄玉扇",
+      "type": "equipment",
+      "subtype": "weapon",
+      "quality": "rare",
+      "description": "以玄玉为骨折成的法扇，扇动时灵光如水，是海上市舶上法修最常问的一路。",
+      "effect": { "matk": 96, "sense": 12, "mp_max": 300 },
+      "price": 17500,
+      "required_realm_rank": 14
+    },
+    {
+      "id": "yinsha_ling",
+      "name": "银沙绫",
+      "type": "equipment",
+      "subtype": "armor",
+      "quality": "epic",
+      "description": "银沙蚕吐丝织就的长绫，滑不留手，法术擦身时能借势卸开几分。",
+      "effect": { "def": 62, "hp_max": 720, "dodge": 7 },
+      "price": 22800,
+      "required_realm_rank": 15
+    },
+    {
+      "id": "jupo_pei",
+      "name": "聚魄佩",
+      "type": "equipment",
+      "subtype": "accessory",
+      "quality": "rare",
+      "description": "刻着聚魄纹的玉佩，伤了神魂也能勉强守住，嗜血之徒更拿它当第二口粮。",
+      "effect": { "mdef": 48, "sense": 10, "lifesteal": 5 },
+      "price": 14200,
+      "required_realm_rank": 13
+    },
+    {
+      "id": "xingchen_fu",
+      "name": "星辰符",
+      "type": "equipment",
+      "subtype": "accessory",
+      "quality": "epic",
+      "description": "以星砂研墨绘成的一枚符箓，贴在心口，攻守都借一点星辰之力。",
+      "effect": { "atk": 30, "matk": 30, "crit": 5 },
+      "price": 19600,
+      "required_realm_rank": 16
+    },
+    {
+      "id": "wuzhen_dan",
+      "name": "悟真丹",
+      "type": "consumable",
+      "subtype": "attribute",
+      "quality": "epic",
+      "description": "乱星海丹师以潮息灵草入药，服后心神澄明，一层瓶颈往往就此松动。",
+      "effect": { "wisdom": 12, "breakthrough_bonus": 3 },
+      "price": 6800
+    },
+    {
+      "id": "juyue_dan",
+      "name": "聚月丹",
+      "type": "consumable",
+      "subtype": "attribute",
+      "quality": "rare",
+      "description": "月下凝出的丹丸，气血翻涌时服下，伤口合得比平时快些。",
+      "effect": { "lifesteal": 6, "hp_max": 260 },
+      "price": 4200
+    },
+    {
+      "id": "xingsha",
+      "name": "星砂",
+      "type": "material",
+      "subtype": "mineral",
+      "quality": "rare",
+      "description": "海底灵砂，颗粒在暗处隐隐有光，是绘符与炼器都肯收的料。",
+      "effect": {},
+      "price": 260
+    },
+    {
+      "id": "yuehun_shi",
+      "name": "月魂石",
+      "type": "material",
+      "subtype": "mineral",
+      "quality": "epic",
+      "description": "浸透月精的一块黑石，入手冰凉，据说能锁住一缕将散的神魂。",
+      "effect": {},
+      "price": 1400
+    },
+    {
+      "id": "luanxing_tu_can",
+      "name": "乱星图残卷",
+      "type": "recipe_scroll",
+      "subtype": "refining",
+      "quality": "legendary",
+      "description": "绘着半幅星道的残绢，照着炼下去才懂得星辰符为何要借星砂为墨。",
+      "effect": { "learn_recipe": "craft_xingchen_fu" },
+      "price": 32000
+    }
+  ],
+  "override": {
+    "qinglian_sword": {
+      "effect": { "def": 6, "dodge": 2 },
+      "description": "青莲剑派的入门长剑。海上市舶的旧剑脊里查出夹了一层银沙，格挡时比从前稳些。"
+    },
+    "jade_pendant": {
+      "effect": { "crit_damage": 8 },
+      "description": "寻常玉佩，被人拿去与聚魄纹比对后才发现纹路本就不凡——下手更重。"
+    }
+  }
+}

@@ -117,14 +117,13 @@ const confirmHarvest = computed<PlotInfo | null>(() =>
 const isOpened = computed(() => !!caveInfo.value?.is_opened)
 
 /**
- * 设施列表（按固定顺序展示：灵脉 / 静室 / 丹房 / 器室 / 大阵）
+ * 设施列表：顺序与条目都取自服务端返回的 facilities（内容声明顺序）
  */
 const facilityList = computed<{ type: FacilityType; info: FacilityInfo }[]>(() => {
-  if (!caveInfo.value?.facilities) return []
-  // 固定展示顺序，便于玩家按核心度浏览
-  const order: FacilityType[] = ['spirit_vein', 'quiet_room', 'pill_room', 'tool_room', 'grand_formation']
-  return order
-    .map(type => ({ type, info: caveInfo.value!.facilities![type] }))
+  const facilities = caveInfo.value?.facilities
+  if (!facilities) return []
+  return Object.entries(facilities)
+    .map(([type, info]) => ({ type, info }))
     .filter(item => !!item.info)
 })
 
@@ -540,7 +539,8 @@ const formatUpgradeCost = (info: FacilityInfo) => {
   const parts: string[] = []
   if (cost.spirit_stone > 0) parts.push(`${cost.spirit_stone} 灵石`)
   if (cost.material && cost.material_count > 0) {
-    parts.push(`${cost.material} x${cost.material_count}`)
+    // 名字来自服务端的 material_name（内容里的物品名）；没有才退回键名，别在客户端抄一份物品典
+    parts.push(`${cost.material_name || cost.material} x${cost.material_count}`)
   }
   return parts.length > 0 ? parts.join(' + ') : '—'
 }

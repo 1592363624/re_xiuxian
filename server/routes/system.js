@@ -30,30 +30,58 @@ function getAuthConfig() {
     return configLoader.getConfig('game_balance')?.auth || {};
 }
 
-// 更新日志缓存（内存级，仅当前进程有效）
+// 更新日志缓存：内存一份（快），磁盘一份（重启后还在）
 let changelogCache = null;
 let lastCacheTime = 0;
+const CHANGELOG_CACHE_FILE = () => require('os').tmpdir() + require('path').sep + 're_xiuxian_changelog_cache.json';
+
+function readChangelogDiskCache() {
+    try {
+        const raw = require('fs').readFileSync(CHANGELOG_CACHE_FILE(), 'utf8');
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : null;
+    } catch {
+        return null;                 // 没有缓存文件是正常情况
+    }
+}
+
+function writeChangelogDiskCache(commits) {
+    try {
+        require('fs').writeFileSync(CHANGELOG_CACHE_FILE(), JSON.stringify(commits));
+    } catch (err) {
+        console.warn('[changelog] 磁盘缓存写入失败（不影响本次响应）:', err.message);
+    }
+}
 
 /**
  * 获取 GitHub 更新日志
- * GitHub URL、User-Agent、缓存时长均从 system 配置读取，避免硬编码
+ * GitHub URL、User-Agent、缓存时长、超时均从 system 配置读取，避免硬编码
+ *
+ * 这个面板本来就自带一份编辑过的版本说明（客户端 src/data/changelog.ts），GitHub 提交列表只是补充信息，
+ * 所以第三方不可达时**不能**把请求打成 500 —— 响应拦截器会给玩家弹一条"服务器错误，请稍后重试"，
+ * 而面板其实能正常显示。现在：拉得到就用，拉不到就用内存/磁盘缓存，都没有就返回空列表并标明来源。
  */
 router.get('/changelog', async (req, res, next) => {
-    try {
-        const now = Date.now();
-        const systemSettings = getSystemConfig().settings || {};
-        const cacheDuration = systemSettings.changelog_cache_duration_ms?.value ?? 600000;
+    const now = Date.now();
+    const systemSettings = getSystemConfig().settings || {};
+    const setting = key => systemSettings[key]?.value;
+    const cacheDuration = setting('changelog_cache_duration_ms') ?? 600000;
+    const fetchTimeout = setting('changelog_fetch_timeout_ms') ?? 5000;
 
+    const reply = (data, source) => res.json({ code: 200, data, source });
+
+    try {
         if (changelogCache && (now - lastCacheTime < cacheDuration)) {
-            return res.json(changelogCache);
+            return reply(changelogCache, 'memory_cache');
         }
 
-        const githubUrl = systemSettings.github_api_url?.value || 'https://api.github.com/repos/1592363624/re_xiuxian/commits';
-        const userAgent = systemSettings.github_user_agent?.value || 're_xiuxian-game';
+        const githubUrl = setting('github_api_url') || 'https://api.github.com/repos/1592363624/re_xiuxian/commits';
+        const userAgent = setting('github_user_agent') || 're_xiuxian-game';
 
         const response = await axios.get(githubUrl, {
             params: { per_page: 30 },
-            headers: { 'User-Agent': userAgent }
+            headers: { 'User-Agent': userAgent },
+            timeout: fetchTimeout
         });
 
         // 格式化数据
@@ -67,21 +95,19 @@ router.get('/changelog', async (req, res, next) => {
 
         changelogCache = commits;
         lastCacheTime = now;
+        writeChangelogDiskCache(commits);
 
-        res.json({
-            code: 200,
-            data: commits
-        });
+        return reply(commits, 'github');
     } catch (error) {
-        console.error('获取GitHub提交记录失败:', error.message);
-        // 如果有缓存，即使过期也返回
-        if (changelogCache) {
-            return res.json({
-                code: 200,
-                data: changelogCache
-            });
+        console.warn('[changelog] 拉取 GitHub 提交失败，改用缓存:', error.message);
+        if (changelogCache) return reply(changelogCache, 'memory_cache');
+        const disk = readChangelogDiskCache();
+        if (disk) {
+            changelogCache = disk;
+            lastCacheTime = 0;      // 磁盘缓存没有时效信息，下次请求仍然尝试刷新
+            return reply(disk, 'disk_cache');
         }
-        next(new AppError('获取更新日志失败', 500, ErrorCodes.INTERNAL_ERROR));
+        return reply([], 'unavailable');
     }
 });
 

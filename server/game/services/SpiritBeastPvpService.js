@@ -42,6 +42,7 @@ class SpiritBeastPvpService {
      * @param {object} configLoader - ConfigLoader 实例
      */
     initialize(configLoader) {
+        this.configLoader = configLoader;
         this.config = configLoader.getConfig('spirit_beast_pvp_data')?.spirit_beast_pvp;
         if (!this.config) {
             throw new Error('灵兽PVP配置未加载，请检查 spirit_beast_pvp_data.json');
@@ -285,8 +286,8 @@ class SpiritBeastPvpService {
             return { success: false, message: '当前无进行中的赛季' };
         }
 
-        // ===== 3. 校验挑战方资格 =====
-        const challengerRanking = await this._getOrCreateRanking(player, season.id);
+        // ===== 3. 校验挑战方资格（下面这些无锁预读只用于快速失败；真正结算前会在锁内重判）=====
+        let challengerRanking = await this._getOrCreateRanking(player, season.id);
         await this._checkDailyReset(challengerRanking);
 
         // 每日挑战次数
@@ -377,15 +378,50 @@ class SpiritBeastPvpService {
         // ===== 7. 事务结算 =====
         const transaction = await sequelize.transaction();
         try {
-            // 重新获取玩家（行级锁）
-            const challengerLocked = await Player.findByPk(player.id, {
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
-            const defenderLocked = await Player.findByPk(targetPlayerId, {
-                transaction,
-                lock: transaction.LOCK.UPDATE
-            });
+            // 两把锁一次按 id 升序取齐。"先挑战者后防守者"是**调用方顺序**：
+            // 甲乙互相挑战时两笔各持自己那侧、再伸手要对方的行 = ABBA 死锁（赛季结算按名次锁玩家是同一个坑）。
+            const lockedPlayers = await this._lockPlayersByIdAsc(transaction, [player.id, targetPlayerId]);
+            const challengerLocked = lockedPlayers.find(p => Number(p.id) === Number(player.id)) || null;
+            const defenderLocked = lockedPlayers.find(p => Number(p.id) === Number(targetPlayerId)) || null;
+
+            // ===== 锁住之后把"这一仗到底能不能打"重判一遍（上面那些无锁预读只用来快速失败）=====
+            // 不重判的实际后果（scripts/smoke_beast_pvp_battle.js 量化过）：
+            //   A 只有 100 灵石，同时对两个**不同**对手各押 100（同对手冷却拦不住不同对手），
+            //   两笔的余额校验都读自己那份无锁快照 → 同一份灵石押两次，A 余额被扣成 -100；
+            //   daily_challenge_count 同理是整块行上的 read-modify-write，10 次/天的上限形同虚设。
+            const reject = async (message) => {
+                if (!transaction.finished) await transaction.rollback();
+                return { success: false, message };
+            };
+            if (!challengerLocked || !defenderLocked) {
+                return await reject('玩家状态已变化，请稍后重试');
+            }
+            if (challengerLocked.is_dead || challengerLocked.is_banned
+                || defenderLocked.is_dead || defenderLocked.is_banned) {
+                return await reject('对局双方有一方当前不可应战');
+            }
+            if (!isFriendly) {
+                if (BigInt(challengerLocked.spirit_stones || 0) < BigInt(betStones)) {
+                    return await reject('灵石不足，无法押注');
+                }
+                if (BigInt(defenderLocked.spirit_stones || 0) < BigInt(betStones)) {
+                    return await reject('对手灵石不足，无法匹配押注');
+                }
+            }
+            await this._ensureRanking(player, season.id, transaction);
+            await this._ensureRanking(defenderLocked, season.id, transaction);
+            const lockedRankings = await this._lockRankingsByIdAsc(transaction, season.id, [player.id, targetPlayerId]);
+            const challengerRankingLocked = lockedRankings.find(r => Number(r.player_id) === Number(player.id)) || null;
+            const defenderRankingLocked = lockedRankings.find(r => Number(r.player_id) === Number(targetPlayerId)) || null;
+            if (!challengerRankingLocked || !defenderRankingLocked) {
+                return await reject('排名记录建立中，请稍后重试');
+            }
+            await this._checkDailyReset(challengerRankingLocked, transaction);
+            if (challengerRankingLocked.daily_challenge_count >= Number(this.config.challenge.daily_challenge_limit)) {
+                return await reject(`今日挑战次数已用完（${this.config.challenge.daily_challenge_limit}次/天）`);
+            }
+            // 下面整段结算都用锁到的那一份，别再拿无锁预读改出来的值往回写
+            challengerRanking = challengerRankingLocked;
 
             let winnerId = null;
             let winnerSide = null;
@@ -415,8 +451,11 @@ class SpiritBeastPvpService {
                 if (!isFriendly) {
                     betWon = BigInt(0);
                     betLost = BigInt(betStones);
+                    // 双方各下一注，赢家拿走整池（2×bet）。原来这里只扣了挑战方那一注、
+                    // 却给防守方发 2 注 → 每输一次就凭空印出 betStones 灵石
+                    // （smoke_beast_pvp_battle B7 实测：三人 300 灵石两局之后变 500）。
                     challengerLocked.spirit_stones = BigInt(challengerLocked.spirit_stones || 0) - BigInt(betStones);
-                    defenderLocked.spirit_stones = BigInt(defenderLocked.spirit_stones || 0) + BigInt(betStones) * 2n;
+                    defenderLocked.spirit_stones = BigInt(defenderLocked.spirit_stones || 0) - BigInt(betStones) + BigInt(betStones) * 2n;
                     await challengerLocked.save({ transaction, silent: true });
                     await defenderLocked.save({ transaction, silent: true });
                 }
@@ -480,8 +519,9 @@ class SpiritBeastPvpService {
                 }
                 await challengerRanking.save({ transaction, silent: true });
 
-                // 更新防守方排行
-                const defenderRanking = await this._getOrCreateRanking(targetPlayer, season.id, transaction);
+                // 防守方排行：用上面一起锁到的那一份（原来这里又 `_getOrCreateRanking` 无锁读一遍，
+                // 两笔并发对局会把 total_matches / win_rate 按旧快照盖回去）
+                const defenderRanking = defenderRankingLocked;
                 const defenderPointsChange = this._calculatePointsChange(defenderRanking, winnerSide === 'defender', winnerSide === 'draw');
                 defenderRanking.ranking_points = Math.max(0, defenderRanking.ranking_points + defenderPointsChange);
                 defenderRanking.total_matches += 1;
@@ -551,7 +591,8 @@ class SpiritBeastPvpService {
             // 友谊赛：计入对局数/胜负/平局/胜率，但不影响段位/胜点/灵石/灵兽经验
             // 这样玩家可以通过友谊赛热身，同时排行榜仍以正式赛为主
             // 使用行级锁重新获取，避免并发更新丢失
-            const challengerRankingLocked = await this._getOrCreateRanking(player, season.id, transaction);
+            // 友谊赛同样用上面锁到的那两份（原来这里再 `_getOrCreateRanking` 读一遍无锁行，
+            // 并发对局会把 total_matches/win_rate 按旧快照写回去）
             challengerRankingLocked.total_matches += 1;
             if (winnerSide === 'challenger') challengerRankingLocked.total_wins += 1;
             else if (winnerSide === 'draw') challengerRankingLocked.total_draws += 1;
@@ -652,6 +693,38 @@ class SpiritBeastPvpService {
             }, options);
         }
         return ranking;
+    }
+
+    /**
+     * 建排名行的"并发安全"版本：两笔并发各自 findOne→create 会撞 uk_pvp_season_player，
+     * 第二笔直接以 SequelizeUniqueConstraintError 冒到玩家脸上（表现为 500）。
+     * 撞键说明别人已经建好了，吞掉这一次冲突、后面按锁读拿到的那份即可。
+     * @private
+     */
+    async _ensureRanking(player, seasonId, transaction) {
+        try {
+            await this._getOrCreateRanking(player, seasonId, transaction);
+        } catch (error) {
+            const dup = /unique|Validation error|ER_DUP/i.test(`${error.name || ''} ${error.message || ''}`);
+            if (!dup) throw error;
+        }
+    }
+
+    /**
+     * 一次把本赛季这几名玩家的排名行按 player_id 升序锁齐。
+     * 次序必须固定：与对局/赛季结算共用同一批行，两边各按自己的顺序锁就是 ABBA 死锁；
+     * 而且 daily_challenge_count / total_matches 是 read-modify-write，不锁就会被并发对局盖回旧值。
+     * @private
+     */
+    async _lockRankingsByIdAsc(t, seasonId, playerIds) {
+        const unique = [...new Set((playerIds || []).map(Number).filter(Number.isFinite))].sort((a, b) => a - b);
+        if (!unique.length) return [];
+        return SpiritBeastPvpRanking.findAll({
+            where: { season_id: seasonId, player_id: unique },
+            order: [['player_id', 'ASC']],
+            lock: t.LOCK.UPDATE,
+            transaction: t
+        });
     }
 
     /**
@@ -877,9 +950,10 @@ class SpiritBeastPvpService {
      * @private
      */
     _getElementMultiplier(attackerElement, defenderElement) {
-        // 从 spirit_beast_data.json 读取元素配置
-        const beastData = require('../../config/spirit_beast_data.json');
-        const elem = beastData.elements[attackerElement];
+        // 元素表走 ConfigLoader（合并视图），不再 require 配置文件：
+        // require 一个 .json 会被 Node 永久缓存，资料片改的克制关系、热更后的新值都到不了这里。
+        const beastData = this.configLoader?.getConfig('spirit_beast_data') || {};
+        const elem = (beastData.elements || {})[attackerElement];
         if (!elem) return 1.0;
         if (elem.strong_against === defenderElement) {
             return Number(this.config.combat.element_strong_multiplier);
@@ -949,12 +1023,14 @@ class SpiritBeastPvpService {
      * 检查并执行每日重置
      * @private
      */
-    async _checkDailyReset(ranking) {
+    async _checkDailyReset(ranking, transaction = null) {
+        // 带调用方事务：不带事务的 save() 在"同一行已被本事务 FOR UPDATE 锁住"时会走另一条连接
+        // 去写同一行 = 自己等自己，只能等到 innodb_lock_wait_timeout。
         if (!ranking.daily_reset_at) {
             ranking.daily_reset_at = new Date();
             ranking.daily_challenge_count = 0;
             ranking.daily_first_win_claimed = false;
-            await ranking.save({ silent: true });
+            await ranking.save({ silent: true, transaction });
             return;
         }
         const now = new Date();
@@ -964,7 +1040,7 @@ class SpiritBeastPvpService {
             ranking.daily_reset_at = now;
             ranking.daily_challenge_count = 0;
             ranking.daily_first_win_claimed = false;
-            await ranking.save({ silent: true });
+            await ranking.save({ silent: true, transaction });
         }
     }
 
@@ -1005,12 +1081,32 @@ class SpiritBeastPvpService {
 
         for (const season of expiredSeasons) {
             try {
-                await this._settleSeason(season);
-                console.log(`[SpiritBeastPvpService] 赛季 ${season.season_name} 已自动结算`);
+                const result = await this._settleSeason(season);
+                if (result?.settled) {
+                    console.log(`[SpiritBeastPvpService] 赛季 ${season.season_name} 已自动结算`);
+                } else {
+                    console.log(`[SpiritBeastPvpService] 赛季 ${season.season_name} 跳过结算：${result?.reason}`);
+                }
             } catch (e) {
                 console.error(`[SpiritBeastPvpService] 赛季 ${season.season_name} 结算失败:`, e.message);
             }
         }
+    }
+
+    /**
+     * 一次把多行 players 按 id 升序锁齐（本服务的取锁契约）。
+     * 顺序必须固定：players 是多人共用行，两笔流程用不同次序锁同一批行就是 ABBA 死锁。
+     * @private
+     */
+    async _lockPlayersByIdAsc(t, ids) {
+        const unique = [...new Set((ids || []).map(Number).filter(Number.isFinite))].sort((a, b) => a - b);
+        if (!unique.length) return [];
+        return Player.findAll({
+            where: { id: unique },
+            order: [['id', 'ASC']],
+            lock: t.LOCK.UPDATE,
+            transaction: t
+        });
     }
 
     /**
@@ -1020,6 +1116,19 @@ class SpiritBeastPvpService {
     async _settleSeason(season) {
         const transaction = await sequelize.transaction();
         try {
+            // 调用方那次 findAll 粗筛是**不带锁**的：调度器与手动结算（或两轮 tick 重叠）会拿到
+            // 同一份 status='active' 的快照双双通过检查，前 100 名的赛季奖励就发两遍。
+            // 锁住这一行再重判一遍，第二笔直接退出。
+            const lockedSeason = await SpiritBeastPvpSeason.findByPk(season.id, {
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+            if (!lockedSeason || lockedSeason.status !== 'active' || new Date(lockedSeason.end_time) > new Date()) {
+                await transaction.rollback();
+                return { settled: false, reason: '赛季已被其它结算处理或尚未到期' };
+            }
+            season = lockedSeason;
+
             // 获取前100名
             const top100 = await SpiritBeastPvpRanking.findAll({
                 where: { season_id: season.id, total_matches: { [Op.gt]: 0 } },
@@ -1034,6 +1143,10 @@ class SpiritBeastPvpService {
             const tierRewardMap = {};
             tiersConfig.forEach(t => { tierRewardMap[t.key] = Number(t.season_reward_spirit_stones); });
 
+            // 要发奖的玩家一次按 id 升序锁齐（一件一件按名次锁 = 与并发对局的次序可能相反 → ABBA）
+            const recipientById = new Map((await this._lockPlayersByIdAsc(transaction, top100.map(r => r.player_id)))
+                .map(p => [Number(p.id), p]));
+
             for (let i = 0; i < top100.length; i++) {
                 const ranking = top100[i];
                 const rank = i + 1;
@@ -1045,9 +1158,9 @@ class SpiritBeastPvpService {
                 else if (rank <= 10) reward += Number(seasonRewards.top10_reward_spirit_stones);
                 else reward += Number(seasonRewards.top100_reward_spirit_stones);
 
-                // 发放奖励
+                // 发放奖励（玩家行已在上面按 id 升序锁好，这里只认锁到的那一份）
                 if (reward > 0) {
-                    const player = await Player.findByPk(ranking.player_id, { transaction, lock: transaction.LOCK.UPDATE });
+                    const player = recipientById.get(Number(ranking.player_id));
                     if (player && !player.is_dead && !player.is_banned) {
                         player.spirit_stones = BigInt(player.spirit_stones || 0) + BigInt(reward);
                         await player.save({ transaction, silent: true });
@@ -1075,21 +1188,22 @@ class SpiritBeastPvpService {
             };
             await season.save({ transaction, silent: true });
 
-            await transaction.commit();
-
-            // 创建新赛季
+            // 建新赛季放在**同一个事务里**：原来先 commit 再建，建失败（唯一键/进程被杀）就留下
+            // "上一季已 settled、下一季不存在"的空档，排位玩法直接停摆且没人补。
             const durationDays = Number(this.config.season.duration_days);
             const now = new Date();
-            const seasonCount = await SpiritBeastPvpSeason.count();
+            const seasonCount = await SpiritBeastPvpSeason.count({ transaction });
             const newSeasonName = `${now.getFullYear()}年第${Math.floor(now.getMonth() / 4) + 1 + seasonCount}季`;
             await SpiritBeastPvpSeason.create({
                 season_name: newSeasonName,
                 start_time: now,
                 end_time: new Date(now.getTime() + durationDays * 24 * 3600 * 1000),
                 status: 'active'
-            });
+            }, { transaction });
 
+            await transaction.commit();
             console.log(`[SpiritBeastPvpService] 新赛季 ${newSeasonName} 已创建`);
+            return { settled: true, rewarded: summary.length, new_season: newSeasonName };
         } catch (err) {
             await transaction.rollback();
             throw err;

@@ -18,9 +18,14 @@ const Item = require('../../models/item');
 const MapConfigLoader = require('./MapConfigLoader');
 const DropLoader = require('./DropLoader');
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
+const CombatResolver = require('../combat/CombatResolver');
+// 怪物属性块：整份递给结算（攻守两侧同构），不再只挑 def/atk 一个字段
+const { buildMonsterStats, monsterCombatStats } = require('../combat/MonsterStats');
 // 引入 InventoryService：战斗掉落物品通过统一的 addItem 方法入包（正确累加数量）
 // 修复关键Bug：此前使用 Item.upsert 会替换已有物品数量而非累加，导致玩家丢失原有物品
 const InventoryService = require('./InventoryService');
+const { withItemNames } = require('../items/itemNaming');
+const { grantItems } = require('../items/itemGrant');
 const { infrastructure } = require('../../modules');
 // 引入 AppError 用于抛出带 HTTP 状态码的业务错误（避免 throw Error 被 errorHandler 当成 500）
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
@@ -45,6 +50,20 @@ function safeBigInt(value) {
     if (typeof value === 'bigint') return value;
     // 统一转字符串再转 BigInt，避免 number 精度丢失
     return BigInt(String(value));
+}
+
+/**
+ * 吸血回血：把 CombatResolver 结算出的 lifesteal 记到战斗内的玩家 HP 上，封顶到气血上限。
+ * 返回实际回复量（0 表示本回合没有吸血），调用方据此写战斗日志。
+ */
+function applyLifesteal(battle, strike, maxHp) {
+    const heal = Number(strike?.lifesteal) || 0;
+    if (heal <= 0) return 0;
+    const before = safeBigInt(battle.player_hp);
+    const cap = safeBigInt(Math.floor(Number(maxHp) || 0));
+    const next = cap > 0n ? (before + BigInt(heal) > cap ? cap : before + BigInt(heal)) : before + BigInt(heal);
+    battle.player_hp = next;
+    return Number(next - before);
 }
 
 /**
@@ -91,7 +110,8 @@ class CombatService {
             // 避免一进入战斗就立即被判失败
             const currentHp = safeBigInt(player.hp_current);
             if (currentHp <= 0n) {
-                const playerHpMax = this.getPlayerStat(player, 'hp_max', 100);
+                // 上限取完整解析结果，和玩家面板一致（attributes 里的 hp_max 是建号时的陈旧值）
+                const playerHpMax = (await CombatResolver.resolveCombatStats(player)).stats.hp_max ?? 100;
                 const deathMinHp = getGameBalanceConfig().combat?.death_min_hp ?? 10;
                 const deathRecoveryRate = getGameBalanceConfig().combat?.death_hp_recovery_rate ?? 0.3;
                 player.hp_current = BigInt(Math.max(deathMinHp, Math.floor(playerHpMax * deathRecoveryRate)));
@@ -221,22 +241,13 @@ class CombatService {
      * 通过懒加载函数读取配置，避免模块加载时配置未初始化的问题
      */
     static generateMonsterData(monsterConfig, player) {
-        const playerLevel = this.getPlayerLevel(player);
-        // 修复：原代码误用未声明的 gameBalanceConfig，应使用懒加载函数 getGameBalanceConfig
+        // 数值口径集中在 game/combat/MonsterStats：全局曲线 × 玩家境界浮动，
+        // 再叠加内容里给这只怪声明的属性（stats / power_multiplier）
         const { combat } = getGameBalanceConfig();
-        const levelMultiplier = combat.level_multiplier_base + (playerLevel * combat.level_multiplier_per_level);
-
-        return {
-            id: monsterConfig.id,
-            name: monsterConfig.name,
-            realm: monsterConfig.realm,
-            max_hp: Math.floor(combat.base_monster_hp * levelMultiplier),
-            hp: Math.floor(combat.base_monster_hp * levelMultiplier),
-            atk: Math.floor(combat.base_monster_atk * levelMultiplier),
-            def: Math.floor(combat.base_monster_def * levelMultiplier),
-            speed: Math.floor(combat.base_monster_speed * levelMultiplier),
-            exp_reward: monsterConfig.exp || 10
-        };
+        return buildMonsterStats(monsterConfig, {
+            playerLevel: this.getPlayerLevel(player),
+            combat
+        });
     }
 
     /**
@@ -252,22 +263,6 @@ class CombatService {
     }
 
     /**
-     * 安全读取玩家属性值
-     * 防御场景：player.attributes 可能因 JSON 解析失败返回 {}，属性可能不存在
-     * @param {object} player - 玩家实例
-     * @param {string} key - 属性键名（atk/def/speed 等）
-     * @param {number} defaultVal - 默认值
-     * @returns {number} 属性数值
-     */
-    static getPlayerStat(player, key, defaultVal) {
-        const stats = player.attributes || {};
-        const val = stats[key];
-        // 字符串数字转 number，避免后续 BigInt 运算类型混乱
-        const num = Number(val);
-        return Number.isFinite(num) ? num : defaultVal;
-    }
-
-    /**
      * 玩家攻击
      * 事务包裹：扣血/扣蓝/写日志/回合切换必须原子性
      * 行级锁：防止 attack 与 monsterTurn 并发执行导致回合错乱
@@ -275,7 +270,16 @@ class CombatService {
     static async attack(playerId, action = 'attack') {
         const t = await sequelize.transaction();
         try {
-            // 行级锁战斗记录，防止与 monsterTurn/flee 并发
+            // 取锁次序按 game/persistence/lockOrder.js 口径：players 先于 active_battles。
+            // 改造前先锁战斗行再锁玩家行，与 encounter 反向，双击遭遇 + 一次出手就能凑出 ABBA 环。
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
             const battle = await ActiveBattle.findOne({
                 where: { player_id: playerId },
                 lock: t.LOCK.UPDATE,
@@ -289,48 +293,39 @@ class CombatService {
             if (!battle.is_player_turn) {
                 throw new AppError('还未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
+            // 参战属性统一解析（境界+灵根+加点+天赋+称号+装备+灵兽+功法+法宝+傀儡）。
+            // 改造前这里读的是 attributes.atk 这份陈旧快照，再手工补灵兽/傀儡两块，
+            // 装备与功法根本不参与 PVE 伤害——面板 480 攻、实际按 25 攻结算。
+            const attacker = await CombatResolver.resolveCombatStats(player);
+            const balanceConfig = getGameBalanceConfig();
+            const combatConfig = balanceConfig.combat || {};
+            const monsterStats = monsterCombatStats(battle.monster_data);
 
-            // 行级锁玩家行，防止与 encounter/flee 并发
-            const player = await Player.findByPk(playerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
+            // 技能分支：仅当 action=skill 且灵力足够时改走技能公式并扣灵力
+            // 具体走哪条档位由神通声明（combat_formulas 的 profile），资料片新增档位无需改这里
+            const skillProfile = CombatResolver.selectSkillProfile(
+                attacker.info?.technique_skills, 'player_skill'
+            );
+            const canSkill = action === 'skill' && safeBigInt(player.mp_current) >= (combatConfig.skill_mp_cost ?? 20);
+            const strike = CombatResolver.computeDamage(canSkill ? skillProfile : 'player_basic', {
+                attackerStats: attacker.stats,
+                defenderStats: monsterStats,
+                // 神通的战斗特效（额外伤害/破防）随出手方进入结算
+                skills: attacker.info?.technique_skills,
+                balanceConfig
             });
-            if (!player) {
-                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-            }
-            const playerAtk = this.getPlayerStat(player, 'atk', 10);
-            // 灵兽加成：出战灵兽按比例提供额外攻击力（灵兽助战）
-            const SpiritBeastService = require('./SpiritBeastService');
-            const beastAtkBonus = await SpiritBeastService.getActiveBeastBonus(playerId);
-            // 傀儡加成：出战傀儡按 battle_stat_ratio（30%）提供额外攻击力
-            const PuppetService = require('./PuppetService');
-            let puppetAtkBonus = 0;
-            try {
-                const puppetBonus = await PuppetService.getBattlePuppetBonus(playerId);
-                if (puppetBonus) {
-                    puppetAtkBonus = puppetBonus.atk || 0;
-                }
-            } catch (e) {
-                // PuppetService 未初始化或查询失败时静默降级
-            }
-            const totalPlayerAtk = playerAtk + (beastAtkBonus.atk || 0) + puppetAtkBonus;
-            const monsterDef = battle.monster_data?.def || 5;
+            let damage = strike.damage;
 
-            const combatConfig = getGameBalanceConfig().combat || {};
-            const dmgRange = combatConfig.damage_random_range ?? 15;
-            const dmgOffset = combatConfig.damage_random_offset ?? 7;
-
-            let damage = Math.max(1, totalPlayerAtk - monsterDef + Math.floor(Math.random() * dmgRange) - dmgOffset);
-
-            // 技能加成：仅当 action=skill 且灵力足够时生效（attack 路由的 skill 分支）
-            if (action === 'skill' && safeBigInt(player.mp_current) >= (combatConfig.skill_mp_cost ?? 20)) {
-                damage = Math.floor(damage * (combatConfig.skill_damage_multiplier ?? 1.5));
+            if (canSkill) {
                 battle.player_mp = safeBigInt(battle.player_mp) - BigInt(combatConfig.skill_mp_cost ?? 20);
             }
 
             // 使用 safeBigInt 防御 null/undefined 导致 500
             battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(damage);
             battle.damage_dealt = safeBigInt(battle.damage_dealt) + BigInt(damage);
+            // 吸血：按解析出的气血上限封顶（provider 已含灵兽/傀儡的 HP 贡献，与开局 HP 同口径）
+            const hpBeforeHeal = safeBigInt(battle.player_hp);
+            const healed = applyLifesteal(battle, strike, attacker.stats.hp_max);
 
             // 修复：使用 appendBattleLog 替代直接 push，确保 save 时写入数据库
             appendBattleLog(battle, {
@@ -338,6 +333,12 @@ class CombatService {
                 attacker: 'player',
                 action: action,
                 damage: damage,
+                damage_profile: strike.profile,
+                crit: !!strike.crit,
+                missed: !!strike.missed,
+                lifesteal: healed || undefined,
+                player_hp: hpBeforeHeal.toString(),
+                round_hp_after: safeBigInt(battle.player_hp).toString(),
                 target_hp: safeBigInt(battle.monster_hp).toString(),
                 timestamp: new Date().toISOString()
             });
@@ -384,6 +385,15 @@ class CombatService {
     static async monsterTurn(playerId) {
         const t = await sequelize.transaction();
         try {
+            // 与 attack 同口径：players 先于 active_battles，不与 encounter 构成 ABBA 环
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
             const battle = await ActiveBattle.findOne({
                 where: { player_id: playerId },
                 lock: t.LOCK.UPDATE,
@@ -395,21 +405,20 @@ class CombatService {
                 return null;
             }
 
-            const player = await Player.findByPk(playerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
-            if (!player) {
-                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-            }
-            const playerDef = this.getPlayerStat(player, 'def', 5);
+            const defender = await CombatResolver.resolveCombatStats(player);
 
             const monsterData = battle.monster_data || {};
-            // 怪物伤害随机范围从配置读取，与玩家伤害公式保持一致
-            const monsterDmgConfig = getGameBalanceConfig().combat || {};
-            const monsterDmgRange = monsterDmgConfig.monster_damage_random_range ?? 6;
-            const monsterDmgOffset = monsterDmgConfig.monster_damage_random_offset ?? 3;
-            let damage = Math.max(1, (monsterData.atk || 8) - playerDef + Math.floor(Math.random() * monsterDmgRange) - monsterDmgOffset);
+            // 与玩家出手共用同一套公式与触发结算：怪物这一记同样会被玩家的闪避、
+            // 神通格挡/减伤减免。改造前这里是第五份手写伤害公式，玩家的防御类特效对 PVE 完全无效。
+            const monsterStrike = CombatResolver.computeDamage('monster_basic', {
+                // 整块怪物属性：内容里给它声明 crit_rate/dodge_rate/lifesteal 就直接进结算，
+                // 不用回来改这里（改造前只有 atk 一个字段，怪物永远不可能暴击）
+                attackerStats: monsterCombatStats(monsterData),
+                defenderStats: defender.stats,
+                defenderSkills: defender.info?.technique_skills,
+                balanceConfig: getGameBalanceConfig()
+            });
+            let damage = monsterStrike.damage;
 
             // ===== 洞府防御加成减免（与 WorldBossService 一致的断链接通模式）=====
             // getCaveDefenseBonus 返回玩家因洞府设施获得的受击伤害减免比例（0~max_bonus），
@@ -420,7 +429,8 @@ class CombatService {
                 // 懒加载 CaveService，避免与服务层循环依赖
                 const CaveService = require('./CaveService');
                 caveDefenseReduction = Number(await CaveService.getCaveDefenseBonus(playerId)) || 0;
-                if (caveDefenseReduction > 0) {
+                // 已被闪避/格挡的一记不再被"至少 1 点"下限抬回伤害
+                if (caveDefenseReduction > 0 && damage > 0) {
                     const reduced = Math.floor(damage * caveDefenseReduction);
                     damage = Math.max(1, damage - reduced);
                 }
@@ -446,7 +456,7 @@ class CombatService {
                         battleId: battle.battle_uuid,        // 战斗实例ID
                         battleRound: battle.round,           // 当前回合
                         attackerId: null,                    // PVE 中攻击方是怪物，无玩家ID
-                        protectorAtk: 0,                     // 道侣不在战场，反击伤害计算时取配置默认
+                        protectorAtk: 0,                     // 今天传 0 就等于"护道方不反击"（配置里没有 ATK 这项，接线与否见 #24 与 tests/DaoCompanionCounterLink.test.js）
                         transaction: t                       // 复用当前事务
                     }
                 );
@@ -664,22 +674,11 @@ class CombatService {
             const gainedExp = dropResult.exp || 0;
             player.exp = safeBigInt(player.exp) + BigInt(gainedExp);
 
-            const gainedItems = [];
-            for (const item of (dropResult.items || [])) {
-                // 修复关键Bug：使用 InventoryService.addItem 正确累加物品数量
-                // 此前 Item.upsert 会替换已有数量（如已有5个+掉落3个→变为3个而非8个）
-                // addItem 内部会查找已有记录并 quantity += 新数量
-                try {
-                    await InventoryService.addItem(player.id, item.item_id, item.quantity, t);
-                } catch (invErr) {
-                    // 背包容量不足或物品配置不存在时，跳过该物品但不中断战斗结算
-                    console.warn(`[CombatService] 战斗掉落物品入包失败 item=${item.item_id}:`, invErr.message);
-                }
-                gainedItems.push({
-                    item_id: item.item_id,
-                    quantity: item.quantity
-                });
-            }
+            // 掉落逐件入包，只有真发到的才记进 gainedItems。
+            // 原来无论 addItem 成败都 push 一条，背包满时玩家看到的"获得 X"其实什么都没拿到，
+            // 战斗记录与历史里也留着一条不存在的收获。
+            const grant = await grantItems(player.id, dropResult.items || [], t, { label: '战斗掉落' });
+            const gainedItems = grant.granted.map(g => ({ item_id: g.item_key, quantity: g.quantity }));
 
             await player.save(transactionOptions);
 
@@ -688,7 +687,7 @@ class CombatService {
                 attacker: 'player',
                 action: 'victory',
                 exp: gainedExp,
-                items: gainedItems,
+                items: withItemNames(gainedItems),
                 timestamp: new Date().toISOString()
             });
 
@@ -700,10 +699,11 @@ class CombatService {
                 victory: true,
                 result: 'win',
                 battleEnded: true,
-                message: `击败 ${battle.monster_name}！获得 ${gainedExp} 修为`,
+                message: `击败 ${battle.monster_name}！获得 ${gainedExp} 修为`
+                    + (grant.failed.length ? `（背包放不下，${grant.failed.length} 件掉落未获得）` : ''),
                 rewards: {
                     exp: gainedExp,
-                    items: gainedItems
+                    items: withItemNames(gainedItems)
                 }
             };
         }
@@ -714,7 +714,7 @@ class CombatService {
             const penaltyExp = currentExp * BigInt(Math.round(penaltyRate * 100)) / 100n;
             player.exp = currentExp - penaltyExp;
             // hp_max 存储在 attributes JSON 字段中，需要从中读取
-            const playerHpMax = this.getPlayerStat(player, 'hp_max', 100);
+            const playerHpMax = (await CombatResolver.resolveCombatStats(player)).stats.hp_max ?? 100;
             const deathMinHp = getGameBalanceConfig().combat?.death_min_hp ?? 10;
             const deathRecoveryRate = getGameBalanceConfig().combat?.death_hp_recovery_rate ?? 0.3;
             player.hp_current = BigInt(Math.max(deathMinHp, Math.floor(playerHpMax * deathRecoveryRate)));
@@ -797,8 +797,9 @@ class CombatService {
             await battle.destroy();
             return { in_battle: false };
         }
-        const playerMaxHp = this.getPlayerStat(player, 'hp_max', 100);
-        const playerMaxMp = this.getPlayerStat(player, 'mp_max', 0);
+        const battleStats = await CombatResolver.resolveCombatStats(player);
+        const playerMaxHp = battleStats.stats.hp_max ?? 100;
+        const playerMaxMp = battleStats.stats.mp_max ?? 0;
 
         return {
             in_battle: true,
@@ -842,7 +843,7 @@ class CombatService {
             result: b.battle_result,
             rounds: b.rounds,
             exp: safeBigInt(b.rewards_exp).toString(),
-            items: b.rewards_items,
+            items: withItemNames(b.rewards_items),
             time: b.created_at
         }));
     }
@@ -855,6 +856,15 @@ class CombatService {
     static async useSkill(playerId, skillIndex = 0) {
         const t = await sequelize.transaction();
         try {
+            // 与 attack 同口径：players 先于 active_battles
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
             const battle = await ActiveBattle.findOne({
                 where: { player_id: playerId },
                 lock: t.LOCK.UPDATE,
@@ -869,14 +879,6 @@ class CombatService {
                 throw new AppError('还未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            const player = await Player.findByPk(playerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
-            if (!player) {
-                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-            }
-
             const combatConfig = getGameBalanceConfig().combat || {};
             const skillMpCost = combatConfig.skill_mp_cost ?? 20;
 
@@ -884,33 +886,25 @@ class CombatService {
                 throw new AppError(`灵力不足，需要 ${skillMpCost} 点灵力`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            const playerAtk = this.getPlayerStat(player, 'atk', 10);
-            // 灵兽加成：出战灵兽按比例提供额外攻击力（灵兽助战，与普通攻击一致）
-            const SpiritBeastService = require('./SpiritBeastService');
-            const beastAtkBonus = await SpiritBeastService.getActiveBeastBonus(playerId);
-            // 傀儡加成：出战傀儡按 battle_stat_ratio（30%）提供额外攻击力（与普通攻击一致）
-            const PuppetService = require('./PuppetService');
-            let puppetAtkBonus = 0;
-            try {
-                const puppetBonus = await PuppetService.getBattlePuppetBonus(playerId);
-                if (puppetBonus) {
-                    puppetAtkBonus = puppetBonus.atk || 0;
-                }
-            } catch (e) {
-                // PuppetService 未初始化或查询失败时静默降级
-            }
-            const totalPlayerAtk = playerAtk + (beastAtkBonus.atk || 0) + puppetAtkBonus;
-            const monsterDef = battle.monster_data?.def || 5;
-
-            // 技能伤害随机范围从配置读取（与 damage_random_range/offset 复用，避免新增配置项）
-            const skillDmgRange = combatConfig.damage_random_range ?? 15;
-            const skillDmgOffset = combatConfig.damage_random_offset ?? 7;
-            let damage = Math.floor(totalPlayerAtk * (combatConfig.skill_damage_multiplier ?? 1.5) - monsterDef + Math.floor(Math.random() * skillDmgRange) - skillDmgOffset);
-            damage = Math.max(1, damage);
+            // 与普攻共用同一套解析与公式（此前这里又抄了一遍灵兽/傀儡加成 + 独立的手写公式）
+            const attacker = await CombatResolver.resolveCombatStats(player);
+            const skills = attacker.info?.technique_skills;
+            // 档位与 attack 的技能分支同源：神通声明了 damage_profile 就用它，
+            // 否则同一个已领悟神通在"出招"和"使用神通"两个入口会打出两种伤害
+            const strike = CombatResolver.computeDamage(
+                CombatResolver.selectSkillProfile(skills, 'player_skill'), {
+                attackerStats: attacker.stats,
+                defenderStats: monsterCombatStats(battle.monster_data),
+                skills,
+                balanceConfig: getGameBalanceConfig()
+            });
+            const damage = strike.damage;
 
             battle.player_mp = safeBigInt(battle.player_mp) - BigInt(skillMpCost);
             battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(damage);
             battle.damage_dealt = safeBigInt(battle.damage_dealt) + BigInt(damage);
+            const hpBeforeHeal = safeBigInt(battle.player_hp);
+            const healed = applyLifesteal(battle, strike, attacker.stats.hp_max);
 
             appendBattleLog(battle, {
                 round: battle.round,
@@ -918,6 +912,12 @@ class CombatService {
                 action: 'skill',
                 skill_index: skillIndex,
                 damage: damage,
+                damage_profile: strike.profile,
+                crit: !!strike.crit,
+                missed: !!strike.missed,
+                lifesteal: healed || undefined,
+                player_hp: hpBeforeHeal.toString(),
+                round_hp_after: safeBigInt(battle.player_hp).toString(),
                 target_hp: safeBigInt(battle.monster_hp).toString(),
                 timestamp: new Date().toISOString()
             });
@@ -998,68 +998,85 @@ class CombatService {
         if (!itemId) {
             throw new AppError('物品ID不能为空', 400, ErrorCodes.VALIDATION_ERROR);
         }
+        const amount = Math.max(1, Math.floor(Number(quantity) || 1));
 
-        // 查询玩家和物品
-        const player = await Player.findByPk(playerId);
-        if (!player) {
-            throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-        }
+        // 玩家行与物品行必须在同一事务里一起加锁：
+        // 旧实现两次无锁读 + 分别 save，双击"使用"会把同一瓶药喝两次、
+        // 或者把 hp 按各自的旧值写回，后写的把先写的回复量覆盖掉。
+        return sequelize.transaction(async (t) => {
+            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
 
-        const item = await Item.findOne({
-            where: { player_id: playerId, item_key: itemId }
+            const item = await Item.findOne({
+                where: { player_id: playerId, item_key: itemId },
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+
+            if (!item || item.quantity < amount) {
+                throw new AppError('物品数量不足', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 物品配置走 ItemService（旧代码 require 了一个并不存在的 config/ItemConfigLoader，
+            // 结果这个接口每次调用都在 require 处抛错）
+            const ItemService = require('../core/ItemService');
+            const itemConfig = ItemService.getItemById(itemId);
+            if (!itemConfig || itemConfig.type !== 'consumable') {
+                throw new AppError('该物品不可使用', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 回复上限用完整属性快照（含装备/功法），与玩家面板显示的上限一致；
+            // 旧代码读 attributes 里的陈旧 hp_max，容易把回复量算小甚至算成 0。
+            const AttributeService = require('../core/AttributeService');
+            const { final } = await AttributeService.calculateFullAttributesAsync(player);
+
+            let message = '使用物品成功';
+            const updates = {};
+            const effect = itemConfig.effect || {};
+
+            if (effect.hp_restore) {
+                const restoreAmount = Math.max(0, Math.min(
+                    effect.hp_restore * amount,
+                    (final.hp_max || 0) - Number(safeBigInt(player.hp_current))
+                ));
+                updates.hp_current = Number(safeBigInt(player.hp_current)) + restoreAmount;
+                if (restoreAmount > 0) message += `，恢复 ${restoreAmount} 气血`;
+            }
+
+            if (effect.mp_restore) {
+                const restoreAmount = Math.max(0, Math.min(
+                    effect.mp_restore * amount,
+                    (final.mp_max || 0) - Number(safeBigInt(player.mp_current))
+                ));
+                updates.mp_current = Number(safeBigInt(player.mp_current)) + restoreAmount;
+                if (restoreAmount > 0) message += `，恢复 ${restoreAmount} 灵力`;
+            }
+
+            // 消耗丹药（在已加锁的行上改，数量不会被并发改没）
+            item.quantity -= amount;
+            if (item.quantity <= 0) {
+                await item.destroy({ transaction: t });
+            } else {
+                await item.save({ transaction: t });
+            }
+
+            // 玩家状态经补丁写入：只写 hp/mp 两列（同步镜像 attributes 里的同名键），
+            // 不用旧实例整块回写 attributes
+            const PlayerStateStore = require('../persistence/PlayerStateStore');
+            const updated = await PlayerStateStore.patchPlayerState(
+                playerId,
+                { columns: updates },
+                { transaction: t }
+            );
+
+            return {
+                message: message,
+                player_hp: safeBigInt(updated.hp_current).toString(),
+                player_mp: safeBigInt(updated.mp_current).toString()
+            };
         });
-
-        if (!item || item.quantity < quantity) {
-            throw new AppError('物品数量不足', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
-
-        // 获取物品配置
-        const ItemConfigLoader = require('../../config/ItemConfigLoader');
-        const itemConfig = await ItemConfigLoader.getItem(itemId);
-        if (!itemConfig || itemConfig.type !== 'consumable') {
-            throw new AppError('该物品不可使用', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
-
-        // 应用物品效果
-        const effect = itemConfig.effect || {};
-        let message = '使用物品成功';
-
-        if (effect.hp_restore) {
-            const hpMax = this.getPlayerStat(player, 'hp_max', 100);
-            const restoreAmount = Math.min(
-                effect.hp_restore * quantity,
-                hpMax - Number(safeBigInt(player.hp_current))
-            );
-            player.hp_current = safeBigInt(player.hp_current) + BigInt(restoreAmount);
-            message += `，恢复 ${restoreAmount} 气血`;
-        }
-
-        if (effect.mp_restore) {
-            const mpMax = this.getPlayerStat(player, 'mp_max', 0);
-            const restoreAmount = Math.min(
-                effect.mp_restore * quantity,
-                mpMax - Number(safeBigInt(player.mp_current))
-            );
-            player.mp_current = safeBigInt(player.mp_current) + BigInt(restoreAmount);
-            message += `，恢复 ${restoreAmount} 灵力`;
-        }
-
-        // 更新物品数量
-        item.quantity -= quantity;
-        if (item.quantity <= 0) {
-            await item.destroy();
-        } else {
-            await item.save();
-        }
-
-        // 保存玩家属性
-        await player.save();
-
-        return {
-            message: message,
-            player_hp: safeBigInt(player.hp_current).toString(),
-            player_mp: safeBigInt(player.mp_current).toString()
-        };
     }
 
     /**

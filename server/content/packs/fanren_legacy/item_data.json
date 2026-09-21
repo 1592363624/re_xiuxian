@@ -1,0 +1,100 @@
+{
+  "dataset": "item_data",
+  "into": "items",
+  "comment": "凡人遗宝：新增剑修法宝/法修防具/丹方，并给现有一把木剑补上法术攻击（演示「扩展已有内容」）。",
+  "add": [
+    {
+      "id": "qingzhu_fengyun_sword",
+      "name": "青竹蜂云剑",
+      "type": "equipment",
+      "subtype": "weapon",
+      "quality": "legendary",
+      "description": "以金雷竹炼成的飞剑，剑气如蜂云成阵，是剑修踏入元婴后的第一口本命剑胚。",
+      "effect": { "atk": 120, "matk": 60, "speed": 12, "sword_intent": 45, "crit": 6 },
+      "price": 48000,
+      "required_realm_rank": 20
+    },
+    {
+      "id": "xuantian_zhanling_sword",
+      "name": "玄天斩灵剑",
+      "type": "equipment",
+      "subtype": "weapon",
+      "quality": "mythic",
+      "description": "玄天剑体凝成的一截剑意，不假外物，斩的是神魂与灵气。",
+      "effect": { "atk": 60, "sword_intent": 180, "matk": 90, "crit": 10 },
+      "price": 128000,
+      "required_realm_rank": 28
+    },
+    {
+      "id": "qibao_jiayi",
+      "name": "七宝袈衣",
+      "type": "equipment",
+      "subtype": "armor",
+      "quality": "epic",
+      "description": "七宝织就的法衣，善御五行吐息，妖王喷来的毒火多被这件衣服挡下三分。",
+      "effect": { "def": 70, "mdef": 120, "hp_max": 900, "element_resist": 18 },
+      "price": 36000,
+      "required_realm_rank": 18
+    },
+    {
+      "id": "dingkong_mifeng",
+      "name": "定风珠·秘制护心镜",
+      "type": "equipment",
+      "subtype": "accessory",
+      "quality": "rare",
+      "description": "含在口中可定身形，被法术击中也不至于被震散真灵。",
+      "effect": { "mdef": 40, "sense": 15, "dodge": 5 },
+      "price": 9200,
+      "required_realm_rank": 12
+    },
+    {
+      "id": "ningcui_dan",
+      "name": "凝翠丹",
+      "type": "consumable",
+      "subtype": "attribute",
+      "quality": "rare",
+      "description": "凝聚草木精华的丹丸，服下后法力气机为之一盛，是法修筑基后的常用补丹。",
+      "effect": { "matk": 60, "mp_max": 400, "hp_max": 200 },
+      "price": 2600
+    },
+    {
+      "id": "jianxin_dan",
+      "name": "剑心丹",
+      "type": "consumable",
+      "subtype": "attribute",
+      "quality": "epic",
+      "description": "以剑冢残意入药，服后剑意微萌，剑修可使出远超本境界的一击。",
+      "effect": { "sword_intent": 120, "atk": 80 },
+      "price": 7400
+    },
+    {
+      "id": "shijin_gu",
+      "name": "噬金蛊",
+      "type": "material",
+      "subtype": "beast",
+      "quality": "legendary",
+      "description": "上古妖虫，口器可噬金饮铁，是炼器与养虫两道都觊觎的活材。",
+      "effect": {},
+      "price": 15000
+    },
+    {
+      "id": "fanren_dao_can",
+      "name": "凡人道残卷",
+      "type": "recipe_scroll",
+      "subtype": "refining",
+      "quality": "mythic",
+      "description": "记载着凡人以术法逆推天道的残缺心法，得之可悟混元剑意诀。",
+      "effect": { "learn_recipe": "hunyun_jianyi_jue" },
+      "price": 60000
+    }
+  ],
+  "override": {
+    "wooden_sword": {
+      "effect": { "matk": 3 },
+      "description": "凡铁所铸的入门长剑。遗宝现世后被证实剑脊内封着一缕极细的灵气，故也添些法术攻击。"
+    },
+    "spirit_robe": {
+      "effect": { "mdef": 12, "element_resist": 4 }
+    }
+  }
+}

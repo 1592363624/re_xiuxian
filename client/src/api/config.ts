@@ -109,3 +109,24 @@ export interface GameBalancePublicConfig {
 export const getGameBalancePublic = () => {
   return apiClient.get<{ code: number; data: GameBalancePublicConfig }>('/config/game-balance/public');
 };
+
+/** 一条内容主键 + 它在内容里的显示名 */
+export interface ContentKeyOption {
+  key: string;
+  name: string;
+  collection: string;
+}
+
+/**
+ * 取某个已登记数据集的主键清单（仅管理员）
+ * GET /api/config/content/keys/:dataset
+ *
+ * GM 面板的下拉用它，别再自己抄一份主键清单 —— 抄的那份在资料片加内容后就少了条目，
+ * 而服务端按内容校验，界面上选不出来而已。
+ */
+export const getContentKeyOptions = (dataset: string, collection?: string) => {
+  return apiClient.get<{ code: number; data: { dataset: string; entries: ContentKeyOption[] } }>(
+    `/config/content/keys/${encodeURIComponent(dataset)}`,
+    collection ? { params: { collection } } : undefined
+  );
+};

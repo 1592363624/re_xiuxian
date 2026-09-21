@@ -218,9 +218,7 @@ class ArtifactDeepLineService {
         // 已装备：初始化状态并返回完整快照
         const state = this._initBloodSwordState(equipment);
         // 若状态有变更（首次初始化或跨周重置），持久化
-        if (equipment.changed('deep_line_state')) {
-            await equipment.save();
-        }
+        // 只读接口不落库：整块写回 deep_line_state 会用这份快照抹掉同时提交的玩家操作
 
         const now = Date.now();
         const sacrificeCooldownMs = (cfg.blood_pact?.sacrifice_cooldown_hours || 18) * 3600 * 1000;
@@ -981,24 +979,37 @@ class ArtifactDeepLineService {
      */
     static async settleExpiredSheaths() {
         const cfg = this.getBloodSwordConfig();
-        const now = new Date();
         let settledCount = 0;
         const errors = [];
 
-        // 查询所有 sheath_until 已到期但未结算的记录（deep_line_state 含 sheath_until 字段）
-        // MySQL 5.6 不支持 JSON 查询，需全表扫描后内存过滤
-        const allEquipments = await PlayerEquipment.findAll({
-            where: { item_key: cfg.item_key }
+        // 第一遍只筛候选：deep_line_state 是整块 JSON 列，MySQL 5.6 不支持按 JSON 条件查，
+        // 所以粗读一遍拿"可能已到期"的行。真正结算必须逐行重新加锁读 ——
+        // 扫描期间玩家自己祭血/重新封鞘提交的那一份，会被这里手上的旧快照整块抹掉。
+        const candidates = await PlayerEquipment.findAll({
+            where: { item_key: cfg.item_key },
+            attributes: ['id', 'deep_line_state']
         });
 
-        for (const equipment of allEquipments) {
-            try {
-                const deepLine = equipment.deep_line_state || {};
-                const state = deepLine.blood_sword;
-                if (!state || !state.sheath_until) continue;
+        for (const candidate of candidates) {
+            const coarse = candidate.deep_line_state || {};
+            if (!coarse.blood_sword || !coarse.blood_sword.sheath_until) continue;
 
-                const sheathUntilMs = new Date(state.sheath_until).getTime();
-                if (sheathUntilMs > now.getTime()) continue;  // 未到期，跳过
+            let settled = null;
+            const t = await sequelize.transaction();
+            try {
+                const equipment = await PlayerEquipment.findByPk(candidate.id, {
+                    transaction: t,
+                    lock: t.LOCK.UPDATE
+                });
+                const deepLine = equipment ? (equipment.deep_line_state || {}) : {};
+                const state = deepLine.blood_sword;
+
+                // 加锁后重判：锁外那份结论随时会过期（玩家已解封，或刚封了一次新的鞘）
+                if (!equipment || !state || !state.sheath_until
+                    || new Date(state.sheath_until).getTime() > Date.now()) {
+                    await t.rollback();
+                    continue;
+                }
 
                 // 结算封鞘效果
                 const sheathCfg = cfg.sheath;
@@ -1017,24 +1028,35 @@ class ArtifactDeepLineService {
 
                 equipment.deep_line_state = { ...deepLine, blood_sword: state };
                 equipment.changed('deep_line_state', true);
-                await equipment.save();
+                await equipment.save({ transaction: t });
+                await t.commit();
 
-                // 推送封鞘到期结算通知
-                try {
-                    WebSocketNotificationService.notifyPlayerUpdate(equipment.player_id, 'blood_sword_sheath_settled', {
-                        corruption: state.corruption,
-                        suppression: state.suppression,
-                        corruption_reduce: corruptionReduce,
-                        suppression_gain: suppressionGain,
-                        timestamp: now.toISOString()
-                    });
-                } catch (e) {
-                    // 推送失败不阻塞结算
-                }
-
-                settledCount += 1;
+                settled = {
+                    player_id: equipment.player_id,
+                    corruption: state.corruption,
+                    suppression: state.suppression,
+                    corruptionReduce,
+                    suppressionGain
+                };
             } catch (err) {
-                errors.push({ equipment_id: equipment.id, error: err.message });
+                if (t && !t.finished) await t.rollback();
+                errors.push({ equipment_id: candidate.id, error: err.message });
+                continue;
+            }
+
+            settledCount += 1;
+
+            // 推送封鞘到期结算通知（提交之后才推，避免回滚了却告诉玩家已结算）
+            try {
+                WebSocketNotificationService.notifyPlayerUpdate(settled.player_id, 'blood_sword_sheath_settled', {
+                    corruption: settled.corruption,
+                    suppression: settled.suppression,
+                    corruption_reduce: settled.corruptionReduce,
+                    suppression_gain: settled.suppressionGain,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (e) {
+                // 推送失败不阻塞结算
             }
         }
 
@@ -1224,9 +1246,7 @@ class ArtifactDeepLineService {
 
         // 已装备：初始化状态并返回完整快照
         const state = this._initXutianCauldronState(equipment);
-        if (equipment.changed('deep_line_state')) {
-            await equipment.save();
-        }
+        // 只读接口不落库：整块写回 deep_line_state 会用这份快照抹掉同时提交的玩家操作
 
         const now = Date.now();
         const advanceCooldownMs = (cfg.advance_cauldron?.cooldown_seconds || 43200) * 1000;
@@ -2033,9 +2053,7 @@ class ArtifactDeepLineService {
 
         // 已装备：初始化状态并返回完整快照
         const state = this._initSkyBottleState(equipment);
-        if (equipment.changed('deep_line_state')) {
-            await equipment.save();
-        }
+        // 只读接口不落库：整块写回 deep_line_state 会用这份快照抹掉同时提交的玩家操作
 
         return {
             has_sky_bottle: true,
@@ -2847,9 +2865,7 @@ class ArtifactDeepLineService {
         const state = this._initWheelState(equipment);
         this._resetDailyInsightIfNeeded(state, cfg);
         // 若状态有变更（首次初始化或跨日重置），持久化
-        if (equipment.changed('deep_line_state')) {
-            await equipment.save();
-        }
+        // 只读接口不落库：整块写回 deep_line_state 会用这份快照抹掉同时提交的玩家操作
 
         const stages = cfg.stages || [];
         const currentStage = stages.find(s => s.stage === state.insight_stage);
@@ -3018,9 +3034,7 @@ class ArtifactDeepLineService {
 
         const state = this._initWheelState(equipment);
         this._resetDailyInsightIfNeeded(state, cfg);
-        if (equipment.changed('deep_line_state')) {
-            await equipment.save();
-        }
+        // 只读接口不落库：整块写回 deep_line_state 会用这份快照抹掉同时提交的玩家操作
 
         const stages = cfg.stages || [];
         const currentStage = stages.find(s => s.stage === state.insight_stage);

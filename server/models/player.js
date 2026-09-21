@@ -3,6 +3,7 @@
  */
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { assertBlobWriteAllowed, assertBulkBlobWriteAllowed } = require('../game/persistence/blobWriteGuard');
 
 const Player = sequelize.define('Player', {
     id: {
@@ -781,10 +782,34 @@ const Player = sequelize.define('Player', {
         type: DataTypes.DATE,
         allowNull: true,
         comment: '最后天机回溯时间（冷却计算）'
+    },
+    state_version: {
+        type: DataTypes.BIGINT,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '玩家状态写入版本号：每次经 PlayerStateStore 写入 +1，用于判定"这张快照是新还是旧"'
     }
 }, {
     tableName: 'players',
     timestamps: true
+});
+
+/**
+ * 整块 JSON 列的写入守卫 —— 规则本身在 game/persistence/blobWriteGuard.js，
+ * 那里有完整背景说明与单元测试。第三参数是 Player 自身：守卫拿它在同一事务里
+ * 锁读一次 state_version，用来判定"手上这份快照是否已经比库里旧"。
+ * 钩子必须返回 Promise，否则异步判定会被吞掉（Sequelize 不会等它）。
+ */
+Player.beforeSave(async (instance, options) => {
+    await assertBlobWriteAllowed(instance, options, Player);
+});
+
+/**
+ * Player.update() 走的是 bulk 路径，不触发 beforeSave —— 那道拦不住，单独挂一条。
+ * 见 blobWriteGuard.assertBulkBlobWriteAllowed。
+ */
+Player.beforeBulkUpdate((options) => {
+    assertBulkBlobWriteAllowed(options);
 });
 
 module.exports = Player;

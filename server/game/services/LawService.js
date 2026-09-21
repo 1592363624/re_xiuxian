@@ -46,6 +46,7 @@ const PlayerDivineSense = require('../../models/playerDivineSense');
 const PlayerAscension = require('../../models/playerAscension');
 const sequelize = require('../../config/database');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
+const PlayerStateStore = require('../persistence/PlayerStateStore');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 
 /**
@@ -553,24 +554,23 @@ class LawService {
             const effectType = convertOption.effect_type;
             const totalEffectAmount = Number(convertOption.effect_amount) * count;
             const effectsApplied = {};
+            // 要写进 attributes blob 的键级增量。这里刻意不直接改 player.attributes：
+            // 那是"整块读、改一个键、整块写回"，会把这段时间里别的流程写进 attributes 的键一起抹掉。
+            const blobDelta = {};
 
             switch (effectType) {
                 case 'ask_dao_insight': {
                     // 问道感悟 +N（写入 player.ask_dao_insight）
-                    const attrs = player.attributes || {};
-                    const oldInsight = Number(attrs.ask_dao_insight || 0);
-                    attrs.ask_dao_insight = oldInsight + totalEffectAmount;
-                    player.attributes = attrs;
+                    const oldInsight = Number((player.attributes || {}).ask_dao_insight || 0);
+                    blobDelta.ask_dao_insight = { $add: totalEffectAmount };
                     effectsApplied.ask_dao_insight_added = totalEffectAmount;
                     effectsApplied.ask_dao_insight_total = oldInsight + totalEffectAmount;
                     break;
                 }
                 case 'dharma_form_exp': {
                     // 法相天地经验 +N（写入 player.dharma_form_exp，由飞升系统读取）
-                    const attrs = player.attributes || {};
-                    const oldExp = Number(attrs.dharma_form_exp || 0);
-                    attrs.dharma_form_exp = oldExp + totalEffectAmount;
-                    player.attributes = attrs;
+                    const oldExp = Number((player.attributes || {}).dharma_form_exp || 0);
+                    blobDelta.dharma_form_exp = { $add: totalEffectAmount };
                     effectsApplied.dharma_form_exp_added = totalEffectAmount;
                     effectsApplied.dharma_form_exp_total = oldExp + totalEffectAmount;
                     break;
@@ -594,32 +594,26 @@ class LawService {
                     break;
                 }
                 case 'remnant_soul': {
-                    // 残魂恢复 +N（写入 player.remnant_soul）
-                    const attrs = player.attributes || {};
-                    const oldRemnant = Number(attrs.remnant_soul || 0);
-                    const newRemnant = Math.min(100, oldRemnant + totalEffectAmount); // 残魂上限 100
-                    attrs.remnant_soul = newRemnant;
-                    player.attributes = attrs;
+                    // 残魂恢复 +N（写入 player.remnant_soul，上限 100 由 $max 在行锁内钳住）
+                    const oldRemnant = Number((player.attributes || {}).remnant_soul || 0);
+                    const newRemnant = Math.min(100, oldRemnant + totalEffectAmount);
+                    blobDelta.remnant_soul = { $add: totalEffectAmount, $max: 100 };
                     effectsApplied.remnant_soul_added = newRemnant - oldRemnant;
                     effectsApplied.remnant_soul_total = newRemnant;
                     break;
                 }
                 case 'breakthrough_bonus': {
                     // 突破成功率 +N%（临时加成，写入 player.attributes.breakthrough_bonus）
-                    const attrs = player.attributes || {};
-                    const oldBonus = Number(attrs.breakthrough_bonus || 0);
-                    attrs.breakthrough_bonus = oldBonus + totalEffectAmount;
-                    player.attributes = attrs;
+                    const oldBonus = Number((player.attributes || {}).breakthrough_bonus || 0);
+                    blobDelta.breakthrough_bonus = { $add: totalEffectAmount };
                     effectsApplied.breakthrough_bonus_added = totalEffectAmount;
                     effectsApplied.breakthrough_bonus_total = oldBonus + totalEffectAmount;
                     break;
                 }
                 case 'ascension_bonus': {
                     // 飞升成功率 +N%（临时加成，写入 player.attributes.ascension_bonus）
-                    const attrs = player.attributes || {};
-                    const oldBonus = Number(attrs.ascension_bonus || 0);
-                    attrs.ascension_bonus = oldBonus + totalEffectAmount;
-                    player.attributes = attrs;
+                    const oldBonus = Number((player.attributes || {}).ascension_bonus || 0);
+                    blobDelta.ascension_bonus = { $add: totalEffectAmount };
                     effectsApplied.ascension_bonus_added = totalEffectAmount;
                     effectsApplied.ascension_bonus_total = oldBonus + totalEffectAmount;
                     break;
@@ -657,6 +651,15 @@ class LawService {
                     await t.rollback();
                     return { success: false, message: `未知效果类型：${effectType}`, error_code: ErrorCodes.BUSINESS_LOGIC_ERROR };
                 }
+            }
+
+            // 键级补丁：只动本次转换涉及的键，其余键保留库里最新值（同一事务内已持行锁）
+            if (Object.keys(blobDelta).length) {
+                const updated = await PlayerStateStore.patchPlayerState(
+                    playerId, { attributes: blobDelta }, { transaction: t }
+                );
+                // 内存跟着锁内那份结果走；随后的 player.save 不再携带这一列（blob 只有补丁那一次写）
+                PlayerStateStore.mirrorPatchedBlob(player, updated);
             }
 
             await player.save({ transaction: t });

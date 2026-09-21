@@ -167,7 +167,8 @@
         "level_up_exp_base": 100,
         "level_up_exp_growth": 1.5,
         "combat_power_weight": {
-            "hp": 0.1,
+            "_comment": "键必须是属性注册表里的规范属性名（SpiritBeastService.calculateCombatPower 按这里声明了哪些属性就算哪些，不再在代码里点名）。写 hp 会被判成死权重：列叫 hp_max，测试 tests/BeastPowerWeights.test.js 会拦。",
+            "hp_max": 0.1,
             "atk": 2.0,
             "def": 1.5,
             "speed": 1.0
@@ -178,10 +179,13 @@
             "star_rate": 0.05,
             "level_rate": 0.005,
             "max_rate": 0.5,
-            "hp_factor": 0.5,
-            "speed_factor": 0.3,
-            "mp_factor": 0.0,
-            "sense_factor": 0.2
+            "stat_factors": {
+                "atk": 1,
+                "def": 1,
+                "hp_max": 0.5,
+                "speed": 0.3
+            },
+            "stat_factors_note": "出战灵兽把自身每一项属性折算给玩家的比例（乘在 bonus_rate 上）；没列出的注册属性按 1 全额给。灵兽表只有 hp_max/atk/def/speed 四个属性列，原来的 mp_factor/sense_factor 是没人读的孤儿键，已删"
         }
     },
 

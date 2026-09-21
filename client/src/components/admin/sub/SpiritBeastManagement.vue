@@ -432,18 +432,27 @@ import {
   setBeastActive,
   resetBeastCooldowns
 } from '../../../api/admin_spirit_beast'
+import { getContentKeyOptions } from '../../../api/config'
 
 const emit = defineEmits(['showConfirm'])
 const uiStore = useUIStore()
 
-// ====== 常量配置（与 spirit_beast_data.json 对应） ======
+// ====== 常量配置 ======
 
-const BEAST_KEY_LIST = [
-  { value: 'qingyun_wolf', label: '青云狼' },
-  { value: 'huoyan_lion', label: '火焰狮' },
-  { value: 'bingpo_fox', label: '冰魄狐' },
-  { value: 'tenglong_snake', label: '腾蛇' }
-]
+/**
+ * 灵兽种类清单：取自内容（GET /config/content/keys/spirit_beast_data）。
+ * 以前这里抄了一份 4 只的清单，资料片加一只灵兽，后台"发放/刷新"的下拉里就没有它。
+ */
+const BEAST_KEY_LIST = ref([])
+
+async function loadBeastKeyList() {
+  try {
+    const res = await getContentKeyOptions('spirit_beast_data')
+    BEAST_KEY_LIST.value = (res.data?.data?.entries || []).map(e => ({ value: e.key, label: e.name }))
+  } catch (err) {
+    uiStore.showToast(err?.message || '获取灵兽种类清单失败', 'error')
+  }
+}
 
 const RARITY_OPTIONS = [
   { value: 'common', label: '凡品' },
@@ -522,7 +531,7 @@ const giveForm = reactive({
 
 // ====== 工具函数 ======
 
-const beastKeyLabel = (key) => BEAST_KEY_LIST.find(b => b.value === key)?.label || key
+const beastKeyLabel = (key) => BEAST_KEY_LIST.value.find(b => b.value === key)?.label || key
 const rarityLabel = (r) => RARITY_OPTIONS.find(x => x.value === r)?.label || r
 const elementLabel = (e) => ELEMENT_OPTIONS.find(x => x.value === e)?.label || e
 
@@ -780,6 +789,7 @@ const handleResetCooldowns = async (beast) => {
 // ====== 初始化 ======
 
 onMounted(() => {
+  loadBeastKeyList()
   fetchStats()
   fetchBeastList(1)
 })

@@ -127,7 +127,7 @@ const helmet = require('helmet');
 const { infrastructure } = require('./modules');
 const game = require('./game');
 const WebSocketNotificationService = require('./game/services/WebSocketNotificationService');
-const { apiLimiter, actionLimiter, adminLimiter, initializeRateLimiters } = require('./middleware/rateLimit');
+const { apiLimiter, actionLimiter, adminLimiter, initializeRateLimiters, watchRateLimitConfig } = require('./middleware/rateLimit');
 
 const app = express();
 
@@ -315,10 +315,16 @@ async function initializeCoreServices(configLoaderInstance) {
 }
 
 // 监听配置热更新事件
-if (infrastructure.EventBus) {
-    infrastructure.EventBus.subscribe('configHotUpdated', (event) => {
-        console.log(`配置热更新: ${event.configName}`);
+// 注意：这段以前挂在 infrastructure.EventBus 上，而 ConfigLoader 是把 configHotUpdated
+// 发在自己身上的（见 ConfigLoader.hotUpdateConfig）—— 挂错了对象，于是这条订阅从来没执行过：
+// 后台改完配置日志里毫无痕迹，限流阈值也要重启进程才生效。改成等 configLoader 就位后再挂。
+function watchConfigHotUpdates() {
+    if (!configLoader) return;
+    configLoader.on('configHotUpdated', ({ configName }) => {
+        console.log(`配置热更新: ${configName}`);
     });
+    // 限流单独一个订阅者：它要重建 express-rate-limit 实例，不是只记一行日志
+    watchRateLimitConfig(configLoader);
 }
 
 // 启动服务器
@@ -331,6 +337,8 @@ const startServer = async () => {
         await initializeCoreServices(configLoader);
         // 配置就绪后按 game_balance.rate_limit 重建限流器（模块加载时用的是兜底阈值）
         initializeRateLimiters();
+        // 之后后台再改 game_balance，热更新事件会把新阈值直接换进限流器，不必重启
+        watchConfigHotUpdates();
     }
 
     // 初始化历练探索服务（AI大模型事件生成）

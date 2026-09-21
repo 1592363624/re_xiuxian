@@ -272,15 +272,22 @@
                       {{ lastAttackResult.elemental_counter.description || '无相克' }}
                     </span>
                   </div>
-                  <!-- BOSS 技能反击（批次4-2-Ext3 新增，替代简化公式） -->
-                  <div v-if="lastAttackResult.counter && lastAttackResult.counter.damage > 0" class="flex items-center justify-between text-rose-400">
+                  <!-- BOSS 技能反击（批次4-2-Ext3 新增，替代简化公式）
+                       反击现在也掷闪避：被闪掉时伤害是 0，只按 damage>0 判断的话这一记会整行消失，
+                       玩家看不到自己闪掉了什么，所以 missed 也要占一行 -->
+                  <div v-if="lastAttackResult.counter && (lastAttackResult.counter.damage > 0 || lastAttackResult.counter.missed)"
+                    class="flex items-center justify-between"
+                    :class="lastAttackResult.counter.missed ? 'text-emerald-300' : 'text-rose-400'">
                     <span>
                       BOSS反击
                       <span v-if="lastAttackResult.counter.skill?.name" class="ml-1 text-purple-300">[{{ lastAttackResult.counter.skill.name }}]</span>
                       <span v-if="lastAttackResult.counter.skill?.type === 'aoe_all' || lastAttackResult.counter.skill?.type === 'ultimate_screen_wide'"
                         class="ml-1 text-orange-400 font-bold">[群伤]</span>
+                      <span v-if="lastAttackResult.counter.crit" class="ml-1 text-red-400 font-bold">(暴击!)</span>
                     </span>
-                    <span class="num">-{{ formatCompact(lastAttackResult.counter.damage) }}</span>
+                    <span class="num">
+                      {{ lastAttackResult.counter.missed ? '已闪避' : `-${formatCompact(lastAttackResult.counter.damage)}` }}
+                    </span>
                   </div>
                   <!-- AOE 事件（批次4-2-Ext3 新增，BOSS 释放范围技能） -->
                   <div v-if="lastAttackResult.aoe_event" class="text-orange-300 border-t border-line pt-1.5">

@@ -115,8 +115,9 @@ router.post('/try', authenticateToken, async (req, res, next) => {
             });
         }
 
-        // 计算成功率：瓶颈已破除时提供额外加成
-        let probability = game.RealmService.calculateBreakthroughProbability(player, nextRealm);
+        // 计算成功率：神通/资料片的加成走属性解析层，瓶颈已破除时另有额外加成
+        const skillBonus = await game.RealmService.resolveBreakthroughBonus(player);
+        let probability = game.RealmService.calculateBreakthroughProbability(player, nextRealm, skillBonus);
         const btCfg = MeditationService.getBreakthroughConfig();
         if (player.bottleneck_state === 'broken' && btCfg.broken_breakthrough_bonus) {
             probability = Math.min(100, probability + (btCfg.broken_breakthrough_bonus || 0));
@@ -338,8 +339,10 @@ router.get('/info', authenticateToken, async (req, res, next) => {
         const expCap = game.ExperienceService.getExpCap(player);
         const canBreakthrough = game.ExperienceService.canBreakthrough(player);
         
-        let probability = nextRealm 
-            ? game.RealmService.calculateBreakthroughProbability(player, nextRealm)
+        // 预览与实际突破共用同一个加成来源，两边报出来的成功率必须一致
+        const skillBonus = await game.RealmService.resolveBreakthroughBonus(player);
+        let probability = nextRealm
+            ? game.RealmService.calculateBreakthroughProbability(player, nextRealm, skillBonus)
             : 0;
 
         // 瓶颈已破除时提供额外加成

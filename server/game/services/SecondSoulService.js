@@ -30,6 +30,7 @@ const PlayerSecondSoul = require('../../models/playerSecondSoul');
 const PlayerSoulFragment = require('../../models/playerSoulFragment');
 const PlayerAscension = require('../../models/playerAscension');
 const sequelize = require('../../config/database');
+const PlayerStateStore = require('../persistence/PlayerStateStore');
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
@@ -48,15 +49,45 @@ function getDivineSense(player) {
 }
 
 /**
- * 工具函数：扣减玩家神识（写入 attributes.sense）
- * @param {Object} player - 玩家对象
- * @param {number} cost - 消耗量
+ * 元神属性继承：来源属性 × inherit_ratio × (1 ± random_range)。
+ *
+ * 单独抽出来是为了能脱离数据库测（condense/divide 都要事务与元神记录）。
+ * @param {Object} source - 被继承的那份属性（第二元神用主元神解析后的属性，第三元神用第二元神存的属性）
+ * @param {number} inheritRatio - 继承比例
+ * @param {number} randomRange - 随机浮动（配置里是 0.1 = ±10%）
+ * @param {Function} [rand] - 注入随机数，测试里要固定
  */
-function consumeDivineSense(player, cost) {
-    const attrs = player.attributes || {};
-    const current = Number(attrs.sense || 0);
-    attrs.sense = Math.max(0, current - cost);
-    player.attributes = attrs;
+function inheritSoulAttributes(source, inheritRatio, randomRange, rand = Math.random) {
+    const scale = (value) => Math.floor(
+        (Number(value) || 0) * Number(inheritRatio) * (1 + (rand() * 2 - 1) * Number(randomRange))
+    );
+    return {
+        atk: scale(source.atk),
+        def: scale(source.def),
+        hp_max: scale(source.hp_max),
+        speed: scale(source.speed),
+        sense: scale(source.sense)
+    };
+}
+
+/**
+ * 工具函数：扣减玩家神识（attributes.sense）
+ * 与 AscensionService 同名函数同理：走键级增量补丁而不是整块写回，
+ * 免得并发流程互相抹掉 attributes 里与自己无关的键；$min 在行锁内钳住非负。
+ * @param {Object} player - 玩家实例
+ * @param {number} cost - 消耗量
+ * @param {Object} transaction - 调用方事务
+ * @returns {Promise<number>} 扣减后的神识
+ */
+async function consumeDivineSense(player, cost, transaction) {
+    const updated = await PlayerStateStore.patchPlayerState(
+        player.id,
+        { attributes: { sense: { $add: -Number(cost) || 0, $min: 0 } } },
+        { transaction }
+    );
+    // 库只写锁内那一次；内存跟着最新值，不再参与整块写回
+    PlayerStateStore.mirrorPatchedBlob(player, updated);
+    return Number((updated.attributes || {}).sense || 0);
 }
 
 /**
@@ -216,6 +247,15 @@ class SecondSoulService {
                     cultivate_count: s.cultivate_count
                 })),
                 fragment_progress: fragmentProgress,
+                // 调度模式清单以内容为准（客户端以前自己抄了 4 个，而且文案和内容的 display_name 不一致：
+                // 抄的是"斗法/窥探/护身"，内容写的是"出战/探查/…"；资料片加一种模式面板上也永远没有）
+                dispatch_modes: Object.entries(soulCfg.dispatch_modes || {}).map(([key, modeCfg]) => ({
+                    key,
+                    name: modeCfg.display_name || modeCfg.name || key,
+                    description: modeCfg.description || '',
+                    duration_seconds: modeCfg.duration_seconds ?? null,
+                    cooldown_seconds: modeCfg.cooldown_seconds ?? null
+                })),
                 condense_requirements: {
                     realm_met: realmCheck.met,
                     realm_required: soulCfg.min_realm_name,
@@ -359,7 +399,7 @@ class SecondSoulService {
 
                 // 扣减资源
                 player.spirit_stones = (playerStones - costStones).toString();
-                consumeDivineSense(player, soulCfg.condense_cost_divine_sense);
+                await consumeDivineSense(player, soulCfg.condense_cost_divine_sense, t);
                 player.remnant_soul = Math.max(0, remnantSoul - soulCfg.condense_cost_remnant_soul);
             } else if (nextSoulIndex === 3) {
                 // 第三元神由 divide 方法处理，condense 不应到达此分支
@@ -367,17 +407,20 @@ class SecondSoulService {
                 return { success: false, message: '请使用元神分化接口凝练第三元神' };
             }
 
-            // 计算第二元神属性（继承主元神属性 * inherit_ratio + 随机加成 ±10%）
-            const playerAttrs = player.attributes || {};
+            // 计算第二元神属性（继承主元神"解析后的"属性 * inherit_ratio + 随机加成 ±10%）。
+            // 以前读 players.attributes 里的 atk/def/hp_max/speed：那是旧属性管线留下的输出键，
+            // 新管线既不写它们也不以它们为基数，玩家 blob 里没有这几个键时
+            // 凝出来的就是一具 atk=0/def=0 的空壳（灵石、神识、残魂都扣了，拿到一个不能用的元神）。
+            // sense 沿用旧口径：元神那份 sense 是它自己的神识池，玩家的神识资源记在 attributes.sense。
+            const CombatResolver = require('../combat/CombatResolver');
+            const { stats: mainStats } = await CombatResolver.resolveCombatStats(player);
             const inheritRatio = soulCfg.inherit_ratio_second;
             const randomRange = soulCfg.random_bonus_range;  // ±10%
-            const newAttrs = {
-                atk: Math.floor((Number(playerAttrs.atk || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange)),
-                def: Math.floor((Number(playerAttrs.def || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange)),
-                hp_max: Math.floor((Number(playerAttrs.hp_max || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange)),
-                speed: Math.floor((Number(playerAttrs.speed || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange)),
-                sense: Math.floor((Number(playerAttrs.sense || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange))
-            };
+            const newAttrs = inheritSoulAttributes(
+                { ...mainStats, sense: (player.attributes || {}).sense },
+                inheritRatio,
+                randomRange
+            );
 
             // 计算第二元神境界
             const mainRealmRank = Number(player.realm_rank || 0);
@@ -509,16 +552,13 @@ class SecondSoulService {
             }
 
             // 计算第三元神属性（继承第二元神属性 * inherit_ratio_third + 随机加成 ±10%）
-            const secondAttrs = secondSoul.attributes || {};
+            // 来源是第二元神自己存的属性块（不是 players.attributes），与凝练同一套算法
             const inheritRatio = soulCfg.inherit_ratio_third;
-            const randomRange = soulCfg.random_bonus_range;
-            const newAttrs = {
-                atk: Math.floor((Number(secondAttrs.atk || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange)),
-                def: Math.floor((Number(secondAttrs.def || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange)),
-                hp_max: Math.floor((Number(secondAttrs.hp_max || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange)),
-                speed: Math.floor((Number(secondAttrs.speed || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange)),
-                sense: Math.floor((Number(secondAttrs.sense || 0)) * inheritRatio * (1 + (Math.random() * 2 - 1) * randomRange))
-            };
+            const newAttrs = inheritSoulAttributes(
+                secondSoul.attributes || {},
+                inheritRatio,
+                soulCfg.random_bonus_range
+            );
 
             // 第三元神境界 = 第二元神境界 - 1 子境界
             const newSoulRealmRank = calcSecondSoulRealmRank(Number(secondSoul.realm_rank || 0));
@@ -593,6 +633,16 @@ class SecondSoulService {
      * @param {string} mode - 调度模式（combat/cultivate/scout/defend）
      * @returns {Promise<Object>} { success, message, data }
      */
+    /**
+     * 元神调度模式清单以内容为准（`late_stage_data.second_soul.dispatch_modes`）。
+     * 路由与这里的提示都从这一处取，资料片加一种模式不需要再改两处代码。
+     * @returns {string[]}
+     */
+    static dispatchModeKeys() {
+        const config = configLoader.getConfig('late_stage_data');
+        return Object.keys(config?.second_soul?.dispatch_modes || {});
+    }
+
     static async dispatch(playerId, soulIndex, mode) {
         if (![2, 3].includes(soulIndex)) {
             return { success: false, message: 'soul_index 必须为 2 或 3', error_code: ErrorCodes.VALIDATION_ERROR };
@@ -846,29 +896,46 @@ class SecondSoulService {
             return { success: false, message: '至少需要提供一个有效属性（atk/def/hp_max/speed/sense）', error_code: ErrorCodes.VALIDATION_ERROR };
         }
 
-        const soul = await PlayerSecondSoul.findOne({ where: { player_id: playerId, soul_index: soulIndex } });
-        if (!soul) {
-            return { success: false, message: `元神序号 ${soulIndex} 不存在` };
-        }
-
-        // 合并属性
-        const currentAttrs = soul.attributes || {};
-        const mergedAttrs = { ...currentAttrs, ...newAttrs };
-        const oldAttrs = { ...currentAttrs };
-        soul.attributes = mergedAttrs;
-        await soul.save();
-
-        return {
-            success: true,
-            message: `元神「${soul.soul_name}」属性已调整`,
-            data: {
-                soul_id: soul.id,
-                soul_index: soul.soul_index,
-                old_attributes: oldAttrs,
-                new_attributes: mergedAttrs
+        // 读-改-写必须串行：player_second_soul.attributes 是整块 JSON 列，
+        // 而 players 那道 blobWriteGuard 管不到这张表。实测连发两次调整，
+        // 两次都回"成功"，前一次的 atk 却被后一次的旧快照抹掉了。
+        const t = await sequelize.transaction();
+        try {
+            const soul = await PlayerSecondSoul.findOne({
+                where: { player_id: playerId, soul_index: soulIndex },
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+            if (!soul) {
+                await t.rollback();
+                return { success: false, message: `元神序号 ${soulIndex} 不存在` };
             }
-        };
+
+            // 合并属性（锁内重读，所以合并的是库里最新那一份）
+            const currentAttrs = soul.attributes || {};
+            const mergedAttrs = { ...currentAttrs, ...newAttrs };
+            const oldAttrs = { ...currentAttrs };
+            soul.attributes = mergedAttrs;
+            await soul.save({ transaction: t });
+            await t.commit();
+
+            return {
+                success: true,
+                message: `元神「${soul.soul_name}」属性已调整`,
+                data: {
+                    soul_id: soul.id,
+                    soul_index: soul.soul_index,
+                    old_attributes: oldAttrs,
+                    new_attributes: mergedAttrs
+                }
+            };
+        } catch (error) {
+            if (t && !t.finished) await t.rollback();
+            throw error;
+        }
     }
 }
 
 module.exports = SecondSoulService;
+// 属性继承是纯函数，摊出来给单测直接喂数据（condense/divide 都要连库+事务，测不动这一步）
+module.exports.inheritSoulAttributes = inheritSoulAttributes;

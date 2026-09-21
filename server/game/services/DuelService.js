@@ -24,11 +24,14 @@
 'use strict';
 
 const Player = require('../../models/player');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
 const PvpBattleRecord = require('../../models/pvpBattleRecord');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
+const CombatResolver = require('../combat/CombatResolver');
+const PlayerStateStore = require('../persistence/PlayerStateStore');
 const { infrastructure } = require('../../modules');
 // 大五行幻世轮服务（PVP 决斗结算后积累悟印，未装备时静默返回）
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
@@ -145,11 +148,12 @@ class DuelService {
         // 事务包裹：双方玩家行 + 决斗记录 原子性
         const t = await sequelize.transaction();
         try {
-            // 行级锁发起方玩家
-            const challenger = await Player.findByPk(playerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 双方 players 按 id 升序一次锁齐（game/persistence/lockOrder.js）。
+            // 原来"锁发起方 → 判一串 → 再锁目标"：两人互相发起时两边传参正好相反，
+            // 实测 3 轮里 3 轮 Deadlock（scripts/smoke_duel.js 的 E3）。校验次序与文案保持原样。
+            const lockedSides = await lockRowsByIdsAsc(t, Player, [playerId, targetIdNum]);
+            const challenger = lockedSides.find(p => Number(p.id) === Number(playerId));
+            const target = lockedSides.find(p => Number(p.id) === Number(targetIdNum));
             if (!challenger) {
                 await t.commit();
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -174,11 +178,7 @@ class DuelService {
                 throw new AppError('当前处于避世状态，无法发起决斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 行级锁目标玩家
-            const target = await Player.findByPk(targetIdNum, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 目标玩家行已在上面按升序一起锁好，这里只判（不再第二次 FOR UPDATE）
             if (!target) {
                 await t.commit();
                 throw new AppError('目标玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -276,13 +276,16 @@ class DuelService {
             challengerStats.duel_last_time = new Date().toISOString();
             challenger.stats = challengerStats;
 
-            // 读取双方初始 HP/MP（用于决斗战斗，记录在 battle_log 中）
-            const chAttrs = challenger.attributes || {};
-            const tgAttrs = target.attributes || {};
-            const initHp1 = Number(chAttrs.hp_max) || 100;
-            const initMp1 = Number(chAttrs.mp_max) || 0;
-            const initHp2 = Number(tgAttrs.hp_max) || 100;
-            const initMp2 = Number(tgAttrs.mp_max) || 0;
+            // 双方开局 HP/MP 取统一解析后的上限（含装备/功法等）。
+            // 旧实现读 attributes.hp_max 这份陈旧快照，决斗一开始就按错误的血量上限打。
+            const [challengerResolved, targetResolved] = await Promise.all([
+                CombatResolver.resolveCombatStats(challenger),
+                CombatResolver.resolveCombatStats(target)
+            ]);
+            const initHp1 = Number(challengerResolved.stats.hp_max) || 100;
+            const initMp1 = Number(challengerResolved.stats.mp_max) || 0;
+            const initHp2 = Number(targetResolved.stats.hp_max) || 100;
+            const initMp2 = Number(targetResolved.stats.mp_max) || 0;
 
             // 创建决斗记录（复用 pvp_battle_records 表，battle_type='duel'）
             // 初始 status='pending'，等待目标接受
@@ -495,15 +498,10 @@ class DuelService {
             const betAmount = Number(battle.spirit_stone_reward) || 0;
             const betBig = BigInt(betAmount);
 
-            // 行级锁双方玩家（退还灵石）
-            const attacker = await Player.findByPk(battle.attacker_id, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
-            const defender = await Player.findByPk(battle.defender_id, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 行级锁双方玩家（退还灵石）：按 id 升序一次锁齐，理由同 executeDuelAction
+            const lockedSides = await lockRowsByIdsAsc(t, Player, [battle.attacker_id, battle.defender_id]);
+            const attacker = lockedSides.find(p => Number(p.id) === Number(battle.attacker_id));
+            const defender = lockedSides.find(p => Number(p.id) === Number(battle.defender_id));
             if (!attacker || !defender) {
                 await t.commit();
                 throw new AppError('玩家数据异常', 404, ErrorCodes.NOT_FOUND);
@@ -610,19 +608,23 @@ class DuelService {
                 throw new AppError('你不是该决斗的参与方', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 行级锁双方玩家
-            const attacker = await Player.findByPk(battle.attacker_id, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
-            const defender = await Player.findByPk(battle.defender_id, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 行级锁双方玩家：按 id 升序一次锁齐（attacker/defender 是业务角色，
+            // 对面那个人眼里这个顺序正好相反 —— 同表这一类跨表普查看不见）
+            const lockedSides = await lockRowsByIdsAsc(t, Player, [battle.attacker_id, battle.defender_id]);
+            const attacker = lockedSides.find(p => Number(p.id) === Number(battle.attacker_id));
+            const defender = lockedSides.find(p => Number(p.id) === Number(battle.defender_id));
             if (!attacker || !defender) {
                 await t.commit();
                 throw new AppError('玩家数据异常', 404, ErrorCodes.NOT_FOUND);
             }
+
+            // 参战属性走统一解析（含装备/功法/灵兽/法宝/傀儡），再传进回合结算。
+            // 旧实现直接吃 attributes.atk 这份建号时写入的静态快照，
+            // 于是"换装、学功法、吃丹药"对决斗完全无效，面板强的一方上场照样弱。
+            const [attackerResolved, defenderResolved] = await Promise.all([
+                CombatResolver.resolveCombatStats(attacker),
+                CombatResolver.resolveCombatStats(defender)
+            ]);
 
             // 解析战斗日志，获取当前回合状态
             const battleLog = battle.battle_log ? JSON.parse(battle.battle_log) : {};
@@ -689,7 +691,16 @@ class DuelService {
             const resolveResult = this._resolveRound(
                 battle, attacker, defender,
                 roundState.attacker_action, roundState.defender_action,
-                roundState, roundsHistory, t
+                roundState, roundsHistory, t,
+                {
+                    attacker: attackerResolved.stats,
+                    defender: defenderResolved.stats,
+                    // 已领悟神通随属性一起解析出来，回合结算时才有"减免/格挡/增伤"可用
+                    skills: {
+                        attacker: attackerResolved.info?.technique_skills,
+                        defender: defenderResolved.info?.technique_skills
+                    }
+                }
             );
 
             // 更新 battle_log
@@ -788,21 +799,27 @@ class DuelService {
      * @param {Object} t - 事务实例
      * @returns {Object} 结算结果 { round, winnerId, isDraw, battleEnded, roundEntry, nextRoundState, roundsHistory }
      */
-    _resolveRound(battle, attacker, defender, action1, action2, roundState, roundsHistory, t) {
+    _resolveRound(battle, attacker, defender, action1, action2, roundState, roundsHistory, t, statsPair) {
         const cfg = this.getDuelConfig();
 
-        // 读取双方战斗属性
-        const attackerAttrs = attacker.attributes || {};
-        const defenderAttrs = defender.attributes || {};
-        const atk1 = Number(attackerAttrs.atk) || 10;
-        const def1 = Number(attackerAttrs.def) || 5;
-        const atk2 = Number(defenderAttrs.atk) || 10;
-        const def2 = Number(defenderAttrs.def) || 5;
-
-        // 读取伤害随机浮动配置
-        const combatConfig = this.configLoader.getConfig('game_balance')?.combat || {};
-        const dmgRange = combatConfig.damage_random_range ?? 15;
-        const dmgOffset = combatConfig.damage_random_offset ?? 7;
+        // 双方参战属性由调用方在行锁内解析后传入（唯一的属性来源）
+        const stats1 = statsPair.attacker;
+        const stats2 = statsPair.defender;
+        const balanceConfig = this.configLoader.getConfig('game_balance') || {};
+        const combatConfig = balanceConfig.combat || {};
+        // 本回合两方的结算明细（含暴击/闪避/神通特效），写进回合记录才有战斗反馈
+        const strikes = { p1: null, p2: null };
+        const skills = { p1: statsPair.skills?.attacker, p2: statsPair.skills?.defender };
+        const strike = (side, profile, attackerStats, defenderStats) => {
+            strikes[side] = CombatResolver.computeDamage(profile, {
+                attackerStats, defenderStats,
+                skills: skills[side], defenderSkills: skills[side === 'p1' ? 'p2' : 'p1'],
+                balanceConfig
+            });
+            return strikes[side].missed ? 0 : strikes[side].damage;
+        };
+        // 平局减半：0 伤（被闪避）不能被"至少 1 点"的下限抬回 1
+        const halfOf = (damage) => (damage <= 0 ? 0 : Math.max(1, Math.floor(damage / 2)));
 
         // 判定回合胜负（相克关系）
         const outcome = this._determineOutcome(action1, action2);
@@ -816,13 +833,15 @@ class DuelService {
         let damage1 = 0;  // 攻击方对防守方造成的伤害
         let damage2 = 0;  // 防守方对攻击方造成的伤害
 
+        // 伤害形状走 combat_formulas 的 player_basic，与 PVE/PVP 同一份声明；
+        // 平局减半、蓄力 1.5 倍属于"回合博弈结果"的修饰，仍留在本文件里。
         if (outcome === 'draw') {
             // 平局：双方互相造成减半伤害
-            damage1 = Math.max(1, Math.floor((atk1 - def2 + Math.floor(Math.random() * dmgRange) - dmgOffset) / 2));
-            damage2 = Math.max(1, Math.floor((atk2 - def1 + Math.floor(Math.random() * dmgRange) - dmgOffset) / 2));
+            damage1 = halfOf(strike('p1', 'player_basic', stats1, stats2));
+            damage2 = halfOf(strike('p2', 'player_basic', stats2, stats1));
         } else if (outcome === 'p1_win') {
             // 攻击方赢：对防守方造成伤害，自身不受伤害
-            let baseDmg = Math.max(1, atk1 - def2 + Math.floor(Math.random() * dmgRange) - dmgOffset);
+            let baseDmg = strike('p1', 'player_basic', stats1, stats2);
             // 蓄力加成：上回合蓄力 + 本回合神通 = 1.5 倍伤害
             if (attackerChargedLast && action1 === 'skill') {
                 baseDmg = Math.floor(baseDmg * 1.5);
@@ -830,7 +849,7 @@ class DuelService {
             damage1 = baseDmg;
         } else {
             // 防守方赢（p2_win）：对攻击方造成伤害，自身不受伤害
-            let baseDmg = Math.max(1, atk2 - def1 + Math.floor(Math.random() * dmgRange) - dmgOffset);
+            let baseDmg = strike('p2', 'player_basic', stats2, stats1);
             // 蓄力加成：上回合蓄力 + 本回合神通 = 1.5 倍伤害
             if (defenderChargedLast && action2 === 'skill') {
                 baseDmg = Math.floor(baseDmg * 1.5);
@@ -838,9 +857,15 @@ class DuelService {
             damage2 = baseDmg;
         }
 
+        // 吸血按本方真正打出去的伤害回血（减半/蓄力之后），封顶到各自气血上限
+        const heal1 = Math.floor(damage1 * (strikes.p1?.lifesteal_rate || 0));
+        const heal2 = Math.floor(damage2 * (strikes.p2?.lifesteal_rate || 0));
+        const cap1 = Number(stats1?.hp_max) > 0 ? Number(stats1.hp_max) : Infinity;
+        const cap2 = Number(stats2?.hp_max) > 0 ? Number(stats2.hp_max) : Infinity;
+
         // 更新双方 HP（HP 不低于 0）
-        const newAttackerHp = Math.max(0, roundState.attacker_hp - damage2);
-        const newDefenderHp = Math.max(0, roundState.defender_hp - damage1);
+        const newAttackerHp = Math.min(cap1, Math.max(0, roundState.attacker_hp - damage2) + heal1);
+        const newDefenderHp = Math.min(cap2, Math.max(0, roundState.defender_hp - damage1) + heal2);
         roundState.attacker_hp = newAttackerHp;
         roundState.defender_hp = newDefenderHp;
 
@@ -998,17 +1023,25 @@ class DuelService {
         attacker.honor = safeBigInt(attacker.honor) + BigInt(attackerHonorGain);
         defender.honor = safeBigInt(defender.honor) + BigInt(defenderHonorGain);
 
-        // 重置双方 attributes 中的 hp_current/mp_current 为最大值
-        // 决斗期间 HP 变化记录在 battle_log 中，不影响 player.attributes
-        // 决斗结束后恢复满血状态（避免影响其他玩法）
-        const attackerAttrs = { ...(attacker.attributes || {}) };
-        const defenderAttrs = { ...(defender.attributes || {}) };
-        attackerAttrs.hp_current = Number(attackerAttrs.hp_max) || 100;
-        attackerAttrs.mp_current = Number(attackerAttrs.mp_max) || 0;
-        defenderAttrs.hp_current = Number(defenderAttrs.hp_max) || 100;
-        defenderAttrs.mp_current = Number(defenderAttrs.mp_max) || 0;
-        attacker.attributes = attackerAttrs;
-        defender.attributes = defenderAttrs;
+        // 决斗结束后把双方复位到满血满蓝（决斗期间 HP 只记在 battle_log 里）。
+        // 上限取统一解析结果；写回用键级补丁，只动 hp_current/mp_current 两个键，
+        // 不再"读整块 → 写整块"，避免把这段时间内别处写进 attributes 的键一起回退。
+        const [settleAttackerStats, settleDefenderStats] = await Promise.all([
+            CombatResolver.resolveCombatStats(attacker),
+            CombatResolver.resolveCombatStats(defender)
+        ]);
+        await PlayerStateStore.patchPlayerState(attacker.id, {
+            attributes: {
+                hp_current: Number(settleAttackerStats.stats.hp_max) || 100,
+                mp_current: Number(settleAttackerStats.stats.mp_max) || 0
+            }
+        }, { transaction: t });
+        await PlayerStateStore.patchPlayerState(defender.id, {
+            attributes: {
+                hp_current: Number(settleDefenderStats.stats.hp_max) || 100,
+                mp_current: Number(settleDefenderStats.stats.mp_max) || 0
+            }
+        }, { transaction: t });
 
         // 更新决斗记录
         battle.status = 'finished';

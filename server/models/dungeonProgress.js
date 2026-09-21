@@ -16,6 +16,7 @@
  */
 
 const { DataTypes } = require('sequelize');
+const { readJsonColumn } = require('./jsonColumn');
 const sequelize = require('../config/database');
 
 const DungeonProgress = sequelize.define('DungeonProgress', {
@@ -55,9 +56,7 @@ const DungeonProgress = sequelize.define('DungeonProgress', {
         type: DataTypes.TEXT('long'),
         allowNull: true,
         get() {
-            const raw = this.getDataValue('nodes_completed');
-            if (!raw) return [];
-            try { return JSON.parse(raw); } catch (e) { return []; }
+            return readJsonColumn('dungeonProgress', 'nodes_completed', this.getDataValue('nodes_completed'), []);
         },
         set(value) {
             this.setDataValue('nodes_completed', Array.isArray(value) ? JSON.stringify(value) : value);
@@ -80,9 +79,7 @@ const DungeonProgress = sequelize.define('DungeonProgress', {
         type: DataTypes.TEXT('long'),
         allowNull: true,
         get() {
-            const raw = this.getDataValue('items_collected');
-            if (!raw) return [];
-            try { return JSON.parse(raw); } catch (e) { return []; }
+            return readJsonColumn('dungeonProgress', 'items_collected', this.getDataValue('items_collected'), []);
         },
         set(value) {
             this.setDataValue('items_collected', Array.isArray(value) ? JSON.stringify(value) : value);

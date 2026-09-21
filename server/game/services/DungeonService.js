@@ -19,6 +19,9 @@
  *   - server/game/services/InventoryService.js：物品发放
  *   - server/game/services/WebSocketNotificationService.js：实时推送
  */
+const { withItemNames } = require('../items/itemNaming');
+const { grantItems } = require('../items/itemGrant');
+
 
 const { infrastructure } = require('../../modules');
 const Player = require('../../models/player');
@@ -28,36 +31,36 @@ const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const RealmService = require('../core/RealmService');
 const AttributeService = require('../core/AttributeService');
+// 副本战斗与其余玩法共用同一套结算：属性解析 + 声明式伤害档位
+const CombatResolver = require('../combat/CombatResolver');
+const { withDeclaredStats } = require('../combat/MonsterStats');
 const AIService = require('./AIService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 
 /**
- * 工具函数：计算玩家副本战斗属性（HP/MP/ATK/DEF 上限）
+ * 工具函数：计算玩家副本战斗属性（HP/MP/ATK/DEF）
  *
- * 修复 B14：原代码直接读取 lockedPlayer.hp_max / lockedPlayer.mp_max / lockedPlayer.attack / lockedPlayer.defense，
- * 但这些字段在 Player 模型上并不存在（hp_max 等是 AttributeService.calculateFullAttributes
- * 计算出来的派生属性）。导致 safeBigInt(undefined) 返回 0n，副本开始时 HP/MP 全部初始化为 0，
- * 战斗计算也使用 0 攻防，玩家进入副本即"秒败"。
+ * 修复 B14：原代码直接读 lockedPlayer.hp_max / .attack / .defense，这些字段在 Player 模型上
+ * 并不存在，safeBigInt(undefined)=0n → 玩家进副本即"秒败"。
  *
- * 正确做法：通过 AttributeService 计算最终属性，取 final.hp_max / final.mp_max / final.atk / final.def。
- * 注意：此处为同步方法，未包含装备加成（_equipmentBonus 未填充）。
- * 对于副本场景这是可接受的——副本开始时玩家应使用"基础+天赋+灵根+称号"的属性快照，
- * 避免副本进行中更换装备导致属性突变。
+ * 现在走**完整解析**（CombatResolver.resolveCombatStats）而不是旧的静态快照：
+ * 静态快照不含装备/功法/灵兽/法宝/傀儡，等于"玩家在副本里把身上所有东西都卸了"，
+ * 与面板、切磋、斗法、野外 PVE 全都不一样。副本内 HP 池、抉择扣血、结算评级都从这里取，
+ * 保证同一个数在一条链上走到底。
  *
  * @param {Object} player - 玩家对象（Sequelize 实例）
- * @returns {{hp_max: bigint, mp_max: bigint, atk: bigint, def: bigint}}
+ * @returns {Promise<{hp_max: bigint, mp_max: bigint, atk: bigint, def: bigint}>}
  */
-function computePlayerBattleAttributes(player) {
+async function computePlayerBattleAttributes(player) {
     if (!player) return { hp_max: 0n, mp_max: 0n, atk: 0n, def: 0n };
     try {
-        const result = AttributeService.calculateFullAttributes(player);
-        const final = result?.final || {};
+        const { stats } = await CombatResolver.resolveCombatStats(player);
         return {
-            hp_max: safeBigInt(final.hp_max || 0),
-            mp_max: safeBigInt(final.mp_max || 0),
-            atk: safeBigInt(final.atk || 0),
-            def: safeBigInt(final.def || 0)
+            hp_max: safeBigInt(stats.hp_max || 0),
+            mp_max: safeBigInt(stats.mp_max || 0),
+            atk: safeBigInt(stats.atk || 0),
+            def: safeBigInt(stats.def || 0)
         };
     } catch (e) {
         console.warn('[DungeonService.computePlayerBattleAttributes] 计算玩家属性失败:', e.message);
@@ -203,7 +206,7 @@ class DungeonService {
                 const remainingSec = Math.max(0, Math.floor((new Date(progress.expires_at) - Date.now()) / 1000));
                 // 修复 B14：返回 hp_max / mp_max 供前端进度条正确显示
                 // 否则前端只能用硬编码 1000/500 估算，与实际玩家属性差距大
-                const statusBattleAttr = computePlayerBattleAttributes(player);
+                const statusBattleAttr = await computePlayerBattleAttributes(player);
                 inProgress = {
                     chapter_id: progress.chapter_id,
                     chapter_name: chapter?.name || progress.chapter_id,
@@ -217,7 +220,7 @@ class DungeonService {
                     mp_max: statusBattleAttr.mp_max.toString(),
                     exp_accumulated: progress.exp_accumulated?.toString() || '0',
                     spirit_stones_accumulated: progress.spirit_stones_accumulated?.toString() || '0',
-                    items_collected: progress.items_collected || [],
+                    items_collected: withItemNames(progress.items_collected || [], 'item_key'),
                     start_time: progress.start_time,
                     expires_at: progress.expires_at,
                     remaining_seconds: remainingSec,
@@ -336,7 +339,7 @@ class DungeonService {
             // 玩家原始HP/MP（副本内独立计算）
             // 修复 B14：lockedPlayer.hp_max 等字段不存在于 Player 模型，
             // 必须通过 AttributeService 计算派生属性，否则 safeBigInt(undefined)=0n
-            const battleAttr = computePlayerBattleAttributes(lockedPlayer);
+            const battleAttr = await computePlayerBattleAttributes(lockedPlayer);
             const playerHpMax = battleAttr.hp_max;
             const playerMpMax = battleAttr.mp_max;
 
@@ -447,7 +450,7 @@ class DungeonService {
                 mp_remaining: progress.mp_remaining?.toString(),
                 exp_accumulated: progress.exp_accumulated?.toString(),
                 spirit_stones_accumulated: progress.spirit_stones_accumulated?.toString(),
-                items_collected: progress.items_collected || [],
+                items_collected: withItemNames(progress.items_collected || [], 'item_key'),
                 nodes_completed_count: (progress.nodes_completed || []).length,
                 nodes_total: chapter.nodes.length,
                 expires_at: progress.expires_at,
@@ -496,7 +499,7 @@ class DungeonService {
             // 应用 HP/MP 变化
             // 修复 B14：通过 AttributeService 计算 max HP/MP
             const currentHp = safeBigInt(progress.hp_remaining);
-            const puzzleBattleAttr = computePlayerBattleAttributes(lockedPlayer);
+            const puzzleBattleAttr = await computePlayerBattleAttributes(lockedPlayer);
             const playerHpMax = puzzleBattleAttr.hp_max;
             let newHp = currentHp;
             if (option.hp_cost_ratio) {
@@ -576,7 +579,7 @@ class DungeonService {
                     choice_result: option.result_text,
                     hp_change: option.hp_cost_ratio ? `-${Math.floor(Number(playerHpMax) * option.hp_cost_ratio)}` :
                               option.hp_recover_ratio ? `+${Math.floor(Number(playerHpMax) * option.hp_recover_ratio)}` : '0',
-                    rewards: { exp: expGained.toString(), spirit_stones: stonesGained.toString(), items: itemsGained },
+                    rewards: { exp: expGained.toString(), spirit_stones: stonesGained.toString(), items: withItemNames(itemsGained) },
                     current_node: nodeContent,
                     hp_remaining: progress.hp_remaining?.toString(),
                     mp_remaining: progress.mp_remaining?.toString()
@@ -722,35 +725,53 @@ class DungeonService {
                 monster = { ...node.monster };
             }
 
-            // 应用难度倍率
-            const hpMult = getDifficultyMultiplier(progress.difficulty, 'hp');
-            const atkMult = getDifficultyMultiplier(progress.difficulty, 'atk');
-            monster.hp = Math.floor(monster.hp * hpMult);
-            monster.attack = Math.floor(monster.attack * atkMult);
+            // 怪物属性块：难度倍率打在内容基数上，再叠那一层通用声明（power_multiplier / stats）。
+            // 于是副本怪也能带暴击/闪避/抗性 —— 以前只有 name/hp/attack/defense 四个数，
+            // 玩家侧早就有的触发属性在副本里一个都碰不到。
+            const monsterHpBase = Math.floor((Number(monster.hp) || 0) * getDifficultyMultiplier(progress.difficulty, 'hp'));
+            const monsterStats = withDeclaredStats({
+                hp: monsterHpBase,
+                max_hp: monsterHpBase,
+                hp_max: monsterHpBase,
+                atk: Math.floor((Number(monster.attack) || 0) * getDifficultyMultiplier(progress.difficulty, 'atk')),
+                def: Number(monster.defense) || 0,
+                speed: Number(monster.speed) || 0
+            }, monster);
 
-            // 玩家属性
-            // 修复 B14：lockedPlayer.attack/defense/hp_max 都不是 Player 模型字段，
-            // 必须通过 AttributeService 计算派生属性
-            const battleAttr = computePlayerBattleAttributes(lockedPlayer);
+            // 玩家属性：与切磋/斗法/野外 PVE 同一份解析结果。
+            // 改造前这里走"静态快照"，注释的理由是"避免副本途中换装导致属性突变"，
+            // 代价是玩家穿的装备、悟的功法、出战的灵兽法宝在副本里完全不参与结算 ——
+            // 面板 480 攻、副本按 25 攻打。每次出手现算就不会突变（一场节点战斗是一次函数调用）。
+            const attacker = await CombatResolver.resolveCombatStats(lockedPlayer);
+            const battleSkills = attacker.info?.technique_skills;
+            const balanceConfig = infrastructure.ConfigLoader.getConfig('game_balance');
             const playerHp = safeBigInt(progress.hp_remaining);
             const playerMp = safeBigInt(progress.mp_remaining);
-            const playerAtk = battleAttr.atk;
-            const playerDef = battleAttr.def;
-            const playerHpMax = battleAttr.hp_max;
+            const playerHpMax = safeBigInt(attacker.stats.hp_max);
 
             // 简化回合制战斗
             let currentHp = playerHp;
-            let monsterHp = BigInt(monster.hp);
-            const monsterAtk = BigInt(monster.attack);
-            const monsterDef = BigInt(monster.defense || 0);
+            let monsterHp = BigInt(monsterStats.hp);
             const battleLog = [];
             const maxRounds = 50;
 
             for (let round = 1; round <= maxRounds; round++) {
                 // 玩家攻击怪物
-                const playerDmg = this._calculateDamage(playerAtk, monsterDef);
+                const playerStrike = CombatResolver.computeDamage('dungeon_battle', {
+                    attackerStats: attacker.stats,
+                    defenderStats: monsterStats,
+                    // 神通的破防/增伤等特效与其余玩法同源；怪物声明的属性也从这块读
+                    skills: battleSkills,
+                    balanceConfig
+                });
+                const playerDmg = BigInt(playerStrike.damage);
                 monsterHp -= playerDmg;
-                battleLog.push({ round, side: 'player', damage: playerDmg.toString(), monster_hp: monsterHp < 0n ? '0' : monsterHp.toString() });
+                battleLog.push({
+                    round, side: 'player', damage: playerDmg.toString(),
+                    damage_profile: playerStrike.profile,
+                    crit: !!playerStrike.crit, missed: !!playerStrike.missed,
+                    monster_hp: monsterHp < 0n ? '0' : monsterHp.toString()
+                });
                 if (monsterHp <= 0n) {
                     // 玩家胜利
                     const rewards = node.rewards || {};
@@ -787,7 +808,7 @@ class DungeonService {
                                 rewards: {
                                     exp: expGained.toString(),
                                     spirit_stones: stonesGained.toString(),
-                                    items: itemsGained
+                                    items: withItemNames(itemsGained)
                                 },
                                 victory_text: node.victory_text,
                                 settlement: settleResult.data
@@ -814,17 +835,28 @@ class DungeonService {
                             rewards: {
                                 exp: expGained.toString(),
                                 spirit_stones: stonesGained.toString(),
-                                items: itemsGained
+                                items: withItemNames(itemsGained)
                             },
                             current_node: nodeContent
                         }
                     };
                 }
 
-                // 怪物攻击玩家
-                const monsterDmg = this._calculateDamage(monsterAtk, playerDef);
+                // 怪物攻击玩家（同一档位、攻防两侧传反：玩家的闪避/神通格挡/减伤在这里也生效）
+                const monsterStrike = CombatResolver.computeDamage('dungeon_battle', {
+                    attackerStats: monsterStats,
+                    defenderStats: attacker.stats,
+                    defenderSkills: battleSkills,
+                    balanceConfig
+                });
+                const monsterDmg = BigInt(monsterStrike.damage);
                 currentHp -= monsterDmg;
-                battleLog.push({ round, side: 'monster', damage: monsterDmg.toString(), player_hp: currentHp < 0n ? '0' : currentHp.toString() });
+                battleLog.push({
+                    round, side: 'monster', damage: monsterDmg.toString(),
+                    damage_profile: monsterStrike.profile,
+                    crit: !!monsterStrike.crit, missed: !!monsterStrike.missed,
+                    player_hp: currentHp < 0n ? '0' : currentHp.toString()
+                });
                 if (currentHp <= 0n) {
                     // 玩家失败
                     progress.hp_remaining = '0';
@@ -940,21 +972,15 @@ class DungeonService {
 
             // 发放物品（按比例）
             const originalItems = record.items_gained || [];
-            const itemsToGive = [];
+            let itemsToGive = [];
             for (const item of originalItems) {
                 const qty = Math.max(1, Math.floor((item.quantity || 1) * ratio));
                 itemsToGive.push({ item_key: item.item_key, quantity: qty });
             }
 
-            // 通过 InventoryService 发放物品
-            const InventoryService = require('./InventoryService');
-            for (const item of itemsToGive) {
-                try {
-                    await InventoryService.addItem(lockedPlayer.id, item.item_key, item.quantity, t);
-                } catch (e) {
-                    console.warn(`[DungeonService.sweepDungeon] 发放物品 ${item.item_key} 失败:`, e.message);
-                }
-            }
+            // 发放物品：只把真发到的留在 itemsToGive 里（它同时是回给客户端与推送的那份列表）
+            const grant = await grantItems(lockedPlayer.id, itemsToGive, t, { label: '副本·扫荡' });
+            itemsToGive = grant.granted.map(g => ({ item_key: g.item_key, quantity: g.quantity }));
 
             await t.commit();
 
@@ -963,7 +989,7 @@ class DungeonService {
                 type: 'dungeon_sweep',
                 chapter_id: chapterId,
                 chapter_name: chapter.name,
-                rewards: { exp: expReward.toString(), spirit_stones: stonesReward.toString(), items: itemsToGive }
+                rewards: { exp: expReward.toString(), spirit_stones: stonesReward.toString(), items: withItemNames(itemsToGive) }
             });
 
             return {
@@ -976,7 +1002,7 @@ class DungeonService {
                     rewards: {
                         exp: expReward.toString(),
                         spirit_stones: stonesReward.toString(),
-                        items: itemsToGive
+                        items: withItemNames(itemsToGive)
                     },
                     daily_challenge_count: lockedPlayer.daily_dungeon_count,
                     daily_challenge_limit: cfg.global.daily_challenge_limit
@@ -1052,24 +1078,6 @@ class DungeonService {
     // ============================================================
     // 内部方法
     // ============================================================
-
-    /**
-     * 计算伤害（简化版，含随机浮动）
-     * @param {bigint} atk
-     * @param {bigint} def
-     * @returns {bigint}
-     */
-    _calculateDamage(atk, def) {
-        if (atk <= def) {
-            // 攻击力不大于防御，造成最小伤害（1-5）
-            return BigInt(1 + Math.floor(Math.random() * 5));
-        }
-        const baseDmg = atk - def;
-        // 随机浮动 80%-120%
-        const float = 0.8 + Math.random() * 0.4;
-        const dmg = BigInt(Math.floor(Number(baseDmg) * float));
-        return dmg < 1n ? 1n : dmg;
-    }
 
     /**
      * 渲染节点内容（含 AI 剧情增强）
@@ -1202,7 +1210,7 @@ class DungeonService {
             let stars = 0;
             if (success) {
                 // 修复 B14：通过 AttributeService 计算 max HP，避免 safeBigInt(undefined)=0n
-                const settleBattleAttr = computePlayerBattleAttributes(lockedPlayer);
+                const settleBattleAttr = await computePlayerBattleAttributes(lockedPlayer);
                 const playerHpMax = settleBattleAttr.hp_max;
                 const hpRemaining = safeBigInt(progress.hp_remaining);
                 const hpRatio = playerHpMax > 0n ? Number(hpRemaining) / Number(playerHpMax) : 0;
@@ -1225,17 +1233,9 @@ class DungeonService {
                 lockedPlayer.exp = (safeBigInt(lockedPlayer.exp) + expGained).toString();
                 lockedPlayer.spirit_stones = (safeBigInt(lockedPlayer.spirit_stones) + stonesGained).toString();
 
-                // 通过 InventoryService 发放物品
-                const InventoryService = require('./InventoryService');
-                for (const item of itemsGained) {
-                    if (item.item_key) {
-                        try {
-                            await InventoryService.addItem(lockedPlayer.id, item.item_key, item.quantity || 1, t);
-                        } catch (e) {
-                            console.warn(`[DungeonService._settleDungeon] 发放物品 ${item.item_key} 失败:`, e.message);
-                        }
-                    }
-                }
+                // 发放物品：发不到的不再留在 itemsGained 里（结算与进度都从它取）
+                const grant = await grantItems(lockedPlayer.id, itemsGained, t, { label: '副本·结算' });
+                itemsGained = grant.granted.map(g => ({ item_key: g.item_key, quantity: g.quantity }));
             } else if (isInterrupt) {
                 // 主动中断：发放50%积累修为，不发放物品和灵石
                 expGained = safeBigInt(progress.exp_accumulated) / 2n;
@@ -1315,7 +1315,7 @@ class DungeonService {
                 rewards: {
                     exp: expGained.toString(),
                     spirit_stones: stonesGained.toString(),
-                    items: itemsGained
+                    items: withItemNames(itemsGained)
                 }
             });
 
@@ -1335,7 +1335,7 @@ class DungeonService {
                     rewards: {
                         exp: expGained.toString(),
                         spirit_stones: stonesGained.toString(),
-                        items: itemsGained
+                        items: withItemNames(itemsGained)
                     },
                     record_updated: recordUpdated,
                     player_exp: lockedPlayer.exp?.toString(),

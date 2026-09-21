@@ -549,7 +549,9 @@ router.post('/reset-player', auth, adminCheck, async (req, res) => {
         player.lifespan_current = initialAge;
         player.lifespan_max = initialLifespan;
         player.toxicity = 0;
-        player.attributes = JSON.stringify(initialAttrs);
+        // 原先这里赋的是 JSON.stringify(initialAttrs)，而 attributes 的 setter 会再 stringify 一次，
+        // 于是库里存的是"字符串的 JSON"，getter 解出来是字符串而不是对象 —— 重置过的玩家属性全是 undefined。
+        player.attributes = initialAttrs;
         // 同步重置死亡相关字段（避免重置后仍处于死亡状态）
         player.is_dead = false;
         player.death_reason = null;

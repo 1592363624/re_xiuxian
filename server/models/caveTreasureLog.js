@@ -17,6 +17,7 @@
  * 被发现时洞府主人会收到通知，且双方增加仇怨值
  */
 const { DataTypes } = require('sequelize');
+const { readJsonColumn } = require('./jsonColumn');
 const sequelize = require('../config/database');
 
 const CaveTreasureLog = sequelize.define('CaveTreasureLog', {
@@ -51,9 +52,7 @@ const CaveTreasureLog = sequelize.define('CaveTreasureLog', {
         defaultValue: null,
         comment: '奖励/损失明细 JSON（如 {"spirit_stones":150,"exp":200,"item_id":"golden_ore","hp_loss":300}）',
         get() {
-            const raw = this.getDataValue('rewards');
-            if (!raw) return null;
-            try { return JSON.parse(raw); } catch (e) { return null; }
+            return readJsonColumn('caveTreasureLog', 'rewards', this.getDataValue('rewards'), null);
         },
         set(val) {
             this.setDataValue('rewards', val ? JSON.stringify(val) : null);

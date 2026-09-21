@@ -1,0 +1,25 @@
+{
+  "dataset": "crafting_data",
+  "into": "alchemy_recipes",
+  "comment": "把药圃的产物接回炼丹炉：紫云参为君、七叶青为使，配灵炭成一方聚元丹。材料里的 spirit_charcoal 是现网已有物，两味灵草来自本资料片的 item_data（同一包装配，启动期会校验引用）。这条链到此闭合：行脚商买种 → 洞府药园种植 / 废圃放养采草 → 炼丹 → 服丹涨修为。",
+  "add": [
+    {
+      "id": "craft_ju_yuan_dan",
+      "name": "炼制聚元丹",
+      "type": "alchemy",
+      "description": "紫云参两株、七叶青三茎，入灵炭慢煨，一炉得聚元丹一枚",
+      "product": { "item_key": "ju_yuan_dan", "quantity": 1 },
+      "materials": [
+        { "item_key": "zi_yun_shen", "quantity": 2 },
+        { "item_key": "qi_ye_qing", "quantity": 3 },
+        { "item_key": "spirit_charcoal", "quantity": 2 }
+      ],
+      "required_realm_rank": 13,
+      "required_skill_level": 4,
+      "base_success_rate": 0.5,
+      "skill_exp": 40,
+      "cooldown_sec": 120,
+      "learn_source": "sect"
+    }
+  ]
+}

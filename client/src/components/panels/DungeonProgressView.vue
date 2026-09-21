@@ -62,7 +62,7 @@
           <div class="flex flex-wrap gap-2">
             <span v-for="(item, idx) in settlement.rewards.items" :key="idx"
               class="text-[11px] px-2 py-0.5 rounded bg-surface-hover border border-line text-fg-secondary">
-              {{ item.item_key }} ×{{ item.quantity }}
+              {{ item.item_name || item.item_key }} ×{{ item.quantity }}
             </span>
           </div>
         </div>
@@ -149,7 +149,7 @@
           <div class="flex flex-wrap gap-1">
             <span v-for="(item, idx) in progress.items_collected" :key="idx"
               class="text-[10px] px-1.5 py-0.5 rounded bg-surface-hover border border-line text-fg-secondary">
-              {{ item.item_key }} ×{{ item.quantity }}
+              {{ item.item_name || item.item_key }} ×{{ item.quantity }}
             </span>
           </div>
         </div>
@@ -197,7 +197,7 @@
           <span v-if="battleResult.rewards.items && battleResult.rewards.items.length > 0">
             物品：
             <span v-for="(item, idx) in battleResult.rewards.items" :key="idx"
-              class="text-fg-secondary mr-1">{{ item.item_key }} ×{{ item.quantity }}</span>
+              class="text-fg-secondary mr-1">{{ item.item_name || item.item_key }} ×{{ item.quantity }}</span>
           </span>
         </div>
 
@@ -277,7 +277,7 @@
           <div v-if="currentNode.rewards" class="text-[11px] text-fg-faint mt-2">
             胜利奖励：修为+{{ formatNumber(currentNode.rewards.exp) }} · 灵石+{{ formatNumber(currentNode.rewards.spirit_stones) }}
             <span v-if="currentNode.rewards.items && currentNode.rewards.items.length > 0">
-              · 物品：<span v-for="(item, idx) in currentNode.rewards.items" :key="idx">{{ item.item_key }}×{{ item.quantity }} </span>
+              · 物品：<span v-for="(item, idx) in currentNode.rewards.items" :key="idx">{{ item.item_name || item.item_key }}×{{ item.quantity }} </span>
             </span>
           </div>
         </div>
@@ -313,7 +313,7 @@
             <div v-if="currentNode.rewards.items && currentNode.rewards.items.length > 0" class="flex flex-wrap gap-1 pt-1">
               <span v-for="(item, idx) in currentNode.rewards.items" :key="idx"
                 class="text-[11px] px-2 py-0.5 rounded bg-surface-hover border border-line text-fg-secondary">
-                {{ item.item_key }} ×{{ item.quantity }}
+                {{ item.item_name || item.item_key }} ×{{ item.quantity }}
               </span>
             </div>
           </div>

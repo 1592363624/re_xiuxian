@@ -1,0 +1,18 @@
+{
+  "dataset": "combat_formulas",
+  "into": "profiles",
+  "comment": "五行伤害档位：攻取本资料片的 five_element_power，防取《凡人遗宝》的 element_resist。两个资料片各出一半，战斗代码零改动。",
+  "add": [
+    {
+      "id": "player_five_element",
+      "label": "五行术法",
+      "attack_stat": "five_element_power",
+      "mitigate_stat": "element_resist",
+      "skill_multiplier": 1.4,
+      "defense_coef": 0.6,
+      "random_range_config": "player_damage_random_range",
+      "random_offset_config": "player_damage_random_offset",
+      "min_damage": 1
+    }
+  ]
+}

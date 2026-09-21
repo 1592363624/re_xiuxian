@@ -12,7 +12,9 @@
  *   - 偷菜成功率受灵兽速度/忠诚度/元素匹配/星级影响
  *   - 护院拦截率受出战灵兽速度/忠诚度/星级影响
  *   - 提前召回不结算放养产物，自动结算打8折，正常召回全额
- *   - 事务+行级锁防并发；WebSocket推送在事务提交后
+ *   - 整行写回只允许出现在"本事务已持有该行锁"的时候，因此全服务统一锁顺序：
+ *     SpiritBeast → SpiritBeastPasture → PlayerGarden（三条写路径必须一致，否则 ABBA 死锁）
+ *   - WebSocket推送在事务提交后
  *   - 灵兽快照存储JSON，避免后续升级影响历史记录
  */
 'use strict';
@@ -27,6 +29,7 @@ const PlayerGarden = require('../../models/playerGarden');
 const sequelize = require('../../config/database');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const InventoryService = require('./InventoryService');
+const { grantItems } = require('../items/itemGrant');
 
 /**
  * 灵兽放养与偷菜服务（单例）
@@ -129,10 +132,7 @@ class BeastPastureService {
             }
 
             // 查找灵兽并加锁
-            const beast = await SpiritBeast.findByPk(beastId, {
-                lock: transaction.LOCK.UPDATE,
-                transaction
-            });
+            const beast = await this._lockBeastRow(beastId, transaction);
             if (!beast) {
                 await transaction.rollback();
                 return { code: 404, success: false, message: '灵兽不存在' };
@@ -205,7 +205,9 @@ class BeastPastureService {
 
         const transaction = await sequelize.transaction();
         try {
-            // 查找活跃放养记录
+            const beast = await this._lockBeastRow(beastId, transaction);
+
+            // 查找活跃放养记录（player_id 条件即归属校验，越权请求在这里被挡掉）
             const pasture = await SpiritBeastPasture.findOne({
                 where: { player_id: player.id, beast_id: beastId, status: 'active' },
                 lock: transaction.LOCK.UPDATE,
@@ -238,7 +240,7 @@ class BeastPastureService {
             }
 
             // 结算放养
-            const result = await this._settlePasture(pasture, recallType, yieldDiscount, transaction, player);
+            const result = await this._settlePasture(pasture, recallType, yieldDiscount, transaction, player, beast);
 
             await transaction.commit();
 
@@ -369,10 +371,7 @@ class BeastPastureService {
         const transaction = await sequelize.transaction();
         try {
             // 查找灵兽并验证放养状态
-            const beast = await SpiritBeast.findByPk(beastId, {
-                lock: transaction.LOCK.UPDATE,
-                transaction
-            });
+            const beast = await this._lockBeastRow(beastId, transaction);
             if (!beast) {
                 await transaction.rollback();
                 return { code: 404, success: false, message: '灵兽不存在' };
@@ -386,9 +385,10 @@ class BeastPastureService {
                 return { code: 400, success: false, message: '只有放养中的灵兽才能偷菜' };
             }
 
-            // 查找灵兽的放养记录
+            // 查找灵兽的放养记录（本方法下面要整行写回 steal_count / steal_yields，必须先持锁）
             const pasture = await SpiritBeastPasture.findOne({
                 where: { player_id: player.id, beast_id: beastId, status: 'active' },
+                lock: transaction.LOCK.UPDATE,
                 transaction
             });
             if (!pasture) {
@@ -531,26 +531,26 @@ class BeastPastureService {
                 }
                 await targetPlot.save({ transaction, silent: true });
 
-                // 将偷到的作物加入偷菜方背包（容错：物品配置缺失时不影响偷菜主流程）
+                // 将偷到的作物加入偷菜方背包：只有真放进背包的才记进偷菜收获
+                // （地里已经扣掉了，再记一条"偷到了"就是凭空多一笔不存在的收获）
                 const produceItemId = targetPlot.produce_item_id || targetPlot.seed_id;
-                if (produceItemId) {
-                    try {
-                        await InventoryService.addItem(player.id, produceItemId, stolenQty, transaction);
-                    } catch (e) {
-                        console.warn(`[BeastPastureService] 偷菜收获 ${produceItemId} 添加背包失败（已跳过）: ${e.message}`);
-                    }
-                }
+                const stolenGrant = produceItemId
+                    ? await grantItems(player.id, [{ item_id: produceItemId, qty: stolenQty }], transaction, { label: '灵兽放养·偷菜' })
+                    : { granted: [], failed: [] };
+                const stolenLanded = stolenGrant.granted.reduce((sum, g) => sum + g.quantity, 0);
 
                 // 更新放养记录的偷菜次数
                 pasture.steal_count += 1;
                 // 记录偷菜收获
                 const stealYields = pasture.steal_yields || [];
-                stealYields.push({
-                    item_id: produceItemId,
-                    qty: stolenQty,
-                    stolen_from: targetPlayerId,
-                    time: new Date().toISOString()
-                });
+                if (stolenLanded > 0) {
+                    stealYields.push({
+                        item_id: produceItemId,
+                        qty: stolenLanded,
+                        stolen_from: targetPlayerId,
+                        time: new Date().toISOString()
+                    });
+                }
                 pasture.steal_yields = stealYields;
                 await pasture.save({ transaction, silent: true });
             } else {
@@ -745,7 +745,8 @@ class BeastPastureService {
 
                 const transaction = await sequelize.transaction();
                 try {
-                    // 重新加锁获取
+                    // 重新加锁获取（先灵兽后放养，与 stealCrops / recallBeast 同一锁顺序）
+                    const lockedBeast = await this._lockBeastRow(pasture.beast_id, transaction);
                     const lockedPasture = await SpiritBeastPasture.findByPk(pasture.id, {
                         lock: transaction.LOCK.UPDATE,
                         transaction
@@ -756,7 +757,7 @@ class BeastPastureService {
                     }
 
                     // 自动结算打8折
-                    await this._settlePasture(lockedPasture, 'auto', this.config.pasture.auto_recall_yield_discount, transaction, player);
+                    await this._settlePasture(lockedPasture, 'auto', this.config.pasture.auto_recall_yield_discount, transaction, player, lockedBeast);
                     await transaction.commit();
 
                     console.log(`[BeastPastureService] 自动结算放养 #${lockedPasture.id}`);
@@ -771,6 +772,17 @@ class BeastPastureService {
     }
 
     // ==================== 内部方法 ====================
+
+    /**
+     * 按全服务统一的锁顺序预取灵兽行（放养记录、地块行都排在它后面）。
+     * 抽成一个方法是为了让"先锁哪张表"只有一处写法可抄。
+     */
+    async _lockBeastRow(beastId, transaction) {
+        return SpiritBeast.findByPk(beastId, {
+            lock: transaction.LOCK.UPDATE,
+            transaction
+        });
+    }
 
     /**
      * 创建灵兽快照
@@ -796,14 +808,20 @@ class BeastPastureService {
 
     /**
      * 结算放养（内部方法）
-     * @param {object} pasture - 放养记录（已加锁）
+     *
+     * 本方法用 save() 整行写回放养记录，所以两个入参都必须由调用方**按锁顺序取出来**：
+     * beast 先于 pasture 加行锁（见文件头的设计要点）。新增调用点请走 _lockBeastRow +
+     * 带 lock 的 SpiritBeastPasture 读取，不要图省事传一个无锁读出来的实例。
+     *
+     * @param {object} pasture - 放养记录（已 FOR UPDATE）
      * @param {string} recallType - 召回类型
      * @param {number} yieldDiscount - 产物折扣
      * @param {object} transaction - 事务
      * @param {object} player - 玩家对象
+     * @param {object|null} beast - 该放养记录的灵兽行（已 FOR UPDATE；灵兽已被删时为 null）
      * @returns {object} - 结算结果
      */
-    async _settlePasture(pasture, recallType, yieldDiscount, transaction, player) {
+    async _settlePasture(pasture, recallType, yieldDiscount, transaction, player, beast) {
         const now = new Date();
         const pastureConfig = this.config.pasture;
         const snapshot = pasture.beast_snapshot || {};
@@ -838,11 +856,7 @@ class BeastPastureService {
         pasture.yield_discount = yieldDiscount;
         await pasture.save({ transaction, silent: true });
 
-        // 解除灵兽放养状态
-        const beast = await SpiritBeast.findByPk(pasture.beast_id, {
-            lock: transaction.LOCK.UPDATE,
-            transaction
-        });
+        // 解除灵兽放养状态（灵兽行由调用方先行加锁取出，灵兽已删除时为 null）
         if (beast) {
             beast.is_pasturing = false;
             // 应用经验和忠诚度变化
@@ -853,16 +867,15 @@ class BeastPastureService {
             await beast.save({ transaction, silent: true });
         }
 
-        // 将产物加入玩家背包（容错：单个物品添加失败不影响整体结算）
-        for (const item of yieldSnapshot) {
-            if (item.qty > 0) {
-                try {
-                    await InventoryService.addItem(player.id, item.item_id, item.qty, transaction);
-                } catch (e) {
-                    // 物品配置缺失等异常不应阻断整个结算流程，仅记录警告
-                    console.warn(`[BeastPastureService] 添加放养产物 ${item.item_id} 失败（已跳过）: ${e.message}`);
-                }
-            }
+        // 将产物加入玩家背包：没进背包的要从 yield_snapshot 里去掉 ——
+        // 这份快照既回给玩家也存进整块列，留着就是"记录显示收到了、背包里没有"
+        const grant = await grantItems(player.id,
+            (yieldSnapshot || []).filter(i => i.qty > 0).map(i => ({ item_id: i.item_id, qty: i.qty })),
+            transaction, { label: '灵兽放养·收产物' });
+        const landedKeys = new Set(grant.granted.map(g => `${g.item_key}|${g.quantity}`));
+        for (let i = yieldSnapshot.length - 1; i >= 0; i--) {
+            const it = yieldSnapshot[i];
+            if (it.qty > 0 && !landedKeys.has(`${it.item_id}|${it.qty}`)) yieldSnapshot.splice(i, 1);
         }
 
         return {

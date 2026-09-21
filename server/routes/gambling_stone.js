@@ -139,8 +139,8 @@ router.post('/cut', auth, async (req, res, next) => {
         if (!Number.isFinite(stone_id)) {
             return res.status(400).json({ code: 400, message: '原石ID无效' });
         }
-        if (!cut_method || !['rough', 'fine', 'divine_sense'].includes(cut_method)) {
-            return res.status(400).json({ code: 400, message: '切法无效，可选：rough/fine/divine_sense' });
+        if (!cut_method || !GamblingStoneService.cutMethodKeys().includes(cut_method)) {
+            return res.status(400).json({ code: 400, message: `切法无效，可选：${GamblingStoneService.cutMethodKeys().join('/')}` });
         }
         const result = await GamblingStoneService.cutStone(playerId, stone_id, cut_method);
         return wrap(res, result);

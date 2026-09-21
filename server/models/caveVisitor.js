@@ -18,6 +18,7 @@
  * 接待期间访客若寻宝该洞府，被发现率额外 +50%（背叛信任惩罚）
  */
 const { DataTypes } = require('sequelize');
+const { readJsonColumn } = require('./jsonColumn');
 const sequelize = require('../config/database');
 
 const CaveVisitor = sequelize.define('CaveVisitor', {
@@ -54,9 +55,7 @@ const CaveVisitor = sequelize.define('CaveVisitor', {
         defaultValue: null,
         comment: '奇遇奖励 JSON（如 {"item_id":"low_healing_pill","item_count":1}）',
         get() {
-            const raw = this.getDataValue('encounter_reward');
-            if (!raw) return null;
-            try { return JSON.parse(raw); } catch (e) { return null; }
+            return readJsonColumn('caveVisitor', 'encounter_reward', this.getDataValue('encounter_reward'), null);
         },
         set(val) {
             this.setDataValue('encounter_reward', val ? JSON.stringify(val) : null);

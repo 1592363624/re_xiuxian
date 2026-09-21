@@ -18,6 +18,7 @@
  *   - bonus_items：JSON 字符串，存储伴生物品信息（如 {type:'function_item', id:'shaqi_xiaodao', name:'煞气小刀'}）
  */
 const { DataTypes } = require('sequelize');
+const { readJsonColumn } = require('./jsonColumn');
 const sequelize = require('../config/database');
 
 const PlayerFishCatch = sequelize.define('PlayerFishCatch', {
@@ -68,9 +69,7 @@ const PlayerFishCatch = sequelize.define('PlayerFishCatch', {
         allowNull: true,
         comment: '伴生物品JSON（功能道具/稀有材料/LDC，null=无伴生）',
         get() {
-            const raw = this.getDataValue('bonus_items');
-            if (!raw) return null;
-            try { return JSON.parse(raw); } catch (e) { return null; }
+            return readJsonColumn('playerFishCatch', 'bonus_items', this.getDataValue('bonus_items'), null);
         },
         set(val) {
             this.setDataValue('bonus_items', val ? JSON.stringify(val) : null);

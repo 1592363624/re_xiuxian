@@ -1,0 +1,24 @@
+{
+  "dataset": "crafting_data",
+  "into": "refining_recipes",
+  "comment": "星辰符炼方。文件名里的 __refining_recipes 指向 crafting_data 的第二个集合 —— 同一个资料片既能加丹方也能加器方，不需要为每个集合各开一个 pack。由乱星图残卷（item_data.effect.learn_recipe）习得，那条引用同样在启动期被校验。",
+  "add": [
+    {
+      "id": "craft_xingchen_fu",
+      "name": "炼制星辰符",
+      "type": "refining",
+      "description": "以星砂研墨、月魂石为引，绘星辰符1枚",
+      "product": { "item_key": "xingchen_fu", "quantity": 1 },
+      "materials": [
+        { "item_key": "xingsha", "quantity": 5 },
+        { "item_key": "yuehun_shi", "quantity": 1 }
+      ],
+      "required_realm_rank": 14,
+      "required_skill_level": 3,
+      "base_success_rate": 0.6,
+      "skill_exp": 35,
+      "cooldown_sec": 120,
+      "learn_source": "recipe_scroll"
+    }
+  ]
+}

@@ -238,7 +238,8 @@
         <!-- ===== Tab 4: 器灵图鉴 ===== -->
         <div v-if="activeTab === 'guide'" class="space-y-3">
           <div class="text-xs text-fg-secondary mb-2">
-            器灵共 4 种类型，每种类型提供不同的战斗加成和护主/催发效果，请根据法宝定位选择。
+            器灵共 {{ spiritTypeOptions.length }} 种类型（清单与文案取自内容 artifact_spirit_data），
+            每种类型提供不同的战斗加成和护主/催发效果，请根据法宝定位选择。
           </div>
           <div v-for="opt in spiritTypeOptions" :key="opt.value"
             class="bg-surface-hover border rounded-panel p-3"
@@ -348,7 +349,7 @@
  * 4 Tab 设计：我的器灵 / 唤醒器灵 / 试炼榜 / 器灵图鉴
  * 所有业务逻辑在后端，前端仅做展示与接口调用
  */
-import { ref, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import PanelShell from '../ui/PanelShell.vue';
 import Tabs from '../ui/Tabs.vue';
 import AppButton from '../ui/AppButton.vue';
@@ -369,6 +370,7 @@ import {
   type MySpiritEntry,
   type SpiritDetail,
   type SpiritType,
+  type SpiritTypeCatalogEntry,
   type TrialRankingResult
 } from '../../api/artifactSpirit';
 import { getEquipped } from '../../api/equipment';
@@ -409,57 +411,33 @@ const spiritNameInput = ref('');
 /** 试炼榜数据 */
 const rankingData = ref<TrialRankingResult | null>(null);
 
-/** 器灵类型选项（含配色/描述） */
-const spiritTypeOptions = [
-  {
-    value: 'attack' as SpiritType,
-    label: '攻灵型',
-    desc: '增加攻击力，护主反弹伤害，催发暴击提升',
-    baseBonus: '攻击 +5%（每级 +2%）',
-    protectEffect: '反弹 20% 伤害',
-    activateEffect: '暴击率 +30%',
-    textClass: 'text-rose-300',
-    borderClass: 'border-rose-800/40',
-    badgeClass: 'bg-rose-950/60 text-rose-300 border border-rose-800',
-    activeClass: 'bg-rose-950/60 border-rose-600 text-rose-300'
-  },
-  {
-    value: 'defense' as SpiritType,
-    label: '防灵型',
-    desc: '增加防御力，护主减伤，催发吸血',
-    baseBonus: '防御 +5%（每级 +2%）',
-    protectEffect: '减伤 30%',
-    activateEffect: '吸血 15%',
-    textClass: 'text-blue-300',
-    borderClass: 'border-blue-800/40',
-    badgeClass: 'bg-blue-950/60 text-blue-300 border border-blue-800',
-    activeClass: 'bg-blue-950/60 border-blue-600 text-blue-300'
-  },
-  {
-    value: 'support' as SpiritType,
-    label: '辅灵型',
-    desc: '增加暴击闪避，护主回血，催发净化',
-    baseBonus: '暴击+3%/闪避+3%（每级 +1%）',
-    protectEffect: '回血 10%',
-    activateEffect: '净化负面状态',
-    textClass: 'text-purple-300',
-    borderClass: 'border-purple-800/40',
-    badgeClass: 'bg-purple-950/60 text-purple-300 border border-purple-800',
-    activeClass: 'bg-purple-950/60 border-purple-600 text-purple-300'
-  },
-  {
-    value: 'balance' as SpiritType,
-    label: '平灵型',
-    desc: '均衡加成，护主净化，催发全属性微增',
-    baseBonus: '攻击/防御 +2%（每级 +1%）',
-    protectEffect: '净化负面状态',
-    activateEffect: '全属性 +10%',
-    textClass: 'text-amber-300',
-    borderClass: 'border-amber-800/40',
-    badgeClass: 'bg-amber-950/60 text-amber-300 border border-amber-800',
-    activeClass: 'bg-amber-950/60 border-amber-600 text-amber-300'
-  }
+/**
+ * 器灵类型清单：来自 GET /artifact-spirit/list 的 spirit_types（内容是 artifact_spirit_data）。
+ * 这里以前抄了一份 4 档类型，连"攻击 +5%（每级 +2%）""反弹 20% 伤害"都是手打的字符串——
+ * 内容改数值界面不会跟着变，而且那份平灵型文案漏了"暴击 +1%"。
+ * 前端只留配色：按顺序取色板，资料片加一档也有颜色。
+ */
+const SPIRIT_TYPE_PALETTE = [
+  { textClass: 'text-rose-300', borderClass: 'border-rose-800/40', badgeClass: 'bg-rose-950/60 text-rose-300 border border-rose-800', activeClass: 'bg-rose-950/60 border-rose-600 text-rose-300' },
+  { textClass: 'text-blue-300', borderClass: 'border-blue-800/40', badgeClass: 'bg-blue-950/60 text-blue-300 border border-blue-800', activeClass: 'bg-blue-950/60 border-blue-600 text-blue-300' },
+  { textClass: 'text-purple-300', borderClass: 'border-purple-800/40', badgeClass: 'bg-purple-950/60 text-purple-300 border border-purple-800', activeClass: 'bg-purple-950/60 border-purple-600 text-purple-300' },
+  { textClass: 'text-amber-300', borderClass: 'border-amber-800/40', badgeClass: 'bg-amber-950/60 text-amber-300 border border-amber-800', activeClass: 'bg-amber-950/60 border-amber-600 text-amber-300' },
+  { textClass: 'text-teal-300', borderClass: 'border-teal-800/40', badgeClass: 'bg-teal-950/60 text-teal-300 border border-teal-800', activeClass: 'bg-teal-950/60 border-teal-600 text-teal-300' }
 ];
+
+/** 服务端给的器灵类型清单（loadMySpirits 时填） */
+const spiritTypeCatalog = ref<SpiritTypeCatalogEntry[]>([]);
+
+/** 类型选项：内容清单 + 前端配色 */
+const spiritTypeOptions = computed(() => spiritTypeCatalog.value.map((t, i) => ({
+  value: t.key,
+  label: t.name,
+  desc: t.desc,
+  baseBonus: t.bonus_text,
+  protectEffect: t.protect_text,
+  activateEffect: t.activate_text,
+  ...SPIRIT_TYPE_PALETTE[i % SPIRIT_TYPE_PALETTE.length]
+})));
 
 /** 详情弹窗 */
 const detailModal = reactive({
@@ -503,6 +481,7 @@ async function loadMySpirits() {
     const res = await getMySpirits();
     if (res.code === 200 && res.data) {
       mySpirits.value = res.data.spirits || [];
+      spiritTypeCatalog.value = res.data.spirit_types || [];
     }
   } catch (e) {
     console.error('加载器灵列表失败', e);
@@ -666,7 +645,7 @@ async function handleAwaken() {
   if (!selectedEquipmentId.value || !selectedSpiritType.value) return;
 
   confirmModal.title = '唤醒器灵';
-  confirmModal.message = `确认唤醒器灵？\n类型：${spiritTypeOptions.find(o => o.value === selectedSpiritType.value)?.label}\n消耗：50000 灵石 + 5 魂石\n成功率：80% + 祭炼加成（失败不返还资源）`;
+  confirmModal.message = `确认唤醒器灵？\n类型：${spiritTypeOptions.value.find(o => o.value === selectedSpiritType.value)?.label}\n消耗：50000 灵石 + 5 魂石\n成功率：80% + 祭炼加成（失败不返还资源）`;
   confirmModal.confirm = async () => {
     confirmModal.show = false;
     loading.action = true;
@@ -680,7 +659,7 @@ async function handleAwaken() {
       resultModal.success = !!(res && (res as any).data);
       resultModal.title = res.data ? '唤醒成功' : '唤醒失败';
       if (res.data) {
-        resultModal.message = `器灵类型：${spiritTypeOptions.find(o => o.value === res.data?.spirit_type)?.label}\n亲密度：${res.data.intimacy}\n力量值：${res.data.power}\n成功率：${(res.data.success_rate * 100).toFixed(1)}%`;
+        resultModal.message = `器灵类型：${spiritTypeOptions.value.find(o => o.value === res.data?.spirit_type)?.label}\n亲密度：${res.data.intimacy}\n力量值：${res.data.power}\n成功率：${(res.data.success_rate * 100).toFixed(1)}%`;
         // 重置选择
         selectedEquipmentId.value = null;
         selectedSpiritType.value = null;
@@ -707,21 +686,21 @@ async function handleAwaken() {
  * 获取器灵类型对应的边框样式
  */
 function getSpiritTypeBorderClass(type: SpiritType): string {
-  return spiritTypeOptions.find(o => o.value === type)?.borderClass || 'border-line';
+  return spiritTypeOptions.value.find(o => o.value === type)?.borderClass || 'border-line';
 }
 
 /**
  * 获取器灵类型对应的文字样式
  */
 function getSpiritTypeTextClass(type: SpiritType): string {
-  return spiritTypeOptions.find(o => o.value === type)?.textClass || 'text-fg-secondary';
+  return spiritTypeOptions.value.find(o => o.value === type)?.textClass || 'text-fg-secondary';
 }
 
 /**
  * 获取器灵类型对应的徽章样式
  */
 function getSpiritTypeBadgeClass(type: SpiritType): string {
-  return spiritTypeOptions.find(o => o.value === type)?.badgeClass || 'bg-surface-active text-fg-secondary';
+  return spiritTypeOptions.value.find(o => o.value === type)?.badgeClass || 'bg-surface-active text-fg-secondary';
 }
 
 /**

@@ -16,6 +16,9 @@ const Player = require('../../models/player');
 const Item = require('../../models/item');
 const InventoryService = require('./InventoryService');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+const { ensureStatRegistryLoaded } = require('../stats');
+// 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
+const RETURNED = { allowUnknownItem: true };
 
 class EquipmentService {
     constructor() {
@@ -192,7 +195,7 @@ class EquipmentService {
                 // 删除旧装备记录
                 await existingEquip.destroy({ transaction: t });
                 // 旧装备归还背包（在同一事务内，保证一致性）
-                await InventoryService.addItem(playerId, existingEquip.item_key, 1, t);
+                await InventoryService.addItem(playerId, existingEquip.item_key, 1, t, null, RETURNED);
             }
 
             // 从背包扣减新装备
@@ -307,7 +310,7 @@ class EquipmentService {
             await equipment.destroy({ transaction: t });
 
             // 将物品归还背包
-            await InventoryService.addItem(playerId, equipment.item_key, 1, t);
+            await InventoryService.addItem(playerId, equipment.item_key, 1, t, null, RETURNED);
 
             await t.commit();
 
@@ -344,9 +347,11 @@ class EquipmentService {
             where: { player_id: playerId }
         });
 
-        const equipmentConfig = this.getEquipmentConfig();
-        const refineConfig = equipmentConfig.refine || {};
-        const bonusPerLevel = refineConfig.bonus_per_level || {};
+        // 祭炼每级系数取自属性注册表（stat_definitions 的 refineRate），
+        // 不再读 game_balance.equipment.refine.bonus_per_level 那份手抄清单：
+        // 两处定义一定会漂移，而且新属性在注册表里有 refineRate 却不在旧清单里，
+        // 结果就是"新属性的装备祭炼到 15 级也不涨"。
+        const refineRates = ensureStatRegistryLoaded(this.configLoader).refineRateMap();
 
         // 累加所有装备的 effect 字段（含祭炼加成与炼制品质加成）
         const bonus = {};
@@ -366,8 +371,9 @@ class EquipmentService {
                 // 仅累加数值型属性
                 if (typeof value !== 'number') continue;
 
-                // 计算祭炼加成系数（如 bonus_per_level.atk = 0.05，10级则加成 1+0.5=1.5 倍）
-                const ratePerLevel = bonusPerLevel[key] || 0;
+                // 祭炼加成系数（如 atk 每级 0.05，10 级则 1+0.5=1.5 倍）
+                const statDef = ensureStatRegistryLoaded(this.configLoader).resolveStatKey(key);
+                const ratePerLevel = refineRates[(statDef && statDef.key) || key] || 0;
                 const refineMultiplier = 1 + refineLevel * ratePerLevel;
                 // 最终倍率 = 祭炼系数 × 炼制品质系数
                 const finalValue = Math.floor(value * refineMultiplier * craftedMultiplier);

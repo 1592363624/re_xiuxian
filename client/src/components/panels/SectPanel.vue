@@ -32,6 +32,8 @@ import {
   acceptQuest,
   exchangeTreasury,
   type Sect,
+  type SectBonus,
+  type SectBonusMeta,
   type MySect,
   type SectQuest,
   type TreasuryItem
@@ -52,6 +54,9 @@ const operating = ref(false)             // 操作中状态锁，防止重复提
 const activeTab = ref<'list' | 'my'>('list')  // 当前激活的 Tab
 const sects = ref<Sect[]>([])             // 所有宗门列表
 const mySect = ref<MySect | null>(null)   // 我的宗门信息
+/** 宗门加成的展示元数据（中文名 + 换算方式），来自后端 bonus_meta，内容是 sect_data.global.bonus_labels */
+const bonusMeta = ref<Record<string, SectBonusMeta>>({})
+
 const quests = ref<SectQuest[]>([])       // 我的宗门任务列表
 const treasury = ref<TreasuryItem[]>([])  // 我的宗门宝库物品
 // 当前时间戳，每秒更新一次用于驱动冷却倒计时
@@ -143,6 +148,7 @@ const fetchSectList = async () => {
   const res = await getSectList()
   // 后端返回 { code, data: { sects: [...] } }
   sects.value = res.data?.data?.sects || []
+  if (res.data?.data?.bonus_meta) bonusMeta.value = res.data.data.bonus_meta
 }
 
 /**
@@ -520,64 +526,37 @@ const getRoleName = (role: string) => {
 }
 
 /**
- * 宗门加成字段中文名映射表
- * 设计说明：后端 sect_data.json 的 bonus 字段为英文 key，前端需映射为修仙题材中文名展示
- * 不同宗门只配置各自相关的 2 个字段，其余字段为 undefined 不展示
- */
-const bonusLabels: Record<string, string> = {
-  exp_multiplier: '修为加成',
-  gather_bonus: '采集加成',
-  sense_multiplier: '感知加成',
-  breakthrough_bonus: '突破加成',
-  luck_bonus: '气运加成',
-  atk_multiplier: '攻击加成',
-  dark_arts_bonus: '魔道加成',
-  charm_bonus: '魅惑加成',
-  mp_multiplier: '灵力加成',
-  mental_strength: '道心加成'
-}
-
-/**
- * 格式化 bonus 字段值为展示文本
- *   - *_multiplier 类（倍率）：1.1 → "+10%"
- *   - *_bonus / mental_strength 类（加成比例）：0.15 → "+15%"
- *   - 其他数值：原样展示
- * @param key - bonus 字段 key
+ * 格式化 bonus 值为展示文本。换算方式由内容给出（bonus_meta.format）：
+ *   - multiplier（倍率）：1.1 → "+10%"
+ *   - ratio（加成比例）：0.15 → "+15%"
+ * @param format - 内容里声明的换算方式
  * @param value - 字段值
- * @returns {string} 格式化后的展示文本
  */
-const formatBonusValue = (key: string, value: number): string => {
+const formatBonusValue = (format: string | undefined, value: number): string => {
   if (typeof value !== 'number' || isNaN(value)) return '—'
-  // 倍率类字段：value - 1 后转百分比（1.1 → +10%）
-  if (key.endsWith('_multiplier')) {
-    const pct = (value - 1) * 100
-    return pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`
-  }
-  // 加成比例类字段：直接转百分比（0.15 → +15%）
-  const pct = value * 100
-  return pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`
+  const pct = (format === 'multiplier' ? value - 1 : value) * 100
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
 }
 
 /**
- * 将 bonus 对象转换为有序展示列表
- * 只返回该宗门实际配置的字段（过滤 undefined），按 bonusLabels 映射顺序输出
+ * 将 bonus 对象转换为展示列表。
+ *
+ * 中文名与换算方式都取自后端 bonus_meta（内容是 sect_data.global.bonus_labels）。
+ * 这里以前抄着一份 10 条的字典，而且**按字典的键顺序过滤** bonus：内容新增一种宗门加成、
+ * 字典没跟上的话，那行加成就在面板上凭空消失（服务端没有任何异常）。现在按 meta 的顺序展示，
+ * meta 里没有的键仍然列出来（用原始键名），因为"少一行"比"骗自己说没有这项加成"好排查；
+ * 而内容漏写 label 是启动期就会拦下的（ContentRegistry._validateSectBonusLabels）。
  * @param bonus - 宗门加成对象
- * @returns {Array<{label: string, value: string}>} 加成项列表
  */
-const getBonusList = (bonus: Record<string, number> | undefined | null): Array<{ label: string; value: string }> => {
+const getBonusList = (bonus: SectBonus | undefined | null): Array<{ label: string; value: string }> => {
   if (!bonus || typeof bonus !== 'object') return []
-  const result: Array<{ label: string; value: string }> = []
-  // 按 bonusLabels 定义顺序遍历，保证各宗门展示顺序一致
-  for (const key of Object.keys(bonusLabels)) {
-    const val = bonus[key]
-    if (val !== undefined && val !== null) {
-      result.push({
-        label: bonusLabels[key],
-        value: formatBonusValue(key, Number(val))
-      })
-    }
-  }
-  return result
+  const meta = bonusMeta.value
+  const keys = [...Object.keys(meta).filter(k => bonus[k] !== undefined && bonus[k] !== null),
+    ...Object.keys(bonus).filter(k => !meta[k] && bonus[k] !== undefined && bonus[k] !== null)]
+  return keys.map(key => ({
+    label: meta[key]?.label || key,
+    value: formatBonusValue(meta[key]?.format, Number(bonus[key]))
+  }))
 }
 
 /**

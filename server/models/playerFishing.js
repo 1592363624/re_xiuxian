@@ -17,6 +17,7 @@
  *   - daily_stone_earned/daily_cultivation_earned：BIGINT 字段，有日上限防止通胀
  */
 const { DataTypes } = require('sequelize');
+const { readJsonColumn } = require('./jsonColumn');
 const sequelize = require('../config/database');
 
 const PlayerFishing = sequelize.define('PlayerFishing', {
@@ -90,9 +91,7 @@ const PlayerFishing = sequelize.define('PlayerFishing', {
         allowNull: true,
         comment: '当前活跃钓鱼会话JSON（null=无活跃会话）',
         get() {
-            const raw = this.getDataValue('active_session');
-            if (!raw) return null;
-            try { return JSON.parse(raw); } catch (e) { return null; }
+            return readJsonColumn('playerFishing', 'active_session', this.getDataValue('active_session'), null);
         },
         set(val) {
             this.setDataValue('active_session', val ? JSON.stringify(val) : null);

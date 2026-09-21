@@ -18,6 +18,8 @@
  *   - 全局配置：game_balance.json → world_boss.boss_skills
  *
  * 设计说明：
+ *   - 伤害不在本文件里写算式：统一交 CombatResolver 按 combat_formulas.json 的档位结算，
+ *     改减伤曲线/浮动是一行配置，而不是同时改玩家侧与 BOSS 侧两处代码
  *   - 技能冷却用 ms 时间戳记录在 boss.skill_cooldowns JSON 字段
  *   - Buff 用列表记录在 boss.active_buffs JSON 字段，过期自动清理
  *   - 小怪用列表记录在 boss.minions JSON 字段，限上限 max_minions_per_boss
@@ -26,6 +28,11 @@
 'use strict';
 
 const { infrastructure } = require('../../modules');
+// BOSS 技能伤害与玩家攻击 BOSS 共用同一条减伤曲线（combat_formulas 的 ratio_mitigation* 档位），
+// 不再在这里各抄一份 def/(def+atk*2+1000)
+const CombatResolver = require('../combat/CombatResolver');
+// BOSS 的内容声明层（与野外怪、副本怪同一套 stats 规则）
+const { mergeDeclaredStats } = require('../combat/MonsterStats');
 const configLoader = infrastructure.ConfigLoader;
 
 /**
@@ -158,13 +165,17 @@ class WorldBossSkillManager {
      *
      * @param {Object} boss - BOSS 实例（含 atk/phase/skill_cooldowns/active_buffs/minions）
      * @param {Object} skill - 选中的技能对象（来自 selectSkill）
-     * @param {Object} target - 目标玩家运行时状态 { battleHp, battleHpMax, playerDef, playerBeastElement }
+     * @param {Object} target - 目标玩家运行时状态 { battleHp, battleHpMax, playerDef, playerStats, playerSkills, playerBeastElement }
+     *   playerStats 传玩家解析后的完整属性块（AttributeService.final），档位据此掷闪避与神通减免；
+     *   省略时退化成只看 playerDef。
      * @param {Object} ctx - 上下文 { bossKey, bossElement, cfgBalance, playerId }
      * @returns {Object} 技能执行结果
      *   {
      *     skill_name, skill_type, damage_multiplier,
      *     counter_damage,            // 对当前攻击者造成的伤害
      *     aoe_damage,                // AOE 伤害（同 counter_damage，区分用于前端展示）
+     *     damage_profile,            // 结算所用的 combat_formulas 档位
+     *     crit, missed,              // 暴击 / 被玩家闪避（missed 为真时伤害 0）
      *     is_aoe,                    // 是否 AOE
      *     is_summon,                 // 是否召唤
      *     is_buff,                   // 是否 Buff
@@ -183,6 +194,9 @@ class WorldBossSkillManager {
             damage_multiplier: skill.damage_multiplier,
             counter_damage: 0,
             aoe_damage: 0,
+            damage_profile: null,
+            crit: false,
+            missed: false,
             is_aoe: false,
             is_summon: false,
             is_buff: false,
@@ -195,34 +209,40 @@ class WorldBossSkillManager {
 
         // 计算 BOSS 当前攻击力（含 Buff 加成）
         const bossAtk = this.getEffectiveBossAtk(boss);
+        // 这只 BOSS 在 world_boss_data 里声明的属性（暴击/暴伤/吸血/五行抗性…）并进攻方块。
+        // 基础值用"含 Buff 与阶段"的有效攻击覆盖，所以声明层只加触发属性、不改这里算好的数。
+        const bossAttackStats = mergeDeclaredStats({ atk: bossAtk }, ctx.declaredStats);
         const bossElement = ctx.bossElement || null;
         const playerBeastElement = target.playerBeastElement || null;
 
         // BOSS→玩家相克系数
         const counterFactor = this._calculateElementalCounter(bossElement, playerBeastElement);
 
-        // 玩家防御减伤（2026-07-21 新增）
-        // 与玩家攻击 BOSS 的减伤公式对称：def_reduction = def / (def + atk * 2 + 1000)
-        // 设计目的：让玩家 DEF 属性在 BOSS 战中有意义，避免 BOSS 反击直接秒杀
-        // 化神初期玩家 def=560, BOSS atk=2000：
-        //   def_reduction = 560 / (560 + 4000 + 1000) = 0.1007 → 减伤 10%
-        //   反击伤害 = 2000 * 1.0 * 0.8993 * 1.0 * 1.0 = 1799（原为 2000，减伤 10%）
-        // 高防御玩家（如 def=2000）：
-        //   def_reduction = 2000 / (2000 + 4000 + 1000) = 0.286 → 减伤 28.6%
-        //   反击伤害 = 2000 * 1.0 * 0.714 * 1.0 * 1.0 = 1428（减伤 28.6%）
+        // 玩家防御减伤与玩家攻击 BOSS 用的是同一条除法曲线（写在 combat_formulas.json 的
+        // ratio_mitigation_boss_skill 档位里），差别只有浮动档位：技能 ±10%、玩家侧 ±15%。
+        // 承受方传玩家的完整属性块，所以玩家堆的闪避、神通的伤害减免/格挡在 BOSS 技能下同样有效
+        // ——改造前 BOSS 反击只看 def，其余一切减免对它都不存在。
         const playerDef = Number(target.playerDef) || 0;
-        const counterDefReduction = playerDef / (playerDef + bossAtk * 2 + 1000);
+        const bossHit = (skillMultiplier, random) => CombatResolver.computeDamage(
+            'ratio_mitigation_boss_skill', {
+                attackerStats: bossAttackStats,
+                defenderStats: target.playerStats || { def: playerDef },
+                defenderSkills: target.playerSkills,
+                skill_multiplier: skillMultiplier,
+                // 五行相克是"谁打谁"的关系倍率，属于玩法倍率，乘在同一套结算之后
+                external_multiplier: counterFactor,
+                random
+            }
+        );
 
         switch (skill.type) {
             case 'single_target_basic':
             case 'single_target_skill': {
-                // 单体伤害 = BOSS ATK * 技能倍率 * (1 - def_reduction) * 相克系数 * 随机浮动
-                const randomFactor = 0.9 + Math.random() * 0.2;
-                const damage = Math.floor(
-                    bossAtk * skill.damage_multiplier * (1 - counterDefReduction)
-                    * counterFactor * randomFactor
-                );
-                result.counter_damage = damage;
+                const strike = bossHit(skill.damage_multiplier);
+                result.counter_damage = strike.damage;
+                result.damage_profile = strike.profile;
+                result.crit = strike.crit;
+                result.missed = strike.missed;
                 // 处理附加效果（流血/眩晕/破甲）—— 简化处理，仅记录 effect 字段
                 result.effect = skill.effect;
                 break;
@@ -232,13 +252,12 @@ class WorldBossSkillManager {
             case 'ultimate_screen_wide': {
                 // AOE / 全屏必杀：对当前攻击者造成伤害，其他参战玩家通过 Socket 广播
                 // 注意：ultimate_screen_wide 使用更高的伤害倍率（2.5-3.0x）
-                const randomFactor = 0.9 + Math.random() * 0.2;
-                const damage = Math.floor(
-                    bossAtk * skill.damage_multiplier * (1 - counterDefReduction)
-                    * counterFactor * randomFactor
-                );
-                result.counter_damage = damage;
-                result.aoe_damage = damage;
+                const strike = bossHit(skill.damage_multiplier);
+                result.counter_damage = strike.damage;
+                result.aoe_damage = strike.damage;
+                result.damage_profile = strike.profile;
+                result.crit = strike.crit;
+                result.missed = strike.missed;
                 result.is_aoe = true;
                 result.effect = skill.effect;
                 break;
@@ -271,9 +290,8 @@ class WorldBossSkillManager {
 
             default:
                 // 未知技能类型，按基础攻击处理
-                result.counter_damage = Math.floor(
-                    bossAtk * (1 - counterDefReduction) * counterFactor
-                );
+                // random 取 0.5 → 浮动乘数正好 1.0，保持这一档"无随机"的原行为
+                result.counter_damage = bossHit(1.0, 0.5).damage;
                 break;
         }
 

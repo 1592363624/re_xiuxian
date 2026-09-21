@@ -27,6 +27,11 @@ const SystemConfig = require('../../models/system_config');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const path = require('path');
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
+// 切磋的伤害走声明式档位（sparring_basic / sparring_skill），木人属性走与其他敌人来源同一层声明
+const CombatResolver = require('../combat/CombatResolver');
+const { withDeclaredStats } = require('../combat/MonsterStats');
+const { infrastructure } = require('../../modules');
+const configLoader = infrastructure.ConfigLoader;
 
 /**
  * 构造结算状态记录的 SystemConfig key
@@ -38,17 +43,17 @@ function _buildSettleConfigKey(dateStr) {
     return `sparring_settle_${dateStr}`;
 }
 
-// 懒加载切磋木人配置（避免模块加载时配置未初始化）
-let _sparringConfig = null;
+// 切磋木人配置：走 ConfigLoader，而不是 require() 那份 JSON 文件。
+// require 会把内容缓存进模块里 —— 于是资料片加的木人永远看不到、后台热更要重启进程才生效，
+// 启动期那几道内容校验（属性是否登记、引用是否存在）也从来没有机会看过这个数据集。
 /**
  * 获取切磋木人配置
  * @returns {Object} 切磋木人配置对象
  */
 function getSparringConfig() {
-    if (!_sparringConfig) {
-        _sparringConfig = require('../../config/sparring_woodman.json');
-    }
-    return _sparringConfig;
+    const config = configLoader.getConfig('sparring_woodman');
+    if (!config) throw new Error('切磋配置 sparring_woodman 未加载');
+    return config;
 }
 
 /**
@@ -286,19 +291,26 @@ class SparringService {
             const totalPlayerAtk = playerAtk;
 
             // 7. 生成木人数据
+            // 整块递过去：木人条目声明的属性（含资料片新增的键）跟着进战斗，
+            // 而不是在这里手写四个键、其余的悄悄被丢掉（与历练那处同类缺陷）
+            const woodmanStats = withDeclaredStats(woodman.stats || {}, woodman);
+            const woodmanHpMax = BigInt(Number(woodmanStats.max_hp ?? woodmanStats.hp ?? 0));
             const woodmanData = {
+                ...woodmanStats,
                 name: woodman.name,
-                max_hp: BigInt(woodman.stats.max_hp),
-                hp: BigInt(woodman.stats.max_hp),
-                atk: woodman.stats.atk,
-                def: woodman.stats.def,
-                speed: woodman.stats.speed,
-                tier: woodman.tier
+                tier: woodman.tier,
+                max_hp: woodmanHpMax,
+                hp: woodmanHpMax
             };
 
             // 8. 模拟自动战斗
             const battleResult = this._simulateBattle(
-                { atk: totalPlayerAtk, def: playerDef, speed: playerSpeed, hp: playerHp, hp_max: playerHpMax, mp: playerMp, mp_max: playerMpMax },
+                // 玩家那一侧递整块解析结果（装备/功法/灵兽都已算进去），切磋用的这几个字段随后覆盖
+                {
+                    ...fullAttrs,
+                    atk: totalPlayerAtk, def: playerDef, speed: playerSpeed,
+                    hp: playerHp, hp_max: playerHpMax, mp: playerMp, mp_max: playerMpMax
+                },
                 woodmanData,
                 config.global
             );
@@ -441,6 +453,12 @@ class SparringService {
         const dmgOffset = globalConfig.damage_random_offset ?? 7;
         const skillMpCost = globalConfig.skill_mp_cost ?? 20;
         const skillMultiplier = globalConfig.skill_damage_multiplier ?? 1.5;
+        // 切磋自己的浮动与倍率住在 sparring_woodman.global 里：递成参数给档位，而不是让档位去猜全局常数
+        const roundParams = {
+            random_range: dmgRange,
+            random_offset: dmgOffset,
+            skill_multiplier: skillMultiplier
+        };
 
         let playerHp = BigInt(playerStats.hp);
         const playerHpMax = BigInt(playerStats.hp_max);
@@ -472,19 +490,14 @@ class SparringService {
 
                 if (attacker === 'player') {
                     // 玩家攻击：优先使用技能（如果MP足够），否则普攻
-                    let damage;
+                    const useSkill = playerMp >= BigInt(skillMpCost);
                     let action = 'attack';
-                    if (playerMp >= BigInt(skillMpCost)) {
-                        // 技能攻击
-                        damage = Math.max(1, playerStats.atk - woodmanData.def + Math.floor(Math.random() * dmgRange) - dmgOffset);
-                        damage = Math.floor(damage * skillMultiplier);
+                    if (useSkill) {
                         playerMp -= BigInt(skillMpCost);
                         playerMpUsed += BigInt(skillMpCost);
                         action = 'skill';
-                    } else {
-                        // 普攻
-                        damage = Math.max(1, playerStats.atk - woodmanData.def + Math.floor(Math.random() * dmgRange) - dmgOffset);
                     }
+                    const damage = this._strike(playerStats, woodmanData, useSkill, roundParams);
 
                     woodmanHp -= BigInt(damage);
                     totalDamageDealt += BigInt(damage);
@@ -499,7 +512,7 @@ class SparringService {
                     if (woodmanHp <= 0) break;
                 } else {
                     // 木人攻击
-                    const damage = Math.max(1, woodmanData.atk - playerStats.def + Math.floor(Math.random() * dmgRange) - dmgOffset);
+                    const damage = this._strike(woodmanData, playerStats, false, roundParams);
                     playerHp -= BigInt(damage);
                     totalDamageTaken += BigInt(damage);
                     isFlawless = false; // 受伤则非完美
@@ -564,6 +577,32 @@ class SparringService {
             is_flawless: isFlawless,
             log: log
         };
+    }
+
+    /**
+     * 一次出手的伤害（私有方法）
+     *
+     * 改造前这条算式在上面的循环里抄了三份（玩家普攻、玩家技能、木人回击各一份）。抄成三份的代价
+     * 不是难看：全局战斗公式（combat_formulas.json）改动时切磋不跟着变，给木人加一个属性
+     * 也没有任何一处会去读它。现在档位住在配置里，浮动范围与技能倍率由切磋自己的内容传入。
+     * 切磋的分数进排行榜，所以两档都关掉了 procs：同一对属性的伤害分布与改造前逐点相同。
+     *
+     * @param {Object} attackerStats - 攻方属性块
+     * @param {Object} defenderStats - 守方属性块
+     * @param {boolean} useSkill - 是否按技能档结算
+     * @param {Object} params - { random_range, random_offset, skill_multiplier }（取自 sparring_woodman.global）
+     * @returns {number} 这一次出手的伤害
+     * @private
+     */
+    static _strike(attackerStats, defenderStats, useSkill, params) {
+        return CombatResolver.computeDamage(useSkill ? 'sparring_skill' : 'sparring_basic', {
+            attackerStats,
+            defenderStats,
+            random: Math.random(),
+            random_range: params.random_range,
+            random_offset: params.random_offset,
+            skill_multiplier: useSkill ? params.skill_multiplier : 1
+        }).damage;
     }
 
     /**

@@ -28,6 +28,7 @@
 'use strict';
 
 const SparringService = require('./SparringService');
+const { infrastructure } = require('../../modules');
 
 /**
  * 切磋木人调度器（单例模式）
@@ -51,7 +52,10 @@ class SparringSchedulerService {
      */
     _getSettleTimeConfig() {
         try {
-            const config = require('../../config/sparring_woodman.json');
+            // 走 ConfigLoader：以前是 require('../../config/sparring_woodman.json')，
+            // 而 require 一个 .json 会被 Node 永久缓存 —— 注释里写的"支持热更新"其实从来没成立过，
+            // 资料片改的结算时间也到不了这里。
+            const config = infrastructure.ConfigLoader.getConfig('sparring_woodman') || {};
             return {
                 settleHour: Number(config?.global?.ranking_settle_hour) || 0,
                 settleMinute: Number(config?.global?.ranking_settle_minute) || 5

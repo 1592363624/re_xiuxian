@@ -47,6 +47,40 @@ class FishingService {
     static _config = null;
 
     /**
+     * 钓竿序列：以内容里每根竿自己的 `tier` 排序，只算一处。
+     *
+     * 改造前那份"由低到高的四根竿"列表在这个文件里抄了 4 遍，
+     * 外加"入门竿"写死成 `rods.qing_zhu` 三处 —— 于是资料片加一根新竿（或改 tier 顺序）之后，
+     * 有的入口认得它、有的入口认不得，表现是"升竿升到某一级就断了"。
+     *
+     * @returns {string[]} 由低到高的竿键
+     */
+    static _rodKeys() {
+        const rods = this._config?.rods || {};
+        return Object.entries(rods)
+            .filter(([, rod]) => rod && Number.isFinite(Number(rod.tier)))
+            .sort((a, b) => Number(a[1].tier) - Number(b[1].tier))
+            .map(([key]) => key);
+    }
+
+    /**
+     * 第 N 阶（1 起）钓竿的键；超出内容里的竿数时返回 null（表示已经是最高竿）
+     * @param {number} tier - 竿阶（0 表示没有竿）
+     * @returns {string|null}
+     */
+    static _rodKeyForTier(tier) {
+        const keys = this._rodKeys();
+        const index = Number(tier) - 1;
+        return index >= 0 && index < keys.length ? keys[index] : null;
+    }
+
+    /** 入门竿（内容里 tier 最低的那根）；没有配竿时返回 null */
+    static _starterRod() {
+        const first = this._rodKeys()[0];
+        return first ? this._config.rods[first] : null;
+    }
+
+    /**
      * 初始化服务（从 ConfigLoader 读取 fishing_data 配置）
      * @param {Object} configLoaderInstance - ConfigLoader 实例
      */
@@ -141,21 +175,23 @@ class FishingService {
         await this._checkDailyReset(fishing);
 
         const rodTier = fishing.rod_tier;
-        const rodKey = rodTier === 0 ? null : ['qing_zhu', 'yin_zhu', 'jin_zhu', 'jinlei_zhu'][rodTier - 1];
+        const rodKey = this._rodKeyForTier(rodTier);
         const rodConfig = rodKey ? this._config.rods[rodKey] : null;
 
         // 计算升级信息
         let upgradeInfo = null;
         if (rodConfig && rodConfig.upgrade_cost) {
+            const nextKey = this._rodKeyForTier(rodTier + 1);
             upgradeInfo = {
                 cost: rodConfig.upgrade_cost,
-                next_rod: rodTier < 4 ? this._config.rods[['yin_zhu', 'jin_zhu', 'jinlei_zhu'][rodTier - 1]] : null
+                next_rod: nextKey ? this._config.rods[nextKey] : null
             };
         } else if (rodTier === 0) {
+            const starterRod = this._starterRod();
             upgradeInfo = {
                 cost: null,
-                next_rod: this._config.rods.qing_zhu,
-                purchase_ldc: this._config.rods.qing_zhu.purchase_cost_ldc
+                next_rod: starterRod,
+                purchase_ldc: starterRod ? starterRod.purchase_cost_ldc : null
             };
         }
 
@@ -264,11 +300,12 @@ class FishingService {
                 return { success: false, message: '你已有钓竿，请使用升级功能' };
             }
 
-            const cost = this._config.rods.qing_zhu.purchase_cost_ldc;
+            const starterRod = this._starterRod();
+            const cost = starterRod.purchase_cost_ldc;
             const playerLdc = parseInt(player.ldc || 0);
             if (playerLdc < cost) {
                 await t.rollback();
-                return { success: false, message: `LDC不足，购买青竹钓竿需要 ${cost} LDC，当前 ${playerLdc} LDC` };
+                return { success: false, message: `LDC不足，购买${starterRod.name}需要 ${cost} LDC，当前 ${playerLdc} LDC` };
             }
 
             player.ldc = playerLdc - cost;
@@ -322,7 +359,7 @@ class FishingService {
                 return { success: false, message: '钓竿已达最高等级（金雷竹钓竿）' };
             }
 
-            const rodKeys = ['qing_zhu', 'yin_zhu', 'jin_zhu', 'jinlei_zhu'];
+            const rodKeys = this._rodKeys();
             const currentRod = this._config.rods[rodKeys[currentTier - 1]];
             const nextRod = this._config.rods[rodKeys[currentTier]];
             const cost = currentRod.upgrade_cost;
@@ -547,7 +584,7 @@ class FishingService {
             }
 
             // 校验日竿数
-            const rodKey = ['qing_zhu', 'yin_zhu', 'jin_zhu', 'jinlei_zhu'][fishing.rod_tier - 1];
+            const rodKey = this._rodKeyForTier(fishing.rod_tier);
             const rodConfig = this._config.rods[rodKey];
             if (fishing.daily_casts >= rodConfig.daily_limit) {
                 await t.rollback();
@@ -669,11 +706,10 @@ class FishingService {
             remainingSec = Math.ceil((session.nibble_at - now) / 1000);
             message = `等待鱼讯到来，还需 ${remainingSec} 秒`;
         } else if (now >= session.nibble_at && now < session.reel_deadline) {
-            // 鱼讯中，可提竿
+            // 鱼讯中，可提竿。status 只是本次响应的展示值，不回写：
+            // 这个列是整块 JSON，只读轮询拿无锁快照写回会抹掉同时提交的提竿/收竿结果
             if (status === 'waiting') {
                 status = 'biting';
-                session.status = 'biting';
-                await fishing.save();
             }
             remainingSec = Math.ceil((session.reel_deadline - now) / 1000);
             message = `鱼讯到来！可试探咬饵或提竿，剩余 ${remainingSec} 秒`;
@@ -681,9 +717,8 @@ class FishingService {
             // 提竿窗口已过，自动空竿
             status = 'expired';
             message = '提竿窗口已过，鱼跑了';
-            // 清除会话
-            fishing.active_session = null;
-            await fishing.save();
+            // 清除会话（cast 见到残留会话会拒绝再次抛竿，所以必须真清；加锁重读后再清）
+            await this._clearExpiredSession(playerId, session.cast_at);
         }
 
         return {
@@ -705,6 +740,31 @@ class FishingService {
     }
 
     /**
+     * 清掉一个已确认过期的钓鱼会话（getStatus 轮询用）
+     * 为什么要重新加锁读：getStatus 本身是无锁只读，直接拿它手上那份快照写回
+     * player_fishing.active_session，会把同一瞬间 cast/reel/giveUp 提交的结果整块抹掉
+     * （最坏情况：提竿已经入袋，会话又被复活，可以再提一次）。
+     * @param {number} playerId - 玩家ID
+     * @param {number} castAt - 本次轮询看到的那一竿的抛竿时间戳，用于确认"还是同一竿"
+     */
+    static async _clearExpiredSession(playerId, castAt) {
+        const t = await sequelize.transaction();
+        try {
+            const locked = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            const fishing = await this._getOrCreateFishing(playerId, t);
+            const fresh = fishing.active_session;
+            if (locked && fresh && fresh.cast_at === castAt && Date.now() >= fresh.reel_deadline) {
+                fishing.active_session = null;
+                await fishing.save({ transaction: t });
+            }
+            await t.commit();
+        } catch (err) {
+            if (t && !t.finished) await t.rollback();
+            console.warn('[FishingService] 清理过期钓鱼会话失败:', err.message);
+        }
+    }
+
+    /**
      * 10. 试探咬饵（小幅提高品质与稀有权重，但贪口可能空竿）
      * @param {number} playerId - 玩家ID
      * @returns {Promise<Object>} { success, message, data }
@@ -712,6 +772,14 @@ class FishingService {
     static async nibble(playerId) {
         const t = await sequelize.transaction();
         try {
+            // 与 cast/reel/giveUp 共用同一把玩家行锁：active_session 是整块 JSON 列，
+            // 不串行的话并发的试探会把已提竿结算（或已重抛）的会话原样写回，
+            // 玩家可以对同一条鱼再提一次竿，鱼获/灵石/熟练度重复发放
+            const locked = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!locked) {
+                await t.rollback();
+                return { success: false, message: '玩家不存在' };
+            }
             const fishing = await this._getOrCreateFishing(playerId, t);
             if (!fishing.active_session) {
                 await t.rollback();
@@ -986,6 +1054,13 @@ class FishingService {
     static async giveUp(playerId) {
         const t = await sequelize.transaction();
         try {
+            // 同一把玩家行锁：不串行时"收竿"可能清掉的正是并发抛竿刚写进去的新会话，
+            // 玩家白扣一枚鱼饵，界面上却显示已经收竿
+            const locked = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!locked) {
+                await t.rollback();
+                return { success: false, message: '玩家不存在' };
+            }
             const fishing = await this._getOrCreateFishing(playerId, t);
             if (!fishing.active_session) {
                 await t.rollback();
@@ -1345,7 +1420,7 @@ class FishingService {
         }
 
         const skillEffects = this._calcSkillEffects(skillLevel);
-        const rodKey = rodTier > 0 ? ['qing_zhu', 'yin_zhu', 'jin_zhu', 'jinlei_zhu'][rodTier - 1] : null;
+        const rodKey = this._rodKeyForTier(rodTier);
         const rodConfig = rodKey ? this._config.rods[rodKey] : null;
 
         // 计算每条鱼的最终权重

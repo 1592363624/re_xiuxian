@@ -1,0 +1,29 @@
+{
+  "dataset": "technique_data",
+  "into": "techniques",
+  "comment": "乱星海两部功法：一部身法（星遁诀，走闪避与速度），一部法修（月魄真诀，走吸血与法攻）。bonuses 的键一律用注册表里的属性键（或其别名），于是面板/战力/战斗/突破四处自动认得，不必再回到代码里登记一遍。",
+  "add": [
+    {
+      "id": "xingdun_jue",
+      "name": "星遁诀",
+      "grade": "xuan",
+      "element": "wind",
+      "description": "以星位定身法，借一线月光挪身。星海散修活下来的本事里，这一门占了半席。",
+      "required_realm": "筑基中期",
+      "bonuses": { "speed": 14, "sense": 8, "dodge_rate": 3 },
+      "cultivate_speed_pct_per_layer": 1,
+      "acquire": { "source": "recipe_scroll", "item_id": "luanxing_tu_can" }
+    },
+    {
+      "id": "yuepo_zhenjue",
+      "name": "月魄真诀",
+      "grade": "di",
+      "element": "water",
+      "description": "月魄沉海，吸人不散。修到深处，伤口与敌血一并成了自己的资粮。",
+      "required_realm": "筑基初期",
+      "bonuses": { "matk": 22, "mp_max": 260, "lifesteal": 2 },
+      "cultivate_speed_pct_per_layer": 2,
+      "acquire": { "source": "sect_treasury" }
+    }
+  ]
+}

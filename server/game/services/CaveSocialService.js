@@ -19,7 +19,11 @@ const PlayerCave = require('../../models/playerCave');
 const CaveMessage = require('../../models/caveMessage');
 const CaveVisitor = require('../../models/caveVisitor');
 const InventoryService = require('./InventoryService');
+const CombatResolver = require('../combat/CombatResolver');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
+// 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
+const RETURNED = { allowUnknownItem: true };
 
 // 单例库存服务实例（与 CaveService/CraftingService 等保持一致的引用方式）
 const inventoryService = InventoryService;
@@ -320,7 +324,9 @@ class CaveSocialService {
             player.spirit_stones = BigInt(currentSS) + BigInt(finalSS);
             // HP 损失（百分比，最低保留1点）
             const hpLossPercent = selected.rewards?.hp_loss_percent || 5;
-            const hpMax = Number(player.hp_max) || 100;
+            // Player 模型没有 hp_max 列（旧写法恒为 undefined → 一律按 100 结算，
+            // 高境界玩家踩一次只掉几点血）。上限必须走属性解析。
+            const hpMax = (await CombatResolver.resolveCombatStats(player)).stats.hp_max ?? 100;
             const hpLoss = Math.floor(hpMax * hpLossPercent / 100);
             const currentHp = Number(player.hp_current) || hpMax;
             player.hp_current = Math.max(1, currentHp - hpLoss);
@@ -546,6 +552,15 @@ class CaveSocialService {
 
         const t = await sequelize.transaction();
         try {
+            // 取锁次序（game/persistence/lockOrder.js）：players 先于 player_caves。
+            // 原来先锁洞府行再回头锁玩家行，而"开辟洞府/升级设施/收取灵石"都是 players→caves：
+            // 玩家两个面板各点一次（布置景观 vs 收灵石）就是 ABBA。
+            // 行级锁玩家记录
+            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
             // 行级锁洞府记录
             const cave = await PlayerCave.findOne({
                 where: { player_id: playerId },
@@ -554,12 +569,6 @@ class CaveSocialService {
             });
             if (!cave || !cave.is_opened) {
                 throw new AppError('尚未开辟洞府', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-            }
-
-            // 行级锁玩家记录
-            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
-            if (!player) {
-                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             }
 
             // 校验境界要求
@@ -726,6 +735,13 @@ class CaveSocialService {
 
         const t = await sequelize.transaction();
         try {
+            // 取锁次序同 setLandscape：players 先于 player_caves（口径见 game/persistence/lockOrder.js）
+            // 行级锁玩家记录（扣灵石在下面，锁要在这里就拿到）
+            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
             // 行级锁洞府记录
             const cave = await PlayerCave.findOne({
                 where: { player_id: playerId },
@@ -774,11 +790,7 @@ class CaveSocialService {
             // 计算总价
             const totalPrice = BigInt(targetGood.price) * BigInt(quantity);
 
-            // 行级锁玩家记录，扣灵石
-            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
-            if (!player) {
-                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
-            }
+            // 玩家行已在事务开头按次序锁好，这里直接用那份实例扣灵石
             if (BigInt(player.spirit_stones || 0) < totalPrice) {
                 throw new AppError(`灵石不足，需${totalPrice}灵石`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
@@ -960,34 +972,10 @@ class CaveSocialService {
             throw new AppError('对方尚未开辟洞府，无法寻宝', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
-        // 校验每日寻宝次数
-        const dailyLimit = thConfig.daily_limit || 5;
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const CaveTreasureLog = require('../../models/caveTreasureLog');
-        const todayCount = await CaveTreasureLog.count({
-            where: { hunter_id: hunterId, created_at: { [Op.gte]: todayStart } }
-        });
-        if (todayCount >= dailyLimit) {
-            throw new AppError(`今日寻宝次数已达上限（${dailyLimit}次）`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
-
-        // 校验同洞府冷却（24h）
-        const cooldownSeconds = thConfig.cooldown_seconds || 86400;
-        const cooldownStart = new Date(Date.now() - cooldownSeconds * 1000);
-        const recentHunt = await CaveTreasureLog.findOne({
-            where: {
-                hunter_id: hunterId,
-                cave_owner_id: targetPlayerId,
-                created_at: { [Op.gte]: cooldownStart }
-            },
-            order: [['created_at', 'DESC']]
-        });
-        if (recentHunt) {
-            const remainingMs = cooldownSeconds * 1000 - (Date.now() - new Date(recentHunt.created_at).getTime());
-            const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
-            throw new AppError(`该洞府寻宝冷却中，还需约 ${remainingHours} 小时`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
-        }
+        // 每日次数上限与同洞府冷却**不能在这里查**：那时还没开事务、没锁住寻宝者这一行，
+        // 同一个人同时点两下会各自数到 0（实测 scripts/smoke_cave_social.js T2：daily_limit=1 放行 2 笔，
+        // 而且两笔都改同一位主人的灵石，最终只扣到一笔多一点的钱 —— 配额和余额一起错）。
+        // 现在挪到事务里、锁住寻宝者那行之后再数（见下方"校验每日寻宝次数"）。
 
         // ===== 接待/驱逐访客系统集成：检查驱逐封锁和接待背叛 =====
         const vrConfig = this.getVisitorReceptionConfig();
@@ -1026,11 +1014,49 @@ class CaveSocialService {
         const cost = thConfig.cost_spirit_stones || 100;
         const t = await sequelize.transaction();
         try {
-            // 行级锁寻宝者
-            const hunter = await Player.findByPk(hunterId, { lock: t.LOCK.UPDATE, transaction: t });
+            // 寻宝者 + 洞府主人：一次按主键**升序**锁齐（口径见 game/persistence/lockOrder.js）。
+            // 改前是"寻宝者 → 洞府主人"两笔按业务角色的单行 FOR UPDATE，而第二把锁只在随机寻得宝物时拿 ——
+            // 两人同时互闯对方洞府就是 hunter→owner / owner→hunter 的环（并发证据与强制走 treasure 分支的
+            // 办法见 scripts/smoke_cave_social.js T3）。
+            const lockedSides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [hunterId, targetPlayerId])).map(p => [Number(p.id), p])
+            );
+            const hunter = lockedSides.get(Number(hunterId));
             if (!hunter) {
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             }
+
+            // 校验每日寻宝次数（挪进事务、锁住寻宝者之后再数：上限是按人的，锁自己那行不新增取锁边）
+            const dailyLimit = thConfig.daily_limit || 5;
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const CaveTreasureLog = require('../../models/caveTreasureLog');
+            const todayCount = await CaveTreasureLog.count({
+                where: { hunter_id: hunterId, created_at: { [Op.gte]: todayStart } },
+                transaction: t
+            });
+            if (todayCount >= dailyLimit) {
+                throw new AppError(`今日寻宝次数已达上限（${dailyLimit}次）`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
+            // 校验同洞府冷却（24h）：同上，必须在锁住寻宝者之后读，否则同时点出去的两笔各自都看不到对方
+            const cooldownSeconds = thConfig.cooldown_seconds || 86400;
+            const cooldownStart = new Date(Date.now() - cooldownSeconds * 1000);
+            const recentHunt = await CaveTreasureLog.findOne({
+                where: {
+                    hunter_id: hunterId,
+                    cave_owner_id: targetPlayerId,
+                    created_at: { [Op.gte]: cooldownStart }
+                },
+                order: [['created_at', 'DESC']],
+                transaction: t
+            });
+            if (recentHunt) {
+                const remainingMs = cooldownSeconds * 1000 - (Date.now() - new Date(recentHunt.created_at).getTime());
+                const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+                throw new AppError(`该洞府寻宝冷却中，还需约 ${remainingHours} 小时`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
             // 校验灵石足够
             if (BigInt(hunter.spirit_stones || 0) < BigInt(cost)) {
                 throw new AppError(`灵石不足，寻宝需 ${cost} 灵石`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
@@ -1084,9 +1110,12 @@ class CaveSocialService {
                 const stealRateMin = resultCfg.spirit_stone_steal_rate?.[0] ?? 0.05;
                 const stealRateMax = resultCfg.spirit_stone_steal_rate?.[1] ?? 0.15;
                 const stealRate = stealRateMin + Math.random() * (stealRateMax - stealRateMin);
-                // 行级锁洞府主人，扣除灵石给寻宝者
-                const owner = await Player.findByPk(targetPlayerId, { lock: t.LOCK.UPDATE, transaction: t });
-                if (owner) {
+                // 借取灵石给寻宝者：用的就是开头那次批锁回来的实例（同一行在一笔事务里只有一份）
+                const owner = lockedSides.get(Number(targetPlayerId));
+                if (!owner) {
+                    throw new AppError('洞府主人的玩家行不存在，寻宝中止', 500, ErrorCodes.INTERNAL_ERROR);
+                }
+                {
                     const ownerStones = BigInt(owner.spirit_stones || 0);
                     // 借取量 = 主人灵石 × 借取率，但有上限（不超过主人灵石的 15%）
                     const stolen = ownerStones > 0n
@@ -1123,7 +1152,7 @@ class CaveSocialService {
                 const hpLossMin = resultCfg.hp_loss_percent_min || 5;
                 const hpLossMax = resultCfg.hp_loss_percent_max || 15;
                 const hpLossPercent = hpLossMin + Math.random() * (hpLossMax - hpLossMin);
-                const hpMax = Number(hunter.hp_max) || 100;
+                const hpMax = (await CombatResolver.resolveCombatStats(hunter)).stats.hp_max ?? 100;
                 const hpLoss = Math.floor(hpMax * hpLossPercent / 100);
                 const currentHp = Number(hunter.hp_current) || hpMax;
                 hunter.hp_current = Math.max(1, currentHp - hpLoss);
@@ -1790,7 +1819,7 @@ class CaveSocialService {
             await exhibit.destroy({ transaction: t });
 
             // 物品归还背包
-            await inventoryService.addItem(playerId, exhibit.item_key, 1, t);
+            await inventoryService.addItem(playerId, exhibit.item_key, 1, t, null, RETURNED);
 
             await t.commit();
 
@@ -1950,6 +1979,16 @@ class CaveSocialService {
                 throw new AppError('不能鉴赏自己洞府的展品', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
+            // 鉴赏者 + 展品主人：一次按主键**升序**锁齐（口径见 game/persistence/lockOrder.js），
+            // 而且要锁在两条"今日次数"校验**之前**。改前是"鉴赏者 → 主人"按业务角色次序串行两把单行锁：
+            //   ① 两人互相鉴赏对方的展品时，两笔事务以相反次序伸手要同两行 —— 实测 4 轮互鉴 4 次 Deadlock
+            //      （scripts/smoke_cave_social.js S6）；
+            //   ② 上限数的是"我今日鉴赏了几笔"，不先锁住我自己那行，同时点出去的两笔就各自数到 0
+            //      （S5 实测：daily_limit=1 时放行 2 笔，上限被双击绕过）。锁自己那行不新增取锁边。
+            const lockedSides = new Map(
+                (await lockRowsByIdsAsc(t, Player, [appreciatorId, exhibit.player_id])).map(p => [Number(p.id), p])
+            );
+
             // 校验每日鉴赏次数
             const dailyLimit = appreciateCfg.daily_limit || 3;
             const todayStart = new Date();
@@ -1990,11 +2029,9 @@ class CaveSocialService {
             const enlightenMultiplier = appreciateCfg.enlighten_exp_multiplier || 3;
             const expGained = isEnlightened ? Math.floor(baseExp * enlightenMultiplier) : baseExp;
 
-            // 行级锁鉴赏者，发放修为
-            const appreciator = await Player.findByPk(appreciatorId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 发放修为：用的就是上面那次批锁回来的同一份实例（一笔事务里同一行只留一份，
+            // 再 FOR UPDATE 读一次就会出现"两份实例、谁后 save 谁覆盖对方"）
+            const appreciator = lockedSides.get(Number(appreciatorId));
             if (!appreciator) {
                 throw new AppError('鉴赏者不存在', 404, ErrorCodes.NOT_FOUND);
             }
@@ -2024,15 +2061,14 @@ class CaveSocialService {
                 const extraLevels = qualityRank - honorMinQualityRank;
                 ownerHonorGained = honorPerAppreciation + extraLevels * honorBonusPerHigherQuality;
 
-                // 行级锁主人，发放声望（honor 是 BIGINT）
-                const owner = await Player.findByPk(exhibit.player_id, {
-                    lock: t.LOCK.UPDATE,
-                    transaction: t
-                });
-                if (owner) {
-                    owner.honor = BigInt(owner.honor || 0) + BigInt(ownerHonorGained);
-                    await owner.save({ transaction: t });
+                // 主人用的还是那次批锁回来的实例（honor 是 BIGINT）
+                const owner = lockedSides.get(Number(exhibit.player_id));
+                if (!owner) {
+                    // 改前这里是"读不到就静默跳过"：那笔声望就此凭空没了，谁也不会知道
+                    throw new AppError('展品主人的玩家行不存在，声望无法发放', 500, ErrorCodes.INTERNAL_ERROR);
                 }
+                owner.honor = BigInt(owner.honor || 0) + BigInt(ownerHonorGained);
+                await owner.save({ transaction: t });
             }
 
             await t.commit();

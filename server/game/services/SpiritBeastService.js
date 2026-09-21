@@ -36,6 +36,7 @@ const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const InventoryService = require('./InventoryService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
+const { pickRegisteredStats } = require('../combat/CombatStats');
 const { Op } = require('sequelize');
 
 /**
@@ -72,6 +73,16 @@ function calcExpCap(level, settings) {
 function calcAttr(baseValue, level, starLevel) {
     const levelFactor = 1 + (level - 1) * 0.1;
     return Math.floor(Number(baseValue) * levelFactor * starLevel);
+}
+
+/**
+ * 内容里 `base_<名字>` 对应的灵兽行列名；没有对应列时返回 null。
+ * 只有血量不同名：内容写 base_hp，列是 hp_max。
+ */
+function beastStatColumn(stat) {
+    const { HP_KEYS } = require('../combat/CombatStats');
+    if (HP_KEYS.includes(stat) && SpiritBeast.rawAttributes.hp_max) return 'hp_max';
+    return Object.prototype.hasOwnProperty.call(SpiritBeast.rawAttributes, stat) ? stat : null;
 }
 
 class SpiritBeastService {
@@ -377,10 +388,7 @@ class SpiritBeastService {
                 star_level: 1,
                 level: 1,
                 exp: 0,
-                hp_max: beastType.base_hp,
-                atk: beastType.base_atk,
-                def: beastType.base_def,
-                speed: beastType.base_speed,
+                ...SpiritBeastService.computeStats(beastType, 1, 1),
                 loyalty: 50,
                 is_active: false,
                 last_feed_time: null,
@@ -1019,10 +1027,7 @@ class SpiritBeastService {
                 beast.star_level = newStar;
                 const bt = beastTypeMap.get(beast.beast_key);
                 if (bt) {
-                    beast.hp_max = calcAttr(bt.base_hp, beast.level, newStar);
-                    beast.atk = calcAttr(bt.base_atk, beast.level, newStar);
-                    beast.def = calcAttr(bt.base_def, beast.level, newStar);
-                    beast.speed = calcAttr(bt.base_speed, beast.level, newStar);
+                    Object.assign(beast, SpiritBeastService.computeStats(bt, beast.level, newStar));
                 }
 
                 // 判断是否激活新招牌特性（3星/5星）
@@ -1152,19 +1157,28 @@ class SpiritBeastService {
 
     /**
      * 计算灵兽战力
-     * 综合 hp/atk/def/speed 加权求和，并考虑星级倍率
+     * 权重表来自内容（spirit_beast_data.settings.combat_power_weight），按"内容声明了哪个属性就算哪个"遍历。
+     *
+     * 以前这里写死 hp/atk/def/speed 四项：权重数值虽然在内容里，加一档权重（或改键名）却等于什么都没发生 ——
+     * 正是"给实体加一个属性要在很多地方各改一遍"的那个形状。现在只剩内容说了算。
+     * 键可以是别名（内容里写 hp，列叫 hp_max），解析走属性注册表。
      * @param {Object} beast - 灵兽实例
      * @returns {number} 战力数值
      */
     static calculateCombatPower(beast) {
         const config = configLoader.getConfig('spirit_beast_data');
-        const weight = config.settings.combat_power_weight || { hp: 0.1, atk: 2.0, def: 1.5, speed: 1.0 };
-        const hp = Number(beast.hp_max || 0);
-        const atk = Number(beast.atk || 0);
-        const def = Number(beast.def || 0);
-        const speed = Number(beast.speed || 0);
+        const weights = config?.settings?.combat_power_weight || { hp_max: 0.1, atk: 2.0, def: 1.5, speed: 1.0 };
+        const registry = require('../stats').ensureStatRegistryLoaded();
+
+        let base = 0;
+        for (const [stat, rawWeight] of Object.entries(weights)) {
+            if (stat.startsWith('_')) continue; // 内容里的说明键（_comment）不算一档属性
+            const weight = Number(rawWeight);
+            if (!Number.isFinite(weight) || weight === 0) continue;
+            const column = registry.resolveStatKey(stat)?.key || stat;
+            base += Number(beast[column] || 0) * weight;
+        }
         const starBonus = 1 + (Number(beast.star_level) - 1) * 0.1;
-        const base = hp * weight.hp + atk * weight.atk + def * weight.def + speed * weight.speed;
         return Math.floor(base * starBonus);
     }
 
@@ -1236,22 +1250,13 @@ class SpiritBeastService {
             const starRate = Number(bonusCfg.star_rate) || 0.05;
             const levelRate = Number(bonusCfg.level_rate) || 0.005;
             const maxRate = Number(bonusCfg.max_rate) || 0.5;
-            const hpFactor = Number(bonusCfg.hp_factor) || 0.5;
-            const speedFactor = Number(bonusCfg.speed_factor) || 0.3;
-            const mpFactor = Number(bonusCfg.mp_factor) || 0;
-            const senseFactor = Number(bonusCfg.sense_factor) || 0.2;
+            const statFactors = bonusCfg.stat_factors || {};
 
             // 计算加成比例：base + 星级*star_rate + 等级*level_rate，上限 max_rate
             const starLevel = Number(beast.star_level) || 1;
             const level = Number(beast.level) || 1;
             const rawRate = baseRate + starLevel * starRate + level * levelRate;
             const bonusRate = Math.min(rawRate, maxRate);
-
-            // 计算各项属性加成
-            const beastAtk = Number(beast.atk) || 0;
-            const beastDef = Number(beast.def) || 0;
-            const beastHp = Number(beast.hp_max) || 0;
-            const beastSpeed = Number(beast.speed) || 0;
 
             // 解析灵兽显示名：优先使用玩家自定义昵称，否则从配置按 beast_key 读取默认名
             // 否则前端拿到的 beast_name 会是 null，无法直接展示
@@ -1261,13 +1266,13 @@ class SpiritBeastService {
                 displayBeastName = beastType?.name || beast.beast_key;
             }
 
+            // 每一项灵兽属性都按内容声明的系数折算给玩家（stat_factors 没写的就是全额）。
+            // 这里以前手写只认 atk/def/hp_max/speed，还给灵兽根本没有的 mp_max/sense 写死 0；
+            // 现在只要 computeStats 把某个注册表认识的属性算进行上，它就会自动进玩家的属性管线。
             const bonus = {
-                atk: Math.floor(beastAtk * bonusRate),
-                def: Math.floor(beastDef * bonusRate),
-                hp_max: Math.floor(beastHp * bonusRate * hpFactor),
-                mp_max: 0, // 灵兽一般不提供MP加成，保留字段
-                speed: Math.floor(beastSpeed * bonusRate * speedFactor),
-                sense: 0, // 如有 sense_factor 配置，可扩展
+                ...Object.fromEntries(Object.entries(pickRegisteredStats(beast.toJSON())).map(([stat, value]) => [
+                    stat, Math.floor(Number(value) * bonusRate * Number(statFactors[stat] ?? 1))
+                ])),
                 beast_info: {
                     beast_id: beast.id,
                     beast_key: beast.beast_key,
@@ -1290,6 +1295,41 @@ class SpiritBeastService {
     }
 
     // ==================== 内部辅助方法 ====================
+
+    /**
+     * 灵兽属性块 = 内容里声明的**每一个** `base_<属性>` × 等级成长 × 星级倍率。
+     *
+     * 这里是灵兽唯一的属性算式：捕获、升级、升星、GM 发放/改等级都调它。
+     * 以前这四行赋值手写在 5 个地方（服务里 2 处、routes/admin_spirit_beast.js 里 2 处 + 建号 1 处），
+     * 而且那条路由还自己复制了一份 calcAttr（注释写着"与 SpiritBeastService.calcAttr 保持一致"）——
+     * 给灵兽加一个新属性要改完这些位置才生效。现在资料片只要写 `base_<属性>`，
+     * 列存在就会算、会进属性引擎（getActiveBeastBonus → providers → StatEngine），代码不用动。
+     *
+     * @param {Object} beastType - spirit_beast_data.beast_types 里的一条
+     * @param {number} level
+     * @param {number} starLevel
+     * @returns {Object} { 列名: 数值 }
+     */
+    static computeStats(beastType, level, starLevel) {
+        const stats = {};
+        for (const [key, base] of Object.entries(beastType || {})) {
+            if (!key.startsWith('base_')) continue;
+            const stat = key.slice('base_'.length);
+            const column = beastStatColumn(stat);
+            if (!column) {
+                // 声明了注册表认识的属性却没有列存放，是要告诉策划的真问题；
+                // 其余 base_* 只是碰巧同名的普通配置字段，安静跳过即可
+                const { ensureStatRegistryLoaded } = require('../stats');
+                const registry = ensureStatRegistryLoaded();
+                if (registry && registry.resolveStatKey(stat)) {
+                    console.warn(`[SpiritBeastService] 灵兽种类 ${beastType.beast_key} 声明了 ${key}，但灵兽表没有列存放，已忽略`);
+                }
+                continue;
+            }
+            stats[column] = calcAttr(base, level, starLevel);
+        }
+        return stats;
+    }
 
     /**
      * 检查并执行灵兽升级
@@ -1326,10 +1366,7 @@ class SpiritBeastService {
             const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
             const bt = beastTypeMap.get(beast.beast_key);
             if (bt) {
-                beast.hp_max = calcAttr(bt.base_hp, beast.level, beast.star_level);
-                beast.atk = calcAttr(bt.base_atk, beast.level, beast.star_level);
-                beast.def = calcAttr(bt.base_def, beast.level, beast.star_level);
-                beast.speed = calcAttr(bt.base_speed, beast.level, beast.star_level);
+                Object.assign(beast, SpiritBeastService.computeStats(bt, beast.level, beast.star_level));
             }
         }
 

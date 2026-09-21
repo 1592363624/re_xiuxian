@@ -118,6 +118,14 @@ export interface SecondSoulProfileData {
   souls: SecondSoul[];
   /** 残篇收集进度，按 fragment_type 索引 */
   fragment_progress: Record<string, SoulFragmentProgress>;
+  /** 调度模式清单：以内容 late_stage_data.second_soul.dispatch_modes 为准 */
+  dispatch_modes?: Array<{
+    key: string;
+    name: string;
+    description: string;
+    duration_seconds: number | null;
+    cooldown_seconds: number | null;
+  }>;
   condense_requirements: CondenseRequirements;
 }
 
@@ -358,7 +366,7 @@ export const secondSoulDivide = (soulName: string) => {
  * @param soulIndex 元神序号（2=第二元神，3=第三元神）
  * @param mode 调度模式
  */
-export const secondSoulDispatch = (soulIndex: 2 | 3, mode: 'combat' | 'cultivate' | 'scout' | 'defend') => {
+export const secondSoulDispatch = (soulIndex: 2 | 3, mode: string) => {
   return apiClient.post<ServiceResponse>('/second-soul/dispatch', {
     soul_index: soulIndex,
     mode

@@ -1,0 +1,18 @@
+{
+  "dataset": "technique_data",
+  "into": "techniques",
+  "comment": "五气朝元功：加成里直接写新属性键，功法面板/修炼/战斗全部自动认得。",
+  "add": [
+    {
+      "id": "wuxing_five_qi",
+      "name": "五气朝元功",
+      "grade": "xuan",
+      "element": "none",
+      "description": "分五气为五神，五气齐朝元则五行之力自生，是了不起的修仙者筑基后的第二法门。",
+      "required_realm": "炼气期",
+      "bonuses": { "five_element_power": 14, "element_resist": 3, "mp_max": 60 },
+      "cultivate_speed_pct_per_layer": 0.6,
+      "acquire": { "source": "sect", "sect_contribution": 800 }
+    }
+  ]
+}

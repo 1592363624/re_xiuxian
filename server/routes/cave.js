@@ -18,8 +18,11 @@ const configLoader = infrastructure.ConfigLoader;
 CaveService.initialize(configLoader);
 GardenService.initialize(configLoader);
 
-// 有效设施类型白名单（防止注入非法参数）
-const VALID_FACILITIES = ['spirit_vein', 'quiet_room', 'pill_room', 'tool_room', 'grand_formation'];
+// 有效设施类型：取自内容（cave_data.cave.facilities），不再抄一份五个键的字面数组。
+// 抄的那份要让资料片加设施时必须跟着改，漏改的表现是"面板里没有、升级报无效设施"。
+function validFacilities() {
+    return CaveService.getFacilityTypes();
+}
 
 /**
  * GET /api/cave/info
@@ -63,8 +66,9 @@ router.post('/upgrade', auth, async (req, res, next) => {
         const { facility } = req.body;
 
         // 参数校验（白名单防注入）
-        if (!facility || !VALID_FACILITIES.includes(facility)) {
-            throw new AppError(`无效的设施类型，可选: ${VALID_FACILITIES.join(', ')}`, 400, ErrorCodes.VALIDATION_ERROR);
+        const validFacilitiesList = validFacilities();
+        if (!facility || !validFacilitiesList.includes(facility)) {
+            throw new AppError(`无效的设施类型，可选: ${validFacilitiesList.join(', ')}`, 400, ErrorCodes.VALIDATION_ERROR);
         }
 
         const player = await Player.findByPk(req.user.id);

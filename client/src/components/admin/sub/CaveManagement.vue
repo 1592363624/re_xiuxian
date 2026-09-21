@@ -245,6 +245,7 @@ import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
 import {
   getCaveList,
+  getCaveFacilityOptions,
   updateCaveFacility,
   resetCave,
   updateGardenPlots
@@ -253,14 +254,21 @@ import AppButton from '../../ui/AppButton.vue'
 
 const uiStore = useUIStore()
 
-// 设施类型选项（与后端白名单一致，便于下拉选择）
-const facilityOptions = [
-  { value: 'spirit_vein', label: '灵脉' },
-  { value: 'quiet_room', label: '静室' },
-  { value: 'pill_room', label: '丹房' },
-  { value: 'tool_room', label: '器室' },
-  { value: 'grand_formation', label: '护山大阵' }
-]
+// 设施下拉：清单、中文名与等级上限都取自服务端（内容 ∩ player_caves 有等级列）。
+// 以前这里抄了五个键，资料片加了设施下拉里没有，而服务端按内容认 —— 内容配好了 GM 却调不到。
+const facilityOptions = ref([])
+
+async function loadFacilityOptions() {
+  try {
+    const res = await getCaveFacilityOptions()
+    facilityOptions.value = res.data?.data?.facilities || []
+    if (!facilityOptions.value.length) {
+      uiStore.showToast('设施清单为空：内容里的设施可能都还没有对应的等级列', 'warning')
+    }
+  } catch (err) {
+    uiStore.showApiError(err, '加载设施清单失败')
+  }
+}
 
 // 洞府列表数据
 const caveList = ref([])
@@ -409,15 +417,16 @@ const confirmFacility = async () => {
     uiStore.showToast('请输入有效的等级数值', 'error')
     return
   }
-  const level = parseInt(facilityModal.level)
-  if (level < 0 || level > 10) {
-    uiStore.showToast('设施等级必须在 0-10 之间', 'error')
+  // 设施合法性与等级上限都问服务端给的清单（内容驱动），不再抄一份五个键
+  const option = facilityOptions.value.find(o => o.value === facilityModal.facility)
+  if (!option) {
+    uiStore.showToast(facilityOptions.value.length ? '设施类型非法' : '设施清单还没加载出来，请稍后重试', 'error')
     return
   }
-  // 校验设施类型合法性
-  const validFacilities = ['spirit_vein', 'quiet_room', 'pill_room', 'tool_room', 'grand_formation']
-  if (!validFacilities.includes(facilityModal.facility)) {
-    uiStore.showToast('设施类型非法', 'error')
+  const maxLevel = option.max_level ?? 10
+  const level = parseInt(facilityModal.level)
+  if (level < 0 || level > maxLevel) {
+    uiStore.showToast(`${option.label}的等级必须在 0-${maxLevel} 之间`, 'error')
     return
   }
 
@@ -538,6 +547,7 @@ defineExpose({
 })
 
 onMounted(() => {
+  loadFacilityOptions()
   fetchList(1)
 })
 </script>

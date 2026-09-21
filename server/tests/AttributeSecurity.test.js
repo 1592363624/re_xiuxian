@@ -120,7 +120,7 @@ describe('P0 丹药效果来源与钳制', () => {
         expect(current).toEqual({ hp_bonus: 900, atk_bonus: 5 });
     });
 
-    test('applyPillEffect 忽略注入的未知属性键', () => {
+    test('applyPillEffect 只回显当前上限，不重复叠加已入账或注入的加成', () => {
         const player = { realm: '凡人', attributes: {} };
         const baseMax = AttributeMaxService.calculateAttributeMaxValues(player);
         const maxValues = AttributeMaxService.applyPillEffect(player, {
@@ -128,8 +128,15 @@ describe('P0 丹药效果来源与钳制', () => {
             attributes: { hp_bonus: 100, lifespan_max: 999999 }
         });
 
-        expect(maxValues.hp_max).toBe(baseMax.hp_max + 100);
-        expect(maxValues.lifespan_max).toBe(baseMax.lifespan_max); // 寿元上限不可被丹药效果字段改写
+        // 加成的唯一入口是 applyPillBonusToAttributes → PlayerStateStore 落库；
+        // 回显阶段不再凭空加值（改造前这里会 +100，而落库后的 attributes 又含同一份加成 = 双计）。
+        // 注入的 lifespan_max 字段同样不改写寿元上限。
+        expect(maxValues.hp_max).toBe(baseMax.hp_max);
+        expect(maxValues.lifespan_max).toBe(baseMax.lifespan_max);
+
+        // 加成落库后，上限自动体现（面板与恢复结算同源）
+        const afterPill = { realm: '凡人', attributes: { hp_bonus: 100 } };
+        expect(AttributeMaxService.calculateAttributeMaxValues(afterPill).hp_max).toBe(baseMax.hp_max + 100);
     });
 });
 
@@ -167,12 +174,13 @@ describe('P1 恢复时长按服务端时钟结算', () => {
         expect(AttributeMaxService.resolveRecoveryMinutes({})).toBe(0);
     });
 
-    test('buildAttributesAfterRecovery 写入服务端当前时点', () => {
+    test('buildRecoveryWatermarkPatch 只产出时点键，不带走整份 attributes', () => {
         const before = Date.now();
-        const next = AttributeMaxService.buildAttributesAfterRecovery({ attributes: { hp_bonus: 3 } });
+        const patch = AttributeMaxService.buildRecoveryWatermarkPatch();
 
-        expect(next.hp_bonus).toBe(3);
-        expect(new Date(next.last_recovery_time).getTime()).toBeGreaterThanOrEqual(before);
+        // 补丁里除时点外不应有第二个键：多带任何一个键，就等于把调用方那份旧快照往回怼
+        expect(Object.keys(patch)).toEqual(['last_recovery_time']);
+        expect(new Date(patch.last_recovery_time).getTime()).toBeGreaterThanOrEqual(before);
     });
 
     test('配置缺失时回落到默认窗口（不抛错）', async () => {
@@ -190,13 +198,6 @@ describe('P1 恢复时长按服务端时钟结算', () => {
 describe('P2 属性加点白名单', () => {
     const AttributeService = require('../game/core/AttributeService');
 
-    const makePlayer = (points) => ({
-        attribute_points: points,
-        attributes: {},
-        realm: '凡人',
-        async save() { /* 纯逻辑测试不入库 */ }
-    });
-
     beforeAll(async () => {
         await AttributeService.initialize(makeConfigLoader({
             role_init: {},
@@ -207,50 +208,67 @@ describe('P2 属性加点白名单', () => {
         }));
     });
 
-    test('负数加点被拒绝，不再反向刷出属性点', async () => {
-        const player = makePlayer(0);
-        const result = await AttributeService.allocatePoints(player, { hp: -50 });
+    // 加点的"策略"与"落库"已拆开：这里测纯策略（给定当前 attributes 与可用点，算出该写回什么）。
+    // 落库路径（行锁 + 补丁写入）由 PlayerStateStore 的连库并发探针覆盖。
+    const plan = (attributes, points, available) =>
+        AttributeService.buildAllocationPlan(attributes || {}, points, available);
 
-        expect(result.success).toBe(false);
-        expect(player.attribute_points).toBe(0);
+    test('负数加点被拒绝，不再反向刷出属性点', () => {
+        const result = plan({}, { hp: -50 }, 0);
+        expect(result.ok).toBe(false);
+        expect(result.message).toMatch(/正整数/);
     });
 
-    test('未知属性名被拒绝', async () => {
-        const player = makePlayer(10);
-        const result = await AttributeService.allocatePoints(player, { lifespan_max: 5 });
-
-        expect(result.success).toBe(false);
-        expect(player.attributes.lifespan_max_bonus).toBeUndefined();
+    test('未知属性名被拒绝', () => {
+        const result = plan({}, { lifespan_max: 5 }, 10);
+        expect(result.ok).toBe(false);
+        expect(result.message).toMatch(/未知的属性项/);
+        expect(result.attributes).toBeUndefined();
     });
 
-    test('非整数/零/字符串加点被拒绝', async () => {
+    test('非整数/零/字符串加点被拒绝', () => {
         for (const bad of [{ hp: 1.5 }, { hp: 0 }, { hp: '5' }, { hp: NaN }]) {
-            const result = await AttributeService.allocatePoints(makePlayer(10), bad);
-            expect(result.success).toBe(false);
+            expect(plan({}, bad, 10).ok).toBe(false);
         }
     });
 
-    test('数组与空对象入参被拒绝', async () => {
-        expect((await AttributeService.allocatePoints(makePlayer(10), [])).success).toBe(false);
-        expect((await AttributeService.allocatePoints(makePlayer(10), {})).success).toBe(false);
-        expect((await AttributeService.allocatePoints(makePlayer(10), null)).success).toBe(false);
+    test('数组与空对象入参被拒绝', () => {
+        expect(plan({}, [], 10).ok).toBe(false);
+        expect(plan({}, {}, 10).ok).toBe(false);
+        expect(plan({}, null, 10).ok).toBe(false);
     });
 
-    test('超出可用点数的加点被拒绝', async () => {
-        const player = makePlayer(3);
-        const result = await AttributeService.allocatePoints(player, { hp: 2, atk: 2 });
-
-        expect(result.success).toBe(false);
-        expect(player.attribute_points).toBe(3);
+    test('原型链键名不能绕过白名单', () => {
+        for (const key of ['__proto__', 'constructor', 'toString']) {
+            expect(plan({}, { [key]: 1 }, 10).ok).toBe(false);
+        }
     });
 
-    test('合法加点写入白名单 bonus 键并扣减可用点数', async () => {
-        const player = makePlayer(10);
-        const result = await AttributeService.allocatePoints(player, { hp: 4, atk: 2 });
+    test('超出可用点数的加点被拒绝', () => {
+        const result = plan({}, { hp: 2, atk: 2 }, 3);
+        expect(result.ok).toBe(false);
+        expect(result.message).toMatch(/不足/);
+    });
 
-        expect(result.success).toBe(true);
-        expect(player.attributes.hp_bonus).toBe(4);
-        expect(player.attributes.atk_bonus).toBe(2);
-        expect(player.attribute_points).toBe(4);
+    test('合法加点写入白名单 bonus 键并记入账本', () => {
+        const result = plan({}, { hp: 4, atk: 2 }, 10);
+        expect(result.ok).toBe(true);
+        expect(result.attributes.hp_bonus).toBe(4);
+        expect(result.attributes.atk_bonus).toBe(2);
+        expect(result.attributes.attribute_point_allocations).toEqual({ hp_bonus: 4, atk_bonus: 2 });
+        expect(result.totalPointsNeeded).toBe(6);
+    });
+
+    test('累加已有加成，且钳制到单属性总量上限', () => {
+        const result = plan({ hp_bonus: 999998 }, { hp: 100 }, 100);
+        expect(result.attributes.hp_bonus).toBe(1000000);
+        // 账本只记实际入账的 2 点，避免重置时多退
+        expect(result.attributes.attribute_point_allocations.hp_bonus).toBe(2);
+    });
+
+    test('策略层不修改入参 attributes', () => {
+        const attributes = { hp_bonus: 1 };
+        plan(attributes, { hp: 5 }, 10);
+        expect(attributes).toEqual({ hp_bonus: 1 });
     });
 });

@@ -41,6 +41,7 @@ function buildConfigLoader() {
         getConfig: (name) => {
             if (name === 'game_balance') return balanceConfig;
             if (name === 'cave_data') return caveDataConfig;
+            if (name === 'item_data') return { items: [{ id: 'jade_core', name: '妖核' }] };
             return {};
         }
     };
@@ -100,5 +101,18 @@ describe('getCaveDefenseBonus 大阵防御减伤（断链接通）', () => {
     test('洞府未开启时返回 0', async () => {
         PlayerCave.findOne.mockResolvedValue({ is_opened: false, grand_formation_level: 5 });
         await expect(CaveService.getCaveDefenseBonus(1)).resolves.toBe(0);
+    });
+});
+
+describe('升级消耗里的材料名由内容补', () => {
+    test('material 是 item_key，界面上要的中文名由 _withMaterialName 按 item_data 补上', () => {
+        const withName = CaveService._withMaterialName({
+            level: 4, spirit_stone: 3000, material: 'jade_core', material_count: 10
+        });
+        expect(withName.material_name).toBe('妖核');
+        // 内容查不到的键名不能编造名字，也不能把整条消耗弄没（面板宁可退回键名）
+        expect(CaveService._withMaterialName({ material: 'ghost_mat', material_count: 2 }).material_name).toBeUndefined();
+        expect(CaveService._withMaterialName(null)).toBeNull();
+        expect(CaveService._withMaterialName({ material: null, material_count: 0 })).toEqual({ material: null, material_count: 0 });
     });
 });

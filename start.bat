@@ -4,6 +4,9 @@ setlocal enabledelayedexpansion
 title 修仙启动脚本
 color 0A
 
+rem cd to script dir: this file uses many relative paths
+cd /d "%~dp0"
+
 echo ===============================================
 echo    重生之凡人修仙传 - 一键启动脚本
 echo ===============================================
@@ -48,21 +51,16 @@ if not exist "server\config\database.js" (
     goto :wait
 )
 
-rem 默认端口
+rem ports are read from .env; hardcoded values would kill the wrong pid after a config change
 set SERVER_PORT=5000
 set CLIENT_PORT=5173
+if exist "%~dp0server\.env" for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0server\.env") do if /i "%%~A"=="PORT" set "SERVER_PORT=%%~B"
+if exist "%~dp0client\.env" for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0client\.env") do if /i "%%~A"=="VITE_CLIENT_PORT" set "CLIENT_PORT=%%~B"
 
-rem 端口占用预检（使用netstat，纯cmd）
-echo [信息] 正在检查端口占用情况...
-netstat -ano 2>nul | findstr ":5000 " >nul
-if not errorlevel 1 (
-    echo [警告] 端口 5000 已被占用，后端启动可能失败
-    echo         可关闭占用进程或执行: taskkill /f /im node.exe
-)
-netstat -ano 2>nul | findstr ":5173 " >nul
-if not errorlevel 1 (
-    echo [警告] 端口 5173 已被占用，前端启动可能失败
-)
+rem kill the occupants first, or the new instance dies with EADDRINUSE
+echo [信息] 正在检查并清理端口占用...
+call :free_port !SERVER_PORT! 后端API
+call :free_port !CLIENT_PORT! 前端Vite
 echo.
 
 echo [信息] 正在启动服务器（新窗口）...
@@ -99,6 +97,49 @@ echo ===============================================
 echo.
 
 goto :wait
+
+rem ---- sub-routine: kill every process LISTENING on a port. %~1=port %~2=label ----
+:free_port
+set "_PORT=%~1"
+echo !_PORT!| findstr /R "^[1-9][0-9]*$" >nul
+if errorlevel 1 (
+    echo   [跳过] 端口值 "!_PORT!" 非法，未做检查
+    goto :eof
+)
+rem LISTENING only: ESTABLISHED lines also carry ":5000" as the peer address, matching them would kill the client
+set "_PIDS="
+for /f "tokens=5" %%P in ('netstat -ano -p tcp ^| findstr /C:":!_PORT! " ^| findstr /C:"LISTENING"') do (
+    if not defined SEEN_%%P (
+        set "SEEN_%%P=1"
+        if not "%%P"=="0" if not "%%P"=="4" set "_PIDS=!_PIDS! %%P"
+    )
+)
+for /f "delims=" %%V in ('set SEEN_ 2^>nul') do set "%%V="
+if not defined _PIDS (
+    echo   [空闲] 端口 !_PORT!  [%~2]
+    goto :eof
+)
+echo   [占用] 端口 !_PORT!  [%~2]  正被以下进程使用，已全部结束:
+for %%P in (!_PIDS!) do (
+    tasklist /FI "PID eq %%P" /NH 2>nul
+    taskkill /F /T /PID %%P >nul 2>&1
+)
+rem killing a pid does not free the socket instantly, so poll; each netstat pass is itself the delay
+set "_LEFT="
+set _TRY=0
+:port_recheck
+set "_LEFT="
+for /f "tokens=5" %%P in ('netstat -ano -p tcp ^| findstr /C:":!_PORT! " ^| findstr /C:"LISTENING"') do set "_LEFT=%%P"
+if not defined _LEFT goto port_recheck_done
+set /a _TRY+=1
+if !_TRY! LSS 15 goto port_recheck
+:port_recheck_done
+if defined _LEFT (
+    echo   [失败] 端口 !_PORT! 仍被 PID !_LEFT! 占用，可能需要管理员权限
+) else (
+    echo   [释放] 端口 !_PORT! 已可用
+)
+goto :eof
 
 :wait
 echo.

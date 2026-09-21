@@ -39,6 +39,7 @@ const BeastInvasion = require('../../models/beastInvasion');
 const BeastInvasionDonation = require('../../models/beastInvasionDonation');
 const BeastInvasionAttack = require('../../models/beastInvasionAttack');
 const Player = require('../../models/player');
+const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
 const Item = require('../../models/item');
 const AttributeService = require('../core/AttributeService');
 const RealmService = require('../core/RealmService');
@@ -46,10 +47,14 @@ const PlayerStateMachine = require('../state/PlayerStateMachine');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const InventoryService = require('./InventoryService');
+const { grantItems, describeGrant } = require('../items/itemGrant');
 const { infrastructure } = require('../../modules');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
+const CombatResolver = require('../combat/CombatResolver');
+// 内容声明层：与野外怪、副本怪、世界 BOSS 同一套 stats 规则
+const { mergeDeclaredStats } = require('../combat/MonsterStats');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -716,7 +721,8 @@ class BeastInvasionService {
                 item_name: r.item_name,
                 quantity: r.quantity,
                 contribution_value: r.contribution_value,
-                created_at: r.created_at
+                // 响应字段保持 snake_case（前端按这个取），但实例属性名是 createdAt
+                created_at: r.createdAt
             }))
         };
     }
@@ -791,9 +797,18 @@ class BeastInvasionService {
             throw new AppError(`已达本场妖兽战攻击次数上限（${maxAttackCount} 次），请等待事件结束`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
 
-        // ========== 开启事务，行级锁妖兽 + 玩家 ==========
+        // ========== 开启事务，一次锁两张表：次序按 game/persistence/lockOrder.js ==========
         const t = await sequelize.transaction();
         try {
+            // 行级锁玩家。原来先锁妖兽事件行再回头锁玩家行，而捐献（本文件 donate）、结算、巡边归来
+            // 那几条都是 players → beast_invasions：妖兽战是全服同打的事件，任何一次出手撞上任一条
+            // 反向路径就是 ABBA，跟"同一个人开两个面板"无关。
+            // 这里只把"拿锁"提前，封禁/身死等校验仍留在下面原位置判，报错优先级不变。
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+
             // 行级锁妖兽
             const invasion = await BeastInvasion.findByPk(invasionId, {
                 lock: t.LOCK.UPDATE,
@@ -825,11 +840,8 @@ class BeastInvasionService {
                 throw new AppError('战斗阶段已结束', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 行级锁玩家
-            const player = await Player.findByPk(playerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 玩家行已在事务开头按次序锁好，这里直接用那份实例判（不再补一次 FOR UPDATE：
+            // 一笔事务里同一行留两份实例，谁后 save 谁覆盖对方）
             if (!player) {
                 await t.commit();
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -868,8 +880,10 @@ class BeastInvasionService {
                 transaction: t
             });
             if (lastAttack) {
-                const elapsedSec = (Date.now() - new Date(lastAttack.created_at).getTime()) / 1000;
-                const remain = Math.ceil(attackCooldownSec - elapsedSec);
+                // 模型是 underscored: true，实例上的属性名是 createdAt ——
+                // 读 lastAttack.created_at 永远是 undefined，冷却提示会变成"NaN 秒后可再次攻击"
+                const elapsedSec = (Date.now() - new Date(lastAttack.createdAt).getTime()) / 1000;
+                const remain = Math.max(1, Math.ceil(attackCooldownSec - elapsedSec));
                 await t.commit();
                 throw new AppError(`攻击冷却中，${remain} 秒后可再次攻击`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
@@ -878,7 +892,6 @@ class BeastInvasionService {
             const attrResult = await AttributeService.calculateFullAttributesAsync(player);
             const finalAttrs = attrResult?.final || {};
             const playerAtk = Number(finalAttrs.atk) || 0;
-            const playerDef = Number(finalAttrs.def) || 0;
             const playerHpMax = Number(finalAttrs.hp_max) || 100;
 
             // 技能倍率
@@ -898,20 +911,6 @@ class BeastInvasionService {
             const skillName = selectedSkill?.name || null;
             // 最终技能倍率 = 玩家技能倍率 × 妖兽技能伤害倍率（如果触发了妖兽技能）
             const combinedSkillMultiplier = skillMultiplier * skillDamageMultiplier;
-
-            // 暴击判定
-            const critRate = Number(cfg.crit_rate) || 0.05;
-            const critMultiplier = Number(cfg.crit_multiplier) || 1.5;
-            const isCrit = Math.random() < critRate;
-            const critFactor = isCrit ? critMultiplier : 1.0;
-
-            // 随机浮动（±15%）
-            const randomRange = Number(cfg.damage_random_range) || 0.15;
-            const randomFactor = 1 + (Math.random() * 2 - 1) * randomRange;
-
-            // 防御减伤（除法曲线，避免伤害断崖式下跌）
-            const defReduction = invasion.def / (invasion.def + playerAtk * 2 + 1000);
-            const baseDamage = Math.max(1, Math.floor(playerAtk * combinedSkillMultiplier * (1 - defReduction)));
 
             // 单人挑战伤害比例
             const soloRatio = cfg.single_player_damage_ratio ?? 1.0;
@@ -939,10 +938,33 @@ class BeastInvasionService {
             const realmSuppressionPerRank = Number(cfg.realm_suppression_per_rank) || 0.05;
             const realmSuppression = 1 + Math.max(0, (playerRealmRank - beastRealmRankMin) * realmSuppressionPerRank);
 
-            // 最终伤害组装
-            const finalDamage = Math.floor(
-                baseDamage * soloRatio * teamFactor * realmSuppression * critFactor * randomFactor
-            );
+            // 伤害结算交给 CombatResolver：ratio_mitigation 档位声明了那条除法减伤曲线与 ±15% 浮动，
+            // 暴击/闪避/神通特效按属性注册表从玩家真实属性取。
+            // 改造前这里写死 crit_rate 5%、暴击倍率 1.5，玩家在装备上堆的暴击对兽潮完全无效。
+            // 组队加成/境界压制/单人比例属于"玩法倍率"而不是属性，作为 external_multiplier 乘在结算之后。
+            const externalMultiplier = soloRatio * teamFactor * realmSuppression;
+            const balanceConfig = configLoader.getConfig('game_balance') || {};
+            // 这只妖兽在 beast_invasion_data 里声明的属性（暴击/闪避/五行抗性…）并进结算块：
+            // 改造前攻守两侧各只递一个数（`{def}` / `{atk}`），所以"给兽潮怪加任何新属性"
+            // 在代码上没有落点 —— 与野外怪、副本怪、世界 BOSS 现在共用同一层声明。
+            const beastStatic = this.getBeastStaticData(invasion.beast_key) || {};
+            const beastStats = mergeDeclaredStats({
+                atk: Number(invasion.atk) || 0,
+                def: Number(invasion.def) || 0,
+                speed: Number(invasion.speed) || 0,
+                hp_max: Number(invasion.hp_max) || 0,
+                max_hp: Number(invasion.hp_max) || 0
+            }, beastStatic.stats);
+            const strike = CombatResolver.computeDamage('ratio_mitigation', {
+                attackerStats: finalAttrs,
+                defenderStats: beastStats,
+                skills: attrResult?.info?.technique_skills,
+                skill_multiplier: combinedSkillMultiplier,
+                external_multiplier: externalMultiplier,
+                balanceConfig
+            });
+            const isCrit = strike.crit;
+            const finalDamage = strike.damage;
 
             // ========== 妖兽 HP 扣减 ==========
             const beastHpBefore = safeBigInt(invasion.hp_current);
@@ -981,11 +1003,14 @@ class BeastInvasionService {
             let playerHpAfter = playerHpBefore;
 
             if (Math.random() < counterRate) {
-                // 反击伤害计算（与 WorldBossService 反击公式一致）
-                const counterDefReduction = playerDef / (playerDef + invasion.atk * 2 + 1000);
-                counterDamage = Math.floor(
-                    invasion.atk * (1 - counterDefReduction) * counterDamageMultiplier * randomFactor
-                );
+                // 反击走同一档位，只是攻防两侧传反：
+                // 玩家此刻是承受方，他的闪避/神通格挡/减伤同样生效（改造前反击完全不读玩家属性）
+                counterDamage = CombatResolver.computeDamage('ratio_mitigation', {
+                    attackerStats: beastStats,
+                    defenderStats: finalAttrs,
+                    skill_multiplier: counterDamageMultiplier,
+                    balanceConfig
+                }).damage;
                 const counterDamageBigInt = BigInt(counterDamage);
                 playerHpAfter = playerHpBefore - counterDamageBigInt;
                 if (playerHpAfter <= 0n) {
@@ -1117,10 +1142,10 @@ class BeastInvasionService {
                         beast_skill_multiplier: skillDamageMultiplier,
                         combined_skill_multiplier: combinedSkillMultiplier,
                         beast_def: invasion.def,
-                        def_reduction: Number(defReduction.toFixed(4)),
-                        base_damage: Math.floor(baseDamage),
-                        crit_factor: critFactor,
-                        random_factor: Number(randomFactor.toFixed(4)),
+                        damage_profile: strike.profile,
+                        crit: isCrit,
+                        missed: !!strike.missed,
+                        external_multiplier: Number(externalMultiplier.toFixed(4)),
                         solo_ratio: soloRatio,
                         team_factor: teamFactor,
                         active_participant_count: totalActiveCount,
@@ -1577,9 +1602,15 @@ class BeastInvasionService {
     static async _switchToBattlePhase(invasion, t = null) {
         const cfg = this.getBeastInvasionConfig();
         const battleMinutes = Number(cfg.battle_phase_minutes) || 60;
+        const battleEnd = new Date(Date.now() + battleMinutes * 60 * 1000);
+        // 只写这两列，不整块 save()：兽潮这一行是全场共享的，调用方（调度器 checkExpired）
+        // 是无锁 findAll 读出来的，整块写回会把读表之后玩家打掉的伤害原样抹回去。
+        await BeastInvasion.update(
+            { phase: 'battle', battle_end_time: battleEnd },
+            { where: { id: invasion.id }, transaction: t }
+        );
         invasion.phase = 'battle';
-        invasion.battle_end_time = new Date(Date.now() + battleMinutes * 60 * 1000);
-        await invasion.save({ transaction: t });
+        invasion.battle_end_time = battleEnd;
 
         try {
             WebSocketNotificationService.sendGlobalAnnouncement({
@@ -1598,9 +1629,13 @@ class BeastInvasionService {
      * @private
      */
     static async _settleExpire(invasion) {
+        // 同上：只写自己负责的那两列（调度器无锁读出来的整块 save 会回退玩家的伤害）
+        await BeastInvasion.update(
+            { status: 'expired', phase: 'ended' },
+            { where: { id: invasion.id } }
+        );
         invasion.status = 'expired';
         invasion.phase = 'ended';
-        await invasion.save();
 
         // 清理 runtime
         this._cleanupRuntimeByInvasionId(invasion.id);
@@ -1622,17 +1657,25 @@ class BeastInvasionService {
      * @private
      */
     static async _settleEscape(invasion) {
+        // 同上：只写自己负责的那两列
+        await BeastInvasion.update(
+            { status: 'escaped', phase: 'ended' },
+            { where: { id: invasion.id } }
+        );
         invasion.status = 'escaped';
         invasion.phase = 'ended';
-        await invasion.save();
 
         // 清理 runtime
         this._cleanupRuntimeByInvasionId(invasion.id);
 
         try {
+            // 公告里的血量取库里的现值：调度器手上那份是几个小时前读的了，拿它播报会说错剩余血量
+            const fresh = await BeastInvasion.findByPk(invasion.id, { attributes: ['hp_current', 'hp_max'] });
+            const hpNow = fresh ? bigIntToString(fresh.hp_current) : bigIntToString(invasion.hp_current);
+            const hpMax = fresh ? bigIntToString(fresh.hp_max) : bigIntToString(invasion.hp_max);
             WebSocketNotificationService.sendGlobalAnnouncement({
                 title: '妖兽逃脱',
-                content: `${invasion.beast_name} 在战斗阶段结束未被斩杀，已破阵逃脱！剩余血量 ${bigIntToString(invasion.hp_current)} / ${bigIntToString(invasion.hp_max)}`,
+                content: `${invasion.beast_name} 在战斗阶段结束未被斩杀，已破阵逃脱！剩余血量 ${hpNow} / ${hpMax}`,
                 priority: 'high'
             });
         } catch (e) {
@@ -1656,39 +1699,18 @@ class BeastInvasionService {
     static async _settleDefeat(invasionId, killerPlayerId, t) {
         const invasion = await BeastInvasion.findByPk(invasionId, { transaction: t });
         if (!invasion) return { summary: '事件不存在，结算失败' };
+        // 已经结算掉的事件不能再发第二遍奖：改前唯一的门槛是"调用方记得把 status 改掉"，
+        // 而 status 是在本方法返回之后才 save 的 —— 任何第二条路径（后台重跑、超时回收）先落库再结算就会双发。
+        if (invasion.status !== 'active') {
+            return { summary: '该兽潮事件已不在交战状态，跳过重复发奖', skipped: true };
+        }
 
         const staticData = this.getBeastStaticData(invasion.beast_key);
         const rewards = staticData?.rewards || {};
         const summary = [];
+        let grantFailures = 0;
 
-        // ===== 1. 最后一击奖励 =====
-        const killerReward = rewards.killer || { exp: 0, spirit_stones: 0, items: [] };
-        const killerPlayer = await Player.findByPk(killerPlayerId, {
-            transaction: t,
-            lock: t.LOCK.UPDATE
-        });
-        if (killerPlayer) {
-            const realmMultiplier = this._getRealmMultiplier(killerPlayer);
-            const finalExp = Math.floor((killerReward.exp || 0) * realmMultiplier);
-            const finalStones = Math.floor((killerReward.spirit_stones || 0) * realmMultiplier);
-            killerPlayer.exp = safeBigInt(killerPlayer.exp) + BigInt(finalExp);
-            killerPlayer.spirit_stones = safeBigInt(killerPlayer.spirit_stones) + BigInt(finalStones);
-            await killerPlayer.save({ transaction: t });
-            // 发放物品奖励
-            if (killerReward.items && killerReward.items.length > 0) {
-                for (const itemKey of killerReward.items) {
-                    try {
-                        await InventoryService.addItem(killerPlayerId, itemKey, 1, t);
-                    } catch (e) {
-                        console.warn(`[BeastInvasionService] 终结者物品发放失败 ${itemKey}:`, e.message);
-                    }
-                }
-            }
-            summary.push(`终结者 ${killerPlayer.nickname} 获得 ${finalExp} 修为 + ${finalStones} 灵石 + ${(killerReward.items || []).join(',')} `);
-        }
-
-        // ===== 2. 伤害档位奖励 =====
-        // 查询所有参战玩家伤害排行
+        // ===== 先拿到"这一笔要给谁发奖"的完整名单（只读，不取锁）=====
         const damageRanking = await BeastInvasionAttack.findAll({
             where: { invasion_id: invasionId },
             attributes: [
@@ -1702,6 +1724,37 @@ class BeastInvasionService {
             raw: true
         });
 
+        // ===== 终结者 + 全部参战者：一次按主键**升序**锁齐（口径见 game/persistence/lockOrder.js）=====
+        // 改前是"终结者一行，再按伤害名次逐行 FOR UPDATE"：两头妖兽同时结算时两笔事务的取锁次序通常相反
+        // （伤害排行本来就是各场独立的），A,B,C 对 C,B,A 就是 ABBA —— 实测见 scripts/smoke_beast_settle.js C3。
+        // 另一个更隐蔽的问题：终结者自己也在伤害排行里，同一笔事务里他就被读成两份实例（终结者奖励一份、
+        // 参与奖一份），两份各 save 一次就是"谁后写谁覆盖对方"。批锁之后整场结算只有一份实例。
+        const lockedPlayers = new Map(
+            (await lockRowsByIdsAsc(t, Player, [killerPlayerId, ...damageRanking.map(r => r.player_id)]))
+                .map(p => [Number(p.id), p])
+        );
+
+        // ===== 1. 最后一击奖励 =====
+        const killerReward = rewards.killer || { exp: 0, spirit_stones: 0, items: [] };
+        const killerPlayer = lockedPlayers.get(Number(killerPlayerId));
+        if (killerPlayer) {
+            const realmMultiplier = this._getRealmMultiplier(killerPlayer);
+            const finalExp = Math.floor((killerReward.exp || 0) * realmMultiplier);
+            const finalStones = Math.floor((killerReward.spirit_stones || 0) * realmMultiplier);
+            killerPlayer.exp = safeBigInt(killerPlayer.exp) + BigInt(finalExp);
+            killerPlayer.spirit_stones = safeBigInt(killerPlayer.spirit_stones) + BigInt(finalStones);
+            await killerPlayer.save({ transaction: t });
+            // 发放物品奖励：只有真发到的才写进广播摘要（发不到的另有日志，见 game/items/itemGrant.js）
+            const killerGrant = await grantItems(killerPlayerId, killerReward.items || [], t, { label: '兽潮·终结者奖励' });
+            grantFailures += killerGrant.failed.length;
+            const killerItemText = describeGrant(killerGrant.granted, killerGrant.failed).text;
+            const killerTail = killerItemText
+                ? ` + ${killerItemText}`
+                : (killerGrant.failed.length ? '（背包放不下，物品没能发放）' : '');
+            summary.push(`终结者 ${killerPlayer.nickname} 获得 ${finalExp} 修为 + ${finalStones} 灵石${killerTail} `);
+        }
+
+        // ===== 2. 伤害档位奖励 =====（名单与实例都来自上面那一次批锁，不再逐行补锁读）
         const participationReward = rewards.participation || { exp: 0, spirit_stones: 0 };
         const top3Reward = rewards.top_3 || { exp: 0, spirit_stones: 0, items: [] };
         const top10Reward = rewards.top_10 || { exp: 0, spirit_stones: 0, items: [] };
@@ -1714,10 +1767,8 @@ class BeastInvasionService {
             const playerDamage = safeBigInt(record.total_damage);
             if (playerDamage <= 0n) continue;
 
-            const participant = await Player.findByPk(record.player_id, {
-                transaction: t,
-                lock: t.LOCK.UPDATE
-            });
+            // 参与者用的是开头那次批锁回来的同一份实例（改前这里又补了一次单行 FOR UPDATE）
+            const participant = lockedPlayers.get(Number(record.player_id));
             if (!participant) continue;
 
             const realmMultiplier = this._getRealmMultiplier(participant);
@@ -1750,18 +1801,17 @@ class BeastInvasionService {
             await participant.save({ transaction: t });
 
             // 发放物品奖励
-            for (const itemKey of bonusItems) {
-                try {
-                    await InventoryService.addItem(record.player_id, itemKey, 1, t);
-                } catch (e) {
-                    console.warn(`[BeastInvasionService] 物品发放失败 ${itemKey} → 玩家 ${record.player_id}:`, e.message);
-                }
-            }
+            const grant = await grantItems(record.player_id, bonusItems, t, { label: '兽潮·伤害档位奖励' });
+            grantFailures += grant.failed.length;
 
             rewardCount += 1;
         }
 
         summary.push(`共 ${rewardCount} 名参与者获得奖励`);
+        // 发不出的东西不写进"谁拿到了什么"，但要在结算里露出来：否则玩家与 GM 都看不见
+        if (grantFailures > 0) {
+            summary.push(`其中 ${grantFailures} 件物品未能放入背包（详见服务端日志 itemGrant.failed），请联系管理员处理`);
+        }
 
         // 清理所有玩家的 runtime 状态
         this._cleanupRuntimeByInvasionId(invasionId);
@@ -1799,7 +1849,9 @@ class BeastInvasionService {
         });
 
         const agg = recentAttacks[0] || {};
-        const invasion = await BeastInvasion.findByPk(invasionId);
+        const invasion = await BeastInvasion.findByPk(invasionId, {
+            attributes: ['id', 'hp_current', 'hp_max']      // 只读这一份战报要用的三列
+        });
         if (!invasion) return;
 
         // 构建聚合战报对象
@@ -1815,8 +1867,13 @@ class BeastInvasionService {
             beast_hp_percentage: Number((safeBigInt(invasion.hp_current) * 100n) / (safeBigInt(invasion.hp_max) || 1n))
         };
 
-        invasion.aggregated_battle_log = battleLog;
-        await invasion.save();
+        // 只写自己算出来的那一列。原来这里是"无锁读整行 → invasion.save()"，
+        // 而这一行是全场共享的（所有玩家的攻击都在扣 hp_current）：
+        // 定时器一 save 就把读表那一刻的 hp_current 原样写回去，正在打的那几记伤害凭空回涨。
+        await BeastInvasion.update(
+            { aggregated_battle_log: battleLog },
+            { where: { id: invasionId } }
+        );
 
         // 推送聚合战报
         try {
@@ -1844,9 +1901,13 @@ class BeastInvasionService {
         const attrs = typeof player.attributes === 'string'
             ? JSON.parse(player.attributes)
             : (player.attributes || {});
-        const currentExp = Number(attrs.exp) || 0;
-        const penalty = Math.floor(currentExp * penaltyRate);
-        attrs.exp = Math.max(0, currentExp - penalty);
+        // 修为的权威值是 players.exp 列（BIGINT）。旧实现只改 attributes.exp 这个镜像，
+        // 于是世界BOSS/妖兽入侵的"死亡扣修为"从来没真的扣到修为，还让两处数值互相矛盾。
+        const currentExp = BigInt(player.exp || 0);
+        const penalty = (currentExp * BigInt(Math.round(penaltyRate * 10000))) / 10000n;
+        const remaining = currentExp - penalty > 0n ? currentExp - penalty : 0n;
+        player.exp = remaining;
+        attrs.exp = Number(remaining);   // 镜像同步，避免读旧键的子系统看到两个数
         player.attributes = attrs;
     }
 

@@ -18,6 +18,7 @@ const PlayerLottery = require('../../models/playerLottery');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const sequelize = require('../../config/database');
+const { logOnce } = require('../../utils/logOnce');
 
 class LotteryService {
     initialize(configLoader) {
@@ -28,6 +29,7 @@ class LotteryService {
         try {
             return this.configLoader?.getConfig('lottery_data') || {};
         } catch (e) {
+            logOnce('LotteryService.getConfig', 'lottery_data 配置读取失败，抽奖按"未配置"兜底: ' + e.message);
             return {};
         }
     }

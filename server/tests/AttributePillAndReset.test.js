@@ -226,9 +226,16 @@ describe('属性点重置只回收加点账本', () => {
         ...overrides
     });
 
-    test('加点会记账，重置按记账值回收并退回点数', async () => {
+    // 加点落库现在走行锁 + 补丁写入（见 PlayerStateStore），纯策略部分用 buildAllocationPlan 验证
+    const applyAllocate = (player, points) => {
+        const result = AttributeService.buildAllocationPlan(player.attributes, points, player.attribute_points);
+        if (result.ok) player.attributes = result.attributes;
+        return result;
+    };
+
+    test('加点会记账，重置按记账值回收并退回点数', () => {
         const player = makePlayer({ attribute_points: 10 });
-        await AttributeService.allocatePoints(player, { hp: 4, atk: 2 });
+        applyAllocate(player, { hp: 4, atk: 2 });
 
         expect(player.attributes.attribute_point_allocations).toEqual({ hp_bonus: 4, atk_bonus: 2 });
 
@@ -239,9 +246,9 @@ describe('属性点重置只回收加点账本', () => {
         expect(plan.attributes.attribute_point_allocations).toBeUndefined();
     });
 
-    test('丹药来源的加成不被扣掉，也不折算成可分配点数', async () => {
+    test('丹药来源的加成不被扣掉，也不折算成可分配点数', () => {
         const player = makePlayer({ attribute_points: 10 });
-        await AttributeService.allocatePoints(player, { hp: 3 });
+        applyAllocate(player, { hp: 3 });
         // 模拟吃了聚气丹与元婴丹后的加成（不走账本）
         player.attributes = AttributeMaxService.applyPillBonusToAttributes(
             player.attributes,

@@ -1284,12 +1284,15 @@ class SectSpecialService {
                 player.exp = BigInt(player.exp || 0) + BigInt(expReward);
             }
 
-            // 恢复灵力（上限为 mp_max）
+            // 恢复灵力（上限为解析后的 mp_max）
             if (mpRestore > 0) {
-                const attributes = player.attributes || {};
-                const mpMax = attributes.mp_max || 0;
+                // 不能用 attributes.mp_max：blob 里那份是旧管线留下的基数，
+                // 比真实上限小时，"问安奖励"会把灵力往下钳（奖励反而扣资源）。
+                const CombatResolver = require('../combat/CombatResolver');
+                const { stats } = await CombatResolver.resolveCombatStats(player);
+                const mpMax = Number(stats.mp_max) || 0;
                 const currentMp = Number(player.mp_current || 0);
-                const newMp = Math.min(currentMp + mpRestore, mpMax);
+                const newMp = Math.max(currentMp, Math.min(currentMp + mpRestore, mpMax));
                 player.mp_current = BigInt(newMp);
             }
 

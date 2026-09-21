@@ -3,6 +3,8 @@
  * 负责管理天道时间（世界基准时间）和红尘时间（个人行为时间）
  * 基于《凡人修仙传》设计文档中的时间系统定义
  */
+const { logOnce } = require('../../utils/logOnce');
+
 class DualTimeService {
     constructor() {
         this.configLoader = null;
@@ -156,6 +158,7 @@ class DualTimeService {
         try {
             return this.configLoader?.getConfig('time_system') || {};
         } catch (e) {
+            logOnce('DualTimeService.getTimeSystemConfig', 'time_system 配置读取失败，双时间系统按"未配置"兜底（活动不可用）: ' + e.message);
             return {};
         }
     }
@@ -358,80 +361,97 @@ class DualTimeService {
      * @param {number} offlineDuration - 离线时长（秒），上限 86400 秒（24小时）
      * @returns {Object} 恢复结果 { hp_recovered, mp_recovered, age_increased }
      */
-    processOfflineTime(player, offlineDuration) {
-        if (!player) return { hp_recovered: 0, mp_recovered: 0, age_increased: 0 };
+    /**
+     * 时间推进带来的恢复量（纯计算，不碰数据库）
+     *
+     * 拆开是为了让"算多少"可以被单测直接验证，而"怎么落库"只有一处实现。
+     * 注意传入的 player 必须已经是锁内新鲜读出的那一行，否则这里算出来的
+     * hp/mp 是基于旧快照的，写回就会覆盖掉这段时间内别的流程的改动。
+     *
+     * @param {Object} player - 玩家实例或行数据
+     * @param {number} durationSeconds - 本次推进的秒数
+     * @param {number} capSeconds - 单次上限（离线 24 小时 / 在线 1 小时）
+     */
+    computeTimeRecovery(player, durationSeconds, capSeconds) {
+        const cappedDuration = Math.min(durationSeconds, capSeconds);
+        // 1 现实小时 = 1 游戏天，365 游戏天 = 1 岁
+        const ageIncreased = (cappedDuration / 3600) / 365;
 
-        // 限制单次最大恢复时长为 24 小时，避免长期未登录玩家恢复过量
-        const cappedDuration = Math.min(offlineDuration, 86400);
-        const hoursOffline = cappedDuration / 3600;
-        const gameDaysPassed = hoursOffline; // 1现实小时=1游戏天（离线时）
-        const ageIncreased = gameDaysPassed / 365; // 转换为年
+        const before = typeof player.lifespan_current === 'number'
+            ? player.lifespan_current : Number(player.lifespan_current) || 0;
 
-        // 更新玩家年龄（直接更新独立列，而非 attributes JSON 内嵌字段）
-        if (typeof player.lifespan_current === 'number') {
-            player.lifespan_current += ageIncreased;
-        }
-
-        // 应用属性恢复（HP/MP）
         const attributeService = require('./AttributeMaxService');
         const maxValues = attributeService.calculateAttributeMaxValues(player, {});
-        const recoveryResult = attributeService.processAttributeRecovery(
+        const recovery = attributeService.processAttributeRecovery(
             player, maxValues, 'natural', cappedDuration / 60
         );
 
-        // 关键修复：将恢复结果写回 player 对象
-        player.hp_current = BigInt(recoveryResult.hp_current);
-        player.mp_current = BigInt(recoveryResult.mp_current);
-        // 记录本次恢复结算时点，/api/attribute/recover 不会重复结算同一段时间
-        player.attributes = attributeService.buildAttributesAfterRecovery(player);
-
         return {
-            hp_recovered: recoveryResult.recovered.hp,
-            mp_recovered: recoveryResult.recovered.mp,
-            age_increased: ageIncreased
+            lifespan_current: before + ageIncreased,
+            hp_current: recovery.hp_current,
+            mp_current: recovery.mp_current,
+            recovered: recovery.recovered,
+            age_increased: ageIncreased,
+            capped_duration: cappedDuration
         };
+    }
+
+    /**
+     * 离线期间的时间推进与 HP/MP 恢复
+     *
+     * 落库走 PlayerStateStore.mutatePlayer：行锁内重新读一行再算再写。
+     * 旧实现直接改登录时那个无锁实例上的 attributes 整块，再由 issueLoginToken 的
+     * player.save() 回写 —— 于是每次登录都会把这段时间内别处写进 attributes 的键
+     * （宗门战防御标记、刚吃的丹药加成、加点账本）一起抹掉。
+     *
+     * @param {Object} player - 玩家对象（只取 id 与日志用的字段，不参与写库基准）
+     * @param {number} offlineDuration - 离线时长（秒），上限 86400 秒（24小时）
+     * @returns {Promise<Object>} 恢复结果 { hp_recovered, mp_recovered, age_increased }
+     */
+    async processOfflineTime(player, offlineDuration) {
+        if (!player) return { hp_recovered: 0, mp_recovered: 0, age_increased: 0 };
+
+        const result = await this.applyTimeRecovery(player, offlineDuration, 86400);
+        return result;
     }
 
     /**
      * 处理在线时间
      *
-     * 修复（2026-07-20）：
-     *   同 processOfflineTime，修复返回值未保存和年龄字段路径错误的 bug。
-     *
+     * 与离线路径共用 applyTimeRecovery，只是单次上限 1 小时。
      * @param {Object} player - 玩家对象
-     * @param {number} onlineDuration - 在线时长（秒），上限 3600 秒（1小时）
-     * @returns {Object} 恢复结果 { hp_recovered, mp_recovered, age_increased }
+     * @param {number} onlineDuration - 在线时长（秒）
      */
-    processOnlineTime(player, onlineDuration) {
+    async processOnlineTime(player, onlineDuration) {
         if (!player) return { hp_recovered: 0, mp_recovered: 0, age_increased: 0 };
 
-        // 限制单次最大恢复时长为 1 小时，避免定时任务累积过量恢复
-        const cappedDuration = Math.min(onlineDuration, 3600);
-        const gameDaysPassed = cappedDuration / (60 * 60); // 1现实小时=1游戏天（在线时）
-        const ageIncreased = gameDaysPassed / 365; // 转换为年
+        return this.applyTimeRecovery(player, onlineDuration, 3600);
+    }
 
-        // 更新玩家年龄（直接更新独立列）
-        if (typeof player.lifespan_current === 'number') {
-            player.lifespan_current += ageIncreased;
-        }
-
-        // 应用属性恢复（HP/MP）
+    /** 恢复落库的唯一入口：锁内读 → 算 → 补丁写 */
+    async applyTimeRecovery(player, durationSeconds, capSeconds) {
+        const PlayerStateStore = require('../persistence/PlayerStateStore');
         const attributeService = require('./AttributeMaxService');
-        const maxValues = attributeService.calculateAttributeMaxValues(player, {});
-        const recoveryResult = attributeService.processAttributeRecovery(
-            player, maxValues, 'natural', cappedDuration / 60
-        );
 
-        // 关键修复：将恢复结果写回 player 对象
-        player.hp_current = BigInt(recoveryResult.hp_current);
-        player.mp_current = BigInt(recoveryResult.mp_current);
-        // 记录本次恢复结算时点，/api/attribute/recover 不会重复结算同一段时间
-        player.attributes = attributeService.buildAttributesAfterRecovery(player);
+        let outcome = null;
+        await PlayerStateStore.mutatePlayer(player.id, (fresh) => {
+            const computed = this.computeTimeRecovery(fresh, durationSeconds, capSeconds);
+            outcome = computed;
+            return {
+                columns: {
+                    lifespan_current: computed.lifespan_current,
+                    hp_current: BigInt(computed.hp_current),
+                    mp_current: BigInt(computed.mp_current)
+                },
+                // 只写恢复结算时点这一个键，不再整块回写 attributes
+                attributes: attributeService.buildRecoveryWatermarkPatch()
+            };
+        });
 
         return {
-            hp_recovered: recoveryResult.recovered.hp,
-            mp_recovered: recoveryResult.recovered.mp,
-            age_increased: ageIncreased
+            hp_recovered: outcome.recovered.hp,
+            mp_recovered: outcome.recovered.mp,
+            age_increased: outcome.age_increased
         };
     }
 }

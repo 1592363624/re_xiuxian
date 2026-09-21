@@ -1,8 +1,11 @@
 <script setup>
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { getStats as getSystemStats } from '../../api/system'
-import { ROOT_TYPE_MAP, POLL_INTERVALS } from '../../config'
+import { ROOT_TYPE_MAP, ROOT_NAME_MAP, POLL_INTERVALS } from '../../config'
 import { formatDuration, formatNumber, formatCompact } from '../../utils/format'
+import { useStatSchema } from '../../composables/useStatSchema'
+
+const { sidebarStats, gridCell } = useStatSchema()
 
 const props = defineProps({
   player: {
@@ -153,11 +156,17 @@ const fetchStats = async (isInitial = false) => {
   }
 }
 
-// 灵根映射从配置读取，避免硬编码
+// 灵根：服务端已按 role_init.spirit_roots 归一成 { type, name }，前端只负责配色。
+// 映射表从配置读，避免硬编码；服务端认得但表里没有的灵根，退回显示它的中文名。
 const currentRoot = computed(() => {
-  if (!props.player.spirit_roots?.type) return null
-  const type = props.player.spirit_roots.type
-  return ROOT_TYPE_MAP[type] || { name: type, class: 'text-fg-muted' }
+  const root = props.player.spirit_roots
+  const type = root?.type
+  const name = root?.name
+  if (!type && !name) return null
+  const mapped = (type && ROOT_TYPE_MAP[type]) || (name && ROOT_NAME_MAP[name])
+  if (mapped) return mapped
+  const display = name || type
+  return display ? { name: `${display}灵根`, class: 'text-fg-muted' } : null
 })
 
 /**
@@ -165,23 +174,33 @@ const currentRoot = computed(() => {
  *   shown  格子里显示的短格式（formatCompact，万/亿）
  *   exact  hover 出来的精确值
  *   cls    丹毒/灵石要跳出中性色，它们是玩家会盯的资源
- * 之前这 6 格是 6 段复制粘贴的模板，改一处要数六遍。
+ *
+ * 属性格不再写死：显示哪些属性、叫什么、带不带 % 全部来自服务端属性注册表
+ * （panel.spot === 'sidebar'）。资料片加一个"剑意"就自动多一格，前端不用改。
+ * 丹毒/灵石是玩家资源不是属性，不归注册表管，留在本地。
  */
+const RESOURCE_CELLS = (player) => ([
+  {
+    key: 'toxicity',
+    label: '丹毒',
+    cls: 'text-rose-500',
+    shown: formatCompact(player.toxicity || 0),
+    exact: String(player.toxicity || 0)
+  },
+  {
+    key: 'spirit_stones',
+    label: '灵石',
+    cls: 'text-gold-500',
+    shown: formatCompact(player.spirit_stones || 0),
+    exact: formatNumber(player.spirit_stones || 0)
+  }
+])
+
 const attributeGrid = computed(() => {
   const a = props.player.attributes || {}
-  const cell = (label, raw, cls = 'text-fg-primary', exact) => ({
-    label,
-    cls,
-    shown: formatCompact(raw || 0),
-    exact: exact !== undefined ? String(exact) : String(raw || 0),
-  })
   return [
-    cell('攻击', a.atk),
-    cell('防御', a.def),
-    cell('速度', a.speed),
-    cell('神识', a.sense),
-    cell('丹毒', props.player.toxicity, 'text-rose-500'),
-    cell('灵石', props.player.spirit_stones, 'text-gold-500', formatNumber(props.player.spirit_stones || 0)),
+    ...sidebarStats.value.map(entry => gridCell(entry, a[entry.key])),
+    ...RESOURCE_CELLS(props.player)
   ]
 })
 
@@ -341,11 +360,12 @@ onUnmounted(() => {
     <!-- 属性网格 -->
     <!-- 侧栏固定 w-72，三列每格约 80px：数值统一走 formatCompact，
          并把格子的水平内边距收到 px-1、字号定在 text-base，
-         这两个尺寸是量出来的，保证最坏的 "1.234万" 也不会顶出边框，别改回去 -->
+         这两个尺寸是量出来的，保证最坏的 "1.234万" 也不会顶出边框，别改回去。
+         格数由服务端属性注册表决定（panel.spot=sidebar），资料片加属性会多出一格、自动换行 -->
     <div class="grid grid-cols-3 gap-2 mb-6">
       <div
         v-for="stat in attributeGrid"
-        :key="stat.label"
+        :key="stat.key"
         class="bg-surface-raised px-1 py-3 rounded-lg border border-line-subtle flex flex-col justify-center items-center min-w-0 hover:bg-surface-hover transition-colors"
       >
         <span class="text-xs text-fg-faint mb-1.5">{{ stat.label }}</span>
@@ -360,7 +380,7 @@ onUnmounted(() => {
         灵根资质
       </h3>
       <div v-if="currentRoot" class="flex justify-between items-center bg-surface-raised p-4 rounded-lg border border-line-subtle">
-        <span class="text-base font-bold" :class="currentRoot.class">{{ currentRoot.name }}灵根</span>
+        <span class="text-base font-bold" :class="currentRoot.class">{{ currentRoot.name }}</span>
         <span class="text-xs text-fg-faint">属性克制生效中</span>
       </div>
       <div v-else class="bg-surface-raised p-4 rounded-lg border border-line-subtle text-center text-fg-faint text-sm">

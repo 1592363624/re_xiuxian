@@ -17,18 +17,18 @@
  * 配置：border_military_data.json#beast_patrol
  */
 const { infrastructure } = require('../../modules');
+const { grantItems } = require('../items/itemGrant');
 const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 const SpiritBeast = require('../../models/spiritBeast');
 const BorderBeastPatrol = require('../../models/border_beast_patrol');
 const BorderMilitaryService = require('./BorderMilitaryService');
-const game = require('../index');
+// 不再 require('../index') 拿 InventoryService：发物品改走 game/items/itemGrant.js（少一条循环引用）
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 
 // 单例状态
 let _initialized = false;
-let _config = null;
 
 class BorderBeastPatrolSubService {
     /**
@@ -36,30 +36,19 @@ class BorderBeastPatrolSubService {
      */
     initialize() {
         if (_initialized) return;
-        try {
-            _config = configLoader.getConfig('border_military_data');
-        } catch (e) {
-            console.warn('[BorderBeastPatrolSubService] 配置 border_military_data 未加载:', e.message);
+        if (!configLoader.peekConfig('border_military_data')) {
+            console.warn('[BorderBeastPatrolSubService] 配置 border_military_data 未加载，子服务不可用');
             return;
         }
-        if (!_config) return;
         _initialized = true;
         console.log('[BorderBeastPatrolSubService] 灵兽边境子服务初始化完成');
     }
 
     /**
-     * 获取配置（懒加载兜底）
+     * 获取配置：每次都现读（为什么不再缓存在模块变量里，见 ConfigLoader.peekConfig）
      */
     _getConfig() {
-        if (!_initialized || !_config) {
-            try {
-                _config = configLoader.getConfig('border_military_data');
-                _initialized = !!_config;
-            } catch (e) {
-                return null;
-            }
-        }
-        return _config;
+        return configLoader.peekConfig('border_military_data');
     }
 
     /**
@@ -350,7 +339,7 @@ class BorderBeastPatrolSubService {
             );
             // 注：灵兽巡边玩家经验较低（约为探禁的 1/5）
             const playerExp = Math.floor(playerExpGained / 5);
-            const drops = self._rollDrops(routeConfig.item_drops);
+            let drops = self._rollDrops(routeConfig.item_drops);
 
             // 更新玩家
             freshPlayer.border_military_merit_total = (freshPlayer.border_military_merit_total || 0) + meritGained;
@@ -376,16 +365,10 @@ class BorderBeastPatrolSubService {
                 }
             }
 
-            // 发放物品
+            // 发放物品：只把真发到的留在 drops 里（它既进玩家消息也进 items_dropped 记录）
             if (drops.length > 0) {
-                try {
-                    const InventoryService = game.InventoryService;
-                    for (const drop of drops) {
-                        await InventoryService.addItem(freshPlayer.id, drop.key, drop.quantity, t);
-                    }
-                } catch (e) {
-                    console.warn('[BorderBeastPatrolSubService] 物品发放失败（不影响主线）:', e.message);
-                }
+                const grant = await grantItems(freshPlayer.id, drops, t, { label: '战线·灵兽巡边奖励' });
+                drops = grant.granted.map(g => ({ key: g.item_key, quantity: g.quantity, item_name: g.item_name }));
             }
 
             // 更新巡边记录
@@ -406,7 +389,7 @@ class BorderBeastPatrolSubService {
 
             return {
                 success: true,
-                message: `灵兽巡边${self._routeName(patrol.patrol_route)}归来！获得军功 ${meritGained}、灵石 ${stonesGained}、玩家修为 ${playerExp}、灵兽经验 ${beastExpGained}${drops.length > 0 ? `、物品 ${drops.map(d => d.key + '×' + d.quantity).join(', ')}` : ''}${milestoneResult.triggered ? `；里程碑达成：${milestoneResult.title}` : ''}`,
+                message: `灵兽巡边${self._routeName(patrol.patrol_route)}归来！获得军功 ${meritGained}、灵石 ${stonesGained}、玩家修为 ${playerExp}、灵兽经验 ${beastExpGained}${drops.length > 0 ? `、物品 ${drops.map(d => (d.item_name || d.key) + '×' + d.quantity).join(', ')}` : ''}${milestoneResult.triggered ? `；里程碑达成：${milestoneResult.title}` : ''}`,
                 data: {
                     patrol_id: patrol.id,
                     route: patrol.patrol_route,

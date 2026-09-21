@@ -1,0 +1,45 @@
+{
+  "dataset": "spirit_beast_data",
+  "into": "beast_types",
+  "comment": "凡人遗宝新增两种灵兽：月蛟（水属高攻）、啼魂（音攻乱神）。字段与基础灵兽表一致。",
+  "add": [
+    {
+      "beast_key": "yue_jiao",
+      "name": "月蛟",
+      "element": "water",
+      "rarity": "epic",
+      "base_hp": 2600,
+      "base_atk": 210,
+      "base_def": 120,
+      "base_speed": 95,
+      "min_realm_rank": 18,
+      "catch_chance": 0.12,
+      "catch_cost_mp": 800,
+      "feed_exp": 260,
+      "combat_bonus": { "atk_rate": 0.16, "def_rate": 0.08, "hp_rate": 0.1, "speed_rate": 0.06 },
+      "signature_traits": {
+        "star_3": { "trait_key": "moon_tide_breath", "name": "月潮吐息", "description": "术法伤害附带水属侵蚀，降低目标五行抗性" },
+        "star_5": { "trait_key": "dragon_presence", "name": "蛟龙之威", "description": "开战时震慑对手，使其首回合速度下降" }
+      }
+    },
+    {
+      "beast_key": "ti_hun",
+      "name": "啼魂",
+      "element": "thunder",
+      "rarity": "legendary",
+      "base_hp": 1400,
+      "base_atk": 320,
+      "base_def": 60,
+      "base_speed": 180,
+      "min_realm_rank": 24,
+      "catch_chance": 0.05,
+      "catch_cost_mp": 2200,
+      "feed_exp": 520,
+      "combat_bonus": { "atk_rate": 0.22, "def_rate": 0.04, "hp_rate": 0.06, "speed_rate": 0.14 },
+      "signature_traits": {
+        "star_3": { "trait_key": "soul_cry", "name": "啼魂乱神", "description": "每回合有概率扰乱敌方神识，使其下一次术法失效" },
+        "star_5": { "trait_key": "thunder_step", "name": "雷音疾步", "description": "必定抢得先手" }
+      }
+    }
+  ]
+}

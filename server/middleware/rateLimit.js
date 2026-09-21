@@ -37,7 +37,7 @@ function getRateLimitConfig() {
     try {
         configured = infrastructure.ConfigLoader?.getConfig('game_balance')?.rate_limit || {};
     } catch (e) {
-        console.warn('[限流] 读取 game_balance.rate_limit 失败，使用默认阈值:', e.message);
+        console.warn('[限流] 配置尚未加载，先用兜底阈值建限流器（配置就绪后会由 initializeRateLimiters 重建）:', e.message);
     }
 
     const merge = (fallback, override = {}) => ({
@@ -57,6 +57,8 @@ function getRateLimitConfig() {
 
 /** 当前生效的限流器实例，键名同 DEFAULT_LIMITS */
 const activeLimiters = {};
+/** 重建次数：给"后台改了阈值到底生效没有"一个可观察的凭据（也是热更新订阅真的在跑的证明） */
+let limiterGeneration = 0;
 
 /**
  * 按当前配置重建所有限流器
@@ -73,6 +75,7 @@ function rebuildLimiters() {
             handler: (req, res) => res.status(429).json({ code: 429, message: LIMIT_MESSAGES[key] })
         });
     }
+    limiterGeneration += 1;
 }
 
 // 模块加载即按默认阈值建好，保证配置未就绪时也有防护
@@ -83,6 +86,24 @@ rebuildLimiters();
  */
 function initializeRateLimiters() {
     rebuildLimiters();
+}
+
+/**
+ * 订阅配置热更新：后台改完 game_balance 不必重启进程。
+ *
+ * 为什么做成函数、而不是直接写在 index.js 的启动脚本里：写在那里就没人测得到。
+ * 原先 index.js 把这条订阅挂在 EventBus 上，而 ConfigLoader 的事件是发在自己身上
+ * （ConfigLoader.emit('configHotUpdated', …)，见 hotUpdateConfig），于是这个订阅从来没执行过 ——
+ * 后台改限流要重启才生效，日志里也永远看不到"配置热更新"那行。
+ * @param {Object} configLoader - 已加载配置的 ConfigLoader 单例（EventEmitter）
+ * @returns {Function} 退订函数
+ */
+function watchRateLimitConfig(configLoader) {
+    const onHotUpdated = ({ configName } = {}) => {
+        if (configName === 'game_balance') rebuildLimiters();
+    };
+    configLoader.on('configHotUpdated', onHotUpdated);
+    return () => configLoader.removeListener('configHotUpdated', onHotUpdated);
 }
 
 /**
@@ -109,5 +130,8 @@ module.exports = {
     authLimiter,
     adminLimiter,
     initializeRateLimiters,
-    getRateLimitConfig
+    watchRateLimitConfig,
+    getRateLimitConfig,
+    /** 当前生效的阈值 + 重建代数；后台/探针用来确认配置里的数真的进了限流器 */
+    getRuntimeRateLimitState: () => ({ generation: limiterGeneration, config: getRateLimitConfig() })
 };

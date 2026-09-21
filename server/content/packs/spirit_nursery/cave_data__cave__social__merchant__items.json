@@ -1,0 +1,9 @@
+{
+  "dataset": "cave_data",
+  "into": "cave.social.merchant.items",
+  "comment": "行脚商货摊上添两粒种子 —— 药圃这条链的入口要真的能买到，否则资料片只是往表里塞了一堆没人能种的东西。集合主键是 item_key，所以这里 add 的必须是新物品（现网已有物品要改价得写 override）。base_price 是基准价，实际报价由 merchant 的折扣区间算出来。",
+  "add": [
+    { "item_key": "qi_ye_qing_seed", "base_price": 78, "weight": 22 },
+    { "item_key": "zi_yun_shen_seed", "base_price": 195, "weight": 12 }
+  ]
+}

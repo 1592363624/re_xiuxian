@@ -9,7 +9,7 @@
  *   3. 残篇收集进度：5 类残篇（妖丹/魔核/鬼玉/龙血/凤羽）收集情况
  *   4. 凝练第二元神：境界≥化神期 + 5 类残篇各 1 份 + 灵石/神识/残魂消耗
  *   5. 分化第三元神：第二元神境界≥化神期，消耗额外资源
- *   6. 调度模式切换：combat=斗法 / cultivate=独立修炼 / scout=窥探 / defend=护身（各模式独立 CD）
+ *   6. 调度模式切换：模式清单与名字取自内容（/second-soul/profile 的 dispatch_modes，各模式独立 CD）
  *   7. 独立修炼：12 小时上限，每日 2 次
  *
  * 设计原则：
@@ -277,13 +277,14 @@ const pendingSoulIndex = ref<2 | 3>(2);
 /** 元神名称输入值 */
 const soulName = ref('');
 
-/** 调度模式选项 */
-const dispatchModes = [
-  { value: 'combat' as const, label: '斗法' },
-  { value: 'cultivate' as const, label: '修炼' },
-  { value: 'scout' as const, label: '窥探' },
-  { value: 'defend' as const, label: '护身' }
-];
+/**
+ * 调度模式选项：取自 /second-soul/profile 的 dispatch_modes（内容是 late_stage_data）。
+ * 这里以前自己抄了 4 条，而且三条文案和内容的 display_name 不一致（斗法/窥探/护身 vs 出战/探查/护法），
+ * 资料片加一种模式面板上永远看不到。
+ */
+const dispatchModes = computed<Array<{ value: string; label: string }>>(() =>
+  (profile.value?.dispatch_modes || []).map(m => ({ value: m.key, label: m.name }))
+);
 
 /** 是否已拥有第二元神 */
 const hasSecondSoul = computed(() => {
@@ -372,7 +373,7 @@ async function confirmCondense() {
  * @param soulIndex 元神序号（2 或 3）
  * @param mode 调度模式：combat/cultivate/scout/defend
  */
-async function handleDispatch(soulIndex: 2 | 3, mode: 'combat' | 'cultivate' | 'scout' | 'defend') {
+async function handleDispatch(soulIndex: 2 | 3, mode: string) {
   loading.value = true;
   try {
     const resp = await secondSoulDispatch(soulIndex, mode);
@@ -420,17 +421,12 @@ function getSoulIndexLabel(idx: number): string {
 }
 
 /**
- * 获取调度模式中文标签
+ * 获取调度模式中文标签：名字仍取自内容的 dispatch_modes，"…中"是这里自己的展示语法。
  * @param mode 调度模式
  */
 function getDispatchModeLabel(mode: string): string {
-  const map: Record<string, string> = {
-    combat: '斗法中',
-    cultivate: '修炼中',
-    scout: '窥探中',
-    defend: '护身中'
-  };
-  return map[mode] || mode;
+  const name = dispatchModes.value.find(m => m.value === mode)?.label;
+  return name ? `${name}中` : mode;
 }
 
 /**

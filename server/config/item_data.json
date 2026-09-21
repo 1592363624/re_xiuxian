@@ -237,6 +237,156 @@
             "price": 300
         },
         {
+            "id": "beast_token_gold",
+            "name": "伏妖金令",
+            "type": "material",
+            "subtype": "token",
+            "quality": "legendary",
+            "description": "兽潮之终结下妖王者方可得，边军以金铸令，认令不认人",
+            "price": 0
+        },
+        {
+            "id": "beast_token_silver",
+            "name": "伏妖银令",
+            "type": "material",
+            "subtype": "token",
+            "quality": "epic",
+            "description": "兽潮之中列前三者所得，折银为令，用以旌表斩妖之功",
+            "price": 0
+        },
+        {
+            "id": "beast_token_bronze",
+            "name": "伏妖铜令",
+            "type": "material",
+            "subtype": "token",
+            "quality": "rare",
+            "description": "兽潮之中列前十者所得，铸铜为记，虽微亦是一道护民之功",
+            "price": 0
+        },
+        {
+            "id": "ancient_token",
+            "name": "前人遗府信物",
+            "type": "material",
+            "subtype": "token",
+            "quality": "uncommon",
+            "description": "历练时在前人遗府中取出的旧物，府主已不知坐化多少年，唯留此物认主",
+            "price": 260
+        },
+        {
+            "id": "huanglong_merit_token",
+            "name": "黄龙军功牌",
+            "type": "material",
+            "subtype": "token",
+            "quality": "rare",
+            "description": "慕兰战线以黄龙山一战军功铸成的凭证，边军匠作司认牌不认人，是高阶装备炼制与祭炼的引材",
+            "price": 400
+        },
+        {
+            "id": "mulan_lamp_remnant",
+            "name": "慕兰圣灯残焰",
+            "type": "material",
+            "subtype": "flame",
+            "quality": "epic",
+            "description": "慕兰圣灯熄灭后留存的一缕残焰，虚天鼎与乾蓝冰焰一脉祭炼时必须以它引火",
+            "price": 900
+        },
+        {
+            "id": "divine_sense_jade_slip",
+            "name": "神识玉简",
+            "type": "consumable",
+            "subtype": "attribute",
+            "quality": "rare",
+            "description": "边军神识司刻录的修行玉简，参悟之后神识永久增长 100 点",
+            "effect": {
+                "sense": 100
+            },
+            "price": 800
+        },
+        {
+            "id": "tianan_border_badge",
+            "name": "天南边军徽章",
+            "type": "title",
+            "subtype": "honor",
+            "quality": "legendary",
+            "description": "军衔升至天南边军方得的徽章，佩戴后全属性 +3%，边军战阵之中亦以此辨身份",
+            "effect": {
+                "all_stats_bonus": 0.03
+            },
+            "price": 0
+        },
+        {
+            "id": "spirit_grass",
+            "name": "灵草",
+            "type": "material",
+            "subtype": "herb",
+            "quality": "common",
+            "description": "边军斥候沿灵脉小径采得的低阶灵草，是常备丹药与前线伤药的粗料",
+            "price": 30
+        },
+        {
+            "id": "array_flag_fragment",
+            "name": "阵旗残片",
+            "type": "material",
+            "subtype": "formation",
+            "quality": "uncommon",
+            "description": "护阵阵旗被破后遗下的残片，抹去残存灵纹可补新旗，亦可作布阵阵盘的引材",
+            "price": 80
+        },
+        {
+            "id": "cangkun_old_material",
+            "name": "苍坤旧料",
+            "type": "material",
+            "subtype": "relic",
+            "quality": "uncommon",
+            "description": "苍坤遗迹外围捡得的陈旧料件，出自早已崩塌的殿宇，是修补禁制与残图的常见杂材",
+            "price": 120
+        },
+        {
+            "id": "cangkun_remnant_fragment_a",
+            "name": "苍坤残片·甲",
+            "type": "material",
+            "subtype": "fragment",
+            "quality": "rare",
+            "description": "苍坤残图四片之一（甲），四片齐备方可在残图匣中拼成完整残图",
+            "price": 200
+        },
+        {
+            "id": "cangkun_remnant_fragment_b",
+            "name": "苍坤残片·乙",
+            "type": "material",
+            "subtype": "fragment",
+            "quality": "rare",
+            "description": "苍坤残图四片之一（乙），四片齐备方可在残图匣中拼成完整残图",
+            "price": 200
+        },
+        {
+            "id": "cangkun_remnant_fragment_c",
+            "name": "苍坤残片·丙",
+            "type": "material",
+            "subtype": "fragment",
+            "quality": "rare",
+            "description": "苍坤残图四片之一（丙），四片齐备方可在残图匣中拼成完整残图",
+            "price": 200
+        },
+        {
+            "id": "cangkun_remnant_fragment_d",
+            "name": "苍坤残片·丁",
+            "type": "material",
+            "subtype": "fragment",
+            "quality": "rare",
+            "description": "苍坤残图四片之一（丁），四片齐备方可在残图匣中拼成完整残图",
+            "price": 200
+        },
+        {
+            "id": "cangkun_remnant_map",
+            "name": "苍坤残图",
+            "type": "material",
+            "subtype": "map",
+            "quality": "epic",
+            "description": "以四类苍坤残片拼合而成的完整残图，按图可探苍坤旧禁边缘",
+            "price": 1000
+        },
+        {
             "id": "low_spirit_stone",
             "name": "低阶灵石",
             "type": "currency",

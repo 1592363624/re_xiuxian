@@ -16,6 +16,7 @@ const Player = require('../../models/player');
 const PlayerCave = require('../../models/playerCave');
 const Realm = require('../../models/realm');
 const InventoryService = require('./InventoryService');
+const { logOnce } = require('../../utils/logOnce');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 
 // 单例库存服务实例
@@ -23,8 +24,8 @@ const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 //       此处直接引用即可，不能再次 new（与 SectService/MarketService/GardenService 等保持一致）
 const inventoryService = InventoryService;
 
-// 设施类型常量（与 cave_data.json 的 facilities 节点对应）
-const FACILITY_TYPES = ['spirit_vein', 'quiet_room', 'pill_room', 'tool_room', 'grand_formation'];
+// 设施类型不再在这里抄一份清单：见 CaveService.getFacilityTypes()（内容 ∩ 有列）
+const FACILITY_LEVEL_SUFFIX = '_level';
 
 class CaveService {
     /**
@@ -50,6 +51,29 @@ class CaveService {
     }
 
     /**
+     * 玩家能用、面板要列出来的设施清单 = 内容声明的 facilities ∩ player_caves 里真有 `<key>_level` 列的。
+     *
+     * 为什么要取交集：设施定义现在归内容管（资料片能加"符箓阁"），但**等级是一设施一列**存在
+     * player_caves 上的。只按内容给清单的话，新设施会出现在面板上却永远读不到等级、升级写回去也被
+     * Sequelize 丢掉 —— 摆一个"看得见点不动"的设施比不摆更糟。
+     * 被这一步筛掉的内容条目会响一次日志，直接告诉扩展的人要补哪一列。
+     * @returns {string[]} 设施类型 key，按内容声明顺序
+     */
+    getFacilityTypes() {
+        const declared = Object.keys(this.getCaveConfig().facilities || {});
+        const columns = new Set(Object.keys(PlayerCave.rawAttributes));
+        const usable = declared.filter(key => columns.has(key + FACILITY_LEVEL_SUFFIX));
+        const blocked = declared.filter(key => !columns.has(key + FACILITY_LEVEL_SUFFIX));
+        if (blocked.length) {
+            logOnce(`CaveService.facility_without_column:${blocked.join(',')}`,
+                `洞府设施 ${blocked.join('/')} 在内容里声明了，但 player_caves 没有 ${
+                    blocked.map(k => `'${k}${FACILITY_LEVEL_SUFFIX}'`).join('/')} 列，`
+                + '暂时不在面板与 GM 白名单里显示。要扩展这个设施：先给 player_caves 加对应列（改表需授权），或把等级挪进 JSON 列。');
+        }
+        return usable;
+    }
+
+    /**
      * 获取或创建玩家洞府记录（未开辟时返回 is_opened=false 的默认记录）
      */
     async getOrCreateCave(playerId, transaction = null) {
@@ -63,6 +87,28 @@ class CaveService {
             }, options);
         }
         return cave;
+    }
+
+    /**
+     * 升级消耗里的材料只写了 item_key。原样摊给界面就是"jade_core x10"这种裸键名
+     * （资料片改材料名也不会跟着变），所以中文名由服务端按内容补，客户端不抄物品名典。
+     * @param {Object|null} cost - { level, spirit_stone, material, material_count }
+     * @returns {Object|null} 带上 material_name 的同一份消耗
+     */
+    _withMaterialName(cost) {
+        if (!cost || !cost.material) return cost;
+        const item = this._findItem(cost.material);
+        return item ? { ...cost, material_name: item.name } : cost;
+    }
+
+    /**
+     * 按 item_key 取物品定义（只为拿名字；找不到就回落到键名，不让面板报 500）
+     * @param {string} itemKey - 物品 key
+     * @returns {Object|null} 物品定义
+     */
+    _findItem(itemKey) {
+        const items = this.configLoader?.getConfig('item_data')?.items || [];
+        return items.find(i => i.id === itemKey) || null;
     }
 
     /**
@@ -80,7 +126,7 @@ class CaveService {
 
         // 组装设施信息（合并静态配置 + 动态等级）
         const facilities = {};
-        for (const type of FACILITY_TYPES) {
+        for (const type of this.getFacilityTypes()) {
             const config = this.getFacilityConfig(type);
             const level = cave[`${type}_level`] || 0;
             facilities[type] = {
@@ -89,7 +135,7 @@ class CaveService {
                 level: level,
                 max_level: config?.max_level || 10,
                 can_upgrade: level < (config?.max_level || 10),
-                upgrade_cost: level < (config?.max_level || 10) ? config.upgrade_costs[level] : null
+                upgrade_cost: level < (config?.max_level || 10) ? this._withMaterialName(config.upgrade_costs[level]) : null
             };
         }
 
@@ -188,8 +234,11 @@ class CaveService {
      */
     async upgradeFacility(playerId, facilityType) {
         // 校验设施类型
-        if (!FACILITY_TYPES.includes(facilityType)) {
-            throw new AppError(`无效的设施类型: ${facilityType}`, 400, ErrorCodes.VALIDATION_ERROR);
+        if (!this.getFacilityTypes().includes(facilityType)) {
+            const declared = Object.keys(this.getCaveConfig().facilities || {}).includes(facilityType);
+            throw new AppError(declared
+                ? `设施 ${facilityType} 已在内容里声明，但还没有对应的 player_caves 等级列，暂时不能升级`
+                : `无效的设施类型: ${facilityType}`, 400, ErrorCodes.VALIDATION_ERROR);
         }
 
         const facilityConfig = this.getFacilityConfig(facilityType);
@@ -199,6 +248,12 @@ class CaveService {
 
         const t = await sequelize.transaction();
         try {
+            // 口径见 game/persistence/lockOrder.js：players 先于 player_caves。
+            // 原来先锁洞府行再回头锁玩家行，而"开辟洞府"是 players→caves：两个面板各点一次就是 ABBA。
+            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
             const cave = await this.getOrCreateCave(playerId, t);
             // 行级锁
             const lockedCave = await PlayerCave.findByPk(cave.id, { lock: t.LOCK.UPDATE, transaction: t });
@@ -220,7 +275,7 @@ class CaveService {
             }
 
             // 行级锁玩家记录，扣除灵石
-            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+            // 玩家行已在事务开头按次序锁好，这里直接用那份实例
             if (BigInt(player.spirit_stones || 0) < BigInt(upgradeCost.spirit_stone)) {
                 throw new AppError(`灵石不足，需${upgradeCost.spirit_stone}灵石`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
@@ -230,7 +285,10 @@ class CaveService {
             if (upgradeCost.material && upgradeCost.material_count > 0) {
                 const removed = await inventoryService.removeItem(playerId, upgradeCost.material, upgradeCost.material_count, t);
                 if (!removed) {
-                    throw new AppError(`材料不足，需${upgradeCost.material_count}个${upgradeCost.material}`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+                    throw new AppError(
+                        `材料不足，需 ${upgradeCost.material_count} 个${(this._findItem(upgradeCost.material) || {}).name || upgradeCost.material}`,
+                        400, ErrorCodes.BUSINESS_LOGIC_ERROR
+                    );
                 }
             }
 
@@ -260,6 +318,12 @@ class CaveService {
     async collectSpiritStones(playerId) {
         const t = await sequelize.transaction();
         try {
+            // 口径见 game/persistence/lockOrder.js：players 先于 player_caves。
+            // 先锁钱包行再锁洞府行（与 openCave 同向；见 upgradeFacility 同款注释）。
+            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
             const cave = await PlayerCave.findOne({
                 where: { player_id: playerId },
                 transaction: t,
@@ -281,7 +345,7 @@ class CaveService {
             }
 
             // 玩家加灵石
-            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+            // 玩家行已在事务开头按次序锁好，这里直接用那份实例
             player.spirit_stones = BigInt(player.spirit_stones || 0) + BigInt(pendingStones);
 
             // 重置累计
@@ -312,6 +376,12 @@ class CaveService {
         const gardenConfig = this.getCaveConfig().garden;
         const t = await sequelize.transaction();
         try {
+            // 口径见 game/persistence/lockOrder.js：players 先于 player_caves。
+            // 先锁钱包行再锁洞府行（与 openCave 同向；见 upgradeFacility 同款注释）。
+            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
             const cave = await PlayerCave.findOne({
                 where: { player_id: playerId },
                 transaction: t,
@@ -333,7 +403,7 @@ class CaveService {
                 throw new AppError('无法解锁更多地块', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+            // 玩家行已在事务开头按次序锁好，这里直接用那份实例
             if (BigInt(player.spirit_stones || 0) < BigInt(unlockCost.spirit_stone)) {
                 throw new AppError(`灵石不足，需${unlockCost.spirit_stone}灵石`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }

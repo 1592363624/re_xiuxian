@@ -1,4 +1,19 @@
 {
+  "global": {
+    "_bonus_note": "宗门加成字段的展示元数据。label 是中文名，format 决定面板怎么换算：multiplier 是倍率（1.1 显示 +10%），ratio 是加成比例（0.15 显示 +15%）。以前这两样抄在客户端 SectPanel 的字典里，新增一种宗门加成要改前端；现在加在内容里就够了，启动期会校验 sects[].bonus 的每个键都在这里。",
+    "bonus_labels": {
+      "exp_multiplier": { "label": "修为加成", "format": "multiplier" },
+      "gather_bonus": { "label": "采集加成", "format": "ratio" },
+      "sense_multiplier": { "label": "感知加成", "format": "multiplier" },
+      "breakthrough_bonus": { "label": "突破加成", "format": "ratio" },
+      "luck_bonus": { "label": "气运加成", "format": "ratio" },
+      "atk_multiplier": { "label": "攻击加成", "format": "multiplier" },
+      "dark_arts_bonus": { "label": "魔道加成", "format": "ratio" },
+      "charm_bonus": { "label": "魅惑加成", "format": "ratio" },
+      "mp_multiplier": { "label": "灵力加成", "format": "multiplier" },
+      "mental_strength": { "label": "道心加成", "format": "ratio" }
+    }
+  },
   "sects": [
     {
       "id": "luoyun",

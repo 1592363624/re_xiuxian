@@ -23,6 +23,7 @@
 'use strict';
 
 const Player = require('../../models/player');
+const { contentLabel } = require('../content/ContentRegistry');
 const PlayerEquipment = require('../../models/playerEquipment');
 const PlayerArtifactSpirit = require('../../models/playerArtifactSpirit');
 const sequelize = require('../../config/database');
@@ -142,10 +143,63 @@ class ArtifactSpiritService {
      * @param {string} spiritType - 器灵类型
      * @returns {boolean} 是否合法
      */
-    _isValidSpiritType(spiritType) {
+    /**
+     * 器灵类型清单以内容为准（`artifact_spirit_data.spirit_types`）。
+     * 路由与这里的校验、以及给用户的提示，都从这一处取 —— 以前路由里另抄了一份四元素清单，
+     * 资料片加一档器灵就会被路由挡在门外。
+     * @returns {string[]}
+     */
+    spiritTypeKeys() {
         const config = this.getSpiritConfig();
-        const types = config.spirit_types || {};
-        return Object.prototype.hasOwnProperty.call(types, spiritType);
+        return Object.keys((config && config.spirit_types) || {});
+    }
+
+    /**
+     * 器灵类型清单（含展示文案）：面板的选择器与对比表都读这一份。
+     * 文案由内容数值拼出来（`spirit_bonus_stat_labels` + `spirit_effect_labels`）——
+     * 客户端以前抄了一份 4 档器灵的文本（连"攻击 +5%（每级 +2%）"都抄成字符串），
+     * 内容改数值或加一档界面不会跟着变，抄的那份平灵型还漏了"暴击 +1%"。
+     * @returns {Array<Object>} [{ key, name, desc, bonus_text, protect_text, activate_text, … }]
+     */
+    spiritTypeCatalog() {
+        const config = this.getSpiritConfig();
+        const types = (config && config.spirit_types) || {};
+        const statLabels = (config && config.spirit_bonus_stat_labels) || {};
+        const effectLabels = (config && config.spirit_effect_labels) || {};
+        const pct = (v) => `${Math.round(Number(v) * 1000) / 10}%`;
+        const effectText = (code, value) => {
+            const meta = effectLabels[code];
+            if (!meta) return code || '';
+            const label = contentLabel(meta, code);
+            if (meta.value_format !== 'percent' || !Number.isFinite(Number(value))) return label;
+            return `${label} ${pct(value)}`;
+        };
+        return Object.entries(types).map(([key, cfg]) => {
+            const base = (cfg && cfg.base_bonus) || {};
+            const per = (cfg && cfg.level_bonus_per_level) || {};
+            const parts = [];
+            for (const [stat, value] of Object.entries(base)) {
+                if (!Number(value)) continue;
+                const step = Number(per[stat] || 0);
+                parts.push(`${contentLabel(statLabels[stat], stat)} +${pct(value)}${step ? `（每级 +${pct(step)}）` : ''}`);
+            }
+            return {
+                key,
+                name: (cfg && cfg.name) || key,
+                desc: (cfg && cfg.desc) || '',
+                base_bonus: base,
+                level_bonus_per_level: per,
+                bonus_text: parts.join(' / '),
+                protect_effect: (cfg && cfg.protect_effect) || null,
+                protect_text: effectText(cfg && cfg.protect_effect, cfg && cfg.protect_value),
+                activate_effect: (cfg && cfg.activate_effect) || null,
+                activate_text: effectText(cfg && cfg.activate_effect, cfg && cfg.activate_value)
+            };
+        });
+    }
+
+    _isValidSpiritType(spiritType) {
+        return this.spiritTypeKeys().includes(spiritType);
     }
 
     /**
@@ -271,7 +325,7 @@ class ArtifactSpiritService {
             return { success: false, message: '装备ID无效', error_code: ErrorCodes.VALIDATION_ERROR };
         }
         if (!this._isValidSpiritType(spiritType)) {
-            return { success: false, message: '器灵类型无效（仅支持 attack/defense/support/balance）', error_code: ErrorCodes.VALIDATION_ERROR };
+            return { success: false, message: `器灵类型无效（仅支持 ${this.spiritTypeKeys().join('/')}）`, error_code: ErrorCodes.VALIDATION_ERROR };
         }
 
         const config = this.getSpiritConfig();
@@ -478,7 +532,7 @@ class ArtifactSpiritService {
             return {
                 success: true,
                 message: 'success',
-                data: { spirits: result, count: result.length }
+                data: { spirits: result, count: result.length, spirit_types: this.spiritTypeCatalog() }
             };
         } catch (err) {
             console.error('[ArtifactSpiritService.getMySpirits] 异常:', err);

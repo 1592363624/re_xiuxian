@@ -40,6 +40,9 @@ const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 
 // 通过 ConfigLoader 获取 game_balance 配置（支持热更新，避免硬编码阈值）
 const configLoader = infrastructure.ConfigLoader;
+// 设施清单的唯一来源（内容 ∩ 有等级列），与玩家侧面板走同一条规则
+const CaveService = require('../game/services/CaveService');
+CaveService.initialize(configLoader);
 
 /**
  * 读取 game_balance.admin 配置节
@@ -222,7 +225,9 @@ router.get('/list', auth, adminCheck, async (req, res, next) => {
                 garden_plots: c.garden_plots,
                 spirit_vein_accumulated: Number(c.spirit_vein_accumulated || 0),
                 created_at: c.created_at,
-                updated_at: c.updated_at
+                // player_caves 同时有 created_at/createdAt 两列（历史遗留，见 TimestampCompat 测试里的名单）：
+                // 前者插入后就不再变，Sequelize 维护的是后者。响应键名保持 snake_case，值取活的那一列。
+                updated_at: c.updatedAt
             };
         });
 
@@ -247,6 +252,26 @@ router.get('/list', auth, adminCheck, async (req, res, next) => {
  * 查询指定玩家洞府详情
  * 返回：洞府全部字段 + 玩家基础信息（昵称、境界）
  */
+/**
+ * GET /api/admin/cave/facilities
+ *
+ * 设施下拉的数据源：内容声明的 facilities ∩ player_caves 真有等级列的那些。
+ * 为什么要有：GM 面板以前抄了一份五个键的清单（还带中文名），资料片加了设施之后下拉里就是没有，
+ * 而服务端按内容认 —— 表现是"内容配好了，GM 却调不到"。中文名直接取内容自己的 name。
+ * 挂在 /:playerId 之前，否则会被那条路由吃掉。
+ */
+router.get('/facilities', auth, adminCheck, async (req, res, next) => {
+    try {
+        const facilities = CaveService.getFacilityTypes().map(type => {
+            const cfg = CaveService.getFacilityConfig(type) || {};
+            return { value: type, label: cfg.name || type, max_level: cfg.max_level ?? null };
+        });
+        res.json({ code: 200, data: { facilities } });
+    } catch (error) {
+        next(error);
+    }
+});
+
 router.get('/:playerId', auth, adminCheck, async (req, res, next) => {
     try {
         const playerId = parsePlayerId(req.params.playerId);
@@ -284,7 +309,7 @@ router.get('/:playerId', auth, adminCheck, async (req, res, next) => {
                 last_spirit_vein_collect: cave.last_spirit_vein_collect,
                 garden_plots: cave.garden_plots,
                 created_at: cave.created_at,
-                updated_at: cave.updated_at
+                updated_at: cave.updatedAt
             }
         });
     } catch (error) {
@@ -316,10 +341,10 @@ router.put('/:playerId/facility', auth, adminCheck, async (req, res, next) => {
         }
 
         const adminConfig = getAdminConfig();
-        // 设施类型白名单（从配置读取，默认与 cave_data.json 的五大设施对应）
-        const whitelist = adminConfig.cave_facility_whitelist || [
-            'spirit_vein', 'quiet_room', 'pill_room', 'tool_room', 'grand_formation'
-        ];
+        // 设施白名单：内容里声明的 facilities ∩ player_caves 有 `<key>_level` 列的（与玩家侧同一规则）。
+        // 原来读的是 game_balance.admin.cave_facility_whitelist —— 那是把五个键又抄了一遍的第三份副本，
+        // 资料片加了新设施之后 GM 面板照样拒，而且一句话都不说。
+        const whitelist = CaveService.getFacilityTypes();
         if (!whitelist.includes(facility)) {
             // 白名单校验失败：拒绝请求，防止通过 SQL 注入访问未授权字段
             throw new AppError(`无效的设施类型: ${facility}`, 400, ErrorCodes.VALIDATION_ERROR);

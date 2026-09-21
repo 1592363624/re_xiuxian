@@ -70,7 +70,7 @@
             v-for="(val, key) in item.current_bonus"
             :key="key"
             class="px-1.5 py-0.5 rounded bg-black/20"
-          >{{ bonusLabel(key) }} {{ val > 0 ? '+' : '' }}{{ val }}</span>
+          >{{ formatBonus(key, val) }}</span>
         </div>
 
         <!-- 消耗预览：精确展示各操作消耗，并与实时余额对比，不足时标红 -->
@@ -159,7 +159,7 @@
             v-for="(val, key) in tech.bonuses"
             :key="key"
             class="px-1.5 py-0.5 rounded bg-black/20"
-          >{{ bonusLabel(key) }} {{ val > 0 ? '+' : '' }}{{ val }}</span>
+          >{{ formatBonus(key, val) }}</span>
         </div>
         <div class="mt-1 text-xs text-amber-300">
           研习途径：{{ acquireLabel(tech.acquire) }}
@@ -231,6 +231,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
 import { useAsyncTask } from '../../composables/useAsyncTask'
+import { useStatSchema } from '../../composables/useStatSchema'
 import { usePlayerStore } from '../../stores/player'
 import { formatCompact } from '../../utils/format'
 import Modal from '../common/Modal.vue'
@@ -348,15 +349,11 @@ const canLearn = (tech) => {
   return true
 }
 
-/** 属性加成字段中文标签 */
-const bonusLabel = (key) => {
-  const labels = {
-    atk: '攻击', def: '防御', hp_max: '气血上限', mp_max: '灵力上限',
-    speed: '速度', crit: '暴击', sense: '神识', atk_ratio: '攻击%',
-    def_ratio: '防御%', hp_max_ratio: '气血%', mp_max_ratio: '灵力%'
-  }
-  return labels[key] || key
-}
+/**
+ * 属性加成字段中文标签：取自服务端属性注册表（含别名 crit/dodge/hp_steal 与资料片属性）。
+ * 旧实现在这里抄了一份 11 行的标签表，功法加一个属性就要来改一次前端。
+ */
+const { formatBonus } = useStatSchema()
 
 /** 五行标签 */
 const elementLabel = (el) => {

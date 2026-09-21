@@ -25,6 +25,7 @@ import LoadingBlock from '../ui/LoadingBlock.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { useStatSchema } from '../../composables/useStatSchema'
 import { formatCompact } from '../../utils/format'
 import { getInventory, useItem, discardItem } from '../../api/inventory'
 import { getEquipped, equipItem, unequipItem, getEquipmentBonus } from '../../api/equipment'
@@ -33,6 +34,7 @@ import { getGameBalancePublic } from '../../api/config'
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const { formatBonus } = useStatSchema()
 
 // ====== 响应式状态 ======
 const loading = ref(true)
@@ -382,37 +384,18 @@ const handleDiscard = async () => {
 /**
  * 拼接物品效果描述文本（用于卡片底部展示）
  * 兼容消耗品效果（hp_restore/mp_restore 等）和装备属性（atk/def/hp_max 等）
+ *
+ * 标签与后缀一律来自服务端词表（属性注册表 + 物品效果词表，含资料片），
+ * 这里不再抄一份"键名→中文"的映射：以前资料片给武器加个剑意，卡片上就会露出原始键名。
  * @param effect - 物品效果对象
  */
 const formatEffectText = (effect) => {
   if (!effect || Object.keys(effect).length === 0) return ''
-  // 属性中文名映射（覆盖消耗品与装备所有属性）
-  const attrNameMap = {
-    atk: '攻击',
-    def: '防御',
-    hp_max: '气血上限',
-    mp_max: '灵力上限',
-    speed: '身法',
-    sense: '感知',
-    luck: '气运',
-    cultivate_speed: '修炼速度',
-    hp_restore: '气血恢复',
-    mp_restore: '灵力恢复',
-    spirit_stones: '灵石',
-    exp: '修为',
-    breakthrough_bonus: '突破加成'
-  }
   const parts = []
   for (const [key, value] of Object.entries(effect)) {
     // 仅处理数值型属性，跳过非数值字段
     if (typeof value !== 'number') continue
-    const name = attrNameMap[key] || key
-    // 突破加成为百分比形式
-    if (key === 'breakthrough_bonus') {
-      parts.push(`${name}+${(value * 100).toFixed(1)}%`)
-    } else {
-      parts.push(`${name}+${value}`)
-    }
+    parts.push(formatBonus(key, value))
   }
   return parts.join('  ')
 }

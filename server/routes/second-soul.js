@@ -134,11 +134,11 @@ router.post('/dispatch', auth, async (req, res, next) => {
                 message: 'soul_index 必须为 2 或 3'
             });
         }
-        if (!['combat', 'cultivate', 'scout', 'defend'].includes(mode)) {
+        if (!SecondSoulService.dispatchModeKeys().includes(mode)) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'mode 必须为 combat/cultivate/scout/defend 之一'
+                message: `mode 必须为 ${SecondSoulService.dispatchModeKeys().join('/')} 之一`
             });
         }
         const result = await SecondSoulService.dispatch(req.player.id, Number(soul_index), mode);

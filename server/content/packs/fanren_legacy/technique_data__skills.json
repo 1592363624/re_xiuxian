@@ -1,0 +1,23 @@
+{
+  "dataset": "technique_data",
+  "into": "skills",
+  "comment": "凡人遗宝新增两门剑意神通。文件名里的 __skills 指向 technique_data 的第二个集合，于是同一个资料片既能加功法也能加神通。damage_profile 指向本资料片 combat_formulas.json 登记的档位，其攻击属性 sword_intent 来自本资料片的 stat_definitions.json。",
+  "add": [
+    {
+      "id": "sword_qi_slash",
+      "name": "剑气斩",
+      "element": "none",
+      "description": "以剑意驭剑气斩出，走剑意伤害档位，无视部分肉身防御。",
+      "damage_profile": "player_sword_intent",
+      "effects": { "extra_damage_rate": 0.2, "trigger_chance": 0.15 }
+    },
+    {
+      "id": "qingyuan_sword_light",
+      "name": "青元剑芒",
+      "element": "metal",
+      "description": "青元剑诀大成时剑芒纵横，金锐之气最能破防。",
+      "damage_profile": "player_sword_intent",
+      "effects": { "extra_damage_rate": 0.16, "defense_pierce_rate": 0.25, "trigger_chance": 0.12 }
+    }
+  ]
+}

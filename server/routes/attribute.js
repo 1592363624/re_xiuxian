@@ -9,6 +9,7 @@ const game = require('../game');
 const authMiddleware = require('../middleware/auth');
 const Item = require('../models/item');
 const Player = require('../models/player');
+const PlayerStateStore = require('../game/persistence/PlayerStateStore');
 
 /**
  * 获取玩家完整属性信息（包含最大值）
@@ -26,8 +27,12 @@ router.get('/full', authMiddleware, async (req, res) => {
         }
 
         // 计算完整属性（包含最大值）
+        // 这里必须用"完整快照"（含装备/灵兽/功法/傀儡），不能用静态快照：
+        // 本接口是给人看的，而 /player/me 的气血条用的就是完整快照。
+        // 两者口径不一致时，同一屏会出现"气血上限 3500 / 血条 3657"这种自相矛盾的数字。
+        // （静态快照的用途是副本与宗门战开局锁定属性，那是另一条路径。）
         const realmConfig = game.RealmService.getRealmByName(player.realm);
-        const fullAttributesResult = game.AttributeService.calculateFullAttributes(player);
+        const fullAttributesResult = await game.AttributeService.calculateFullAttributesAsync(player);
         const maxValues = game.AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
         const expCap = game.ExperienceService.getExpCap(player);
         
@@ -68,6 +73,10 @@ router.get('/full', authMiddleware, async (req, res) => {
                     all_titles: game.AttributeService.getAllTitles(),
                     owned_titles: player.titles || []
                 },
+                // 属性面板字段定义（标签/图标/说明/后缀来自属性注册表）
+                // 前端按这份渲染，新增属性就不需要再改前端的标签表
+                panel_schema: game.AttributeService.getPanelSchema(),
+                final_attributes: fullAttributesResult.final,
                 // 玩家统计数据
                 player_stats: player.stats || {},
                 // 恢复信息
@@ -89,6 +98,32 @@ router.get('/full', authMiddleware, async (req, res) => {
             code: 500, 
             message: '获取属性信息失败' 
         });
+    }
+});
+
+/**
+ * 属性面板字段定义
+ * GET /api/attribute/panel
+ *
+ * 这条接口是"加属性不用改前端"的最后一环：标签/图标/说明/后缀/显示位置/能否加点
+ * 全部来自属性注册表（基础定义 + 已启用的资料片），前端只负责渲染。
+ * 内容只在服务端启动时装配一次，客户端按会话缓存即可。
+ */
+router.get('/panel', authMiddleware, async (req, res) => {
+    try {
+        const content = require('../game/content').contentRegistry();
+        res.json({
+            code: 200,
+            data: {
+                stats: game.AttributeService.getPanelSchema(),
+                allocatable: game.AttributeService.allocatableBonusKeys,
+                // 非属性类物品效果（气血恢复/灵石/突破加成…）的展示名
+                effects: content ? content.effectVocabulary() : []
+            }
+        });
+    } catch (error) {
+        console.error('获取属性面板定义失败:', error);
+        res.status(500).json({ code: 500, message: '获取属性面板定义失败' });
     }
 });
 
@@ -182,35 +217,50 @@ router.post('/recover', authMiddleware, async (req, res) => {
             });
         }
 
-        // 计算属性最大值
         const realmConfig = game.RealmService.getRealmByName(player.realm);
-        const maxValues = game.AttributeMaxService.calculateAttributeMaxValues(player, realmConfig);
-        
-        // 处理属性恢复
-        const recoveryResult = game.AttributeMaxService.processAttributeRecovery(
-            player, 
-            maxValues, 
-            recovery_type, 
-            settledMinutes
-        );
 
-        // 更新玩家属性与恢复结算基准时点（本次窗口一经消费即作废，不累积到下次）
-        await player.update({
-            hp_current: recoveryResult.hp_current,
-            mp_current: recoveryResult.mp_current,
-            attributes: game.AttributeMaxService.buildAttributesAfterRecovery(player)
+        // 在行锁内以最新一行为基准重算并写回：
+        // 恢复量依赖"当前 hp/mp 与上次结算时点"，用请求开始时的旧快照算会重复结算同一段时间，
+        // 整块回写 attributes 又会抹掉这段时间内别的流程（丹药、加点、宗门战）写进去的键。
+        const settled = await PlayerStateStore.withTransaction(async (t) => {
+            const fresh = await PlayerStateStore.readForUpdate(player.id, { transaction: t });
+
+            const freshMinutes = game.AttributeMaxService.resolveRecoveryMinutes(fresh, duration_minutes);
+            if (freshMinutes <= 0) return null;
+
+            const maxValues = game.AttributeMaxService.calculateAttributeMaxValues(fresh, realmConfig);
+            const recovery = game.AttributeMaxService.processAttributeRecovery(
+                fresh, maxValues, recovery_type, freshMinutes
+            );
+
+            const updated = await PlayerStateStore.patchPlayerState(fresh.id, {
+                columns: {
+                    hp_current: recovery.hp_current,
+                    mp_current: recovery.mp_current
+                },
+                attributes: game.AttributeMaxService.buildRecoveryWatermarkPatch()
+            }, { transaction: t });
+
+            return { recovery, freshMinutes, updated };
         });
+
+        if (!settled) {
+            return res.status(400).json({
+                code: 400,
+                message: '距上次恢复结算时间过短，暂无可恢复时长'
+            });
+        }
 
         res.json({
             code: 200,
             data: {
                 recovery_type: recovery_type,
                 requested_minutes: Number(duration_minutes) || null,
-                duration_minutes: settledMinutes,
-                recovered: recoveryResult.recovered,
+                duration_minutes: settled.freshMinutes,
+                recovered: settled.recovery.recovered,
                 new_values: {
-                    hp: recoveryResult.hp_current,
-                    mp: recoveryResult.mp_current
+                    hp: settled.recovery.hp_current,
+                    mp: settled.recovery.mp_current
                 }
             }
         });
@@ -281,23 +331,26 @@ router.post('/use_pill', authMiddleware, async (req, res) => {
         }
 
         // 累加属性加成并钳制单属性总量上限
-        const currentAttributes = typeof player.attributes === 'string' 
-            ? JSON.parse(player.attributes) 
-            : (player.attributes || {});
+        // 基准必须是行锁内最新一行的 attributes：丹药物品行虽然已 FOR UPDATE，
+        // 但 players 行此前从未加锁，双提交同一颗丹药时两次"读旧 attributes → 整块写回"
+        // 只会加一次加成，而数量却会正确地扣两次。
+        const fresh = await PlayerStateStore.readForUpdate(player.id, { transaction: t });
         const nextAttributes = game.AttributeMaxService.applyPillBonusToAttributes(
-            currentAttributes,
+            fresh.attributes,
             pillEffect
         );
 
-        await player.update({
-            attributes: nextAttributes
-        }, { transaction: t });
+        const updated = await PlayerStateStore.patchPlayerState(
+            player.id,
+            { attributes: nextAttributes },
+            { transaction: t }
+        );
 
         // 消耗丹药（数量减1）
         await playerItem.decrement('quantity', { transaction: t });
 
-        // 回显使用后的属性上限
-        const newMaxValues = game.AttributeMaxService.applyPillEffect(player, pillEffect);
+        // 回显使用后的属性上限（用写回后的那一行，避免把刚加成的键再算一遍）
+        const newMaxValues = game.AttributeMaxService.applyPillEffect(updated, pillEffect);
         
         await t.commit();
         

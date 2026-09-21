@@ -175,7 +175,7 @@ const handleComplete = async () => {
     // 修复 4-3-P1-2：使用 formatNumber 处理 BigInt 字符串
     let rewardText = `获得 ${formatNumber(rewards.exp || 0)} 修为`
     if (rewards.items?.length) {
-      rewardText += `，${rewards.items.map(i => i.item_key).join('、')}`
+      rewardText += `，${rewards.items.map(i => i.item_name || i.item_key).join('、')}`
     }
     if (rewards.spirit_stones) {
       rewardText += `，${formatNumber(rewards.spirit_stones)} 灵石`

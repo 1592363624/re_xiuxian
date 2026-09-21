@@ -31,7 +31,7 @@
   },
   "attribute_bonuses": {
     "spirit_root_bonus": {
-      "gold": 0.2,
+      "metal": 0.2,
       "wood": 0.2,
       "water": 0.2,
       "fire": 0.2,

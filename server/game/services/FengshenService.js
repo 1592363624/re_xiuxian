@@ -12,7 +12,8 @@
  *
  * 设计原则：
  * - 所有可变参数从 game_balance.json pvp_extended.fengshen 段读取，禁止硬编码
- * - 多表/多字段变更使用事务 + 行级锁（fengshen_rankings + players）
+ * - 多表/多字段变更使用事务 + 行级锁，且**锁顺序全服务统一**：players(按 id 升序) → fengshen_rankings(按 id 升序) → 写
+ *   （三条写路径 setDefense / challengeRank / settleSeason 都走 _lockPlayersByIdAsc / _lockRankingsByIdAsc 取锁）
  * - 防守方使用防守阵容快照（setDefense 时存的属性快照）参与战斗
  * - 挑战者使用当前属性参与战斗，实现"镜像排名战"的核心机制
  * - BigInt 安全：spirit_stones 和 honor 使用 safeBigInt 运算
@@ -116,14 +117,10 @@ class FengshenService {
      * @param {Object} player - 玩家实例
      * @returns {number} 战力值
      */
-    _calculatePowerFromAttributes(player) {
-        const attrs = player.attributes || {};
-        const atk = Number(attrs.atk) || 0;
-        const def = Number(attrs.def) || 0;
-        const speed = Number(attrs.speed) || 0;
-        const hpMax = Number(attrs.hp_max) || 0;
-        const realmRank = Number(player.realm_rank) || 0;
-        return Math.floor(atk * 2 + def * 1.5 + speed * 1.2 + hpMax * 0.1 + realmRank * 100);
+    async _calculatePowerFromAttributes(player) {
+        const CombatResolver = require('../combat/CombatResolver');
+        const { stats } = await CombatResolver.resolveCombatStats(player);
+        return CombatResolver.computePower(stats, Number(player.realm_rank) || 0);
     }
 
     /**
@@ -134,12 +131,9 @@ class FengshenService {
      */
     _calculatePowerFromSnapshot(snapshot) {
         if (!snapshot) return 0;
-        const atk = Number(snapshot.atk) || 0;
-        const def = Number(snapshot.def) || 0;
-        const speed = Number(snapshot.speed) || 0;
-        const hpMax = Number(snapshot.hp_max) || 0;
-        const realmRank = Number(snapshot.realm_rank) || 0;
-        return Math.floor(atk * 2 + def * 1.5 + speed * 1.2 + hpMax * 0.1 + realmRank * 100);
+        // 快照里存的已经是解析后的属性，直接按统一权重评分，不再另抄一份公式
+        const CombatResolver = require('../combat/CombatResolver');
+        return CombatResolver.computePower(snapshot, Number(snapshot.realm_rank) || 0);
     }
 
     /**
@@ -189,31 +183,88 @@ class FengshenService {
      * 按 fengshen_score 降序、total_wins 降序、created_at 升序排列
      * 仅更新排名发生变化的记录，减少数据库写入
      * 注意：调用方必须已传入事务
+     *
+     * ===== 本服务的锁顺序契约（三条写路径必须一致，否则就是 ABBA 死锁）=====
+     *   players(按 id 升序) → fengshen_rankings(按 id 升序) → 写
+     * 这一句 `SELECT … FOR UPDATE` 会**逐行**把整张排名表锁下来，加锁次序就是 SQL 的 ORDER BY。
+     * 原先按 fengshen_score 排序 —— 两个并发结算（两次挑战、或挑战撞上跨赛季结算）各自看到的分数顺序不同，
+     * 于是以相反顺序去锁同一批行 → InnoDB 死锁（和宗门战互攻、放养偷菜那两起同一类）。
+     * 所以现在一律 `ORDER BY id ASC` 取锁，名次顺序在 JS 里排（sort 稳定，同分时按 id 升序，与旧的
+     * created_at 升序一样是确定的）。
+     * 跨表那一半由调用方保证：challengeRank 先按 id 升序锁双方 players 再锁排名行，
+     * setDefense 也在动自己那一行之前先做整表升序加锁 —— 谁再新增写路径，照这条顺序抄。
      * @param {Object} t - 事务实例
      */
     async _recalculateRanks(t) {
         // 查询所有有防守阵容的玩家（rank > 0 的前提是已设置防守）
-        const rankings = await FengshenRanking.findAll({
+        const locked = await FengshenRanking.findAll({
             where: { defense_config: { [Op.ne]: null } },
-            order: [
-                ['fengshen_score', 'DESC'],
-                ['total_wins', 'DESC'],
-                ['created_at', 'ASC']
-            ],
+            order: [['id', 'ASC']],
             transaction: t,
             lock: t.LOCK.UPDATE
         });
 
-        const updatePromises = [];
+        const rankings = locked.slice().sort((a, b) =>
+            (Number(b.fengshen_score) - Number(a.fengshen_score))
+            || (Number(b.total_wins) - Number(a.total_wins))
+            || (new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()));
+
         for (let i = 0; i < rankings.length; i++) {
             const newRank = i + 1;
-            if (rankings[i].rank !== newRank) {
-                rankings[i].rank = newRank;
-                updatePromises.push(rankings[i].save({ transaction: t }));
-            }
+            if (rankings[i].rank === newRank) continue;
+            rankings[i].rank = newRank;
+            // 逐行按 id 升序写；Promise.all 只会让 UPDATE 的到达顺序变得不可控
+            await rankings[i].save({ transaction: t });
         }
-        // 并发执行排名更新
-        await Promise.all(updatePromises);
+    }
+
+    /**
+     * 按 id 升序批量给 players 加行锁（契约见 _recalculateRanks）。
+     * 一条 `WHERE id IN (…) ORDER BY id ASC … FOR UPDATE` 就是升序取锁，比逐行 findByPk 少 N-1 个往返。
+     * @param {Object} t - 事务实例
+     * @param {Array<number>} ids - 要锁的玩家 id（自动去重；空数组直接返回）
+     * @param {Array<string>} [attributes] - 只要锁、不用行内容时传 ['id']，避免把整批 players blob 读进内存
+     */
+    async _lockPlayersByIdAsc(t, ids, attributes) {
+        const unique = [...new Set((ids || []).map(Number).filter(Number.isFinite))].sort((a, b) => a - b);
+        if (!unique.length) return [];
+        return Player.findAll({
+            attributes,
+            where: { id: unique },
+            order: [['id', 'ASC']],
+            lock: t.LOCK.UPDATE,
+            transaction: t
+        });
+    }
+
+    /**
+     * 只加锁、不读的排名表升序加锁入口（契约见 _recalculateRanks）。
+     *
+     * 为什么要有它：setDefense 旧写法是「FOR UPDATE 取自己那一行 → 改 → _recalculateRanks 扫全表」。
+     * 自己那一行的 id 一般比扫描起点大得多，于是本事务变成"持着高位 id、去要低位 id"，
+     * 而另一笔并发 setDefense 正按升序要行 → 等待图成环。改成先按 id 升序把表锁一遍，
+     * 之后所有单行读都落在已持有的锁上（不再等待），升序不变式才真正成立。
+     * @param {Object} t - 事务实例
+     * @param {Array<number>} [ids] - 只锁这几行；省略则锁整表（setDefense 那种要扫全表的写路径用省略，
+     *                                漏锁任何一行都可能让"后锁的行 id 更小"重新出现）。
+     *                                **给了 ids 就连整行一起读回来**：调用方锁这几行就是为了用它们，
+     *                                再补一次 FOR UPDATE 只是给取锁次序闸门多造一条看着反向的读（行其实早已握在手里）。
+     */
+    async _lockRankingsByIdAsc(t, ids) {
+        const options = {
+            order: [['id', 'ASC']],
+            lock: t.LOCK.UPDATE,
+            transaction: t,
+            // 扫全表那种只要锁、不要读；用条件展开而不是给 options 的 attributes 字段赋值
+            //（后者会被 players 大字段那道写入卫生闸当成"整块赋值"）
+            ...(ids === undefined ? { attributes: ['id'] } : {})
+        };
+        if (ids !== undefined) {
+            const unique = [...new Set(ids.map(Number).filter(Number.isFinite))].sort((a, b) => a - b);
+            if (!unique.length) return [];
+            options.where = { id: unique };
+        }
+        return FengshenRanking.findAll(options);
     }
 
     /**
@@ -299,18 +350,22 @@ class FengshenService {
             throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
-        // 快照当前战斗属性（用于防守时模拟战斗）
-        const attrs = player.attributes || {};
+        // 快照防守方"解析后"的战斗属性。
+        // 以前这里读的是 player.attributes 里的 atk/def/speed/hp_max —— 那是旧属性管线留在
+        // blob 里的输出键：新管线（注册表 + 装备/功法/境界）不再写它们，也不再以它们为基数。
+        // 实测（re_xiuxian_test）两者能差到 63 倍（blob 战力 6185 vs 解析后 98），
+        // 而挑战者一侧走的是 resolveCombatStats，等于攻守两方按两套数字评分。
+        // 现在两侧同源：以后新增属性只要注册表里有，防守快照自动跟着算。
+        const CombatResolver = require('../combat/CombatResolver');
+        const { stats } = await CombatResolver.resolveCombatStats(player);
         const snapshot = {
             nickname: player.nickname,
             realm: player.realm,
             realm_rank: Number(player.realm_rank) || 0,
-            atk: Number(attrs.atk) || 0,
-            def: Number(attrs.def) || 0,
-            speed: Number(attrs.speed) || 0,
-            hp_max: Number(attrs.hp_max) || 0,
-            hp_current: Number(attrs.hp_current) || Number(attrs.hp_max) || 100,
-            mp_current: Number(attrs.mp_current) || 0
+            ...stats,
+            // 出战瞬间的当前值以 players 列为准：blob 里那份只是镜像，原子扣减不会回头更新它
+            hp_current: Number(player.hp_current) || Number(stats.hp_max) || 100,
+            mp_current: Number(player.mp_current) || 0
         };
 
         // 组装防守阵容数据：前端配置 + 属性快照 + 设置时间
@@ -325,6 +380,11 @@ class FengshenService {
 
         const t = await sequelize.transaction();
         try {
+            // 先按 id 升序锁完整张表，再动自己那一行（锁顺序契约见 _recalculateRanks / _lockRankingsByIdAsc）。
+            // 自己那一行随后仍用 FOR UPDATE 读：不只是为了等锁，更因为普通 SELECT 在 REPEATABLE READ 下
+            // 读的是本事务第一笔**普通**读建立的快照，只有加锁读才保证拿到最新已提交值。
+            await this._lockRankingsByIdAsc(t);
+
             // 行级锁查询玩家排名记录
             let ranking = await FengshenRanking.findOne({
                 where: { player_id: playerId },
@@ -411,11 +471,21 @@ class FengshenService {
 
         const t = await sequelize.transaction();
         try {
+            // ===== 锁顺序契约：players(id 升序) → rankings(id 升序) → 写，见 _recalculateRanks =====
+            // 规则按"谁挑战谁"排的话，两笔并发挑战/结算就会以相反顺序去锁同一批行：
+            // A→B 先锁 A 的记录、另一笔的整表重算先按 id 锁到 A…彼此持有对方要的行 → InnoDB 死锁，
+            // 玩家侧表现就是一条"服务器错误"（与宗门战互攻、放养偷菜同一类，那两起都真复现过）。
+            // 下面两次**不带锁**的预读只用来弄清"要锁哪几行"，不参与任何判定；
+            // 真正的校验仍然由后面那些带 FOR UPDATE 的读给出（加锁读拿的是最新已提交值，不是预读那份快照）。
+            const hintOwn = await FengshenRanking.findOne({ where: { player_id: playerId }, transaction: t });
+            const hintTarget = await FengshenRanking.findOne({ where: { rank: targetRankNum }, transaction: t });
+            const lockedPlayers = await this._lockPlayersByIdAsc(t, [playerId, hintTarget?.player_id]);
+            const lockedRankings = await this._lockRankingsByIdAsc(t, [hintOwn?.id, hintTarget?.id]);
+
             // ===== 挑战者校验 =====
-            const attacker = await Player.findByPk(playerId, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 下面几处一律用"锁回来的那批行"，不再单独补一次 FOR UPDATE：
+            // 行已经握在本事务手里，补读不改正确性，只会在取锁次序上看着像反向（加锁读拿的本来就是最新已提交值）。
+            const attacker = lockedPlayers.find(p => Number(p.id) === Number(playerId));
             if (!attacker) {
                 await t.commit();
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -435,11 +505,7 @@ class FengshenService {
             }
 
             // 挑战者排名记录校验
-            const attackerRanking = await FengshenRanking.findOne({
-                where: { player_id: playerId },
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            const attackerRanking = lockedRankings.find(r => Number(r.player_id) === Number(playerId));
             if (!attackerRanking || !attackerRanking.defense_config) {
                 await t.commit();
                 throw new AppError('请先设置防守阵容方可挑战', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
@@ -478,11 +544,9 @@ class FengshenService {
             }
 
             // ===== 防守方校验 =====
-            const defenderRanking = await FengshenRanking.findOne({
-                where: { rank: targetRankNum },
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            // 名次在锁到手之前被人换过时会找不到行 —— 按"目标排名不存在"拒掉让人重试，
+            // 不去追一条没锁过的排名行（那正是"持着一行去等另一行"的形状）。
+            const defenderRanking = lockedRankings.find(r => Number(r.rank) === Number(targetRankNum));
             if (!defenderRanking) {
                 await t.commit();
                 throw new AppError('目标排名不存在', 404, ErrorCodes.NOT_FOUND);
@@ -498,10 +562,7 @@ class FengshenService {
                 throw new AppError('目标玩家尚未设置防守阵容', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            const defender = await Player.findByPk(defenderRanking.player_id, {
-                lock: t.LOCK.UPDATE,
-                transaction: t
-            });
+            const defender = lockedPlayers.find(p => Number(p.id) === Number(defenderRanking.player_id));
             if (!defender) {
                 await t.commit();
                 throw new AppError('目标玩家不存在', 404, ErrorCodes.NOT_FOUND);
@@ -514,7 +575,7 @@ class FengshenService {
 
             // ===== 战斗模拟 =====
             // 挑战者使用当前属性，防守方使用防守阵容快照
-            const attackerPower = this._calculatePowerFromAttributes(attacker);
+            const attackerPower = await this._calculatePowerFromAttributes(attacker);
             const defenderPower = this._calculatePowerFromSnapshot(
                 defenderRanking.defense_config.snapshot
             );
@@ -770,16 +831,45 @@ class FengshenService {
 
         const t = await sequelize.transaction();
         try {
-            // 查询所有排名记录，按积分降序确定最终排名
-            const rankings = await FengshenRanking.findAll({
-                order: [
-                    ['fengshen_score', 'DESC'],
-                    ['total_wins', 'DESC'],
-                    ['created_at', 'ASC']
-                ],
+            // ===== 锁顺序契约：players(id 升序) → rankings(id 升序) → 写，见 _recalculateRanks =====
+            // 发奖要先知道名次、名次要读排名表，所以这里只能"先不带锁预读、再按升序补锁"：
+            // 预读出来的 player_id 只决定"锁谁"，真正用于发奖的数据一律取后面那些加锁读的最新值。
+            // 锁的是**所有**有排名记录的玩家而不是前 N 名 —— 名次随时会被并发挑战改掉，
+            // 只锁预读看到的前 N 名就可能漏锁一个"预读之后才冲进前三"的人，那样又变成排名→玩家的逆序。
+            // 漏网情形只剩"预读之后新设防守的玩家"（那一行由发奖循环自己的加锁读兜住）。
+            const hintPlayerIds = await FengshenRanking.findAll({
+                attributes: ['player_id'],
+                order: [['id', 'ASC']],
+                transaction: t
+            });
+            // 整行一起锁回来：发奖那一段直接用这批行，不再逐个补 FOR UPDATE
+            //（补读要么改判不到最新值，要么在本事务已持整张排名表时再去要一条玩家行 —— 后者就是逆序环）。
+            const lockedPlayers = await this._lockPlayersByIdAsc(t, hintPlayerIds.map(r => r.player_id));
+            const playerById = new Map(lockedPlayers.map(p => [Number(p.id), p]));
+
+            // 查询所有排名记录：按 id 升序**取锁**（与 _recalculateRanks 同一把锁顺序，见那里的说明），
+            // 名次顺序在 JS 里排好再发奖
+            const lockedRankings = await FengshenRanking.findAll({
+                order: [['id', 'ASC']],
                 lock: t.LOCK.UPDATE,
                 transaction: t
             });
+            // 有人在"预读玩家名单 → 锁 players → 锁排名表"这三步中间新设了防守：他的排名行现在看得见，
+            // 玩家行我们却没锁过。此刻再去要就是"持着整张排名表等一行玩家"，正是本文件契约要避免的形状。
+            // 放弃这一笔让下一轮重跑（那一轮名单里就有他了），不悄悄少发一份奖励。
+            const strays = [...new Set(lockedRankings.map(r => Number(r.player_id)))]
+                .filter(id => !playerById.has(id));
+            if (strays.length > 0) {
+                await t.rollback();
+                return {
+                    settled: false,
+                    reason: `结算与 ${strays.length} 名新设防守的玩家并发，本轮放弃、下一轮重试`
+                };
+            }
+            const rankings = lockedRankings.slice().sort((a, b) =>
+                (Number(b.fengshen_score) - Number(a.fengshen_score))
+                || (Number(b.total_wins) - Number(a.total_wins))
+                || (new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()));
 
             const rewards = [];
 
@@ -796,11 +886,8 @@ class FengshenService {
 
                     if (honorGain <= 0 && stoneGain <= 0) continue;
 
-                    // 获取玩家并发放奖励
-                    const player = await Player.findByPk(ranking.player_id, {
-                        lock: t.LOCK.UPDATE,
-                        transaction: t
-                    });
+                    // 玩家行来自开头那批"按 id 升序锁齐"的锁读（上面已保证名次表里没有漏锁的人）
+                    const player = playerById.get(Number(ranking.player_id));
 
                     if (player) {
                         // BigInt 安全累加荣誉值和灵石

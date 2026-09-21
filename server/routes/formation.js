@@ -155,7 +155,7 @@ router.get('/active-effect', auth, async (req, res, next) => {
     try {
         const opponentCategory = req.query.opponent_category || null;
         // 校验对手类型（如提供）
-        const validCategories = ['attack', 'defense', 'support', 'special'];
+        const validCategories = FormationService.formationCategories();
         if (opponentCategory && !validCategories.includes(opponentCategory)) {
             return res.status(400).json({
                 code: 400,

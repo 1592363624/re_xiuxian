@@ -77,12 +77,13 @@ router.get('/help', auth, async (req, res, next) => {
 router.post('/create', auth, async (req, res, next) => {
     try {
         const { dungeon_key } = req.body;
-        // 2026-07-21 白名单扩展：支持 xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeon_key)) {
+        // 副本清单以内容为准（见 MultiDungeonService._dungeonKeys）：这份白名单以前在路由与服务里各抄一遍
+        const invalidDungeon = MultiDungeonService.invalidDungeonKey(dungeon_key);
+        if (invalidDungeon) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'dungeon_key 必须为 yanyue(掩月抢亲) / duanwu(端午镇蛟) / kunwu(昆吾山·封魔塔) / xutian(虚天殿) / xiaoji(北冥小极宫) / luoyun(落云秘圃) / cangkun(苍坤洞府) / xuese(血色试炼) / zhuimo(坠魔谷) / huanglong(黄龙山)'
+                message: invalidDungeon.message
             });
         }
         const result = await MultiDungeonService.create(req.player.id, dungeon_key);
@@ -262,12 +263,12 @@ router.post('/kick', auth, async (req, res, next) => {
 router.get('/rewards', auth, async (req, res, next) => {
     try {
         const { dungeon_key } = req.query;
-        // 2026-07-21 白名单扩展：支持 xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong
-        if (!['yanyue', 'duanwu', 'kunwu', 'xutian', 'xiaoji', 'luoyun', 'cangkun', 'xuese', 'zhuimo', 'huanglong'].includes(dungeon_key)) {
+        const invalidRewardKey = MultiDungeonService.invalidDungeonKey(dungeon_key);
+        if (invalidRewardKey) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'dungeon_key 必须为 yanyue / duanwu / kunwu / xutian / xiaoji / luoyun / cangkun / xuese / zhuimo / huanglong'
+                message: invalidRewardKey.message
             });
         }
         const result = await MultiDungeonService.getRewards(dungeon_key);

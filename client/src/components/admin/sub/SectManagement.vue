@@ -233,20 +233,26 @@ import {
   updateMemberRole,
   kickMember
 } from '../../../api/admin_sect'
+import { getContentKeyOptions } from '../../../api/config'
 import AppButton from '../../ui/AppButton.vue'
 
 const emit = defineEmits(['showConfirm'])
 const uiStore = useUIStore()
 
-// 宗门筛选项（静态配置：六大宗门 ID 与名称，与 sect_data.json 保持一致）
-const sectOptions = [
-  { id: 'luoyun', name: '落云宗' },
-  { id: 'xinggong', name: '星宫' },
-  { id: 'tianxing', name: '天星宗' },
-  { id: 'lingxiao', name: '凌霄宫' },
-  { id: 'yinluo', name: '阴罗宗' },
-  { id: 'hehuan', name: '合欢宗' }
-]
+// 宗门筛选项：清单与名称取自内容（GET /config/content/keys/sect_data）。
+// 这里以前抄了六大宗门的 id 与名称并注释"与 sect_data.json 保持一致"——
+// 资料片加一个宗门，这个筛选下拉里就没有它，而服务端按内容认，本来选得出来。
+const sectOptions = ref([])
+
+/** 拉宗门清单；失败要响，不能留一个空下拉让人以为"没有宗门" */
+async function loadSectOptions() {
+  try {
+    const res = await getContentKeyOptions('sect_data')
+    sectOptions.value = (res.data?.data?.entries || []).map(e => ({ id: e.key, name: e.name }))
+  } catch (err) {
+    uiStore.showToast(err?.message || '获取宗门清单失败', 'error')
+  }
+}
 
 // 宗门统计数据
 const sectStats = ref([])
@@ -502,6 +508,7 @@ defineExpose({
 })
 
 onMounted(() => {
+  loadSectOptions()
   fetchAll()
 })
 </script>

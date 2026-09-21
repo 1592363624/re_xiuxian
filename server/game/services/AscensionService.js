@@ -36,6 +36,7 @@ const PlayerAscensionNode = require('../../models/playerAscensionNode');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const RealmService = require('../core/RealmService');
+const PlayerStateStore = require('../persistence/PlayerStateStore');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
 
@@ -56,27 +57,44 @@ function getDivineSense(player) {
 }
 
 /**
- * 工具函数：扣减玩家神识（写入 attributes.sense）
- * @param {Object} player - 玩家对象
+ * 工具函数：扣减玩家神识（attributes.sense）
+ *
+ * 走 PlayerStateStore 的键级增量补丁，而不是"在手上这份 attributes 上改一个键、整块写回"：
+ * 神识会被飞升 / 战线 / 残魂等多条流程并发增减，整块写回会把这段时间里
+ * 别的流程写进 attributes 的键一起抹掉。$min 让"不能扣成负数"在行锁内判定。
+ *
+ * @param {Object} player - 玩家实例（调用方手上的那一份）
  * @param {number} cost - 消耗量
+ * @param {Object} transaction - 调用方事务
+ * @returns {Promise<number>} 扣减后的神识
  */
-function consumeDivineSense(player, cost) {
-    const attrs = player.attributes || {};
-    const current = Number(attrs.sense || 0);
-    attrs.sense = Math.max(0, current - cost);
-    player.attributes = attrs; // 触发 setter 序列化
+async function consumeDivineSense(player, cost, transaction) {
+    const updated = await PlayerStateStore.patchPlayerState(
+        player.id,
+        { attributes: { sense: { $add: -Number(cost) || 0, $min: 0 } } },
+        { transaction }
+    );
+    // 让调用方手上的实例反映最新值；写库只发生过一次（来自锁内那份）
+    PlayerStateStore.mirrorPatchedBlob(player, updated);
+    return Number((updated.attributes || {}).sense || 0);
 }
 
 /**
- * 工具函数：增加玩家神识
- * @param {Object} player - 玩家对象
+ * 工具函数：增加玩家神识（同样走键级增量补丁，理由同上）
+ * @param {Object} player - 玩家实例
  * @param {number} gain - 增加量
+ * @param {Object} transaction - 调用方事务
+ * @returns {Promise<number>} 增加后的神识
  */
-function addDivineSense(player, gain) {
-    const attrs = player.attributes || {};
-    const current = Number(attrs.sense || 0);
-    attrs.sense = current + gain;
-    player.attributes = attrs;
+async function addDivineSense(player, gain, transaction) {
+    const updated = await PlayerStateStore.patchPlayerState(
+        player.id,
+        { attributes: { sense: { $add: Number(gain) || 0, $min: 0 } } },
+        { transaction }
+    );
+    // 同上：内存跟着最新值走，这一列不再参与写库
+    PlayerStateStore.mirrorPatchedBlob(player, updated);
+    return Number((updated.attributes || {}).sense || 0);
 }
 
 /**
@@ -589,7 +607,7 @@ class AscensionService {
             }
 
             // 扣减神识
-            consumeDivineSense(player, nodeCfg.stabilize_cost_divine_sense);
+            await consumeDivineSense(player, nodeCfg.stabilize_cost_divine_sense, t);
             // 扣减灵石
             player.spirit_stones = (playerStones - costStones).toString();
 
@@ -883,7 +901,7 @@ class AscensionService {
                 ascension.ascension_realm = 'lingji';
 
                 // 神识消耗
-                consumeDivineSense(player, ascensionCfg.cost_divine_sense);
+                await consumeDivineSense(player, ascensionCfg.cost_divine_sense, t);
 
                 await player.save({ transaction: t });
                 await ascension.save({ transaction: t });
@@ -939,7 +957,7 @@ class AscensionService {
                 player.weakness_end_time = new Date(now.getTime() + ascensionCfg.weakness_duration_seconds * 1000);
 
                 // 神识消耗（失败也消耗）
-                consumeDivineSense(player, ascensionCfg.cost_divine_sense);
+                await consumeDivineSense(player, ascensionCfg.cost_divine_sense, t);
 
                 await player.save({ transaction: t });
                 await ascension.save({ transaction: t });
@@ -1433,7 +1451,7 @@ class AscensionService {
             }
 
             // 扣减神识+灵石
-            consumeDivineSense(player, fracCfg.cost_divine_sense);
+            await consumeDivineSense(player, fracCfg.cost_divine_sense, t);
             player.spirit_stones = (playerStones - costStones).toString();
             player.daily_fracture_explore_count += 1;
             player.last_fracture_explore_time = new Date();
@@ -1498,7 +1516,7 @@ class AscensionService {
                 case 'divine_sense': {
                     // 神识提升 20~50
                     const qty = pickedReward.quantity_min + Math.floor(Math.random() * (pickedReward.quantity_max - pickedReward.quantity_min + 1));
-                    addDivineSense(player, qty);
+                    await addDivineSense(player, qty, t);
                     rewardResult.quantity = qty;
                     break;
                 }
