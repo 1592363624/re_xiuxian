@@ -20,6 +20,7 @@
  * 单例导出：module.exports = new BeastAbyssService()
  */
 'use strict';
+const { beastSnapshot } = require('../stats/beastView');
 
 const { Op } = require('sequelize');
 const sequelize = require('../../config/database');
@@ -619,21 +620,8 @@ class BeastAbyssService {
      * @private
      */
     _createBeastSnapshot(beast) {
-        return {
-            beast_id: beast.id,
-            beast_key: beast.beast_key,
-            beast_name: beast.beast_name,
-            element: beast.element,
-            rarity: beast.rarity,
-            star_level: beast.star_level,
-            level: beast.level,
-            hp_max: Number(beast.hp_max),
-            atk: beast.atk,
-            def: beast.def,
-            speed: beast.speed,
-            loyalty: beast.loyalty,
-            stamina: beast.stamina
-        };
+        // 字段清单收在 game/stats/beastView.js：探渊这份历史上是 Number 型 hp_max 且带 stamina，形状保持不变
+        return beastSnapshot(beast, { hpMaxAs: 'number', includeStamina: true });
     }
 
     /**

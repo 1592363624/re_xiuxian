@@ -120,6 +120,52 @@ export const deleteNotification = (notificationId: number) => {
 };
 
 /**
+ * 编辑通知（部分更新）
+ *
+ * 配图按"最终列表"提交：保留原地址即复用已上传的图，不需要重新上传。
+ * @param notificationId - 通知 ID
+ * @param patch - 只传需要改的字段；imageUrls 传最终列表（空数组表示清空配图）
+ */
+export const updateNotification = (
+  notificationId: number,
+  patch: { title?: string; content?: string; priority?: string; imageUrls?: string[] }
+) => {
+  return apiClient.put<{
+    code: number;
+    message: string;
+    data: { before: Record<string, any>; after: Record<string, any> };
+  }>(`/admin/notifications/${notificationId}`, patch);
+};
+
+/**
+ * 撤回通知（下架，保留记录与配图）
+ */
+export const unpublishNotification = (notificationId: number) => {
+  return apiClient.post<{ code: number; message: string }>(`/admin/notifications/${notificationId}/unpublish`);
+};
+
+/**
+ * 重新上架已撤回的通知
+ */
+export const publishNotification = (notificationId: number) => {
+  return apiClient.post<{ code: number; message: string }>(`/admin/notifications/${notificationId}/publish`);
+};
+
+/**
+ * 批量删除通知
+ *
+ * 为什么不循环调单删接口：删 200 条就是 200 次请求，既慢又会撞上 /api/admin 的限流阈值
+ * @param ids - 通知 ID 列表（后端会去重、过滤非法值并限制单次条数）
+ */
+export const batchDeleteNotifications = (ids: number[]) => {
+  return apiClient.post<{
+    code: number;
+    message: string;
+    data: { deleted: number; removedImages: number; ids: number[] };
+  }>('/admin/notifications/batch-delete', { ids });
+};
+
+/**
  * 获取操作日志
  */
 export const getLogs = (params: { page?: number; limit?: number; action?: string } = {}) => {
@@ -128,15 +174,82 @@ export const getLogs = (params: { page?: number; limit?: number; action?: string
 
 /**
  * 发送全服公告
+ * @param imageUrls - 公告配图地址（由 uploadAnnouncementImage 上传后得到，最多 3 张）
  */
-export const sendAnnouncement = (title: string, content: string, priority: string) => {
-  return apiClient.post('/notifications/announcement', { title, content, priority });
+export const sendAnnouncement = (title: string, content: string, priority: string, imageUrls: string[] = []) => {
+  return apiClient.post('/notifications/announcement', { title, content, priority, imageUrls });
+};
+
+/** 公告配图上传结果 */
+export interface AnnouncementImageUploadResult {
+  /** 可直接用于公告展示的地址，随公告提交给后端 */
+  url: string;
+  /** 服务端落盘文件名 */
+  fileName: string;
+  /** 实际字节数 */
+  size: number;
+  /** 服务端识别的真实 MIME */
+  mimeType: string;
+}
+
+/**
+ * 上传公告配图（原始二进制直传）
+ *
+ * 用 Blob 作为 body 而不是 base64 塞进 JSON：base64 会让体积膨胀约 33%，
+ * 整屏截图会因此轻易超过体积上限；同时上传耗时更长，这里单独放宽超时时间。
+ * @param blob - 已压缩的图片数据
+ * @param mimeType - 图片 MIME（不传则取 blob.type）
+ */
+export const uploadAnnouncementImage = (blob: Blob, mimeType?: string) => {
+  return apiClient.post<{ code: number; message: string; data: AnnouncementImageUploadResult }>(
+    '/uploads/announcement-image',
+    blob,
+    {
+      headers: { 'Content-Type': mimeType || blob.type },
+      timeout: 60000
+    }
+  );
+};
+
+/**
+ * 获取公告配图配置（GM）
+ * GET /api/admin/announcement/config
+ *
+ * 返回三样：完整配置、可改字段清单、以及"为什么不能在前台改"的锁死清单（如 url_prefix）
+ */
+export const getAnnouncementConfig = () => {
+  return apiClient.get<{
+    code: number;
+    data: {
+      config: Record<string, any>;
+      editable_fields: string[];
+      locked_fields: string[];
+    };
+  }>('/admin/announcement/config');
+};
+
+/**
+ * 局部更新公告配图配置并触发热加载
+ * POST /api/admin/announcement/config
+ *
+ * @param patch - 点分路径 → 新值，如 { 'upload.max_file_size_bytes': 8388608, 'cleanup.enabled': true }
+ *               后端按白名单校验范围与类型，越界值会被拒绝而不是静默截断
+ */
+export const updateAnnouncementConfig = (patch: Record<string, number | boolean>) => {
+  return apiClient.post<{ code: number; message: string; data: { changes: Record<string, any>; config: Record<string, any> } }>(
+    '/admin/announcement/config',
+    patch
+  );
 };
 
 /**
  * 获取通知列表（管理员视角）
+ * @param params.includeInactive - 传 'true' 时连同已撤回的通知一起返回（仅管理员生效），
+ *                                 否则撤回后记录会从列表里消失，"恢复"按钮永远点不到
  */
-export const getAdminNotifications = (params: { page?: number; limit?: number; includeGlobal?: string } = {}) => {
+export const getAdminNotifications = (
+  params: { page?: number; limit?: number; includeGlobal?: string; includeInactive?: string } = {}
+) => {
   return apiClient.get('/notifications', { params });
 };
 

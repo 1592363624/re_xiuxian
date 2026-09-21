@@ -13,6 +13,9 @@ const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const interfaceGateway = require('../modules/application/InterfaceGateway');
 const requireAdmin = interfaceGateway.requireRole('admin');
 
+// 公告配图地址白名单校验（只认本服务 /api/uploads/announcements/ 下已落盘的文件）
+const { sanitizeImageUrls } = require('../utils/announcementImage');
+
 /**
  * 获取当前用户的所有通知
  * GET /api/notifications
@@ -25,7 +28,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
             limit: parseInt(req.query.limit) || 20,
             type: req.query.type || null,
             unreadOnly: req.query.unreadOnly === 'true',
-            includeGlobal: req.query.includeGlobal !== 'false'
+            includeGlobal: req.query.includeGlobal !== 'false',
+            // 只有管理员能看见已撤回（isActive=false）的通知：
+            // GM 后台靠它列出被撤回的公告以便恢复，玩家侧永远看不到这一批。
+            includeInactive: req.query.includeInactive === 'true' && req.player?.role === 'admin'
         };
 
         const result = await NotificationService.getPlayerNotifications(playerId, options);
@@ -96,16 +102,37 @@ router.post('/read-all', authenticateToken, async (req, res, next) => {
 /**
  * 发送全服公告（GM 功能）
  * POST /api/notifications/announcement
+ *
+ * imageUrls 可选：必须是本服务 /api/uploads/announcements/ 下已上传的图片地址
+ * （先调 POST /api/uploads/announcement-image 上传，再把返回的 url 填进来）。
+ * 只放行本服务托管地址，避免公告被用来引用外部图片——那会把玩家 IP 泄露给第三方，
+ * 也给了钓鱼图片一个合法的展示位置。
  */
 router.post('/announcement', authenticateToken, requireAdmin, async (req, res, next) => {
     try {
-        const { title, content, priority } = req.body;
+        const { title, content, priority, imageUrls } = req.body;
 
-        if (!title || !content) {
+        // 非法的图片地址直接拒绝而不是静默丢弃：GM 需要立刻知道这条公告的图没带上
+        const { urls: safeImageUrls, rejected } = sanitizeImageUrls(imageUrls);
+        if (rejected.length > 0) {
+            throw new AppError(
+                '存在不合法的图片地址，请先通过公告配图上传接口获取地址',
+                400,
+                ErrorCodes.VALIDATION_ERROR
+            );
+        }
+
+        // 纯图片公告也允许发送，因此"内容"与"配图"满足其一即可
+        if (!title || (!content && safeImageUrls.length === 0)) {
             throw new AppError('标题和内容不能为空', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
-        await NotificationService.sendAnnouncement(title, content, priority || 'high');
+        await NotificationService.sendAnnouncement(
+            title,
+            content || '',
+            priority || 'high',
+            { imageUrls: safeImageUrls }
+        );
         res.json({ code: 200, message: '公告已发送' });
     } catch (error) {
         next(error);

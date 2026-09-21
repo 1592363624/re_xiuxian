@@ -11,6 +11,8 @@ export const getNotifications = (options: {
   limit?: number;
   type?: string;
   unreadOnly?: boolean;
+  /** 是否同时返回全服通知（targetPlayerId 为 null 的公告，默认后端为 true） */
+  includeGlobal?: boolean;
 } = {}) => {
   return apiClient.get('/notifications', { params: options });
 };

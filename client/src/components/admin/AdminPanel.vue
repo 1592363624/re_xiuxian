@@ -16,23 +16,54 @@
         </button>
       </div>
 
-      <!-- Tabs -->
-      <div class="flex shrink-0 border-b border-line bg-surface-raised/50 overflow-x-auto no-scrollbar">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          type="button"
-          @click="currentTab = tab.id"
-          class="focus-ring px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap cursor-pointer"
-          :class="currentTab === tab.id ? 'text-gold-500' : 'text-fg-muted hover:text-fg-primary hover:bg-surface-hover/50'"
-        >
-          {{ tab.name }}
-          <div v-if="currentTab === tab.id" class="absolute bottom-0 left-0 w-full h-0.5 bg-gold-500"></div>
-        </button>
-      </div>
+      <!-- Body：左侧竖向分类菜单 + 右侧内容区，全屏下最大化内容空间 -->
+      <div class="flex-1 min-h-0 flex">
+        <!-- 左侧菜单栏：按功能域分组，支持折叠/展开，便于后续持续新增管理页 -->
+        <aside class="w-52 shrink-0 border-r border-line-subtle bg-surface-raised/40 overflow-y-auto scroll-thin py-2">
+          <nav v-for="group in tabGroups" :key="group.id" class="mb-1">
+            <!-- 分组标题：点击切换折叠状态，箭头旋转指示 -->
+            <button
+              type="button"
+              @click="toggleGroup(group.id)"
+              class="focus-ring w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-fg-faint uppercase tracking-wider hover:text-fg-secondary hover:bg-surface-hover/40 transition-colors cursor-pointer"
+            >
+              <span>{{ group.name }}</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="transition-transform duration-200"
+                :class="expandedGroups[group.id] ? 'rotate-180' : ''"
+              ><path d="m6 9 6 6 6-6"></path></svg>
+            </button>
+            <!-- 分组内的菜单项：仅当前项高亮，点击切换内容区 -->
+            <div v-show="expandedGroups[group.id]">
+              <button
+                v-for="tab in group.tabs"
+                :key="tab.id"
+                type="button"
+                @click="currentTab = tab.id"
+                class="focus-ring w-full text-left pl-8 pr-4 py-2 text-sm transition-colors relative cursor-pointer whitespace-nowrap"
+                :class="currentTab === tab.id
+                  ? 'text-gold-500 bg-gold-500/10 font-medium'
+                  : 'text-fg-muted hover:text-fg-primary hover:bg-surface-hover/50'"
+              >
+                <!-- 左侧高亮竖条：标记当前激活项 -->
+                <div v-if="currentTab === tab.id" class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-gold-500"></div>
+                {{ tab.name }}
+              </button>
+            </div>
+          </nav>
+        </aside>
 
-      <!-- Content -->
-      <div class="flex-1 min-h-0 overflow-auto p-4 scroll-thin">
+        <!-- 右侧内容区 -->
+        <div class="flex-1 min-w-0 overflow-auto p-4 scroll-thin">
         <!-- 玩家管理 -->
         <PlayerManagement
           v-if="currentTab === 'players'"
@@ -109,6 +140,7 @@
         <MultiDungeonManagement v-if="currentTab === 'multi_dungeon'" @showConfirm="showConfirm" />
         <!-- 灵兽系统管理（批次2新增：统计/查询/发放/编辑/删除/强制出战/重置冷却） -->
         <SpiritBeastManagement v-if="currentTab === 'spirit_beast'" @showConfirm="showConfirm" />
+        </div>
       </div>
     </div>
 
@@ -254,9 +286,10 @@
  * GM 管理后台主组件
  * 负责 Tab 导航和弹窗管理，具体功能委托给子组件
  */
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
+import { UI_CONFIG } from '../../config'
 import Modal from '../common/Modal.vue'
 import AppButton from '../ui/AppButton.vue'
 import PlayerManagement from './sub/PlayerManagement.vue'
@@ -309,39 +342,110 @@ const emit = defineEmits(['close'])
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
 
-// Tab 配置
-const tabs = [
-  { id: 'players', name: '玩家数据' },
-  { id: 'config', name: '系统配置' },
-  { id: 'cultivation', name: '修炼配置' },
-  { id: 'ai_config', name: 'AI 配置' },
-  { id: 'sect', name: '宗门管理' },
-  { id: 'cave', name: '洞府管理' },
-  { id: 'equipment', name: '装备管理' },
-  { id: 'meditation', name: '悟道瓶颈' },
-  { id: 'pvp', name: 'PVP斗法' },
-  { id: 'pawnshop', name: '当铺管理' },
-  { id: 'stock', name: '股市管理' },
-  { id: 'notifications', name: '通知管理' },
-  { id: 'stats', name: '服务器统计' },
-  { id: 'logs', name: '操作日志' },
-  { id: 'state_cleaner', name: '状态清理' },
-  { id: 'state_logs', name: '状态日志' },
-  // 批次2新增：世界BOSS + 宗门战 GM 管理
-  { id: 'world_boss', name: '世界BOSS' },
-  { id: 'sect_war', name: '宗门战' },
-  // 批次3新增：飞升+夺舍重生系统 GM 管理
-  { id: 'ascension', name: '飞升系统' },
-  // 批次3新增：后期系统 GM 管理（第二元神/小世界/神庙/香火/神识/法则 6 大子系统）
-  { id: 'late_stage', name: '后期系统' },
-  // 批次3新增：道侣/双修/侍妾系统 GM 管理（强制解除道侣、心契调整、触发心劫、发放侍妾、属性调整、完成远航）
-  { id: 'companion_concubine', name: '道侣侍妾' },
-  // 批次3新增：多人副本系统 GM 管理（强制解散副本、调整副本变量、发放副本奖励、重置玩家冷却）
-  { id: 'multi_dungeon', name: '多人副本' },
-  // 批次2新增：灵兽系统 GM 管理（统计/查询/发放/编辑/删除/强制出战/重置冷却）
-  { id: 'spirit_beast', name: '灵兽系统' }
+// Tab 分组配置：左侧竖向菜单按功能域分类展示
+// 新增管理页时只需在对应分组的 tabs 里追加一项，菜单自动支持折叠，无需改动布局逻辑
+const tabGroups = [
+  // 玩家运营：玩家档案、公告推送等直接面向单玩家的操作
+  { id: 'player', name: '玩家运营', tabs: [
+    { id: 'players', name: '玩家数据' },
+    { id: 'notifications', name: '通知管理' }
+  ]},
+  // 系统配置：全局参数、修炼数值、AI 接入等平台级设置
+  { id: 'system', name: '系统配置', tabs: [
+    { id: 'config', name: '系统配置' },
+    { id: 'cultivation', name: '修炼配置' },
+    { id: 'ai_config', name: 'AI 配置' }
+  ]},
+  // 玩法管理：宗门/洞府/装备/PVP/当铺/股市等核心玩法后台
+  { id: 'gameplay', name: '玩法管理', tabs: [
+    { id: 'sect', name: '宗门管理' },
+    { id: 'cave', name: '洞府管理' },
+    { id: 'equipment', name: '装备管理' },
+    { id: 'meditation', name: '悟道瓶颈' },
+    { id: 'pvp', name: 'PVP斗法' },
+    { id: 'pawnshop', name: '当铺管理' },
+    { id: 'stock', name: '股市管理' }
+  ]},
+  // 世界活动：世界BOSS/宗门战/多人副本/灵兽等跨玩家大型玩法
+  { id: 'world', name: '世界活动', tabs: [
+    { id: 'world_boss', name: '世界BOSS' },
+    { id: 'sect_war', name: '宗门战' },
+    { id: 'multi_dungeon', name: '多人副本' },
+    { id: 'spirit_beast', name: '灵兽系统' }
+  ]},
+  // 进阶系统：飞升/后期系统/道侣侍妾等高境界内容
+  { id: 'advanced', name: '进阶系统', tabs: [
+    { id: 'ascension', name: '飞升系统' },
+    { id: 'late_stage', name: '后期系统' },
+    { id: 'companion_concubine', name: '道侣侍妾' }
+  ]},
+  // 运维监控：服务器统计、日志与状态数据排查
+  { id: 'ops', name: '运维监控', tabs: [
+    { id: 'stats', name: '服务器统计' },
+    { id: 'logs', name: '操作日志' },
+    { id: 'state_cleaner', name: '状态清理' },
+    { id: 'state_logs', name: '状态日志' }
+  ]}
 ]
-const currentTab = ref('players')
+// 默认停留在第一个分组的第一项（有本地存档时会被覆盖）
+const defaultTab = tabGroups[0].tabs[0].id
+// 默认仅展开默认 Tab 所在分组，其余收起以保持菜单简洁
+const defaultGroup = tabGroups.find(g => g.tabs.some(t => t.id === defaultTab))
+
+/**
+ * 读取本地存档：分组折叠状态 + 上次停留的 Tab
+ * 只接受当前菜单中仍存在的分组/页签，避免菜单增删后旧存档把界面带到不存在的页
+ * @returns {{expanded: Record<string, boolean>, currentTab: string}}
+ */
+const loadMenuState = () => {
+  const state = {
+    expanded: Object.fromEntries(tabGroups.map(g => [g.id, g.id === defaultGroup?.id])),
+    currentTab: defaultTab
+  }
+  try {
+    const saved = JSON.parse(localStorage.getItem(UI_CONFIG.adminMenuStateKey) || 'null')
+    if (!saved || typeof saved !== 'object') return state
+    for (const g of tabGroups) {
+      if (typeof saved.expanded?.[g.id] === 'boolean') state.expanded[g.id] = saved.expanded[g.id]
+    }
+    // 仅当存档中的 Tab 仍在菜单里才还原，配置重构后不会停在空白页
+    if (tabGroups.flatMap(g => g.tabs).some(t => t.id === saved.currentTab)) {
+      state.currentTab = saved.currentTab
+    }
+  } catch (e) {
+    console.warn('[AdminPanel] 菜单状态读取失败，回退默认:', e)
+  }
+  return state
+}
+
+const menuState = loadMenuState()
+const currentTab = ref(menuState.currentTab)
+const expandedGroups = reactive(menuState.expanded)
+
+/**
+ * 持久化菜单状态：折叠状态或当前 Tab 变更后写回本地存储，刷新页面自动还原
+ * localStorage 在隐私模式/超额时会抛错，这里静默降级不影响菜单使用
+ */
+const persistMenuState = () => {
+  try {
+    localStorage.setItem(UI_CONFIG.adminMenuStateKey, JSON.stringify({
+      expanded: expandedGroups,
+      currentTab: currentTab.value
+    }))
+  } catch (e) {
+    console.warn('[AdminPanel] 菜单状态持久化失败:', e)
+  }
+}
+
+watch([expandedGroups, currentTab], persistMenuState, { deep: true })
+
+/**
+ * 切换分组折叠/展开状态
+ * @param {string} groupId 分组 ID
+ */
+const toggleGroup = (groupId) => {
+  expandedGroups[groupId] = !expandedGroups[groupId]
+}
 
 // 子组件引用
 const playerManagementRef = ref(null)

@@ -33,6 +33,8 @@ require('./models/player');
 require('./models/chat');
 require('./models/system_config');
 require('./models/system_notification');
+// 通知已读回执（(玩家, 通知) 二元关系，替代行级 isRead 的全服共享语义）
+require('./models/notification_read');
 require('./models/playerMapPosition');
 require('./models/playerGathering');
 require('./models/playerCombat');
@@ -609,6 +611,8 @@ const startServer = async () => {
     app.use('/api/admin/sect', require('./routes/admin_sect'));
     // 洞府管理（GM 后台）：玩家洞府列表查询、设施等级调整、洞府重置、药园地块数调整
     app.use('/api/admin/cave', require('./routes/admin_cave'));
+    // 公告配图配置（GM 后台）：单张体积上限 / 配图张数 / 孤儿图回收周期，改完热加载
+    app.use('/api/admin/announcement', require('./routes/admin_announcement'));
     // 装备管理（GM 后台）：装备列表查询、记录修改、重置、强制卸下、GM 一键修理
     app.use('/api/admin/equipment', require('./routes/admin_equipment'));
     app.use('/api/admin/meditation', require('./routes/admin_meditation'));
@@ -633,6 +637,33 @@ const startServer = async () => {
     app.use('/api/lottery', require('./routes/lottery'));
     app.use('/api/time', require('./routes/time'));
     app.use('/api/notifications', require('./routes/notifications'));
+    // 公告配图孤儿文件清理（GM 上传后未发送、或通知已被删掉图的残留）
+    // 周期与保留窗口来自 announcement_upload.cleanup，改完热更即时生效
+    try {
+        const AnnouncementImageCleanupService = require('./game/services/AnnouncementImageCleanupService');
+        AnnouncementImageCleanupService.start();
+    } catch (err) {
+        console.error('公告配图清理任务启动失败:', err.message);
+    }
+
+    // 公告配图：上传接口 + 静态托管（URL 形如 /api/uploads/announcements/ann_1730000000_ab12cd34ef56.png）
+    // 故意挂在 /api 之下：前端 vite devServer 与生产 nginx 都只代理了 /api，
+    // 图片因此天然与接口同源，玩家浏览器可直连加载，无需新增代理规则或静态目录配置。
+    // 注意顺序：upload 路由必须挂在 static 之前，否则带 fallthrough:false 的
+    // serve-static 会把 POST /api/uploads/announcement-image 直接判成 405。
+    const announcementImage = require('./utils/announcementImage');
+    app.use('/api/uploads', require('./routes/uploads'));
+    app.use('/api/uploads', express.static(announcementImage.getStorageDir(), {
+        index: false,
+        dotfiles: 'deny',
+        // 文件名含随机串且内容永不变化，可放心长缓存（时长来自配置）
+        maxAge: announcementImage.getImageConfig().static.max_age_ms,
+        fallthrough: announcementImage.getImageConfig().static.fallthrough,
+        setHeaders: (res) => {
+            // 开发期前端端口与后端不同源，放行跨源读取
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        }
+    }));
     app.use('/api/inventory', require('./routes/inventory'));
     app.use('/api/sect', require('./routes/sect'));
     app.use('/api/market', require('./routes/market'));

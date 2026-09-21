@@ -50,6 +50,7 @@ function datasetsReadByCode() {
  */
 const NOT_EXTENSIBLE = {
     ai_config: 'AI 供应商地址/密钥/超时/限流：既不是条目表，也不该让资料片往里写凭据',
+    announcement_upload: '公告配图的落盘目录/URL 前缀/体积上限/文件头白名单与批量删除上限：纯运维阈值与安全白名单，没有可按条增删的内容集合',
     attribute_system: '恢复速率与丹药/加点的钳制阈值；里面的 attribute_bonuses 两张表全仓库没人读（见下条 test）',
     auction_data: '拍卖时长/加价率/手续费/调度间隔等阈值，没有可增删的条目集合',
     cave_legacy_data: '坐化遗府的活动时长、参与资格阈值与物品筛选规则，条目本身来自 item_data',

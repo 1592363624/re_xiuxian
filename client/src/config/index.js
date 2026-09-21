@@ -30,6 +30,8 @@ export const UI_CONFIG = {
   maxLogs: 200,
   // 实时通知最大保留条数
   maxLiveNotifications: 10,
+  // 带配图的全服公告弹窗停留时长（毫秒）：默认 5 秒不足以让玩家看清截图
+  announcementAlertDurationMs: 15000,
   // 默认分页大小
   defaultPageSize: 10,
   // 登录防抖时间（毫秒）
@@ -37,7 +39,29 @@ export const UI_CONFIG = {
   // loading 最小显示时间（毫秒）
   minLoadingTime: 500,
   // 数字动画时长（毫秒）
-  numberAnimationDuration: 300
+  numberAnimationDuration: 300,
+  // GM 管理后台左侧菜单「分组折叠状态 + 当前页」的本地存储键名（持久化用）
+  adminMenuStateKey: 'gm_admin_menu_state'
+}
+
+// 全服公告配图配置
+// 与后端 server/config/announcement_upload.json 保持一致：前端负责压缩与体积预检，
+// 后端负责最终校验，任一侧调阈值时两边都要改
+export const ANNOUNCEMENT_IMAGE_CONFIG = {
+  // 上传接口（原始二进制直传，避免 base64 带来的 33% 体积膨胀）
+  uploadUrl: '/api/uploads/announcement-image',
+  // 单条公告最多配几张图
+  maxCount: 3,
+  // 压缩后允许的最长边（像素）：粘贴 4K 整屏截图时不至于把弹窗和传输都撑爆
+  maxEdgePx: 1600,
+  // 统一转 JPEG 的压缩质量
+  quality: 0.85,
+  // 允许粘贴/选择的图片类型（与后端白名单一致）
+  acceptTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+  // 允许上传的最大体积（字节，与后端 max_file_size_bytes 对应）
+  maxSizeBytes: 5 * 1024 * 1024,
+  // 列表批量删除单次最多勾选条数（与后端 batch_delete.max_ids_per_request 对应）
+  batchDeleteMax: 200
 }
 
 // 账号密码正则（与后端 game_balance.auth 保持一致）

@@ -19,6 +19,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# GM 上传的公告配图（运行期产物，不入库）
+server/uploads/
+
 # IDEs & Editors
 .idea/
 .vscode/
@@ -28,6 +31,8 @@ yarn-error.log*
 *.ntvs*
 *.njsproj
 *.sln
+.codebuddy/
+.opencode/
 
 # OS System Files
 .DS_Store

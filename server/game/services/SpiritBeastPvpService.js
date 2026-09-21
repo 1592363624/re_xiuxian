@@ -20,6 +20,7 @@
  * 单例导出：module.exports = new SpiritBeastPvpService()
  */
 'use strict';
+const { beastSnapshot } = require('../stats/beastView');
 
 const { Op } = require('sequelize');
 const sequelize = require('../../config/database');
@@ -748,20 +749,7 @@ class SpiritBeastPvpService {
      * @private
      */
     _createBeastSnapshot(beast) {
-        return {
-            beast_id: beast.id,
-            beast_key: beast.beast_key,
-            beast_name: beast.beast_name || beast.beast_key,
-            element: beast.element,
-            rarity: beast.rarity,
-            star_level: beast.star_level,
-            level: beast.level,
-            hp_max: beast.hp_max.toString(),
-            atk: beast.atk,
-            def: beast.def,
-            speed: beast.speed,
-            loyalty: beast.loyalty
-        };
+        return beastSnapshot(beast);   // 字段清单见 game/stats/beastView.js
     }
 
     /**

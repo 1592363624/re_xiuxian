@@ -58,14 +58,92 @@ function jsonBlobColumns() {
     return found;
 }
 
-/** 真正"整块写"这一列的文件：import 了这个模型，且有 x.col = / Model.update({col / .set('col' */
+/**
+ * 一列的所有"整块写"点：{ line, receiver, kind }。
+ * kind：assign = `row.col = …`（会把整列带回旧值，最危险）；update / set = 只写那一列，
+ * 但同一列的"读-改-写"照样能互相覆盖。注释行不算。
+ */
+function columnWriteSites(src, column) {
+    const c = escapeRe(column);
+    const sites = [];
+    const lineOf = idx => src.slice(0, idx).split(/\r?\n/).length;
+    src.split(/\r?\n/).forEach((line, i) => {
+        const t = line.trim();
+        if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+        for (const m of line.matchAll(new RegExp(`([A-Za-z_$][\\w$.]*)\\.${c}\\s*=[^=]`, 'g'))) {
+            sites.push({ line: i + 1, receiver: lastSegment(m[1]), kind: 'assign' });
+        }
+        for (const m of line.matchAll(new RegExp(`([A-Za-z_$][\\w$.]*)\\.set\\(\\s*['"]${c}['"]`, 'g'))) {
+            sites.push({ line: i + 1, receiver: lastSegment(m[1]), kind: 'set' });
+        }
+    });
+    // `x.update({ … col: … })` 通常跨行：从 `x.update({` 起往后看 400 字符（沿用旧判定窗口）
+    for (const m of src.matchAll(/([A-Za-z_$][\w$.]*)\.update\(\s*\{/g)) {
+        const tail = src.slice(m.index + m[0].length, m.index + m[0].length + 400);
+        if (new RegExp(`\\b${c}\\s*:`, 'm').test(tail)) sites.push({ line: lineOf(m.index), receiver: lastSegment(m[1]), kind: 'update' });
+    }
+    return sites.sort((a, b) => a.line - b.line);
+}
+
+function lastSegment(dotted) {
+    return dotted.split('.').pop();
+}
+
+function escapeRe(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** 文件里的 `const Alias = require('.../models/M')`（含 handler 内部就地 require）→ Alias → 模型名 */
+function aliasToModel(src) {
+    const map = new Map();
+    for (const m of src.matchAll(/(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*require\('[^']*\/models\/([A-Za-z0-9_.]+)'\)/g)) {
+        map.set(m[1], m[2]);
+    }
+    return map;
+}
+
+/**
+ * 行变量是从哪张表取出来的：`const notification = await SystemNotification.findByPk(id)`。
+ *
+ * 为什么必须有这一层：只按"这个文件 import 过 models/item"归属，会把该文件里对**别的表**的
+ * 整列写也算成 item 的写方（2026-09-21 的假红就是 routes/admin.js 里
+ * `notification.update({ … metadata … })` 被判成 item 的第二写方）。
+ * 归属不出来时**仍然按最坏情况算它可能是本表** —— 宁可多判一条让人来看，
+ * 也不能让闸门因为"认不出变量从哪来"就悄悄放过一个写方。
+ */
+function varToModel(src) {
+    const aliases = aliasToModel(src);
+    const map = new Map();
+    const re = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?([A-Za-z_$][\w$]*)\s*\.\s*(?:findByPk|findOne|findAll|findOrCreate|findAndCountAll|create)\s*\(/g;
+    for (const m of src.matchAll(re)) {
+        const model = aliases.get(m[2]);
+        if (model) map.set(m[1], model);
+    }
+    return map;
+}
+
+/** 这个写点属于哪张表（null = 认不出来） */
+function siteModel(src, site) {
+    const viaVar = varToModel(src).get(site.receiver);
+    if (viaVar) return viaVar;
+    return aliasToModel(src).get(site.receiver) || null;   // `Item.update({col:…})` 直接按模型名写
+}
+
+/** 归属于该模型（或认不出归属 = 保守计入）的写点 */
+function attributedSites(rel, model, column) {
+    const src = sources.find(s => s.rel === rel);
+    if (!src) return [];
+    return columnWriteSites(src.src, column).filter(site => {
+        const owner = siteModel(src.src, site);
+        return owner === null || owner === model;
+    });
+}
+
+/** 真正"整块写"这一列的文件：import 了这个模型，且有归属于它的写点 */
 function writersOf(model, column) {
-    const imported = new RegExp(`require\\('[^']*models/${model}'\\)`);
-    const assign = new RegExp(`[A-Za-z_$][\\w$.]*\\.${column}\\s*=[^=]`);
-    const asUpdate = new RegExp(`\\.update\\(\\s*\\{[\\s\\S]{0,400}?\\b${column}\\s*:`);
-    const asSet = new RegExp(`\\.set\\(\\s*['"]${column}['"]`);
+    const imported = new RegExp(`require\\('[^']*models/${escapeRe(model)}'\\)`);
     return sources
-        .filter(s => imported.test(s.src) && (assign.test(s.src) || asUpdate.test(s.src) || asSet.test(s.src)))
+        .filter(s => imported.test(s.src) && attributedSites(s.rel, model, column).length > 0)
         .map(s => s.rel);
 }
 
@@ -120,13 +198,14 @@ function unlockedWrites(file, model, column) {
     if (!src) return [-1];
     const lines = src.src.split(/\r?\n/);
     const names = modelAliases(file, model).map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    const assignRe = new RegExp(`[A-Za-z_$][\\w$.]*\\.${column}\\s*=[^=]`);
+    // 只看归属于本表的整列赋值（跨表的写点不算本表的隐患，见 varToModel）
+    const assigns = attributedSites(file, model, column).filter(s => s.kind === 'assign');
     const bad = [];
-    lines.forEach((line, idx) => {
-        if (!assignRe.test(line)) return;
+    assigns.forEach(({ line }) => {
+        const idx = line - 1;
         const found = enclosingMethod(lines, idx);
-        if (!found) { bad.push(idx + 1); return; }
-        if (!lockedFetchIn(found.body, names)) bad.push(idx + 1);
+        if (!found) { bad.push(line); return; }
+        if (!lockedFetchIn(found.body, names)) bad.push(line);
     });
     return bad;
 }
@@ -145,10 +224,10 @@ function locksRow(file, model, column) {
  * （不会把别的列带回旧值），但同一列的"读-改-写"仍然会互相覆盖。
  * 现在按"文件里对该列的 update 是否出现在带锁事务里"判 —— 保守：没有锁痕迹就进 backlog。
  */
-function updateOnly(file, column) {
-    const src = sources.find(s => s.rel === file);
-    const assign = new RegExp(`[A-Za-z_$][\\w$.]*\\.${column}\\s*=[^=]`);
-    return src && !assign.test(src.src);
+function updateOnly(file, model, column) {
+    const sites = attributedSites(file, model, column);
+    if (!sites.length) return false;
+    return sites.every(s => s.kind !== 'assign');
 }
 
 const columns = jsonBlobColumns();
@@ -205,6 +284,7 @@ describe('整块 JSON 列的户口册（旧快照覆盖新快照这一类的闭�
 
     test('被 ≥2 个文件整块写的列：要么在守卫射程里，要么每个写方都取得行锁', () => {
         const problems = [];
+        const updateOnlyWriters = [];
         for (const { at } of columns) {
             const [model, column] = at.split('.');
             const writers = writersOf(model, column);
@@ -222,8 +302,9 @@ describe('整块 JSON 列的户口册（旧快照覆盖新快照这一类的闭�
             for (const w of listed) {
                 if (!writers.includes(w)) {
                     problems.push(`${at} 登记的写方 ${w} 已经不写这一列了，把名单清一下`);
-                } else if (updateOnly(w, column)) {
-                    continue; // 只走 update/set 的写法由那条分支单独看
+                } else if (updateOnly(w, model, column)) {
+                    updateOnlyWriters.push(`${at} ← ${w}`);
+                    continue; // 只走 update/set 的写法由下面那条单独看
                 } else {
                     const bad = unlockedWrites(w, model, column);
                     if (bad.length) {
@@ -234,7 +315,43 @@ describe('整块 JSON 列的户口册（旧快照覆盖新快照这一类的闭�
             }
         }
         if (problems.length) throw new Error(problems.join('\n'));
+        // "只走 update/set"目前不给锁证据就放过 —— 但它不等于安全：同一列的读-改-写照样互相覆盖
+        // （routes/admin.js 改公告 metadata 就是 `JSON.parse(现值) → 合并 → update`）。
+        // 先把这类摊开让人看得见，逐个定性后再升成硬门禁（别用条数当成绩）。
+        console.log(`[blob 户口册] 多写方列里"只走 update/set"未取锁证据的 ${updateOnlyWriters.length} 处：\n  ${updateOnlyWriters.join('\n  ')}`);
         expect(problems).toEqual([]);
+    });
+
+    /**
+     * 归属判定自己不能是空跑，也不能宽到看不见真写方。
+     * 这条存在的原因：2026-09-21 那次假红 —— admin.js 只因为 import 过 models/item，
+     * 它对 system_notification.metadata 的写就被算成 item 的第二写方。
+     * 反方向同样要防：receiver 认不出来时必须**照最坏情况计入**，否则"换个变量名"就能绕过整道闸。
+     */
+    test('写方按行变量的来源归属：跨表写点不算本表，认不出的仍保守计入（防空跑/防绕过）', () => {
+        const fake = [
+            "const Item = require('../models/item');",
+            'async function handler(req) {',
+            "  const SystemNotification = require('../models/system_notification');",
+            '  const note = await SystemNotification.findByPk(1);',
+            '  await note.update({ metadata: JSON.stringify({ a: 1 }) });',   // 别的表：不许算成 item
+            '}',
+            'async function other(row) {',
+            '  row.metadata = { b: 2 };',   // 来源认不出来：必须按最坏情况算 item 的写方
+            '}',
+            "async function bulk() { Item.update({ metadata: 'x' }); }",      // 按模型名直写：算
+            'async function commented() { /* row.metadata = 1 */ }'           // 注释里的不算
+        ].join('\n');
+
+        const owned = model => columnWriteSites(fake, 'metadata')
+            .filter(site => {
+                const owner = siteModel(fake, site);
+                return owner === null || owner === model;
+            })
+            .map(site => `${site.kind}@${site.line}`);
+
+        expect(owned('item')).toEqual(['assign@8', 'update@10']);
+        expect(owned('system_notification')).toEqual(['update@5']);
     });
 
     test('已定性为"每个写方都取行锁"的单写方列：锁不许被摘、写方不许悄悄多出来', () => {

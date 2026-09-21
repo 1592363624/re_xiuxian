@@ -79,6 +79,8 @@ const LOADERS = {
   /* ── 自身 ── */
   character: () => import('../modals/CharacterModal.vue'),
   achievement: () => import('./AchievementPanel.vue'),
+  // 公告消息：玩家侧唯一的公告长期存档入口（实时弹窗关掉即消失，配图也就找不回来了）
+  announcement: () => import('./AnnouncementPanel.vue'),
 }
 
 /** chunk 下载期间的占位，只在首次打开某个玩法的那几十毫秒出现 */

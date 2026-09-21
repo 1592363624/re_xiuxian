@@ -1,0 +1,59 @@
+{
+  "description": "全服公告配图上传 + GM 通知批量删除的配置中心（禁止在代码里写死阈值）",
+  "version": "1.0.0",
+  "upload": {
+    "comment": "storage_dir 相对 server/ 根目录；url_prefix 故意放在 /api 之下，复用前端 vite devServer 与生产 nginx 已有的 /api 代理，玩家浏览器无需任何额外配置即可加载图片",
+    "storage_dir": "uploads/announcements",
+    "url_prefix": "/api/uploads/announcements",
+    "max_file_size_bytes": 5242880,
+    "max_images_per_announcement": 3,
+    "allowed_types": [
+      {
+        "mime": "image/png",
+        "ext": "png",
+        "magic": [
+          { "offset": 0, "hex": "89504e470d0a1a0a" }
+        ]
+      },
+      {
+        "mime": "image/jpeg",
+        "ext": "jpg",
+        "magic": [
+          { "offset": 0, "hex": "ffd8ff" }
+        ]
+      },
+      {
+        "mime": "image/gif",
+        "ext": "gif",
+        "magic": [
+          { "offset": 0, "hex": "47494638" }
+        ]
+      },
+      {
+        "mime": "image/webp",
+        "ext": "webp",
+        "magic": [
+          { "offset": 0, "hex": "52494646" },
+          { "offset": 8, "hex": "57454250" }
+        ]
+      }
+    ],
+    "file_name_prefix": "ann",
+    "delete_file_when_notification_removed": true
+  },
+  "static": {
+    "comment": "图片静态托管的缓存策略；文件名含随机串，内容永不变化，故可长缓存",
+    "max_age_ms": 604800000,
+    "fallthrough": false
+  },
+  "batch_delete": {
+    "max_ids_per_request": 200
+  },
+  "cleanup": {
+    "comment": "孤儿配图定时清理：GM 上传了但没发出去的图、通知被删但文件残留的图、历史数据里 URL 已经失联的图",
+    "enabled": true,
+    "interval_ms": 3600000,
+    "retention_hours": 24,
+    "log_each": false
+  }
+}

@@ -80,6 +80,7 @@ export const ACTIONS = {
   /* ── 自身 ── */
   character: { name: '角色', desc: '属性资质 装备总览', icon: svg('text-stone-300', '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>') },
   achievement: { name: '成就', desc: '成就总览 奖励领取', icon: svg('text-yellow-500', '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>') },
+  announcement: { name: '公告', desc: '全服公告 消息存档', icon: svg('text-amber-400', '<path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 8a5 5 0 0 1 0 8"/><path d="M18 5a9 9 0 0 1 0 14"/>') },
 }
 
 /**
@@ -95,7 +96,7 @@ export const DOCK_TABS = [
   { key: 'worldly', label: '红尘', ids: ['companion', 'dao_companion', 'concubine', 'cave_social'] },
   { key: 'realm', label: '境界', ids: ['nascent_soul', 'second_soul', 'small_world', 'ascension'] },
   { key: 'leisure', label: '闲趣', ids: ['fishing', 'gambling_stone'] },
-  { key: 'self', label: '自身', ids: ['character', 'achievement'] },
+  { key: 'self', label: '自身', ids: ['character', 'achievement', 'announcement'] },
 ]
 
 /** 移动端底部操作条的高频入口 */

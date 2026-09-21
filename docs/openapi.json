@@ -15084,7 +15084,7 @@
               "type": "boolean",
               "default": false
             },
-            "description": "仅返回未读通知"
+            "description": "仅返回未读通知。未读判定按当前玩家的已读回执（notification_reads 表）计算，与他人的已读状态互不影响"
           },
           {
             "name": "includeGlobal",
@@ -15094,6 +15094,15 @@
               "default": true
             },
             "description": "是否包含全服通知"
+          },
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "是否包含已撤回（isActive=false）的通知。只对管理员生效（GM 后台靠它列出被撤回的公告以便恢复），普通玩家传 true 也会被忽略"
           }
         ],
         "responses": {
@@ -15226,7 +15235,7 @@
     "/api/notifications/{id}/read": {
       "post": {
         "summary": "标记通知为已读",
-        "description": "将指定通知标记为已读状态",
+        "description": "为当前玩家写入一条已读回执（notification_reads 表，(玩家, 通知) 二元关系）。因为已读按玩家记录，全服公告也能各读各的 —— 一个人点已读不会让其他玩家的未读提示消失。重复调用是幂等的；通知不存在或不在该玩家可见范围内时不写回执。",
         "tags": [
           "Notification"
         ],
@@ -15273,7 +15282,7 @@
     "/api/notifications/read-all": {
       "post": {
         "summary": "标记所有通知为已读",
-        "description": "将当前玩家的所有通知标记为已读状态",
+        "description": "把当前玩家可见（含全服公告）且尚未读过的通知全部标记为已读。已读状态记录在 notification_reads 表（(玩家, 通知) 回执），只影响自己，不会改变其他玩家看到的未读状态。",
         "tags": [
           "Notification"
         ],
@@ -15306,6 +15315,128 @@
         }
       }
     },
+    "/api/uploads/announcement-image": {
+      "post": {
+        "summary": "上传公告配图 (GM)",
+        "description": "GM 后台发送全服公告前上传配图。请求体为图片原始二进制（非 multipart、非 base64），Content-Type 必须是 image/png、image/jpeg、image/gif 或 image/webp 之一；服务端只按文件头魔数校验真实格式（不信任客户端提供的 Content-Type 与文件名），随后以随机文件名落盘到 server/uploads/announcements。返回的 url 需随 POST /api/notifications/announcement 的 imageUrls 一起提交；图片通过 GET /api/uploads/announcements/{fileName} 对外提供。体积上限与允许格式见 server/config/announcement_upload.json。",
+        "tags": [
+          "Notification",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/gif": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "图片上传成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "example": "/api/uploads/announcements/ann_1730000000_ab12cd34ef56.png",
+                          "description": "配图访问地址，随公告的 imageUrls 提交"
+                        },
+                        "fileName": {
+                          "type": "string",
+                          "example": "ann_1730000000_ab12cd34ef56.png"
+                        },
+                        "size": {
+                          "type": "integer",
+                          "example": 184320,
+                          "description": "字节数"
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "example": "image/png"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "图片格式不支持或未接收到图片数据",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "图片格式不受支持，仅允许 PNG / JPG / GIF / WEBP"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "图片体积超过限制",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 413,
+                  "message": "图片体积超过限制（最大 5MB）"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/notifications/announcement": {
       "post": {
         "summary": "发送全服公告",
@@ -15326,8 +15457,7 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "title",
-                  "content"
+                  "title"
                 ],
                 "properties": {
                   "title": {
@@ -15336,7 +15466,7 @@
                   },
                   "content": {
                     "type": "string",
-                    "description": "公告内容"
+                    "description": "公告内容；与 imageUrls 至少提供一个，纯图片公告可传空字符串"
                   },
                   "priority": {
                     "type": "string",
@@ -15348,6 +15478,16 @@
                     ],
                     "default": "high",
                     "description": "优先级"
+                  },
+                  "imageUrls": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "公告配图地址列表，必须来自 POST /api/uploads/announcement-image 的返回值（只允许本服务托管地址）；数量上限见 server/config/announcement_upload.json 的 max_images_per_announcement",
+                    "example": [
+                      "/api/uploads/announcements/ann_1730000000_ab12cd34ef56.png"
+                    ]
                   }
                 }
               },
@@ -15357,6 +15497,17 @@
                     "title": "服务器维护通知",
                     "content": "服务器将于今晚22:00-24:00进行维护，届时将无法登录。",
                     "priority": "high"
+                  }
+                },
+                "withImage": {
+                  "summary": "带配图的公告",
+                  "value": {
+                    "title": "版本更新公告",
+                    "content": "本次更新内容见下图。",
+                    "priority": "high",
+                    "imageUrls": [
+                      "/api/uploads/announcements/ann_1730000000_ab12cd34ef56.png"
+                    ]
                   }
                 }
               }
@@ -16429,7 +16580,540 @@
         }
       }
     },
+    "/api/admin/notifications/{id}/unpublish": {
+      "post": {
+        "summary": "撤回通知 (GM)",
+        "description": "把通知下架（isActive=false）：玩家侧不再出现在列表与实时弹窗里，但记录与配图都保留，可随时用 publish 接口重新上架。与删除的区别是“可逆”——发错了先撤回、改完再上架，不必重新上传配图。撤回期间该通知的配图不会被孤儿图回收任务删除。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "通知ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "撤回成功（已处于撤回状态时同样返回 200）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "通知已撤回"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "通知不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "通知不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/notifications/{id}/publish": {
+      "post": {
+        "summary": "重新发布通知 (GM)",
+        "description": "把已撤回的通知重新上架（isActive=true），配图与已读回执都保持不变。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "通知ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "发布成功（已处于发布状态时同样返回 200）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "通知已重新发布"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "通知不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "通知不存在"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/announcement/config": {
+      "get": {
+        "summary": "读取公告配图配置 (GM)",
+        "description": "读取 server/config/announcement_upload.json 全文，并附带上 editable_fields（后台可改字段的点分路径清单）与 locked_fields（禁止在线修改的字段及原因，例如 url_prefix 改动会让历史公告的图片地址全部失效）。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "配置内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "config": {
+                          "type": "object",
+                          "description": "announcement_upload.json 全文"
+                        },
+                        "editable_fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "example": [
+                            "upload.max_file_size_bytes",
+                            "upload.max_images_per_announcement",
+                            "cleanup.retention_hours"
+                          ]
+                        },
+                        "locked_fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "不支持在线修改的字段及原因"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "局部更新公告配图配置并热加载 (GM)",
+        "description": "按点分路径局部更新 announcement_upload.json 的白名单字段，流程为：范围/类型校验 → 备份原文件到 config/backup → 写盘 → ConfigLoader.hotUpdateConfig 热加载 → 记 GM 操作日志（含改前/改后值）。改动即时生效，无需重启进程。超出白名单或范围的字段会被 400 拒绝，而不是静默截断。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "键为点分路径，值为新值；可改字段见同名 GET 接口返回的 editable_fields",
+                "properties": {
+                  "upload.max_file_size_bytes": {
+                    "type": "integer",
+                    "description": "单张图片体积上限（字节）",
+                    "example": 8388608
+                  },
+                  "upload.max_images_per_announcement": {
+                    "type": "integer",
+                    "description": "单条公告最多几张配图",
+                    "example": 3
+                  },
+                  "upload.delete_file_when_notification_removed": {
+                    "type": "boolean",
+                    "description": "删除通知时是否一并删除配图文件"
+                  },
+                  "static.max_age_ms": {
+                    "type": "integer",
+                    "description": "图片静态缓存时长（毫秒）"
+                  },
+                  "cleanup.enabled": {
+                    "type": "boolean",
+                    "description": "是否启用孤儿配图定时回收"
+                  },
+                  "cleanup.interval_ms": {
+                    "type": "integer",
+                    "description": "孤儿图回收周期（毫秒）"
+                  },
+                  "cleanup.retention_hours": {
+                    "type": "integer",
+                    "description": "上传后未被引用的图片保留时长（小时）"
+                  },
+                  "batch_delete.max_ids_per_request": {
+                    "type": "integer",
+                    "description": "批量删除单次最多条数",
+                    "example": 200
+                  }
+                }
+              },
+              "examples": {
+                "raiseUploadLimit": {
+                  "value": {
+                    "upload.max_file_size_bytes": 8388608,
+                    "cleanup.enabled": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已更新并热加载",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "公告配图配置已更新并热加载"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "changes": {
+                          "type": "object",
+                          "description": "各字段的改前/改后值",
+                          "example": {
+                            "upload.max_file_size_bytes": {
+                              "before": 5242880,
+                              "after": 8388608
+                            }
+                          }
+                        },
+                        "config": {
+                          "type": "object",
+                          "description": "更新后的完整配置"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "字段不在白名单或超出范围",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "字段 upload.max_file_size_bytes 必须在 102400 ~ 20971520 之间"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足：需要管理员权限"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/notifications/batch-delete": {
+      "post": {
+        "summary": "批量删除通知 (GM)",
+        "description": "按 ID 批量删除通知，并同步删除这些公告的配图文件（受 server/config/announcement_upload.json 的 upload.delete_file_when_notification_removed 控制，避免 uploads 目录堆积孤儿图）。单次条数上限由 batch_delete.max_ids_per_request 控制；服务端会去重并过滤非法 ID。相比前端循环调用单删接口，批量接口既省请求数也不会撞上 /api/admin 的限流阈值。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ids"
+                ],
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "待删除的通知 ID 列表（去重、过滤非法值后不得超过单次上限）",
+                    "example": [
+                      26245,
+                      26246,
+                      26247
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已删除 3 条通知"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deleted": {
+                          "type": "integer",
+                          "example": 3,
+                          "description": "实际删除的通知条数"
+                        },
+                        "removedImages": {
+                          "type": "integer",
+                          "example": 2,
+                          "description": "同步删除的配图文件数"
+                        },
+                        "ids": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "description": "实际删除的通知 ID 列表"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "未选择通知或超出单次上限",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "message": "单次最多删除 200 条通知"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "message": "权限不足"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/notifications/{id}": {
+      "put": {
+        "summary": "编辑通知 (GM)",
+        "description": "部分更新通知的标题 / 内容 / 优先级 / 配图。配图按“最终列表”提交：保留原有的地址即复用已上传的图片，无需重新上传；被移除的地址不会立刻删除磁盘文件（同一张图可能被别的通知引用），由 AnnouncementImageCleanupService 按保留窗口回收。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "通知ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "只传需要修改的字段；至少要保留内容或配图其中之一",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "标题（不能为空）"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "内容（纯图片公告可传空字符串）"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "normal",
+                      "high",
+                      "critical"
+                    ]
+                  },
+                  "imageUrls": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "配图最终列表，必须来自 POST /api/uploads/announcement-image；传空数组表示清空配图"
+                  }
+                }
+              },
+              "examples": {
+                "fixTypo": {
+                  "value": {
+                    "title": "版本更新公告（已修正）",
+                    "content": "本次更新内容见下图，维护时间改为 22:00。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "通知已更新"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "before": {
+                          "type": "object",
+                          "description": "修改前的字段值"
+                        },
+                        "after": {
+                          "type": "object",
+                          "description": "修改后的字段值"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "标题为空 / 内容与配图同时为空 / 图片地址不合法",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "内容与配图至少要保留一个"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "通知不存在",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "通知不存在"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "summary": "删除通知 (GM)",
         "description": "删除指定通知（需要管理员权限）",

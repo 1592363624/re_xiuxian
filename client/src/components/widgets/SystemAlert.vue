@@ -1,7 +1,9 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useNotificationStore } from '../../stores/notification'
 import { useUIStore } from '../../stores/ui'
+import { panelRoute } from '../../router'
 
 const props = defineProps({
   modelValue: {
@@ -14,6 +16,7 @@ const emit = defineEmits(['update:modelValue', 'dismiss'])
 
 const notificationStore = useNotificationStore()
 const uiStore = useUIStore()
+const router = useRouter()
 
 const visible = ref(false)
 const currentAlert = ref(null)
@@ -110,6 +113,34 @@ const currentStyle = computed(() => {
   if (!currentAlert.value) return getAlertStyle('default')
   return getAlertStyle(currentAlert.value.type || 'default')
 })
+
+// 公告配图：兼容 imageUrls 数组（当前格式）与单图 imageUrl（历史/其它调用方）
+const currentImageUrls = computed(() => {
+  if (!currentAlert.value) return []
+  if (Array.isArray(currentAlert.value.imageUrls)) {
+    return currentAlert.value.imageUrls.filter(Boolean)
+  }
+  return currentAlert.value.imageUrl ? [currentAlert.value.imageUrl] : []
+})
+
+/**
+ * 新窗口打开原图：弹窗内按容器宽度缩放展示，细节需要看原图
+ * @param {string} url - 配图地址
+ */
+const openImage = (url) => {
+  window.open(url, '_blank', 'noopener')
+}
+
+/**
+ * 跳到公告存档面板
+ *
+ * 弹窗有自动消失时间，带配图的公告错过一次就没有第二个入口了；
+ * 这里给一条直达路径，点完同时收起弹窗，避免面板被弹窗遮住。
+ */
+const openAnnouncementPanel = () => {
+  router.push(panelRoute('announcement'))
+  dismiss()
+}
 
 const resetDismissTimer = () => {
   if (dismissTimer.value) {
@@ -267,14 +298,43 @@ defineExpose({ show, dismiss })
               {{ currentAlert.title || '系统通知' }}
             </h3>
             
-            <!-- 内容 -->
+            <!-- 内容：纯图片公告可能没有文字，此时不渲染空段落 -->
             <p 
+              v-if="currentAlert.message || currentAlert.content"
               class="text-center text-sm leading-relaxed"
               :class="currentStyle.textColor + '/90'"
             >
               {{ currentAlert.message || currentAlert.content }}
             </p>
+
+            <!-- 公告配图：多处配图按两列排布，点击可看原图 -->
+            <!-- 图片区限高并可滚动：三张竖屏截图在小屏手机上会把弹窗撑出视口 -->
+            <div
+              v-if="currentImageUrls.length"
+              class="mt-3 grid gap-2 max-h-[45vh] overflow-y-auto scroll-thin"
+              :class="currentImageUrls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'"
+            >
+              <img
+                v-for="(url, index) in currentImageUrls"
+                :key="url"
+                :src="url"
+                :alt="`公告配图 ${index + 1}`"
+                class="w-full max-h-64 object-contain rounded border border-white/20 cursor-zoom-in"
+                @click="openImage(url)"
+              >
+            </div>
             
+            <!-- 跳往公告存档面板：弹窗会自动消失，历史公告与配图只在那边还在 -->
+            <button
+              v-if="currentAlert.type === 'announcement'"
+              type="button"
+              class="mt-3 w-full text-center text-xs underline decoration-dotted transition-colors hover:text-white"
+              :class="currentStyle.textColor + '/80'"
+              @click="openAnnouncementPanel"
+            >
+              查看全部公告 →
+            </button>
+
             <!-- 底部装饰 -->
             <div class="mt-4 pt-3 border-t border-white/10">
               <div class="flex justify-center gap-1">

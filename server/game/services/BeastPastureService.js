@@ -18,6 +18,7 @@
  *   - 灵兽快照存储JSON，避免后续升级影响历史记录
  */
 'use strict';
+const { beastSnapshot } = require('../stats/beastView');
 
 const { Op } = require('sequelize');
 const { infrastructure } = require('../../modules');
@@ -790,20 +791,7 @@ class BeastPastureService {
      * @returns {object} - 快照对象
      */
     _createBeastSnapshot(beast) {
-        return {
-            beast_id: beast.id,
-            beast_key: beast.beast_key,
-            beast_name: beast.beast_name || beast.beast_key,
-            element: beast.element,
-            rarity: beast.rarity,
-            star_level: beast.star_level,
-            level: beast.level,
-            hp_max: beast.hp_max?.toString() || '0',
-            atk: beast.atk,
-            def: beast.def,
-            speed: beast.speed,
-            loyalty: beast.loyalty
-        };
+        return beastSnapshot(beast);   // 字段清单见 game/stats/beastView.js
     }
 
     /**

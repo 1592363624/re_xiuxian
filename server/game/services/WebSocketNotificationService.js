@@ -196,6 +196,30 @@ class WebSocketNotificationService {
     }
 
     /**
+     * 取通知携带的公告配图地址
+     *
+     * 兼容两种入参形状：EventBus 传来的 metadata.imageUrls（对象或 JSON 字符串），
+     * 以及调用方直接挂在对象上的 imageUrls。前者是公告的正常路径，后者便于其它
+     * 服务直接推送带图通知而无需手工构造 metadata。
+     * @param {Object} data - 通知数据
+     * @returns {string[]} 图片 URL 列表（无图时为空数组）
+     */
+    extractImageUrls(data) {
+        if (!data) return [];
+        if (Array.isArray(data.imageUrls)) return data.imageUrls;
+
+        let metadata = data.metadata;
+        if (typeof metadata === 'string') {
+            try {
+                metadata = JSON.parse(metadata);
+            } catch {
+                return [];
+            }
+        }
+        return Array.isArray(metadata?.imageUrls) ? metadata.imageUrls : [];
+    }
+
+    /**
      * 广播通知给特定玩家或全服
      * @param {Object} notificationData - 通知数据
      */
@@ -216,6 +240,8 @@ class WebSocketNotificationService {
             priority,
             actorNickname,
             icon,
+            // 公告配图：前端 SystemAlert 直接用它渲染 <img>，无需再回查通知列表
+            imageUrls: this.extractImageUrls(notificationData),
             timestamp: new Date().toISOString()
         };
 
@@ -248,6 +274,7 @@ class WebSocketNotificationService {
             id: Date.now(),
             ...notification,
             icon,
+            imageUrls: this.extractImageUrls(notification),
             timestamp: new Date().toISOString()
         };
 
@@ -272,6 +299,7 @@ class WebSocketNotificationService {
             ...notification,
             type: 'announcement',
             icon,
+            imageUrls: this.extractImageUrls(notification),
             timestamp: new Date().toISOString()
         };
 

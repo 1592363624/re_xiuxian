@@ -40,10 +40,16 @@ export const useNotificationStore = defineStore('notification', {
       socketService.on('notification:global', (data) => {
         console.log('[NotificationStore] 收到全服通知:', data)
         this.handleRealTimeNotification(data)
+
+        // 公告配图由后端随 Socket 载荷下发（metadata.imageUrls），前端直接透传给弹窗渲染
+        const imageUrls = Array.isArray(data.imageUrls) ? data.imageUrls : []
         this.showSystemAlert({
           title: data.title,
           message: data.content,
-          type: data.type === 'announcement' ? 'info' : 'warning'
+          type: data.type === 'announcement' ? 'info' : 'warning',
+          imageUrls,
+          // 带图公告延长停留时间，否则玩家还没来得及看清截图弹窗就消失了
+          ...(imageUrls.length > 0 ? { duration: UI_CONFIG.announcementAlertDurationMs } : {})
         })
       })
     },

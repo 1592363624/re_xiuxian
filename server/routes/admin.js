@@ -16,6 +16,10 @@ const { infrastructure } = require('../modules');
 const configLoader = infrastructure.ConfigLoader;
 const fs = require('fs');
 const path = require('path');
+// 公告配图清理：删除通知时同步删除其落盘图片，避免 uploads 目录留下孤儿文件
+const { deleteImagesOfNotifications, getImageConfig, sanitizeImageUrls } = require('../utils/announcementImage');
+// 通知服务：删除通知时顺带清理其已读回执
+const NotificationService = require('../game/services/NotificationService');
 
 const LifespanService = require('../game/core/LifespanService');
 const RealmService = require('../game/core/RealmService');
@@ -854,11 +858,18 @@ router.delete('/notifications/:id', auth, adminCheck, async (req, res) => {
             return res.status(404).json({ message: '通知不存在' });
         }
 
+        // 先删记录再删图：记录删不掉时图片必须留着，否则会留下"公告还在但配图 404"的破损状态
         await notification.destroy();
+
+        // 回执表里的 (玩家, 通知) 记录随之失效，不清理会让未读计数的 NOT EXISTS 白扫
+        await NotificationService.deleteReadReceipts([notification.id]);
+
+        const removedImages = deleteImagesOfNotifications([notification]);
 
         await logAdminAction(req.player.id, 'delete_notification', {
             notification_id: id,
-            notification_title: notification.title
+            notification_title: notification.title,
+            removed_images: removedImages
         }, req);
 
         res.json({
@@ -867,6 +878,205 @@ router.delete('/notifications/:id', auth, adminCheck, async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: '删除失败', error: error.message });
+    }
+});
+
+/**
+ * 批量删除通知
+ * POST /api/admin/notifications/batch-delete
+ *
+ * 请求体: { ids: number[] }
+ * 响应:   { code, message, data: { deleted, removedImages, ids } }
+ *
+ * 为什么单独开一个接口而不是前端循环调单删：删 200 条就是 200 次请求，
+ * 既慢又容易撞上 /api/admin 的阈值，中途失败还会留下"删了一半"的中间态。
+ */
+router.post('/notifications/batch-delete', auth, adminCheck, async (req, res) => {
+    try {
+        const SystemNotification = require('../models/system_notification');
+        const { max_ids_per_request: maxIds } = getImageConfig().batch_delete;
+
+        const rawIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+        // 归一成去重后的正整数：字符串、浮点、注入式取值一律挡在 SQL 之外
+        const ids = [...new Set(rawIds
+            .map(v => Number(v))
+            .filter(v => Number.isInteger(v) && v > 0))];
+
+        if (ids.length === 0) {
+            return res.status(400).json({ message: '未选择要删除的通知' });
+        }
+        if (ids.length > maxIds) {
+            return res.status(400).json({ message: `单次最多删除 ${maxIds} 条通知` });
+        }
+
+        // 只删真实存在的记录，返回的 deleted 才能与 GM 勾选数对得上（避免"删了但没提示"）
+        const notifications = await SystemNotification.findAll({ where: { id: { [Op.in]: ids } } });
+        if (notifications.length === 0) {
+            return res.json({
+                code: 200,
+                message: '没有可删除的通知',
+                data: { deleted: 0, removedImages: 0, ids: [] }
+            });
+        }
+
+        const deletedIds = notifications.map(n => n.id);
+        await SystemNotification.destroy({ where: { id: { [Op.in]: deletedIds } } });
+
+        // 同上：回执与图片都在记录删除之后再清
+        await NotificationService.deleteReadReceipts(deletedIds);
+
+        // 记录删完后再清图片文件，避免"图没了但公告还在"
+        const removedImages = deleteImagesOfNotifications(notifications);
+
+        await logAdminAction(req.player.id, 'batch_delete_notification', {
+            notification_ids: deletedIds,
+            count: deletedIds.length,
+            removed_images: removedImages
+        }, req);
+
+        res.json({
+            code: 200,
+            message: `已删除 ${deletedIds.length} 条通知`,
+            data: { deleted: deletedIds.length, removedImages, ids: deletedIds }
+        });
+    } catch (error) {
+        res.status(500).json({ message: '批量删除失败', error: error.message });
+    }
+});
+
+/**
+ * 优先级取值（与 system_notifications.priority 的 ENUM 一致）
+ * 单独列出来做入参校验：ENUM 写错在 MySQL 里会整条 UPDATE 失败，
+ * 与其等到那时报 500，不如在路由层就给出"取值范围"的明确提示。
+ */
+const NOTIFICATION_PRIORITIES = ['low', 'normal', 'high', 'critical'];
+
+/**
+ * 编辑通知（标题 / 内容 / 优先级 / 配图）
+ * PUT /api/admin/notifications/:id
+ *
+ * 请求体为部分更新：只传需要改的字段。
+ * 配图按"最终列表"提交（增删都在这一个数组里表达），因此重新提交原来的地址就是复用已上传的图，
+ * 不需要再上传一次。
+ *
+ * 刻意不在这里删除被移除的配图文件：同一张图可能被其它通知引用，
+ * 立刻删会连带弄坏别的公告；孤儿文件由 AnnouncementImageCleanupService 按保留窗口回收。
+ */
+router.put('/notifications/:id', auth, adminCheck, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, content, priority, imageUrls } = req.body || {};
+
+        const SystemNotification = require('../models/system_notification');
+        const notification = await SystemNotification.findByPk(id);
+        if (!notification) {
+            return res.status(404).json({ message: '通知不存在' });
+        }
+
+        // 配图地址必须来自本服务的上传接口，非法地址直接拒绝而不是静默丢弃
+        const { urls: safeImageUrls, rejected } = sanitizeImageUrls(imageUrls);
+        if (rejected.length > 0) {
+            return res.status(400).json({ message: '存在不合法的图片地址，请先通过公告配图上传接口获取地址' });
+        }
+
+        const nextTitle = title === undefined ? notification.title : String(title).trim();
+        const nextContent = content === undefined ? notification.content : String(content);
+        const nextPriority = priority === undefined ? notification.priority : String(priority);
+
+        if (!nextTitle) {
+            return res.status(400).json({ message: '标题不能为空' });
+        }
+        // 纯图片公告允许内容为空，但两者不能同时为空
+        if (!nextContent && safeImageUrls.length === 0) {
+            return res.status(400).json({ message: '内容与配图至少要保留一个' });
+        }
+        if (!NOTIFICATION_PRIORITIES.includes(nextPriority)) {
+            return res.status(400).json({ message: `优先级必须是 ${NOTIFICATION_PRIORITIES.join(' / ')}` });
+        }
+
+        // 写操作交给服务层：本文件同时 require 了 models/item，而 BlobColumnCensus 门禁
+        // 是按"文件里 import 了哪个模型"来归属写方的 —— 在这里写 metadata 列会被误判成
+        // item.metadata 多了一个写方（实际改的是 system_notifications.metadata）
+        const result = await NotificationService.updateNotificationFields(notification.id, {
+            title: nextTitle,
+            content: nextContent,
+            priority: nextPriority,
+            imageUrls: safeImageUrls
+        });
+
+        await logAdminAction(req.player.id, 'update_notification', {
+            notification_id: notification.id,
+            before: result.before,
+            after: result.after
+        }, req);
+
+        res.json({
+            code: 200,
+            message: '通知已更新',
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({ message: '更新失败', error: error.message });
+    }
+});
+
+/**
+ * 撤回通知（下架，保留记录）
+ * POST /api/admin/notifications/:id/unpublish
+ *
+ * 与删除的区别：撤回只把 isActive 置 false，通知不再出现在玩家列表与弹窗里，
+ * 但记录与配图都还在，可随时 POST /:id/publish 重新上架 —— 发错了先撤回，
+ * 改完再上架，不必重新上传配图。
+ */
+router.post('/notifications/:id/unpublish', auth, adminCheck, async (req, res) => {
+    try {
+        const SystemNotification = require('../models/system_notification');
+        const notification = await SystemNotification.findByPk(req.params.id);
+        if (!notification) {
+            return res.status(404).json({ message: '通知不存在' });
+        }
+        if (!notification.isActive) {
+            return res.json({ code: 200, message: '该通知已处于撤回状态' });
+        }
+
+        await notification.update({ isActive: false });
+
+        await logAdminAction(req.player.id, 'unpublish_notification', {
+            notification_id: notification.id,
+            notification_title: notification.title
+        }, req);
+
+        res.json({ code: 200, message: '通知已撤回' });
+    } catch (error) {
+        res.status(500).json({ message: '撤回失败', error: error.message });
+    }
+});
+
+/**
+ * 重新上架已撤回的通知
+ * POST /api/admin/notifications/:id/publish
+ */
+router.post('/notifications/:id/publish', auth, adminCheck, async (req, res) => {
+    try {
+        const SystemNotification = require('../models/system_notification');
+        const notification = await SystemNotification.findByPk(req.params.id);
+        if (!notification) {
+            return res.status(404).json({ message: '通知不存在' });
+        }
+        if (notification.isActive) {
+            return res.json({ code: 200, message: '该通知已处于发布状态' });
+        }
+
+        await notification.update({ isActive: true });
+
+        await logAdminAction(req.player.id, 'publish_notification', {
+            notification_id: notification.id,
+            notification_title: notification.title
+        }, req);
+
+        res.json({ code: 200, message: '通知已重新发布' });
+    } catch (error) {
+        res.status(500).json({ message: '发布失败', error: error.message });
     }
 });
 
