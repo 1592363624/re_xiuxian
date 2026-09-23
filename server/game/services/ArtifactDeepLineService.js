@@ -46,9 +46,11 @@ const BONUS_ROUTES = {
     blood_sword: {
         atk_bonus_rate: ['percent', 'atk'],
         def_bonus_rate: ['percent', 'def'],
-        hp_steal_bonus_rate: ['effects', 'hp_steal_bonus_rate'],
-        crit_rate_bonus: ['effects', 'crit_rate_bonus'],
-        crit_damage_bonus: ['effects', 'crit_damage_bonus'],
+        // 吸血/暴击/暴伤本来就有真实属性档（lifesteal / crit_rate / crit_damage），
+        // 效果口径是小数（0.12 = +12%），属性档是百分点 → 用第三位 scale=100 折算
+        hp_steal_bonus_rate: ['absolute', 'lifesteal', 100],
+        crit_rate_bonus: ['absolute', 'crit_rate', 100],
+        crit_damage_bonus: ['absolute', 'crit_damage', 100],
         blood_backlash_hp_rate_per_round: ['effects', 'backlash_rate_per_round']
     },
     xutian_cauldron: {
@@ -63,8 +65,8 @@ const BONUS_ROUTES = {
         def_bonus_rate: ['percent', 'def'],
         hp_bonus_rate: ['percent', 'hp_max'],
         speed_bonus_rate: ['percent', 'speed'],
-        crit_rate_bonus: ['effects', 'crit_rate_bonus'],
-        crit_damage_bonus: ['effects', 'crit_damage_bonus'],
+        crit_rate_bonus: ['absolute', 'crit_rate', 100],
+        crit_damage_bonus: ['absolute', 'crit_damage', 100],
         damage_reduction_rate: ['effects', 'damage_reduction_rate'],
         hp_regen_bonus_rate: ['effects', 'hp_regen_bonus_rate']
     }
@@ -73,14 +75,12 @@ const BONUS_ROUTES = {
 /**
  * 还没有结算通道的桶 —— **整个改造里唯一一处"这一档进不进战斗"的答案**。
  *
- * 为什么做成一个集合而不是一句 `bucket !== 'effects'` 写在展示层里：
- * 展示层（法宝深线面板）与聚合层（属性/战斗）必须给玩家同一个说法。以前面板把手写的那五行
- * （atk/吸血/防御/暴击率/暴伤）一律涂成绿色"+X%"，而 `effects` 这一整桶今天没有任何战斗代码读它
- * （见 tests/DeepLineBonusRouting.test.js 的 EFFECTS_LEDGER）—— 玩家看到的就是假的。
- * 哪天把 effects 真接进 CombatResolver，就从这个集合里删掉 'effects'：
- * 面板的"未生效"标签、探针的断言、静态闸会同时跟着变，不需要再改第二个文件。
+ * 2026-09-23：吸血/暴击/暴伤已改路由到真实属性档（见 BONUS_ROUTES 的 scale 注释）；
+ * effects 桶里的减免/回血/反噬已接进 CombatResolver（damage_reduction / heal / backlash），
+ * 所以从本集合移除 —— 展示层与探针会同时把"未生效"标签摘掉。
+ * 若再引入暂无战斗读取方的新桶，加回本集合即可，展示层自动标"未生效"。
  */
-const UNSETTLED_BUCKETS = new Set(['effects']);
+const UNSETTLED_BUCKETS = new Set([]);
 
 /**
  * 默认血魔剑状态（首次访问时初始化）
@@ -3388,8 +3388,8 @@ class ArtifactDeepLineService {
      *   1. 这张表点名的字段照旧进原来的桶 —— 现网语义一字不变。
      *      表里的 `['skip']` 表示"这个数值不是属性加成，别自己往里塞"：虚天鼎的 atk_bonus 是倍率前值，
      *      已经折进 final_atk_bonus，泛化规则若把它按 `<属性>_bonus` 认出来就是**双算**。
-     *      同理 crit_rate_bonus 必须留在表里：它的 scale 是效果口径（0.12 = +12 点），
-     *      被认成 absolute.crit_rate 就变成 +0.12 点。
+     *      同理 crit_rate_bonus 必须留在表里：它的值是效果口径小数（0.12 = +12%），
+     *      直接进 absolute.crit_rate 会变成 +0.12 点 —— 所以表项第三位带 scale=100 折成百分点。
      *   2. 其余以 `_bonus_rate` / `_bonus` 结尾的字段，用属性注册表（config/stat_definitions.json，
      *      含资料片追加的）判定：去掉后缀是注册过的属性键 → 自动进 percent / absolute。
      *      这一条就是"资料片给法宝加一个新属性、零代码进面板/战力/战斗"的落点。
@@ -3437,8 +3437,10 @@ class ArtifactDeepLineService {
                 continue;
             }
             if (route[0] === 'skip') continue;
-            const [bucket, key] = route;
-            acc[bucket][key] = (acc[bucket][key] || 0) + value;
+            const [bucket, key, scale] = route;
+            // scale：效果口径小数（0.12）→ 属性百分点（12）的乘数；省略按 1
+            const scaled = value * (Number.isFinite(scale) ? scale : 1);
+            acc[bucket][key] = (acc[bucket][key] || 0) + scaled;
         }
     }
 
@@ -3503,14 +3505,16 @@ class ArtifactDeepLineService {
             if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) continue;
             const route = table[field] || this._genericBonusRoute(field);
             if (!route || route[0] === 'skip') continue;
-            const [bucket, key] = route;
+            const [bucket, key, scale] = route;
             const applied = this.bonusBucketSettled(bucket);
             const meta = this._bonusFieldMeta(field, bucket, key);
+            // 带 scale 的表项（0.12 效果口径）展示时折成属性百分点（12），与真正进面板/战斗的数一致
+            const displayValue = value * (Number.isFinite(scale) ? scale : 1);
             out.push({
                 key: field,
                 label: meta.label,
                 tone: meta.tone,
-                value,
+                value: displayValue,
                 format: bucket === 'absolute' ? 'point' : 'percent',
                 applied,
                 bucket,

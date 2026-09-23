@@ -360,7 +360,6 @@ const loaderFiles = new Set([...docked.values()].map(p => path.basename(p).repla
  */
 const REACHABILITY_EXEMPTIONS = new Map([
   ['panel-not-in-catalog:combat', '战斗面板不是坞内入口，由战斗流程 goPanel(\'combat\') 直接打开（GameLayout.vue:308/340）'],
-  ['dead-panel-file:BloodSwordPanel', '2026-09-21 量到的存量缺陷：血魔剑深线的完整面板 + /api/artifact-deep-line 全部端点都在，但没有任何入口，玩家打不开（任务 #14 等业主选出口：挂进"养成"分类还是删）'],
   ['dead-panel-file:GatheringPanel', '采集玩法已有别的落点，这份是重构前的残本，零引用；等业主确认后删（见 [[project-ui-refactor-open-items-2026-09-19]]）'],
 ])
 

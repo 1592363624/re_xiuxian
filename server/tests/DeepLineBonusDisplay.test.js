@@ -79,15 +79,16 @@ describe('combatBonusDisplay：清单由 BONUS_ROUTES 那一份口径生成', ()
         }
     });
 
-    test('percent/absolute 档说"生效"，effects 档老实说"未生效"（战斗侧今天没有结算通道）', () => {
+    test('吸血/暴击/暴伤折进属性档，effects 档（减免/回血/反噬）也已接战斗，全部 applied=true', () => {
         const sword = byKey(Svc.combatBonusDisplay('blood_sword', SAMPLES.blood_sword));
         expect(sword.atk_bonus_rate.applied).toBe(true);
         expect(sword.atk_bonus_rate.bucket).toBe('percent');
-        for (const key of ['hp_steal_bonus_rate', 'crit_rate_bonus', 'crit_damage_bonus',
-            'blood_backlash_hp_rate_per_round']) {
-            expect(sword[key].bucket).toBe('effects');
-            expect(sword[key].applied).toBe(false);
+        for (const key of ['hp_steal_bonus_rate', 'crit_rate_bonus', 'crit_damage_bonus']) {
+            expect(sword[key].bucket).toBe('absolute');
+            expect(sword[key].applied).toBe(true);
         }
+        expect(sword.blood_backlash_hp_rate_per_round.bucket).toBe('effects');
+        expect(sword.blood_backlash_hp_rate_per_round.applied).toBe(true);
         // 反噬是代价，不是奖励：语气必须由内容说了算（内容里写成 tone:"cost"）
         expect(sword.blood_backlash_hp_rate_per_round.tone).toBe('cost');
         expect(sword.atk_bonus_rate.tone).toBe('bonus');
@@ -112,7 +113,7 @@ describe('combatBonusDisplay：清单由 BONUS_ROUTES 那一份口径生成', ()
     test('"这一档进不进战斗"的答案只有一处（展示层不许自己再判一次桶名）', () => {
         expect(Svc.bonusBucketSettled('percent')).toBe(true);
         expect(Svc.bonusBucketSettled('absolute')).toBe(true);
-        expect(Svc.bonusBucketSettled('effects')).toBe(false);
+        expect(Svc.bonusBucketSettled('effects')).toBe(true);
         // 控制跑：面板要是绕开这个入口自己写 `bucket !== 'effects'`，这条静态判据就会红
         const panel = read('../client/src/components/panels/BloodSwordPanel.vue');
         expect(panel).not.toMatch(/bucket\s*[!=]==?\s*['"]effects['"]/);
@@ -131,13 +132,17 @@ describe('名字与语气来自内容：缺一条就在启动期点名，而不�
     });
 
     test('删掉一条标签：取名字要抛、启动自检也要抛，并且报错里写着该补哪儿', () => {
-        const restore = patchDataset('artifact_deep_lines', cfg => { delete cfg.bonus_field_labels.crit_rate_bonus; });
+        // 用 effects 桶的反噬字段：它没有注册表中文名兜底，删标签必须抛
+        const restore = patchDataset('artifact_deep_lines', cfg => {
+            delete cfg.bonus_field_labels.blood_backlash_hp_rate_per_round;
+        });
         try {
-            expect(() => Svc.combatBonusDisplay('blood_sword', { crit_rate_bonus: 0.12 })).toThrow(/取不到中文名/);
+            expect(() => Svc.combatBonusDisplay(
+                'blood_sword', { blood_backlash_hp_rate_per_round: 0.12 })).toThrow(/取不到中文名/);
             let message = '';
             try { Svc.assertBonusLabelCoverage(); } catch (e) { message = e.message; }
             expect(message).toMatch(/会显示成裸键名/);
-            expect(message).toMatch(/crit_rate_bonus/);
+            expect(message).toMatch(/blood_backlash_hp_rate_per_round/);
             expect(message).toMatch(/bonus_field_labels/);
         } finally { restore(); }
         // 还原要真的还原：补回去之后启动自检必须重新通过（否则上面的"抛了"可能只是永久弄坏了配置）

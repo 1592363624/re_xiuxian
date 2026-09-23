@@ -19,6 +19,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { formatBeijing } from '../../utils/time'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
 import {
   getBloodSwordStatus,
   sacrificeBlood,
@@ -421,30 +422,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- 全屏遮罩 -->
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-    @click.self="emit('close')"
+  <PanelShell
+    title="血魔剑残契"
+    size="lg"
+    :loading="loading"
+    @close="emit('close')"
   >
-    <!-- 主面板 -->
-    <div class="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-      <!-- 头部 -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-        <div class="flex items-center gap-3">
-          <h2 class="text-xl font-bold text-red-300">血魔剑残契</h2>
-          <span class="text-xs px-2 py-0.5 rounded bg-red-900/60 text-red-200 border border-red-700">
-            法宝深线 · 第一条
-          </span>
-        </div>
-        <button
-          class="text-gray-400 hover:text-white text-2xl leading-none"
-          @click="emit('close')"
-          aria-label="关闭"
-        >×</button>
-      </div>
+    <div class="space-y-2 text-xs text-gray-400 mb-4">法宝深线 · 第一条</div>
 
-      <!-- 内容区 -->
-      <div class="flex-1 overflow-y-auto p-6">
+    <!-- 内容区 -->
+    <div class="space-y-6">
         <!-- 加载中 -->
         <div v-if="loading" class="text-center text-gray-400 py-12">加载中...</div>
 
@@ -713,8 +700,7 @@ onUnmounted(() => {
           @click="emit('close')"
         >关闭</button>
       </div>
-    </div>
-  </div>
+  </PanelShell>
 
   <!-- 确认弹窗 -->
   <Modal

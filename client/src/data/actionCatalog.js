@@ -52,6 +52,7 @@ export const ACTIONS = {
   /* ── 养成 ── */
   cave: { name: '洞府', desc: '洞府经营 药园种植', icon: svg('text-stone-400', '<path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/><path d="M9 11h6"/>') },
   treasure: { name: '法宝', desc: '祭炼本命 祭出收宝', icon: svg('text-indigo-400', '<path d="M12 2 4 7v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V7l-8-5z"/><path d="m9 12 2 2 4-4"/>') },
+  deep_line: { name: '法宝深线', desc: '血魔剑残契 祭血镇契铭印', icon: svg('text-rose-400', '<path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><path d="M12 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>') },
   artifact_spirit: { name: '器灵', desc: '唤醒温养 试炼护主', icon: svg('text-cyan-400', '<path d="M12 2v6"/><path d="M12 22v-6"/><path d="M4.93 4.93l4.24 4.24"/><path d="M14.83 14.83l4.24 4.24"/><path d="M2 12h6"/><path d="M22 12h-6"/><path d="M4.93 19.07l4.24-4.24"/><path d="M14.83 9.17l4.24-4.24"/>') },
   formation: { name: '阵法', desc: '布阵加持 五行相克', icon: svg('text-purple-400', '<circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="4"/>') },
   puppet: { name: '傀儡工坊', desc: '制造出战 淬炼维修', icon: svg('text-amber-400', '<circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/>') },
@@ -91,7 +92,7 @@ export const DOCK_TABS = [
   { key: 'adventure', label: '历练', ids: ['explore', 'map', 'dungeon', 'multi_dungeon', 'beast_abyss'] },
   { key: 'battle', label: '征伐', ids: ['arena', 'fengshen', 'divine_sense_duel', 'bounty', 'world_boss', 'sect_war'] },
   { key: 'economy', label: '经营', ids: ['inventory', 'market', 'pawnshop', 'stock', 'auction', 'crafting', 'lottery'] },
-  { key: 'nurture', label: '养成', ids: ['cave', 'treasure', 'artifact_spirit', 'formation', 'puppet', 'spirit_beast'] },
+  { key: 'nurture', label: '养成', ids: ['cave', 'treasure', 'deep_line', 'artifact_spirit', 'formation', 'puppet', 'spirit_beast'] },
   { key: 'sect', label: '宗门', ids: ['sect', 'taoism_gate'] },
   { key: 'worldly', label: '红尘', ids: ['companion', 'dao_companion', 'concubine', 'cave_social'] },
   { key: 'realm', label: '境界', ids: ['nascent_soul', 'second_soul', 'small_world', 'ascension'] },

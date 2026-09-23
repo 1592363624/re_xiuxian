@@ -59,8 +59,14 @@ class CombatResolver {
     async resolveCombatStats(player, options = {}) {
         const AttributeService = require('../core/AttributeService');
         const result = await AttributeService.calculateFullAttributesAsync(player, options);
+        // 深线 effects（减免/回血/反噬）挂在 stats 上随 combat 流下去，
+        // computeDamage 自动读 __effects —— 各玩法调用点不必逐个改签名。
+        const deepLineEffects = result.info?.artifact_deep_line || null;
+        const stats = deepLineEffects
+            ? { ...result.final, __effects: deepLineEffects }
+            : result.final;
         return {
-            stats: result.final,
+            stats,
             breakdown: result.breakdown,
             byStat: result.by_stat,
             info: result.info
@@ -116,9 +122,16 @@ class CombatResolver {
         const roll = typeof inputs.roll === 'function' ? inputs.roll : Math.random;
         const randomConfig = this.config.random || {};
 
-        // 神通的战斗特效先汇总：破防要改防御系数，所以必须落在公式之前
-        const attackerProcs = skillEffects.collectSkillProcs(inputs.skills, roll);
-        const defenderProcs = skillEffects.collectSkillProcs(inputs.defenderSkills, roll);
+        // 神通的战斗特效先汇总：破防要改防御系数，所以必须落在公式之前。
+        // 法宝深线 effects 优先用显式入参，否则从 stats.__effects（resolveCombatStats 挂上）取。
+        const attackerProcs = skillEffects.mergeDeepLineEffects(
+            skillEffects.collectSkillProcs(inputs.skills, roll),
+            inputs.attackerEffects || attackerStats.__effects
+        );
+        const defenderProcs = skillEffects.mergeDeepLineEffects(
+            skillEffects.collectSkillProcs(inputs.defenderSkills, roll),
+            inputs.defenderEffects || defenderStats.__effects
+        );
 
         const attack = this._statValue(profile, attackerStats, 'attack');
         const mitigate = this._statValue(profile, defenderStats, 'mitigate');
@@ -238,7 +251,19 @@ class CombatResolver {
         }
         // lifesteal_rate 单独返回：调用方在伤害被克制倍率/防御/护道再削减后，
         // 要按"实际打出去的伤害"回血，而不是本档位算出的那一份。
-        return { damage, missed: false, blocked: false, crit, lifesteal, lifesteal_rate: lifestealRate };
+        // round_effects：法宝深线每回合结算档（回血/反噬），由多回合战斗在回合末应用。
+        return {
+            damage,
+            missed: false,
+            blocked: false,
+            crit,
+            lifesteal,
+            lifesteal_rate: lifestealRate,
+            round_effects: {
+                hp_regen_bonus_rate: (attackerProcs?.hp_regen_bonus_rate || 0),
+                backlash_rate_per_round: (attackerProcs?.backlash_rate_per_round || 0)
+            }
+        };
     }
 
     /** battleRole → 已注册属性键列表（资料片把自己的属性挂到同名角色上就会一起生效） */

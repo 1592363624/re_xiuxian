@@ -51,6 +51,7 @@ const LOADERS = {
   /* ── 养成 ── */
   cave: () => import('./CavePanel.vue'),
   treasure: () => import('./EquipmentPanel.vue'),
+  deep_line: () => import('./BloodSwordPanel.vue'),
   artifact_spirit: () => import('./ArtifactSpiritPanel.vue'),
   formation: () => import('./FormationPanel.vue'),
   puppet: () => import('./PuppetPanel.vue'),

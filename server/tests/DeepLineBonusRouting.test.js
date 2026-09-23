@@ -64,7 +64,7 @@ const route = (source, bonuses) => {
 };
 
 describe('1. 现网点名的字段：分发口径一字不变', () => {
-    test('血魔剑：攻击/防御走百分比，暴击·暴伤·吸血·反噬走 effects，不留属性键', () => {
+    test('血魔剑：攻击/防御走百分比，暴击·暴伤·吸血折进真实属性百分点，反噬留 effects', () => {
         const acc = route('blood_sword', {
             atk_bonus_rate: 0.05, def_bonus_rate: 0.02,
             crit_rate_bonus: 0.10, crit_damage_bonus: 0.20,
@@ -73,12 +73,13 @@ describe('1. 现网点名的字段：分发口径一字不变', () => {
         });
         expect(acc.percent.atk).toBeCloseTo(0.05, 10);
         expect(acc.percent.def).toBeCloseTo(0.02, 10);
-        expect(acc.effects.crit_rate_bonus).toBeCloseTo(0.10, 10);
-        expect(acc.effects.crit_damage_bonus).toBeCloseTo(0.20, 10);
-        expect(acc.effects.hp_steal_bonus_rate).toBeCloseTo(0.05, 10);
+        // 2026-09-23：吸血/暴击/暴伤折进注册表属性（scale=100：0.10 → 10 点）
+        expect(acc.absolute.crit_rate).toBeCloseTo(10, 10);
+        expect(acc.absolute.crit_damage).toBeCloseTo(20, 10);
+        expect(acc.absolute.lifesteal).toBeCloseTo(5, 10);
         expect(acc.effects.backlash_rate_per_round).toBeCloseTo(0.01, 10);
-        // 关键：crit_rate_bonus 不能被泛化规则认成"绝对值 crit_rate"（两套口径的数）
-        expect(acc.absolute.crit_rate).toBeUndefined();
+        // 不再写进 effects（newAcc 预置 0）
+        expect(acc.effects.crit_rate_bonus).toBe(0);
         expect(acc.absolute.atk).toBe(0);
         expect(acc.unconsumed).toEqual([]);
     });
@@ -103,6 +104,9 @@ describe('1. 现网点名的字段：分发口径一字不变', () => {
             phase: 'water', wheel_spin_enabled: true
         });
         expect(acc.percent).toMatchObject({ atk: 0.08, def: 0.04, hp_max: 0.06, speed: 0.02 });
+        // 暴击/暴伤折进属性百分点；减免/回血仍走 effects（战斗侧已接）
+        expect(acc.absolute.crit_rate).toBeCloseTo(3, 10);
+        expect(acc.absolute.crit_damage).toBeCloseTo(15, 10);
         expect(acc.effects.damage_reduction_rate).toBeCloseTo(0.05, 10);
         expect(acc.effects.hp_regen_bonus_rate).toBeCloseTo(0.01, 10);
         expect(acc.unconsumed).toEqual([]);
@@ -140,14 +144,15 @@ describe('2. 没点名的字段：按属性注册表自动分发（资料片零�
         const original = routes.five_element_wheel.crit_rate_bonus;
         delete routes.five_element_wheel.crit_rate_bonus;
         try {
-            // 摘掉表项 → 泛化规则把 crit_rate_bonus 认成"绝对值 crit_rate"，这正是要防的口径串台
+            // 摘掉表项 → 泛化规则把 crit_rate_bonus 认成"绝对值 crit_rate"且不带 scale（0.03 点而非 3 点）
             expect(route('five_element_wheel', { crit_rate_bonus: 0.03 }).absolute.crit_rate).toBeCloseTo(0.03, 10);
         } finally {
             routes.five_element_wheel.crit_rate_bonus = original;
         }
         const restored = route('five_element_wheel', { crit_rate_bonus: 0.03 });
-        expect(restored.absolute.crit_rate).toBeUndefined();
-        expect(restored.effects.crit_rate_bonus).toBeCloseTo(0.03, 10);
+        // 表项带 scale=100：0.03 效果口径 → 3 个属性百分点
+        expect(restored.absolute.crit_rate).toBeCloseTo(3, 10);
+        expect(restored.effects.crit_rate_bonus).toBe(0);
     });
 
     test('整条链：相位配置里一个新属性键 → ×阶数倍率 → 分发 → percent（不改一行消费端）', () => {
@@ -303,11 +308,20 @@ describe('5. effects 桶：面板印给玩家、战斗没人读（存量缺陷�
         'game/services/ArtifactDeepLineService.js': { verdict: 'producer' },
         'game/stats/providers.js': {
             verdict: 'display_and_stats',
-            reason: '只把 absolute/percent 折进属性块，effects 仅作为 info 透出（不进结算）'
+            reason: '只把 absolute/percent 折进属性块，effects 作为 info 透出给战斗侧 __effects'
         },
         'game/core/AttributeService.js': {
             verdict: 'display_only',
             reason: '把 effects 原样放进 breakdown.artifact_deep_line 给前端/后台看'
+        },
+        'game/combat/CombatResolver.js': {
+            verdict: 'consumer',
+            reason: '2026-09-23 接线：resolveCombatStats 把 effects 挂到 stats.__effects，'
+                + 'computeDamage 经 skillEffects.mergeDeepLineEffects 并进 defenderProcs/attackerProcs'
+        },
+        'game/combat/skillEffects.js': {
+            verdict: 'consumer',
+            reason: 'mergeDeepLineEffects 把深线 effects 折进战斗特效表（减免/回血/反噬），与神通特效同一套 cap/mode'
         },
         'game/content/ContentRegistry.js': {
             verdict: 'validator',
@@ -333,7 +347,7 @@ describe('5. effects 桶：面板印给玩家、战斗没人读（存量缺陷�
                 if (fs.statSync(full).isDirectory()) { walk(full); continue; }
                 if (!name.endsWith('.js')) continue;
                 const text = fs.readFileSync(full, 'utf8');
-                if (/artifact_deep_line|artifactDeepLine|getAllArtifactDeepLineCombatBonuses/.test(text)) {
+                if (/artifact_deep_line|artifactDeepLine|getAllArtifactDeepLineCombatBonuses|mergeDeepLineEffects|__effects/.test(text)) {
                     hits.push(path.relative(serverRoot, full).replace(/\\/g, '/'));
                 }
             }
@@ -342,10 +356,13 @@ describe('5. effects 桶：面板印给玩家、战斗没人读（存量缺陷�
         return hits.sort();
     }
 
-    test('引用法宝深线的文件逐条要有结论，且战斗目录一条都没有', () => {
+    test('引用法宝深线的文件逐条要有结论（含战斗侧 consumer）', () => {
         const hits = referencingFiles();
         expect(hits).toEqual(Object.keys(DEEP_LINE_REFERENCES).sort());
-        expect(hits.filter(h => h.startsWith('game/combat/'))).toEqual([]);
+        expect(hits.filter(h => h.startsWith('game/combat/'))).toEqual([
+            'game/combat/CombatResolver.js',
+            'game/combat/skillEffects.js'
+        ]);
     });
 
     test('控制跑：扫描器在别的文件里点名法宝深线时看得见（否则本组是空转）', () => {
@@ -369,7 +386,7 @@ describe('5. effects 桶：面板印给玩家、战斗没人读（存量缺陷�
      *   · 已经被改掉的那半 —— 印出去的同时必须说清"这档今天不进战斗"（applied=false → 界面灰字 + 未生效），
      *     所以旧版那种"涂成绿色 +X%"的谎已经没有了。这条测试同时钉住这两半，别让它退回任意一边。
      */
-    test('effects 那三档：仍然印给玩家（所以是"给了没有"），但现在必须标着"未生效"', () => {
+    test('吸血/暴击/暴伤已折进属性档（applied=true），反噬仍走 effects 且已接战斗', () => {
         const { infrastructure } = require('../modules');
         const Svc = require('../game/services/ArtifactDeepLineService');
         const labels = infrastructure.ConfigLoader.getConfig('artifact_deep_lines').bonus_field_labels;
@@ -377,12 +394,16 @@ describe('5. effects 桶：面板印给玩家、战斗没人读（存量缺陷�
             expect(String(labels[field] || '')).toMatch(/./);          // 玩家看得见这一档
             const row = Svc.combatBonusDisplay('blood_sword', { [field]: 0.05 })
                 .find(r => r.key === field);
-            expect(row.bucket).toBe('effects');
-            expect(row.applied).toBe(false);                           // 而它今天不进战斗
+            expect(row.bucket).toBe('absolute');
+            expect(row.applied).toBe(true);
         }
+        // 反噬仍在 effects 桶，但已接进战斗特效表
+        const backlash = Svc.combatBonusDisplay('blood_sword', { blood_backlash_hp_rate_per_round: 0.05 })
+            .find(r => r.key === 'blood_backlash_hp_rate_per_round');
+        expect(backlash.bucket).toBe('effects');
+        expect(backlash.applied).toBe(true);
         const panel = fs.readFileSync(path.join(serverRoot, '..',
             'client/src/components/panels/BloodSwordPanel.vue'), 'utf8');
-        expect(panel).toMatch(/未生效/);
         expect(panel).toMatch(/b\.applied/);
         // 面板退回自己点名字段 = 那次谎的成因又回来了
         expect(panel).not.toMatch(/hp_steal_bonus_rate|crit_rate_bonus|crit_damage_bonus/);

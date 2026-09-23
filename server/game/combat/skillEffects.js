@@ -41,8 +41,32 @@ const SKILL_PROC_EFFECTS = {
     extra_damage_rate: { side: 'attacker', mode: 'sum', cap: 5, label: '额外伤害' },
     defense_pierce_rate: { side: 'attacker', mode: 'max', cap: 0.9, label: '破防' },
     damage_reduction: { side: 'defender', mode: 'max', cap: 0.8, label: '伤害减免' },
-    block_chance: { side: 'defender', mode: 'max', cap: 0.5, label: '格挡' }
+    block_chance: { side: 'defender', mode: 'max', cap: 0.5, label: '格挡' },
+    // 法宝深线 effects 桶（2026-09-23 接线）：每回合结算，不进面板
+    hp_regen_bonus_rate: { side: 'self', mode: 'sum', cap: 0.5, label: '每回合回复' },
+    backlash_rate_per_round: { side: 'self', mode: 'sum', cap: 0.5, label: '血祭反噬' },
+    damage_reduction_rate: { side: 'defender', mode: 'max', cap: 0.8, label: '伤害减免' }
 };
+
+/**
+ * 把法宝深线 effects 桶折进战斗特效（与神通特效同一张表、同一套 cap/mode）。
+ * 键名：深线用 damage_reduction_rate，神通用 damage_reduction —— 都归一到 damage_reduction。
+ */
+function mergeDeepLineEffects(procs, effects) {
+    const out = procs || {};
+    if (!isPlainObject(effects)) return out;
+    const alias = { damage_reduction_rate: 'damage_reduction' };
+    for (const [rawKey, rawValue] of Object.entries(effects)) {
+        const key = alias[rawKey] || rawKey;
+        const spec = SKILL_PROC_EFFECTS[key];
+        if (!spec) continue;
+        const value = Number(rawValue);
+        if (!Number.isFinite(value) || value <= 0) continue;
+        const clamped = Math.min(value, spec.cap);
+        out[key] = spec.mode === 'max' ? Math.max(out[key] || 0, clamped) : (out[key] || 0) + clamped;
+    }
+    return out;
+}
 
 function isPlainObject(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -124,5 +148,6 @@ module.exports = {
     isKnownSkillEffectKey,
     skillEffectVocabulary,
     collectSkillProcs,
-    foldSkillStats
+    foldSkillStats,
+    mergeDeepLineEffects
 };
