@@ -208,7 +208,8 @@
     "listing_page_size": 20,
     "search_page_size": 20,
     "my_listing_page_size": 20,
-    "max_price_ratio": 5
+    "max_price_ratio": 5,
+    "max_premium_ratio": 10
   },
   "admin": {
     "sect_members_page_size": 20,

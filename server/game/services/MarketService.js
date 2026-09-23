@@ -26,6 +26,8 @@ const RETURNED = { allowUnknownItem: true };
 
 /** game_balance.market.max_price_ratio 缺失时的兜底折价倍数 */
 const DEFAULT_MAX_PRICE_RATIO = 5;
+/** 溢价禁令：单价超过天道估值的倍数即拦截（帖：坊市铁律 10 倍） */
+const DEFAULT_MAX_PREMIUM_RATIO = 10;
 
 class MarketService {
     constructor() {
@@ -103,6 +105,10 @@ class MarketService {
         const maxRatio = (Number.isFinite(configuredRatio) && configuredRatio >= 1)
             ? configuredRatio
             : DEFAULT_MAX_PRICE_RATIO;
+        const configuredPremium = Number(config.max_premium_ratio);
+        const maxPremium = (Number.isFinite(configuredPremium) && configuredPremium >= 1)
+            ? configuredPremium
+            : DEFAULT_MAX_PREMIUM_RATIO;
 
         const sellUnitPrice = Number(sellConfig?.price) || 0;
         if (sellUnitPrice <= 0) return { allowed: true };
@@ -110,10 +116,19 @@ class MarketService {
         const sellValue = sellUnitPrice * sellQuantity;
         const wantValue = (Number(wantConfig?.price) || 0) * wantQuantity;
 
+        // 折价禁令：换取价值过低（防甩卖洗钱）
         if (wantValue * maxRatio < sellValue) {
             return {
                 allowed: false,
                 reason: `挂单换取价值过低（出售参考 ${sellValue} 灵石，换取参考 ${wantValue} 灵石），最多允许折价 ${maxRatio} 倍`
+            };
+        }
+
+        // 溢价禁令：单价超过天道估值 N 倍视为扰乱市场（帖：10 倍熔断）
+        if (wantValue > sellValue * maxPremium) {
+            return {
+                allowed: false,
+                reason: `挂单溢价超过天道估值 ${maxPremium} 倍（出售参考 ${sellValue} 灵石，索取 ${wantValue} 灵石），已触发坊市价格熔断`
             };
         }
 

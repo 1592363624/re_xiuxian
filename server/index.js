@@ -700,6 +700,7 @@ const startServer = async () => {
     app.use('/api/inventory', require('./routes/inventory'));
     app.use('/api/sect', require('./routes/sect'));
     app.use('/api/market', require('./routes/market'));
+app.use('/api/gift', require('./routes/gift'));
     // PVP 斗法系统（第四阶段新增：玩家对战、段位排名、荣誉值）
     app.use('/api/pvp', require('./routes/pvp'));
     // PVP 管理（GM 后台）：段位调整、强制取消战斗、战斗记录查询
