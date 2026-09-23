@@ -55,7 +55,11 @@ class MarketService {
             raw: true
         });
         const nameById = new Map(players.map(p => [Number(p.id), p.nickname || '']));
-        return rows.map(r => ({ ...r, seller_name: nameById.get(Number(r.seller_id)) || '' }));
+        return rows.map(r => ({
+        ...r,
+        seller_name: nameById.get(Number(r.seller_id)) || '',
+        is_bundle: this.isBundleListing(r.quantity, r.want_quantity)
+    }));
     }
 
     /**
@@ -84,6 +88,17 @@ class MarketService {
     getItemConfig(itemKey) {
         const items = this.configLoader?.getConfig('item_data')?.items || [];
         return items.find(i => i.id === itemKey) || null;
+    }
+
+    /**
+     * 是否捆绑出售：总价无法被上架数量整除 → 单价算不干净，必须整包买
+     * 帖：「例如 凝血散*3 换 妖丹*1」→ 捆绑
+     */
+    isBundleListing(sellQuantity, wantQuantity) {
+        const sell = Math.floor(Number(sellQuantity) || 0);
+        const want = Math.floor(Number(wantQuantity) || 0);
+        if (sell <= 0 || want <= 0) return true;
+        return want % sell !== 0;
     }
 
     /**
@@ -346,8 +361,10 @@ class MarketService {
 
             return {
                 success: true,
-                message: `成功上架 ${sellConfig.name} x${quantity}，换取 ${wantConfig.name} x${wantQuantity}`,
-                listing_id: listing.id
+                message: `成功上架 ${sellConfig.name} x${quantity}，换取 ${wantConfig.name} x${wantQuantity}`
+                    + (this.isBundleListing(quantity, wantQuantity) ? '（捆绑出售，买家须整包购买）' : ''),
+                listing_id: listing.id,
+                is_bundle: this.isBundleListing(quantity, wantQuantity)
             };
         } catch (error) {
             // 事务回滚前检查是否已结束，避免重复回滚报错
@@ -359,12 +376,14 @@ class MarketService {
     /**
      * 购买挂单（换物交易）
      * 校验：挂单存在且 active、不能买自己的、买家拥有足够的换取物品
+     * 捆绑单只能整包买；非捆绑单可按件买（buyQuantity），按整除单价折算换取物
      * 流程：扣买家换取物品 → 加卖家换取物品 → 加买家上架物品 → 扣卖家上架物品 → 更新挂单状态为 sold（事务）
      * @param {number} playerId - 买家玩家 ID
      * @param {number} listingId - 挂单 ID
+     * @param {number} [buyQuantity] - 购买数量（缺省=全部；捆绑单强制全部）
      * @returns {Promise<Object>} 购买结果
      */
-    async buyListing(playerId, listingId) {
+    async buyListing(playerId, listingId, buyQuantity = null) {
         const t = await sequelize.transaction();
         try {
             // 先无锁看一眼挂单：只有知道卖家是谁，才能按口径把"这一单涉及的两个人"的玩家行一次按主键升序锁齐。
@@ -415,6 +434,34 @@ class MarketService {
                 throw new AppError('不能购买自己的挂单', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
+            // 捆绑判定与购买数量：捆绑单只能整包；非捆绑按整除单价折算
+            const isBundle = this.isBundleListing(listing.quantity, listing.want_quantity);
+            const fullQty = Number(listing.quantity);
+            let takeQty = fullQty;
+            if (buyQuantity !== null && buyQuantity !== undefined) {
+                takeQty = Math.floor(Number(buyQuantity));
+                if (takeQty < 1) {
+                    throw new AppError('购买数量无效', 400, ErrorCodes.VALIDATION_ERROR);
+                }
+                if (isBundle) {
+                    if (takeQty !== fullQty) {
+                        throw new AppError('该挂单为捆绑出售，必须一次性全部购买', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+                    }
+                } else if (takeQty > fullQty) {
+                    throw new AppError('购买数量超过挂单库存', 400, ErrorCodes.VALIDATION_ERROR);
+                }
+            } else if (isBundle) {
+                takeQty = fullQty;
+            } else {
+                // 不带数量默认买全部
+                takeQty = fullQty;
+            }
+
+            // 单价换取量：非捆绑整除；捆绑只在整包时等于 want_quantity
+            const takeWant = isBundle
+                ? Number(listing.want_quantity)
+                : Math.floor(Number(listing.want_quantity) * takeQty / fullQty);
+
             // 校验买家是否拥有足够的换取物品
             const buyerWantItem = await Item.findOne({
                 where: { player_id: playerId, item_key: listing.want_item_key },
@@ -422,15 +469,15 @@ class MarketService {
                 lock: t.LOCK.UPDATE
             });
 
-            if (!buyerWantItem || buyerWantItem.quantity < listing.want_quantity) {
-                throw new AppError(`换取物品不足，需要 ${listing.want_item_name} x${listing.want_quantity}`, 400, ErrorCodes.VALIDATION_ERROR);
+            if (!buyerWantItem || buyerWantItem.quantity < takeWant) {
+                throw new AppError(`换取物品不足，需要 ${listing.want_item_name} x${takeWant}`, 400, ErrorCodes.VALIDATION_ERROR);
             }
 
             // 1. 扣减买家换取物品
             const removeOk = await InventoryService.removeItem(
                 playerId,
                 listing.want_item_key,
-                listing.want_quantity,
+                takeWant,
                 t
             );
             if (!removeOk) {
@@ -441,7 +488,7 @@ class MarketService {
             await InventoryService.addItem(
                 listing.seller_id,
                 listing.want_item_key,
-                listing.want_quantity,
+                takeWant,
                 t,
                 null,
                 RETURNED
@@ -451,7 +498,7 @@ class MarketService {
             await InventoryService.addItem(
                 playerId,
                 listing.item_key,
-                listing.quantity,
+                takeQty,
                 t,
                 null,
                 RETURNED
@@ -459,18 +506,29 @@ class MarketService {
 
             // 4. 扣减卖家上架物品（上架时已扣减，此处无需再扣）
 
-            // 5. 更新挂单状态为已售出
-            listing.status = 'sold';
-            listing.buyer_id = playerId;
-            listing.sold_at = new Date();
+            // 5. 更新挂单状态：整包成交 sold，部分成交则扣减库存保持 active
+            if (takeQty >= fullQty) {
+                listing.status = 'sold';
+                listing.buyer_id = playerId;
+                listing.sold_at = new Date();
+                listing.quantity = 0;
+                listing.want_quantity = 0;
+            } else {
+                listing.quantity = fullQty - takeQty;
+                listing.want_quantity = Number(listing.want_quantity) - takeWant;
+            }
             await listing.save({ transaction: t });
 
             await t.commit();
 
             return {
                 success: true,
-                message: `成功换得 ${listing.item_name} x${listing.quantity}`,
-                listing_id: listing.id
+                message: `成功换得 ${listing.item_name} x${takeQty}`,
+                listing_id: listing.id,
+                bought_quantity: takeQty,
+                paid_quantity: takeWant,
+                remaining_quantity: listing.status === 'sold' ? 0 : listing.quantity,
+                is_bundle: isBundle
             };
         } catch (error) {
             // 事务回滚前检查是否已结束，避免重复回滚报错

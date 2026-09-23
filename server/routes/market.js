@@ -98,11 +98,14 @@ router.post('/list', auth, async (req, res, next) => {
  */
 router.post('/buy', auth, async (req, res, next) => {
     try {
-        const { listing_id } = req.body;
+        const { listing_id, quantity } = req.body;
         if (!listing_id) {
             throw new AppError('挂单ID不能为空', 400, ErrorCodes.VALIDATION_ERROR);
         }
-        const result = await MarketService.buyListing(req.user.id, parseInt(listing_id));
+        const buyQty = (quantity === undefined || quantity === null || quantity === '')
+            ? null
+            : parseInt(quantity);
+        const result = await MarketService.buyListing(req.user.id, parseInt(listing_id), buyQty);
         res.json({ code: 200, ...result });
     } catch (error) {
         next(error);
