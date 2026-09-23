@@ -30,6 +30,52 @@ export function formatDuration(ms) {
 }
 
 /**
+ * 境界修为进度百分比
+ *
+ * 与后端 ExperienceService.calculateExpProgress 同口径（2 位小数、四舍五入）。
+ * 左侧状态栏 / 数据统计必须共用这一份：此前两边各写一套，
+ * 一边 BigInt 整除截成 0%、一边截成 0.01%，同一玩家同一秒看到两个数。
+ *
+ * @param {bigint|number|string} currentExp - 当前修为
+ * @param {bigint|number|string} maxExp - 本境界修为上限（exp_next / exp_cap 同一值）
+ * @param {number} [decimalPlaces=2] - 保留小数位
+ * @returns {number} 0–100
+ */
+export function calcExpProgress(currentExp, maxExp, decimalPlaces = 2) {
+  try {
+    const current = BigInt(currentExp || 0)
+    const max = BigInt(maxExp || 0)
+    if (max <= 0n || current <= 0n) return 0
+    if (current >= max) return 100
+    const precision = BigInt(Math.pow(10, decimalPlaces + 2))
+    const scaled = (current * 100n * precision) / max
+    const result = Number(scaled) / Number(precision)
+    const roundFactor = Math.pow(10, decimalPlaces)
+    return Math.min(100, Math.max(0, Math.round(result * roundFactor) / roundFactor))
+  } catch {
+    const cur = Number(currentExp) || 0
+    const cap = Number(maxExp) || 0
+    if (cap <= 0 || cur <= 0) return 0
+    const pct = (cur / cap) * 100
+    const roundFactor = Math.pow(10, decimalPlaces)
+    return Math.min(100, Math.max(0, Math.round(pct * roundFactor) / roundFactor))
+  }
+}
+
+/**
+ * 进度百分比上屏文案。
+ * <1% 必须保留 2 位小数：0.02% 被截成 0% 看起来像进度条坏了。
+ */
+export function formatExpProgress(pct) {
+  const n = Number(pct) || 0
+  if (n <= 0) return '0%'
+  if (n >= 100) return '100%'
+  if (n < 1) return `${n.toFixed(2)}%`
+  if (n < 10) return `${n.toFixed(1)}%`
+  return `${Math.round(n)}%`
+}
+
+/**
  * 紧凑倒计时（mm:ss / h:mm:ss），给顶部计时条、冷却角标用。
  * 与 formatTime 的「5分钟」不同：这里每秒跳动，要固定宽度才不抖。
  * @param {number} seconds - 剩余秒数

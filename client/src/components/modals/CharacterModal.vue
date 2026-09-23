@@ -14,7 +14,7 @@
               <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                  <div class="bg-surface-raised p-3 rounded border border-line-subtle">
                     <div class="text-xs text-fg-faint mb-1">游戏天数</div>
-                    <div class="text-lg num text-gold-500">{{ Math.floor((player?.total_online_time || 0) / (24 * 60 * 60 * 1000)) + 1 }}</div>
+                    <div class="text-lg num text-gold-500" :title="player?.created_at ? `创角 ${player.created_at}` : undefined">{{ gameDays }}</div>
                  </div>
                  <div class="bg-surface-raised p-3 rounded border border-line-subtle">
                     <div class="text-xs text-fg-faint mb-1">游戏时长</div>
@@ -27,14 +27,22 @@
                  <div class="bg-surface-raised p-3 rounded border border-line-subtle">
                     <div class="text-xs text-fg-faint mb-1">境界进度</div>
                     <div class="w-full bg-surface-sunken rounded-full h-2 mt-2 mb-1 overflow-hidden">
-                       <div class="bg-purple-600 h-full rounded-full" :style="{ width: `${calculateExpProgress()}%` }"></div>
+                       <div class="bg-purple-600 h-full rounded-full" :style="{ width: expBarWidth }"></div>
                     </div>
-                    <div class="text-right text-xs text-purple-400 num">{{ calculateExpProgress() }}%</div>
+                    <!-- 与左栏同口径：进度% + 修为/上限，避免只有百分比看不出量级 -->
+                    <div class="text-right text-xs text-purple-400 num" :title="`${formatNumber(expCurrent)} / ${formatNumber(expCap)}`">
+                       {{ formatExpProgress(expProgress) }}
+                       <span class="text-fg-faint">·</span>
+                       {{ formatCompact(expCurrent) }} / {{ formatCompact(expCap) }}
+                    </div>
+                    <div v-if="expRemainingText" class="text-right text-[10px] text-fg-faint num mt-0.5">
+                       距圆满还差 {{ expRemainingText }}
+                    </div>
                  </div>
                  <div class="bg-surface-raised p-3 rounded border border-line-subtle">
                     <div class="text-xs text-fg-faint mb-1">当前修为</div>
                     <!-- 大数走万/亿单位，hover 看精确值 -->
-                    <div class="text-lg num text-emerald-400" :title="formatNumber(player?.exp || 0)">{{ formatCompact(player?.exp || 0) }}</div>
+                    <div class="text-lg num text-emerald-400" :title="formatNumber(expCurrent)">{{ formatCompact(expCurrent) }}</div>
                  </div>
                  <div class="bg-surface-raised p-3 rounded border border-line-subtle">
                     <div class="text-xs text-fg-faint mb-1">当前灵石</div>
@@ -123,7 +131,7 @@ import { usePlayerStore } from '../../stores/player';
 import { useUIStore } from '../../stores/ui';
 import { getFullAttributes } from '../../api/attribute';
 import { useStatSchema } from '../../composables/useStatSchema';
-import { formatNumber, formatCompact } from '../../utils/format';
+import { formatNumber, formatCompact, formatExpProgress, calcExpProgress } from '../../utils/format';
 
 const { detailStats, gridCell } = useStatSchema();
 
@@ -181,15 +189,54 @@ const formatOnlineTime = (ms) => {
   return `${hours}小时${remainingMinutes}分钟`;
 };
 
-const calculateExpProgress = () => {
-    if (!attributes.value.exp) return 0;
-    const current = BigInt(attributes.value.exp.current || 0);
-    const cap = BigInt(attributes.value.exp.cap || 1);
-    if (cap === 0n) return 100;
-    
-    const progress = Number((current * 10000n) / cap) / 100;
-    return Math.min(100, Math.max(0, progress));
-};
+/**
+ * 游戏天数：按创角自然日计。
+ * 原先用 total_online_time/24h+1，在线 7 小时也显示「1 天」，
+ * 而且不挂机就永远不涨 —— 和「游戏时长」重复且语义错位。
+ */
+const gameDays = computed(() => {
+  const created = player.value?.created_at
+  if (created) {
+    const days = Math.floor((Date.now() - new Date(created).getTime()) / 86400000) + 1
+    return Math.max(1, days)
+  }
+  // 无创建时间时兜底旧口径，避免空白
+  return Math.floor((Number(player.value?.total_online_time) || 0) / 86400000) + 1
+})
+
+const expCurrent = computed(() => attributes.value.exp?.current ?? player.value?.exp ?? 0)
+const expCap = computed(() => attributes.value.exp?.cap ?? player.value?.exp_next ?? player.value?.exp_cap ?? 0)
+
+/** 境界进度：优先后端权威值，缺失时与左栏共用 calcExpProgress */
+const expProgress = computed(() => {
+  const fromServer = player.value?.exp_progress
+  if (fromServer !== undefined && fromServer !== null && fromServer !== '') {
+    const n = Number(fromServer)
+    if (Number.isFinite(n)) return n
+  }
+  return calcExpProgress(expCurrent.value, expCap.value)
+})
+
+const expBarWidth = computed(() => {
+  const p = expProgress.value
+  if (p <= 0) return '0%'
+  return `${Math.min(100, Math.max(p, 0.5))}%`
+})
+
+/** 距本境界圆满还差多少修为（已满则为空） */
+const expRemainingText = computed(() => {
+  try {
+    const cur = BigInt(expCurrent.value || 0)
+    const cap = BigInt(expCap.value || 0)
+    if (cap <= 0n || cur >= cap) return ''
+    return formatCompact((cap - cur).toString())
+  } catch {
+    const cur = Number(expCurrent.value) || 0
+    const cap = Number(expCap.value) || 0
+    if (cap <= 0 || cur >= cap) return ''
+    return formatCompact(cap - cur)
+  }
+})
 
 onMounted(() => {
   fetchAttributes();

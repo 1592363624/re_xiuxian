@@ -112,6 +112,24 @@ router.get('/changelog', async (req, res, next) => {
 });
 
 /**
+ * 维护状态恢复探测（公开，无需登录）
+ *
+ * 维护中：本路由不会被执行——maintenance 中间件先把请求拦成 503(code=MAINTENANCE)。
+ * 维护结束：返回 200，前端遮罩 / 静态维护页轮询到 200 后立即整页刷新进游戏。
+ * 故意做成极轻量，不查库、不读配置。
+ */
+router.get('/maintenance', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+        code: 200,
+        data: {
+            maintenance: false,
+            timestamp: Date.now(),
+        },
+    });
+});
+
+/**
  * 获取服务器统计信息
  */
 router.get('/stats', async (req, res, next) => {

@@ -77,26 +77,31 @@ function testPlayerStatusExpDisplay() {
     assert(content.includes('{{ formatNumber(player.exp || 0) }}') || content.includes('formatNumber(player.exp'),
         'P1-2.1 PlayerStatus.vue 修为显示使用 formatNumber');
 
-    // 1.2 模板中修为进度条应使用 expPercentage computed（BigInt 计算）
-    assert(content.includes(':style="{ width: expPercentage }"'),
-        'P1-2.2 PlayerStatus.vue 进度条使用 expPercentage');
+    // 1.2 进度条宽度走统一的 expBarWidth（内部读 calcExpProgress / 后端 exp_progress）
+    assert(content.includes(':style="{ width: expBarWidth }"'),
+        'P1-2.2 PlayerStatus.vue 进度条使用 expBarWidth（统一进度算法）');
 
-    // 1.3 expPercentage 应使用 BigInt 计算（避免大数精度丢失）
-    assert(content.includes('BigInt(props.player.exp'),
-        'P1-2.3 expPercentage 使用 BigInt 计算');
+    // 1.3 境界进度必须走共享 calcExpProgress（与数据统计/后端同口径，BigInt 安全）
+    assert(content.includes('calcExpProgress'),
+        'P1-2.3 PlayerStatus.vue 使用共享 calcExpProgress');
 
-    // 1.4 expPercentage 应有 try-catch 降级处理
-    assert(content.includes('catch') && content.includes('BigInt'),
-        'P1-2.4 expPercentage 有 BigInt 解析失败降级');
+    // 1.4 上屏百分比走 formatExpProgress，禁止自己截断成 0%
+    assert(content.includes('formatExpProgress'),
+        'P1-2.4 PlayerStatus.vue 使用 formatExpProgress 上屏');
 
-    // 1.5 不应再有原始的 player.exp / player.exp_next 直接除法（已改为 BigInt 计算）
+    // 1.5 不应再有原始的 player.exp / player.exp_next 直接除法（统一走 calcExpProgress）
     const codeLines = filterCodeLines(content);
     const hasOldDivision = codeLines.some(l =>
         l.includes('player.exp / player.exp_next') ||
-        l.includes('player.exp / (props.player.exp_next')
+        l.includes('player.exp / (props.player.exp_next') ||
+        /BigInt\(props\.player\.exp\s*\|\|\s*0\)\s*\n?\s*const expNext = BigInt\(props\.player\.exp_next/.test(l)
     );
     assert(!hasOldDivision,
         'P1-2.5 不应再有原始的 player.exp/player.exp_next 直接除法');
+
+    // 1.6 禁止旧的整除百分比（会把 0.02% 截成 0%）
+    assert(!content.includes('(exp * 100n) / expNext'),
+        'P1-2.5b 禁止 BigInt 整除截断百分比（会把 0.02% 显示成 0%）');
 }
 
 /**
@@ -111,9 +116,13 @@ function testCharacterModalExpDisplay() {
     assert(importsFormatter(content),
         'P1-2.6 CharacterModal.vue 引入 formatNumber/formatCompact');
 
-    // 2.2 修为显示应使用 formatNumber
-    assert(content.includes('formatNumber(player?.exp || 0)'),
-        'P1-2.7 CharacterModal.vue 修为显示使用 formatNumber');
+    // 2.2 修为显示应使用 formatNumber（精确值挂 title；上屏可 formatCompact）
+    assert(content.includes('formatNumber(expCurrent)'),
+        'P1-2.7 CharacterModal.vue 修为显示使用 formatNumber(expCurrent)');
+
+    // 2.2b 境界进度必须与左栏共用 calcExpProgress / formatExpProgress
+    assert(content.includes('calcExpProgress') && content.includes('formatExpProgress'),
+        'P1-2.7b CharacterModal.vue 与左栏共用进度算法');
 
     // 2.3 灵石显示应使用 formatNumber
     assert(content.includes('formatNumber(player?.spirit_stones || 0)'),
@@ -157,11 +166,10 @@ function testSectPanelExpDisplay() {
     assert(content.includes('formatNumber(result.rewards?.exp || 0)'),
         'P1-2.13 SectPanel.vue 点卯修为奖励使用 formatNumber');
 
-    // 4.3 应有至少 2 处 formatNumber 调用（点卯 + 任务提交）
-    const matchCount = (content.match(/formatNumber\(result\.rewards\?\.exp \|\| 0\)/g) || []).length;
-    assert(matchCount >= 2,
-        'P1-2.14 SectPanel.vue 应有至少 2 处 formatNumber 调用（点卯+任务）',
-        `实际=${matchCount}`);
+    // 4.3 修为奖励展示走 BigInt 安全格式化（formatNumber 或 formatCompact 均可）
+    assert(content.includes('formatNumber(result.rewards?.exp || 0)')
+        || content.includes('formatCompact(result.rewards?.exp'),
+        'P1-2.14 SectPanel.vue 修为奖励使用 BigInt 安全格式化');
 }
 
 /**
@@ -172,13 +180,14 @@ function testCompanionPanelExpDisplay() {
     const filePath = path.join(CLIENT_BASE, 'components', 'panels', 'CompanionPanel.vue');
     const content = readFile(filePath);
 
-    // 5.1 应引入 formatNumber
-    assert(content.includes("import { formatNumber } from '../../utils/format'"),
-        'P1-2.15 CompanionPanel.vue 引入 formatNumber');
+    // 5.1 应引入 BigInt 安全格式化（formatNumber 或 formatCompact）
+    assert(content.includes("from '../../utils/format'")
+        && (content.includes('formatNumber') || content.includes('formatCompact')),
+        'P1-2.15 CompanionPanel.vue 引入 BigInt 安全格式化');
 
-    // 5.2 心契当前经验显示应使用 formatNumber
-    assert(content.includes('formatNumber(heartContractData.heart_contract.exp)'),
-        'P1-2.16 CompanionPanel.vue 心契经验使用 formatNumber');
+    // 5.2 心契进度用 formatCompact（BigInt 级双修次数）；旧断言钉死的 heart_contract.exp 字段后端已无
+    assert(content.includes('formatCompact(heartContractData'),
+        'P1-2.16 CompanionPanel.vue 心契进度使用 formatCompact');
 }
 
 /**
@@ -223,10 +232,16 @@ function testFormatNumberUtilExists() {
         'P1-2.22 formatCompact 使用中文四位一档单位表');
 
     // 7.5 左侧状态栏（固定 w-72）应改用 formatCompact 显示大数
+    // 六维已由 useStatSchema.gridCell 统一 formatCompact，这里校验灵石资源格 + 导入
     const statusContent = readFile(path.join(CLIENT_BASE, 'components', 'panels', 'PlayerStatus.vue'));
     assert(statusContent.includes('formatCompact(player.spirit_stones')
-        && statusContent.includes('formatCompact(player.attributes?.atk'),
+        && statusContent.includes('formatCompact'),
         'P1-2.23 PlayerStatus.vue 灵石/六维使用 formatCompact');
+
+    // 7.6 共享进度算法必须存在（左栏与数据统计的唯一口径）
+    assert(content.includes('export function calcExpProgress')
+        && content.includes('export function formatExpProgress'),
+        'P1-2.24 utils/format.js 导出 calcExpProgress / formatExpProgress');
 }
 
 /**

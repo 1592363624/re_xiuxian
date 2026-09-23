@@ -2,7 +2,7 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { getStats as getSystemStats } from '../../api/system'
 import { ROOT_TYPE_MAP, ROOT_NAME_MAP, POLL_INTERVALS } from '../../config'
-import { formatDuration, formatNumber, formatCompact } from '../../utils/format'
+import { formatDuration, formatNumber, formatCompact, calcExpProgress, formatExpProgress } from '../../utils/format'
 import { useStatSchema } from '../../composables/useStatSchema'
 
 const { sidebarStats, gridCell } = useStatSchema()
@@ -38,21 +38,25 @@ const onAvatarContextMenu = (event) => {
   emit('action', 'gm')
 }
 
-// 计算经验条百分比
-// 修复 4-3-P1-2：player.exp 是 BigInt 字符串（如 "99999999999"），
-// 直接用 Number(player.exp) 在超过 Number.MAX_SAFE_INTEGER (2^53-1 ≈ 9e15) 时会精度丢失
-// 改用 BigInt 计算（先 *100n 再除，避免小数丢精度）
-const expPercentage = computed(() => {
-  try {
-    const exp = BigInt(props.player.exp || 0)
-    const expNext = BigInt(props.player.exp_next || 1)
-    if (expNext <= 0n) return '0%'
-    const pct = Number((exp * 100n) / expNext)
-    return Math.min(pct, 100) + '%'
-  } catch {
-    // BigInt 解析失败时降级到 Number 计算（小数场景）
-    return Math.min((Number(props.player.exp) / (Number(props.player.exp_next) || 1)) * 100, 100) + '%'
+// 境界修为进度：与数据统计 / 后端 exp_progress 同一份算法（calcExpProgress）。
+// 优先读后端权威值，本地只在缺失时用 exp/exp_next 现算 —— 两边各写一套会
+// 出现「左栏 0%、数据统计 0.01%」这种同屏自相矛盾。
+const expProgress = computed(() => {
+  const fromServer = props.player.exp_progress
+  if (fromServer !== undefined && fromServer !== null && fromServer !== '') {
+    const n = Number(fromServer)
+    if (Number.isFinite(n)) return n
   }
+  return calcExpProgress(props.player.exp, props.player.exp_next || props.player.exp_cap)
+})
+
+const expPercentage = computed(() => formatExpProgress(expProgress.value))
+
+// 进度条宽度：>0 时给最小可见宽度，避免 0.02% 的条完全看不见
+const expBarWidth = computed(() => {
+  const p = expProgress.value
+  if (p <= 0) return '0%'
+  return `${Math.min(100, Math.max(p, 0.5))}%`
 })
 
 // 寿元进度条宽度（剩余寿元 / 最大寿元）
@@ -318,12 +322,12 @@ onUnmounted(() => {
         <div class="flex justify-between text-[10px] text-fg-muted mb-0.5">
           <span>修为</span>
           <!-- 大数走万/亿单位，hover 看精确值（全站数字展示约定） -->
-          <span class="num whitespace-nowrap" :title="`${formatNumber(player.exp || 0)} / ${formatNumber(player.exp_next || 0)}`">{{ formatCompact(player.exp || 0) }} / {{ formatCompact(player.exp_next || 0) }}</span>
+          <span class="num whitespace-nowrap" :title="`${formatNumber(player.exp || 0)} / ${formatNumber(player.exp_next || player.exp_cap || 0)}（${expPercentage}）`">{{ formatCompact(player.exp || 0) }} / {{ formatCompact(player.exp_next || player.exp_cap || 0) }}</span>
         </div>
         <div class="h-1.5 w-full bg-surface-sunken rounded-sm overflow-hidden border border-line-subtle relative">
           <div class="h-full bg-emerald-600 progress-flow transition-all duration-300"
                :class="{ 'brightness-150': isExpChanged }"
-               :style="{ width: expPercentage }"></div>
+               :style="{ width: expBarWidth }"></div>
         </div>
       </div>
 

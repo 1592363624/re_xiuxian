@@ -22,6 +22,11 @@ yarn-error.log*
 # GM 上传的公告配图（运行期产物，不入库）
 server/uploads/
 
+# 部署维护模式开关（deploy.ps1 写入/删除，运行期产物）
+server/maintenance.flag
+# 部署前从 public/ 拷出的稳定维护页（nginx 在 dist 清空期间读这份）
+client/maintenance.html
+
 # IDEs & Editors
 .idea/
 .vscode/

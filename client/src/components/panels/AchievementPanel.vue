@@ -22,7 +22,8 @@ defineEmits(['close'])
 const payload = ref(null)
 const loading = ref(false)
 const loadError = ref('')
-const busy = ref(false)
+/** 正在领取的成就 id：只让这一张卡片转圈，不要把整屏可领按钮一起点亮 */
+const claimingId = ref('')
 const categories = ref({})
 
 const items = computed(() => payload.value?.items || [])
@@ -39,38 +40,54 @@ const grouped = computed(() => {
   return map
 })
 
-const fetchList = async () => {
-  loading.value = true
-  loadError.value = ''
+/**
+ * 拉取成就列表。
+ * silent=true 时只换数据、不动整页 loading —— PanelShell 的 loading 会整块替换内容，
+ * 领取成功后若走非静默刷新，玩家会先看见一屏转圈再看见列表，这是「领取转圈卡顿」的另一半。
+ */
+const fetchList = async ({ silent = false } = {}) => {
+  if (!silent) {
+    loading.value = true
+    loadError.value = ''
+  }
   try {
     const res = await getAchievements()
     payload.value = res.data?.data || res.data || {}
     categories.value = payload.value.categories || {}
+    loadError.value = ''
   } catch (err) {
     console.error('获取成就失败:', err)
-    loadError.value = '获取成就失败'
+    if (!silent) loadError.value = '获取成就失败'
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
 const onClaim = async (item) => {
-  if (busy.value) return
-  busy.value = true
+  if (claimingId.value) return
+  claimingId.value = item.id
   try {
     const res = await claimAchievement(item.id)
     const p = res.data
     if (!p?.success) {
       uiStore.showToast(p?.message || '领取失败', 'warning')
+      await fetchList({ silent: true })
       return
     }
+    // 先本地熄灯：静默刷新前按钮立刻变「已领取」
+    item.claimed = true
     uiStore.showToast(p.message || '领取成功', 'success')
-    await fetchList()
-    try { await playerStore.fetchPlayer() } catch (e) { /* 资源刷新失败不该挡成就列表 */ }
+    // 列表与资源并行刷新；串行会把转圈拖长到三倍 RTT
+    await Promise.all([
+      fetchList({ silent: true }),
+      playerStore.fetchPlayer().catch(() => { /* 资源刷新失败不该挡成就列表 */ })
+    ])
   } catch (err) {
     uiStore.showApiError(err, '领取失败')
+    // 后端可能已经落库（如「奖励已领取」），刷新对账，避免按钮一直亮着
+    await fetchList({ silent: true }).catch(() => {})
   } finally {
-    busy.value = false
+    claimingId.value = ''
   }
 }
 
@@ -92,7 +109,7 @@ const rewardText = (item) => {
   return parts.length ? `奖励：${parts.join('、')}` : '无奖励'
 }
 
-onMounted(fetchList)
+onMounted(() => fetchList())
 </script>
 
 <template>
@@ -105,7 +122,7 @@ onMounted(fetchList)
     empty-hint="去历练、闭关、经营洞府，成就自会一一解锁"
     size="xl"
     @close="$emit('close')"
-    @retry="fetchList"
+    @retry="() => fetchList()"
   >
     <template #header-actions>
       <Badge tone="gold">已达成 {{ completedCount }} / {{ total }}</Badge>
@@ -147,8 +164,8 @@ onMounted(fetchList)
               <AppButton
                 size="xs"
                 :variant="it.completed && !it.claimed ? 'primary' : 'outline'"
-                :disabled="!it.completed || it.claimed"
-                :loading="busy && it.completed && !it.claimed"
+                :disabled="!it.completed || it.claimed || !!claimingId"
+                :loading="claimingId === it.id"
                 @click="onClaim(it)"
               >
                 {{ it.claimed ? '已领取' : it.completed ? '领取' : '未达成' }}

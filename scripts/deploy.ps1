@@ -1,9 +1,12 @@
 <#
 .SYNOPSIS
-    修仙游戏 - 服务器部署脚本（极简版 v2）
+    修仙游戏 - 服务器部署脚本（极简版 v2 + 维护模式）
 .DESCRIPTION
-    核心流程: git pull -> 杀端口 -> npm install -> build -> pm2 restart -> 健康检查
+    核心流程: git pull -> 开维护 -> 杀端口 -> npm install -> build -> pm2 start -> 健康检查 -> 关维护
     设计原则: KISS - 每步明确，失败即停，不搞过度防御
+    维护模式: 部署开始写 server/maintenance.flag，旧服立刻对玩家显示维护页；
+              新服带着 flag 启动，健康检查（/api/health 放行）通过后删 flag，
+              玩家页面自动刷新进新版本。防止切版本时玩家仍在游玩导致数据异常。
     相比 v1 (955 行) 的精简:
       - 去掉 mirror 逻辑（直接用原 remote，避免缓存旧数据导致 fetch 假成功）
       - 去掉 22 项兜底检查（过度防御反而增加失败点）
@@ -12,6 +15,7 @@
 .NOTES
     前提: 服务器已装 git/Node.js/PM2，server/.env 已配置
     失败排查: 看 PM2 日志 pm2 logs xiuxian-server --lines 50
+    维护开关: server/maintenance.flag（nginx 也认这个文件，见 scripts/nginx-maintenance.sample.conf）
 #>
 
 # 强制 UTF-8 输出 + 英文错误消息（仅影响显示，不影响脚本解析）
@@ -172,9 +176,52 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "[OK] Code updated to $(git rev-parse --short HEAD)"
 
+# ========== 1.5 开启维护模式（旧服仍在跑，立刻拦住玩家） ==========
+# 为什么在杀进程之前：flag 一写，旧服的 maintenance 中间件 / nginx 维护改写
+# 马上生效，玩家看到的是维护页而不是正在被拆掉的游戏。已打开的 SPA 由前端
+# 遮罩（maintenanceGuard）轮询 /api/system/maintenance 自动接管。
+# 注意：本特性首次上线时旧服还没有中间件，flag 对旧服无效；从下一次部署起全程生效。
+Write-Host ""
+Write-Host "[2/7] Enabling maintenance mode..."
+
+$script:flagPath = Join-Path "$projectDir\server" 'maintenance.flag'
+function Enable-Maintenance {
+    Set-Content -LiteralPath $script:flagPath -Value (Get-Date -Format o) -Force
+    Write-Host "[OK] Maintenance flag written: $script:flagPath"
+}
+function Disable-Maintenance {
+    if (Test-Path -LiteralPath $script:flagPath -PathType Leaf) {
+        # 尽力而为：部署已健康时删 flag 失败绝不能把整次部署打成失败。
+        # 最坏情况维护页多挂一会儿，玩家手动刷新即可。
+        Remove-Item -LiteralPath $script:flagPath -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $script:flagPath -PathType Leaf) {
+            Write-Host "[WARN] Could not remove maintenance.flag (locked?). Players may need a manual refresh."
+        } else {
+            Write-Host "[OK] Maintenance flag removed"
+        }
+    }
+}
+
+Enable-Maintenance
+
+# 稳定维护页：拷到 client/maintenance.html（在 dist 外）。
+# vite build 会 emptyOutDir 清掉 dist，nginx 若 rewrite 到 dist/maintenance.html
+# 会在那一瞬间 404；指向 client/maintenance.html 则全程可读。
+$srcMaint = Join-Path "$projectDir\client\public\maintenance.html"
+$stableMaint = Join-Path "$projectDir\client\maintenance.html"
+if (Test-Path -LiteralPath $srcMaint) {
+    Copy-Item -LiteralPath $srcMaint -Destination $stableMaint -Force
+    Write-Host "[OK] Stable maintenance page: $stableMaint"
+} else {
+    Write-Host "[WARN] client/public/maintenance.html not found; nginx static maintenance page unavailable"
+}
+
+# 给已打开的客户端一点时间打到 API 并弹出遮罩，再动手杀进程
+Start-Sleep -Seconds 2
+
 # ========== 2. 释放端口 + 清理旧 PM2 进程 ==========
 Write-Host ""
-Write-Host "[2/6] Releasing port $serverPort and cleaning PM2..."
+Write-Host "[3/7] Releasing port $serverPort and cleaning PM2..."
 
 # 无条件杀掉占用端口的进程（无论 PM2 管理的还是手动 node）
 # 为什么无条件杀: v1 区分 PM2/非 PM2 进程导致逻辑分支过多，且 PM2 list 空时
@@ -201,7 +248,7 @@ Write-Host "[OK] Old PM2 process cleaned"
 
 # ========== 3. 安装依赖 ==========
 Write-Host ""
-Write-Host "[3/6] Installing dependencies..."
+Write-Host "[4/7] Installing dependencies..."
 
 # npm 安装函数（带一次重试）
 # 为什么需要重试: npm install 偶发网络失败，清理后重试通常能成功
@@ -246,12 +293,15 @@ if (-not $serverOk) { exit 1 }
 
 # ========== 4. 构建前端 ==========
 Write-Host ""
-Write-Host "[4/6] Building client..."
+Write-Host "[5/7] Building client..."
 Set-Location "$projectDir\client"
 
-# 清理旧 dist（被锁就改名，避免删除失败阻塞部署）
+# 不要先删 dist：vite build 默认 emptyOutDir 会自己刷新产物。
+# 提前整目录删除会多出一段「nginx 根是空的」窗口；若文件被锁则改名腾位。
+# 稳定维护页在 client/maintenance.html（上一步已拷好），不受 dist 清空影响。
 if (Test-Path "dist") {
     try {
+        # 只清掉可能锁住 vite 写入的旧产物尝试；失败不阻塞，交给 vite 自己 emptyOutDir
         Remove-Item -Recurse -Force "dist" -ErrorAction Stop
     } catch {
         $ts = Get-Date -Format 'yyyyMMddHHmmss'
@@ -281,8 +331,12 @@ Write-Host "[OK] Client build complete"
 
 # ========== 5. 启动 PM2 ==========
 Write-Host ""
-Write-Host "[5/6] Starting PM2..."
+Write-Host "[6/7] Starting PM2..."
 Set-Location "$projectDir\server"
+
+# 新服带着 flag 启动：启动完成到健康检查通过之间，玩家仍看到维护页
+# （避免露出半初始化状态）。/api/health 在中间件里放行，健康检查不受影响。
+Enable-Maintenance
 
 pm2 start ecosystem.config.js --env production 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) {
@@ -305,14 +359,16 @@ if ($describe -notmatch "status.*online") {
 pm2 save 2>&1 | Out-Null
 Write-Host "[OK] PM2 started (online)"
 
-# ========== 6. 健康检查 ==========
+# ========== 6. 健康检查 + 关闭维护 ==========
 Write-Host ""
-Write-Host "[6/6] Health check..."
+Write-Host "[7/7] Health check, then disable maintenance..."
 Start-Sleep -Seconds 10
 
 try {
     $res = Invoke-WebRequest -Uri $healthCheckUrl -UseBasicParsing -TimeoutSec 5
     if ($res.StatusCode -eq 200) {
+        # 健康检查通过后关维护：玩家遮罩/维护页轮询到 200 会自动整页刷新进新版本
+        Disable-Maintenance
         Write-Host ""
         Write-Host "=================================================="
         Write-Host "  Deploy SUCCESS"
@@ -323,11 +379,13 @@ try {
         Write-Host "=================================================="
     } else {
         Write-Host "[FATAL] Health check failed: HTTP $($res.StatusCode)"
+        Write-Host "[INFO] Maintenance flag kept so players stay on the maintenance page"
         pm2 logs $pm2AppName --lines 30 --nostream 2>&1 | Out-Host
         exit 1
     }
 } catch {
     Write-Host "[FATAL] Health check failed: $($_.Exception.Message)"
+    Write-Host "[INFO] Maintenance flag kept so players stay on the maintenance page"
     Write-Host "[INFO] PM2 logs (last 30 lines):"
     pm2 logs $pm2AppName --lines 30 --nostream 2>&1 | Out-Host
     exit 1

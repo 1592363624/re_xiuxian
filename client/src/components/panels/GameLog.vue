@@ -104,7 +104,13 @@ onMounted(() => {
               isOther(log) ? 'opacity-70' : ''
             ]"
           >
-            <span class="text-fg-faint text-[10px] mt-[3px] num shrink-0 opacity-70 group-hover:opacity-100">{{ log.time }}</span>
+            <!-- 自己的操作时间调亮，他人动态时间保持暗淡，扫一眼就能分清谁的 -->
+            <span
+              class="text-[10px] mt-[3px] num shrink-0 group-hover:opacity-100"
+              :class="isOther(log)
+                ? 'text-fg-faint opacity-60'
+                : 'text-gold-300/80 opacity-90'"
+            >{{ log.time }}</span>
 
             <!-- 他人动态固定「道友」前缀，一眼和自己的亮色日志分开 -->
             <span

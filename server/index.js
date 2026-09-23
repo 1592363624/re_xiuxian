@@ -141,6 +141,12 @@ const { apiLimiter, actionLimiter, adminLimiter, initializeRateLimiters, watchRa
 
 const app = express();
 
+// 维护模式中间件必须最先挂载：部署脚本写入 server/maintenance.flag 后，
+// 所有游戏 API 返回 503(code=MAINTENANCE)，页面请求返回维护 HTML。
+// /api/health 放行，deploy.ps1 健康检查在维护期仍可用。
+const { maintenanceMiddleware } = require('./middleware/maintenance');
+app.use(maintenanceMiddleware);
+
 // 反向代理层数：部署在 nginx 等代理之后需配置 TRUST_PROXY_HOPS=1，
 // 否则限流会把全部玩家计入同一个 IP；直连部署保持默认（不信任 X-Forwarded-For）
 const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS, 10);

@@ -173,7 +173,11 @@ class AchievementService {
         const items = await Promise.all(list.map(async a => {
             const progress = await this._metricValue(a.metric, player);
             const target = Number(a.target) || 0;
-            const rec = recMap[a.achievement_id];
+            // 成就定义的主键是 `id`（achievement_data.achievements[].id），
+            // player_achievements.achievement_id 存的就是它。这里以前写成 a.achievement_id，
+            // 配置里根本没有这个字段 → rec 恒为 undefined → claimed 恒为 false：
+            // 玩家领完奖按钮还亮着「可领取」，再点一次被后端打回「奖励已领取」。
+            const rec = recMap[a.id];
 
             // 以"实时进度"与"历史记录"两者较大值作为展示进度，避免回退造成显示异常
             const shownProgress = Math.max(progress, Number(rec?.progress) || 0);
@@ -275,13 +279,17 @@ class AchievementService {
             throw new AppError('成就不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
-        // 进度同步必须在**开事务之前**做，不能挪进来：syncProgress 会往 player_achievements 建/写行，
-        // 而那些语句不带事务 → 走的是另一条连接；下面这道事务一开头就对 players 行取 FOR UPDATE，
-        // 并对"这一条成就的行"也取了 FOR UPDATE —— 行还不存在时锁住的是索引间隙，于是那条连接的 INSERT
-        // 被本事务自己的间隙锁挡住：现网每个玩家**第一次点领取**都要挂满 50 秒再抛
+        // 建行必须在**开事务之前**，不能挪进来：INSERT 不带事务会走另一条连接，
+        // 而下面这道事务一开头就对"这一条成就的行"取 FOR UPDATE —— 行还不存在时锁住的是索引间隙，
+        // 于是那条连接的 INSERT 被本事务自己的间隙锁挡住：第一次点领取要挂满 50 秒再抛
         // "Lock wait timeout exceeded"（2026-09-22 探针 scripts/smoke_achievement_rewards.js A1 实测）。
-        // 放外面就互不干扰：同步建好行之后，事务里读到的就是那一行，锁也是锁真行。
-        await this.syncProgress(playerId);
+        // 以前这里调的是全表 syncProgress（每条成就一次 findOrCreate），
+        // 38 条成就就是 38 次串行写库 —— 领取转圈「时长异常」的主因之一。
+        // 领取只关心这一条成就的行，建好它就够：事务里锁的就是真行，不再踩间隙锁。
+        await PlayerAchievement.findOrCreate({
+            where: { player_id: playerId, achievement_id: achievementId },
+            defaults: { progress: 0, completed: false, completed_at: null }
+        });
 
         return await sequelize.transaction(async (t) => {
             const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
@@ -344,19 +352,24 @@ class AchievementService {
             if (exp > 0) player.exp = Number(player.exp) + exp;
             await player.save({ transaction: t });
 
+            const now = new Date();
             if (!finalRec) {
                 await PlayerAchievement.create({
                     player_id: playerId,
                     achievement_id: achievementId,
                     progress,
                     completed: true,
-                    completed_at: new Date(),
+                    completed_at: now,
                     claimed: true,
-                    claimed_at: new Date()
+                    claimed_at: now
                 }, { transaction: t });
             } else {
+                // 预建行可能只有 progress=0 / completed=false 的空壳，领取时一并写满
+                finalRec.progress = Math.max(progress, Number(finalRec.progress) || 0);
+                finalRec.completed = true;
+                if (!finalRec.completed_at) finalRec.completed_at = now;
                 finalRec.claimed = true;
-                finalRec.claimed_at = new Date();
+                finalRec.claimed_at = now;
                 await finalRec.save({ transaction: t });
             }
 

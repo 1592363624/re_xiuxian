@@ -5,6 +5,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { usePlayerStore } from '../stores/player';
 import { useUIStore } from '../stores/ui';
+import { showMaintenanceOverlay, reportNetworkFailure, isMaintenanceOverlayActive } from '../utils/maintenanceGuard';
 
 // 创建 axios 实例
 const apiClient: AxiosInstance = axios.create({
@@ -63,6 +64,14 @@ apiClient.interceptors.response.use(
         const playerStore = usePlayerStore();
         playerStore.logout();
         notify('登录已过期，请重新登录');
+      } else if (status === 503 && (data as any)?.code === 'MAINTENANCE') {
+        // 部署维护中：原地盖维护遮罩并轮询恢复，绝不整页跳转、也不刷 toast
+        // （组件 catch 会走 showApiError，认 __uiNotified 不再叠一条）
+        showMaintenanceOverlay();
+        (error as any).__uiNotified = true;
+      } else if (isMaintenanceOverlayActive()) {
+        // 维护/断线遮罩已接管：吞掉后续错误播报，避免遮罩底下刷红字
+        (error as any).__uiNotified = true;
       } else if (status === 403) {
         notify(serverMessage || '没有权限执行此操作');
       } else if (status === 404) {
@@ -75,16 +84,31 @@ apiClient.interceptors.response.use(
       // 请求已发出但没拿到响应：细分原因，避免"网络错误，请检查网络连接"这种无法定位的提示
       const timeoutSeconds = error.config?.timeout ? Math.round(error.config.timeout / 1000) : 0;
       const code = (error as any).code || '';
+      const isTimeout = code === 'ECONNABORTED' || /timeout/i.test(error.message || '');
 
-      if (code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
-        // 前端主动超时：后端可能仍在处理（例如代理第三方 AI 接口），所以提示等待上限而非断言"断网"
+      if (isMaintenanceOverlayActive()) {
+        (error as any).__uiNotified = true;
+      } else if (isTimeout) {
+        // 前端主动超时：后端可能仍在处理（例如代理第三方 AI 接口），所以提示等待上限而非断言"断网"，
+        // 也不计入断线遮罩阈值（慢 ≠ 掉线）
         notify(`请求超时${timeoutSeconds ? `（${timeoutSeconds} 秒）` : ''}：${requestUrl}`);
       } else if (code === 'ERR_CANCELED') {
         notify(`请求已取消：${requestUrl}`);
-      } else if (code === 'ERR_NETWORK') {
-        notify(`网络不可达：${requestUrl}（请确认后端服务已启动且地址可访问）`);
+      } else if (code === 'ERR_NETWORK' || !code) {
+        // cutover 窗口 ECONNREFUSED / 真断网：连续达阈值后显示断线遮罩并轮询
+        const overlayTookOver = reportNetworkFailure();
+        if (overlayTookOver) {
+          (error as any).__uiNotified = true;
+        } else {
+          notify(`网络不可达：${requestUrl}（请确认后端服务已启动且地址可访问）`);
+        }
       } else {
-        notify(`网络请求失败：${requestUrl}${error.message ? `（${error.message}）` : ''}`);
+        const overlayTookOver = reportNetworkFailure();
+        if (overlayTookOver) {
+          (error as any).__uiNotified = true;
+        } else {
+          notify(`网络请求失败：${requestUrl}${error.message ? `（${error.message}）` : ''}`);
+        }
       }
     } else {
       uiStore.showToast('请求配置错误', 'error');
