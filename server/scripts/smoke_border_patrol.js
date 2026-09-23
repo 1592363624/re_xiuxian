@@ -30,6 +30,7 @@ const { bootApp } = require('./lib/smoke_http');
 const BorderBeastPatrolSubService = require('../game/services/BorderBeastPatrolSubService');
 const RemnantMapSubService = require('../game/services/RemnantMapSubService');
 const InventoryService = require('../game/services/InventoryService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNT = 'bp_a';
 const results = [];
@@ -294,12 +295,14 @@ async function main() {
         try {
             const p = await Player.findOne({ where: { username: ACCOUNT } });
             if (p) {
-                await BorderBeastPatrol.destroy({ where: { player_id: p.id }, force: true });
-                await SpiritBeast.destroy({ where: { player_id: p.id }, force: true });
-                await Item.destroy({ where: { player_id: p.id }, force: true });
-                await Player.destroy({ where: { id: p.id }, force: true });
+                // 巡边记录 / 灵兽 / 背包行都是按 player_id 归属的派生行，级联覆盖得到；
+                // 开头 main() 里那三条 destroy 留着，是因为账号可能沿用上一轮（findOne-or-create），
+                // 那三条是**跑之前的状态重置**、不是收尾清单。
+                const purged = await PlayerCascadePurge.deletePlayer(Number(p.id));
+                console.log(`清理：删掉探针号 ${ACCOUNT}（id ${purged.player_id}），级联带走 ${purged.total} 行派生数据`);
             }
-            console.log(`清理：探针号 ${ACCOUNT} 与它的巡边记录/灵兽/背包已删（残留 ${(await Player.count({ where: { username: ACCOUNT } }))} 个账号、${await BorderBeastPatrol.count()} 条巡边）`);
+            console.log(`收尾核对：残留 ${(await Player.count({ where: { username: ACCOUNT } }))} 个账号、`
+                + `${await BorderBeastPatrol.count()} 条巡边`);
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});
         const failed = results.filter(r => !r.ok).length + hard;

@@ -1,0 +1,25 @@
+{
+  "dataset": "stat_definitions",
+  "into": "stats",
+  "comment": "资料片新增属性「血元」。只写这一条，面板/战力/丹药白名单/战斗档位/灵兽属性块就都认识它，不需要在任何一处再补一份清单——这条已被 tests/MoDaoBloodPack.test.js 逐项验过。三处字段是量出来的，不是照抄上一片：(1) pill 必须为 true，因为 AttributeMaxService.buildPillEffectFromConfig 只认 StatRegistry.pillEffectMap() 里的键，写成 false 的话本片的血煞丹 effect 会被静默丢掉（丹药数值一个字都不进 attributes）；(2) allocatable 为 false，血元不参与玩家加点，免得给加点池再开一条无限堆的口子；(3) refineRate 为 0，装备祭炼每级成长不给血元，这件法宝的血元只能来自掉落本身。powerWeight 1.6 低于剑意 2.4、与法防 mdef 1.5 同档：血元的来源面比剑意窄（只有本片五件东西与血蝠），给高了会让一件掉落直接抬高战力榜。",
+  "add": [
+    {
+      "key": "blood_power",
+      "label": "血元",
+      "icon": "🩸",
+      "group": "offense",
+      "unit": "point",
+      "agg": "flat_then_pct",
+      "base": { "default": 0 },
+      "min": 0,
+      "allocatable": false,
+      "bonusKey": "blood_power_bonus",
+      "pill": true,
+      "refineRate": 0,
+      "powerWeight": 1.6,
+      "panel": { "visible": true, "order": 145, "shortLabel": "血元" },
+      "description": "魔道以精血炼成的本源之力，血修神通按它结算伤害；只由血系法宝、血煞丹、阴罗宗功法与血蝠给出",
+      "battleRoles": ["damage_blood"]
+    }
+  ]
+}

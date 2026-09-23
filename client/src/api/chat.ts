@@ -189,8 +189,8 @@ export const getActiveRedPackets = () => {
  * 物品展示接口
  * ============================================================ */
 
-/** 物品品质类型（与 inventory.ts ItemQuality 对齐） */
-export type ItemQuality = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'unknown';
+/** 物品品质类型（与 inventory.ts ItemQuality 对齐：键集由服务端 game_balance.item_qualities 决定，不抄字面量） */
+export type ItemQuality = string;
 
 /** 物品类型 */
 export type ItemType = 'consumable' | 'material' | 'equipment' | 'recipe_scroll' | 'unknown' | string;

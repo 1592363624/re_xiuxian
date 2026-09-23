@@ -32,6 +32,7 @@ const { app } = require('../index');
 const Player = require('../models/player');
 const sequelize = require('../config/database');
 const configLoader = require('../modules/infrastructure/ConfigLoader');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 const { bootApp, request, mintToken } = require('./lib/smoke_http');
 
 const CONFIG_FILE = path.join(__dirname, '..', 'config', 'game_balance.json');
@@ -105,6 +106,16 @@ async function ensureAdmin() {
     return { player: created, created: true };
 }
 
+/**
+ * 收尾删的是本探针**自己刚建**的那一行管理员号（created 为真才走到这里），不是谁的真人号。
+ * 级联默认拒绝删 role='admin'（防的是"提权状态下顺手收尾"那种事故形状），所以这里显式带 includeAdmin；
+ * admin_logs 这类按 admin_id 记的审计列是引用档，级联不动，删完仍然看得见谁改过配置。
+ */
+async function dropProbeAdmin(id) {
+    const purged = await PlayerCascadePurge.deletePlayer(id, { includeAdmin: true });
+    console.log(`清理：删掉探针自建管理员号 ${purged.player_id}/${purged.username}，级联带走 ${purged.total} 行派生数据`);
+}
+
 (async () => {
     await bootApp(app, { port: PORT });
     const { player: admin, created } = await ensureAdmin();
@@ -114,7 +125,7 @@ async function ensureAdmin() {
     if (first.res.status !== 200 || !first.state) {
         check('C0 管理员能读到 /api/config/content/status 的 rate_limit 段', false,
             `status=${first.res.status} body=${String(first.res.raw).slice(0, 200)}`);
-        if (created) await Player.destroy({ where: { id: admin.id } });
+        if (created) await dropProbeAdmin(admin.id);
         console.log('\n0/1 项通过（读不到生效状态，后面没法判）');
         await sequelize.close();
         process.exit(1);
@@ -235,7 +246,7 @@ async function ensureAdmin() {
         dirtyFiles.map(f => path.basename(f)).join(', ') || '全部一致'
     );
 
-    if (created) await Player.destroy({ where: { id: admin.id } });
+    if (created) await dropProbeAdmin(admin.id);
 
     const failed = results.filter(r => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} 项通过`);

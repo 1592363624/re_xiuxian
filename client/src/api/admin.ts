@@ -125,15 +125,29 @@ export const deleteNotification = (notificationId: number) => {
  * 配图按"最终列表"提交：保留原地址即复用已上传的图，不需要重新上传。
  * @param notificationId - 通知 ID
  * @param patch - 只传需要改的字段；imageUrls 传最终列表（空数组表示清空配图）
+ *   - publishAt / expiresAt：ISO 字符串或 null（null 表示不限时）
+ *   - notifyReaders：true 时重置"已读过的人"的已读回执并定向推送一条更正提示
  */
 export const updateNotification = (
   notificationId: number,
-  patch: { title?: string; content?: string; priority?: string; imageUrls?: string[] }
+  patch: {
+    title?: string;
+    content?: string;
+    priority?: string;
+    imageUrls?: string[];
+    publishAt?: string | null;
+    expiresAt?: string | null;
+    notifyReaders?: boolean;
+  }
 ) => {
   return apiClient.put<{
     code: number;
     message: string;
-    data: { before: Record<string, any>; after: Record<string, any> };
+    data: {
+      before: Record<string, any>;
+      after: Record<string, any>;
+      readersNotice?: { readers: number; pushed: number; reset: boolean } | null;
+    };
   }>(`/admin/notifications/${notificationId}`, patch);
 };
 
@@ -175,9 +189,24 @@ export const getLogs = (params: { page?: number; limit?: number; action?: string
 /**
  * 发送全服公告
  * @param imageUrls - 公告配图地址（由 uploadAnnouncementImage 上传后得到，最多 3 张）
+ * @param schedule - 定时设置：publishAt 为未来的 ISO 时间时到点才发布（到点前玩家不可见、也不弹窗），
+ *                   expiresAt 到点自动下架并清理已读回执；两者传 null / undefined 表示不限时
  */
-export const sendAnnouncement = (title: string, content: string, priority: string, imageUrls: string[] = []) => {
-  return apiClient.post('/notifications/announcement', { title, content, priority, imageUrls });
+export const sendAnnouncement = (
+  title: string,
+  content: string,
+  priority: string,
+  imageUrls: string[] = [],
+  schedule: { publishAt?: string | null; expiresAt?: string | null } = {}
+) => {
+  return apiClient.post<{ code: number; message: string; data: { id: number } }>('/notifications/announcement', {
+    title,
+    content,
+    priority,
+    imageUrls,
+    publishAt: schedule.publishAt ?? null,
+    expiresAt: schedule.expiresAt ?? null
+  });
 };
 
 /** 公告配图上传结果 */
@@ -370,4 +399,118 @@ export const updateStateCleanerConfig = (payload: StateCleanerConfigUpdate) => {
  */
 export const getStateLogs = (params: { player_id?: number; action?: string; state_type?: string; page?: number; limit?: number } = {}) => {
   return apiClient.get('/admin/state-logs', { params });
+};
+
+// ========== 后台日志文件（服务器控制台输出） ==========
+
+/** 单个日志源：文件是否存在、体积、最后修改时间均由后端实时探测 */
+export interface SystemLogSourceInfo {
+  id: string;
+  name: string;
+  file: string;
+  description: string;
+  exists: boolean;
+  size: number;
+  modified_at: string | null;
+  /** 配置写错或文件不可读时的原因（如路径越界、后缀不在白名单、ENOENT） */
+  error: string | null;
+  /** true 表示配置本身有问题（路径越界/后缀不合法），需要改配置而不是干等文件生成 */
+  misconfigured: boolean;
+}
+
+/** 彩色输出分词规则：服务端只给"什么字符算哪一类"，配色由前端主题决定 */
+export interface SystemLogHighlightRule {
+  kind: string;
+  pattern: string;
+  /** 正则修饰符（默认 g；关键字类规则用 gi 以便大小写不敏感） */
+  flags?: string;
+}
+
+/** 错误日志告警状态（飞书） */
+export interface SystemLogAlertInfo {
+  enabled: boolean;
+  levels: string[];
+  sources: string[];
+  webhook_configured: boolean;
+  webhook_env: string;
+  poll_interval_ms: number;
+  min_interval_ms: number;
+  dedupe_window_ms: number;
+  max_lines_per_alert: number;
+  max_alerts_per_hour: number;
+}
+
+/** 日志查看器配置与选项（全部来自后端 config/system_log_viewer.json，前端不硬编码阈值） */
+export interface SystemLogViewerOptions {
+  sources: SystemLogSourceInfo[];
+  tail_default_lines: number;
+  tail_max_lines: number;
+  line_options: number[];
+  max_keyword_length: number;
+  refresh_default_interval_ms: number;
+  refresh_interval_options_ms: number[];
+  max_buffer_lines: number;
+  /** 级别选项：value 为级别键，label 为中文显示名（均由后端配置下发） */
+  levels: Array<{ value: string; label: string }>;
+  /** 彩色输出的分词规则（按顺序即优先级） */
+  highlight_rules: SystemLogHighlightRule[];
+  /** 错误日志飞书告警状态 */
+  alert: SystemLogAlertInfo;
+}
+
+/** 一行日志：level 决定前端着色（error/warn/debug/info） */
+export interface SystemLogLine {
+  level: string;
+  text: string;
+}
+
+/** 抓取结果：offset 用于下次增量轮询；pending 是尚未以换行结尾的临时行 */
+export interface SystemLogTailResult {
+  source: string;
+  file: string;
+  size: number;
+  offset: number;
+  rotated: boolean;
+  scanned: number;
+  matched: number;
+  returned: number;
+  truncated: boolean;
+  modified_at: string;
+  pending: string;
+  lines: SystemLogLine[];
+}
+
+/**
+ * 获取日志源列表与可选项
+ * GET /api/admin/system-logs/sources
+ */
+export const getSystemLogSources = () => {
+  return apiClient.get<{ code: number; data: SystemLogViewerOptions }>('/admin/system-logs/sources');
+};
+
+/**
+ * 抓取日志尾部内容（快照 / 增量跟随共用）
+ * GET /api/admin/system-logs/tail
+ * @param params - source 必填；offset 传了就按增量返回该偏移之后的新增内容
+ */
+export const tailSystemLogs = (params: {
+  source: string;
+  lines?: number;
+  level?: string;
+  keyword?: string;
+  offset?: number;
+}) => {
+  return apiClient.get<{ code: number; data: SystemLogTailResult }>('/admin/system-logs/tail', { params });
+};
+
+/**
+ * 发送一条测试告警到飞书（确认 webhook 与告警配置通不通）
+ * POST /api/admin/system-logs/alert/test
+ */
+export const testSystemLogAlert = () => {
+  return apiClient.post<{
+    code: number;
+    message: string;
+    data: { sent: boolean; webhook_configured: boolean; message: string };
+  }>('/admin/system-logs/alert/test', {}, { timeout: 20000 });
 };

@@ -335,7 +335,7 @@ const handleSubmit = async () => {
 
       <!-- QQ 登录：服务端未配置 QQ 互联凭据时整块隐藏 -->
       <div v-if="qqEnabled" class="mt-6">
-        <div class="flex items-center gap-3 text-xs text-line-strong mb-4">
+        <div class="flex items-center gap-3 text-xs text-fg-faint mb-4">
           <div class="flex-1 h-px bg-line"></div>
           <span>或</span>
           <div class="flex-1 h-px bg-line"></div>

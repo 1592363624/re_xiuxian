@@ -1,0 +1,23 @@
+{
+  "dataset": "technique_data",
+  "into": "skills",
+  "comment": "两门血修神通。它们能被发现靠的是既有机制，而不是新代码：TechniqueService.comprehend 每次都从合并视图里的全量 skills 池筛「element 与功法宝典相同或为 none」，所以资料片往这张表加条目，玩家修到第 3/6/9 层的领悟槽就会把它抽出来（tests/MoDaoBloodPack.test.js 里直接对候选池判定式做断言，而不是只看配置在不在）。damage_profile 指向本片 combat_formulas.json 的 player_blood_power，effects 的键全部来自 CombatResolver/skillEffects 已有的词表（extra_damage_rate / lifesteal_rate / defense_pierce_rate / trigger_chance），没有自造键——自造键不报错，只是永远不掷骰子。",
+  "add": [
+    {
+      "id": "xue_ya_shi",
+      "name": "血牙噬",
+      "element": "water",
+      "description": "血元凝成獠牙咬落，撕开的伤口会反噬成自己身上的血气，是阴罗宗最不讲道理的一口。",
+      "damage_profile": "player_blood_power",
+      "effects": { "extra_damage_rate": 0.18, "lifesteal_rate": 0.2, "trigger_chance": 0.16 }
+    },
+    {
+      "id": "xue_he_bao",
+      "name": "血河爆",
+      "element": "none",
+      "description": "把一身血气泼出去炸开，血污沾身者防御如同被腐蚀。修的不是血系功法的人也能从它入门。",
+      "damage_profile": "player_blood_power",
+      "effects": { "defense_pierce_rate": 0.22, "extra_damage_rate": 0.1, "trigger_chance": 0.12 }
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import { tryBreakthrough as tryBreakthroughApi } from '../api/breakthrough'
 import { getExploreStatus } from '../api/explore'
 import { getCombatStatus } from '../api/combat'
 import { socketService } from '../services/socket'
+import { useUIStore } from './ui'
 
 export const usePlayerStore = defineStore('player', {
   state: () => ({
@@ -596,6 +597,9 @@ export const usePlayerStore = defineStore('player', {
       this.logoutReason = reason
       localStorage.removeItem('token')
       localStorage.removeItem('player')
+      // 日志现在跨刷新留档了，登出必须一起清掉，
+      // 否则换号登录会先看见上一个号的修仙史。
+      useUIStore().clearLogs()
     }
   }
 })

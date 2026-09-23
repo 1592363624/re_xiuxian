@@ -371,9 +371,6 @@
                   <div v-if="choice.opt.intimacy_gain !== undefined" class="num">
                     · 亲密度：{{ choice.opt.intimacy_gain >= 0 ? '+' : '' }}{{ choice.opt.intimacy_gain }}
                   </div>
-                  <div v-if="choice.opt.remnant_soul_cost !== undefined" class="num">
-                    · 残魂消耗：{{ choice.opt.remnant_soul_cost }}
-                  </div>
                   <div v-if="choice.opt.description">{{ choice.opt.description }}</div>
                   <div v-if="!choice.submittable" class="text-rose-300">· 此抉择项后端暂未开放提交</div>
                 </div>
@@ -415,6 +412,7 @@ import AppButton from '../ui/AppButton.vue';
 import EmptyState from '../ui/EmptyState.vue';
 import LoadingBlock from '../ui/LoadingBlock.vue';
 import { useUIStore } from '../../stores/ui';
+import { isBizOk } from '../../api/response';
 import {
   companionGetProfile,
   companionSeek,
@@ -463,8 +461,24 @@ interface HeartTribulationEventPayload {
   created_at?: string;
 }
 
+/** 后端下发的一个心劫抉择选项（companion_data.heart_tribulation.options 的一项） */
+interface HeartTribulationOptionChoice {
+  /** API 里传的 option 键 */
+  key: string;
+  /** 中文名（内容里的 name） */
+  name: string;
+  description?: string | null;
+  success_rate: number;
+  intimacy_gain: number;
+}
+
 /** GET /companion/profile —— CompanionService.getProfile */
 interface CompanionProfilePayload {
+  /**
+   * 心劫抉择词表（2026-09-23 起由后端从内容现取现发）：
+   * 界面按这份渲染名字与「能不能提交」，不再自己抄一张键→中文名表。
+   */
+  heart_tribulation_options?: HeartTribulationOptionChoice[];
   has_companion: boolean;
   /** 以下三项仅在 has_companion=false 时下发 */
   can_seek?: boolean;
@@ -510,16 +524,14 @@ interface HeartContractPayload {
   level_effects?: Record<string, string>;
 }
 
-/** 心劫抉择选项（companion_data.json 的 heart_tribulation.options，以及旧配置的 trust/doubt/trial） */
+/** 心劫抉择选项的一项（companion_data.heart_tribulation.options，服务端现取现发） */
 interface HeartTribulationOptionPayload {
   /** 0..1 */
   success_rate: number;
-  /** 选项中文名；新系统的三选一键为 steady/ruthless/deceive，后端不下发名称 */
+  /** 选项中文名（来自内容）；旧事件留下的键可能没有 */
   name?: string;
   /** 亲密度变化（正为增益） */
   intimacy_gain?: number;
-  /** 残魂消耗；部分事件类型不下发此项 */
-  remnant_soul_cost?: number;
   /** 选项说明；部分事件类型不下发此项 */
   description?: string;
 }
@@ -530,15 +542,14 @@ interface HeartTribulationListPayload {
   count: number;
 }
 
-/** 心劫抉择项：键即后端校验的三选一 */
-type HeartTribulationChoice = 'steady' | 'ruthless' | 'deceive';
-
-/** 抉择项中文名（后端只下发选项键，界面用中文呈现） */
-const TRIBULATION_CHOICE_LABELS: Record<HeartTribulationChoice, string> = {
-  steady: '稳',
-  ruthless: '狠',
-  deceive: '骗'
-};
+/**
+ * 可提交的抉择键集合：以服务端下发的词表为准（资料片加第四个选项时这里自动跟上）。
+ * 词表还没到位（异常/旧部署）时不做限制 —— 服务端自己会回 400 并点名合法键，
+ * 比在界面上把新选项灰掉要好（那才是真的"配了却点不了"）。
+ */
+const submittableTribulationKeys = computed(() => new Set(
+  (profile.value?.heart_tribulation_options || []).map(choice => choice.key)
+));
 
 const uiStore = useUIStore();
 
@@ -677,13 +688,13 @@ const nextLevelEffect = computed(() => {
 });
 
 /**
- * 心劫抉择项：后端 options 是以选项键为索引的字典（不是数组）
- * 只有 steady / ruthless / deceive 能被 POST /companion/heart-tribulation/choose 接受，
- * 旧系统事件留下的其它键（信任 / 怀疑 / 考验）照常展示，但按钮禁用
+ * 心劫抉择项：后端 options 是以选项键为索引的字典（不是数组），键的合法性由服务端那份内容词表决定
+ * 词表里没有的键（旧系统事件留下的信任/怀疑/考验）照常展示，但按钮禁用
  * @param event 待处理心劫事件
  */
 function tribulationChoices(event: HeartTribulationEventPayload) {
   const options = event.options ?? {};
+  const known = submittableTribulationKeys.value;
   return Object.keys(options)
     .filter(key => typeof options[key]?.success_rate === 'number')
     .map(key => {
@@ -691,8 +702,9 @@ function tribulationChoices(event: HeartTribulationEventPayload) {
       return {
         key,
         opt,
-        label: opt.name || TRIBULATION_CHOICE_LABELS[key as HeartTribulationChoice] || key,
-        submittable: key in TRIBULATION_CHOICE_LABELS
+        // 名字只从内容取；没有 name 就印键本身（以前这里回退到界面自己那张键→中文名表）
+        label: opt.name || key,
+        submittable: known.size === 0 || known.has(key)
       };
     });
 }
@@ -724,7 +736,7 @@ async function loadProfile() {
   loading.profile = true;
   try {
     const resp = await companionGetProfile();
-    if (resp.data?.code === 200 && resp.data.data) {
+    if (isBizOk(resp) && resp.data?.data) {
       // api/companion.ts 的 CompanionProfileData 声明滞后于后端实现，按实际返回断言为本地类型
       profile.value = resp.data.data as unknown as CompanionProfilePayload;
     } else {
@@ -742,7 +754,7 @@ async function loadHeartContract() {
   loading.heartContract = true;
   try {
     const resp = await companionGetHeartContract();
-    if (resp.data?.code === 200 && resp.data.data) {
+    if (isBizOk(resp) && resp.data?.data) {
       // api/companion.ts 的 HeartContractData 声明滞后于后端实现（无 heart_contract 嵌套），此处断言为本地类型
       heartContractData.value = resp.data.data as unknown as HeartContractPayload;
     } else {
@@ -760,7 +772,7 @@ async function loadHeartTribulation() {
   loading.heartTribulation = true;
   try {
     const resp = await companionGetHeartTribulation();
-    if (resp.data?.code === 200 && resp.data.data) {
+    if (isBizOk(resp) && resp.data?.data) {
       // api/companion.ts 的 HeartTribulationListData 声明滞后于后端实现（字段为 pending_events / count）
       heartTribulationData.value = resp.data.data as unknown as HeartTribulationListPayload;
     } else {
@@ -784,7 +796,7 @@ async function handleSeek() {
   loading.action = true;
   try {
     const resp = await companionSeek(seekTargetId.value);
-    if (resp.data?.code === 200) {
+    if (isBizOk(resp)) {
       uiStore.showToast(resp.data.message || '邀请已发送', 'success');
       seekTargetId.value = null;
       await loadProfile();
@@ -818,7 +830,7 @@ async function handleAccept(companionId: number) {
     loading.action = true;
     try {
       const resp = await companionAccept(companionId);
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '已结为道侣', 'success');
         await loadProfile();
       } else {
@@ -845,7 +857,7 @@ async function handleBreak(mode: 'agreement' | 'vow_break') {
     loading.action = true;
     try {
       const resp = await companionBreak(mode);
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '道侣关系已解除', 'success');
         // 会话内的温养 / 采补计数随旧关系一起作废，回到未知
         warmNourishDaily.value = null;
@@ -870,7 +882,7 @@ async function handleDualCultivate() {
   loading.action = true;
   try {
     const resp = await companionDualCultivate();
-    if (resp.data?.code === 200) {
+    if (isBizOk(resp)) {
       uiStore.showToast(resp.data.message || '双修完成，修为精进', 'success');
       await loadProfile();
     } else {
@@ -888,7 +900,7 @@ async function handleWarmNourish() {
   loading.action = true;
   try {
     const resp = await companionWarmNourish();
-    if (resp.data?.code === 200) {
+    if (isBizOk(resp)) {
       uiStore.showToast(resp.data.message || '温养完成，双方修为精进', 'success');
       // 当日温养次数只能从这次 POST 的返回里拿到，回填后界面才显示数字
       warmNourishDaily.value = pickDailyUsage(resp.data.data) ?? warmNourishDaily.value;
@@ -909,7 +921,7 @@ async function handlePluckSupplement() {
     loading.action = true;
     try {
       const resp = await companionPluckSupplement();
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '采补完成', 'success');
         // 当日采补次数同样只能从这次 POST 的返回里拿到
         pluckSupplementDaily.value = pickDailyUsage(resp.data.data) ?? pluckSupplementDaily.value;
@@ -934,7 +946,7 @@ async function handleVow(vowType: 'protect' | 'secret' | 'cultivate') {
     loading.action = true;
     try {
       const resp = await companionVow(vowType);
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '誓言已立', 'success');
         await loadProfile();
       } else {
@@ -957,17 +969,18 @@ async function handleChooseTribulation(
   eventId: number,
   option: string
 ) {
-  // 后端只认 steady/ruthless/deceive 三个键，界面上其它键的按钮已禁用，这里再兜一道
-  if (!(option in TRIBULATION_CHOICE_LABELS)) {
+  // 合法性以服务端下发的词表为准（资料片加第四个选项时这里自动跟上）；词表未到位时交给服务端判
+  const known = submittableTribulationKeys.value;
+  if (known.size > 0 && !known.has(option)) {
     uiStore.showToast('该抉择项后端暂未开放提交', 'warning');
     return;
   }
-  const choice = option as HeartTribulationChoice;
-  showConfirm('心劫抉择', `确认选择「${TRIBULATION_CHOICE_LABELS[choice]}」应对此心劫？\n· 抉择不可更改\n· 将影响亲密度、残魂与心契升级进度`, async () => {
+  const label = (profile.value?.heart_tribulation_options || []).find(choice => choice.key === option)?.name || option;
+  showConfirm('心劫抉择', `确认选择「${label}」应对此心劫？\n· 抉择不可更改\n· 将影响亲密度与心契升级进度`, async () => {
     loading.action = true;
     try {
-      const resp = await companionChooseHeartTribulation(eventId, choice);
-      if (resp.data?.code === 200) {
+      const resp = await companionChooseHeartTribulation(eventId, option);
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '心劫抉择已生效', 'success');
         // 刷新心劫与心契
         await Promise.all([loadHeartTribulation(), loadHeartContract()]);

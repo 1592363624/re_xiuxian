@@ -1,7 +1,7 @@
 {
   "dataset": "crafting_data",
   "into": "refining_recipes",
-  "comment": "星辰符炼方。文件名里的 __refining_recipes 指向 crafting_data 的第二个集合 —— 同一个资料片既能加丹方也能加器方，不需要为每个集合各开一个 pack。由乱星图残卷（item_data.effect.learn_recipe）习得，那条引用同样在启动期被校验。",
+  "comment": "星辰符炼方。文件名里的 __refining_recipes 指向 crafting_data 的第二个集合 —— 同一个资料片既能加丹方也能加器方，不需要为每个集合各开一个 pack。learn_source 是 recipe_scroll，所以要交掉一张卷轴才会：本轮把那张卷轴拆开了 —— 以前「乱星图残卷」一件东西同时被这部配方和星遁诀的 acquire 引用，两条链各要消耗一份，玩家先走哪条另一条就永久断，而且它哪儿都不掉，两条链其实都走不通。现在图残卷只悟功法（effect.learn_technique）、另加一张「星辰符谱」只教配方（effect.learn_recipe），两卷都从鲨鱼精身上掉。内容层的 _validateTechniqueAcquire 从此拦住一卷两用的写法。",
   "add": [
     {
       "id": "craft_xingchen_fu",

@@ -160,6 +160,161 @@ async function runFlow(player, flow) {
     }
 }
 
+/**
+ * 丹药/使用物品这条链的落库判据（2026-09-23：`_applyItemEffect` 从"改实例 + 整块 save()"
+ * 改成一次 PlayerStateStore 键级补丁之后，钉住四件事）：
+ *   ① 属性丹：回执报的增量 == 库里 attributes 那两个 `*_bonus` 键的增量，且**同一次服用不会抹掉别的键**；
+ *   ② 清毒丹：丹毒夹到 0（负数是不允许的，也不能"减过头又回到原值"）；
+ *   ③ 延寿丹：寿元上限按回执增量涨；
+ *   ④ 并发到账：8 路 useItem 与 8 路键级加灵石交错跑，库里增量 == 两边回执之和
+ *      （钱写在改完规则的接口上，不写在探测器上：灵石/修为走列上原子加，才会恒等）。
+ */
+async function runPillChecks(player) {
+    const InventoryService = require('../game/services/InventoryService');
+    const PlayerStateStore = require('../game/persistence/PlayerStateStore');
+    const { Op } = require('sequelize');
+
+    async function seed(items) {
+        await Item.destroy({ where: { player_id: player.id, item_key: { [Op.in]: items } } });
+        for (const key of items) await InventoryService.addItem(player.id, key, 10, null);
+    }
+    async function snapshot() {
+        const row = await Player.findByPk(player.id);
+        return { attrs: row.attributes || {}, stones: BigInt(row.spirit_stones), toxicity: Number(row.toxicity || 0), lifespanMax: Number(row.lifespan_max || 0) };
+    }
+
+    // ① 属性丹
+    await seed(['core_formation_pill']);
+    await PlayerStateStore.patchPlayerState(player.id, { attributes: { [SENTINEL]: 'keep-me' } });
+    let before = await snapshot();
+    const pillResult = await InventoryService.useItem(player.id, 'core_formation_pill', 1);
+    let after = await snapshot();
+    const granted = pillResult?.effects?.permanent_attribute_bonus || {};
+    const bonusDelta = {};
+    for (const key of Object.keys(granted)) {
+        bonusDelta[key] = (Number(after.attrs[key]) || 0) - (Number(before.attrs[key]) || 0);
+    }
+    check('P1 属性丹：回执里报的每一项增量都真的进了 attributes（且没顺手抹掉别的键）',
+        pillResult?.success === true && Object.keys(granted).length > 0
+        && Object.entries(bonusDelta).every(([key, delta]) => delta === granted[key])
+        && after.attrs[SENTINEL] === 'keep-me',
+        `回执=${JSON.stringify(granted)} 库里增量=${JSON.stringify(bonusDelta)} 哨兵=${after.attrs[SENTINEL]}`);
+
+    // ② 丹毒夹到 0
+    await seed(['huadu_dan']);
+    await PlayerStateStore.patchPlayerState(player.id, { columns: { toxicity: 5 } });
+    before = await snapshot();
+    const detox = await InventoryService.useItem(player.id, 'huadu_dan', 1);
+    after = await snapshot();
+    const cleared = Number(detox?.effects?.toxicity_reduce || 0);
+    check('P2 清毒丹：丹毒夹到 0（配置减 15 > 现存 5，既不能变负也不能原样不动）',
+        detox?.success === true && before.toxicity === 5 && after.toxicity === 0 && cleared > 5,
+        `回执减=${cleared} 库里 ${before.toxicity}→${after.toxicity}`);
+
+    // ③ 寿元上限
+    await seed(['mid_longevity_pill']);
+    before = await snapshot();
+    const longevity = await InventoryService.useItem(player.id, 'mid_longevity_pill', 1);
+    after = await snapshot();
+    check('P3 延寿丹：寿元上限的库里增量 == 回执报的 longevity_add',
+        longevity?.success === true && after.lifespanMax - before.lifespanMax === Number(longevity?.effects?.longevity_add || -1),
+        `回执=+${longevity?.effects?.longevity_add} 库里 ${before.lifespanMax}→${after.lifespanMax}`);
+
+    // ④ 并发到账：使用物品与别的链同时加钱
+    await seed(['small_fortune_pouch']);
+    before = await snapshot();
+    const legs = [];
+    for (let i = 0; i < 8; i++) {
+        legs.push(InventoryService.useItem(player.id, 'small_fortune_pouch', 1).then(r => Number(r?.effects?.spirit_stones || 0)));
+        legs.push(PlayerStateStore.patchPlayerState(player.id, { amounts: { spirit_stones: 1000n } }).then(() => 1000));
+    }
+    const reported = (await Promise.all(legs)).reduce((a, b) => a + b, 0);
+    after = await snapshot();
+    const landed = Number(after.stones - before.stones);
+    check('P4 并发到账：8 路使用物品 + 8 路键级加灵石，库里增量恒等于回执之和（列上原子加）',
+        reported > 0 && landed === reported,
+        `回执之和=${reported} 库里增量=${landed}`);
+    await Item.destroy({ where: { player_id: player.id, item_key: { [Op.in]: ['core_formation_pill', 'huadu_dan', 'mid_longevity_pill', 'small_fortune_pouch'] } } });
+}
+
+/**
+ * 属性点重置 POST /api/attribute/reset 的落库判据（2026-09-23：这条路由以前是
+ * "锁内读整份 attributes → 摊平改三个键 → 赋回实例 → save 整行"，改成一次键级补丁之后钉住：）
+ *   ① 回收真的按回执的数进 `attribute_points`，`hp_bonus` 恰好少那么多（不多不少）；
+ *   ② 加点账本被删、冷却时点被写，而**与本次重置无关的键一个都没被重写**（哨兵键 + 同时刻另一条链写的键）；
+ *   ③ 灵石那笔与另一条链的加钱并发后，库里净变化 == +发放 − 扣费（列上原子加，谁也不会把谁盖掉）；
+ *   ④ 双击/重放：同时点两次重置只成一次，退点也只退一次（旧写法在这里会重复退点，
+ *      因为它按手上那份快照算 refundablePoints，两次都看见同一份账本）。
+ */
+async function runResetChecks(player) {
+    const PlayerStateStore = require('../game/persistence/PlayerStateStore');
+    const AttributeService = require('../game/core/AttributeService');
+    const OTHER = 'probe_other_writer';
+    const token = mintToken(player);
+    const cost = Number(AttributeService.getAttributeResetConfig().cost_spirit_stones || 0);
+    const post = (path, body = {}) => request({ port: PORT, method: 'POST', path, token, body });
+    const snap = async () => {
+        const row = await Player.findByPk(player.id);
+        const a = row.attributes || {};
+        return {
+            points: Number(row.attribute_points || 0), stones: BigInt(row.spirit_stones || 0),
+            hpBonus: Number(a.hp_bonus || 0), ledger: a.attribute_point_allocations,
+            resetAt: a.last_attribute_reset_time, sentinel: a[SENTINEL], other: a[OTHER]
+        };
+    };
+    // 备好"可回收的加点"：先给点数、花掉、再把冷却清空并埋两个哨兵键
+    async function prepare(refundable = 5) {
+        await PlayerStateStore.patchPlayerState(player.id, {
+            amounts: { spirit_stones: BigInt(cost + 5000), attribute_points: refundable },
+            attributes: { [SENTINEL]: 'keep-me', [OTHER]: null, last_attribute_reset_time: null }
+        });
+        const allocated = await post('/api/attribute/allocate', { points: { hp: refundable } });
+        return allocated.status === 200;
+    }
+
+    if (!await prepare(5)) {
+        check('P5/P6 前置：加点成功（否则重置无账可回收，两条判据都是空测）', false, '加点被拒');
+        return;
+    }
+    const before = await snap();
+    const [reset, otherWriter] = await Promise.all([
+        post('/api/attribute/reset'),
+        PlayerStateStore.patchPlayerState(player.id, {
+            attributes: { [OTHER]: 'written-by-other-flow' }, amounts: { spirit_stones: 500n }
+        })
+    ]);
+    const after = await snap();
+    // 退多少由服务端那本账说了算（前面几条流程已经往 hp_bonus 上写过几笔，这里不该猜数）；
+    // 判据是"回执说的数 == 库里两个键各自的移动"，这才是要钉的东西。
+    const refunded = Number(reset.body?.data?.refunded_points || 0);
+    check('P5 属性点重置：退点与回收按回执落地，账本删掉，无关的键一个都没被重写',
+        reset.status === 200 && refunded > 0 && after.ledger === undefined && !!after.resetAt
+        && after.hpBonus === before.hpBonus - refunded && after.points === before.points + refunded
+        && after.sentinel === 'keep-me' && after.other === 'written-by-other-flow',
+        `status=${reset.status}${reset.body?.message ? `(${reset.body.message})` : ''}, 回执退点=${refunded}, `
+        + `hp_bonus ${before.hpBonus}→${after.hpBonus}, 可分配点 ${before.points}→${after.points}, `
+        + `账本=${after.ledger === undefined ? '已删' : JSON.stringify(after.ledger)}, 哨兵=${after.sentinel}, 对方键=${after.other}`);
+    check('P5b 重置的扣费与另一条链的加钱并发：库里净变化 == +500 − 配置费用（列上原子加）',
+        Number(after.stones - before.stones) === 500 - cost && otherWriter !== undefined,
+        `配置费用=${cost}, 库里变化=${Number(after.stones - before.stones)}`);
+
+    // ④ 两次重置同时打：只许成一次、只退一次点
+    if (!await prepare(5)) {
+        check('P6 前置：再次加点成功（否则"只成一次"是空测）', false, '加点被拒');
+        return;
+    }
+    const beforeDouble = await snap();
+    const pair = await Promise.all([post('/api/attribute/reset'), post('/api/attribute/reset')]);
+    const winners = pair.filter(r => r.status === 200);
+    const once = Number(winners[0]?.body?.data?.refunded_points || 0);
+    const afterDouble = await snap();
+    check('P6 同时点两次属性点重置：只成一次，退点与回收都只发生一次',
+        winners.length === 1 && once > 0 && afterDouble.points === beforeDouble.points + once
+        && afterDouble.hpBonus === beforeDouble.hpBonus - once,
+        `成功次数=${winners.length}, 退点=${once}, 理由=${pair.map(r => `${r.status}:${r.body?.message || '-'}`).join(' | ')}, `
+        + `可分配点 ${beforeDouble.points}→${afterDouble.points}, hp_bonus ${beforeDouble.hpBonus}→${afterDouble.hpBonus}`);
+}
+
 (async () => {
     await bootApp(app, { port: PORT });
     const player = await ensureProbePlayer();
@@ -168,6 +323,8 @@ async function runFlow(player, flow) {
         const fresh = await resetFor(player, flow.items, flow.techniques);
         await runFlow(fresh, flow);
     }
+    await runPillChecks(await Player.findByPk(player.id));
+    await runResetChecks(await Player.findByPk(player.id));
 
     const failed = results.filter(r => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} 项通过`);

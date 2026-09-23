@@ -52,6 +52,81 @@ class EquipmentService {
     }
 
     /**
+     * 装备槽位词表 —— 唯一来源是 `game_balance.equipment.slot_names`（键=槽位，值=中文名）。
+     *
+     * 为什么槽位不能继续住在 `valid_slots` 那个数组里：数组的每一项是裸字符串，而内容注册表的
+     * map 集合要求对象值 —— 于是 `valid_slots` 天生不能按条增删。结果就是"资料片能加一件新装备，
+     * 却加不了它要进的那个槽位"，而那件新装备还会被下面的启动自检判成死内容。合成一张表之后，
+     * **加一档槽位 = 加一条内容**；界面顺序就是这张表的键序（基础在前，资料片按 priority 追加）。
+     *
+     * 两种值形状都认（`"weapon": "武器"` 与 map 集合追加进来的 `{id,label}`），靠 `contentLabel`；
+     * `_comment` 这类下划线前缀的键不算槽位。
+     * 兼容：仓里若还留着旧的 `valid_slots` 数组，只把它并进槽位清单（不再是第二份真相），
+     * 少了中文名的那几条会由启动自检点名 —— "有槽位没名字"正是要防的界面印裸键。
+     * @returns {{slots:string[], labels:Object<string,string|null>, missingLabel:string[]}}
+     */
+    slotVocabulary() {
+        const equipmentConfig = this.getEquipmentConfig();
+        const { contentLabel } = require('../content/ContentRegistry');
+        const raw = equipmentConfig.slot_names || {};
+        const labels = {};
+        for (const [slot, value] of Object.entries(raw)) {
+            if (slot.startsWith('_')) continue;
+            const label = contentLabel(value, '');
+            labels[slot] = label ? String(label) : null;
+        }
+        const legacy = Array.isArray(equipmentConfig.valid_slots) ? equipmentConfig.valid_slots : [];
+        const slots = [...Object.keys(labels), ...legacy.filter(s => s && !(s in labels))];
+        return { slots, labels, missingLabel: slots.filter(s => !labels[s]) };
+    }
+
+    /**
+     * 启动期自检：**每一件 `type:'equipment'` 的物品，它的 `subtype` 必须是一个合法槽位**。
+     *
+     * 为什么这道闸要存在：`equip()` 的槽位就取物品自己的 `subtype`，而合法集来自槽位词表。
+     * 两边各写各的时不会有任何启动期信号 ——
+     * 玩家/GM 拿到那件装备后点"穿戴"只会收到一句"无效的装备槽位: xxx"，
+     * 而这件装备在掉落表、商城、图鉴里都看起来是正常内容（实测现网就有一件：
+     * `wuxing_truth` 片里的 `wuxing_banner` 五行神光旗，subtype 写的是 `artifact`）。
+     * 资料片要加一档新槽位，正路就是往 `equipment.slot_names` 里加一条（它是集合，片能加）；
+     * 只加物品不加槽位，就该在这里被点名，而不是让玩家收到一件永远穿不上的废物。
+     *
+     * @returns {{slots:string[], equipmentItems:number}} 通过时的概况（给日志与测试用）
+     * @throws {Error} 有装备的槽位不在合法集里，或槽位没有中文名，或词表整段读不到
+     */
+    assertEquipableContent() {
+        const { slots, labels } = this.slotVocabulary();
+        const items = this.configLoader?.getConfig('item_data')?.items || [];
+        const equipment = items.filter(i => i && i.type === 'equipment');
+        if (!Array.isArray(slots) || slots.length === 0) {
+            // 闸门看不见合法集就等于不判 —— 宁可在启动时响，也不要"看着有校验、其实全放行"
+            throw new Error('[EquipmentService] game_balance.equipment.slot_names 读不到或为空：'
+                + '装备槽位校验无法进行（没有这份词表时 equip() 也是直接放行，两处一起失去保护）');
+        }
+        const problems = [];
+        for (const item of equipment) {
+            const slot = item.subtype;
+            if (!slot) {
+                problems.push(`${item.id}（${item.name || '无名'}）没有 subtype，装备不知道进哪个槽位`);
+                continue;
+            }
+            if (!slots.includes(slot)) {
+                problems.push(`${item.id}（${item.name || '无名'}）subtype="${slot}" 不是合法槽位 → 永远穿不上`
+                    + `（合法槽位：${slots.join('/')}）`);
+            } else if (!labels[slot]) {
+                problems.push(`${item.id}：槽位 "${slot}" 在 game_balance.equipment.slot_names 里没有中文名 → 界面会印裸键`);
+            }
+        }
+        if (problems.length) {
+            throw new Error(`[EquipmentService] ${problems.length} 件装备配了但穿不上/显示不出来：\n  `
+                + problems.join('\n  ')
+                + '\n改法：要么把物品的 subtype 改成合法槽位，要么往 game_balance.equipment.slot_names 里补这一档槽位'
+                + '（资料片也能补：`game_balance__equipment__slot_names.json`）。');
+        }
+        return { slots, equipmentItems: equipment.length };
+    }
+
+    /**
      * 获取玩家所有已装备物品（合并静态配置返回完整信息）
      * @param {number} playerId - 玩家 ID
      * @returns {Promise<Object>} 已装备物品列表（按槽位分组）
@@ -63,8 +138,7 @@ class EquipmentService {
             order: [['equipped_at', 'DESC']]
         });
 
-        const equipmentConfig = this.getEquipmentConfig();
-        const slotNames = equipmentConfig.slot_names || {};
+        const slotNames = this.slotVocabulary().labels;
         const result = {
             slots: {},
             count: 0
@@ -141,8 +215,9 @@ class EquipmentService {
         // 校验槽位合法性（槽位由物品 subtype 决定）
         const slot = config.subtype;
         const equipmentConfig = this.getEquipmentConfig();
-        const validSlots = equipmentConfig.valid_slots || [];
-        if (validSlots.length > 0 && !validSlots.includes(slot)) {
+        // 词表非空由启动期 assertEquipableContent() 保证，所以这里不再留"清单读不到就一律放行"的退路
+        const validSlots = this.slotVocabulary().slots;
+        if (!validSlots.includes(slot)) {
             throw new AppError(`无效的装备槽位: ${slot}`, 400, ErrorCodes.VALIDATION_ERROR);
         }
 
@@ -240,7 +315,7 @@ class EquipmentService {
                 success: true,
                 message: `成功穿戴 ${config.name}`,
                 slot,
-                slot_name: equipmentConfig.slot_names?.[slot] || slot,
+                slot_name: this.slotVocabulary().labels[slot] || slot,
                 item: {
                     item_key: itemKey,
                     name: config.name,
@@ -276,8 +351,9 @@ class EquipmentService {
 
         // 校验槽位合法性
         const equipmentConfig = this.getEquipmentConfig();
-        const validSlots = equipmentConfig.valid_slots || [];
-        if (validSlots.length > 0 && !validSlots.includes(slot)) {
+        // 词表非空由启动期 assertEquipableContent() 保证，所以这里不再留"清单读不到就一律放行"的退路
+        const validSlots = this.slotVocabulary().slots;
+        if (!validSlots.includes(slot)) {
             throw new AppError(`无效的装备槽位: ${slot}`, 400, ErrorCodes.VALIDATION_ERROR);
         }
 
@@ -318,7 +394,7 @@ class EquipmentService {
                 success: true,
                 message: `已卸下 ${itemName}`,
                 slot,
-                slot_name: equipmentConfig.slot_names?.[slot] || slot,
+                slot_name: this.slotVocabulary().labels[slot] || slot,
                 item: {
                     item_key: equipment.item_key,
                     name: itemName

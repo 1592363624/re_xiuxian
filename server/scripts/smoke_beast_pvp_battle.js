@@ -31,6 +31,7 @@ const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const SpiritBeastPvpService = require('../game/services/SpiritBeastPvpService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const SEASON_NAME = '探针赛季-对局';
 const ACCOUNTS = ['bpvp_b1', 'bpvp_b2', 'bpvp_b3'];
@@ -59,6 +60,8 @@ async function ensureFighter(username, stones) {
         player.is_dead = false; player.is_banned = false; player.ip_address = null;
         await player.save();
     }
+    // 留着手写：号还在（seed 是"有就复用"），这里只是把上一轮的灵兽清掉好重新种一只合格的，
+    // 走级联那扇门会连 players 行一起删、id 就变了，B1~B9 拿的都是这一批实例
     await SpiritBeast.destroy({ where: { player_id: player.id } });
     const e = cfg().eligibility;
     const beast = await SpiritBeast.create({
@@ -211,13 +214,16 @@ async function main() {
         try {
             const ids = (await Player.findAll({ where: { username: { [Op.in]: ACCOUNTS } }, attributes: ['id'], raw: true })).map(r => r.id);
             if (ids.length) {
-                await SpiritBeastPvpRanking.destroy({ where: { player_id: { [Op.in]: ids } } });
+                // 对局行的列名是 challenger_player_id / defender_player_id（外加 winner_player_id）——
+                // 这是"引用"档：一行是**对手**的战史，只是点了这个人的名字，级联故意不碰，所以探针留着。
                 await SpiritBeastPvpMatch.destroy({ where: { challenger_player_id: { [Op.in]: ids } } });
                 await SpiritBeastPvpMatch.destroy({ where: { defender_player_id: { [Op.in]: ids } } });
-                await SpiritBeast.destroy({ where: { player_id: { [Op.in]: ids } } });
             }
             await SpiritBeastPvpSeason.destroy({ where: { season_name: SEASON_NAME } });
-            await Player.destroy({ where: { username: { [Op.in]: ACCOUNTS } }, force: true });
+            // 排名行（spirit_beast_pvp_rankings.player_id）、灵兽（spirit_beasts.player_id）与 players 行
+            // 全是归属档 —— 一次交给那扇门，探针不再点表名
+            const purged = await PlayerCascadePurge.deletePlayers(ids);
+            console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
         } catch (err) { console.error('清理失败:', err.message); }
         await sequelize.close().catch(() => {});
         const failed = results.filter(r => !r.ok).length + hard;

@@ -37,6 +37,20 @@ const WebSocketNotificationService = require('./WebSocketNotificationService');
 const InventoryService = require('./InventoryService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 const { pickRegisteredStats } = require('../combat/CombatStats');
+const {
+    FALLBACK,
+    rarityMap,
+    countByRarity,
+    vocabularyForApi,
+    releaseReturnRatio,
+    starUpCost
+} = require('../stats/beastRarity');
+
+/**
+ * 存"注册表认识、但 spirit_beasts 上没有专属列"的属性块（migration_0088）。
+ * 有了它，给灵兽加一档属性就只剩"注册表登记 + 内容写 base_<属性>"两步，不再需要 ALTER TABLE。
+ */
+const BLOB_COLUMN = 'stat_block';
 const { Op } = require('sequelize');
 
 /**
@@ -76,10 +90,11 @@ function calcAttr(baseValue, level, starLevel) {
 }
 
 /**
- * 内容里 `base_<名字>` 对应的灵兽行列名；没有对应列时返回 null。
+ * 内容里 `base_<名字>` 对应的灵兽行列名；没有对应列时返回 null（这时属性进 stats 属性块）。
  * 只有血量不同名：内容写 base_hp，列是 hp_max。
  */
 function beastStatColumn(stat) {
+    if (stat === BLOB_COLUMN) return null;   // 不许用 base_stats 顶掉属性块本身
     const { HP_KEYS } = require('../combat/CombatStats');
     if (HP_KEYS.includes(stat) && SpiritBeast.rawAttributes.hp_max) return 'hp_max';
     return Object.prototype.hasOwnProperty.call(SpiritBeast.rawAttributes, stat) ? stat : null;
@@ -96,7 +111,7 @@ class SpiritBeastService {
         const config = configLoader.getConfig('spirit_beast_data');
         const beastTypes = config.beast_types || [];
         const elements = config.elements || {};
-        const rarityConfig = config.rarity_config || {};
+        const rarityTable = rarityMap(configLoader);
 
         // 查询玩家已捕获的灵兽种类（去重）
         const myBeasts = await SpiritBeast.findAll({
@@ -120,8 +135,9 @@ class SpiritBeastService {
             element_name: elements[bt.element]?.name || bt.element,
             element_color: elements[bt.element]?.color || '#9ca3af',
             rarity: bt.rarity,
-            rarity_name: rarityConfig[bt.rarity]?.name || bt.rarity,
-            rarity_color: rarityConfig[bt.rarity]?.color || '#9ca3af',
+            rarity_name: rarityTable[bt.rarity]?.label || FALLBACK.label,
+            rarity_color: rarityTable[bt.rarity]?.color || FALLBACK.color,
+            rarity_order: rarityTable[bt.rarity]?.order ?? 0,
             base_hp: bt.base_hp,
             base_atk: bt.base_atk,
             base_def: bt.base_def,
@@ -147,11 +163,8 @@ class SpiritBeastService {
                     weak_against: val.weak_against,
                     color: val.color
                 })),
-                rarity_config: Object.entries(rarityConfig).map(([key, val]) => ({
-                    key,
-                    name: val.name,
-                    color: val.color
-                }))
+                // 稀有度词表整份下发（客户端与后台的下拉/配色都读它，以前后台自己抄了一份档位名清单）
+                rarity_config: vocabularyForApi(configLoader)
             }
         };
     }
@@ -170,21 +183,19 @@ class SpiritBeastService {
         const config = configLoader.getConfig('spirit_beast_data');
         const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
         const elements = config.elements || {};
-        const rarityConfig = config.rarity_config || {};
+        const rarities = rarityMap(configLoader);
 
-        const list = beasts.map(b => this._formatBeast(b, beastTypeMap, elements, rarityConfig));
+        const list = beasts.map(b => this._formatBeast(b, beastTypeMap, elements, rarities));
 
         // 统计信息
         const stats = {
             total: beasts.length,
             max: config.settings.max_beasts_per_player,
             active_count: beasts.filter(b => b.is_active).length,
-            by_rarity: {
-                common: beasts.filter(b => b.rarity === 'common').length,
-                rare: beasts.filter(b => b.rarity === 'rare').length,
-                epic: beasts.filter(b => b.rarity === 'epic').length,
-                legendary: beasts.filter(b => b.rarity === 'legendary').length
-            }
+            // 每一档都给一个键（0 也发），并且词表外的旧档位照样计数：
+            // 以前这里是手打的 {common, rare, epic, legendary} 四格，资料片加一档就凭空少算一档，
+            // 而 total 照算 —— 界面上"总数 5、分档相加 2"这种自相矛盾是静默出现的。
+            by_rarity: Object.fromEntries(countByRarity(configLoader, beasts).map(row => [row.key, row.count]))
         };
 
         return {
@@ -213,9 +224,9 @@ class SpiritBeastService {
         const config = configLoader.getConfig('spirit_beast_data');
         const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
         const elements = config.elements || {};
-        const rarityConfig = config.rarity_config || {};
+        const rarities = rarityMap(configLoader);
 
-        const formatted = this._formatBeast(beast, beastTypeMap, elements, rarityConfig);
+        const formatted = this._formatBeast(beast, beastTypeMap, elements, rarities);
         const combatPower = this.calculateCombatPower(beast);
         const expCap = calcExpCap(beast.level, config.settings);
 
@@ -688,7 +699,6 @@ class SpiritBeastService {
      */
     static async releaseBeast(playerId, beastId) {
         const config = configLoader.getConfig('spirit_beast_data');
-        const rarityConfig = config.rarity_config || {};
         const settings = config.settings;
         const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
 
@@ -713,7 +723,7 @@ class SpiritBeastService {
             // 计算返还灵石 = (基础灵石+等级成长) * 稀有度返还比例
             const bt = beastTypeMap.get(beast.beast_key) || {};
             const baseReturn = (Number(bt.base_hp || 0) + Number(beast.level) * 50) / 10;
-            const returnRatio = Number(rarityConfig[beast.rarity]?.release_return_ratio) || 0.2;
+            const returnRatio = releaseReturnRatio(configLoader, beast.rarity);
             const returnStones = BigInt(Math.floor(baseReturn * returnRatio));
 
             // 返还灵石
@@ -762,7 +772,7 @@ class SpiritBeastService {
         const config = configLoader.getConfig('spirit_beast_data');
         const starUpgradeCfg = config.star_upgrade || {};
         const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
-        const rarityConfig = config.rarity_config || {};
+        const rarities = rarityMap(configLoader);
 
         // 查询灵兽（无需事务，只读操作）
         const beast = await SpiritBeast.findOne({
@@ -785,7 +795,7 @@ class SpiritBeastService {
             return {
                 success: true,
                 data: {
-                    beast: this._formatBeast(beast, beastTypeMap, config.elements || {}, rarityConfig),
+                    beast: this._formatBeast(beast, beastTypeMap, config.elements || {}, rarities),
                     current_star: currentStar,
                     target_star: null,
                     cost: null,
@@ -797,11 +807,9 @@ class SpiritBeastService {
             };
         }
 
-        // 计算稀有度倍率
-        const rarityMultiplier = Number(starUpgradeCfg.rarity_cost_multiplier?.[beast.rarity]) || 1.0;
-        const beastSoulCost = Math.floor((Number(upgradeEntry.beast_soul_cost) || 0) * rarityMultiplier);
-        const yaodanCost = Math.floor((Number(upgradeEntry.yaodan_cost) || 0) * rarityMultiplier);
-        const spiritStonesCost = BigInt(Math.floor((Number(upgradeEntry.spirit_stones_cost) || 0) * rarityMultiplier));
+        // 稀有度倍率与实际消耗：与 upgradeStar 走同一份定义（预览与扣费不能各算一遍）
+        const starUp = starUpCost(configLoader, beast.rarity, upgradeEntry);
+        const { beastSoulCost, yaodanCost, spiritStonesCost } = starUp;
 
         // 当前持有材料（用于前端展示是否足够）
         const yaodanItemKey = starUpgradeCfg.yaodan_item_key || 'yaodan';
@@ -849,10 +857,11 @@ class SpiritBeastService {
         return {
             success: true,
             data: {
-                beast: this._formatBeast(beast, beastTypeMap, config.elements || {}, rarityConfig),
+                beast: this._formatBeast(beast, beastTypeMap, config.elements || {}, rarities),
                 current_star: currentStar,
                 target_star: targetStar,
                 cost: {
+                    rarity_multiplier: starUp.multiplier,
                     beast_soul: beastSoulCost,
                     beast_soul_owned: Number(beast.beast_soul) || 0,
                     yaodan: yaodanCost,
@@ -894,7 +903,7 @@ class SpiritBeastService {
         const config = configLoader.getConfig('spirit_beast_data');
         const starUpgradeCfg = config.star_upgrade || {};
         const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
-        const rarityConfig = config.rarity_config || {};
+        const rarities = rarityMap(configLoader);
 
         // 升星系统开关
         if (starUpgradeCfg.enabled === false) {
@@ -968,11 +977,9 @@ class SpiritBeastService {
                 return { success: false, message: `未找到 ${currentStar} 星升星配置`, error_code: ErrorCodes.CONFIG_ERROR };
             }
 
-            // 6. 计算稀有度倍率后的实际消耗
-            const rarityMultiplier = Number(starUpgradeCfg.rarity_cost_multiplier?.[beast.rarity]) || 1.0;
-            const beastSoulCost = Math.floor((Number(upgradeEntry.beast_soul_cost) || 0) * rarityMultiplier);
-            const yaodanCost = Math.floor((Number(upgradeEntry.yaodan_cost) || 0) * rarityMultiplier);
-            const spiritStonesCost = BigInt(Math.floor((Number(upgradeEntry.spirit_stones_cost) || 0) * rarityMultiplier));
+            // 6. 稀有度倍率后的实际消耗（与 getUpgradePreview 同一份定义）
+            const starUp = starUpCost(configLoader, beast.rarity, upgradeEntry);
+            const { beastSoulCost, yaodanCost, spiritStonesCost } = starUp;
 
             // 7. 材料持有量校验
             const yaodanItemKey = starUpgradeCfg.yaodan_item_key || 'yaodan';
@@ -1027,7 +1034,7 @@ class SpiritBeastService {
                 beast.star_level = newStar;
                 const bt = beastTypeMap.get(beast.beast_key);
                 if (bt) {
-                    Object.assign(beast, SpiritBeastService.computeStats(bt, beast.level, newStar));
+                    SpiritBeastService.applyComputedStats(beast, SpiritBeastService.computeStats(bt, beast.level, newStar));
                 }
 
                 // 判断是否激活新招牌特性（3星/5星）
@@ -1171,12 +1178,20 @@ class SpiritBeastService {
         const registry = require('../stats').ensureStatRegistryLoaded();
 
         let base = 0;
+        // 取值口径：先按"这只灵兽携带的注册属性"（专属列 + stats 属性块）查，
+        // 查不到再回落到行上的同名原始值 —— 内容权重可以指灵兽自己的概念（如 loyalty），
+        // 那一档不在玩家属性注册表里，只走 statBlockOf 会被静默丢掉（改第一版就是这样，被
+        // tests/BeastPowerWeights.test.js 抓回来的）。
+        const block = SpiritBeastService.statBlockOf(beast);
+        const plain = (beast && typeof beast.toJSON === 'function') ? beast.toJSON() : (beast || {});
         for (const [stat, rawWeight] of Object.entries(weights)) {
             if (stat.startsWith('_')) continue; // 内容里的说明键（_comment）不算一档属性
             const weight = Number(rawWeight);
             if (!Number.isFinite(weight) || weight === 0) continue;
             const column = registry.resolveStatKey(stat)?.key || stat;
-            base += Number(beast[column] || 0) * weight;
+            if (column === BLOB_COLUMN) continue;   // 属性块本身不是一档属性
+            const value = Number(block[column] ?? plain[column] ?? 0);
+            if (Number.isFinite(value)) base += value * weight;
         }
         const starBonus = 1 + (Number(beast.star_level) - 1) * 0.1;
         return Math.floor(base * starBonus);
@@ -1268,9 +1283,10 @@ class SpiritBeastService {
 
             // 每一项灵兽属性都按内容声明的系数折算给玩家（stat_factors 没写的就是全额）。
             // 这里以前手写只认 atk/def/hp_max/speed，还给灵兽根本没有的 mp_max/sense 写死 0；
-            // 现在只要 computeStats 把某个注册表认识的属性算进行上，它就会自动进玩家的属性管线。
+            // 现在只要 computeStats 把某个注册表认识的属性算出来，它就会自动进玩家的属性管线
+            // —— 不管它落在专属列上还是 stats 属性块里（statBlockOf 负责合并两处）。
             const bonus = {
-                ...Object.fromEntries(Object.entries(pickRegisteredStats(beast.toJSON())).map(([stat, value]) => [
+                ...Object.fromEntries(Object.entries(SpiritBeastService.statBlockOf(beast)).map(([stat, value]) => [
                     stat, Math.floor(Number(value) * bonusRate * Number(statFactors[stat] ?? 1))
                 ])),
                 beast_info: {
@@ -1305,30 +1321,80 @@ class SpiritBeastService {
      * 给灵兽加一个新属性要改完这些位置才生效。现在资料片只要写 `base_<属性>`，
      * 列存在就会算、会进属性引擎（getActiveBeastBonus → providers → StatEngine），代码不用动。
      *
+     * 没有专属列的属性（注册表认识，但 spirit_beasts 上没这一列）不再被丢掉：
+     * 它们收进返回值里的 stat_block 属性块（migration_0088），读取端一律经 statBlockOf 合并，
+     * 所以"给灵兽加一档属性"从此不需要改表。
+     *
      * @param {Object} beastType - spirit_beast_data.beast_types 里的一条
      * @param {number} level
      * @param {number} starLevel
-     * @returns {Object} { 列名: 数值 }
+     * @returns {Object} { 列名: 数值 }，其中有属性块时多一个 stats: { 属性: 数值 }
      */
     static computeStats(beastType, level, starLevel) {
-        const stats = {};
+        const { ensureStatRegistryLoaded } = require('../stats');
+        const registry = ensureStatRegistryLoaded();
+        const result = {};
+        const blob = {};
         for (const [key, base] of Object.entries(beastType || {})) {
             if (!key.startsWith('base_')) continue;
             const stat = key.slice('base_'.length);
             const column = beastStatColumn(stat);
-            if (!column) {
-                // 声明了注册表认识的属性却没有列存放，是要告诉策划的真问题；
-                // 其余 base_* 只是碰巧同名的普通配置字段，安静跳过即可
-                const { ensureStatRegistryLoaded } = require('../stats');
-                const registry = ensureStatRegistryLoaded();
-                if (registry && registry.resolveStatKey(stat)) {
-                    console.warn(`[SpiritBeastService] 灵兽种类 ${beastType.beast_key} 声明了 ${key}，但灵兽表没有列存放，已忽略`);
-                }
+            if (column) {
+                result[column] = calcAttr(base, level, starLevel);
                 continue;
             }
-            stats[column] = calcAttr(base, level, starLevel);
+            // 认得的属性 → 属性块；不认得的 base_* 只是碰巧同名的普通配置字段，安静跳过
+            const def = registry && registry.resolveStatKey(stat);
+            if (def) blob[def.key] = calcAttr(base, level, starLevel);
         }
-        return stats;
+        if (Object.keys(blob).length) result[BLOB_COLUMN] = blob;
+        return result;
+    }
+
+    /**
+     * 写灵兽的属性块 —— 全仓只有这一处写这一列。
+     *
+     * 为什么单独一个方法并且用字面量属性名：BlobColumnCensus 那道闸是按"`x.stats =` / update({stats})"
+     * 找整块 JSON 列的写方的，用 `beast[BLOB_COLUMN] = …` 会把写点从闸门眼前藏掉。
+     * 收敛成一个入口之后，这一列的写方数恒为 1（本文件），闸门的单写方名单才看得见它。
+     */
+    static setStatBlob(beast, block) {
+        beast.stat_block = block && typeof block === 'object' && Object.keys(block).length ? block : null;
+        return beast;
+    }
+
+    /**
+     * 把算好的属性块写回一个已存在的灵兽实例。
+     *
+     * 为什么不直接 Object.assign：内容撤掉某一档属性时 computeStats 不再返回 stats，
+     * 只用 assign 会把旧属性块留在行上（玩家继续吃到已经下架的加成）。
+     * 这里刻意让"没算出来"= "清空"，与列上"按新等级重算覆盖"是同一个口径。
+     *
+     * 并发口径（诚实说明）：这一列的值**永远由内容重算得出**，所以"升级与 GM 改属性同时发生"
+     * 丢的是 GM 那一笔手工值，不会丢玩家进度或资产 —— 与 attributes 那种"读-改-写玩家状态"不是一类。
+     */
+    static applyComputedStats(beast, computed) {
+        const { [BLOB_COLUMN]: blob, ...columns } = computed || {};
+        Object.assign(beast, columns);
+        SpiritBeastService.setStatBlob(beast, blob);
+        return beast;
+    }
+
+    /**
+     * 一只灵兽当前携带的**全部**注册属性（专属列 + 无列属性块）。
+     *
+     * 这是"灵兽的属性从哪儿取"的唯一入口：列上的值优先，属性块补齐没有列的那些。
+     * 以前读取端是 pickRegisteredStats(beast.toJSON())，等于只看列 —— 新属性即使存进了
+     * stats 列也照样读不到，所以加列必须和这个合并函数一起落地才有意义。
+     */
+    static statBlockOf(beast) {
+        if (!beast) return {};
+        const plain = typeof beast.toJSON === 'function' ? beast.toJSON() : beast;
+        const { [BLOB_COLUMN]: blob, ...rest } = plain || {};
+        // 顺序不能反：属性块在前、专属列在后，**列上的值赢**。
+        // 反过来的话，属性块里残留的一档同名旧值（例如内容改过口径、属性块还没重算）
+        // 会顶掉列上的真值 —— 而 atk/def/hp_max/speed 四档本来就以列为准。
+        return { ...pickRegisteredStats(blob || {}), ...pickRegisteredStats(rest) };
     }
 
     /**
@@ -1366,7 +1432,7 @@ class SpiritBeastService {
             const beastTypeMap = new Map((config.beast_types || []).map(bt => [bt.beast_key, bt]));
             const bt = beastTypeMap.get(beast.beast_key);
             if (bt) {
-                Object.assign(beast, SpiritBeastService.computeStats(bt, beast.level, beast.star_level));
+                SpiritBeastService.applyComputedStats(beast, SpiritBeastService.computeStats(bt, beast.level, beast.star_level));
             }
         }
 
@@ -1403,10 +1469,35 @@ class SpiritBeastService {
      * 格式化灵兽对象为前端展示用
      * @private
      */
-    static _formatBeast(beast, beastTypeMap, elements, rarityConfig) {
+    /**
+     * 一只灵兽"没有专属列"的属性清单，外发给面板用（标签来自属性注册表）。
+     *
+     * 为什么要外发：客户端以前把气血/攻/防/速四格抄死在模板里，于是资料片加的那一档
+     * 明明已经算进玩家面板，灵兽自己的卡片上却看不见 —— "配了但玩家看不到"是同一类问题。
+     * 这里把 label/unit 一起给出，客户端只写一个 v-for，加属性不再需要动前端。
+     *
+     * 只列**非零**的那些：全量列会在每张卡片上排一串 0，把真正有用的信息挤掉。
+     */
+    static _extraStatsOf(beast) {
+        const block = beast && beast[BLOB_COLUMN];
+        if (!block || typeof block !== 'object') return [];
+        const { ensureStatRegistryLoaded } = require('../stats');
+        const registry = ensureStatRegistryLoaded();
+        return Object.entries(block).map(([key, raw]) => {
+            const def = registry && registry.resolveStatKey(key);
+            return {
+                key: def?.key || key,
+                label: def?.label || key,
+                unit: def?.unit || 'point',
+                value: Number(raw) || 0
+            };
+        }).filter(entry => entry.value !== 0);
+    }
+
+    static _formatBeast(beast, beastTypeMap, elements, rarities) {
         const bt = beastTypeMap.get(beast.beast_key) || {};
         const elem = elements[beast.element] || {};
-        const rarity = rarityConfig[beast.rarity] || {};
+        const rarity = (rarities || {})[beast.rarity] || { label: FALLBACK.label, color: FALLBACK.color, order: 0 };
         const starLevel = Number(beast.star_level) || 1;
 
         // 解析招牌特性激活状态：3星激活 star_3，5星激活 star_5
@@ -1437,8 +1528,9 @@ class SpiritBeastService {
             element_name: elem.name || beast.element,
             element_color: elem.color || '#9ca3af',
             rarity: beast.rarity,
-            rarity_name: rarity.name || beast.rarity,
-            rarity_color: rarity.color || '#9ca3af',
+            rarity_name: rarity.label,
+            rarity_color: rarity.color,
+            rarity_order: rarity.order ?? 0,
             star_level: starLevel,
             beast_soul: Number(beast.beast_soul) || 0,
             level: beast.level,
@@ -1447,6 +1539,8 @@ class SpiritBeastService {
             atk: beast.atk,
             def: beast.def,
             speed: beast.speed,
+            // 没有专属列的属性（资料片新加的都在这一档）：整块外发，标签取自注册表
+            extra_stats: SpiritBeastService._extraStatsOf(beast),
             loyalty: beast.loyalty,
             is_active: Boolean(beast.is_active),
             is_pasturing: Boolean(beast.is_pasturing),
@@ -1492,5 +1586,8 @@ class SpiritBeastService {
         };
     }
 }
+
+// 外部（GM 路由、探针）要按同一口径判断"这一档属性住在属性块而不是列上"，别各自抄字面量
+SpiritBeastService.STAT_BLOB_COLUMN = BLOB_COLUMN;
 
 module.exports = SpiritBeastService;

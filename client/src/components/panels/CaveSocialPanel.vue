@@ -1119,6 +1119,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { formatBeijing } from '../../utils/time'
 import { useUIStore } from '../../stores/ui'
 import { formatCompact } from '../../utils/format'
+import { useItemQualities } from '../../composables/useItemQualities'
 import Modal from '../common/Modal.vue'
 import PanelShell from '../ui/PanelShell.vue'
 import Tabs from '../ui/Tabs.vue'
@@ -1874,34 +1875,12 @@ async function handleAppreciate(exhibit) {
 }
 
 /**
- * 品质 -> 中文标签
+ * 展品品质的小标签与中文档名：一律取服务端 game_balance.item_qualities（见 composables/useItemQualities.js）。
+ * 这里原来抄了两份字典（徽章底 / 档名），档名还用了另一套叫法（uncommon 写成"精良"），
+ * 抄漏一档就会把那一档印成最低档的样子（漏 mythic 时神话展品显示成"普通"）。
+ * 名字仍叫 qualityLabel / qualityBadgeClass，模板不必改。
  */
-function qualityLabel(quality) {
-  const map = {
-    common: ' 普通',
-    uncommon: '·精良',
-    rare: '★稀有',
-    epic: '✦史诗',
-    legendary: '✧传说',
-    mythic: '✺神话'
-  }
-  return map[quality] || quality
-}
-
-/**
- * 品质 -> 徽章样式
- */
-function qualityBadgeClass(quality) {
-  const map = {
-    common: 'bg-surface-hover text-fg-secondary border-line-strong',
-    uncommon: 'bg-green-900/40 text-green-300 border-green-700/50',
-    rare: 'bg-blue-900/40 text-blue-300 border-blue-700/50',
-    epic: 'bg-purple-900/40 text-purple-300 border-purple-700/50',
-    legendary: 'bg-gold-900/40 text-gold-300 border-gold-700/50',
-    mythic: 'bg-rose-900/40 text-rose-300 border-rose-700/50'
-  }
-  return map[quality] || 'bg-surface-hover text-fg-secondary border-line-strong'
-}
+const { labelOf: qualityLabel, chipClass: qualityBadgeClass } = useItemQualities()
 
 // ====== 洞天绘卷系统 ======
 /**

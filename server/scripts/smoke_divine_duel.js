@@ -26,6 +26,7 @@ const PlayerDivineDuel = require('../models/playerDivineDuel');
 const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const DivineDuelService = require('../game/services/DivineDuelService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const NAMES = ['duel_a', 'duel_b'];
 const results = [];
@@ -219,9 +220,11 @@ async function main() {
                 if (p) ids.push(p.id);
             }
             if (ids.length) {
+                // player_divine_duels 用的是 challenger_id / defender_id（引用档，一对两个），不在级联的
+                // "归属"口径里，所以这一条仍然要探针自己清；player_divine_sense（player_id）那些交给级联。
                 await PlayerDivineDuel.destroy({ where: { [require('sequelize').Op.or]: [{ challenger_id: ids }, { defender_id: ids }] }, force: true });
-                await PlayerDivineSense.destroy({ where: { player_id: ids } });
-                await Player.destroy({ where: { id: ids }, force: true });
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

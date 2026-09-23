@@ -52,7 +52,10 @@ const LEGACY_BREAKDOWN_GROUPS = [
     ['technique', 'cultivation'],
     // 傀儡此前只在 by_stat / info 里有，legacy breakdown 里没有这一组：
     // 任何按来源分组读明细的地方（"加成来自哪里"列表）都会漏掉出战傀儡。
-    ['puppet', 'puppet']
+    ['puppet', 'puppet'],
+    // 夺舍继承同理：少这一行 = 它照样进 final、照样打得出伤害，但按来源分组的明细里查无此账，
+    // 玩家与策划都无从知道这部分属性从哪来（tests/StatProviderCoverage.test.js 会红）。
+    ['reincarnation', 'reincarnation']
 ];
 
 class AttributeService {
@@ -453,15 +456,27 @@ class AttributeService {
     }
 
     /**
-     * 在回收结果上记录重置时点（供冷却判定），调用方负责落库
-     * @param {Object} resetPlan - buildAllocatedPointsReset 的返回值
-     * @returns {Object} 带 last_attribute_reset_time 的 attributes
+     * 属性点重置要往 players.attributes 上打的**键级补丁**
+     * （2026-09-23 取代 buildAttributesAfterReset —— 那个函数返回"摊平改过的整份 blob"，
+     * 调用方赋回实例再 save，于是把这一坨里其余十几个键按手上那份快照又写了一遍）。
+     *
+     * 一次重置实际只动三处：回收的那几个 `*_bonus`、删掉加点账本、写一个冷却时点。
+     * 现在账本用 null 删键、回收按 $add 负增量并在**行锁内**夹 0（`$min`），冷却时点是普通键值，
+     * 别的键（丹药加成、神识池、各玩法自己写的键）根本不参与这次写。
+     * @param {Object} resetPlan - buildAllocatedPointsReset 的返回值（只用它的 refunded 那份回收明细）
+     * @returns {Object} 直接交给 PlayerStateStore.patchPlayerState 的 attributes 补丁
      */
-    buildAttributesAfterReset(resetPlan) {
-        return {
-            ...(resetPlan?.attributes || {}),
+    buildAttributesResetPatch(resetPlan) {
+        const patch = {
+            [ALLOCATION_LEDGER_KEY]: null,
             last_attribute_reset_time: new Date().toISOString()
         };
+        for (const [bonusKey, reclaimed] of Object.entries(resetPlan?.refunded || {})) {
+            const amount = Math.floor(Number(reclaimed));
+            if (!Number.isFinite(amount) || amount <= 0) continue;
+            patch[bonusKey] = { $add: -amount, $min: 0 };
+        }
+        return patch;
     }
 
     /**

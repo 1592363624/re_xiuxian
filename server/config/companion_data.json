@@ -23,9 +23,10 @@
   },
   "heart_tribulation": {
     "options": {
-      "steady": { "success_rate": 0.7, "intimacy_gain": 10, "remnant_soul_cost": 5 },
-      "ruthless": { "success_rate": 0.5, "intimacy_gain": 20, "remnant_soul_cost": 15 },
-      "deceive": { "success_rate": 0.3, "intimacy_gain": 30, "remnant_soul_cost": 0 }
+      "_comment": "心动劫的选项词表（2026-09-23 登记成集合，资料片可自带新选项）：name 是下发给界面显示的中文名，键是 API 与库里存的 choice。以前「哪三个选项、各叫什么」在路由/服务/客户端各抄了一遍（routes/companion.js 与 CompanionService 各有一份字面清单，面板注释甚至写着「后端不下发名称」），于是资料片加第四个选项会被路由挡在门外。success_rate 是 0~1 的概率，intimacy_gain 是成功时加的亲密度，remnant_soul_cost 是这一次抉择要烧掉的残魂。",
+      "steady": { "name": "稳", "description": "以诚相待，成功率最高、收益最小", "success_rate": 0.7, "intimacy_gain": 10, "remnant_soul_cost": 5 },
+      "ruthless": { "name": "狠", "description": "斩断犹豫，成功率与收益居中，耗残魂较多", "success_rate": 0.5, "intimacy_gain": 20, "remnant_soul_cost": 15 },
+      "deceive": { "name": "骗", "description": "自欺欺人，成功率最低、收益最大，不耗残魂", "success_rate": 0.3, "intimacy_gain": 30, "remnant_soul_cost": 0 }
     },
     "success_reward": { "heart_contract_exp": 100, "remnant_soul_recover": 10 },
     "failure_penalty": { "heart_contract_level_loss": 1, "remnant_soul_loss": 20, "weakness_hours": 24 },
@@ -151,10 +152,11 @@
   },
   "voyage": {
     "modes": {
-      "safe": { "duration_hours": 4, "risk_modifier": 0.5, "reward_multiplier": 0.6, "min_charm": 0 },
-      "balanced": { "duration_hours": 8, "risk_modifier": 1.0, "reward_multiplier": 1.0, "min_charm": 30 },
-      "risky": { "duration_hours": 12, "risk_modifier": 1.5, "reward_multiplier": 1.8, "min_charm": 50 },
-      "moon_palace": { "duration_hours": 24, "risk_modifier": 2.0, "reward_multiplier": 3.0, "min_charm": 80 }
+      "_comment": "侍妾远航的模式词表（2026-09-23 登记成集合，资料片可自带新模式）：name 下发给界面，键是 API 里的 mode。每档必须有 reward_pools 里同名的那份池子（启动闸 _validateCompanionVoyage 拦，缺了就是「走出去必定空手回来」而回执一切正常）。min_charm 是主人魅力门槛。",
+      "safe": { "name": "稳妥", "description": "沿近岸短程往返，风险最低、回报也最薄", "duration_hours": 4, "risk_modifier": 0.5, "reward_multiplier": 0.6, "min_charm": 0 },
+      "balanced": { "name": "均衡", "description": "常规航线，风险与回报持平", "duration_hours": 8, "risk_modifier": 1.0, "reward_multiplier": 1.0, "min_charm": 30 },
+      "risky": { "name": "冒险", "description": "深入陌生海域，风险高、回报高", "duration_hours": 12, "risk_modifier": 1.5, "reward_multiplier": 1.8, "min_charm": 50 },
+      "moon_palace": { "name": "月殿寻痕", "description": "直奔月殿遗迹，最险也最肥，魅力不足者连船都上不了", "duration_hours": 24, "risk_modifier": 2.0, "reward_multiplier": 3.0, "min_charm": 80 }
     },
     "success_rate_formula": {
       "base": 0.5,
@@ -180,11 +182,11 @@
       ],
       "risky": [
         { "type": "spirit_stones", "min": 8000, "max": 20000, "weight": 100 },
-        { "type": "item", "item_keys": ["nascent_soul_pill", "rare_treasure_fragment"], "weight": 20 }
+        { "type": "item", "item_keys": ["nascent_soul_pill"], "weight": 20 }
       ],
       "moon_palace": [
         { "type": "spirit_stones", "min": 20000, "max": 50000, "weight": 100 },
-        { "type": "item", "item_keys": ["law_fragment_space", "moon_jade_dew"], "weight": 15 }
+        { "type": "item", "item_keys": ["faze_suipian", "yuehua_yulu"], "weight": 15, "_comment": "2026-09-23 修掉两个查无此物的键：law_fragment_space → faze_suipian（法则碎片；「·空间」那一档从来没做过物品，现有的只有雷属性变体 faze_suipian_lei），moon_jade_dew → yuehua_yulu（月华玉露，同一个东西的英文名）。以前抽中这两条时 Item 表里会写下一行 item_key 无配置的记录，玩家背包里要么看见裸键要么什么都看不见。" }
       ]
     }
   },

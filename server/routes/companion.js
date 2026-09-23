@@ -223,8 +223,8 @@ router.get('/heart-tribulation', auth, async (req, res, next) => {
 
 /**
  * POST /api/companion/heart-tribulation/choose
- * 心劫抉择（稳/狠/骗）
- * 请求体：{ event_id: number, option: 'steady' | 'ruthless' | 'deceive' }
+ * 心劫抉择（选项由 companion_data.heart_tribulation.options 决定，资料片可自带新选项）
+ * 请求体：{ event_id: number, option: <内容词表里的键> }
  */
 router.post('/heart-tribulation/choose', auth, async (req, res, next) => {
     try {
@@ -236,11 +236,13 @@ router.post('/heart-tribulation/choose', auth, async (req, res, next) => {
                 message: 'event_id 必填且必须为数字'
             });
         }
-        if (!['steady', 'ruthless', 'deceive'].includes(option)) {
+        // 白名单从服务那一份内容读取口拿（以前这里点写三个键 = 资料片加第四个选项会被挡在路由外）
+        const choiceKeys = CompanionService.heartTribulationChoiceKeys();
+        if (!choiceKeys.includes(option)) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'option 必须为 steady(稳)/ruthless(狠)/deceive(骗) 之一'
+                message: `option 必须是 ${choiceKeys.join('/')} 之一`
             });
         }
         const result = await CompanionService.chooseHeartTribulation(req.player.id, event_id, option);

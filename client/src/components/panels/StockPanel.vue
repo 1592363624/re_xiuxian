@@ -219,6 +219,24 @@ const categoryLabel = (category) => {
 }
 
 /**
+ * 为什么这对买卖按钮点不动 —— 给一句人话。
+ *
+ * 行情页十几只股票同时熔断时，界面上是一片灰掉的"买入/卖出"，
+ * 玩家唯一的线索是"状态"列那枚小红章，得自己把两列对起来才知道原因。
+ * 文案与 StockMarketService 抛给玩家的报错保持一致（熔断 / 锁定 / T+1），
+ * 免得按钮说一套、点下去弹另一套。
+ *
+ * @param {Object} stock - 行情行（带 is_trading_halted）
+ * @param {string} [extra] - 额外一条原因（如持仓为 0）
+ * @returns {string} 可点时返回空串，不占用 title
+ */
+function tradeBlockReason(stock, extra = '') {
+  if (status.value?.is_trading_locked) return '股市交易已被锁定，请联系 GM 解锁'
+  if (stock?.is_trading_halted) return '该股票已熔断，暂停交易'
+  return extra
+}
+
+/**
  * 交易类型中文标签
  * @param {string} type - 交易类型
  */
@@ -873,6 +891,20 @@ onUnmounted(() => {
               </div>
             </PanelCard>
 
+            <!-- 还没入金：余额 0 且一股没有时给一条路。
+                 资金转入口藏在「交易」页签里，而新手第一屏看到的是
+                 "账户余额 0" + 一排被熔断灰掉的买入按钮 —— 两条路都不通，
+                 又不知道为什么不通，很容易就此认为股市是坏的。 -->
+            <PanelCard v-if="status && Number(status.balance) <= 0 && Number(status.holdings_count) <= 0 && !status.is_trading_locked" tone="gold" class="mb-3">
+              <div class="flex items-center justify-between gap-3 text-sm text-fg-secondary">
+                <span>股市账户还没有资金。先把灵石转入，再来下单买入。</span>
+                <button
+                  @click="activeTab = 'trade'"
+                  class="focus-ring shrink-0 px-2.5 py-1 rounded-control border border-gold-700 text-gold-200 text-xs hover:bg-gold-900/40 transition-colors"
+                >去「交易」页签转入</button>
+              </div>
+            </PanelCard>
+
             <!-- 空状态 -->
             <EmptyState v-if="stockList.length === 0" text="暂无行情数据" hint="开盘后这里会列出全部可交易的标的" />
 
@@ -922,11 +954,13 @@ onUnmounted(() => {
                         <button
                           @click="openTradeModal('buy', stock)"
                           :disabled="stock.is_trading_halted || status?.is_trading_locked"
+                          :title="tradeBlockReason(stock)"
                           class="px-2 py-1 rounded-control bg-emerald-900/40 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 text-xs mr-1 disabled:opacity-30 disabled:cursor-not-allowed"
                         >买入</button>
                         <button
                           @click="openTradeModal('sell', stock)"
                           :disabled="stock.is_trading_halted || status?.is_trading_locked"
+                          :title="tradeBlockReason(stock)"
                           class="px-2 py-1 rounded-control bg-rose-900/40 border border-rose-800 text-rose-300 hover:bg-rose-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                         >卖出</button>
                       </td>
@@ -970,11 +1004,13 @@ onUnmounted(() => {
                     <button
                       @click="openTradeModal('buy', holding)"
                       :disabled="holding.is_trading_halted || status?.is_trading_locked"
+                      :title="tradeBlockReason(holding)"
                       class="px-3 py-1 rounded-control bg-emerald-900/40 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                     >买入更多</button>
                     <button
                       @click="openTradeModal('sell', holding)"
                       :disabled="holding.is_trading_halted || Number(holding.available_quantity) <= 0 || status?.is_trading_locked"
+                      :title="tradeBlockReason(holding, Number(holding.available_quantity) <= 0 ? '无可用持仓（T+1 结算，买入次日方可卖出）' : '')"
                       class="px-3 py-1 rounded-control bg-rose-900/40 border border-rose-800 text-rose-300 hover:bg-rose-800/50 text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                     >卖出</button>
                   </div>

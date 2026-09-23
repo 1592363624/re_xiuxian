@@ -1,7 +1,7 @@
 {
   "dataset": "drop_data",
   "into": "drops",
-  "comment": "海上市舶的货从海里来：鲨鱼精在乱星海潮汛里翻了身，银沙与月魂都从它身上讨。用 override 是因为 drops 按 monster_id 聚成一张表，一张表不能有两个主人；数组会被整块替换，所以原有 4 条掉落必须照抄进来（tests/LuanXingHaiPack.test.js 里有一条专门盯这件事，别让下一次改表把基础掉落弄丢）。",
+  "comment": "海上市舶的货从海里来：鲨鱼精在乱星海潮汛里翻了身，银沙与月魂都从它身上讨。用 override 是因为 drops 按 monster_id 聚成一张表，一张表不能有两个主人；数组会被整块替换，所以原有 4 条掉落必须照抄进来（tests/LuanXingHaiPack.test.js 里有一条专门盯这件事，别让下一次改表把基础掉落弄丢）。本轮又往这张表上添两卷：乱星图残卷与星辰符谱以前只是一张配了价、却哪儿都不掉的摆设，于是星遁诀与星辰符两条链玩家永远走不到 —— 内容闸 _validateTechniqueAcquire 管的是「链接对不对」，管不了「拿不拿得到」，所以可达性要在这张表上落实。",
   "override": {
     "shark": {
       "monster_name": "鲨鱼精（乱星海潮汛）",
@@ -13,7 +13,9 @@
         { "item_id": "xingsha", "quantity": [2, 6], "chance": 0.55 },
         { "item_id": "yuehun_shi", "quantity": [1, 2], "chance": 0.18 },
         { "item_id": "yinsha_ling", "quantity": 1, "chance": 0.04 },
-        { "item_id": "juyue_dan", "quantity": [1, 2], "chance": 0.15 }
+        { "item_id": "juyue_dan", "quantity": [1, 2], "chance": 0.15 },
+        { "item_id": "xingchen_fu_pu", "quantity": 1, "chance": 0.06 },
+        { "item_id": "luanxing_tu_can", "quantity": 1, "chance": 0.012 }
       ],
       "exp_reward": 320
     }

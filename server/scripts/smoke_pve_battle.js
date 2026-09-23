@@ -198,6 +198,28 @@ async function logOf(playerId) {
         `哨兵=${after?.attributes?.[SENTINEL]}`
     );
 
+    // ===== V10：胜利经验到账（2026-09-23 起走列上原子加，不再是"读这份快照 + 算绝对值 + 整行 save()"）=====
+    {
+        await CombatService.retreat?.(playerId).catch(() => {});
+        const expBefore = BigInt((await Player.findByPk(playerId)).exp || 0);
+        await CombatService.encounter(playerId, monster.id);
+        // 一击必杀：保证这一记真的走到"胜利结算"那几行，而不是停在半场上
+        await ActiveBattle.update({ monster_hp: 1 }, { where: { player_id: playerId } });
+        const win = await CombatService.attack(playerId, 'attack');
+        const expAfter = BigInt((await Player.findByPk(playerId)).exp || 0);
+        const reported = BigInt(win?.rewards?.exp ?? win?.exp ?? -1);
+        check(
+            'V10 打赢一记后：回执报的经验数 == 库里 exp 的增量（到账写的是这一份，不是别处的旧快照）',
+            win?.result === 'win' && reported >= 0n && expAfter - expBefore === reported && reported > 0n,
+            `result=${win?.result} 回执 exp=${reported} 库里 ${expBefore}→${expAfter}`
+            + `；若增量为 0 说明这条路径没执行到（旧写法把整行 save() 交回调用方，改坏了也不会响）`
+        );
+        const afterWin = await Player.findByPk(playerId);
+        check('V10b 胜利到账之后 blob 哨兵键仍在（到账不整块覆盖 attributes）',
+            afterWin.attributes?.[SENTINEL] === 'keep-me',
+            `哨兵=${afterWin.attributes?.[SENTINEL]}`);
+    }
+
     // ===== V8/V9：怪物属性是"内容声明 → 结算读得到"，不再只有 game_balance 里那三个常数 =====
     const allMaps = Array.isArray(mapData.maps) ? mapData.maps : Object.values(mapData.maps);
     const oceanMap = allMaps.find(m => (m.monsters || []).some(x => x.id === 'shark' && x.stats));

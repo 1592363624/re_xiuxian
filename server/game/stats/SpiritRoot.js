@@ -118,4 +118,53 @@ function spiritRootTypes(player, roleInit) {
     return types;
 }
 
-module.exports = { resolveSpiritRoot, spiritRootBonus, spiritRootTypes };
+/**
+ * 抽灵根的"池子"定义 —— 唯一一处，建号（rollSpiritRoot）与启动闸（_validateSpiritRootRoll）都问它。
+ *
+ * 三条与"资料片能加灵根"绑在一起的口径：
+ *   · 池子来自 `spirit_roots`，被 `roll_enabled:false` 关掉的不进池（"先声明后开放"要留痕，
+ *     由启动闸强制）；
+ *   · 权重走 `contentNumber` —— 资料片经 map 集合加的概率条目是 `{id,value}` 对象，
+ *     直接 `+=` 会算成 NaN，坏掉的是整池（表现为"新号永远抽到第一个"），不只是那一条抽不到；
+ *   · 键名一律取 `spirit_roots[].name`，所以概率表写英文 id 的那一档等于没写。
+ *
+ * @returns {{name:string, weight:number}[]} 有效权重为正的档位；一条都没有时是空数组（不是兜底假灵根）
+ */
+function spiritRootRollPool(roleInit) {
+    const { contentNumber } = require('../content/ContentRegistry');
+    const declared = (roleInit?.spirit_roots || [])
+        .filter(root => root && typeof root === 'object' && root.name && root.roll_enabled !== false);
+    const probabilities = roleInit?.spiritRootProbabilities || {};
+    const weighted = declared
+        .map(root => ({ name: root.name, weight: contentNumber(probabilities[root.name], NaN) }))
+        .filter(entry => Number.isFinite(entry.weight) && entry.weight > 0);
+    // 概率表整个读不到（或全被写成非正数）时按声明等分 —— 与改造前一致，但不写死五个中文名
+    return weighted.length ? weighted : declared.map(root => ({ name: root.name, weight: 1 }));
+}
+
+/**
+ * 建号抽灵根（PlayerService 调它，测试也直接打它）。
+ *
+ * @param {Object} roleInit role_init 的合并视图
+ * @param {number} [ratio] [0,1) 的比率，传进来才能测。**内部再乘总权重**：
+ *        概率表登记成 map 集合后资料片可以只加一条 `{id,value}`，总权重就不再是 1，
+ *        若把它当"已乘过权重的绝对值"，掷骰永远落在区间前段 → 后面几档（含新加的）抽不到。
+ * @returns {{name:string, weight:number, totalWeight:number, pool:string[]}|null}
+ *          灵根表整个读不到时返回 null —— 宁可不发灵根，也不写一条查无此根的假灵根
+ */
+function rollSpiritRoot(roleInit, ratio = Math.random()) {
+    const pool = spiritRootRollPool(roleInit);
+    if (!pool.length) return null;
+    const totalWeight = pool.reduce((sum, entry) => sum + entry.weight, 0);
+    const point = Math.min(Math.max(ratio, 0), 1) * totalWeight;
+
+    let picked = pool[pool.length - 1];
+    let cumulative = 0;
+    for (const entry of pool) {
+        cumulative += entry.weight;
+        if (point < cumulative) { picked = entry; break; }
+    }
+    return { name: picked.name, weight: picked.weight, totalWeight, pool: pool.map(e => e.name) };
+}
+
+module.exports = { resolveSpiritRoot, spiritRootBonus, spiritRootTypes, spiritRootRollPool, rollSpiritRoot };

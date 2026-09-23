@@ -26,6 +26,7 @@ const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const CaveService = require('../game/services/CaveService');
 const CaveSocialService = require('../game/services/CaveSocialService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNT = 'cave_c1';
 const results = [];
@@ -221,9 +222,11 @@ async function main() {
         try {
             const p = await Player.findOne({ where: { username: ACCOUNT } });
             if (p) {
-                await PlayerCave.destroy({ where: { player_id: p.id }, force: true });
-                await Item.destroy({ where: { player_id: p.id }, force: true });
-                await Player.destroy({ where: { id: p.id }, force: true });
+                // 洞府行与背包行都按 player_id 归属，级联覆盖得到 —— 探针不再手写"收尾清哪几张表"
+                // （新增一张带 player_id 的表不必回来补一行，那正是隔离库攒孤儿的方式）。
+                const purged = await PlayerCascadePurge.deletePlayer(Number(p.id));
+                console.log(`清理：删掉探针号 ${ACCOUNT}（id ${purged.player_id}），级联带走 ${purged.total} 行派生数据`
+                    + `，涉及 ${purged.tables.length} 张表`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

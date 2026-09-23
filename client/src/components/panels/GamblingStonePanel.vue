@@ -80,23 +80,11 @@
                 <span v-if="s.is_listed" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-800/60 text-emerald-200">已上架</span>
               </div>
 
-              <!-- 4维线索展示 -->
+              <!-- 线索：维度、顺序、中文名都由服务端按内容下发（资料片加一维不用改这里；配色按位次取，是纯展示） -->
               <div class="grid grid-cols-2 gap-2 mb-3">
-                <div class="bg-surface-canvas/40 rounded px-2 py-1.5">
-                  <div class="text-[9px] text-fg-faint">皮壳纹路</div>
-                  <div class="text-xs font-bold text-purple-300">{{ s.clues.crust }}</div>
-                </div>
-                <div class="bg-surface-canvas/40 rounded px-2 py-1.5">
-                  <div class="text-[9px] text-fg-faint">重量手感</div>
-                  <div class="text-xs font-bold text-cyan-300">{{ s.clues.weight }}</div>
-                </div>
-                <div class="bg-surface-canvas/40 rounded px-2 py-1.5">
-                  <div class="text-[9px] text-fg-faint">灵气强度</div>
-                  <div class="text-xs font-bold text-gold-300">{{ s.clues.aura }}</div>
-                </div>
-                <div class="bg-surface-canvas/40 rounded px-2 py-1.5">
-                  <div class="text-[9px] text-fg-faint">色泽光华</div>
-                  <div class="text-xs font-bold text-rose-300">{{ s.clues.color }}</div>
+                <div v-for="(row, i) in (s.clue_rows || [])" :key="row.key" class="bg-surface-canvas/40 rounded px-2 py-1.5">
+                  <div class="text-[9px] text-fg-faint">{{ row.name }}</div>
+                  <div class="text-xs font-bold" :class="CLUE_TONES[i % CLUE_TONES.length]">{{ row.value ?? '—' }}</div>
                 </div>
               </div>
               <p class="text-[10px] text-fg-faint mb-3 italic">线索可能含假，熟练度提升可降低假线索概率</p>
@@ -249,10 +237,7 @@
           <div class="text-fg-secondary mb-1">原石：<span class="font-bold" :style="{ color: cutModal.stone.quality_color }">{{ cutModal.stone.quality_name }}</span>（{{ cutModal.stone.origin_name }}）</div>
           <div class="text-[11px] text-fg-faint">基础价：{{ cutModal.stone.base_price }}灵石</div>
           <div class="grid grid-cols-2 gap-1 mt-2 text-[11px]">
-            <span class="text-fg-muted">皮壳：{{ cutModal.stone.clues.crust }}</span>
-            <span class="text-fg-muted">重量：{{ cutModal.stone.clues.weight }}</span>
-            <span class="text-fg-muted">灵气：{{ cutModal.stone.clues.aura }}</span>
-            <span class="text-fg-muted">色泽：{{ cutModal.stone.clues.color }}</span>
+            <span v-for="row in (cutModal.stone.clue_rows || [])" :key="row.key" class="text-fg-muted">{{ row.name }}：{{ row.value ?? '—' }}</span>
           </div>
         </div>
         <div class="text-fg-secondary">
@@ -380,6 +365,13 @@ import * as gamblingApi from '../../api/gamblingStone';
 import type { GamblingStoneProfile, UncutStone, StoneRecord, RankingEntry } from '../../api/gamblingStone';
 
 const emit = defineEmits<{ close: [] }>();
+
+/**
+ * 线索格子的配色：按**位次**取，不按维度名取。
+ * 维度本身（有几个、叫什么、什么顺序）由服务端 `clue_rows` 按内容下发 ——
+ * 以前这里四格各写死一个维度名与一个颜色类，资料片加第五维就会看不见。
+ */
+const CLUE_TONES = ['text-purple-300', 'text-cyan-300', 'text-gold-300', 'text-rose-300'];
 
 // ==================== 响应式状态 ====================
 const loading = ref(false);

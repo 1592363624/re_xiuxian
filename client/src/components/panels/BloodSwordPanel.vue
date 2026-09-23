@@ -363,6 +363,31 @@ async function handleConfirm() {
 /**
  * 秒数格式化为 h:m:s
  */
+/**
+ * 法宝深线的加成清单整个由服务端下发：叫什么、怎么换算、是奖励还是代价、有没有真的进战斗，
+ * 全在 artifact_deep_lines.bonus_field_labels + BONUS_ROUTES 那一份口径里。
+ * 以前这里手写五行 `combat_bonus.xxx * 100` 再加绿色 +X%，于是：
+ *   · 资料片给某条线加一档新加成 → 界面永远不显示；
+ *   · 战斗侧根本没结算的那几档（吸血/暴击/暴伤/减免/回血）也被涂成生效中的绿色 → 玩家在的钱没买到东西。
+ * 现在 applied=false 的一律灰字 + "（未生效）"，把这一档今天到底进不进战斗说清楚。
+ */
+type DeepLineBonus = {
+  key: string; label: string; value: number; format: string; tone: string;
+  applied: boolean; bucket: string; reason: string
+};
+
+function deepLineBonusText(b: DeepLineBonus): string {
+  const abs = b.format === 'percent'
+    ? `${(Math.abs(b.value) * 100).toFixed(1)}%`
+    : `${Math.round(Math.abs(b.value))}`;
+  return `${b.tone === 'cost' ? '-' : '+'}${abs}`;
+}
+
+function deepLineBonusClass(b: DeepLineBonus): string {
+  if (!b.applied) return 'text-gray-400';
+  return b.tone === 'cost' ? 'text-red-400' : 'text-green-300';
+}
+
 function formatSeconds(seconds: number): string {
   if (seconds <= 0) return '0 秒'
   const h = Math.floor(seconds / 3600)
@@ -571,29 +596,13 @@ onUnmounted(() => {
               {{ heldStatus.combat_bonus.reason || '当前不提供战力加成' }}
             </div>
             <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-              <div>
-                <span class="text-gray-400">攻击加成：</span>
-                <span class="text-green-300">+{{ (heldStatus.combat_bonus.atk_bonus_rate * 100).toFixed(1) }}%</span>
+              <div v-for="b in (heldStatus.combat_bonus_display || [])" :key="b.key" :title="b.reason">
+                <span class="text-gray-400">{{ b.label }}：</span>
+                <span :class="deepLineBonusClass(b)">{{ deepLineBonusText(b) }}</span>
+                <span v-if="!b.applied" class="text-gray-500">（未生效）</span>
               </div>
-              <div>
-                <span class="text-gray-400">吸血加成：</span>
-                <span class="text-green-300">+{{ (heldStatus.combat_bonus.hp_steal_bonus_rate * 100).toFixed(1) }}%</span>
-              </div>
-              <div v-if="heldStatus.combat_bonus.def_bonus_rate > 0">
-                <span class="text-gray-400">防御加成：</span>
-                <span class="text-green-300">+{{ (heldStatus.combat_bonus.def_bonus_rate * 100).toFixed(1) }}%</span>
-              </div>
-              <div v-if="heldStatus.combat_bonus.crit_rate_bonus > 0">
-                <span class="text-gray-400">暴击率：</span>
-                <span class="text-green-300">+{{ (heldStatus.combat_bonus.crit_rate_bonus * 100).toFixed(1) }}%</span>
-              </div>
-              <div v-if="heldStatus.combat_bonus.crit_damage_bonus > 0">
-                <span class="text-gray-400">暴击伤害：</span>
-                <span class="text-green-300">+{{ (heldStatus.combat_bonus.crit_damage_bonus * 100).toFixed(1) }}%</span>
-              </div>
-              <div v-if="heldStatus.combat_bonus.blood_backlash_hp_rate_per_round > 0">
-                <span class="text-gray-400">血反（每回合）：</span>
-                <span class="text-red-400">-{{ (heldStatus.combat_bonus.blood_backlash_hp_rate_per_round * 100).toFixed(1) }}%</span>
+              <div v-if="!(heldStatus.combat_bonus_display || []).length" class="text-gray-500">
+                这条线当前没有可显示的加成数值
               </div>
             </div>
           </div>

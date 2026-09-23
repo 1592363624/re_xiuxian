@@ -4,8 +4,19 @@
  */
 // 修复：统一通过 modules/index.js 导出引用 ConfigLoader
 const { infrastructure } = require('../../modules');
+const { applyExpPenalty } = require('./deathPenalty');
 const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
+// 玩家状态写入的唯一入口：陨落要给 players.stats 里的 death_count 记一笔（整块写回是旧快照覆盖那一族）
+const PlayerStateStore = require('../persistence/PlayerStateStore');
+
+/**
+ * 不是注册属性、但确实住在 players.attributes 里的资源池键。
+ * 神识（sense）是玩家可花掉的那一格（飞升 / 第二元神 / 元婴出窍都从这里扣），
+ * 与面板上那档"神识"属性各走各的口径（见 game/services/AscensionService.js 顶部注释），
+ * 所以建号初值过滤时必须把它留在 blob 里。
+ */
+const BLOB_POOL_KEYS = ['sense'];
 
 class PlayerService {
     /**
@@ -24,6 +35,31 @@ class PlayerService {
             : (playerData.spirit_roots || {});
 
         return playerData;
+    }
+
+    /**
+     * 新号（以及 GM 重置整号，routes/admin 用的就是这一个口径）写进 players.attributes 的那份初值。
+     *
+     * role_init.initialAttributes 里有两种键混在一起：
+     *   · 真的住在 blob 里的 —— `base.attributeField` 那种属性（现网是 luck/wisdom），
+     *     以及不是属性但确实存在 blob 里的资源池（神识 sense）；这些必须留。
+     *   · 旧属性管线的**输出**键 —— atk/def/speed/hp_max/mp_max。现管线既不读它们也不以它们为基数，
+     *     种进 blob 只是埋一份"看着像面板"的残骸（现网实测有人 blob 战力 6185、真实 98）。
+     * 判据取自注册表本身而不是在代码里抄一份键名清单：资料片若加一档 attributeField 属性，
+     * 这里自动就认；抄清单的一定会漂移。
+     *
+     * @param {Object} initialAttributes - role_init.initialAttributes（或它的兜底值）
+     * @returns {Object} 只含"该进 blob"的那几个键
+     */
+    initialAttributeBlob(initialAttributes) {
+        const { ensureStatRegistryLoaded } = require('../stats');
+        const registry = ensureStatRegistryLoaded(configLoader);
+        const out = {};
+        for (const [key, value] of Object.entries(initialAttributes || {})) {
+            const def = registry.get(key);
+            if (!def || def.base?.attributeField || BLOB_POOL_KEYS.includes(key)) out[key] = value;
+        }
+        return out;
     }
 
     /**
@@ -53,31 +89,23 @@ class PlayerService {
             wisdom: 10
         };
 
-        // 抽灵根：概率表缺省时按"声明过的灵根等分"，而不是再抄一份五个中文名 ——
-        // 抄的那份在资料片加了灵根之后会把新灵根直接排除在抽取池外（而它 bonus 都配好了）。
-        const declaredRoots = (roleInitConfig?.spirit_roots || [])
-            .map(root => root.name)
-            .filter(Boolean);
-        const probabilities = roleInitConfig?.spiritRootProbabilities
-            || Object.fromEntries(declaredRoots.map(name => [name, 1 / (declaredRoots.length || 1)]));
-
-        let random = Math.random();
-        let selectedRoot = Object.keys(probabilities)[0] || declaredRoots[0] || '木';
-        let cumulative = 0;
-        for (const [root, prob] of Object.entries(probabilities)) {
-            cumulative += prob;
-            if (random <= cumulative) {
-                selectedRoot = root;
-                break;
-            }
-        }
+        // 抽灵根：池子与权重口径全部在 stats/SpiritRoot（spiritRootRollPool / rollSpiritRoot），
+        // 启动闸 _validateSpiritRootRoll 问的是同一个池子定义。这里只把结果写成玩家身上的存储形状。
+        const { rollSpiritRoot } = require('../stats/SpiritRoot');
+        const roll = rollSpiritRoot(roleInitConfig);
 
         // 灵根数据结构统一为 { `${root}灵根`: { level, affinity } }
         const spiritRoots = {};
-        spiritRoots[`${selectedRoot}灵根`] = {
-            level: '基础',
-            affinity: Math.floor(Math.random() * 20) + 80
-        };
+        if (roll) {
+            spiritRoots[`${roll.name}灵根`] = {
+                level: '基础',
+                affinity: Math.floor(Math.random() * 20) + 80
+            };
+        } else {
+            // 灵根表整个读不到（被裁过的/热更坏掉的 role_init）：宁可不发灵根，
+            // 也不写一条在 spirit_roots 里查无此根的假灵根 —— 那会让面板显示"有灵根"而加成永远是 0。
+            console.warn('[PlayerService] role_init 里没有可抽的灵根，本号暂时无灵根（检查 spirit_roots 声明与概率表）');
+        }
 
         const player = await Player.create({
             username,
@@ -92,7 +120,7 @@ class PlayerService {
             toxicity: 0,
             lifespan_current: roleInitConfig?.initialAge || 16,
             lifespan_max: roleInitConfig?.initialLifespan || 60,
-            attributes: initialAttributes,
+            attributes: this.initialAttributeBlob(initialAttributes),
             spirit_roots: spiritRoots,
             role: 'user',
             ip_address: extra.ip || null,
@@ -217,18 +245,12 @@ class PlayerService {
             // 与 LifespanService 统一使用 lifespan.death_exp_loss_rate（而非 combat.death_exp_penalty_rate）
             // 修复 4-3-P1-1：两个 service 用不同的损失率字段，导致死亡惩罚不一致
             const lifespanCfg = gameBalanceConfig?.lifespan || {};
-            const expLossRate = lifespanCfg.death_exp_loss_rate
-                ?? gameBalanceConfig?.combat?.death_exp_penalty_rate
-                ?? 0.1;
             const ageIncrease = gameBalanceConfig?.death?.age_increase ?? 10;
             const respawnAt = gameBalanceConfig?.death?.respawn_location ?? '出生地';
             const deathHp = lifespanCfg.death_hp_current ?? 0;
 
-            // 修为损失（BIGINT 运算，避免精度丢失）
-            const currentExp = BigInt(player.exp || 0);
-            const expLoss = currentExp * BigInt(Math.round(expLossRate * 100)) / 100n;
-            const newExp = currentExp - expLoss;
-            player.exp = newExp < 0n ? 0n : newExp;
+            // 修为损失：全仓唯一一份实现（作用域 lifespan，与寿元耗尽同一条率），列上原子减
+            const expLoss = (await applyExpPenalty({ playerId: player.id, scope: 'lifespan', transaction: t, reason: '重生陨落' })).penalty;
 
             // HP 归零或复活点初始值（与 LifespanService 一致）
             player.hp_current = BigInt(deathHp);
@@ -252,6 +274,8 @@ class PlayerService {
             }
 
             await player.save({ transaction: t });
+            // 陨落计数进 stats 那一格（players 上没有 death_count 列，别按列去读它）
+            await PlayerStateStore.bumpStat(playerId, 'death_count', 1, { transaction: t });
             await t.commit();
 
             // 推送通知（事务提交后再推送，避免推送失败回滚业务数据）

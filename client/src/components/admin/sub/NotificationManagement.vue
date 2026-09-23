@@ -32,6 +32,18 @@
           <textarea v-model="announcement.content" rows="3" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600" placeholder="输入公告内容（纯图片公告可留空）"></textarea>
         </div>
 
+        <!-- 定时：留空表示立即发布 / 长期有效；预约时间在未来时到点才推送 -->
+        <div>
+          <label class="block text-sm text-fg-muted mb-1">预约发布时间</label>
+          <input v-model="announcement.publishAt" type="datetime-local" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600">
+          <p class="mt-1 text-xs text-fg-faint">留空 = 立即发布</p>
+        </div>
+        <div>
+          <label class="block text-sm text-fg-muted mb-1">自动下架时间</label>
+          <input v-model="announcement.expiresAt" type="datetime-local" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600">
+          <p class="mt-1 text-xs text-fg-faint">留空 = 长期有效；到点自动隐藏并清理已读记录</p>
+        </div>
+
         <!-- 配图区：与编辑弹窗共用同一个上传器组件（见 AnnouncementImageUploader） -->
         <AnnouncementImageUploader ref="uploaderRef" v-model="announcement.imageUrls" />
       </div>
@@ -92,8 +104,13 @@
               </td>
               <td class="px-4 py-3 whitespace-nowrap">
                 {{ n.title }}
-                <!-- 撤回状态：isActive=false 的通知玩家侧已经是隐藏的，GM 必须一眼看出来 -->
-                <span v-if="n.isActive === false" class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-surface-active text-fg-muted">已撤回</span>
+                <!-- 状态标记：撤回/预约中/已过期都是"玩家此刻看不到"的情形，GM 必须一眼看出来
+                     （否则会以为公告发出去了） -->
+                <span
+                  v-if="getStatusTag(n)"
+                  class="ml-1 px-1.5 py-0.5 rounded text-[10px]"
+                  :class="getStatusTag(n).className"
+                >{{ getStatusTag(n).text }}</span>
               </td>
               <td class="px-4 py-3 whitespace-nowrap text-fg-muted max-w-xs truncate">{{ n.content }}</td>
               <td class="px-4 py-3 whitespace-nowrap">
@@ -176,8 +193,27 @@
             <label class="block text-sm text-fg-muted mb-1">内容</label>
             <textarea v-model="editing.content" rows="3" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600"></textarea>
           </div>
+          <div>
+            <label class="block text-sm text-fg-muted mb-1">预约发布时间</label>
+            <input v-model="editing.publishAt" type="datetime-local" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600">
+            <p class="mt-1 text-xs text-fg-faint">改成未来时间会重新排队，到点再次推送</p>
+          </div>
+          <div>
+            <label class="block text-sm text-fg-muted mb-1">自动下架时间</label>
+            <input v-model="editing.expiresAt" type="datetime-local" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600">
+            <p class="mt-1 text-xs text-fg-faint">留空 = 长期有效</p>
+          </div>
           <!-- 与发送表单同一个上传器：粘贴/点击都能加图，移除只是把地址从数组里去掉 -->
           <AnnouncementImageUploader v-model="editing.imageUrls" label="配图（保留原图即不重新上传）" />
+
+          <!-- 重提示：更正错别字/改时间后，让已经读过这条公告的人重新看到未读并收到定向提示 -->
+          <label class="md:col-span-2 flex items-start gap-2 text-sm text-fg-secondary cursor-pointer">
+            <input v-model="editing.notifyReaders" type="checkbox" class="mt-0.5 cursor-pointer">
+            <span>
+              通知已读玩家
+              <span class="block text-xs text-fg-faint">重置这些玩家的已读状态并推送一条更正提示；不改内容时请勿勾选</span>
+            </span>
+          </label>
         </div>
       </div>
       <template #footer>
@@ -225,7 +261,10 @@ const announcement = reactive({
   title: '',
   content: '',
   priority: 'high',
-  imageUrls: []
+  imageUrls: [],
+  // datetime-local 的值形如 '2026-09-23T09:00'（不带时区），提交前统一转成 ISO
+  publishAt: '',
+  expiresAt: ''
 })
 const adminNotifications = ref([])
 const notificationPagination = reactive({
@@ -277,6 +316,56 @@ const getImageUrls = (notification) => {
 }
 
 /**
+ * 通知当前状态（只返回"玩家此刻看不到"的三种情形，正常发布不打扰）
+ *
+ * 为什么要在列表上标出来：预约中/已过期的公告在 GM 眼里和已发布长得一模一样，
+ * 不标就会出现"我明明发了怎么没人看见"这种来回排查。
+ * @param {Object} notification
+ * @returns {{text: string, className: string}|null}
+ */
+const getStatusTag = (notification) => {
+  if (notification.isActive === false) {
+    return { text: '已撤回', className: 'bg-surface-active text-fg-muted' }
+  }
+  const now = Date.now()
+  if (notification.publishAt && new Date(notification.publishAt).getTime() > now) {
+    return { text: '预约中', className: 'bg-blue-900 text-blue-200' }
+  }
+  if (notification.expiresAt && new Date(notification.expiresAt).getTime() <= now) {
+    return { text: '已过期', className: 'bg-orange-900 text-orange-200' }
+  }
+  return null
+}
+
+/**
+ * datetime-local 的值 → ISO 字符串（空值 → null）
+ *
+ * 必须转成带时区的 ISO 再提交：datetime-local 给的是"某个时区的墙上时间"，
+ * 后端按服务进程时区（Asia/Shanghai）理解它，若 GM 的浏览器不在这个时区，直接传原文就会整体偏移。
+ * @param {string} localValue - 形如 '2026-09-23T09:00'
+ * @returns {string|null}
+ */
+const toIsoOrNull = (localValue) => {
+  if (!localValue) return null
+  const date = new Date(localValue)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+/**
+ * ISO 字符串 → datetime-local 的输入值（空值 → ''）
+ * @param {string|null} isoValue
+ * @returns {string}
+ */
+const toLocalInput = (isoValue) => {
+  if (!isoValue) return ''
+  const date = new Date(isoValue)
+  if (Number.isNaN(date.getTime())) return ''
+  // 用本地时间各部分拼字符串：toISOString 是 UTC，直接切会差 8 小时
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/**
  * 新窗口打开原图（公告弹窗里图片是缩略展示，GM 需要能看清细节）
  */
 const previewImage = (url) => {
@@ -315,7 +404,11 @@ const openEditModal = (notification) => {
     title: notification.title || '',
     content: notification.content || '',
     priority: notification.priority || 'normal',
-    imageUrls: [...getImageUrls(notification)]
+    imageUrls: [...getImageUrls(notification)],
+    // 服务端给的是 ISO，输入框要本地时间格式；留空表示不限时
+    publishAt: toLocalInput(notification.publishAt),
+    expiresAt: toLocalInput(notification.expiresAt),
+    notifyReaders: false
   }
 }
 
@@ -327,14 +420,23 @@ const submitEdit = async () => {
 
   saving.value = true
   try {
-    await updateNotification(editing.value.id, {
+    const res = await updateNotification(editing.value.id, {
       title: editing.value.title.trim(),
       content: editing.value.content,
       priority: editing.value.priority,
       // 传最终列表：保留的地址即复用，删掉的地址由孤儿图回收任务按保留窗口处理
-      imageUrls: [...editing.value.imageUrls]
+      imageUrls: [...editing.value.imageUrls],
+      publishAt: toIsoOrNull(editing.value.publishAt),
+      expiresAt: toIsoOrNull(editing.value.expiresAt),
+      notifyReaders: editing.value.notifyReaders
     })
-    uiStore.showToast('通知已更新', 'success')
+
+    // 后端会把"提醒了多少位已读玩家"回传，直接用它提示，GM 才知道勾选生效了
+    const notice = res.data?.data?.readersNotice
+    uiStore.showToast(
+      notice ? `通知已更新，已提醒 ${notice.readers} 位已读玩家` : '通知已更新',
+      'success'
+    )
     editing.value = null
     fetchNotifications(notificationPagination.currentPage)
   } catch (error) {
@@ -378,16 +480,23 @@ const handlePublish = (notification) => {
  */
 const handleSendAnnouncement = async () => {
   try {
-    await sendAnnouncement(
+    const res = await sendAnnouncement(
       announcement.title,
       announcement.content,
       announcement.priority,
-      [...announcement.imageUrls]
+      [...announcement.imageUrls],
+      {
+        publishAt: toIsoOrNull(announcement.publishAt),
+        expiresAt: toIsoOrNull(announcement.expiresAt)
+      }
     )
-    uiStore.showToast('公告已发送', 'success')
+    // 后端会区分"已发送"与"已创建待发布"：预约公告此刻还没推给玩家，文案不能混
+    uiStore.showToast(res.data?.message || '公告已发送', 'success')
     announcement.title = ''
     announcement.content = ''
     announcement.imageUrls = []
+    announcement.publishAt = ''
+    announcement.expiresAt = ''
     selectedIds.value = []
     fetchNotifications(1)
   } catch (error) {

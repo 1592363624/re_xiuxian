@@ -9,7 +9,13 @@ import apiClient from './index';
  * 物品品质类型
  * common 普通 / uncommon 非凡 / rare 稀有 / epic 史诗 / legendary 传说
  */
-export type ItemQuality = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'unknown';
+/**
+ * 物品品质档位键。**故意不写成字面量联合**：档名住在 `game_balance.item_qualities`
+ * （资料片能加一档），前端抄一份联合类型必然过期 —— 原来这份就漏了 mythic，
+ * 于是神话档物品的载荷在类型上"不可能出现"，界面也就顺理成章地按未知档渲染。
+ * 标签与颜色一律走 composables/useItemQualities.js 读服务端词表。
+ */
+export type ItemQuality = string;
 
 /**
  * 物品类型
@@ -100,13 +106,20 @@ export interface CategoryData {
 
 /**
  * 使用物品后返回的效果信息
+ *
+ * 这份键清单按服务端 `InventoryService._planItemEffect` 实际会产生的回执写（2026-09-23 对齐）：
+ * `breakthrough_bonus` 已从出参里删掉 —— 服务器从来没把那个数写到玩家身上，
+ * 报出来只是一个抄配置的数（16 件突破丹药因此"用了但什么也没多"）。
+ * 业主定了出口（永久 / 一次性 / 抬上限）之后它会带真实语义回来。
  */
 export interface AppliedEffects {
     hp_restore?: number;
     mp_restore?: number;
     spirit_stones?: number;
     exp?: number;
-    breakthrough_bonus?: number;
+    longevity_add?: number;
+    toxicity_reduce?: number;
+    permanent_attribute_bonus?: Record<string, number>;
     [key: string]: any;
 }
 

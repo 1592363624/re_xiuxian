@@ -367,5 +367,85 @@
       "def_pct": 12,
       "speed_pct": 8
     }
+  },
+  {
+    "id": "yanyue_breaker",
+    "name": "掩月破阵者",
+    "quality": "legendary",
+    "description": "掩月洞府的第一批破阵之人。阵法未成而人已在阵心，谷中记这一次。",
+    "condition": "首次通关掩月洞府（成员首通奖）",
+    "bonuses": {}
+  },
+  {
+    "id": "canglongjiang_zhenjiaozhe_title",
+    "name": "沧龙江镇蛟者",
+    "quality": "legendary",
+    "description": "端午龙舟之下压住那条老蛟的人。与那枚同名信物是一对，印是凭、号是名。",
+    "condition": "首次通关端午龙舟（成员首通奖）",
+    "bonuses": {}
+  },
+  {
+    "id": "kunwu_tower_master",
+    "name": "封魔塔主",
+    "quality": "legendary",
+    "description": "昆吾十三层塔，一层一封印。走到顶层的人接得住这个称呼。",
+    "condition": "首次通关昆吾塔（成员首通奖）",
+    "bonuses": {}
+  },
+  {
+    "id": "xutian_conqueror",
+    "name": "虚天破局者",
+    "quality": "legendary",
+    "description": "虚天殿的死局本无解，破局者不认这个理。",
+    "condition": "首次通关虚天殿（成员首通奖）",
+    "bonuses": {}
+  },
+  {
+    "id": "beiming_breaker",
+    "name": "北冥破局者",
+    "quality": "legendary",
+    "description": "小极宫中鱼北冥，能游出去的从来不多。",
+    "condition": "高评分或完美通关小极宫，或首次通关的成员奖",
+    "bonuses": {}
+  },
+  {
+    "id": "luoyun_guardian",
+    "name": "落云守护者",
+    "quality": "legendary",
+    "description": "落云秘圃的灵药年年有人抢，守住的那个人才配这四个字。",
+    "condition": "完美通关落云秘圃，或首次通关的成员奖",
+    "bonuses": {}
+  },
+  {
+    "id": "cangkun_explorer",
+    "name": "苍坤探秘者",
+    "quality": "legendary",
+    "description": "苍坤遗府残图四散，能把整张走通的人不多。",
+    "condition": "完美通关苍坤洞府，或首次通关的成员奖",
+    "bonuses": {}
+  },
+  {
+    "id": "blood_purgatory_survivor",
+    "name": "血色试炼幸存者",
+    "quality": "legendary",
+    "description": "血色试炼进去十个人，出来的那几个名字就刻在这块令上。",
+    "condition": "完美通关血色试炼，或首次通关的成员奖",
+    "bonuses": {}
+  },
+  {
+    "id": "demon_slayer",
+    "name": "伏魔者",
+    "quality": "legendary",
+    "description": "坠魔谷里最先倒下的往往是道心。心正的人才走得完这一段。",
+    "condition": "道心≥80 通关坠魔谷，或首次通关的成员奖",
+    "bonuses": {}
+  },
+  {
+    "id": "huanglong_master",
+    "name": "黄龙阵主",
+    "quality": "legendary",
+    "description": "黄龙山的阵是活的，破它的人得比它更懂阵。",
+    "condition": "阵法强度≥120 通关黄龙山，或首次通关的成员奖",
+    "bonuses": {}
   }
 ]

@@ -1,0 +1,65 @@
+{
+  "dataset": "item_data",
+  "into": "items",
+  "comment": "魔道血修的家伙什：一口化血刀、一面血河幡、一枚炼出来的血髓珠、一粒血煞丹、一张要拿去学的丹方，外加给现成的传说法宝「血魔剑」补一个新属性——最后这条就是业主提的那个形状：一把刀前期只有攻击，后期想给它加一档新属性，只改内容，不改代码。override 是按字段浅合并的（ContentRegistry.applyOps），所以这里只写 effect.blood_power 与 description，血魔剑原有的 atk 一个数都不动。刻意不去碰它的 hp_steal：那一项按注册表口径是「百分点」，现网写的是 0.08（等于 0.08%，与它 legendary/50000 灵石的定位差了两个数量级），改它等于改一件已有玩家可能持有的法宝的实战回血，属于要业主签字的存量数值，先只报不修。化血刀的 lifesteal 写 6（百分点）与之一致：这个键是真的会被 CombatResolver._applyProcs 掷骰子的。",
+  "add": [
+    {
+      "id": "huaxue_ci",
+      "name": "化血刀",
+      "type": "equipment",
+      "subtype": "weapon",
+      "quality": "epic",
+      "description": "阴罗宗以妖魔精血反复淬炼的短刀，刃口从不反光，只在饮血时才亮一线。魔道弟子常说它伤人亦伤己，刀主得先学会不看自己的伤口。",
+      "effect": { "atk": 90, "blood_power": 55, "lifesteal": 6 },
+      "price": 24000,
+      "required_realm_rank": 17
+    },
+    {
+      "id": "xuehe_fan",
+      "name": "血河幡",
+      "type": "equipment",
+      "subtype": "accessory",
+      "quality": "rare",
+      "description": "幡面以血髓汁浸过七十二遍，展开时像一条窄窄的河。它挡不了多少法术，却能把幡主流失的血气兜回来。",
+      "effect": { "blood_power": 30, "hp_max": 450, "mdef": 25 },
+      "price": 9800,
+      "required_realm_rank": 13
+    },
+    {
+      "id": "xue_sui_zhu",
+      "name": "血髓珠",
+      "type": "material",
+      "subtype": "blood",
+      "quality": "uncommon",
+      "description": "妖魔精血经地火熬炼后凝成的一粒珠子，是血煞丹的主药，也是血系法器开锋的引子。捏碎了会自己重新聚起来，所以炼器师都嫌它脏。",
+      "effect": {},
+      "price": 260
+    },
+    {
+      "id": "xuesha_dan",
+      "name": "血煞丹",
+      "type": "consumable",
+      "subtype": "attribute",
+      "quality": "epic",
+      "description": "血髓珠为君、血灵草为使，封炉慢煨两个时辰。服下后骨髓发烫三日不退，血元才算真正养进身子里；寻常修士不敢多吃。",
+      "effect": { "blood_power": 90, "hp_max": 300 },
+      "price": 6800
+    },
+    {
+      "id": "xuesha_dan_fang",
+      "name": "血煞丹方",
+      "type": "recipe_scroll",
+      "subtype": "alchemy",
+      "quality": "rare",
+      "description": "一张被血浸过、只剩药材与火候还能读的残方。学它不需要境界，但学会之前照着炼只会毁一炉材料。",
+      "effect": { "learn_recipe": "craft_xuesha_dan" },
+      "price": 12000
+    }
+  ],
+  "override": {
+    "blood_magic_sword": {
+      "effect": { "blood_power": 40 },
+      "description": "上古血魔以怨血祭炼的魔剑，剑意森寒，嗜血而狂。后世血修证实剑身血纹里还封着一缕本源血元，握它的人运功时能觉出掌心的分量。"
+    }
+  }
+}

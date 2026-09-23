@@ -20,13 +20,13 @@ process.env.PORT = String(PORT);
 const { app } = require('../index');
 const { Op } = require('sequelize');
 const Player = require('../models/player');
-const Item = require('../models/item');
 const BeastInvasion = require('../models/beastInvasion');
 const BeastInvasionAttack = require('../models/beastInvasionAttack');
 const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const BeastInvasionService = require('../game/services/BeastInvasionService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const NAMES = ['bi_a', 'bi_b', 'bi_c'];
 const BEAST = 'xuelang_yaoshou';
@@ -111,6 +111,8 @@ async function main() {
     const ids = [];
     for (const n of NAMES) ids.push((await seed(n)).id);
     const [A, B, C] = ids;
+    // 这一条（与 C3 之前那条同形的）留着手写：号还在，清的是**同一个号**上一轮留下的伤害记录，
+    // 级联那扇门是"连 players 行一起删"，用在准备阶段会把 C1~C4 要用的那三个号删掉
     await BeastInvasionAttack.destroy({ where: { player_id: { [Op.in]: ids } }, force: true });
 
     // ===== C1 一次结算：终结者与每个参战者都该拿到钱，且终结者拿得比纯参与者多 =====
@@ -179,18 +181,20 @@ async function main() {
         try {
             const ps = await Player.findAll({ where: { username: { [Op.in]: NAMES } } });
             const ids = ps.map(p => p.id);
+            let purged = { ids: [], total: 0 };
             if (ids.length) {
-                await BeastInvasionAttack.destroy({ where: { player_id: { [Op.in]: ids } }, force: true });
+                // 原来这里按 player_id 删的两条（伤害记录、背包行）都是归属档，交回给那扇门；
+                // 按 invasion_id 的那条留着 —— 它捞的是"这场兽潮上**别人**留下的伤害记录"，列名不是归属档。
                 if (createdInvasions.length) {
                     await BeastInvasionAttack.destroy({ where: { invasion_id: { [Op.in]: createdInvasions } }, force: true });
                     await BeastInvasion.destroy({ where: { id: { [Op.in]: createdInvasions } }, force: true });
                 }
                 const leftover = await BeastInvasionAttack.count({ where: { invasion_id: { [Op.in]: createdInvasions.length ? createdInvasions : [0] } } });
-                await Item.destroy({ where: { player_id: { [Op.in]: ids } }, force: true });
-                await Player.destroy({ where: { id: { [Op.in]: ids } }, force: true });
+                purged = await PlayerCascadePurge.deletePlayers(ids);
                 console.log(`（本次自建兽潮 ${createdInvasions.length} 行，残留伤害记录 ${leftover} 条）`);
             }
-            console.log(`清理：探针号与它们的兽潮行/伤害记录/背包已删（残留 ${
+            console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据（含伤害记录与背包行）`
+                + `；兽潮行按 id 另删（残留 ${
                 (await Player.count({ where: { username: { [Op.in]: NAMES } } }))} 个账号、${
                 await BeastInvasion.count({ where: { beast_key: BEAST } })} 行兽潮）`);
         } catch (ce) {

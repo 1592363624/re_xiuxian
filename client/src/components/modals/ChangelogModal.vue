@@ -146,7 +146,7 @@ watch(() => props.isOpen, (open) => {
                     <p class="text-fg-secondary text-sm leading-relaxed whitespace-pre-wrap">{{ commit.message }}</p>
                     <div class="flex items-center gap-2 mt-1.5">
                        <span class="text-[10px] text-fg-faint font-mono bg-surface-hover px-1.5 py-0.5 rounded border border-line">{{ commit.sha?.substring(0, 7) }}</span>
-                       <span class="text-[10px] text-line-strong">by {{ commit.author }}</span>
+                       <span class="text-[10px] text-fg-faint">by {{ commit.author }}</span>
                     </div>
                   </div>
                 </div>
@@ -189,7 +189,7 @@ watch(() => props.isOpen, (open) => {
           </div>
 
           <!-- Footer decoration -->
-          <div class="mt-6 border-t border-line-subtle pt-4 text-center text-xs text-line-strong">
+          <div class="mt-6 border-t border-line-subtle pt-4 text-center text-xs text-fg-faint">
             --- 道法自然，版本迭代 ---
           </div>
         </div>

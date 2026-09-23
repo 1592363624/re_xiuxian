@@ -1,0 +1,10 @@
+{
+    "dataset": "spirit_beast_data",
+    "into": "settings",
+    "comment": "把本片新属性「血元」计进灵兽战力。以前这张权重表住在 settings 里、而 settings 没登记成集合，资料片一个字都改不动 —— 于是给灵兽加一档属性，战力那边看不见它（SpiritBeastService.calculateCombatPower 早就改成按这张表逐档遍历，表本身却不可扩展，正好差最后一步）。本轮把 spirit_beast_data.settings 登记成 map 集合，本片只往 combat_power_weight 里补一个 blood_power 键（override 对 map 集合是「对象键 → 补丁对象」的映射，写成数组会被当成第 0 条条目找不到 —— 启动期会直接点名）。0.8 刻意压在 atk(2.0) 之下、比 def(1.5) 更软：血蝠的血元来自 base_blood_power 60，折算 +48 点战力；现网其它灵兽没有这一档（取 0），数值一字不变，只有本片灵兽受影响，且仍随本片一起等业主签字。",
+    "override": {
+        "combat_power_weight": {
+            "blood_power": 0.8
+        }
+    }
+}

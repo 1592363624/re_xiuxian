@@ -1,7 +1,7 @@
 {
   "dataset": "technique_data",
   "into": "techniques",
-  "comment": "凡人遗宝新增两部功法：一部法修（混元剑意诀）、一部体修（玄龟吐纳法）。bonuses 为每层加成，与基础词表一致。",
+  "comment": "凡人遗宝新增两部功法：一部法修（混元剑意诀）、一部体修（玄龟吐纳法）。bonuses 为每层加成，与基础词表一致。2026-09-22 修过两处获取途径：以前混元剑意诀写 source:\"recipe_scroll\"、玄龟吐纳法写 \"sect_treasury\"，而 learnTechnique 当时只认 shop/sect 两条会扣代价的分支、其余一律「什么都不扣」—— 看起来是稀有机缘，实际境界够就白送，那张六万灵石的残卷反而谁都消化不掉。现在 recipe_scroll 这条通道真实现了（同事务里 hasItem→removeItem 消耗 fanren_dao_can），玄龟吐纳法改用代码真支持的 sect + 9000 贡献（地阶，介于两部玄阶 3000 与地阶血魔炼形诀 12000 之间）。内容层新增的 _validateTechniqueAcquire 会在启动期拦住任何写了没人处理的 source。",
   "add": [
     {
       "id": "hunyun_jianyi_jue",
@@ -23,7 +23,7 @@
       "required_realm": "筑基初期",
       "bonuses": { "hp_max": 120, "mdef": 6, "element_resist": 1 },
       "cultivate_speed_pct_per_layer": 1,
-      "acquire": { "source": "sect_treasury" }
+      "acquire": { "source": "sect", "sect_contribution": 9000 }
     }
   ]
 }

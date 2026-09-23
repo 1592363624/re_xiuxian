@@ -1,0 +1,135 @@
+{
+  "dataset": "crafting_data",
+  "into": "refining_recipes",
+  "comment": "把本片的八件法宝/法器/丹药接上进货渠道。这些物品原先只躺在 item_data 里挂着价格（五行神光旗 36000、玄天斩灵剑 128000），没有任何一张掉落表、商店、配方指向它们 —— 也就是玩家一辈子拿不到，而启动/测试/探针一路全绿（tests/ItemSourceCoverage.test.js 现在会红在这里）。修法选「炼器/炼丹」而不是补掉落：掉落表那侧要么整块 override 现网某一族（抄漏一条就等于静默删掉落，mo_da 那片为此配了逐条比对测试），要么往已被别的资料片整块替换过的行上再叠一片（启动期闸会点名两片），而配方是 add 自己的条目、天然不撞。learn_source 一律给 default —— 这轮读代码读出来的事实：CraftingService 只认 'default'（首次访问自动学），其余取值（sect / scroll:xxx）没有任何代码读，写上去只是给人看的镜像（真正教配方的是那张 recipe_scroll 上的 effect.learn_recipe）。所以给 default 才真的能学；再造一张没人掉的图谱卷轴，等于把死内容往后挪一格。材料全部挑现网真有来源的那几样（同一份判据算出来的可达集合），境界/成功率/耗时是照本片与基础表风格填的，等业主签字。",
+  "add": [
+    {
+      "id": "craft_dingkong_mifeng",
+      "name": "炼定风珠·秘制护心镜",
+      "type": "refining",
+      "description": "以炎精石六枚、寒晶四枚、妖丹两颗，淬成一面对风不动的护心镜",
+      "product": { "item_key": "dingkong_mifeng", "quantity": 1 },
+      "materials": [
+        { "item_key": "fire_spirit_stone", "quantity": 6 },
+        { "item_key": "ice_crystal", "quantity": 4 },
+        { "item_key": "demon_core", "quantity": 2 }
+      ],
+      "required_realm_rank": 10,
+      "required_skill_level": 2,
+      "base_success_rate": 0.5,
+      "skill_exp": 60,
+      "cooldown_sec": 120,
+      "learn_source": "default"
+    },
+    {
+      "id": "craft_jupo_pei",
+      "name": "炼聚魄佩",
+      "type": "refining",
+      "description": "以魂晶两份、破法符四张、妖丹三份，凝一枚聚摄魂魄的玉佩",
+      "product": { "item_key": "jupo_pei", "quantity": 1 },
+      "materials": [
+        { "item_key": "soul_crystal", "quantity": 2 },
+        { "item_key": "magic_breaking_talisman", "quantity": 4 },
+        { "item_key": "demon_core", "quantity": 3 }
+      ],
+      "required_realm_rank": 12,
+      "required_skill_level": 2,
+      "base_success_rate": 0.45,
+      "skill_exp": 70,
+      "cooldown_sec": 150,
+      "learn_source": "default"
+    },
+    {
+      "id": "craft_xuanyu_shan",
+      "name": "炼玄玉扇",
+      "type": "refining",
+      "description": "以古灵木三段、血蚕丝六两、月魂石两枚，制成玄玉扇一把",
+      "product": { "item_key": "xuanyu_shan", "quantity": 1 },
+      "materials": [
+        { "item_key": "ancient_spirit_wood", "quantity": 3 },
+        { "item_key": "blood_silk_silk", "quantity": 6 },
+        { "item_key": "yuehun_shi", "quantity": 2 }
+      ],
+      "required_realm_rank": 12,
+      "required_skill_level": 3,
+      "base_success_rate": 0.45,
+      "skill_exp": 80,
+      "cooldown_sec": 150,
+      "learn_source": "default"
+    },
+    {
+      "id": "craft_qiankun_ruler",
+      "name": "炼乾坤戊己尺",
+      "type": "refining",
+      "description": "以昆吾脉石两块、昆吾印残片四枚、太一金一份，量天度地锻成一尺",
+      "product": { "item_key": "qiankun_ruler", "quantity": 1 },
+      "materials": [
+        { "item_key": "kunwu_dragon_vein_stone", "quantity": 2 },
+        { "item_key": "kunwu_seal_fragment", "quantity": 4 },
+        { "item_key": "taiyi_gold", "quantity": 1 }
+      ],
+      "required_realm_rank": 14,
+      "required_skill_level": 3,
+      "base_success_rate": 0.4,
+      "skill_exp": 110,
+      "cooldown_sec": 180,
+      "learn_source": "default"
+    },
+    {
+      "id": "craft_yueguang_jian",
+      "name": "炼月华剑",
+      "type": "refining",
+      "description": "以清源剑残片五份、月魂石四枚、太一金一份，承月华淬成一剑",
+      "product": { "item_key": "yueguang_jian", "quantity": 1 },
+      "materials": [
+        { "item_key": "qingyuan_sword_fragment", "quantity": 5 },
+        { "item_key": "yuehun_shi", "quantity": 4 },
+        { "item_key": "taiyi_gold", "quantity": 1 }
+      ],
+      "required_realm_rank": 15,
+      "required_skill_level": 3,
+      "base_success_rate": 0.4,
+      "skill_exp": 120,
+      "cooldown_sec": 180,
+      "learn_source": "default"
+    },
+    {
+      "id": "craft_wuxing_banner",
+      "name": "炼五行神光旗",
+      "type": "refining",
+      "description": "以炎精石八枚、寒晶八枚、太一金一份、虚晶一份、五色丝六两，合五行之气凝成神光一旗",
+      "product": { "item_key": "wuxing_banner", "quantity": 1 },
+      "materials": [
+        { "item_key": "fire_spirit_stone", "quantity": 8 },
+        { "item_key": "ice_crystal", "quantity": 8 },
+        { "item_key": "taiyi_gold", "quantity": 1 },
+        { "item_key": "void_crystal", "quantity": 1 },
+        { "item_key": "wuse_si", "quantity": 6 }
+      ],
+      "required_realm_rank": 18,
+      "required_skill_level": 4,
+      "base_success_rate": 0.3,
+      "skill_exp": 180,
+      "cooldown_sec": 300,
+      "learn_source": "default"
+    },
+    {
+      "id": "craft_xuantian_zhanling_sword",
+      "name": "炼玄天斩灵剑",
+      "type": "refining",
+      "description": "以道心结晶两份、法相碎片（雷）两份、古剑谱残卷四份，引玄天之力锻成斩灵一剑",
+      "product": { "item_key": "xuantian_zhanling_sword", "quantity": 1 },
+      "materials": [
+        { "item_key": "dao_heart_crystal", "quantity": 2 },
+        { "item_key": "faze_suipian_lei", "quantity": 2 },
+        { "item_key": "ancient_sword_manual_fragment", "quantity": 4 }
+      ],
+      "required_realm_rank": 24,
+      "required_skill_level": 5,
+      "base_success_rate": 0.22,
+      "skill_exp": 260,
+      "cooldown_sec": 600,
+      "learn_source": "default"
+    }
+  ]
+}

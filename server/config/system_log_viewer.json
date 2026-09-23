@@ -1,0 +1,96 @@
+{
+  "_comment": "后台日志查看器 + 错误日志飞书告警配置（GM 后台「后台日志」页）。所有阈值/白名单/文案均在此维护，改完由 ConfigLoader 热加载，不需要重启进程。",
+  "enabled": true,
+  "allowed_extensions": [".log"],
+  "sources": [
+    {
+      "id": "startup_backend",
+      "name": "后端启动日志",
+      "file": "logs/startup_backend.log",
+      "description": "scripts/run-server.bat 用 tee.js 抓下来的后端控制台全文（本机开发默认看这个）"
+    },
+    {
+      "id": "pm2_out",
+      "name": "PM2 标准输出",
+      "file": "server/logs/out.log",
+      "description": "生产环境 PM2 采集的 console.log 输出（ecosystem.config.js 的 out_file）"
+    },
+    {
+      "id": "pm2_error",
+      "name": "PM2 错误输出",
+      "file": "server/logs/error.log",
+      "description": "生产环境 PM2 采集的 console.error 输出（ecosystem.config.js 的 error_file）"
+    },
+    {
+      "id": "startup_frontend",
+      "name": "前端启动日志",
+      "file": "logs/startup_frontend.log",
+      "description": "scripts/run-client.bat 抓下来的 Vite 前端控制台输出"
+    }
+  ],
+  "limits": {
+    "_comment": "读取上限：单次最多回扫多少字节、最多返回多少行、单行最长多少字符。文件涨到几百 MB 时靠这几个数兜底。",
+    "tail_default_lines": 200,
+    "tail_max_lines": 2000,
+    "line_options": [100, 200, 500, 1000, 2000],
+    "max_read_bytes": 2097152,
+    "max_line_length": 2000,
+    "max_keyword_length": 100
+  },
+  "live": {
+    "_comment": "实时跟随：前端轮询间隔选项与前端日志缓冲区上限",
+    "default_interval_ms": 5000,
+    "interval_options_ms": [2000, 5000, 10000, 30000],
+    "max_buffer_lines": 5000
+  },
+  "levels": {
+    "_comment": "行级别判定：按 order 顺序逐条匹配 patterns，任何一条都不命中则视为 info。patterns 为 JavaScript 正则字符串。labels 为后台界面上的显示名（含 all）。",
+    "order": ["error", "warn", "debug", "info"],
+    "labels": {
+      "all": "全部",
+      "error": "错误",
+      "warn": "警告",
+      "info": "信息",
+      "debug": "调试"
+    },
+    "patterns": {
+      "error": ["\\[FATAL\\]", "\\[CRITICAL\\]", "\\[ERROR\\]", "\\bError\\b", "\\bUnhandled\\b", "异常", "失败", "错误"],
+      "warn": ["\\[WARN\\]", "\\bWARN(ING)?\\b", "警告"],
+      "debug": ["\\[DEBUG\\]", "\\[TRACE\\]", "\\bDEBUG\\b"],
+      "info": []
+    }
+  },
+  "highlight": {
+    "_comment": "彩色输出分词规则：按数组顺序扫，先命中的字符区间会被锁定，后面的规则不再覆盖（所以时间和级别关键字要排在数字、标签前面）。kind 与前端配色一一对应，flags 为正则修饰符（默认 g），改这里不用改前端代码。",
+    "rules": [
+      { "kind": "prefix", "pattern": "^\\d+\\|[^|]*\\|\\s*" },
+      { "kind": "time", "pattern": "\\d{4}[-/]\\d{2}[-/]\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d+)?|\\b\\d{2}:\\d{2}:\\d{2}\\b" },
+      { "kind": "error", "flags": "gi", "pattern": "\\[(?:FATAL|CRITICAL|ERROR|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EADDRINUSE|EPIPE)\\]|[A-Za-z]*(?:Error|Exception)\\b|\\bUnhandled\\b|异常|失败|错误" },
+      { "kind": "warn", "flags": "gi", "pattern": "\\[WARN(?:ING)?\\]|\\bWARN(?:ING)?\\b|警告|超时|重试" },
+      { "kind": "success", "flags": "gi", "pattern": "\\bready\\b|\\blistening\\b|\\bstarted\\b|\\bsuccess(?:ful)?\\b|成功|完成|已就绪|已启动|已连接" },
+      { "kind": "url", "pattern": "https?://[^\\s\"'<>]+" },
+      { "kind": "path", "pattern": "(?:/[\\w.@-]+){2,}|[\\w-]+(?:/[\\w.-]+)+\\.(?:js|ts|vue|json|log|css|html)\\b|\\bapi/[\\w/-]+" },
+      { "kind": "tag", "pattern": "\\[[A-Za-z\\u4e00-\\u9fa5][\\w.$\\u4e00-\\u9fa5-]*\\]" },
+      { "kind": "number", "pattern": "\\b\\d+(?:\\.\\d+)?\\b" },
+      { "kind": "key", "pattern": "\\b[a-zA-Z_][\\w.]*(?==)" }
+    ]
+  },
+  "alert": {
+    "_comment": "错误日志飞书告警：增量读取下面的日志源，把命中 levels 的行聚合后推送到飞书自定义机器人。webhook 地址请放在 server/.env 的 FEISHU_LOG_ALERT_WEBHOOK（凭据不进版本库），webhook_url 仅作本地调试兜底。",
+    "enabled": true,
+    "levels": ["error"],
+    "sources": ["startup_backend", "pm2_out", "pm2_error"],
+    "webhook_env": "FEISHU_LOG_ALERT_WEBHOOK",
+    "webhook_url": "",
+    "poll_interval_ms": 15000,
+    "startup_lookback_bytes": 32768,
+    "max_read_bytes_per_poll": 1048576,
+    "batch_window_ms": 8000,
+    "min_interval_ms": 60000,
+    "dedupe_window_ms": 300000,
+    "max_lines_per_alert": 5,
+    "max_line_length": 500,
+    "max_alerts_per_hour": 20,
+    "ignore_patterns": ["记录管理员日志失败", "\\[日志告警\\]"]
+  }
+}

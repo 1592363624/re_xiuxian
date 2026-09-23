@@ -8,6 +8,8 @@ const PlayerGathering = require('../../models/playerGathering');
 const Item = require('../../models/item');
 const Player = require('../../models/player');
 const ResourceLoader = require('./ResourceLoader');
+// 玩家统计量累加的唯一入口（采集件数那一格的键名声明在 config/player_metrics.json）
+const PlayerStateStore = require('../persistence/PlayerStateStore');
 const MapConfigLoader = require('./MapConfigLoader');
 // 引入宗门服务（导出单例实例），用于获取采集加成
 const SectService = require('./SectService');
@@ -204,6 +206,9 @@ class GatheringService {
                     last_gather_time: new Date()
                 }, { transaction: t });
             }
+
+            // 采集到手才计数（按实际得到的件数进账）。键名与含义见 config/player_metrics.json。
+            await PlayerStateStore.bumpStat(playerId, 'items_collected', quantity, { transaction: t });
 
             await t.commit();
 

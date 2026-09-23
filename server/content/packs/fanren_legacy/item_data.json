@@ -1,7 +1,7 @@
 {
   "dataset": "item_data",
   "into": "items",
-  "comment": "凡人遗宝：新增剑修法宝/法修防具/丹方，并给现有一把木剑补上法术攻击（演示「扩展已有内容」）。",
+  "comment": "凡人遗宝：新增剑修法宝/法修防具/丹方，并给现有一把木剑补上法术攻击（演示「扩展已有内容」）。凡人道残卷这一件改过键名：effect 原先写 learn_recipe:\"hunyun_jianyi_jue\"，而 learn_recipe 是 CraftingService.learnRecipe 的键、它只在炼丹/炼器配方里找 id，撞见功法 id 只会回「配方配置不存在」；改用 learn_technique 之后由 TechniqueService 的 recipe_scroll 分支消耗（权威链接在功法侧的 acquire.item_id，物品侧回指，两头由启动期闸强制对齐），并且真的从妖王身上掉，不再是一张谁也拿不到的六万灵石摆设。",
   "add": [
     {
       "id": "qingzhu_fengyun_sword",
@@ -84,7 +84,7 @@
       "subtype": "refining",
       "quality": "mythic",
       "description": "记载着凡人以术法逆推天道的残缺心法，得之可悟混元剑意诀。",
-      "effect": { "learn_recipe": "hunyun_jianyi_jue" },
+      "effect": { "learn_technique": "hunyun_jianyi_jue" },
       "price": 60000
     }
   ],

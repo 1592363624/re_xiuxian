@@ -28,6 +28,7 @@ const Player = require('../models/player');
 const SpiritBeast = require('../models/spiritBeast');
 const SpiritBeastPasture = require('../models/spiritBeastPasture');
 const PlayerGarden = require('../models/playerGarden');
+const Item = require('../models/item');   // 玩家背包的行都住在这张表（容量=行数）
 const GardenStealLog = require('../models/gardenStealLog');
 const sequelize = require('../config/database');
 const { bootApp, request, mintToken } = require('./lib/smoke_http');
@@ -96,7 +97,12 @@ async function ensureBeast(playerId) {
     return beast;
 }
 
-async function seedRound(thief, victim, beastId) {
+async function seedRound(thief, victim, beastId, baseYield = 9) {
+    // 偷菜最后一步是"把作物放进贼的背包"，只有真放进去了才记进 steal_yields（服务里的口径）。
+    // 背包满了 grantItems 会静默失败 → 记录不写 → 这条探针就把它当成"并发丢写"报红了
+    // （2026-09-21 实测：串行一笔也复现，reason=储物袋容量不足（上限 100），接口却回 result=success）。
+    // 探针号自己的背包开局清一次，保证断言测的是并发而不是容量。
+    await Item.destroy({ where: { player_id: thief.id } });
     await GardenStealLog.destroy({ where: { attacker_player_id: thief.id } });
     await SpiritBeastPasture.destroy({ where: { player_id: thief.id } });
     await SpiritBeast.update(
@@ -111,7 +117,7 @@ async function seedRound(thief, victim, beastId) {
         seed_id: SEED_ID,
         produce_item_id: PRODUCE_ITEM_ID,
         status: 'mature',
-        base_yield: 9,
+        base_yield: baseYield,
         planted_at: new Date(Date.now() - 3 * 3600 * 1000),
         mature_at: new Date(Date.now() - 2 * 3600 * 1000)
     };
@@ -135,6 +141,68 @@ async function main() {
     let stealRejected = 0;
     let otherOutcomes = 0;
     let recallOk = 0;
+
+    // S0：先跑一笔**完全不并发**的偷菜。这条探针以前一上来就断"两笔写入被互相抹掉"，
+    // 却从没验过串行那一笔到底记没记上 —— 于是"根本没落库"和"被并发覆盖"这两种成因分不开
+    // （2026-09-21 就是这样：改成"赋新数组"之后仍然 6/6 轮失败，说明成因不止一个）。
+    {
+        await seedRound(thief, victim, beast.id);
+        const sStart = await post(thiefToken, '/api/spirit-beast/pasture/start', {
+            beast_id: beast.id, location_key: 'qingyun_mountain', duration_hours: 1
+        });
+        let sOk = false; let sDetail = '';
+        if (sStart.code !== 200) {
+            sDetail = `放养启动就失败: ${JSON.stringify(sStart.body || sStart.raw).slice(0, 160)}`;
+        } else {
+            const sSteal = await post(thiefToken, '/api/spirit-beast/pasture/steal', {
+                beast_id: beast.id, target_player_id: victim.id, target_plot_index: 1
+            });
+            const sRow = await SpiritBeastPasture.findByPk(sStart.body.data.pasture_id);
+            const sYields = Array.isArray(sRow?.steal_yields) ? sRow.steal_yields : [];
+            const sResult = sSteal.body?.data?.result;
+            sOk = sResult === 'success' && Number(sRow?.steal_count) >= 1 && sYields.length >= 1;
+            sDetail = `result=${sResult} count=${sRow?.steal_count} yields=${sYields.length} `
+                + `响应=${JSON.stringify(sSteal.body?.data ?? sSteal.body).slice(0, 200)}`;
+            await post(thiefToken, '/api/spirit-beast/pasture/recall', { beast_id: beast.id });
+        }
+        check('S0 串行偷菜（没有并发对手）：成功那一笔记的收获要在 steal_yields 里', sOk, sDetail);
+    }
+
+    // P6：一次把地块**偷空**（base_yield=1 → 偷完 newBaseYield=0 → 走"地块清空"那一支）。
+    // 这一支以前先把 produce_item_id / seed_id 写成 null，**之后**才读它去发货 → 读到 null：
+    // 地里那份作物哪也没去（贼没拿到、steal_yields 不记、接口还回 success）。S0 的产量是 9，
+    // 永远走不到这一支，所以这个洞跟这条探针共存了很久没被发现。断的是账面=库存。
+    {
+        await seedRound(thief, victim, beast.id, 1);
+        const p6Start = await post(thiefToken, '/api/spirit-beast/pasture/start', {
+            beast_id: beast.id, location_key: 'qingyun_mountain', duration_hours: 1
+        });
+        let p6Ok = false; let p6Detail = '';
+        if (p6Start.code !== 200) {
+            p6Detail = `放养启动就失败: ${JSON.stringify(p6Start.body || p6Start.raw).slice(0, 160)}`;
+        } else {
+            const p6Steal = await post(thiefToken, '/api/spirit-beast/pasture/steal', {
+                beast_id: beast.id, target_player_id: victim.id, target_plot_index: 1
+            });
+            const d6 = p6Steal.body?.data || {};
+            const bagRows = await Item.findAll({
+                where: { player_id: thief.id, item_key: PRODUCE_ITEM_ID }, attributes: ['quantity']
+            });
+            const inBag = bagRows.reduce((s, r) => s + Number(r.quantity), 0);
+            const plot6 = await PlayerGarden.findOne({ where: { player_id: victim.id, plot_index: 1 } });
+            const row6 = await SpiritBeastPasture.findByPk(p6Start.body.data.pasture_id);
+            const yields6 = Array.isArray(row6?.steal_yields) ? row6.steal_yields : [];
+            p6Ok = d6.result === 'success' && Number(d6.stolen_qty) === 1
+                && inBag === 1 && Number(d6.stolen_landed_qty) === 1
+                && plot6?.status === 'empty' && yields6.length >= 1
+                && /获得 1 个作物/.test(String(d6.message || ''));
+            p6Detail = `result=${d6.result} 报出偷到=${d6.stolen_qty} 真入库=${inBag} 报"收到"=${d6.stolen_landed_qty}`
+                + `｜地块=${plot6?.status}｜steal_yields=${yields6.length} 条｜话术="${d6.message}"`
+                + `｜载荷里的物品键=${d6.produce_item_id}`;
+            await post(thiefToken, '/api/spirit-beast/pasture/recall', { beast_id: beast.id });
+        }
+        check('P6 把地块一次偷空：作物必须真的进贼的背包（不许"地被清、货没发、还报成功"）', p6Ok, p6Detail);
+    }
 
     for (let round = 1; round <= ROUNDS; round++) {
         await seedRound(thief, victim, beast.id);

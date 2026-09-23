@@ -33,6 +33,9 @@ const sequelize = require('../../config/database');
 const PlayerRecipe = require('../../models/playerRecipe');
 const Player = require('../../models/player');
 const InventoryService = require('./InventoryService');
+// 玩家状态写入的唯一入口：炼制成功要给 players.stats 里的炼制计数记一笔（键名声明在 player_metrics）
+const PlayerStateStore = require('../persistence/PlayerStateStore');
+const { qualityOrder } = require('../items/itemQuality');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const { logOnce } = require('../../utils/logOnce');
 
@@ -268,7 +271,12 @@ class CraftingService {
      */
     calcQualityTier(totalDeviation, skillLevel, baseQuality) {
         const qCfg = this.getBalanceConfig().quality_float || {};
-        const order = qCfg.quality_order || ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+        // 档序只有一个来源：品质词表 `game_balance.item_qualities`（按 order 排）。
+        // 这里以前写的是 `qCfg.quality_order || qualityOrder(...)`，而内容里那份 `quality_order`
+        // 就是词表的一份手抄镜像 —— 资料片新加一档时，词表长了、这份镜像不会跟着长，
+        // 于是"新档在炼制品质浮动里等于不存在"（劣化/升档都到不了它）。镜像已从内容删除，
+        // 启动闸 `_validateItemQualities` 现在也拒绝任何再写 `quality_order` 的内容。
+        const order = qualityOrder(this.configLoader);
         const tiers = qCfg.tiers || [];
 
         // 功能关闭时保持原样返回基准品质，保证向后兼容
@@ -688,6 +696,18 @@ class CraftingService {
                 { skill_exp: newExp, skill_level: newLevel },
                 { where: { player_id: playerId }, transaction: t }
             );
+
+            // 炼制计数：只有真炼出产物才进账（失败尝试不记），炼丹/炼器分开两格。
+            // 键名与含义声明在 config/player_metrics.json（成就与洞府祖业都读它）。
+            // 两处都写成字面量而不是"由配方类型算出键名"：tests/PlayerMetricsVocabulary.test.js 里
+            // "声明了就得有人写"那条闸要能 grep 到键名，间接算出来的字符串等于绕开自己的账。
+            if (successCount > 0) {
+                if (recipeConfig.type === 'refining') {
+                    await PlayerStateStore.bumpStat(playerId, 'refining_count', successCount, { transaction: t });
+                } else {
+                    await PlayerStateStore.bumpStat(playerId, 'alchemy_count', successCount, { transaction: t });
+                }
+            }
 
             await t.commit();
 

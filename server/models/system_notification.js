@@ -61,10 +61,15 @@ const SystemNotification = sequelize.define('SystemNotification', {
         allowNull: true,
         comment: '阅读时间'
     },
+    publishAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: '预约发布时间，null 表示立即生效；未到时间前对玩家不可见、不计入未读'
+    },
     expiresAt: {
         type: DataTypes.DATE,
         allowNull: true,
-        comment: '过期时间'
+        comment: '自动下架时间，null 表示长期有效'
     },
     isActive: {
         type: DataTypes.BOOLEAN,

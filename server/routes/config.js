@@ -196,8 +196,15 @@ router.get('/game-balance/public', async (req, res) => {
             // 装备槽位配置 + 法宝深度系统配置（耐久/祭炼/修理/本命/祭出）
             // 注意：过滤内部 comment 字段，仅返回玩家可见的纯数据
             equipment: {
-                valid_slots: gameBalance.equipment?.valid_slots || [],
-                slot_names: gameBalance.equipment?.slot_names || {},
+                // 槽位词表只有一份（game_balance.equipment.slot_names，资料片可扩）。这里把派生结果
+                // 规范化成前端一直在用的形状：valid_slots 是键序数组、slot_names 是"槽位→字符串"。
+                // 不规范化就会把 {id,label} 这种对象形状直接印到界面上（同一个坑在阵法标签表上踩过）。
+                ...(() => {
+                    const { slots, labels } = require('../game/services/EquipmentService').slotVocabulary();
+                    const stringLabels = {};
+                    for (const slot of slots) stringLabels[slot] = labels[slot] || slot;
+                    return { valid_slots: slots, slot_names: stringLabels };
+                })(),
                 durability: gameBalance.equipment?.durability || null,
                 refine: gameBalance.equipment?.refine || null,
                 repair: gameBalance.equipment?.repair || null,
@@ -206,6 +213,17 @@ router.get('/game-balance/public', async (req, res) => {
             },
             // 物品类型中文名映射（供 InventoryPanel/MarketPanel 共用，避免前端硬编码不一致）
             item_types: gameBalance.item_types || {},
+            // 物品品质词表：档名 + 色令牌 + 排序，按 order 排好下发（前端只认这一份，见 composables/useItemQualities.js）
+            // 资料片往 game_balance.item_qualities 加一档，这里立刻跟着出现，不需要改前端第 N 份抄写。
+            item_qualities: Object.entries(gameBalance.item_qualities || {})
+                .filter(([key]) => !key.startsWith('_'))
+                .map(([key, cfg]) => ({
+                    key,
+                    label: typeof cfg?.label === 'string' ? cfg.label : key,
+                    tone: cfg?.tone || 'neutral',
+                    order: Number(cfg?.order) || 0
+                }))
+                .sort((a, b) => a.order - b.order),
             // 背包分类 tabs（含 other 兜底分类）
             item_categories: gameBalance.item_categories || [],
             // 地图类型中文名映射（不含 Tailwind 样式，样式由前端展示层维护）

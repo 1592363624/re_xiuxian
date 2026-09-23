@@ -31,6 +31,7 @@ const PlayerSoulFragment = require('../../models/playerSoulFragment');
 const PlayerAscension = require('../../models/playerAscension');
 const sequelize = require('../../config/database');
 const PlayerStateStore = require('../persistence/PlayerStateStore');
+const sensePool = require('../core/sensePool');
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
@@ -43,31 +44,44 @@ const { ErrorCodes } = require('../../middleware/errorHandler');
  * @returns {number} 神识值，无则返回 0
  */
 function getDivineSense(player) {
-    if (!player) return 0;
-    const attrs = player.attributes || {};
-    return Number(attrs.sense || 0);
+    // 与飞升那一份是逐字重复的实现，现在两处都指向 game/core/sensePool.js
+    return sensePool.senseOf(player);
 }
 
 /**
  * 元神属性继承：来源属性 × inherit_ratio × (1 ± random_range)。
  *
  * 单独抽出来是为了能脱离数据库测（condense/divide 都要事务与元神记录）。
+ *
+ * 为什么现在按属性注册表逐档过一遍，而不是手写五个键：
+ * 传进来的 `source` 是 `CombatResolver.resolveCombatStats(player).stats` —— 那已经是属性引擎算完的
+ * **整块**（注册表里 17 档全在，含资料片新加的那档）。以前这里只抄 atk/def/hp_max/speed/sense，
+ * 于是另外十二档在"凝练第二元神"这一步被静默清零，而第三元神的继承源是第二元神存下来的那份块，
+ * 漏一次就永久少一档（业主那条"新属性要在所有用到它的地方直接算"最典型的反面：数值管线泛化了，
+ * 存档管线还在点名）。现在改点名不得：新属性进注册表 = 自动跟着继承比例走。
+ *
+ * 这份块今天只有两处消费：`getProfile` 原样下发给元神面板、以及分化第三元神时当继承源，
+ * 没有任何战斗/资源结算读它（全仓除本服务外无人查 player_second_soul），所以"多带几档"不会凭空
+ * 给元神开新的资源池；真要给它加结算点时，得先决定寿元/突破概率这类是不是该按继承比例折。
+ *
  * @param {Object} source - 被继承的那份属性（第二元神用主元神解析后的属性，第三元神用第二元神存的属性）
  * @param {number} inheritRatio - 继承比例
  * @param {number} randomRange - 随机浮动（配置里是 0.1 = ±10%）
  * @param {Function} [rand] - 注入随机数，测试里要固定
  */
 function inheritSoulAttributes(source, inheritRatio, randomRange, rand = Math.random) {
+    const { statRegistry, ensureStatRegistryLoaded } = require('../stats');
+    ensureStatRegistryLoaded();
     const scale = (value) => Math.floor(
         (Number(value) || 0) * Number(inheritRatio) * (1 + (rand() * 2 - 1) * Number(randomRange))
     );
-    return {
-        atk: scale(source.atk),
-        def: scale(source.def),
-        hp_max: scale(source.hp_max),
-        speed: scale(source.speed),
-        sense: scale(source.sense)
-    };
+    const result = {};
+    for (const def of statRegistry.all()) {
+        const value = Number(source?.[def.key]);
+        // 缺键与非数值一律落 0：存进去的形状稳定，也不许把 NaN 带给下游
+        result[def.key] = Number.isFinite(value) ? scale(value) : 0;
+    }
+    return result;
 }
 
 /**
@@ -80,14 +94,7 @@ function inheritSoulAttributes(source, inheritRatio, randomRange, rand = Math.ra
  * @returns {Promise<number>} 扣减后的神识
  */
 async function consumeDivineSense(player, cost, transaction) {
-    const updated = await PlayerStateStore.patchPlayerState(
-        player.id,
-        { attributes: { sense: { $add: -Number(cost) || 0, $min: 0 } } },
-        { transaction }
-    );
-    // 库只写锁内那一次；内存跟着最新值，不再参与整块写回
-    PlayerStateStore.mirrorPatchedBlob(player, updated);
-    return Number((updated.attributes || {}).sense || 0);
+    return (await sensePool.spendSense(player, cost, { transaction })).after;
 }
 
 /**
@@ -869,7 +876,7 @@ class SecondSoulService {
      * GM 调整副元神属性
      * @param {number} playerId - 玩家ID
      * @param {number} soulIndex - 元神序号（2 或 3）
-     * @param {Object} attributes - 新属性对象（atk/def/hp_max/speed/sense）
+     * @param {Object} attributes - 新属性对象（键名取自属性注册表，含资料片新加的那些档）
      * @returns {Promise<Object>} { success, message, data }
      */
     static async gmAdjustAttributes(playerId, soulIndex, attributes) {
@@ -880,8 +887,10 @@ class SecondSoulService {
             return { success: false, message: 'attributes 必须为对象', error_code: ErrorCodes.VALIDATION_ERROR };
         }
 
-        // 允许的字段
-        const allowedFields = ['atk', 'def', 'hp_max', 'speed', 'sense'];
+        // 允许改哪些属性 = 属性注册表里有什么（资料片新加一档，GM 当场就能调那一档）
+        const { statRegistry, ensureStatRegistryLoaded } = require('../stats');
+        ensureStatRegistryLoaded();
+        const allowedFields = statRegistry.all().map(d => d.key);
         const newAttrs = {};
         for (const f of allowedFields) {
             if (attributes[f] !== undefined) {
@@ -893,7 +902,11 @@ class SecondSoulService {
             }
         }
         if (Object.keys(newAttrs).length === 0) {
-            return { success: false, message: '至少需要提供一个有效属性（atk/def/hp_max/speed/sense）', error_code: ErrorCodes.VALIDATION_ERROR };
+            return {
+                success: false,
+                message: `至少需要提供一个有效属性（${allowedFields.slice(0, 5).join('/')} 等 ${allowedFields.length} 档）`,
+                error_code: ErrorCodes.VALIDATION_ERROR
+            };
         }
 
         // 读-改-写必须串行：player_second_soul.attributes 是整块 JSON 列，

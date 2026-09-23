@@ -40,6 +40,8 @@ const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 const { Op } = require('sequelize');
+// 心劫选项的中文名与清单都从内容现取（见 heartTribulationOptions）；客户端不再自己抄一张键→名字表
+const { contentLabel } = require('../content/ContentRegistry');
 
 /**
  * 工具函数：跨日重置每日次数（按 DATEONLY 比较）
@@ -185,11 +187,13 @@ class CompanionService {
                     vow_broken: Boolean(companion.vow_broken)
                 } : null,
                 heart_tribulation_count: companion.heart_tribulation_count,
+                // 选项词表每次都从内容现取（面板按这份渲染名字与顺序，不再自己抄一张键→中文名的表）
+                heart_tribulation_options: this.heartTribulationOptions(),
                 pending_tribulation: pendingTribulation ? {
                     event_id: pendingTribulation.id,
                     event_type: pendingTribulation.event_type,
                     expires_at: pendingTribulation.expires_at,
-                    options: pendingTribulation.options
+                    options: this.projectTribulationOptions(pendingTribulation.options)
                 } : null,
                 created_at: companion.created_at,
                 broken_at: companion.broken_at
@@ -1109,7 +1113,8 @@ class CompanionService {
                     event_type: e.event_type,
                     companion_id: e.companion_id,
                     concubine_id: e.concubine_id,
-                    options: e.options,
+                    // 与 profile 里那份走同一个投影：没人扣的"残魂消耗"不在出参里出现（见 projectTribulationOptions）
+                    options: this.projectTribulationOptions(e.options),
                     expires_at: e.expires_at,
                     created_at: e.created_at
                 })),
@@ -1119,21 +1124,73 @@ class CompanionService {
     }
 
     /**
+     * 把事件行里那份选项快照投影成"玩家能看见的那份"。
+     *
+     * 两件事一起做：
+     *   1) 剥掉 `_` 开头的键。事件行当初写的是整份 `heart_tribulation.options`，里面混着 `_comment`
+     *      —— 那是写给开发看的说明（原文里就出现 `remnant_soul_cost` 这个词），不该随出参推到玩家界面；
+     *      在出参层剥而不是改当初那行写入，是因为库里已经存了不少带 `_comment` 的旧事件行。
+     *   2) 剥掉 `remnant_soul_cost`：这颗键**没有任何结算代码读它**
+     *      （结算只做成功率判定 + 亲密度/心契/虚弱，从不扣残魂），而面板照着它印「· 残魂消耗：15」，
+     *      确认框还写着"将影响…残魂…" —— 玩家会为了一个不存在的代价去选另一个选项。
+     *      接上扣费是一次新增资源门槛（还要配"够不够"的前置校验），属玩法决定，等业主拍板；
+     *      在决定之前，出参不带这颗键就是唯一诚实的做法。业主若选"接上"，删掉这里的一行过滤即可。
+     */
+    static projectTribulationOptions(snapshot) {
+        if (!snapshot || typeof snapshot !== 'object') return snapshot;
+        const projected = {};
+        for (const [key, raw] of Object.entries(snapshot)) {
+            if (key.startsWith('_')) continue;
+            if (!raw || typeof raw !== 'object') { projected[key] = raw; continue; }
+            const { remnant_soul_cost, ...rest } = raw;      // eslint-disable-line no-unused-vars
+            projected[key] = Object.fromEntries(Object.entries(rest).filter(([field]) => !field.startsWith('_')));
+        }
+        return projected;
+    }
+
+    /**
+     * 心劫抉择的选项清单以内容为准（`companion_data.heart_tribulation.options`，2026-09-23）。
+     *
+     * "有哪三个选项、各叫什么"以前在 `routes/companion.js` 与这里各写了一份字面数组，
+     * 面板自己还维护了一张键→中文名表（注释原话：「后端不下发名称」）——
+     * 于是资料片加第四个选项会被路由以"参数非法"挡掉。现在这一处出清单，路由与界面都用它。
+     * @returns {Array<{key:string,name:string,description:string|null,success_rate:number,intimacy_gain:number}>}
+     */
+    static heartTribulationOptions() {
+        const options = configLoader.getConfig('companion_data')?.heart_tribulation?.options || {};
+        return Object.entries(options)
+            .filter(([key, cfg]) => !key.startsWith('_') && cfg && typeof cfg === 'object' && !Array.isArray(cfg))
+            .map(([key, cfg]) => ({
+                key,
+                name: contentLabel(cfg, key),
+                description: typeof cfg.description === 'string' ? cfg.description : null,
+                success_rate: Number(cfg.success_rate) || 0,
+                intimacy_gain: Number(cfg.intimacy_gain) || 0
+            }));
+    }
+
+    /** 合法选项键（路由白名单与这里的参数校验共用这一份） */
+    static heartTribulationChoiceKeys() {
+        return this.heartTribulationOptions().map(choice => choice.key);
+    }
+
+    /**
      * 心劫抉择
-     * 3 种选项（稳/狠/骗），不同成功率与奖惩
+     * 选项由内容决定（companion_data.heart_tribulation.options），不同成功率与奖惩
      * @param {number} playerId - 玩家ID
      * @param {number} eventId - 心劫事件ID
-     * @param {string} option - 抉择选项（steady/ruthless/deceive）
+     * @param {string} option - 抉择选项（取自内容词表的键）
      * @returns {Promise<Object>} { success, message, data }
      */
     static async chooseHeartTribulation(playerId, eventId, option) {
         if (!eventId || typeof eventId !== 'number') {
             return { success: false, message: 'event_id 必填且必须为数字', error_code: ErrorCodes.VALIDATION_ERROR };
         }
-        if (!['steady', 'ruthless', 'deceive'].includes(option)) {
+        const choiceKeys = this.heartTribulationChoiceKeys();
+        if (!choiceKeys.includes(option)) {
             return {
                 success: false,
-                message: 'option 必须为 steady(稳)/ruthless(狠)/deceive(骗) 之一',
+                message: `option 必须是 ${choiceKeys.join('/')} 之一（companion_data.heart_tribulation.options 里配的）`,
                 error_code: ErrorCodes.VALIDATION_ERROR
             };
         }

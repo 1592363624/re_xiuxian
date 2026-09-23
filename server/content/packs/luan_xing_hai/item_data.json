@@ -102,11 +102,21 @@
       "id": "luanxing_tu_can",
       "name": "乱星图残卷",
       "type": "recipe_scroll",
-      "subtype": "refining",
+      "subtype": "technique",
       "quality": "legendary",
-      "description": "绘着半幅星道的残绢，照着炼下去才懂得星辰符为何要借星砂为墨。",
-      "effect": { "learn_recipe": "craft_xingchen_fu" },
+      "description": "绘着半幅星道的残绢。星遁诀的挪身之法全画在这几条连线里，交去功法页研习才读得懂。",
+      "effect": { "learn_technique": "xingdun_jue" },
       "price": 32000
+    },
+    {
+      "id": "xingchen_fu_pu",
+      "name": "星辰符谱",
+      "type": "recipe_scroll",
+      "subtype": "refining",
+      "quality": "epic",
+      "description": "把乱星图上的星位拆成了一遍可照描的符样。有了谱才知道星辰符为何要借星砂为墨——这是炼符的谱，不是那卷图。",
+      "effect": { "learn_recipe": "craft_xingchen_fu" },
+      "price": 9000
     }
   ],
   "override": {

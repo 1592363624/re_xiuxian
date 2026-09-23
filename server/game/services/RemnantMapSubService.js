@@ -18,7 +18,7 @@
  * 配置：border_military_data.json#remnant_map
  */
 const { infrastructure } = require('../../modules');
-const { grantItems } = require('../items/itemGrant');
+const { grantItems, toDropSummary } = require('../items/itemGrant');
 const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 const BorderMilitaryService = require('./BorderMilitaryService');
@@ -340,7 +340,7 @@ class RemnantMapSubService {
             // 发放物品：只把真发到的留在 drops 里（它既进玩家消息也进返回给界面的 items_dropped）
             if (drops.length > 0) {
                 const grant = await grantItems(freshPlayer.id, drops, t, { label: '战线·探禁奖励' });
-                drops = grant.granted.map(g => ({ key: g.item_key, quantity: g.quantity, item_name: g.item_name }));
+                drops = toDropSummary(grant.granted);
             }
 
             await t.commit();

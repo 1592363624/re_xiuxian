@@ -22,6 +22,7 @@ const PlayerTaoismGate = require('../models/playerTaoismGate');
 const PlayerDivineSense = require('../models/playerDivineSense');
 const PlayerLaw = require('../models/playerLaw');
 const TaoismGateService = require('../game/services/TaoismGateService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const configLoader = infrastructure.ConfigLoader;
 const results = [];
@@ -45,7 +46,8 @@ async function race(promiseFactories) {
     const pathConfig = cfg.dao_paths[PATH];
     if (!pathConfig) throw new Error(`内容里没有道途 ${PATH}，探针要换一个`);
 
-    await Player.destroy({ where: { username: ['taorace01', 'taorace02'] }, force: true });
+    // 开头按账号名清历次残留（不是按 id）：崩过一次的那轮留下的道途/神识/法则行，新 id 永远找不回来
+    await PlayerCascadePurge.deleteByUsernames(['taorace01', 'taorace02']);
     const player = await Player.create({
         username: 'taorace01', password: 'not-a-real-hash', nickname: '引道并发探针',
         realm: '化神初期', realm_rank: Math.max(30, Number(cfg.taoism_gate.min_realm_rank) + 5),
@@ -243,19 +245,15 @@ async function race(promiseFactories) {
     check('T5c 火眼反弹分支真的跑到（HEAD 里 `const反弹Cost` 少了个空格，一进这个分支就抛）',
         reflectedRounds === hammerRounds, `轮数=${hammerRounds} 双方都报反弹的轮=${reflectedRounds}`);
 
-    await PlayerTaoismGate.destroy({ where: { player_id: player.id } });
-    await PlayerDivineSense.destroy({ where: { player_id: player.id } });
-    await PlayerLaw.destroy({ where: { player_id: player.id } });
-    await PlayerTaoismGate.destroy({ where: { player_id: other.id } });
-    await PlayerDivineSense.destroy({ where: { player_id: other.id } });
-    await PlayerLaw.destroy({ where: { player_id: other.id } });
-    await player.destroy({ force: true });
-    await other.destroy({ force: true });
+    // 收尾只叫一次"删号"：player_taoism_gate / player_divine_sense / player_law 这些按 player_id
+    // 归属的行由级联带走（以前这里手写六条 destroy，漏一张就是一种孤儿）
+    const purged = await PlayerCascadePurge.deletePlayers([player.id, other.id]);
     const left = await Promise.all([
         PlayerTaoismGate.count({ where: { player_id: [player.id, other.id] } }),
         Player.count({ where: { username: ['taorace01', 'taorace02'] } })
     ]);
-    console.log(`清理：道途行 ${left[0]} 个、探针号 ${left[1]} 个（都应为 0）`);
+    console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
+    console.log(`残留复查：道途行 ${left[0]} 个、探针号 ${left[1]} 个（都应为 0）`);
 
     const failed = results.filter(r => !r.ok);
     console.log(`\n== 引道并发写探针：${results.length - failed.length}/${results.length} 通过 ==`);

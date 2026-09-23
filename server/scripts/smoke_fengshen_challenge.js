@@ -25,6 +25,7 @@ const FengshenRanking = require('../models/fengshenRanking');
 const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const FengshenService = require('../game/services/FengshenService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNTS = ['fs_c1', 'fs_c2', 'fs_c3', 'fs_c4'];
 const results = [];
@@ -46,7 +47,7 @@ async function ensurePlayer(username, realmRank) {
             hp_current: 5000, mp_current: 5000, lifespan_current: 120, attributes: {}, token_version: 0
         });
     }
-    await FengshenRanking.destroy({ where: { player_id: p.id }, force: true });
+    await FengshenRanking.destroy({ where: { player_id: p.id }, force: true });   // 本轮开局重置榜单行（上一轮崩了会留旧行）：级联只在删号那一刻清，护不到这里
     await Player.update({ pvp_mode: 'active', is_dead: false, is_banned: false }, { where: { id: p.id } });
     return Player.findByPk(p.id);
 }
@@ -248,11 +249,15 @@ async function main() {
         console.error('探针异常：', e.message, e.stack);
     } finally {
         try {
+            const ids = [];
             for (const username of ACCOUNTS) {
                 const p = await Player.findOne({ where: { username } });
-                if (!p) continue;
-                await FengshenRanking.destroy({ where: { player_id: p.id }, force: true });
-                await Player.destroy({ where: { id: p.id }, force: true });
+                if (p) ids.push(p.id);
+            }
+            if (ids.length) {
+                // 排名行（fengshen_rankings.player_id）是归属档，级联自己会带走，这里不再手写 destroy
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

@@ -39,6 +39,7 @@ const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const SpiritBeastPvpService = require('../game/services/SpiritBeastPvpService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNTS = ['bpvp_s1', 'bpvp_s2', 'bpvp_s3'];
 const NAME_PREFIX = '探针赛季-';
@@ -218,11 +219,13 @@ async function main() {
             const mine = all.filter(r => String(r.season_name).startsWith(NAME_PREFIX) || !idsBefore.has(Number(r.id)))
                 .map(r => Number(r.id));
             const ids = (await Player.findAll({ where: { username: { [Op.in]: ACCOUNTS } }, attributes: ['id'], raw: true })).map(r => r.id);
-            if (ids.length) await SpiritBeastPvpRanking.destroy({ where: { player_id: { [Op.in]: ids } } });
+            // 按 season_id 的那一条留着：它捞的是"这几个赛季里所有人的排名行"，列名不是归属档，级联不认；
+            // 而按 player_id 归属的那一条（上面原来那行）交回给那扇门 —— 排名行的列就是 player_id。
             if (mine.length) await SpiritBeastPvpRanking.destroy({ where: { season_id: { [Op.in]: mine } } });
             if (mine.length) await SpiritBeastPvpSeason.destroy({ where: { id: { [Op.in]: mine } } });
-            await Player.destroy({ where: { username: { [Op.in]: ACCOUNTS } }, force: true });
-            console.log(`（清理：删掉本次产生的 ${mine.length} 个赛季、${ids.length} 个玩家的排名行）`);
+            const purged = await PlayerCascadePurge.deletePlayers(ids);
+            console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`
+                + `（另有本次产生的 ${mine.length} 个赛季按 id 删掉）`);
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});
         const failed = results.filter(r => !r.ok).length + hard;

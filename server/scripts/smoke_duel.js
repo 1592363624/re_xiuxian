@@ -26,6 +26,7 @@ const PvpBattleRecord = require('../models/pvpBattleRecord');
 const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const DuelService = require('../game/services/DuelService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 const { Op } = require('sequelize');
 
 const NAMES = ['duel_a', 'duel_b'];
@@ -46,6 +47,8 @@ async function duelsOf(ids) {
     });
 }
 async function wipe(ids) {
+    // pvp_battle_records 用的是 attacker_id / defender_id（一对两个），不在级联清理的"归属"档里，
+    // 所以这一张仍然要探针自己清；players/派生资产那些交给 PlayerCascadePurge。
     await PvpBattleRecord.destroy({
         where: { [Op.or]: [{ attacker_id: { [Op.in]: ids } }, { defender_id: { [Op.in]: ids } }] }, force: true
     });
@@ -127,7 +130,8 @@ async function main() {
             }
             if (ids.length) {
                 await wipe(ids);
-                await Player.destroy({ where: { id: ids }, force: true });
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

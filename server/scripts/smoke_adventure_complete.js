@@ -24,6 +24,7 @@ const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const AdventureEventService = require('../game/services/AdventureEventService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNT = 'adv_c1';
 const ITEM_KEY = 'ancient_token';        // treasure_2 的奖励，内容里真存在的一件
@@ -66,18 +67,14 @@ async function main() {
     // 这个服务是"静态 initialize 返回实例"的形状（不是单例导出），必须用 initialize 拿到的那一份
     const svc = await AdventureEventService.initialize(infrastructure.ConfigLoader);
 
-    let p = await Player.findOne({ where: { username: ACCOUNT } });
-    if (!p) {
-        p = await Player.create({
-            username: ACCOUNT, password: 'not-a-real-hash', nickname: '历练结算探针',
-            realm: '炼气5层', realm_rank: 5, exp: 0, spirit_stones: 1000,
-            hp_current: 5000, mp_current: 5000, lifespan_current: 120, attributes: {}, token_version: 0
-        });
-    } else {
-        await Player.update({ exp: 0, spirit_stones: 1000, hp_current: 5000, is_dead: false }, { where: { id: p.id } });
-    }
-    await PlayerAdventure.destroy({ where: { player_id: p.id }, force: true });
-    await Item.destroy({ where: { player_id: p.id, item_key: ITEM_KEY }, force: true });
+    // 开头按账号名清历次残留（不是按 id）：崩过一次的那轮留下的派生行，新 id 永远找不回来。
+    // 历练行、背包行这些都按 player_id 归属，交给级联那扇门一起带走，探针不再自己点表名。
+    await PlayerCascadePurge.deleteByUsernames([ACCOUNT]);
+    const p = await Player.create({
+        username: ACCOUNT, password: 'not-a-real-hash', nickname: '历练结算探针',
+        realm: '炼气5层', realm_rank: 5, exp: 0, spirit_stones: 1000,
+        hp_current: 5000, mp_current: 5000, lifespan_current: 120, attributes: {}, token_version: 0
+    });
 
     // ===== D1/D2 正常到点结算 =====
     const before = await snapshot(p.id);
@@ -216,9 +213,10 @@ async function main() {
         try {
             const p = await Player.findOne({ where: { username: ACCOUNT } });
             if (p) {
-                await PlayerAdventure.destroy({ where: { player_id: p.id }, force: true });
-                await Item.destroy({ where: { player_id: p.id, item_key: { [Op.in]: [ITEM_KEY, 'definitely_not_an_item_probe_xyz'] } }, force: true });
-                await Player.destroy({ where: { id: p.id }, force: true });
+                // 只剩这一扇门：历练行/背包行（都是 player_id 归属档）由级联自己清，
+                // 探针不再手写"顺手删这两张表"—— 漏一张就是一种假绿。
+                const purged = await PlayerCascadePurge.deletePlayer(p.id);
+                console.log(`清理：删掉探针号 ${purged.username}（1 个），级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

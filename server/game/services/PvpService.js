@@ -2387,10 +2387,15 @@ class PvpService {
             const expReward = expBase + realmGap * expPerGap;
 
             // 更新玩家 stats（切磋次数和冷却记录）
-            stats.sparring_count = sparringCount + 1;
-            stats.last_sparring_date = today;
-            stats.last_sparring_time = new Date().toISOString();
-            player.stats = stats;
+            // 与 DuelService 同一口径：计数与同日标记一起走 PlayerStateStore.setStatKeys 的键级补丁，
+            // 不再"读整份 stats、改两格、再把整份赋回这一列"（整块赋回会盖掉同一事务里更早的键级补丁，
+            // 而且一旦有人把取实例改成锁外读，它就是"旧快照覆盖新快照"的现形）。
+            const countToday = sparringCount + 1;
+            await PlayerStateStore.setStatKeys(player, {
+                sparring_count: countToday,
+                last_sparring_date: today,
+                last_sparring_time: new Date().toISOString()
+            }, { transaction: t });
 
             // 累加经验（BIGINT 安全运算）
             if (expReward > 0) {
@@ -2413,9 +2418,9 @@ class PvpService {
                     battle_log: battleResult.battleLog
                 },
                 exp_reward: expReward,
-                sparring_count_today: stats.sparring_count,
+                sparring_count_today: countToday,
                 daily_limit: dailyLimit,
-                daily_remaining: Math.max(0, dailyLimit - stats.sparring_count),
+                daily_remaining: Math.max(0, dailyLimit - countToday),
                 cooldown_seconds: cooldown,
                 zero_penalty: true  // 零惩罚标记：无灵石/虚弱/掉落/段位分变动
             };

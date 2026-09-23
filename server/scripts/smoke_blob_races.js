@@ -35,6 +35,7 @@ const { bootApp } = require('./lib/smoke_http');
 const InventoryService = require('../game/services/InventoryService');
 const FishingService = require('../game/services/FishingService');
 const ArtifactDeepLineService = require('../game/services/ArtifactDeepLineService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ITERATIONS = Number(process.env.BLOB_RACE_ITERATIONS || 30);
 const FILLER_COUNT = 40;
@@ -227,7 +228,9 @@ async function sheathSweepRace(playerId, itemKey) {
 (async () => {
     await bootApp(app, { port: PORT });
 
-    await Player.destroy({ where: { username: 'blobrace01' } });
+    // 开头按账号名清历次残留（不是按 id）：上一轮崩在收尾之前留下的钓鱼/鱼获/背包行，
+    // 新 id 永远找不回来 —— F1/F2 判的正是"这一竿结算完会话有没有被旧快照复活"，脏会话会让它假绿。
+    await PlayerCascadePurge.deleteByUsernames(['blobrace01']);
     const player = await Player.create({
         username: 'blobrace01', password: 'not-a-real-hash', nickname: '并发探针',
         realm: '炼虚初期', realm_rank: 27, exp: 1000000, spirit_stones: 100000000,
@@ -284,13 +287,14 @@ async function sheathSweepRace(playerId, itemKey) {
         await sheathSweepRace(player.id, itemKey);
     }
 
-    /* 收尾：探针数据全部删除 */
-    await PlayerEquipment.destroy({ where: { player_id: player.id } });
+    /* 收尾：删号只走级联那扇门。装备 / 钓鱼状态 / 鱼获 / 背包四张都按 player_id 归属，
+       级联的清单是从 information_schema 现查的，探针不再手写"收尾清哪几张表"（漏一张就是一种孤儿）。
+       只有那批填充行留着：它们挂的是假 player_id（900000+，压根不在 players 里），
+       级联按真实 id 清不到它们，不自己收干净就会糊住下一轮的 F3 扫描。 */
     await PlayerEquipment.destroy({ where: { player_id: { [Op.gte]: FILLER_ID_BASE } } });
-    await PlayerFishing.destroy({ where: { player_id: player.id } });
-    await PlayerFishCatch.destroy({ where: { player_id: player.id } });
-    await Item.destroy({ where: { player_id: player.id } });
-    await Player.destroy({ where: { id: player.id } });
+    const purged = await PlayerCascadePurge.deletePlayer(Number(player.id));
+    console.log(`清理：删掉探针号 ${purged.username}（id ${purged.player_id}），级联带走 ${purged.total} 行派生数据`
+        + `，涉及 ${purged.tables.length} 张表`);
 
     const residue = await Promise.all([
         Player.count({ where: { username: 'blobrace01' } }),
@@ -308,5 +312,7 @@ async function sheathSweepRace(playerId, itemKey) {
     process.exit(passed === results.length ? 0 : 1);
 })().catch(async error => {
     console.error('探针异常:', error);
+    // 崩在半路也要按账号名把这一轮的号与派生行收掉（id 已经拿不到了，只有账号名找得回来）
+    try { await PlayerCascadePurge.deleteByUsernames(['blobrace01']); } catch {}
     process.exit(1);
 });

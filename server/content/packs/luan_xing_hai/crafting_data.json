@@ -18,7 +18,7 @@
       "base_success_rate": 0.55,
       "skill_exp": 30,
       "cooldown_sec": 90,
-      "learn_source": "sect"
+      "learn_source": "default"
     }
   ]
 }

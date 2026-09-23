@@ -15,6 +15,7 @@ import { ref, computed, onMounted } from 'vue'
 import { formatBeijing } from '../../utils/time'
 import apiClient from '../../api'
 import { useUIStore } from '../../stores/ui'
+import { usePlayerStore } from '../../stores/player'
 import {
   getListings,
   searchListings,
@@ -34,6 +35,10 @@ import LoadingBlock from '../ui/LoadingBlock.vue'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
+const playerStore = usePlayerStore()
+
+/** 万宝楼列表里会混进自己的挂单；标成"我的挂单"比"卖家 韩天尊"更好读 */
+const isMine = (listing) => Number(listing?.seller_id) === Number(playerStore.player?.id)
 
 /* ===================== 视图与列表状态 ===================== */
 
@@ -522,7 +527,10 @@ onMounted(() => {
                     </div>
                     <!-- 卖家与时间 -->
                     <div class="text-xs text-fg-faint mt-2 flex items-center gap-3">
-                      <span>卖家 #{{ listing.seller_id }}</span>
+                      <!-- 名字由 /api/market/list 的 seller_name 现算下发（库里只存 seller_id）。
+                           以前这里只能印「卖家 #1」，玩家在换物系统里看不见跟谁交易。 -->
+                      <span v-if="isMine(listing)">我的挂单</span>
+                      <span v-else>卖家 {{ listing.seller_name || `道友 #${listing.seller_id}` }}</span>
                       <span>挂单时间 {{ formatTime(listing.createdAt) }}</span>
                     </div>
                   </div>

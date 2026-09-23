@@ -19,6 +19,7 @@
  */
 
 const { infrastructure } = require('../../modules');
+const { contentLabel } = require('../content/ContentRegistry');
 const Player = require('../../models/player');
 const PlayerFormation = require('../../models/playerFormation');
 const sequelize = require('../../config/database');
@@ -84,20 +85,37 @@ class FormationService {
     }
 
     /**
+     * 名字表下发前统一成"键→字符串"。
+     * 资料片经 map 集合补进来的一档是对象（`{id,label,color}`），原样透出前端就会印成
+     * `[object Object]`（MultiDungeonService 那边踩过同一个坑）；过一层 contentLabel 之后
+     * 客户端也不必再把流派/品级抄成字面量联合类型了。
+     */
+    _stringLabels(global) {
+        const asText = (map) => Object.fromEntries(Object.entries(map || {})
+            .filter(([key]) => !key.startsWith('_'))
+            .map(([key, value]) => [key, contentLabel(value, key)]));
+        return {
+            ...(global || {}),
+            category_display_names: asText(global?.category_display_names),
+            grade_display_names: asText(global?.grade_display_names)
+        };
+    }
+
+    /**
      * 获取阵法全局配置（供前端展示规则说明）
      * @returns {Object}
      */
     getConfig() {
         const cfg = getFormationConfig();
         return {
-            global: cfg.global,
+            global: this._stringLabels(cfg.global),
             formations: cfg.formations?.map(f => ({
                 id: f.id,
                 name: f.name,
                 category: f.category,
-                category_display: cfg.global.category_display_names?.[f.category] || f.category,
+                category_display: contentLabel(cfg.global.category_display_names?.[f.category], f.category),
                 grade: f.grade,
-                grade_display: cfg.global.grade_display_names?.[f.grade] || f.grade,
+                grade_display: contentLabel(cfg.global.grade_display_names?.[f.grade], f.grade),
                 description: f.description,
                 min_realm_rank: f.min_realm_rank,
                 recommended_realm: f.recommended_realm,
@@ -144,9 +162,9 @@ class FormationService {
                     formation_id: f.id,
                     name: f.name,
                     category: f.category,
-                    category_display: cfg.global.category_display_names?.[f.category] || f.category,
+                    category_display: contentLabel(cfg.global.category_display_names?.[f.category], f.category),
                     grade: f.grade,
-                    grade_display: cfg.global.grade_display_names?.[f.grade] || f.grade,
+                    grade_display: contentLabel(cfg.global.grade_display_names?.[f.grade], f.grade),
                     proficiency,
                     activated_at: activatedAt,
                     remaining_seconds: remainingSec,
@@ -173,9 +191,9 @@ class FormationService {
                     formation_id: lf.formation_id,
                     name: f?.name || lf.formation_id,
                     category: f?.category,
-                    category_display: f ? (cfg.global.category_display_names?.[f.category] || f.category) : null,
+                    category_display: f ? contentLabel(cfg.global.category_display_names?.[f.category], f.category) : null,
                     grade: f?.grade,
-                    grade_display: f ? (cfg.global.grade_display_names?.[f.grade] || f.grade) : null,
+                    grade_display: f ? contentLabel(cfg.global.grade_display_names?.[f.grade], f.grade) : null,
                     proficiency: lf.proficiency,
                     proficiency_max: cfg.global.proficiency_max,
                     learned_at: lf.learned_at,

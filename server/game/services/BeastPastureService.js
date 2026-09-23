@@ -498,6 +498,9 @@ class BeastPastureService {
 
             // 确定最终结果
             let result, stolenQty = 0, expGained = 0, loyaltyChange = 0;
+            // 地里被摘走多少（stolenQty）与真放进背包多少（stolenLanded）是两件事，
+            // 给玩家的那句话必须用后者 —— 见 _stealResultMessage
+            let stolenLanded = 0, stealGrantAttempted = false, stolenItemId = null;
             const beastSnapshot = this._createBeastSnapshot(beast);
             const guardSnapshot = guardBeast ? this._createBeastSnapshot(guardBeast) : null;
 
@@ -514,6 +517,13 @@ class BeastPastureService {
                 if (stolenQty < 1) stolenQty = 1;
                 expGained = stealConfig.yield.bonus_exp_on_success;
                 loyaltyChange = stealConfig.yield.bonus_loyalty_on_success;
+
+                // **先把"这块地里长的是什么"记下来**：下面"全偷光"那一支会把 produce_item_id 与 seed_id
+                // 一起写成 null，之后再读就是 null —— 于是地里被抹掉的作物哪也没去：偷的人一件没拿到、
+                // 记录里也不会有这一笔、谁都不报错。2026-09-22 顺着"背包满谎报成功"那条老账读到这段才发现，
+                // 它比谎报严重（谎报至少东西到了地里被拿走的程度）。
+                const produceItemId = targetPlot.produce_item_id || targetPlot.seed_id;
+                stolenItemId = produceItemId;
 
                 // 从被偷方地块扣除作物（将状态改回 empty，减少 base_yield）
                 // 注意：偷菜不改变地块状态，只是减少可收获的数量
@@ -534,16 +544,21 @@ class BeastPastureService {
 
                 // 将偷到的作物加入偷菜方背包：只有真放进背包的才记进偷菜收获
                 // （地里已经扣掉了，再记一条"偷到了"就是凭空多一笔不存在的收获）
-                const produceItemId = targetPlot.produce_item_id || targetPlot.seed_id;
                 const stolenGrant = produceItemId
                     ? await grantItems(player.id, [{ item_id: produceItemId, qty: stolenQty }], transaction, { label: '灵兽放养·偷菜' })
                     : { granted: [], failed: [] };
-                const stolenLanded = stolenGrant.granted.reduce((sum, g) => sum + g.quantity, 0);
+                stealGrantAttempted = !!produceItemId;
+                stolenLanded = stolenGrant.granted.reduce((sum, g) => sum + g.quantity, 0);
 
                 // 更新放养记录的偷菜次数
                 pasture.steal_count += 1;
-                // 记录偷菜收获
-                const stealYields = pasture.steal_yields || [];
+                // 记录偷菜收获。**必须赋一个新数组**：JSON 列的 getter 返回的是库里那份对象的引用，
+                // push 之后再原样赋回，Sequelize 的 changed() 判成"没改"，save() 就不写这一列。
+                // （真库实测：赋同引用 changed=false 且库里长度不变；赋新数组 changed=true 才落库。
+                //  这条隐患由 tests/JsonColumnSameRefWrite.test.js 全仓钉住。）
+                // 顺带一句：它**不是** smoke_pasture_race 那条红的原因 —— 那条是探针号背包满了
+                // （grantItems 静默失败 → 按口径不记收获），已在探针里把容量钉成前提。
+                const stealYields = Array.isArray(pasture.steal_yields) ? [...pasture.steal_yields] : [];
                 if (stolenLanded > 0) {
                     stealYields.push({
                         item_id: produceItemId,
@@ -553,7 +568,7 @@ class BeastPastureService {
                     });
                 }
                 pasture.steal_yields = stealYields;
-                await pasture.save({ transaction, silent: true });
+await pasture.save({ transaction, silent: true });
             } else {
                 // 偷菜失败（非拦截）
                 result = 'failed';
@@ -624,15 +639,19 @@ class BeastPastureService {
                     log_id: stealLog.id,
                     result,
                     stolen_qty: stolenQty,
-                    produce_item_id: targetPlot.produce_item_id,
+                    // "地里被摘走多少"与"真进背包多少"是两个数（背包满时后者更小），两个都给出去，
+                    // 界面不必自己猜。produce_item_id 取扣地之前抄下的那份（地块清空后那一列已经是 null）
+                    stolen_landed_qty: stolenLanded,
+                    produce_item_id: stolenItemId ?? targetPlot.produce_item_id,
                     counter_damage: counterDamage,
                     exp_gained: expGained,
                     loyalty_change: loyaltyChange,
                     beast_loyalty: beast.loyalty,
                     has_guard: !!guardBeast,
                     guard_beast_name: guardSnapshot?.beast_name || null,
-                    message: result === 'success' ? `偷菜成功！获得 ${stolenQty} 个作物` :
-                             result === 'intercepted' ? `被护院灵兽拦截！灵兽受伤，忠诚度-${Math.abs(loyaltyChange)}` :
+                    message: result === 'success'
+                        ? this._stealResultMessage({ stolenQty, stolenLanded, grantAttempted: stealGrantAttempted })
+                        : result === 'intercepted' ? `被护院灵兽拦截！灵兽受伤，忠诚度-${Math.abs(loyaltyChange)}` :
                              '偷菜失败'
                 }
             };
@@ -641,6 +660,19 @@ class BeastPastureService {
             console.error('[BeastPastureService] 偷菜失败:', err.message);
             return { code: 500, success: false, message: '服务器错误: ' + err.message };
         }
+    }
+
+    /**
+     * 偷菜那句给玩家看的话：报"真收到几个"，不报"地里被摘走几个"。
+     * 与战斗掉落、多人副本结算同一口径（`game/items/itemGrant.js`）：放不下就如实说没拿到、且说明不补发。
+     * `grantAttempted=false`（这块地没有可发的物品键）时不把它说成背包问题 —— 那是另一回事，不该让玩家去清背包。
+     * 做成纯函数是为了能在不连库的 jest 里逐种形状判文案，而不是等一次真并发才看见。
+     */
+    _stealResultMessage({ stolenQty, stolenLanded, grantAttempted }) {
+        if (!grantAttempted) return `偷菜成功！摘走 ${stolenQty} 个作物`;
+        const missed = Math.max(0, Number(stolenQty) - Number(stolenLanded));
+        if (missed === 0) return `偷菜成功！获得 ${stolenLanded} 个作物`;
+        return `偷菜成功！地里摘走 ${stolenQty} 个作物，背包放不下 ${missed} 个，只收下 ${stolenLanded} 个（没拿到的不会补发）`;
     }
 
     /**

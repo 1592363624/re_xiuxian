@@ -71,7 +71,47 @@ describe('配置热更新后要立刻被服务读到', () => {
         expect(DivineDuelService.getConfig()).toBe(null);
     });
 
+    test('`static _config` 那一形也要现读（傀儡 / 钓鱼 / 赌石：第七到九例，旧扫描只认 `let` 全漏了）', () => {
+        // 这三家的 initialize 记的是 loader 本身，配置每次读现取；
+        // 注入物只有 getConfig（单测与离线脚本里两种 loader 都存在）时必须也能读、不许 TypeError。
+        const cases = [
+            ['puppet', require('../game/services/PuppetService'), 'puppet_data'],
+            ['fishing', require('../game/services/FishingService'), 'fishing_data'],
+            ['gambling', require('../game/services/GamblingStoneService'), 'gambling_stone_data']
+        ];
+        for (const [, service, name] of cases) {
+            const original = (() => { try { return configLoader.getConfig(name); } catch { return null; } })();
+            try {
+                service._config = { tag: 'override-from-test' };
+                expect(service._config.tag).toBe('override-from-test');      // setter 那条路（假配置）优先
+                service._config = null;
+
+                service.initialize({ peekConfig: n => (n === name ? { tag: 'first' } : null) });
+                expect(service._config.tag).toBe('first');
+                service.initialize({ peekConfig: n => (n === name ? { tag: 'second' } : null) });
+                // 换 loader 之后还拿到第一份 = 又把配置钉在变量里了
+                expect({ name, tag: service._config.tag }).toEqual({ name, tag: 'second' });
+
+                service.initialize({ getConfig: n => { if (n !== name) throw new Error('未加载'); return { tag: 'legacy-loader' }; } });
+                expect({ name, tag: service._config.tag }).toEqual({ name, tag: 'legacy-loader' });
+
+                service._config = null;
+            } finally {
+                service._config = null;
+                if (original) configLoader.setMergedConfig(name, original);
+                // 把 loader 也换回真的：不然同一进程里后面的测试会读到我这只假桶
+                service.initialize(configLoader);
+            }
+        }
+    });
+
     test('没有服务再把配置存进模块级变量（旧写法的形状）', () => {
+        // 两个信号都要扫：①"配一个模块/类级变量存配置"这个声明形状；②把 getConfig 的结果**赋进那个变量**。
+        // 第一版只扫 `^let _config = null;$`，于是 `static _config = null`（赌石、钓鱼）整批漏网 ——
+        // 同一条规律在傀儡身上第一次就漏过（那次是 static 不是 let），扫描器不认新形状就等于没有。
+        // 判据按"声明 + 缓存赋值"两条一起看：只声明不赋值的（getter 背后那份缓存）不算命中。
+        const DECL = /^\s*(?:static\s+|let\s+|var\s+)(\w*_(?:config|cfg|data|settings|snapshot))\s*=\s*null\s*;?\s*$/;
+        const CACHE_ASSIGN = /[\w$.]*_?(?:config|cfg)\s*=\s*[\w$.]*\.getConfig\s*\(/;
         const offenders = [];
         (function walk(dir) {
             for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -79,24 +119,44 @@ describe('配置热更新后要立刻被服务读到', () => {
                 const p = path.join(dir, entry.name);
                 if (entry.isDirectory()) { walk(p); continue; }
                 if (!entry.name.endsWith('.js')) continue;
-                fs.readFileSync(p, 'utf-8').replace(/\r\n/g, '\n').split('\n').forEach((line, i) => {
-                    if (/^let _(config|cachedConfig|data|settings)\s*=\s*null;?$/.test(line)) {
-                        offenders.push(`${path.relative(SERVER_ROOT, p)}:${i + 1}  ${line.trim()}`);
-                    }
-                });
+                const lines = fs.readFileSync(p, 'utf-8').replace(/\r\n/g, '\n').split('\n');
+                const declared = lines.map((line, i) => [line.match(DECL)?.[1], i + 1])
+                    .filter(([name]) => Boolean(name));
+                if (!declared.length) continue;
+                // 允许的形状（PuppetService 那一套）：变量名以 Cache/Override 结尾，且有一份现读的 getter
+                const cachedButNotReRead = declared.filter(([name]) => !/(_cache|_override|Cache|Override)$/.test(name));
+                if (!cachedButNotReRead.length) continue;
+                const assigns = lines.filter(line => CACHE_ASSIGN.test(line));
+                if (!assigns.length && !/peekConfig\(/.test(lines.join('\n'))) continue;
+                offenders.push(`${path.relative(SERVER_ROOT, p)}  声明 ${cachedButNotReRead.map(([n, l]) => `${n}@${l}`).join(',')}`
+                    + (assigns.length ? ` + 缓存赋值 ${assigns.length} 处 → ${assigns[0].trim()}` : '（没有现读取舍，也没有 peekConfig）'));
             }
         })(path.join(SERVER_ROOT, 'game'));
         expect(offenders).toEqual([]);
     });
 
-    test('这 6 个服务都改成走 peekConfig', () => {
+    test('扫描器自己得能看见 static 那一形（不然是假绿）', () => {
+        const looksLikeDeclaration = line => Boolean(line.match(/^\s*(?:static\s+|let\s+|var\s+)(\w*_(?:config|cfg|data|settings|snapshot))\s*=\s*null\s*;?\s*$/));
+        expect(looksLikeDeclaration('    static _config = null;')).toBe(true);
+        expect(looksLikeDeclaration('let _config = null;')).toBe(true);
+        expect(looksLikeDeclaration('    static _configCache = null;')).toBe(false);   // 现读那一套的缓存位
+        expect(looksLikeDeclaration('    static _initialized = false;')).toBe(false);
+    });
+
+    test('这些服务都改成走 peekConfig', () => {
         for (const rel of [
             'game/services/BorderMilitaryService.js',
             'game/services/BorderBeastPatrolSubService.js',
             'game/services/RemnantMapSubService.js',
             'game/services/WarImprintSubService.js',
             'game/services/CaveLegacyService.js',
-            'game/services/DivineDuelService.js'
+            'game/services/DivineDuelService.js',
+            // 2026-09-23 又捞出三处同形状的：傀儡是 `static` 而不是 `let` 躲过了旧扫描，
+            // 钓鱼与赌石是同一处盲区里剩下的两个（这一条清单现在按"声明了配置位的服务"点名，
+            // 新增一个玩法服务如果把配置钉在类变量上，上面那条形状扫描就会先把人喊回来）
+            'game/services/PuppetService.js',
+            'game/services/FishingService.js',
+            'game/services/GamblingStoneService.js'
         ]) {
             const source = fs.readFileSync(path.join(SERVER_ROOT, rel), 'utf-8');
             expect(source).toMatch(/peekConfig\(/);

@@ -371,7 +371,13 @@ describe('ContentRegistry 启动期校验', () => {
         const temp = makeTempContent(
             {
                 item_data: BASE_ITEMS,
-                role_init: { spirit_roots: [{ id: 'metal', type: 'metal', name: '金' }] },
+                // 灵根三件套要给齐：只声明 spirit_roots、不配概率与加成，会被 _validateSpiritRootRoll
+                // 判成"内容看起来齐全、新号永远抽不到"（本轮把那条 warn 升成了硬拦）。
+                role_init: {
+                    spirit_roots: [{ id: 'metal', type: 'metal', name: '金' }],
+                    spiritRootProbabilities: { '金': 1 },
+                    spiritRootBonuses: { '金': { atk: 4 } }
+                },
                 technique_data: { techniques: { a: { id: 'a', name: '金锐诀', element: 'metal' } }, skills: {} }
             },
             {
@@ -387,7 +393,13 @@ describe('ContentRegistry 启动期校验', () => {
         const ok = makeTempContent(
             {
                 item_data: BASE_ITEMS,
-                role_init: { spirit_roots: [{ id: 'metal', type: 'metal', name: '金' }] },
+                // 灵根三件套要给齐：只声明 spirit_roots、不配概率与加成，会被 _validateSpiritRootRoll
+                // 判成"内容看起来齐全、新号永远抽不到"（本轮把那条 warn 升成了硬拦）。
+                role_init: {
+                    spirit_roots: [{ id: 'metal', type: 'metal', name: '金' }],
+                    spiritRootProbabilities: { '金': 1 },
+                    spiritRootBonuses: { '金': { atk: 4 } }
+                },
                 technique_data: { techniques: { a: { id: 'a', name: '金锐诀', element: 'metal' } }, skills: {} }
             },
             {
@@ -544,6 +556,170 @@ describe('ContentRegistry 启动期校验', () => {
             expect(error).toBeInstanceOf(ContentError);
             expect(error.message).toMatch(/不会刷出的怪[\s\S]*moon_jiao/);
         }
+    });
+
+    /**
+     * 功法获取途径这道闸的夹具。下面每一条反例都对应现网真出现过的形状
+     * （凡人遗宝的 recipe_scroll / sect_treasury、乱星海市舶的 sect_treasury 与一卷两用的乱星图残卷），
+     * 当时每一种都"配置合法、代码不崩"，只有玩家能看出来 —— 所以每条判定都要单独能红。
+     */
+    test('功法 acquire 只许写代码认识的分支；残卷要双向对上、且不能一卷两用', () => {
+        const tech = (acquire, id = 'tech_a') => ({
+            id, name: `${id}功`, grade: 'huang', element: 'none', required_realm: '炼气1层', acquire
+        });
+        const scroll = (id, effect, type = 'recipe_scroll') => ({ id, name: `${id}卷`, type, effect, price: 10 });
+        // 基础层刻意是空的 techniques：被检的那一部一律由 pack 加进来，
+        // 否则"同 id 重复 add"会先抛错，测到的就不是这道闸而是合并规则了。
+        const fixture = (items, techniques) => makeTempContent(
+            {
+                item_data: { items },
+                technique_data: { techniques: {}, skills: {}, settings: {}, grades: {}, comprehension: {} },
+                sect_data: { sects: [{ id: 'yinluo', name: '阴罗宗' }] }
+            },
+            {
+                test_pack: {
+                    'pack.json': MANIFEST,
+                    'technique_data.json': { dataset: 'technique_data', into: 'techniques', add: techniques }
+                }
+            }
+        );
+
+        // 正例：双向对上的残卷；以及代码真会扣代价的 sect（限定宗门也指得着）
+        expect(() => build(fixture([scroll('scroll_a', { learn_technique: 'tech_a' })],
+            [tech({ source: 'recipe_scroll', item_id: 'scroll_a' })]))).not.toThrow();
+        expect(() => build(fixture([],
+            [tech({ source: 'sect', sect_contribution: 100, sect_id: 'yinluo' })]))).not.toThrow();
+
+        // 反例①：写一个没人处理的 source（现网真写过 recipe_scroll / sect_treasury）
+        expect(() => build(fixture([], [tech({ source: 'sect_treasury' })])))
+            .toThrow(/sect_treasury[\s\S]*没有任何代码处理/);
+        // 反例②：限定了一个不存在的宗门
+        expect(() => build(fixture([], [tech({ source: 'sect', sect_contribution: 100, sect_id: 'nope' })])))
+            .toThrow(/不是任何宗门/);
+        // 反例③：残卷没回指（玩家手里那卷纸没有任何一侧认得它是钥匙）
+        expect(() => build(fixture([scroll('scroll_b', {})],
+            [tech({ source: 'recipe_scroll', item_id: 'scroll_b' })]))).toThrow(/必须回指这部功法/);
+        // 反例④：一卷两用（乱星图残卷的真实形状——两条链各要消耗一份，先走哪条另一条就断）
+        expect(() => build(fixture([scroll('scroll_c', { learn_technique: 'tech_a', learn_recipe: 'craft_x' })],
+            [tech({ source: 'recipe_scroll', item_id: 'scroll_c' })]))).toThrow(/同时写了 learn_technique 与 learn_recipe/);
+        // 反例⑤：物品说能悟这部功法，功法侧却没开这条通道
+        expect(() => build(fixture([scroll('scroll_d', { learn_technique: 'tech_a' })],
+            [tech({ source: 'default' })]))).toThrow(/这条通道没人开/);
+        // 反例⑥：item_id 指向不存在的物品 / 类型不对（消耗不掉的东西不算代价）
+        expect(() => build(fixture([], [tech({ source: 'recipe_scroll', item_id: 'no_such' })])))
+            .toThrow(/不是任何一件物品/);
+        expect(() => build(fixture([scroll('junk', {}, 'material')],
+            [tech({ source: 'recipe_scroll', item_id: 'junk' })]))).toThrow(/必须是 recipe_scroll/);
+    });
+
+    /**
+     * 盯的形状：灵兽的 element 是**另一套**词表（不与玩家灵根比对），以前没人校验。
+     * 拼错时两处静默：图鉴退回打印原始键，兽斗里 `getElementMultiplier` 查不到攻击方就返回中性，
+     * 于是"雷音神兽"从来没有五行。现网 ti_hun 正是这一类 —— 修它时要顺带把 elements 变成资料片能扩的集合。
+     */
+    test('灵兽 element 与相克指向都要在灵兽词表里；资料片可以自带新的一档', () => {
+        const elements = extra => ({
+            metal: { name: '金', strong_against: 'wood', weak_against: 'fire', color: '#f59e0b' },
+            wood: { name: '木', strong_against: null, weak_against: null, color: '#22c55e' },
+            fire: { name: '火', strong_against: 'metal', weak_against: 'water', color: '#ef4444' },
+            water: { name: '水', strong_against: 'fire', weak_against: null, color: '#3b82f6' },
+            ...(extra || {})
+        });
+        const beastContent = (element) => ({
+            item_data: BASE_ITEMS,
+            spirit_beast_data: {
+                elements: elements(),
+                element_multiplier: { strong: 1.5, weak: 0.75, normal: 1.0 },
+                beast_types: [{ beast_key: 'probe_beast', name: '探针兽', element, rarity: 'common', base_hp: 100 }],
+                rarity_config: { common: { name: '普通', color: '#9ca3af', order: 1, release_return_ratio: 0.2 } },
+                settings: {}, star_upgrade: { rarity_cost_multiplier: { common: 1.0 } }
+            }
+        });
+        expect(() => build(makeTempContent(beastContent('metal')))).not.toThrow();     // 词表里有
+        expect(() => build(makeTempContent(beastContent(null)))).not.toThrow();        // 没写 = 无属性，合法
+        expect(() => build(makeTempContent(beastContent('thunder'))))
+            .toThrow(/probe_beast\.element="thunder"[\s\S]*不在灵兽属性词表/);
+
+        // 相克指向拼错同样永远匹配不上（比"没配克制"更隐蔽：看起来配了）
+        const badRelation = beastContent('metal');
+        badRelation.spirit_beast_data.elements.metal.strong_against = 'ghost';
+        expect(() => build(makeTempContent(badRelation))).toThrow(/elements\.metal\.strong_against="ghost"/);
+
+        // 资料片自带新的一档灵兽属性 → 引用它的灵兽就此合法（改前只能改基础表）
+        const packAdded = makeTempContent(
+            beastContent('thunder'),
+            {
+                test_pack: {
+                    'pack.json': MANIFEST,
+                    'spirit_beast_data.json': {
+                        dataset: 'spirit_beast_data', into: 'elements',
+                        add: [{ id: 'thunder', name: '雷', strong_against: null, weak_against: null, color: '#a855f7' }]
+                    }
+                }
+            }
+        );
+        expect(() => build(packAdded)).not.toThrow();
+        expect(Object.keys(build(packAdded).content.dataset('spirit_beast_data').elements)).toContain('thunder');
+    });
+
+    /**
+     * 盯的形状：override 对数组字段是**整块替换**。两片资料片改同一条目的同一个数组字段时，
+     * 后合并的那片会把前一片加的条目整块吃掉，而启动报告两边都写着成功（各 ~1）。
+     * 掉落表就是这个形状（一个怪一张表），现网 shark/demon 各只有一个主人，所以这条闸今天零误伤；
+     * 它防的是"下一片"——没有这道闸时，唯一的发现方式是玩家少了一份掉落，而没人知道曾经有过。
+     */
+    test('两片资料片整块替换同一个数组字段 → 启动期点名两片，而不是后一片静默吞掉前一片', () => {
+        const base = {
+            item_data: BASE_ITEMS,
+            map_data: { maps: [{ id: 0, name: '新手村', monsters: [{ id: 'rabbit', name: '野兔' }, { id: 'wolf', name: '野狼' }] }] },
+            drop_data: {
+                drops: [
+                    {
+                        monster_id: 'rabbit', monster_name: '野兔',
+                        drops: [{ item_id: 'wooden_sword', quantity: 1, chance: 1 }]
+                    },
+                    {
+                        monster_id: 'wolf', monster_name: '野狼',
+                        drops: [{ item_id: 'spirit_robe', quantity: 1, chance: 1 }]
+                    }
+                ]
+            }
+        };
+        const dropsOf = (monster, items) => ({
+            dataset: 'drop_data', into: 'drops', override: { [monster]: { drops: items } }
+        });
+        const one = item => [{ item_id: item, quantity: 1, chance: 1 }];
+        const packOf = (id, priority, files) => [id, {
+            'pack.json': { ...MANIFEST, id, priority },
+            ...files
+        }];
+
+        // 各改各的怪 → 不许报错
+        const differentMonsters = makeTempContent(base, Object.fromEntries([
+            packOf('pack_a', 10, { 'drop_data.json': dropsOf('rabbit', one('wooden_sword')) }),
+            packOf('pack_b', 20, { 'drop_data.json': dropsOf('wolf', one('spirit_robe')) })
+        ]));
+        expect(() => build(differentMonsters)).not.toThrow();
+
+        // 同一片自己先后替换同一字段（两个文件指向同一集合）→ 是它自己的事，不许误伤
+        const samePackTwice = makeTempContent(base, Object.fromEntries([
+            packOf('pack_a', 10, {
+                'drop_data.json': dropsOf('rabbit', one('wooden_sword')),
+                'drop_data__drops.json': dropsOf('rabbit', one('spirit_robe'))
+            })
+        ]));
+        expect(() => build(samePackTwice)).not.toThrow();
+        expect(build(samePackTwice).content.dataset('drop_data').drops[0].drops[0].item_id).toBe('spirit_robe');
+
+        // 两片抢同一条 → 报错里必须同时出现先手与后手，作者才知道该找谁协调
+        const clash = makeTempContent(base, Object.fromEntries([
+            packOf('pack_a', 10, { 'drop_data.json': dropsOf('rabbit', one('wooden_sword')) }),
+            packOf('pack_b', 20, { 'drop_data.json': dropsOf('rabbit', one('spirit_robe')) })
+        ]));
+        expect(() => build(clash)).toThrow(ContentError);
+        // 报错里两片的名字都要出现（作者才知道该找谁协调），顺序不重要
+        expect(() => build(clash)).toThrow(/pack_a[\s\S]*pack_b|pack_b[\s\S]*pack_a/);
+        expect(() => build(clash)).toThrow(/整块替换过/);
     });
 
     test('怪物声明的属性必须在注册表里（拼错的键永远不会生效，比崩更难发现）', () => {

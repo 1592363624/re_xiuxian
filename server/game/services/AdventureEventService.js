@@ -535,7 +535,9 @@ class AdventureEventService {
                 rewards: {
                     ...result.granted,
                     // 落库的 rewards 仍是引用，名字只在这份出参里按 item_data 解析
+                    // （grantItems 的回执里现在刻意不带 item_name —— 它会被原样 JSON.stringify 落库）
                     items: withItemNames(result.granted.items),
+                    items_failed: withItemNames(result.granted.items_failed || []),
                     // 透传提前结束 / 受伤等额外标记，前端可直接 rewards.early_finish 读取
                     early_finish: result.early_finish || false,
                     reward_scale: result.reward_scale || null,

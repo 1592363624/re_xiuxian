@@ -1,0 +1,82 @@
+{
+  "dataset": "achievement_data",
+  "into": "achievements",
+  "comment": "四条成就，是本轮新开的两条奖励口子的用法样板：reward.items 发背包物品（走 grantItems，同一个事务，背包装不下就整笔回滚、成就保持未领取），reward.title_id 发称号（走 addTitleToInstance，与副本结算/切磋同一道门）。两种 items 形状都写了一条：对象形带 quantity，裸字符串形按一件算 —— 两者都被 _walkItemRefs 认作物品引用，所以键写错会在启动期被点名。metric 全部取词表里「今天真有写入点」的档位（kill_count / alchemy_count / refining_count 都是 bumpStat 在累加的 stats 计数，friend_count 是要查库的 query），刻意不碰 sparring_count / duel_count：那两档是当日清零的计数，一次性成就拿它当进度就是永远领不到（_validateAchievementRewards 现在就硬拦这一条）。分组 trial（试艺）是本资料片自己新加的一档：achievement_data.categories 本轮刚登记成 map 集合，所以\"加一档成就分组\"也是一条数据而不是改代码。成就的 category 必须落在这份词表里（_validateAchievementRewards 硬拦，界面那侧是 categories[cat]?.name || cat，写错就把裸键印成标题）。数值是草案，等业主签字（与同档基础成就取齐，灵石不超过 base 的 wealth 成就）。",
+  "add": [
+    {
+      "id": "hf_first_trial",
+      "category": "trial",
+      "name": "初赴试艺",
+      "description": "在内门试艺中击败二十五名对手，执事长老发下木令为凭",
+      "metric": "kill_count",
+      "target": 25,
+      "reward": {
+        "spirit_stones": 1000,
+        "exp": 3000,
+        "items": [
+          {
+            "item_key": "huangfeng_trial_token",
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "hf_dan_heart",
+      "category": "trial",
+      "name": "丹心不辍",
+      "description": "丹房烟火不断，炼满十五炉成丹。谷中以丹心论人，此称不以外姓废之",
+      "metric": "alchemy_count",
+      "target": 15,
+      "reward": {
+        "spirit_stones": 1500,
+        "exp": 6000,
+        "items": [
+          "ding_hun_xiang"
+        ],
+        "title_id": "huangfeng_guest_elder"
+      }
+    },
+    {
+      "id": "hf_artifact_name",
+      "category": "trial",
+      "name": "器道通名",
+      "description": "亲手炼出三十件法器，器道之名传遍谷内诸峰，得佩客卿铜印",
+      "metric": "refining_count",
+      "target": 30,
+      "reward": {
+        "spirit_stones": 2500,
+        "exp": 8000,
+        "items": [
+          {
+            "item_key": "huangfeng_guest_seal",
+            "quantity": 1
+          },
+          {
+            "item_key": "ding_hun_xiang",
+            "quantity": 2
+          }
+        ],
+        "title_id": "huangfeng_artificer"
+      }
+    },
+    {
+      "id": "hf_guest_circle",
+      "category": "trial",
+      "name": "宾客盈门",
+      "description": "洞府来过的访客满五位，燃一炷定魂香待客，是谷中老规矩",
+      "metric": "friend_count",
+      "target": 5,
+      "reward": {
+        "spirit_stones": 1200,
+        "exp": 4000,
+        "items": [
+          {
+            "item_key": "ding_hun_xiang",
+            "quantity": 3
+          }
+        ]
+      }
+    }
+  ]
+}

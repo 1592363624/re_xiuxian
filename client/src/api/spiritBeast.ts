@@ -49,6 +49,8 @@ export interface BeastTypeInfo {
   rarity_name: string;
   /** 稀有度颜色 */
   rarity_color: string;
+  /** 稀有度档序（内容 rarity_config.order，越大越稀有） */
+  rarity_order: number;
   /** 基础气血 */
   base_hp: number;
   /** 基础攻击 */
@@ -91,6 +93,12 @@ export interface RarityInfo {
   key: string;
   name: string;
   color: string;
+  /** 由低到高的档序（内容里声明，界面按它排序，不再按键名硬编） */
+  order: number;
+  /** 放生返还比例 */
+  release_return_ratio: number;
+  /** 升星消耗的稀有度倍率 */
+  star_up_cost_multiplier: number;
 }
 
 /** GET /spirit-beast/types 响应数据 */
@@ -128,6 +136,8 @@ export interface SpiritBeastItem {
   rarity_name: string;
   /** 稀有度颜色 */
   rarity_color: string;
+  /** 稀有度档序（内容 rarity_config.order） */
+  rarity_order: number;
   /** 星级 */
   star_level: number;
   /** 等级 */
@@ -165,12 +175,12 @@ export interface BeastListStats {
   total: number;
   max: number;
   active_count: number;
-  by_rarity: {
-    common: number;
-    rare: number;
-    epic: number;
-    legendary: number;
-  };
+  /**
+   * 按稀有度计数：词表里每一档都给一个键（0 也发）。
+   * 以前这里写死四档 —— 资料片加一档就凭空少算一档，而 total 照算，界面自相矛盾。
+   * 词表外的旧档位也会照样列出来（内容下架时玩家身上还有旧行）。
+   */
+  by_rarity: Record<string, number>;
 }
 
 /** GET /spirit-beast/list 响应数据 */

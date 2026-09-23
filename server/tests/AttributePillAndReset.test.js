@@ -114,48 +114,85 @@ describe('配置驱动的丹药效果解析', () => {
 });
 
 describe('背包使用物品链路（InventoryService）', () => {
-    const makePlayer = () => ({
+    // 这里断的是**算法**：喂一份"锁内读出的行"，看它算出什么补丁、回执报什么数。
+    // "补丁真的进了库、且没带走同坨别的键"只有连库才断得出来，那是 scripts/smoke_write_crossflow.js
+    // 的 P1–P4 的活（P1 属性丹 / P2 丹毒夹 0 / P3 寿元 / P4 16 路并发到账）。
+    // 分得这么开的理由：以前这一个函数又读库又写库又算增量，不连库的测试就只能整块跳过它 ——
+    // 而它是"新增一类丹药就多一个分支"的那个函数，恰恰最需要执行型断言（§26 那族事故的形状）。
+    const makeFresh = over => ({
+        id: 1,
         hp_current: 10,
         mp_current: 0,
         exp: 0n,
         spirit_stones: 0n,
-        attributes: { hp_max: 100, mp_max: 50 }
+        lifespan_max: 120,
+        toxicity: 0,
+        attributes: { hp_max: 100, mp_max: 50 },
+        ...over
+    });
+    const plan = (fresh, effect, opts = {}) => InventoryService._planItemEffect({
+        fresh,
+        effect,
+        multiplier: opts.multiplier ?? 1,
+        qualityMultiplier: opts.qualityMultiplier ?? 1,
+        resolvedStats: opts.resolvedStats || {}
     });
 
-    test('属性丹通过 _applyItemEffect 写入 bonus 并回显实际增量', async () => {
-        const player = makePlayer();
+    test('属性丹算成 $add 键级补丁并回显实际增量（不返回整块 attributes）', () => {
+        const fresh = makeFresh();
         const effect = ITEM_CONFIG.items.find(i => i.id === 'nascent_soul_pill').effect;
 
-        const applied = await InventoryService._applyItemEffect(player, effect, 1, 1, null);
+        const { blobPatch, applied } = plan(fresh, effect);
 
-        expect(player.attributes.hp_bonus).toBe(300);
-        expect(player.attributes.atk_bonus).toBe(50);
+        expect(blobPatch).toEqual({ hp_bonus: { $add: 300 }, atk_bonus: { $add: 50 } });
         expect(applied.permanent_attribute_bonus).toEqual({ hp_bonus: 300, atk_bonus: 50 });
+        // 纯函数：不就地改锁内那份（改了就等于把"整块写回"从后门带回来）
+        expect(fresh.attributes).toEqual({ hp_max: 100, mp_max: 50 });
     });
 
-    test('已达总量上限时不再产生增量，也不回显空加成', async () => {
-        const player = makePlayer();
-        player.attributes.hp_bonus = 1000;   // 配置上限 1000
+    test('已达总量上限时不再产生增量，也不回显空加成', () => {
+        const fresh = makeFresh({ attributes: { hp_max: 100, mp_max: 50, hp_bonus: 1000 } });   // 配置上限 1000
 
-        const applied = await InventoryService._applyItemEffect(
-            player,
-            { hp_max: 300 },
-            1,
-            1,
-            null
-        );
+        const { blobPatch, applied } = plan(fresh, { hp_max: 300 });
 
-        expect(player.attributes.hp_bonus).toBe(1000);
+        expect(blobPatch).toEqual({});
         expect(applied.permanent_attribute_bonus).toBeUndefined();
     });
 
-    test('普通回复类丹药物品行为不受影响', async () => {
-        const player = makePlayer();
-        const applied = await InventoryService._applyItemEffect(player, { mp_restore: 50 }, 1, 1, null);
-
-        expect(Number(player.mp_current)).toBe(50);
+    test('普通回复类丹药：增量走钳制后的绝对值，上限取解析后的属性', () => {
+        const { columns, applied } = plan(makeFresh(), { mp_restore: 50 });
+        expect(columns.mp_current).toBe(50);
         expect(applied.mp_restore).toBe(50);
         expect(applied.permanent_attribute_bonus).toBeUndefined();
+
+        // blob 里的 hp_max 是旧管线留下的输出键（不含装备/功法）：拿它当钳制会让"吃 +500 回春丹"
+        // 把气血 4000 的玩家补到 100 以下。解析后 hp_max=126 时按 126 钳，而不是按 blob 的 100。
+        const hp = plan(makeFresh({ hp_current: 110 }), { hp_restore: 500 }, { resolvedStats: { hp_max: 126 } });
+        expect(hp.columns.hp_current).toBe(126);
+        expect(hp.applied.hp_restore).toBe(500);
+        // 解析层没给数（未初始化）才退回 blob 那份镜像
+        expect(plan(makeFresh({ hp_current: 30 }), { hp_restore: 5 }, { resolvedStats: { hp_max: 0 } }).columns.hp_current).toBe(35);
+        // 上限算低了也不许把满血的人打成残血
+        expect(plan(makeFresh({ hp_current: 90 }), { hp_restore: 1 }, { resolvedStats: { hp_max: 60 } }).columns.hp_current).toBe(90);
+    });
+
+    test('钱与修为算成列上原子加（不读旧值），寿元上限与丹毒各自走各自那一档', () => {
+        const gain = plan(makeFresh(), { spirit_stones: 4000, exp: 10 }, { multiplier: 8 });
+        expect(gain.amounts).toEqual({ spirit_stones: 32000n, exp: 80n });   // 回执之和 == 库里增量，P4 钉的就是这条
+        expect(gain.applied).toMatchObject({ spirit_stones: 32000, exp: 80 });
+
+        const life = plan(makeFresh({ lifespan_max: 115 }), { longevity_add: 30 });
+        expect(life.columns.lifespan_max).toBe(145);        // 锁内读 + 绝对值：它不在增减白名单里
+        expect(life.applied.longevity_add).toBe(30);
+
+        const detox = plan(makeFresh({ toxicity: 5 }), { toxicity_reduce: 15 });
+        expect(detox.amounts.toxicity).toBe(-15);           // 夹到 0 由 store 在行锁内做，内容写多大都不会扣成负数
+        expect(detox.applied.toxicity_reduce).toBe(15);
+    });
+
+    test('突破加成这类没落账的效果不进补丁也不进回执（回执里不许有没发生的数）', () => {
+        const { columns, amounts, blobPatch, applied } = plan(makeFresh(), { breakthrough_bonus: 15 });
+        expect({ columns, amounts, blobPatch, applied }).toEqual({ columns: {}, amounts: {}, blobPatch: {}, applied: {} });
     });
 
     test('永久属性丹拒绝批量使用（校验发生在查库之前）', async () => {
@@ -305,15 +342,31 @@ describe('属性点重置只回收加点账本', () => {
         expect(plan.attributes.hp_bonus).toBe(50);
     });
 
-    test('buildAttributesAfterReset 记录重置时点并清掉账本', () => {
+    test('重置补丁只碰它该碰的键：回收按 $add 负增量、账本删键、写冷却时点', () => {
         const plan = AttributeService.buildAllocatedPointsReset(makePlayer({
-            attributes: { hp_bonus: 4, attribute_point_allocations: { hp_bonus: 4 } }
+            attributes: { hp_bonus: 4, atk_bonus: 7, sense: 900, attribute_point_allocations: { hp_bonus: 4 } }
         }));
         const before = Date.now();
-        const next = AttributeService.buildAttributesAfterReset(plan);
+        const patch = AttributeService.buildAttributesResetPatch(plan);
 
-        expect(next.attribute_point_allocations).toBeUndefined();
-        expect(new Date(next.last_attribute_reset_time).getTime()).toBeGreaterThanOrEqual(before);
+        expect(patch).toEqual({
+            attribute_point_allocations: null,
+            hp_bonus: { $add: -4, $min: 0 },
+            last_attribute_reset_time: expect.any(String)
+        });
+        // 与本次重置无关的键一个都不许进补丁（旧写法把整份 blob 摊平后一起写回，
+        // 于是这些键按手上那份快照又被写了一遍 —— 同坨里丹药加成/神识池/别的玩法的键都在射程内）
+        expect(Object.keys(patch)).not.toContain('atk_bonus');
+        expect(Object.keys(patch)).not.toContain('sense');
+        expect(new Date(patch.last_attribute_reset_time).getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    test('回收明细为空时也只发删账本 + 时点两个键（不返回整份 attributes）', () => {
+        const plan = AttributeService.buildAllocatedPointsReset(makePlayer({ attributes: { hp_bonus: 50 } }));
+        expect(AttributeService.buildAttributesResetPatch(plan)).toEqual({
+            attribute_point_allocations: null,
+            last_attribute_reset_time: expect.any(String)
+        });
     });
 
     test('重置规则可读配置，配置缺失时兜底', () => {

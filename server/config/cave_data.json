@@ -359,7 +359,6 @@
         "enabled": true,
         "max_exhibits": 6,
         "min_quality": "uncommon",
-        "quality_order": ["common", "uncommon", "rare", "epic", "legendary", "mythic"],
         "appreciate": {
           "comment": "鉴赏配置：拜访他人洞府后可鉴赏展品获得修为，有概率触发顿悟",
           "daily_limit": 3,

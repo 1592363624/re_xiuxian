@@ -10,6 +10,7 @@ const { Op, literal } = require('sequelize');
 const SystemNotification = require('../../models/system_notification');
 const NotificationRead = require('../../models/notification_read');
 const eventBus = require('../../modules/infrastructure/EventBus');
+const configLoader = require('../../modules/infrastructure/ConfigLoader');
 
 /**
  * "该玩家还没读过这条通知"的 SQL 片段
@@ -33,7 +34,10 @@ function notReadBy(playerId) {
 }
 
 /**
- * 该玩家可见的通知范围（发给本人 或 全服），并且未过期
+ * 该玩家可见的通知范围：发给本人或全服、已到发布时间、且未过期
+ *
+ * 发布时间（publishAt）写进查询条件而不是只靠定时器去"改状态"：
+ * 调度器停摆、或玩家恰好在到点前后刷新，看到的结果都一致。
  * @param {number} playerId
  * @returns {Object} Sequelize where 片段
  */
@@ -50,11 +54,102 @@ function visibleWhere(playerId) {
             },
             {
                 [Op.or]: [
+                    { publishAt: null },
+                    { publishAt: { [Op.lte]: now } }
+                ]
+            },
+            {
+                [Op.or]: [
                     { expiresAt: null },
                     { expiresAt: { [Op.gt]: now } }
                 ]
             }
         ]
+    };
+}
+
+/**
+ * 读取通知的 metadata（TEXT 列，存的是一段 JSON）
+ * @param {Object} notification - SystemNotification 实例或 toJSON() 结果
+ * @returns {Object} 解析失败时返回空对象，绝不抛错
+ */
+function parseMetadata(notification) {
+    try {
+        return JSON.parse(notification?.metadata || '{}') || {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * 以"我读到的那份原值 == 库里现在的值"为条件写回 metadata（乐观并发 / CAS），撞车就重读再合。
+ *
+ * 为什么需要：`metadata` 是一个 TEXT 里装 JSON 的**整块列**，SQL 没法只改其中一个键，
+ * 只能整块写。而它有两个互不知晓的写入方：GM 编辑公告（写 imageUrls、清 notice_pushed）
+ * 与调度器打推送标记（写 notice_pushed / pushed_at）。以前的两条都是
+ * "无锁读 → 内存里合并 → update 整块"，交错起来就是标准的旧快照覆盖新快照：
+ *   调度器刚标完已推送，GM 那笔编辑把手上更早读到的那份写回去 → notice_pushed 丢了
+ *     → 同一张公告下一轮又全服弹一次（这条代码自己注释里最怕的就是重复弹窗）；
+ *   反过来 GM 先写入配图、调度器用旧的一份写回 → 玩家的公告图上凭空少一张图。
+ *
+ * 为什么用 CAS 而不是 FOR UPDATE：这一行玩家只读不写，但它是**全服共享**的一行，
+ * 为一块 JSON 的合并把行锁跨在两次 await 上没有收益；把原值放进 where 恰好就是把
+ * "我这一整块是基于库里最新那份算的"这句话写进了语句本身，数据库自己保证它成立。
+ * where 里 metadata 传 null 时 Sequelize 出 `IS NULL`，与"库里还没写过 metadata"对得上。
+ *
+ * @param {number} id - 通知 ID
+ * @param {string|undefined} expected - 调用方手上那份 metadata 原文；undefined 表示先读一次
+ * @param {Object} [columns] - 与 metadata 同一条语句一起写的其它列（整块原子写）
+ * @param {Function} merge - (当前解析出的对象) => 新对象
+ * @returns {Promise<{metadata: Object, changed: boolean}|null>} null = 通知不存在
+ */
+async function mergeMetadataCas({ id, expected, columns = {}, merge }) {
+    let previous = expected;
+    for (let attempt = 0; attempt < 4; attempt++) {
+        if (previous === undefined) {
+            const row = await SystemNotification.findByPk(id, { attributes: ['id', 'metadata'] });
+            if (!row) return null;
+            previous = row.metadata;
+        }
+        const next = merge(parseMetadata({ metadata: previous })) || {};
+        const nextText = JSON.stringify(next);
+        if (nextText === previous) return { metadata: next, changed: false };
+
+        const affected = await SystemNotification.update(
+            { ...columns, metadata: nextText },
+            { where: { id, metadata: previous } }
+        );
+        if (Number(Array.isArray(affected) ? affected[0] : affected) === 1) {
+            return { metadata: next, changed: true };
+        }
+        previous = undefined;   // 有人先写过：下一轮重读最新那份再合，绝不拿旧的硬盖
+    }
+    throw new Error(`公告 #${id} 的属性连续 4 轮撞车，请重试这次操作`);
+}
+
+/** 配置未就绪时的兜底策略（与其它服务同一套思路） */
+const FALLBACK_POLICY = {
+    scheduler: { enabled: true, interval_ms: 60000, batch_size: 200 },
+    retention: { delete_receipts_on_expire: true },
+    republish_notice: {
+        enabled: true,
+        max_recipients: 5000,
+        title: '公告已更正',
+        content: '你读过的公告《{title}》已被管理员更正，请留意最新内容。',
+        priority: 'normal'
+    }
+};
+
+/**
+ * 读取通知策略配置（每次现读，热更新即时生效）
+ * @returns {Object} 与 FALLBACK_POLICY 同结构
+ */
+function getPolicy() {
+    const raw = configLoader.peekConfig('notification_policy') || {};
+    return {
+        scheduler: { ...FALLBACK_POLICY.scheduler, ...(raw.scheduler || {}) },
+        retention: { ...FALLBACK_POLICY.retention, ...(raw.retention || {}) },
+        republish_notice: { ...FALLBACK_POLICY.republish_notice, ...(raw.republish_notice || {}) }
     };
 }
 
@@ -72,6 +167,7 @@ class NotificationService {
         actorPlayerId = null,
         actorNickname = null,
         metadata = {},
+        publishAt = null,
         expiresAt = null
     }) {
         try {
@@ -84,24 +180,31 @@ class NotificationService {
                 actorPlayerId,
                 actorNickname,
                 metadata: JSON.stringify(metadata),
+                publishAt,
                 expiresAt
             });
 
             // 通过事件总线广播通知
-            // metadata 一并带出：公告配图地址（imageUrls）就存在这里，
-            // WebSocketNotificationService 需要它才能把图片推给在线玩家
-            eventBus.publish('notification:created', {
-                notificationId: notification.id,
-                type,
-                title,
-                content,
-                priority,
-                targetPlayerId,
-                actorNickname,
-                metadata
-            }, {
-                from: 'NotificationService'
-            });
+            //
+            // 预约发布的公告（publishAt 在未来）在这里**不广播**：它此刻还对玩家不可见，
+            // 提前推弹窗会直接暴露未发布内容。到点由 NotificationSchedulerService 推送。
+            const isScheduled = publishAt instanceof Date && publishAt.getTime() > Date.now();
+            if (!isScheduled) {
+                eventBus.publish('notification:created', {
+                    notificationId: notification.id,
+                    type,
+                    title,
+                    content,
+                    priority,
+                    targetPlayerId,
+                    actorNickname,
+                    // metadata 一并带出：公告配图地址（imageUrls）就存在这里，
+                    // WebSocketNotificationService 需要它才能把图片推给在线玩家
+                    metadata
+                }, {
+                    from: 'NotificationService'
+                });
+            }
 
             return notification;
         } catch (error) {
@@ -116,28 +219,39 @@ class NotificationService {
      * @param {string} content - 内容
      * @param {string} priority - 优先级
      * @param {Object} [metadata] - 附加数据；公告配图地址放在 metadata.imageUrls
+     * @param {Object} [schedule] - 定时设置 { publishAt, expiresAt }（均为 Date 或 null）
      */
-    async sendAnnouncement(title, content, priority = 'high', metadata = {}) {
+    async sendAnnouncement(title, content, priority = 'high', metadata = {}, schedule = {}) {
         return this.createNotification({
             type: 'announcement',
             title,
             content,
             priority,
             targetPlayerId: null,
-            metadata
+            metadata,
+            publishAt: schedule.publishAt || null,
+            expiresAt: schedule.expiresAt || null
         });
     }
 
     /**
      * 发送突破通知
+     *
+     * 只写一条。以前这里写完 type='breakthrough' 的记录后又调了一次
+     * sendAnnouncement('境界突破', 同样的正文)，而两条的 targetPlayerId 都是 null
+     * —— getPlayerNotifications 把 null 当全服可见，于是同一条突破在每个玩家的
+     * 「公告」面板里出现两遍（一条标"突破"、一条标"公告"），socket 也会弹两次。
+     * 探针号跑了几十天之后公告攒到 234 条，一半是这种复读。
+     *
      * @param {Object} player - 玩家信息
      * @param {string} oldRealm - 原境界
      * @param {string} newRealm - 新境界
      */
     async sendBreakthroughNotification(player, oldRealm, newRealm) {
         const content = `恭喜【${player.nickname}】成功突破！从【${oldRealm}】晋升为【${newRealm}】！`;
-        
-        const notification = await this.createNotification({
+
+        // 全服播报：targetPlayerId 留空即为全服可见，不需要再补一条 announcement
+        return this.createNotification({
             type: 'breakthrough',
             title: '境界突破',
             content,
@@ -146,11 +260,6 @@ class NotificationService {
             actorNickname: player.nickname,
             metadata: { oldRealm, newRealm, playerId: player.id }
         });
-
-        // 发送全服通知
-        await this.sendAnnouncement('境界突破', content, 'high');
-        
-        return notification;
     }
 
     /**
@@ -352,14 +461,23 @@ class NotificationService {
      */
     async getGlobalNotifications(limit = 10) {
         const now = new Date();
-        
+
         return SystemNotification.findAll({
             where: {
                 targetPlayerId: null,
                 isActive: true,
+                // 与 visibleWhere 同一口径：预约未到点的公告不能提前露出来
                 [Op.or]: [
-                    { expiresAt: null },
-                    { expiresAt: { [Op.gt]: now } }
+                    { publishAt: null },
+                    { publishAt: { [Op.lte]: now } }
+                ],
+                [Op.and]: [
+                    {
+                        [Op.or]: [
+                            { expiresAt: null },
+                            { expiresAt: { [Op.gt]: now } }
+                        ]
+                    }
                 ]
             },
             order: [['priority', 'DESC'], ['createdAt', 'DESC']],
@@ -459,7 +577,8 @@ class NotificationService {
      * 顺带这也让"编辑通知"的读改写集中在一处，路由只做参数校验与日志。
      *
      * @param {number} id - 通知ID
-     * @param {{title: string, content: string, priority: string, imageUrls: string[]}} fields - 完整字段（非部分更新）
+     * @param {{title: string, content: string, priority: string, imageUrls: string[],
+     *          publishAt?: Date|null, expiresAt?: Date|null}} fields - 完整字段（非部分更新）
      * @returns {Promise<{before: Object, after: Object}|null>} null 表示通知不存在
      */
     async updateNotificationFields(id, fields) {
@@ -467,28 +586,50 @@ class NotificationService {
         if (!notification) return null;
 
         // metadata 里除了 imageUrls 可能还有别的键（历史数据），合并而不是整体替换
-        let metadata = {};
-        try {
-            metadata = JSON.parse(notification.metadata || '{}') || {};
-        } catch {
-            metadata = {};
-        }
+        const metadata = parseMetadata(notification);
 
         const before = {
             title: notification.title,
             content: notification.content,
             priority: notification.priority,
-            imageUrls: Array.isArray(metadata.imageUrls) ? metadata.imageUrls : []
+            imageUrls: Array.isArray(metadata.imageUrls) ? metadata.imageUrls : [],
+            publishAt: notification.publishAt,
+            expiresAt: notification.expiresAt
         };
 
-        await notification.update({
-            title: fields.title,
-            content: fields.content,
-            priority: fields.priority,
-            metadata: JSON.stringify({ ...metadata, imageUrls: fields.imageUrls })
-        });
+        // 时间字段只在调用方真的传了才改（undefined = 不动），这样编辑文字不会顺手把预约时间清掉
+        const nextPublishAt = fields.publishAt === undefined ? notification.publishAt : fields.publishAt;
+        const nextExpiresAt = fields.expiresAt === undefined ? notification.expiresAt : fields.expiresAt;
 
-        return { before, after: { ...fields } };
+        // 改期到未来 → 清掉"已推送"标记，调度器到点会重新推一次（等价于"重新预约发布"）；
+        // 改成过去时间则保留该标记：把时间往回调不该变成一次全服重复弹窗。
+        // 合并与写入都交给 mergeMetadataCas：这一列是整块 JSON，两个写入方交错时
+        // 拿旧快照 update 整块就会把对方的键抹掉（notice_pushed 被抹 → 重复全服弹窗）。
+        const edited = await mergeMetadataCas({
+            id,
+            expected: notification.metadata,
+            columns: {
+                title: fields.title,
+                content: fields.content,
+                priority: fields.priority,
+                publishAt: nextPublishAt,
+                expiresAt: nextExpiresAt
+            },
+            merge: (metadata) => {
+                const next = { ...metadata, imageUrls: fields.imageUrls };
+                if (nextPublishAt && new Date(nextPublishAt).getTime() > Date.now()) {
+                    delete next.notice_pushed;
+                    delete next.pushed_at;
+                }
+                return next;
+            }
+        });
+        if (!edited) return null;         // 通知在两次读之间被删掉了
+
+        return {
+            before,
+            after: { ...fields, publishAt: nextPublishAt, expiresAt: nextExpiresAt }
+        };
     }
 
     /**
@@ -507,19 +648,152 @@ class NotificationService {
     }
 
     /**
-     * 删除过期通知
+     * 自动下架过期通知，并清理它们的已读回执
+     *
+     * 回执与通知的存活周期挂钩：下架后玩家再也看不到这条通知，
+     * 留着回执只会让未读计数的 NOT EXISTS 白扫——回执表会随"公告数 × 活跃玩家数"增长，
+     * 不设回收口子的话它是唯一只涨不落的一张表。
+     * 开关在 notification_policy.retention.delete_receipts_on_expire。
+     *
+     * 注意：这里只处理"到期自动下架"，GM 手动撤回（unpublish）**不动回执**——
+     * 撤回随时可能恢复，回执删了玩家就要重新读一遍。
+     *
+     * @param {number} [limit] - 单批处理条数
+     * @returns {Promise<{expired: number, receiptsRemoved: number}>}
      */
-    async cleanupExpiredNotifications() {
+    async cleanupExpiredNotifications(limit = getPolicy().scheduler.batch_size) {
         const now = new Date();
-        return SystemNotification.update(
-            { isActive: false },
-            {
-                where: {
-                    isActive: true,
-                    expiresAt: { [Op.lt]: now }
-                }
+
+        // 先取 ID 再更新：既要拿到准确的条数写日志，也要知道该删哪些回执
+        const rows = await SystemNotification.findAll({
+            attributes: ['id'],
+            where: {
+                isActive: true,
+                expiresAt: { [Op.lt]: now }
+            },
+            limit,
+            raw: true
+        });
+        if (rows.length === 0) return { expired: 0, receiptsRemoved: 0 };
+
+        const ids = rows.map(row => row.id);
+        await SystemNotification.update({ isActive: false }, { where: { id: { [Op.in]: ids } } });
+
+        const receiptsRemoved = getPolicy().retention.delete_receipts_on_expire
+            ? await this.deleteReadReceipts(ids)
+            : 0;
+
+        return { expired: ids.length, receiptsRemoved };
+    }
+
+    /**
+     * 取到点需要推送的预约公告
+     *
+     * "是否已推送"记在 metadata.notice_pushed 而不是新开一列：
+     * 它纯粹是调度器的内部标记，不参与任何业务查询，没必要为它加字段与迁移。
+     * @param {number} limit - 单批条数
+     * @returns {Promise<Array>}
+     */
+    async getDueScheduledNotifications(limit = getPolicy().scheduler.batch_size) {
+        const now = new Date();
+        const rows = await SystemNotification.findAll({
+            where: {
+                isActive: true,
+                // 到了发布时间、且尚未过期（同一字段上的两个操作符按 AND 组合）
+                publishAt: { [Op.ne]: null, [Op.lte]: now },
+                [Op.or]: [
+                    { expiresAt: null },
+                    { expiresAt: { [Op.gt]: now } }
+                ]
+            },
+            order: [['publishAt', 'ASC']],
+            limit
+        });
+
+        // metadata 是 TEXT，SQL 里没法可靠地按 JSON 键过滤（MySQL 5.6 没有 JSON 函数），
+        // 所以"是否已推送"在应用层判：每批至多 batch_size 条，代价可以接受
+        return rows.filter(row => parseMetadata(row).notice_pushed !== true);
+    }
+
+    /**
+     * 标记预约公告已推送过（避免调度器每轮重复广播）
+     *
+     * 调用方传的是它从库里读到的那一行；这里只取它的 id 与那份 metadata 原文，
+     * 写入走 mergeMetadataCas（where 带上原值）—— 调度器读行与写标记之间隔着一整段广播，
+     * 那期间 GM 完全可能编辑过同一条公告，直接 update 整块就会把新配图抹掉。
+     * @param {Object|number} notification - SystemNotification 实例（或通知 ID）
+     * @returns {Promise<boolean>} true = 这一次真的把标记写上了（调用方据此计数/失败重试）
+     */
+    async markAsPushed(notification) {
+        const id = typeof notification === 'object' && notification !== null ? notification.id : notification;
+        if (!id) return false;
+        const expected = typeof notification === 'object' && notification !== null
+            ? notification.metadata : undefined;
+
+        let wanted = false;
+        const merged = await mergeMetadataCas({
+            id,
+            expected,
+            merge: (metadata) => {
+                if (metadata.notice_pushed === true) return metadata;   // 原样返回 → 不写
+                wanted = true;
+                return { ...metadata, notice_pushed: true, pushed_at: new Date().toISOString() };
             }
-        );
+        });
+        // 返回的是"这一次真的把标记落库了吗"，不是"我想写"：两条腿同时进来时，
+        // 后写的那一条 CAS 撞车 → 重读发现已标记 → 一行都没改。调用方（调度器）据此计数，
+        // 报"我想写"会让它以为自己是第一个推的，同一张公告就可能被算两次广播。
+        return !!merged && merged.changed === true && wanted;
+    }
+
+    /**
+     * 通知"已经读过这条公告的人"：公告被更正了
+     *
+     * 做法是**重置他们的已读回执**（未读红点回来、未读计数 +1）而不是给每人插一行通知：
+     *   - 重置能让离线玩家下次打开消息面板时就看见它重新是未读的，覆盖面比 socket 更广；
+     *   - 而给几千个读者各插一行 system_notifications，会让通知表按"人数 × 公告数"膨胀，
+     *     这些行本身又没有任何独立内容。
+     * socket 推送只是"在线的人立刻知道"的补充，因此按 max_recipients 截断。
+     *
+     * @param {Object} notification - 被编辑的通知（SystemNotification 实例）
+     * @returns {Promise<{readers: number, pushed: number, reset: boolean}>}
+     */
+    async notifyReadersOfUpdate(notification) {
+        const policy = getPolicy().republish_notice;
+        if (!policy.enabled) return { readers: 0, pushed: 0, reset: false };
+
+        const rows = await NotificationRead.findAll({
+            attributes: ['playerId'],
+            where: { notificationId: notification.id },
+            raw: true
+        });
+        if (rows.length === 0) return { readers: 0, pushed: 0, reset: false };
+
+        const readerIds = rows.map(row => row.playerId);
+        await this.deleteReadReceipts([notification.id]);
+
+        // 懒加载：WebSocketNotificationService 在模块加载时会去 ConfigLoader 取图标配置，
+        // 顶层引入会让本服务在配置就绪前被 require 时直接抛错
+        let pushed = 0;
+        try {
+            const WebSocketNotificationService = require('./WebSocketNotificationService');
+            const content = String(policy.content || '').replace(/\{title\}/g, notification.title || '');
+            for (const playerId of readerIds.slice(0, policy.max_recipients)) {
+                WebSocketNotificationService.sendToPlayer(playerId, {
+                    type: 'announcement',
+                    title: policy.title,
+                    content,
+                    priority: policy.priority,
+                    targetPlayerId: playerId
+                });
+                pushed += 1;
+            }
+        } catch (error) {
+            // 推送失败不该回滚"重置回执"——玩家重新看到未读才是主要目的
+            console.warn('[通知] 公告更正推送失败:', error.message);
+        }
+
+        return { readers: readerIds.length, pushed, reset: true };
     }
 }
 

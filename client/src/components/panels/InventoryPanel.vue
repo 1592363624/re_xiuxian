@@ -26,6 +26,7 @@ import EmptyState from '../ui/EmptyState.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { useStatSchema } from '../../composables/useStatSchema'
+import { useItemQualities } from '../../composables/useItemQualities'
 import { formatCompact } from '../../utils/format'
 import { getInventory, useItem, discardItem } from '../../api/inventory'
 import { getEquipped, equipItem, unequipItem, getEquipmentBonus } from '../../api/equipment'
@@ -103,58 +104,15 @@ const confirmModal = ref({
 // 此处保留分类下拉选项的 computed 包装，便于模板直接遍历
 // （categories 为 ref，模板中需 .value，此处不再额外包装 computed）
 
-// ====== 品质颜色映射 ======
-// common 白 / uncommon 绿 / rare 青 / epic 紫 / legendary 鎏金
-// 色相是玩法信息（品阶），保留跨度；中性档与鎏金档改用与 tokens.css 同值的令牌，
-// 保证与 Pawnshop / Auction / Crafting 的品质色一致
-const qualityColorMap = {
-  common: {
-    border: 'border-line-strong',
-    text: 'text-fg-secondary',
-    glow: 'shadow-surface-sunken/30',
-    label: '普通'
-  },
-  uncommon: {
-    border: 'border-emerald-600',
-    text: 'text-emerald-400',
-    glow: 'shadow-emerald-900/40',
-    label: '非凡'
-  },
-  rare: {
-    border: 'border-sky-600',
-    text: 'text-sky-400',
-    glow: 'shadow-sky-900/40',
-    label: '稀有'
-  },
-  epic: {
-    border: 'border-purple-600',
-    text: 'text-purple-400',
-    glow: 'shadow-purple-900/40',
-    label: '史诗'
-  },
-  legendary: {
-    border: 'border-gold-600',
-    text: 'text-gold-400',
-    glow: 'shadow-gold-900/50',
-    label: '传说'
-  },
-  unknown: {
-    border: 'border-line',
-    text: 'text-fg-faint',
-    glow: 'shadow-surface-sunken/30',
-    label: '未知'
-  }
-}
+/**
+ * 品质边框 / 光晕 / 文字色与中文标签：一律取服务端 game_balance.item_qualities
+ * （见 composables/useItemQualities.js）。这里以前自己抄了一份五档 + unknown 的字典，
+ * mythic 压根不在表里 —— 神话档物品在背包里只能退成中性色的"未知"，
+ * 而另外几份抄写漏同一档时干脆印成"普通"；资料片加一档也全都不会跟着变。
+ */
+const { styleOf: getQualityStyle } = useItemQualities()
 
 // ====== 类型中文名映射已迁移至上方响应式变量 itemTypeMap（从后端拉取） ======
-
-/**
- * 获取品质对应的样式配置
- * @param quality - 品质 key
- */
-const getQualityStyle = (quality) => {
-  return qualityColorMap[quality] || qualityColorMap.unknown
-}
 
 /**
  * 获取物品类型中文名
@@ -217,6 +175,20 @@ const toggleItemMenu = (item) => {
   } else {
     expandedItemKey.value = item.item_key
   }
+}
+
+/**
+ * 这张卡点开会给出哪些操作 —— 与下面操作菜单里三个按钮的 v-if 条件严格一致。
+ * 判定只写在这一处，卡面提示和真按钮不会各说一套。
+ * @param {Object} item
+ * @returns {string[]}
+ */
+const itemActionLabels = (item) => {
+  const labels = []
+  if (item.usable) labels.push('使用')
+  if (item.type === 'equipment') labels.push('穿戴')
+  labels.push('丢弃')
+  return labels
 }
 
 /**
@@ -693,10 +665,20 @@ onMounted(() => {
               expandedItemKey === item.item_key ? 'ring-1 ring-gold-700/60' : ''
             ]"
           >
-            <!-- 物品卡片头部 -->
+            <!-- 物品卡片头部：点击展开操作菜单。
+                 原来是一个只写了 cursor-pointer 的 div —— 面板副标题明明写着
+                 "装备 · 使用 · 丢弃"，卡面上却没有任何一处说这行字从哪儿来，
+                 玩家只能靠猜；而 div 拿不到焦点，纯键盘玩家根本用不了物品。
+                 现在补 role/tabindex/回车空格 + 一行写明"点开会得到哪些操作"。 -->
             <div
-              class="p-3 cursor-pointer"
+              class="p-3 cursor-pointer focus-ring rounded-t"
+              role="button"
+              tabindex="0"
+              :aria-expanded="expandedItemKey === item.item_key ? 'true' : 'false'"
+              :aria-label="`${item.name}，展开操作`"
               @click="toggleItemMenu(item)"
+              @keydown.enter.prevent="toggleItemMenu(item)"
+              @keydown.space.prevent="toggleItemMenu(item)"
             >
               <div class="flex justify-between items-start mb-2">
                 <div class="flex-1 min-w-0">
@@ -721,6 +703,15 @@ onMounted(() => {
               <p v-if="formatEffectText(item.effect)" class="text-[11px] text-sky-300 mt-1.5">
                 {{ formatEffectText(item.effect) }}
               </p>
+              <!-- 展开提示：把"点开会看到哪些操作"直接写在卡面上 -->
+              <div class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-line-subtle/60">
+                <span class="text-[10px] text-fg-faint">{{ itemActionLabels(item).join(' · ') }}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     class="shrink-0 text-fg-faint transition-transform duration-200"
+                     :class="expandedItemKey === item.item_key ? 'rotate-180' : ''" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </div>
             </div>
 
             <!-- 操作菜单（点击展开） -->

@@ -23,6 +23,7 @@ const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const BountyService = require('../game/services/BountyService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const NAMES = ['bounty_a', 'bounty_b'];
 const START = 200000;
@@ -45,6 +46,9 @@ async function myRows(ids) {
     });
 }
 async function wipe(ids) {
+    // player_bounties 用的是 publisher_id / target_id（"谁发的、挂在谁头上"），不是 player_id，
+    // 不在级联清理的"归属"档里 —— 而且 target_id 那几行是**别人**挂的悬赏，替发布者抹掉它不对，
+    // 但探针自己造的这几条要收干净，所以仍然由探针自己清；players 与派生资产交给 PlayerCascadePurge。
     await PlayerBounty.destroy({
         where: { [Op.or]: [{ publisher_id: { [Op.in]: ids } }, { target_id: { [Op.in]: ids } }] }, force: true
     });
@@ -169,14 +173,14 @@ async function main() {
         const fails = results.filter(r => !r.ok).length + hard;
         try {
             const ps = await Player.findAll({ where: { username: { [Op.in]: NAMES } } });
-            const ids = ps.map(p => p.id);
+            const ids = ps.map(p => Number(p.id));
             if (ids.length) {
                 await wipe(ids);
-                await Player.destroy({ where: { id: { [Op.in]: ids } }, force: true });
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`
+                    + `（残留 ${await Player.count({ where: { username: { [Op.in]: NAMES } } })} 个账号、${
+                        await PlayerBounty.count({ where: { publisher_id: { [Op.in]: ids } } })} 行悬赏）`);
             }
-            console.log(`清理：探针号 ${NAMES.join('/')} 与它们的悬赏行已删（残留 ${
-                (await Player.count({ where: { username: { [Op.in]: NAMES } } }))} 个账号、${
-                ids.length ? await PlayerBounty.count({ where: { publisher_id: { [Op.in]: ids } } }) : 0} 行悬赏）`);
         } catch (ce) {
             console.warn('清理失败：', ce.message);
         }

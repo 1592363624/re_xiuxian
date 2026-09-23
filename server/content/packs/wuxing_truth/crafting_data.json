@@ -1,7 +1,7 @@
 {
   "dataset": "crafting_data",
   "into": "alchemy_recipes",
-  "comment": "五气朝元丹的丹方：材料用现网已有的灵草，产物是本资料片新增的丹药。",
+  "comment": "五气朝元丹与剑心丹两张丹方：材料全用现网真有来源的灵草/残片（同一份来源判据算出来的可达集合），产物是本资料片新增的丹药。剑心丹这一件原先也只有定义、没有任何进货渠道，本轮补上。两张方子的 learn_source 都从 sect 改成 default：CraftingService 只认 default（首次访问自动学），sect 与 scroll:xxx 没有任何代码读 —— 原来的写法看起来是「宗门会教」，实际玩家一辈子学不会，那条丹药链于是照样是死的（详见同目录 crafting_data__refining_recipes.json 的注释与 tests/ItemSourceCoverage.test.js）。",
   "add": [
     {
       "id": "craft_five_qi_pill",
@@ -18,7 +18,25 @@
       "base_success_rate": 0.6,
       "skill_exp": 25,
       "cooldown_sec": 60,
-      "learn_source": "sect"
+      "learn_source": "default"
+    },
+    {
+      "id": "craft_jianxin_dan",
+      "name": "炼制剑心丹",
+      "type": "alchemy",
+      "description": "以清源剑残片一份、星砂六粒、朱果四枚，淬出剑心一粒",
+      "product": { "item_key": "jianxin_dan", "quantity": 2 },
+      "materials": [
+        { "item_key": "qingyuan_sword_fragment", "quantity": 1 },
+        { "item_key": "xingsha", "quantity": 6 },
+        { "item_key": "vermilion_fruit", "quantity": 4 }
+      ],
+      "required_realm_rank": 12,
+      "required_skill_level": 3,
+      "base_success_rate": 0.5,
+      "skill_exp": 90,
+      "cooldown_sec": 90,
+      "learn_source": "default"
     }
   ]
 }

@@ -34,10 +34,12 @@ const MultiDungeonChoice = require('../../models/multiDungeonChoice');
 const MultiDungeonCooldown = require('../../models/multiDungeonCooldown');
 const sequelize = require('../../config/database');
 const { lockRowsByIdsAsc } = require('../persistence/lockOrder');
+const { addTitleToInstance } = require('../persistence/PlayerStateStore');   // 称号追加只走这一个入口（见函数注释）
+const { titleName } = require('../content/titleNaming');   // 称号名字按词表现算：内容里的 title_name 镜像已删
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const InventoryService = require('./InventoryService');
-const { grantItems } = require('../items/itemGrant');
+const { grantItems, collectGrantFailures, describeGrantFailures } = require('../items/itemGrant');
 // 大五行幻世轮服务（同目录引用，用于多人副本通关后被动积累悟印）
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
@@ -1273,7 +1275,10 @@ class MultiDungeonService {
                     const grant = await grantItems(playerId, choice.items_granted, t, { label: '多人副本·小极宫抉择' });
                     effectResult.items_granted = grant.granted.map(g => g.item_key);
                     if (grant.failed.length) {
-                        effectResult.items_granted_error = grant.failed.map(f => `${f.item_name}：${f.reason}`).join('；');
+                        // 回执里没有名字（名字只活在出参这一层），所以在这里现算
+                        const { itemName } = require('../items/itemNaming');
+                        effectResult.items_granted_error = grant.failed
+                            .map(f => `${itemName(f.item_key) || f.item_key}：${f.reason}`).join('；');
                     }
                 } else {
                     effectResult.items_granted_skipped = true;
@@ -1513,7 +1518,10 @@ class MultiDungeonService {
 
                 return {
                     success: true,
-                    message: `副本通关！${currentAct.clear_condition.clear_message || ''}${instance.first_clear ? '【首通】' : ''}`,
+                    // 背包满一类的"抽中了但没发到"必须出现在玩家读到的那句话里：
+                    // summary 里各分支的 failed 数组客户端一个都不读，只有这段文本会进日志/提示。
+                    message: `副本通关！${currentAct.clear_condition.clear_message || ''}${instance.first_clear ? '【首通】' : ''}`
+                        + describeGrantFailures(collectGrantFailures(rewardsResult.summary)),
                     data: {
                         instance_id: instance.id,
                         instance_state: 'cleared',
@@ -2001,7 +2009,8 @@ class MultiDungeonService {
             for (const r of rawRewards.first_clear_bonus) {
                 firstClearRewards.push({
                     reward_key: r.item_key || r.title_id || r.type || `first_${firstClearRewards.length}`,
-                    name: r.title_name || r.name || this._getRewardDisplayName(r),
+                    // 名字按 titles 词表现算（内容里那份 title_name 镜像已删，见 game/content/titleNaming.js）
+                    name: titleName(r.title_id) || r.name || this._getRewardDisplayName(r),
                     description: r.desc || '',
                     amount: this._formatRewardAmount(r),
                     type: 'first_clear'
@@ -3453,12 +3462,7 @@ class MultiDungeonService {
                         // 称号奖励：将称号ID加入玩家 titles 数组
                         const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
-                            const titles = player.titles || [];
-                            if (!titles.includes(bonus.title_id)) {
-                                titles.push(bonus.title_id);
-                                player.titles = titles;
-                                await player.save({ transaction });
-                            }
+                            if (addTitleToInstance(player, bonus.title_id)) await player.save({ transaction });
                             memberFirstClear.push({ type: 'title', title_id: bonus.title_id });
                         }
                     } else if (bonus.type === 'item' && bonus.item_key) {
@@ -3520,17 +3524,21 @@ class MultiDungeonService {
                         })()
                         : members[0]));
             if (targetMember && Math.random() < adjustedRareChance) {
-                try {
-                    await InventoryService.addItem(targetMember.player_id, rewards.rare_drop.item_key, 1, transaction);
-                    summary.rare_drop = {
-                        player_id: targetMember.player_id,
-                        item_key: rewards.rare_drop.item_key,
-                        name: rewards.rare_drop.name,
-                        base_chance: rewards.rare_drop.chance,
-                        adjusted_chance: adjustedRareChance
-                    };
-                } catch (e) {
-                    console.warn(`[MultiDungeonService] 发放稀有掉落 ${rewards.rare_drop.item_key} 失败:`, e.message);
+                const rareEntry = {
+                    player_id: targetMember.player_id,
+                    item_key: rewards.rare_drop.item_key,
+                    name: rewards.rare_drop.name,
+                    base_chance: rewards.rare_drop.chance,
+                    adjusted_chance: adjustedRareChance
+                };
+                const grant = await grantItems(targetMember.player_id,
+                    [{ item_key: rewards.rare_drop.item_key, quantity: 1 }], transaction, { label: '多人副本·稀有掉落' });
+                if (grant.granted.length) {
+                    summary.rare_drop = rareEntry;
+                } else {
+                    // 抽中了但发不出去（背包满等）：必须点名。以前只有一条 console.warn，
+                    // 玩家看到的是"这件没掉"，而这一局的判定其实已经用掉了。
+                    summary.rare_drop_failed = [{ ...rareEntry, reason: grant.failed[0].reason }];
                 }
             }
         }
@@ -3628,18 +3636,18 @@ class MultiDungeonService {
                 const sortedMembers = [...members].sort((a, b) => (b.contribution || 0) - (a.contribution || 0));
                 const targetMember = sortedMembers[0];
                 summary.xiaoji_guaranteed_drops = [];
+                summary.xiaoji_guaranteed_drops_failed = [];
                 for (const drop of rewards.guaranteed_drops) {
                     const count = drop.count || 1;
-                    try {
-                        await InventoryService.addItem(targetMember.player_id, drop.item_key, count, transaction);
-                        summary.xiaoji_guaranteed_drops.push({
-                            player_id: targetMember.player_id,
-                            item_key: drop.item_key,
-                            count,
-                            reason: drop.priority === 'wanxin' ? '婉心封魂线优先（贡献最高）' : '保底掉落'
-                        });
-                    } catch (e) {
-                        console.warn(`[MultiDungeonService] 小极宫保底掉落 ${drop.item_key} 发放失败:`, e.message);
+                    const reason4Member = drop.priority === 'wanxin' ? '婉心封魂线优先（贡献最高）' : '保底掉落';
+                    const grant = await grantItems(targetMember.player_id,
+                        [{ item_key: drop.item_key, quantity: count }], transaction, { label: '多人副本·小极宫保底掉落' });
+                    for (const g of grant.granted) {
+                        summary.xiaoji_guaranteed_drops.push({ player_id: targetMember.player_id, item_key: g.item_key, count, reason: reason4Member });
+                    }
+                    // 写着"保底"的那一条尤其不能静默：没进背包就是没保底，得让人看得见
+                    for (const f of grant.failed) {
+                        summary.xiaoji_guaranteed_drops_failed.push({ player_id: targetMember.player_id, item_key: f.item_key, count, reason: f.reason });
                     }
                 }
             }
@@ -3656,6 +3664,7 @@ class MultiDungeonService {
                 const totalWeight = rewards.rare_drops.reduce((s, d) => s + (d.weight || 0), 0);
                 const droppedItems = [];
                 const availablePool = [...rewards.rare_drops]; // 可重复抽取（允许同一物品多次掉落）
+                const rareFailures = [];
                 for (let i = 0; i < dropCount; i++) {
                     if (availablePool.length === 0 || totalWeight <= 0) break;
                     let roll = Math.random() * totalWeight;
@@ -3673,19 +3682,17 @@ class MultiDungeonService {
                         : 1;
                     // 稀有掉落随机分发给队伍中任一成员（全员共享）
                     const randomMember = members[Math.floor(Math.random() * members.length)];
-                    try {
-                        await InventoryService.addItem(randomMember.player_id, picked.item_key, count, transaction);
-                        droppedItems.push({
-                            player_id: randomMember.player_id,
-                            item_key: picked.item_key,
-                            name: picked.name,
-                            count
-                        });
-                    } catch (e) {
-                        console.warn(`[MultiDungeonService] 小极宫稀有掉落 ${picked.item_key} 发放失败:`, e.message);
+                    const grant = await grantItems(randomMember.player_id,
+                        [{ item_key: picked.item_key, quantity: count }], transaction, { label: '多人副本·小极宫稀有掉落' });
+                    for (const g of grant.granted) {
+                        droppedItems.push({ player_id: randomMember.player_id, item_key: g.item_key, name: picked.name, count });
+                    }
+                    for (const f of grant.failed) {
+                        rareFailures.push({ player_id: randomMember.player_id, item_key: f.item_key, name: picked.name, count, reason: f.reason });
                     }
                 }
                 summary.xiaoji_rare_drops = droppedItems;
+                summary.xiaoji_rare_drops_failed = rareFailures;
             }
 
             // 4.2.4 称号奖励：完美通关有 20% 概率获得"北冥破局者"称号
@@ -3694,19 +3701,14 @@ class MultiDungeonService {
                 if (titleRoll < rewards.title_chance) {
                     summary.xiaoji_title_awarded = {
                         title_id: rewards.title,
-                        title_name: rewards.title_name,
                         players: []
                     };
                     for (const m of members) {
                         const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
-                            const titles = player.titles || [];
-                            const alreadyHad = titles.includes(rewards.title);
-                            if (!alreadyHad) {
-                                titles.push(rewards.title);
-                                player.titles = titles;
-                                await player.save({ transaction });
-                            }
+                            // 称号追加只走这一份定义（去重与顺序语义不再抄 7 遍）
+                            const alreadyHad = !addTitleToInstance(player, rewards.title);
+                            if (!alreadyHad) await player.save({ transaction });
                             summary.xiaoji_title_awarded.players.push({
                                 player_id: m.player_id,
                                 title_id: rewards.title,
@@ -3806,15 +3808,20 @@ class MultiDungeonService {
                     // 灵眼树胚优先分给贡献最高的队员
                     const sortedMembers = [...members].sort((a, b) => (b.contribution || 0) - (a.contribution || 0));
                     const targetMember = sortedMembers[0];
-                    try {
-                        await InventoryService.addItem(targetMember.player_id, 'lingyan_sapling', 1, transaction);
+                    const grant = await grantItems(targetMember.player_id,
+                        [{ item_key: 'lingyan_sapling', quantity: 1 }], transaction, { label: '多人副本·灵眼树胚' });
+                    if (grant.granted.length) {
                         summary.luoyun_sapling_drop_info.dropped = true;
                         summary.luoyun_sapling_drop_info.player_id = targetMember.player_id;
                         summary.luoyun_sapling_drop_info.item_key = 'lingyan_sapling';
                         summary.luoyun_sapling_drop_info.count = 1;
-                    } catch (e) {
-                        console.warn(`[MultiDungeonService] 落云秘圃灵眼树胚发放失败:`, e.message);
-                        summary.luoyun_sapling_drop_info.error = e.message;
+                    } else {
+                        // 这条本来就往摘要里写了 error，只是写的是原始异常文本；统一成 reason（同一份口径）
+                        summary.luoyun_sapling_drop_info.dropped = false;
+                        summary.luoyun_sapling_drop_info.error = grant.failed[0].reason;
+                        summary.luoyun_sapling_drop_info.failed = [{
+                            player_id: targetMember.player_id, item_key: 'lingyan_sapling', count: 1, reason: grant.failed[0].reason
+                        }];
                     }
                 }
             }
@@ -3851,16 +3858,16 @@ class MultiDungeonService {
                         : 1;
                     // 稀有掉落随机分发给队伍中任一成员（全员共享）
                     const randomMember = members[Math.floor(Math.random() * members.length)];
-                    try {
-                        await InventoryService.addItem(randomMember.player_id, picked.item_key, count, transaction);
-                        droppedItems.push({
-                            player_id: randomMember.player_id,
-                            item_key: picked.item_key,
-                            name: picked.name,
-                            count
-                        });
-                    } catch (e) {
-                        console.warn(`[MultiDungeonService] 落云秘圃稀有掉落 ${picked.item_key} 发放失败:`, e.message);
+                    const grant = await grantItems(randomMember.player_id,
+                        [{ item_key: picked.item_key, quantity: count }], transaction, { label: '多人副本·落云秘圃稀有掉落' });
+                    for (const g of grant.granted) {
+                        droppedItems.push({ player_id: randomMember.player_id, item_key: g.item_key, name: picked.name, count });
+                    }
+                    if (grant.failed.length) {
+                        summary.luoyun_rare_drops_failed = summary.luoyun_rare_drops_failed || [];
+                        for (const f of grant.failed) {
+                            summary.luoyun_rare_drops_failed.push({ player_id: randomMember.player_id, item_key: f.item_key, name: picked.name, count, reason: f.reason });
+                        }
                     }
                 }
                 summary.luoyun_rare_drops = droppedItems;
@@ -3872,19 +3879,14 @@ class MultiDungeonService {
                 if (titleRoll < rewards.title_chance) {
                     summary.luoyun_title_awarded = {
                         title_id: rewards.title,
-                        title_name: rewards.title_name,
                         players: []
                     };
                     for (const m of members) {
                         const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
-                            const titles = player.titles || [];
-                            const alreadyHad = titles.includes(rewards.title);
-                            if (!alreadyHad) {
-                                titles.push(rewards.title);
-                                player.titles = titles;
-                                await player.save({ transaction });
-                            }
+                            // 称号追加只走这一份定义（去重与顺序语义不再抄 7 遍）
+                            const alreadyHad = !addTitleToInstance(player, rewards.title);
+                            if (!alreadyHad) await player.save({ transaction });
                             summary.luoyun_title_awarded.players.push({
                                 player_id: m.player_id,
                                 title_id: rewards.title,
@@ -4008,22 +4010,24 @@ class MultiDungeonService {
 
                 for (const m of members) {
                     const memberClueDrops = [];
+                    const memberClueFailures = [];
                     for (const drop of rewards.ticket_clue_drops.drops) {
                         const finalChance = Math.min(1.0, drop.base_chance * dynamicMultiplier);
                         const roll = Math.random();
                         if (roll < finalChance) {
-                            try {
-                                await InventoryService.addItem(m.player_id, drop.item_key, 1, transaction);
+                            const grant = await grantItems(m.player_id,
+                                [{ item_key: drop.item_key, quantity: 1 }], transaction, { label: '多人副本·苍坤门票线索' });
+                            for (const g of grant.granted) {
                                 memberClueDrops.push({
-                                    item_key: drop.item_key,
-                                    name: drop.name,
-                                    count: 1,
-                                    base_chance: drop.base_chance,
-                                    final_chance: finalChance,
-                                    roll_value: roll
+                                    item_key: g.item_key, name: drop.name, count: 1,
+                                    base_chance: drop.base_chance, final_chance: finalChance, roll_value: roll
                                 });
-                            } catch (e) {
-                                console.warn(`[MultiDungeonService] 苍坤门票线索 ${drop.item_key} 发放给玩家 ${m.player_id} 失败:`, e.message);
+                            }
+                            for (const f of grant.failed) {
+                                memberClueFailures.push({
+                                    item_key: f.item_key, name: drop.name, count: 1, reason: f.reason,
+                                    base_chance: drop.base_chance, final_chance: finalChance, roll_value: roll
+                                });
                             }
                         }
                     }
@@ -4053,6 +4057,12 @@ class MultiDungeonService {
                             });
                         }
                     }
+                    // 抽中却没发出去的线索：只记在这一处（normal_drops 那份是同一批东西的另一张脸，
+                    // 两边都记会让结算文本把同一件报两遍）
+                    if (memberClueFailures.length > 0) {
+                        summary.cangkun_ticket_clue_drops.failed = (summary.cangkun_ticket_clue_drops.failed || [])
+                            .concat(memberClueFailures.map(f => ({ ...f, player_id: m.player_id })));
+                    }
                 }
             }
 
@@ -4062,19 +4072,14 @@ class MultiDungeonService {
                 if (titleRoll < rewards.title_chance) {
                     summary.cangkun_title_awarded = {
                         title_id: rewards.title,
-                        title_name: rewards.title_name,
                         players: []
                     };
                     for (const m of members) {
                         const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
-                            const titles = player.titles || [];
-                            const alreadyHad = titles.includes(rewards.title);
-                            if (!alreadyHad) {
-                                titles.push(rewards.title);
-                                player.titles = titles;
-                                await player.save({ transaction });
-                            }
+                            // 称号追加只走这一份定义（去重与顺序语义不再抄 7 遍）
+                            const alreadyHad = !addTitleToInstance(player, rewards.title);
+                            if (!alreadyHad) await player.save({ transaction });
                             summary.cangkun_title_awarded.players.push({
                                 player_id: m.player_id,
                                 title_id: rewards.title,
@@ -4212,20 +4217,15 @@ class MultiDungeonService {
                 if (titleRoll < rewards.title_chance) {
                     summary.xuese_title_awarded = {
                         title_id: rewards.title,
-                        title_name: rewards.title_name,
                         players: []
                     };
                     for (const m of members) {
                         if (m.is_eliminated) continue; // 仅幸存者可获得称号
                         const player = lockedMembers.get(Number(m.player_id));
                         if (player) {
-                            const titles = player.titles || [];
-                            const alreadyHad = titles.includes(rewards.title);
-                            if (!alreadyHad) {
-                                titles.push(rewards.title);
-                                player.titles = titles;
-                                await player.save({ transaction });
-                            }
+                            // 称号追加只走这一份定义（去重与顺序语义不再抄 7 遍）
+                            const alreadyHad = !addTitleToInstance(player, rewards.title);
+                            if (!alreadyHad) await player.save({ transaction });
                             summary.xuese_title_awarded.players.push({
                                 player_id: m.player_id,
                                 title_id: rewards.title,
@@ -4340,20 +4340,15 @@ class MultiDungeonService {
                     if (titleRoll < rewards.title_chance) {
                         summary.zhuimo_title_awarded = {
                             title_id: rewards.title,
-                            title_name: rewards.title_name,
                             players: []
                         };
                         for (const m of members) {
                             if (m.is_fallen) continue; // 仅未堕魔者可获得称号
                             const player = lockedMembers.get(Number(m.player_id));
                             if (player) {
-                                const titles = player.titles || [];
-                                const alreadyHad = titles.includes(rewards.title);
-                                if (!alreadyHad) {
-                                    titles.push(rewards.title);
-                                    player.titles = titles;
-                                    await player.save({ transaction });
-                                }
+                                // 称号追加只走这一份定义（去重与顺序语义不再抄 7 遍）
+                                const alreadyHad = !addTitleToInstance(player, rewards.title);
+                                if (!alreadyHad) await player.save({ transaction });
                                 summary.zhuimo_title_awarded.players.push({
                                     player_id: m.player_id,
                                     title_id: rewards.title,
@@ -4469,20 +4464,15 @@ class MultiDungeonService {
                     if (titleRoll < rewards.title_chance) {
                         summary.huanglong_title_awarded = {
                             title_id: rewards.title,
-                            title_name: rewards.title_name,
                             players: []
                         };
                         for (const m of members) {
                             if (m.huanglong_is_defecting) continue; // 仅未叛道者可获得称号
                             const player = lockedMembers.get(Number(m.player_id));
                             if (player) {
-                                const titles = player.titles || [];
-                                const alreadyHad = titles.includes(rewards.title);
-                                if (!alreadyHad) {
-                                    titles.push(rewards.title);
-                                    player.titles = titles;
-                                    await player.save({ transaction });
-                                }
+                                // 称号追加只走这一份定义（去重与顺序语义不再抄 7 遍）
+                                const alreadyHad = !addTitleToInstance(player, rewards.title);
+                                if (!alreadyHad) await player.save({ transaction });
                                 summary.huanglong_title_awarded.players.push({
                                     player_id: m.player_id,
                                     title_id: rewards.title,
@@ -5694,7 +5684,8 @@ class MultiDungeonService {
 
                 return {
                     success: true,
-                    message: `【决战】通关！${currentAct.clear_condition.clear_message || ''}${instance.first_clear ? '【首通】' : ''}`,
+                    message: `【决战】通关！${currentAct.clear_condition.clear_message || ''}${instance.first_clear ? '【首通】' : ''}`
+                        + describeGrantFailures(collectGrantFailures(rewardsResult.summary)),
                     data: {
                         instance_id: instance.id,
                         instance_state: 'cleared',

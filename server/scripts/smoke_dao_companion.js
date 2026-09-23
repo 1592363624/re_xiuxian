@@ -24,6 +24,7 @@ const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const CompanionService = require('../game/services/CompanionService');
 const DaoCompanionService = require('../game/services/DaoCompanionService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const NAMES = ['dc_a', 'dc_b', 'dc_c', 'dc_d'];
 const results = [];
@@ -273,9 +274,12 @@ async function main() {
                 if (p) ids.push(p.id);
             }
             if (ids.length) {
+                // dao_companion / dao_companions 用的是 player_a_id + player_b_id（一对两个，引用档），
+                // 级联按"这一行属于谁"来清、不动它们，所以这两条仍然自己清；其余派生行交给级联。
                 await sequelize.query('DELETE FROM dao_companion WHERE player_a_id IN (:ids) OR player_b_id IN (:ids)', { replacements: { ids } });
                 await sequelize.query('DELETE FROM dao_companions WHERE player_a_id IN (:ids) OR player_b_id IN (:ids)', { replacements: { ids } });
-                await Player.destroy({ where: { id: ids }, force: true });
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

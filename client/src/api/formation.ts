@@ -14,11 +14,15 @@
  */
 import apiClient from './index';
 
-/** 阵法分类 */
-export type FormationCategory = 'attack' | 'defense' | 'support' | 'special';
+/**
+ * 阵法分类。**是 string 而不是四元素枚举**：合法全集由内容决定
+ * （`formation_data.global.category_display_names` 的键，服务端 formationCategories() 就遍历它），
+ * 资料片登记一档新流派之后这里不必再改一次 —— 与 taoismGate 的 DaoPath 同一条口径。
+ */
+export type FormationCategory = string;
 
-/** 阵法品阶 */
-export type FormationGrade = 'mortal' | 'spirit' | 'immortal' | 'saint';
+/** 阵法品阶：同上，全集在内容 grade_display_names 里 */
+export type FormationGrade = string;
 
 /** 阵法效果（属性加成比例） */
 export interface FormationEffects {

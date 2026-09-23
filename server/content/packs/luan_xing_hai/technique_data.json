@@ -1,7 +1,7 @@
 {
   "dataset": "technique_data",
   "into": "techniques",
-  "comment": "乱星海两部功法：一部身法（星遁诀，走闪避与速度），一部法修（月魄真诀，走吸血与法攻）。bonuses 的键一律用注册表里的属性键（或其别名），于是面板/战力/战斗/突破四处自动认得，不必再回到代码里登记一遍。",
+  "comment": "乱星海两部功法：一部身法（星遁诀，走闪避与速度），一部法修（月魄真诀，走吸血与法攻）。bonuses 的键一律用注册表里的属性键（或其别名），于是面板/战力/战斗/突破四处自动认得，不必再回到代码里登记一遍。2026-09-22 修过获取途径：星遁诀的 recipe_scroll 当时没有任何代码处理（境界够就白送，而那张残卷又被星辰符配方抢着要），现在这条分支真实现了、残卷与符谱拆成两件；月魄真诀原来写 sect_treasury，同样落到「什么都不扣」，改成代码支持的 sect + 10000 贡献（地阶，与地阶血魔炼形诀 12000 同档）。",
   "add": [
     {
       "id": "xingdun_jue",
@@ -23,7 +23,7 @@
       "required_realm": "筑基初期",
       "bonuses": { "matk": 22, "mp_max": 260, "lifesteal": 2 },
       "cultivate_speed_pct_per_layer": 2,
-      "acquire": { "source": "sect_treasury" }
+      "acquire": { "source": "sect", "sect_contribution": 10000 }
     }
   ]
 }

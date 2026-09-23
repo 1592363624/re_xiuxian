@@ -11,6 +11,8 @@
 const express = require('express');
 const router = express.Router();
 const sequelize = require('../config/database');
+// 玩家状态写入的唯一入口（突破成功要给 breakthrough_count 记一笔，见 game/stats/PlayerMetrics 的词表）
+const PlayerStateStore = require('../game/persistence/PlayerStateStore');
 const Player = require('../models/player');
 const game = require('../game');
 const NotificationService = require('../game/services/NotificationService');
@@ -228,16 +230,11 @@ router.post('/try', authenticateToken, async (req, res, next) => {
             player.realm_rank = nextRealm.rank;
         }
 
-        if (nextRealm.base_hp) {
-            const attrs = typeof player.attributes === 'string'
-                ? JSON.parse(player.attributes)
-                : (player.attributes || {});
-            attrs.hp_max = nextRealm.base_hp;
-            attrs.mp_max = nextRealm.base_mp;
-            attrs.atk = nextRealm.base_atk;
-            attrs.def = nextRealm.base_def;
-            player.attributes = attrs;
-        }
+        // 这里原来还有一段"把 nextRealm.base_hp/base_atk/… 写进 attributes blob"的代码，已删。
+        // 那四个键（hp_max/mp_max/atk/def）是旧属性管线的**输出**位置：新管线既不以它们为基数、
+        // 也不读它们（面板/战斗一律走 AttributeService 解析），所以写进去既不生效，又留下一个
+        // 看起来还有意义的陈旧快照（现网实测有人 blob 里 atk 还是建号时的值，与面板差 60 多倍），
+        // 谁照着 attrs.atk 读就中招。血蓝真值在 players 列上，下面那两行才是它该写的地方。
 
         // 修复（2026-07-20）：
         //   配置文件 realm_breakthrough.json 中寿命字段名为 lifespan_max，
@@ -253,6 +250,10 @@ router.post('/try', authenticateToken, async (req, res, next) => {
 
         // 瓶颈成功处理：清理瓶颈状态
         await MeditationService.handleBreakthroughSuccess(player, t);
+
+        // 突破成功一次进一格（成就 breakthrough_count 与洞府祖业的"总修行次数"都读这一格）。
+        // 键名与含义声明在 config/player_metrics.json；以前这些计数全仓没有任何写入点，成就恒为 0。
+        await PlayerStateStore.bumpStat(player, 'breakthrough_count', 1, { transaction: t });
 
         // 高阶境界系统：突破成功后清零问道感悟值（感悟已用于本次突破）
         if (player.ask_dao_insight && player.ask_dao_insight > 0) {

@@ -751,14 +751,21 @@ class SectWarService {
             const sectName = sectConfig?.name || playerSect.sect_id;
 
             // 初始化玩家战斗 HP/MP（写入 attributes JSON）
-            const attrs = { ...(player.attributes || {}) };
+            // 键级补丁而不是"摊平一份 attributes → 赋回实例 → save 整行"：这一坨里同时住着
+            // 加点、丹药、功法、突破写进去的十几个键，整块写回靠的是"我锁住了这一行"这个口头约定。
+            // 两个 null 在 PlayerStateStore 的补丁语义里是"删键"，而读侧（本文件与客户端出参）
+            // 全部按 `if (attrs.sect_war_*)` 真值判定，删键与写 null 等价 —— leaveWar 那处一直是这个形状。
             const fullAttrs = AttributeService.calculateFullAttributes(player);
-            attrs.hp_current = Number(fullAttrs.final.hp_max) || 100;
-            attrs.mp_current = Number(fullAttrs.final.mp_max) || 0;
-            attrs.sect_war_defend_until = null;  // 无防御 buff
-            attrs.sect_war_death_time = null;    // 无死亡时间
-            player.attributes = attrs;
-            await player.save({ transaction: t });
+            const inited = await PlayerStateStore.patchPlayerState(playerId, {
+                attributes: {
+                    hp_current: Number(fullAttrs.final.hp_max) || 100,
+                    mp_current: Number(fullAttrs.final.mp_max) || 0,
+                    sect_war_defend_until: null,  // 无防御 buff
+                    sect_war_death_time: null     // 无死亡时间
+                }
+            }, { transaction: t });
+            // 镜像回手上这份实例（不标脏）：后面建参战记录要读它，读到的必须是落库那一份
+            PlayerStateStore.mirrorPatchedBlob(player, inited);
 
             // 创建参战记录
             const participant = await SectWarParticipant.create({
@@ -1091,15 +1098,25 @@ class SectWarService {
                 attackerP.contribution_score = (attackerP.contribution_score || 0) + 10; // 击杀贡献分
             }
 
-            // 回写防守方 HP/MP
-            defenderAttrs.hp_current = defenderHp;
-            defenderAttrs.mp_current = defenderMp;
-            defender.attributes = defenderAttrs;
-
-            // 回写攻击方 HP/MP
-            attackerAttrs.hp_current = attackerHp;
-            attackerAttrs.mp_current = attackerMp;
-            attacker.attributes = attackerAttrs;
+            // 回写双方的战斗血量与战内临时状态（阵亡时间 / 防御 buff）。
+            // 以前是"把整份 attributes 摊平 → 赋回锁内那份实例 → save 整行"：这一笔事务里双方各持一份行锁，
+            // 所以并不会真的丢别人的写，但那是**靠锁**而不是靠写法安全 —— 而这一坨 blob 的邻居有十几个
+            // （加点、丹药、功法、突破、神识…），下一次有人在这条链上少写一句 FOR UPDATE 就变成真丢账。
+            // 现在只有这几个键参与写入；`?? null` 的语义是"这个键本来就没有 / 已被清掉 → 删键"，
+            // 读侧全是真值判定，与旧写法留下的 null 等价。
+            const battlePatchOf = (attrs, hp, mp) => ({
+                hp_current: hp,
+                mp_current: mp,
+                sect_war_death_time: attrs.sect_war_death_time ?? null,
+                sect_war_defend_until: attrs.sect_war_defend_until ?? null
+            });
+            const savedAttacker = await PlayerStateStore.patchPlayerState(attackerId,
+                { attributes: battlePatchOf(attackerAttrs, attackerHp, attackerMp) }, { transaction: t });
+            const savedDefender = await PlayerStateStore.patchPlayerState(targetPlayerId,
+                { attributes: battlePatchOf(defenderAttrs, defenderHp, defenderMp) }, { transaction: t });
+            // 镜像回锁内那份实例（不标脏）：本函数后面还要读它们的昵称/等级，读的必须是落库那一份
+            PlayerStateStore.mirrorPatchedBlob(attacker, savedAttacker);
+            PlayerStateStore.mirrorPatchedBlob(defender, savedDefender);
 
             // 累加伤害统计（BIGINT 安全）
             attackerP.damage_dealt = safeBigInt(attackerP.damage_dealt) + actualDamage;
@@ -1107,9 +1124,7 @@ class SectWarService {
             // 伤害贡献分：每 100 伤害 1 分
             attackerP.contribution_score = (attackerP.contribution_score || 0) + Math.floor(Number(actualDamage) / 100);
 
-            // 持久化双方玩家与参战记录
-            await attacker.save({ transaction: t });
-            await defender.save({ transaction: t });
+            // 持久化参战记录与战役（玩家两侧上面那份键级补丁已经落库，这里不再整行写回）
             await attackerP.save({ transaction: t });
             await defenderP.save({ transaction: t });
             await war.save({ transaction: t });

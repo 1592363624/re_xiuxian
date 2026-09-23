@@ -1,0 +1,22 @@
+{
+  "description": "通知的可见性、定时发布与重提示策略（阈值/文案/周期一律在此调整，代码不写死）",
+  "version": "1.0.0",
+  "scheduler": {
+    "comment": "定时任务：到点推送预约发布的公告、把过期公告自动下架（并清理其已读回执）",
+    "enabled": true,
+    "interval_ms": 60000,
+    "batch_size": 200
+  },
+  "retention": {
+    "comment": "过期通知下架时是否同时删除它的已读回执：下架后玩家再也看不到这条，回执留着只会拖慢未读计数的 NOT EXISTS",
+    "delete_receipts_on_expire": true
+  },
+  "republish_notice": {
+    "comment": "公告被编辑后对「已经读过它的人」的重提示：重置他们的已读回执（未读红点回来）并定向推一条站内提示",
+    "enabled": true,
+    "max_recipients": 5000,
+    "title": "公告已更正",
+    "content": "你读过的公告《{title}》已被管理员更正，请留意最新内容。",
+    "priority": "normal"
+  }
+}

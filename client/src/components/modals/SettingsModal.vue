@@ -92,7 +92,7 @@
             </div>
              <!-- Add more if needed -->
           </div>
-          <p class="mt-2 text-xs text-line-strong">查看所有可用的键盘快捷键，提高操作效率</p>
+          <p class="mt-2 text-xs text-fg-faint">查看所有可用的键盘快捷键，提高操作效率</p>
         </section>
 
         <!-- About -->
@@ -106,7 +106,7 @@
                 <span class="text-fg-muted">游戏版本</span>
                 <span class="text-gold-500 num">{{ gameVersion }}</span>
              </div>
-             <div class="flex justify-between items-center text-xs text-line-strong">
+             <div class="flex justify-between items-center text-xs text-fg-faint">
                 <span>最后更新</span>
                 <span>2026年7月23日</span>
              </div>

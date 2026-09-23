@@ -163,10 +163,13 @@
         </div>
         <div class="mt-1 text-xs text-amber-300">
           研习途径：{{ acquireLabel(tech.acquire) }}
+          <!-- 代价与"现在凑不凑得齐"都由服务端算（acquire_hint / acquire_ready）：
+               以前这里自己读 acquire.cost_spirit_stones 判余额，而配置里那个键叫 cost_spirit_stone，
+               判空结果永远算"够"，宗门贡献与残卷两种代价更是根本没看 —— 按钮于是专门骗人。 -->
           <span
-            v-if="tech.acquire?.source === 'shop'"
-            :class="enoughSS(tech.acquire.cost_spirit_stones) ? 'text-amber-300/90' : 'text-rose-400'"
-          >（余额 {{ playerSS }}）</span>
+            v-if="tech.acquire_hint"
+            :class="tech.acquire_ready === false ? 'text-rose-400' : 'text-amber-300/90'"
+          >（{{ tech.acquire_hint }}{{ tech.acquire_ready === false ? '·不足' : '' }}）</span>
         </div>
         <div class="mt-3">
           <button
@@ -342,12 +345,12 @@ const canComprehend = (item) =>
   item.comprehended_skills.length < (item.skillSlotsTotal || 1) &&
   enoughSS(item.comprehend_cost)
 
-/** 是否可研习：境界达标 + 灵石余额足够（shop 来源需灵石；sect 来源贡献暂不前端校验） */
-const canLearn = (tech) => {
-  if (!tech.realm_satisfied) return false
-  if (tech.acquire?.source === 'shop') return enoughSS(tech.acquire.cost_spirit_stones)
-  return true
-}
+/**
+ * 是否可研习：境界达标 + 代价凑得齐。
+ * 代价这一半读服务端算好的 acquire_ready（灵石 / 宗门贡献 / 残卷三种分支都在同一处判），
+ * 前端不再自己拼键名 —— 缺字段时按"允许点"处理，真正的拒绝仍由 learnTechnique 在事务里给出理由。
+ */
+const canLearn = (tech) => !!tech.realm_satisfied && tech.acquire_ready !== false
 
 /**
  * 属性加成字段中文标签：取自服务端属性注册表（含别名 crit/dodge/hp_steal 与资料片属性）。
@@ -361,16 +364,16 @@ const elementLabel = (el) => {
   return map[el] || el
 }
 
-/** 研习途径文案 */
-const acquireLabel = (acquire) => {
+/**
+ * 研习途径文案：只负责"这条途径叫什么"，代价的数字一律用服务端给的 hint
+ * （以前这里自己按 source 拼 cost_spirit_stone / sect_contribution，配置一改键名就静默少一段文案）。
+ */
+const acquireLabel = (acquire, hint) => {
+  const text = hint ? `（${hint}）` : ''
   if (!acquire) return '未知'
-  const src = { default: '新手指引', shop: '灵石购买', sect: '宗门贡献', secret_realm: '秘境奇遇' }
-  let text = src[acquire.source] || acquire.source
-  // 配置里的键名是 cost_spirit_stone / sect_contribution（technique_data.json 的 acquire 段）
-  if (acquire.source === 'shop' && acquire.cost_spirit_stone) text += `（${acquire.cost_spirit_stone} 灵石）`
-  if (acquire.source === 'sect' && acquire.sect_contribution) text += `（${acquire.sect_contribution} 贡献）`
-  if (acquire.source === 'secret_realm') text += '（不可主动研习）'
-  return text
+  const src = { default: '新手指引', shop: '灵石购买', sect: '宗门贡献', secret_realm: '秘境奇遇', recipe_scroll: '残卷研习' }
+  const label = src[acquire.source] || acquire.source
+  return acquire.source === 'secret_realm' ? `${label}（不可主动研习）` : `${label}${text}`
 }
 
 /** 拉取功法总览 */
@@ -488,7 +491,7 @@ const confirmLearn = (tech) => {
   if (!tech.realm_satisfied) { uiStore.showToast('境界不足，无法研习', 'warning'); return }
   openConfirm({
     title: '研习功法',
-    message: `确认研习《${tech.name}》？\n${acquireLabel(tech.acquire)}`,
+    message: `确认研习《${tech.name}》？\n${acquireLabel(tech.acquire, tech.acquire_hint)}`,
     confirmText: '研习',
     onConfirm: async () => { closeConfirm(); await doLearn(tech.technique_id) }
   })

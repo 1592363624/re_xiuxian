@@ -39,6 +39,7 @@ import PanelCard from '../ui/PanelCard.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import LoadingBlock from '../ui/LoadingBlock.vue'
 import { formatCompact } from '../../utils/format'
+import { useItemQualities } from '../../composables/useItemQualities'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { getInventory } from '../../api/inventory'
@@ -205,26 +206,11 @@ const myDetailBid = computed(() => {
 /* ===================== 工具函数 ===================== */
 
 /**
- * 品质颜色与中文标签映射（与 InventoryPanel 保持一致）
- * 说明：品阶是玩法信息，色相跨度（绿/蓝/紫/金/玫红）刻意保留，只把中性灰换成 fg 令牌
+ * 品质颜色与中文标签：一律取服务端 game_balance.item_qualities（见 composables/useItemQualities.js）。
+ * 这里以前自己抄了一份七键字典 —— 资料片加一档、或某一档改名，界面上不会跟着变；
+ * 而抄写的字典彼此还会漏档（多处漏了 mythic，神话档物品就被印成"普通"）。
  */
-const qualityStyleMap = {
-  common: { color: 'text-fg-secondary', label: '普通' },
-  uncommon: { color: 'text-emerald-400', label: '非凡' },
-  rare: { color: 'text-sky-400', label: '稀有' },
-  epic: { color: 'text-purple-400', label: '史诗' },
-  legendary: { color: 'text-gold-400', label: '传说' },
-  mythic: { color: 'text-rose-400', label: '神话' },
-  unknown: { color: 'text-fg-faint', label: '未知' }
-}
-
-/**
- * 获取品质样式
- * @param {string} quality - 品质 key
- */
-const getQualityStyle = (quality) => {
-  return qualityStyleMap[quality] || qualityStyleMap.unknown
-}
+const { options: qualityOptions, styleOf: getQualityStyle } = useItemQualities()
 
 /**
  * 拍卖状态标签：文案 + 色（tone 契约见 ui/Badge.vue）
@@ -632,12 +618,8 @@ onUnmounted(() => {
             </select>
             <select v-model="listFilter.quality" class="bg-surface-canvas border border-line rounded-control px-2 py-1 text-fg-primary focus:outline-none focus:border-rose-700" @change="applyFilter">
               <option value="">全部品质</option>
-              <option value="common">普通</option>
-              <option value="uncommon">非凡</option>
-              <option value="rare">稀有</option>
-              <option value="epic">史诗</option>
-              <option value="legendary">传说</option>
-              <option value="mythic">神话</option>
+              <!-- 品质档读服务端词表：资料片加一档，这里和上面的标签一起跟上（以前是六个写死的 <option>） -->
+              <option v-for="quality in qualityOptions" :key="quality.value" :value="quality.value">{{ quality.label }}</option>
             </select>
             <input v-model="listFilter.keyword" placeholder="搜索物品名" class="bg-surface-canvas border border-line rounded-control px-2 py-1 text-fg-primary w-32 placeholder-fg-faint focus:outline-none focus:border-rose-700" @keyup.enter="applyFilter" />
             <AppButton size="sm" variant="outline" @click="applyFilter">筛选</AppButton>

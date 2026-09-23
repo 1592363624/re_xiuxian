@@ -7,7 +7,7 @@
       "id": "wuxing_banner",
       "name": "五行神光旗",
       "type": "equipment",
-      "subtype": "artifact",
+      "subtype": "fabao",
       "quality": "legendary",
       "description": "五杆一组的先天灵旗，各执一系，旗展处五行流转，可攻可守。",
       "effect": { "atk": 70, "five_element_power": 90, "element_resist": 12, "mp_max": 400 },

@@ -30,6 +30,7 @@ const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const BeastAbyssService = require('../game/services/BeastAbyssService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const itemNames = new Map();
 function itemNameOf(key) {
@@ -66,6 +67,8 @@ async function ensurePlayer(username, realmRank) {
     for (const b of old) {
         await AbyssEncounterLog.destroy({ where: { beast_id: b.id }, force: true });
     }
+    // 这一段（含下面三条）留着手写：它清的是**还活着的**这个号的上一轮残留（E6/E7 中途还会再调一次），
+    // 而级联那扇门的语义是"连着 players 行一起删"，用它等于把号也删了、id 变了，后面的断言就没主体了。
     await SpiritBeastAbyss.destroy({ where: { player_id: p.id }, force: true });
     await SpiritBeast.destroy({ where: { player_id: p.id }, force: true });
     await Item.destroy({ where: { player_id: p.id }, force: true });
@@ -145,8 +148,11 @@ async function main() {
         hi.gained > 0n && hi.gained === BigInt(reportedStones),
         `实得 ${hi.gained.toString()} 报出 ${reportedStones}`);
     check('E4b 探渊物品真的按报出的数量进背包，且每一件都能在内容里查到名字',
-        bagQty === reportedItems && bagRows.length > 0 && bagRows.every(r => !!itemNameOf(r.item_key)),
-        `背包 ${bagQty} 件 / ${bagRows.length} 行，报出 ${reportedItems} 件，键=${bagRows.map(r => `${r.item_key}(${itemNameOf(r.item_key) || '?'})`).join(',')}`);
+        bagQty === reportedItems && bagRows.every(r => !!itemNameOf(r.item_key)),
+        `背包 ${bagQty} 件 / ${bagRows.length} 行，报出 ${reportedItems} 件，键=${bagRows.map(r => `${r.item_key}(${itemNameOf(r.item_key) || '?'})`).join(',')}`
+        // 「有没有掉到东西」由 E8 单独记（这一轮随机可能一件不掉，那时 bagRows 为空是对的，
+        // 把它塞进本条守恒断言里就会变成偶发假红 —— 2026-09-22 实测踩过一次）
+    );
 
     // ===== E5 重复召回：同一行不再发第二份 =====
     let again = null;
@@ -207,17 +213,22 @@ async function main() {
         console.error('探针异常：', e.message, e.stack);
     } finally {
         try {
+            const ids = [];
             for (const username of ['abyss_hi', 'abyss_lo']) {
                 const p = await Player.findOne({ where: { username } });
                 if (!p) continue;
+                // 遭遇日志按 beast_id 记（级联的"归属"档只认 player_id / owner_player_id），
+                // 所以这一条留着，并且必须在删号之前跑 —— 号一没，兽行也就被级联带走了，拿不到 id
                 const beasts = await SpiritBeast.findAll({ where: { player_id: p.id } });
                 for (const b of beasts) {
                     await AbyssEncounterLog.destroy({ where: { beast_id: b.id }, force: true });
                 }
-                await SpiritBeastAbyss.destroy({ where: { player_id: p.id }, force: true });
-                await SpiritBeast.destroy({ where: { player_id: p.id }, force: true });
-                await Item.destroy({ where: { player_id: p.id }, force: true });
-                await Player.destroy({ where: { id: p.id }, force: true });
+                ids.push(p.id);
+            }
+            if (ids.length) {
+                // 探渊行 / 灵兽 / 背包行这些都是 player_id 归属档，连同 players 行一次交给那扇门
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

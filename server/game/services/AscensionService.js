@@ -37,6 +37,7 @@ const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const RealmService = require('../core/RealmService');
 const PlayerStateStore = require('../persistence/PlayerStateStore');
+const sensePool = require('../core/sensePool');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
 
@@ -50,10 +51,9 @@ const ASCENSION_STATE_ENUM = 'ASCENDING';
  * @returns {number} 神识值，无则返回 0
  */
 function getDivineSense(player) {
-    if (!player) return 0;
-    // attributes 是 Sequelize getter 自动解析的 JSON 对象
-    const attrs = player.attributes || {};
-    return Number(attrs.sense || 0);
+    // 读法与扣法都在 game/core/sensePool.js（飞升、第二元神各抄过一份一模一样的实现，
+    // 元婴出窍那四条链抄的第三份还是"整块写回"；神识是跨玩法共享的一份余额，不该有三份口径）
+    return sensePool.senseOf(player);
 }
 
 /**
@@ -69,14 +69,7 @@ function getDivineSense(player) {
  * @returns {Promise<number>} 扣减后的神识
  */
 async function consumeDivineSense(player, cost, transaction) {
-    const updated = await PlayerStateStore.patchPlayerState(
-        player.id,
-        { attributes: { sense: { $add: -Number(cost) || 0, $min: 0 } } },
-        { transaction }
-    );
-    // 让调用方手上的实例反映最新值；写库只发生过一次（来自锁内那份）
-    PlayerStateStore.mirrorPatchedBlob(player, updated);
-    return Number((updated.attributes || {}).sense || 0);
+    return (await sensePool.spendSense(player, cost, { transaction })).after;
 }
 
 /**
@@ -87,14 +80,7 @@ async function consumeDivineSense(player, cost, transaction) {
  * @returns {Promise<number>} 增加后的神识
  */
 async function addDivineSense(player, gain, transaction) {
-    const updated = await PlayerStateStore.patchPlayerState(
-        player.id,
-        { attributes: { sense: { $add: Number(gain) || 0, $min: 0 } } },
-        { transaction }
-    );
-    // 同上：内存跟着最新值走，这一列不再参与写库
-    PlayerStateStore.mirrorPatchedBlob(player, updated);
-    return Number((updated.attributes || {}).sense || 0);
+    return (await sensePool.grantSense(player, gain, { transaction })).after;
 }
 
 /**

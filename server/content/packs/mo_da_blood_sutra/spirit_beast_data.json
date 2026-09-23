@@ -1,0 +1,35 @@
+{
+  "dataset": "spirit_beast_data",
+  "into": "beast_types",
+  "comment": "血蝠：本片真正用来兑现「灵兽也能带新属性」的一条内容。它写了一个 spirit_beasts 表上没有列的 base_blood_power —— SpiritBeastService.computeStats 是通用取 base_* 前缀的（第 1338–1349 行），有列就写列、没列但注册表认得就收进 stat_block 属性块，读取端一律经 statBlockOf 合并，所以加这一档属性到此为止都不用 ALTER TABLE、也不用改服务；这一条由 tests/MoDaoBloodPack.test.js 与 scripts/smoke_stat_extension.js 的 P8–P13 两头钉住。三处刻意不抄现成的：(1) element 取 water：灵兽属性是**另一套词表**（spirit_beast_data.elements，不与玩家灵根比对），拼错的后果以前是静默的（图鉴退回打印原始键、兽斗里那只永远中性），本轮才登记成资料片可扩的 map 集合并加了启动期闸 _validateBeastElements —— 凡人遗宝的啼魂就是靠那条集合补上了一档「雷」。本片不依赖别人新加的档，用词表里就有的水（血属水，且与本片的血影神功同五行，神通候选池才收得到）。(2) 不写每个种自带的 combat_bonus —— 结算只读全局 settings.combat_bonus（SpiritBeastService.js:1263），条目级那份从没有代码看过，写了就是假承诺；(3) 招牌特性只写展示字段：升星那条分支只是把特性对象展开进通知（第 823–831 行），基础表里的 atk_bonus_rate/def_pierce_rate 在全仓库都没有按数结算的地方。",
+  "add": [
+    {
+      "beast_key": "xue_fu",
+      "name": "血蝠",
+      "element": "water",
+      "rarity": "rare",
+      "base_hp": 700,
+      "base_atk": 120,
+      "base_def": 55,
+      "base_speed": 140,
+      "base_blood_power": 60,
+      "min_realm_rank": 12,
+      "catch_chance": 0.22,
+      "catch_cost_mp": 300,
+      "feed_exp": 60,
+      "description": "伏在血色禁地溶洞顶上的吸血蝠，靠吞食修士残血养出满口暗红。阴罗宗弟子把它当半个同门养，因为它比同门更知道血该往哪里去。",
+      "signature_traits": {
+        "star_3": {
+          "trait_key": "blood_scent_trace",
+          "trait_name": "循血嗅",
+          "description": "能在血雾里辨出重伤之人的气味，先手扑击"
+        },
+        "star_5": {
+          "trait_key": "blood_frenzy",
+          "trait_name": "饮血狂",
+          "description": "尝过活血之后翼速倍增，血元随杀意一起上涨"
+        }
+      }
+    }
+  ]
+}

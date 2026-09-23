@@ -15,6 +15,8 @@ const requireAdmin = interfaceGateway.requireRole('admin');
 
 // 公告配图地址白名单校验（只认本服务 /api/uploads/announcements/ 下已落盘的文件）
 const { sanitizeImageUrls } = require('../utils/announcementImage');
+// 预约发布时间 / 自动下架时间的解析与校验
+const { parseAnnouncementSchedule } = require('../utils/notificationSchedule');
 
 /**
  * 获取当前用户的所有通知
@@ -107,10 +109,14 @@ router.post('/read-all', authenticateToken, async (req, res, next) => {
  * （先调 POST /api/uploads/announcement-image 上传，再把返回的 url 填进来）。
  * 只放行本服务托管地址，避免公告被用来引用外部图片——那会把玩家 IP 泄露给第三方，
  * 也给了钓鱼图片一个合法的展示位置。
+ *
+ * publishAt / expiresAt 可选：前者是预约发布时间（未来时间则到点才可见、才推送），
+ * 后者是自动下架时间（到点自动隐藏，并清理已读回执）。
  */
 router.post('/announcement', authenticateToken, requireAdmin, async (req, res, next) => {
     try {
         const { title, content, priority, imageUrls } = req.body;
+        const schedule = parseAnnouncementSchedule(req.body);
 
         // 非法的图片地址直接拒绝而不是静默丢弃：GM 需要立刻知道这条公告的图没带上
         const { urls: safeImageUrls, rejected } = sanitizeImageUrls(imageUrls);
@@ -127,13 +133,21 @@ router.post('/announcement', authenticateToken, requireAdmin, async (req, res, n
             throw new AppError('标题和内容不能为空', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
-        await NotificationService.sendAnnouncement(
+        const notification = await NotificationService.sendAnnouncement(
             title,
             content || '',
             priority || 'high',
-            { imageUrls: safeImageUrls }
+            { imageUrls: safeImageUrls },
+            schedule
         );
-        res.json({ code: 200, message: '公告已发送' });
+
+        // 预约公告此刻还没推给玩家，返回文案要与"已发送"区分开，避免 GM 以为没生效
+        const scheduled = schedule.publishAt && schedule.publishAt.getTime() > Date.now();
+        res.json({
+            code: 200,
+            message: scheduled ? '公告已创建，将在预约时间自动发布' : '公告已发送',
+            data: { id: notification.id, publishAt: notification.publishAt, expiresAt: notification.expiresAt }
+        });
     } catch (error) {
         next(error);
     }

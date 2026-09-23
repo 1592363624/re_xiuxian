@@ -39,6 +39,7 @@ const WorldBossSkillManager = require('./WorldBossSkillManager');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const { infrastructure } = require('../../modules');
+const { applyExpPenalty } = require('../core/deathPenalty');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
@@ -946,8 +947,8 @@ class WorldBossService {
                 playerDied = true;
                 runtimeState.isDead = true;
                 runtimeState.deathCount += 1;
-                // 死亡惩罚：扣 5% 修为（design 文档要求；从玩家 attributes.exp 扣减，不调用 LifespanService）
-                this._applyDeathExpPenalty(player, cfg.death_exp_penalty_rate || 0.05);
+                // 死亡惩罚：全仓唯一一份算式与唯一一次写（列上原子减，attributes.exp 的镜像由 PlayerStateStore 维护）
+                await applyExpPenalty({ playerId, scope: 'world_boss', transaction: t, reason: '世界BOSS身死' });
                 boss.total_damage_dealt = safeBigInt(boss.total_damage_dealt) + counterDamageBigInt;
             } else {
                 boss.total_damage_dealt = safeBigInt(boss.total_damage_dealt) + counterDamageBigInt;
@@ -2188,28 +2189,6 @@ class WorldBossService {
     // =========================================================================
     // 辅助方法层
     // =========================================================================
-
-    /**
-     * 应用死亡修为惩罚（不调用 LifespanService，仅扣 attributes.exp）
-     * @param {Object} player - 玩家实例（事务内已加锁）
-     * @param {number} penaltyRate - 惩罚比例（如 0.05 表示扣5%）
-     * @private
-     */
-    static _applyDeathExpPenalty(player, penaltyRate) {
-        // 解析玩家 attributes JSON
-        const attrs = typeof player.attributes === 'string'
-            ? JSON.parse(player.attributes)
-            : (player.attributes || {});
-        // 修为的权威值是 players.exp 列（BIGINT）。旧实现只改 attributes.exp 这个镜像，
-        // 于是世界BOSS/妖兽入侵的"死亡扣修为"从来没真的扣到修为，还让两处数值互相矛盾。
-        const currentExp = BigInt(player.exp || 0);
-        const penalty = (currentExp * BigInt(Math.round(penaltyRate * 10000))) / 10000n;
-        const remaining = currentExp - penalty > 0n ? currentExp - penalty : 0n;
-        player.exp = remaining;
-        attrs.exp = Number(remaining);   // 镜像同步，避免读旧键的子系统看到两个数
-        // 写回（player.attributes 的 setter 会自动 JSON.stringify）
-        player.attributes = attrs;
-    }
 
     /**
      * 计算五行相克系数（金克木/木克土/土克水/水克火/火克金）

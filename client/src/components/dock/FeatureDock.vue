@@ -2,6 +2,9 @@
   <!-- 三栏在 1280px 以下放不下（角色 288 + 日志 560 + 坞 400），
        因此 xl 起才启用右坞，更窄的屏退回底部操作条 + 全屏 modal。 -->
   <aside class="hidden xl:flex flex-col flex-1 min-w-[400px] border-l border-line-subtle bg-surface-canvas shrink-0">
+    <!-- 功能搜索：48 个入口分 10 类，光靠翻分类页签找不到东西 -->
+    <FeatureSearch @open="id => $emit('action', id)" />
+
     <!-- 分类标签：全部带文字，不再出现纯图标导航 -->
     <div class="shrink-0 flex flex-wrap gap-x-1 gap-y-0.5 px-2 pt-2 pb-1.5 border-b border-line-subtle bg-surface-base" role="tablist">
       <button
@@ -65,6 +68,7 @@
 import { ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick } from 'vue'
 import { ACTIONS, DOCK_TABS, resolveAction } from '../../data/actionCatalog'
 import OverviewPane from './OverviewPane.vue'
+import FeatureSearch from './FeatureSearch.vue'
 
 const props = defineProps({
   player: { type: Object, default: null },

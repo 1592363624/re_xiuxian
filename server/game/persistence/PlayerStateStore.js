@@ -21,6 +21,7 @@
 const { Op } = require('sequelize');
 const sequelize = require('../../config/database');
 const Player = require('../../models/player');
+const { CAS_COLUMNS } = require('./numericWriteGuard');
 
 class PlayerNotFoundError extends Error {}
 class InsufficientResourceError extends Error {
@@ -34,12 +35,13 @@ class InsufficientResourceError extends Error {
     }
 }
 
-/** 允许原子增减的数值列（白名单，绝不允许外部传入列名） */
-const AMOUNT_COLUMNS = new Set([
-    'spirit_stones', 'exp', 'hp_current', 'mp_current', 'lifespan_current',
-    'toxicity', 'attribute_points', 'honor', 'pvp_score', 'karma',
-    'incense_balance', 'law_points', 'divine_sense_balance', 'border_military_merit_available'
-]);
+/**
+ * 允许原子增减的数值列（白名单，绝不允许外部传入列名）。
+ * 这一份名单与"写回时必须做新鲜度判定的列"是同一件事的两面 —— 新增一个数值资源列，
+ * 只加 numericWriteGuard 那一处，两边一起生效（列在这里不在那里=原子接口不认它，
+ * 在那里不在这里=写它会多一道判定，两种漂移都比"悄悄漏掉一层守卫"好）。
+ */
+const AMOUNT_COLUMNS = new Set(CAS_COLUMNS);
 
 /** 同时存在于"标量列"和"attributes blob"里的键：以标量列为准，写入时同步镜像到 blob，
  *  这样还在读 blob 的老代码（战斗/副本等）不会读到过期值 */
@@ -210,10 +212,33 @@ async function patchPlayerState(playerId, patch = {}, options = {}) {
 }
 
 /**
+ * 给一个**已经持锁读出来的**玩家实例追加一个称号，返回是否真的加了（false = 本来就有）。
+ *
+ * 为什么要收成一处：副本结算 7 处 + 切磋 1 处各自抄了同一份"读出来 → includes 判重 → push → 赋回 → save"，
+ * 八份去重逻辑、八份顺序语义，加一处漏一处。
+ *
+ * 一条重要的**纠正**（我一开始判错过一次，别再重复这个误判）：`players.titles` 的定义是
+ * TEXT + "get 里 JSON.parse / set 里 JSON.stringify"，每次读都 parse 出一个**新数组**，
+ * 所以"读引用 → push → 原样赋回"在**这一列上并不丢写**（真库对照见 scripts/smoke_title_grant.js 的 J1）。
+ * 那一族真正的受害者是**原生 JSON 列**：getter 直接返回库里那份对象的引用，
+ * 赋回同一个引用时 changed() 为 false、save() 不带这一列 —— spirit_beast_pastures.steal_yields 就是这样真丢过写，已改。
+ * 所以这个入口的价值是"只有一份追加逻辑"，不是修 bug；这里仍然造新数组，
+ * 因为那样它不依赖某一列 getter 的实现细节，换到任何整块列上都成立。
+ */
+function addTitleToInstance(player, titleId) {
+    if (typeof titleId !== 'string' || !titleId.trim()) throw new Error(`称号 ID 非法: ${titleId}`);
+    const current = Array.isArray(player.titles) ? player.titles : [];
+    if (current.includes(titleId)) return false;
+    player.titles = [...current, titleId];
+    return true;
+}
+
+/**
  * 在调用方事务里以 FOR UPDATE 读出"锁内新鲜"的玩家实例。
  * 需要"先读当前值、再算钳制/账本"的流程用它，然后仍用 patchPlayerState 回写，
  * 这样参与写库的永远是锁内那份，而不是调用方请求开始时拿到的那份。
  */
+
 async function readForUpdate(playerId, options = {}) {
     if (!options.transaction) throw new Error('readForUpdate 必须传入 transaction（否则拿不到行锁）');
     const fresh = await Player.findByPk(playerId, { transaction: options.transaction, lock: options.transaction.LOCK.UPDATE });
@@ -325,6 +350,67 @@ function mirrorPatchedBlob(instance, updated, columns = ['attributes']) {
     return instance;
 }
 
+/**
+ * 给 players.stats 那坨 JSON 计数加一笔（击杀/打坐/炼制…这类"做了多少次"）。
+ *
+ * 为什么要有这么一个口子而不是各服务自己 `player.stats.kill_count += 1` 再 save：
+ *   1. stats 是整块 JSON 列，读-改-写整块回写正是"旧快照覆盖新快照"的那一族（同一玩家两件事同时做完就丢一笔）；
+ *      这里走 patchPlayerState，增量在**行锁内**的那份新鲜 blob 上算（mergeBlobPatch 的 $add），还带 $min 夹底。
+ *   2. 计数键名统一由 `config/player_metrics.json` 声明（内容侧），事件点只说"发生了什么"，
+ *      成就/祖业/后台都从同一张词表取数 —— 不会出现"成就读 p.kill_count 那列其实不存在"那种错位。
+ *   3. 调用方手里那份实例会被镜像成补丁后的新值且不标脏，所以它后面再 save() 也不会把这一笔盖掉。
+ *
+ * @param {Object|number|string} player - 玩家实例或 playerId（实例会把补丁后的 stats 镜像回去）
+ * @param {string} key - 计数键名（player_metrics 里某个 `stats.<key>` 的那段）
+ * @param {number} [delta=1] - 增量（可为负；负数用于撤销，正常业务别用）
+ * @param {Object} [options] { transaction } 复用调用方事务；不传就自己开一笔
+ * @returns {Promise<Object>} 写库后的最新玩家实例
+ */
+async function bumpStat(player, key, delta = 1, options = {}) {
+    if (typeof key !== 'string' || !/^[a-z][a-z0-9_]*$/.test(key)) {
+        throw new Error(`bumpStat 的计数键名不合法: ${String(key)}`);
+    }
+    const step = Number(delta);
+    if (!Number.isFinite(step) || step === 0) throw new Error(`bumpStat(${key}) 的增量非法: ${delta}`);
+    const playerId = typeof player === 'object' && player ? player.id : player;
+    const updated = await patchPlayerState(playerId, {
+        stats: { [key]: { $add: step, $min: 0 } }
+    }, options);
+    if (player && typeof player === 'object') mirrorPatchedBlob(player, updated, ['stats']);
+    return updated;
+}
+
+/**
+ * 给 players.stats 写**几个键的新值**（键级补丁，不是整块赋回）。
+ *
+ * 为什么 bumpStat 之外还要这一个：`duel_count` / `sparring_count` 这一族是**每日计数**，
+ * 它们的新值不是"加一笔"，而是"换日则从 1 重新开始、否则当日 +1"（`$add` 表达不出来），
+ * 还要顺带写 `duel_last_date` / `last_sparring_time` 这几格同日标记。
+ * 以前这两处是 `const stats = { ...player.stats }; stats.duel_count = …; player.stats = stats;` ——
+ * **整块 JSON 赋回**。今天这两条链都先 `FOR UPDATE` 锁住了玩家行，所以它还不至于当场丢账；
+ * 真正的问题是这个形状一存在，下面三件事就永远没有保证：
+ *   1. 同一事务里如果先前已经用键级补丁写过这一坨的别的键，整块赋回会把它盖回旧值（今天没有，明天会有）；
+ *   2. 谁把取实例那一步从"锁内"改成"锁外"（很常见的重构），这一行立刻变成真正的"旧快照覆盖新快照"；
+ *   3. 词表侧只能靠 `legacy_writer` 点名文件来勉强自证有人在写它（见 config/player_metrics.json）。
+ * 走这里就统一成"键级补丁 + 镜像回调用方实例"，与 bumpStat 同一道门、同一套守卫。
+ *
+ * @param {Object|number|string} player - 玩家实例或 playerId（实例会被镜像成补丁后的新值）
+ * @param {Object} values - `{ 计数键: 新值 }`，一次可以写多格（同日标记与计数要一起换，别拆两笔）
+ * @param {Object} [options] { transaction } 复用调用方事务
+ * @returns {Promise<Object>} 写库后的最新玩家实例
+ */
+async function setStatKeys(player, values, options = {}) {
+    const keys = Object.keys(values || {});
+    if (!keys.length) throw new Error('setStatKeys 至少要写一个 stats 键');
+    for (const key of keys) {
+        if (!/^[a-z][a-z0-9_]*$/.test(key)) throw new Error(`setStatKeys 的 stats 键名不合法: ${key}`);
+    }
+    const playerId = typeof player === 'object' && player ? player.id : player;
+    const updated = await patchPlayerState(playerId, { stats: { ...values } }, options);
+    if (player && typeof player === 'object') mirrorPatchedBlob(player, updated, ['stats']);
+    return updated;
+}
+
 module.exports = {
     patchPlayerState,
     readForUpdate,
@@ -333,6 +419,9 @@ module.exports = {
     mergeBlobPatch,
     toBlobMirror,
     mirrorPatchedBlob,
+    addTitleToInstance,
+    bumpStat,
+    setStatKeys,
     spendAmount,
     grantAmount,
     Player,

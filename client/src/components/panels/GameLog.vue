@@ -106,7 +106,7 @@ onMounted(() => {
 
             <span
               class="text-[13px] leading-[1.7] min-w-0"
-              :class="[styleOf(log.type).text, log.isImportant ? 'font-bold' : '']"
+              :class="[styleOf(log.type).text, log.isImportant ? 'font-bold' : '', log.divider ? 'text-fg-faint italic text-[11px]' : '']"
             >{{ log.content }}</span>
           </div>
         </TransitionGroup>

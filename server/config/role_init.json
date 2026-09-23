@@ -5,11 +5,12 @@
         { "id": "water", "name": "水", "displayName": "水", "type": "water", "description": "水属性灵根，速度加成" },
         { "id": "fire", "name": "火", "displayName": "火", "type": "fire", "description": "火属性灵根，攻击加成" },
         { "id": "earth", "name": "土", "displayName": "土", "type": "earth", "description": "土属性灵根，防御加成" },
-        { "id": "thunder", "name": "雷", "displayName": "雷", "type": "thunder", "description": "雷属性灵根，攻击加成" },
-        { "id": "ice", "name": "冰", "displayName": "冰", "type": "ice", "description": "冰属性灵根，灵力与防御加成" },
-        { "id": "wind", "name": "风", "displayName": "风", "type": "wind", "description": "风属性灵根，速度加成" }
+        { "id": "thunder", "name": "雷", "displayName": "雷", "type": "thunder", "roll_enabled": false, "description": "雷属性灵根，攻击加成" },
+        { "id": "ice", "name": "冰", "displayName": "冰", "type": "ice", "roll_enabled": false, "description": "冰属性灵根，灵力与防御加成" },
+        { "id": "wind", "name": "风", "displayName": "风", "type": "wind", "roll_enabled": false, "description": "风属性灵根，速度加成" }
     ],
     "spiritRootProbabilities": {
+        "_comment": "建号抽灵根的权重表，键必须是 spirit_roots[].name。登记成了 map 集合（资料片可加档，写法 {id,value}），所以这里的和不必等于 1：game/stats/SpiritRoot.js 的 spiritRootRollPool 按有效权重归一化后再掷骰，加一档新灵根不用回头改这五条数字。没进这张表的灵根必须在 spirit_roots 里标 roll_enabled:false（雷/冰/风就是「先声明后开放」），否则启动期就抛 —— 表现是「内容齐全但新号永远抽不到」。",
         "金": 0.2,
         "木": 0.2,
         "水": 0.2,

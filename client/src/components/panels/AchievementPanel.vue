@@ -74,11 +74,21 @@ const onClaim = async (item) => {
   }
 }
 
-/** 奖励文案：只在真有奖励时列出，避免出现「奖励：、 修为」这种空项 */
+/**
+ * 奖励文案：只在真有奖励时列出，避免出现「奖励：、 修为」这种空项。
+ * 物品与称号的名字由服务端在出参那一刻按内容解析（item_name / title_name），
+ * 客户端不再抄一份物品典 —— 资料片改一次名字，这里跟着变，代码不用动。
+ * 查不到名字时退回键名只是兜底：那种行一旦在界面上出现，说明内容里引用了不存在的物品，
+ * 而启动闸 _validateItemKeysDeep 本该拦住它（成就的 reward.items 也在它的扫描范围内）。
+ */
 const rewardText = (item) => {
   const parts = []
   if (item.reward?.spirit_stones) parts.push(`${item.reward.spirit_stones} 灵石`)
   if (item.reward?.exp) parts.push(`${item.reward.exp} 修为`)
+  for (const entry of item.reward?.items || []) {
+    parts.push(`${entry.item_name || entry.item_key}×${entry.quantity || 1}`)
+  }
+  if (item.reward?.title_id) parts.push(`称号「${item.reward.title_name || item.reward.title_id}」`)
   return parts.length ? `奖励：${parts.join('、')}` : '无奖励'
 }
 

@@ -29,7 +29,7 @@
       <div class="p-3">
         <div class="flex items-baseline gap-2 mb-2.5">
           <span class="text-base font-bold text-emerald-400 tracking-wider">{{ currentMapName }}</span>
-          <span v-if="mapLoading" class="text-[11px] text-line-strong">载入中…</span>
+          <span v-if="mapLoading" class="text-[11px] text-fg-faint">载入中…</span>
         </div>
 
         <div v-if="connectedMaps.length" class="grid grid-cols-2 gap-1.5">
@@ -43,12 +43,12 @@
           >
             <span class="min-w-0">
               <span class="block text-[12px] text-fg-secondary group-hover:text-gold-500 truncate transition-colors">{{ map.name }}</span>
-              <span class="block text-[10px] text-line-strong">{{ formatCost(map.move_cost) }}</span>
+              <span class="block text-[10px] text-fg-faint">{{ formatCost(map.move_cost) }}</span>
             </span>
             <span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded" :class="safetyClass(map)">{{ safetyLabel(map) }}</span>
           </button>
         </div>
-        <div v-else-if="!mapLoading" class="text-[11px] text-line-strong py-1">此处暂无可直达的相邻区域。</div>
+        <div v-else-if="!mapLoading" class="text-[11px] text-fg-faint py-1">此处暂无可直达的相邻区域。</div>
       </div>
     </section>
 
@@ -67,7 +67,10 @@
           <span class="shrink-0 transition-transform duration-200 group-hover:scale-110" v-html="entry.icon"></span>
           <span class="min-w-0 text-left">
             <span class="block text-[12px] text-fg-secondary group-hover:text-gold-500 tracking-wide transition-colors truncate">{{ entry.name }}</span>
-            <span class="block text-[10px] text-line-strong truncate">{{ entry.desc }}</span>
+            <!-- 说明文字：原来是 text-line-strong（一个描边用的令牌当文字色），
+                 在浅底上几乎看不见，还叠了 truncate 把"闭关修炼 突破境界"砍成"闭关修炼 突破…"。
+                 换成正文字色 + 允许两行，玩家才真能靠它认功能。 -->
+            <span class="block text-[10px] text-fg-faint leading-snug line-clamp-2">{{ entry.desc }}</span>
           </span>
         </button>
       </div>

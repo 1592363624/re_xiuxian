@@ -32,6 +32,7 @@ const sequelize = require('../config/database');
 const InventoryService = require('../game/services/InventoryService');
 const CaveLegacyService = require('../game/services/CaveLegacyService');
 const { initializeModules, infrastructure } = require('../modules');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const SPINNER = 'smoke_cave_legacy';
 const OWNER = 'smoke_cave_legacy_owner';
@@ -203,7 +204,7 @@ async function main() {
 
     const ownerPlayer = await ensurePlayer(OWNER, '遗府探针主');
     const spinPlayer = await ensurePlayer(SPINNER, '分宝探针');
-    await Item.destroy({ where: { player_id: spinPlayer.id } });
+    await Item.destroy({ where: { player_id: spinPlayer.id } });  // 本轮开局先把背包清空（不是收尾，级联管不到这里）
     const spinner = { id: spinPlayer.id, player: spinPlayer, ownerId: ownerPlayer.id };
 
     // 排序按 quality：rare 先分配，所以 B 轮挡第一件必然撞上
@@ -224,8 +225,10 @@ async function main() {
         await CaveLegacyItem.destroy({ where: { legacy_id: inIds } });
         await CaveLegacy.destroy({ where: { id: inIds } });
     }
-    await Item.destroy({ where: { player_id: spinPlayer.id } });
-    await Player.destroy({ where: { username: [SPINNER, OWNER] } });
+    // 背包（player_items）、遗府（cave_legacies.owner_player_id）、参与者与分宝日志（player_id）
+    // 这些按"归属"列挂着的行全部交给级联；上面那几条按 legacy_id 归属的才要自己点名。
+    const purged = await PlayerCascadePurge.deletePlayers([spinner.ownerId, spinner.id]);
+    console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
 }
 
 (async () => {

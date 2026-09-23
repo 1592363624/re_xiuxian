@@ -24,6 +24,11 @@ export interface MarketListing {
   id: number;
   /** 卖家玩家 ID */
   seller_id: number;
+  /**
+   * 卖家昵称：由 MarketService._withSellerNames 在出参层按 seller_id 现算，
+   * 库里不存。/market/list 与 /market/search 会带；/market/my 全是自己的挂单，不带。
+   */
+  seller_name?: string;
   /** 出售物品配置键名 */
   item_key: string;
   /** 出售物品名称（冗余存储便于列表展示） */

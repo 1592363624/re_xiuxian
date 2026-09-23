@@ -1,0 +1,25 @@
+{
+  "dataset": "crafting_data",
+  "into": "alchemy_recipes",
+  "comment": "定魂香的来路：本资料片的成就与这条丹方都会发它，但只有这条是「玩家自己能做出来」的那一头 —— 若成就成了唯一来源，奖励型物品就变成只此一份的收藏品，做不出的东西拿去待客说不通。材料全取基础配置已有的（普通灵草 / 凝气花 / 灵炭），不依赖任何其他 pack；learn_source 用 default，所以开局即会，不必先找一张会掉的图谱（tests/ItemSourceCoverage 有一条「每张配方都学得会」的判据）。数值照 craft_low_healing_pill 与 craft_mid_healing_pill 之间取，等业主签字。",
+  "add": [
+    {
+      "id": "craft_ding_hun_xiang",
+      "name": "炼制定魂香",
+      "type": "alchemy",
+      "description": "普通灵草四茎、凝气花一朵，入灵炭慢煨一炷香，得定魂香两枚",
+      "product": { "item_key": "ding_hun_xiang", "quantity": 2 },
+      "materials": [
+        { "item_key": "wild_herb", "quantity": 4 },
+        { "item_key": "condensing_flower", "quantity": 1 },
+        { "item_key": "spirit_charcoal", "quantity": 2 }
+      ],
+      "required_realm_rank": 2,
+      "required_skill_level": 2,
+      "base_success_rate": 0.8,
+      "skill_exp": 15,
+      "cooldown_sec": 45,
+      "learn_source": "default"
+    }
+  ]
+}

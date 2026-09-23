@@ -465,10 +465,19 @@ router.post('/reset', authMiddleware, async (req, res) => {
             });
         }
 
-        player.spirit_stones = Number(player.spirit_stones) - resetConfig.cost_spirit_stones;
-        player.attribute_points = (Number(player.attribute_points) || 0) + resetPlan.refundablePoints;
-        player.attributes = game.AttributeService.buildAttributesAfterReset(resetPlan);
-        await player.save({ transaction: t });
+        // 一次键级落库：扣费与退点走列上原子加减，attributes 只发补丁（回收的那几个键 $add 负增量、
+        // 账本删键、冷却时点写一个键）。以前这里是"改这份实例 + save 整行"，
+        // 会把这一坨 blob 里别的流程（丹药、神识、各玩法）写的键按手上这份快照一起盖回去。
+        const updated = await PlayerStateStore.patchPlayerState(req.user.id, {
+            amounts: {
+                spirit_stones: -resetConfig.cost_spirit_stones,
+                attribute_points: resetPlan.refundablePoints
+            },
+            attributes: game.AttributeService.buildAttributesResetPatch(resetPlan)
+        }, { transaction: t });
+        // 回执与随后的 calculateFullAttributes 都读落库那一份；这一行不再参与整块写回
+        PlayerStateStore.mirrorPatchedBlob(player, updated);
+        for (const column of ['spirit_stones', 'attribute_points']) player.setDataValue(column, updated.getDataValue(column));
 
         await t.commit();
 

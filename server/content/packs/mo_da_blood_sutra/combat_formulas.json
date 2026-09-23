@@ -1,0 +1,19 @@
+{
+  "dataset": "combat_formulas",
+  "into": "profiles",
+  "comment": "血元伤害档位，跟本片 stat_definitions.json 的 blood_power 绑在一起：基础公式表如果引用一个只有资料片才登记的属性，关掉资料片就会留下永远打不出伤害的空档位，所以档位与属性必须同片。attack_fallback_stat 让完全没堆血元的人按普攻结算，不会出现「穿了血修装备反而打 0」。数值刻意低于剑意那一档（skill_multiplier 1.15 vs 1.2、defense_coef 0.6 vs 0.5）：血修还能从化血刀拿到真实吸血（procs.lifesteal 走注册表 battleRole「lifesteal」，不是本档位的功劳），所以直伤这边先留一手，等业主签字再抬。",
+  "add": [
+    {
+      "id": "player_blood_power",
+      "label": "血修噬血（血元直击，防御按六成计）",
+      "attack_stat": "blood_power",
+      "attack_fallback_stat": "atk",
+      "mitigate_stat": "def",
+      "skill_multiplier": 1.15,
+      "defense_coef": 0.6,
+      "random_range_config": "player_damage_random_range",
+      "random_offset_config": "player_damage_random_offset",
+      "min_damage": 1
+    }
+  ]
+}

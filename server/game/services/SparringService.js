@@ -20,6 +20,7 @@
  * @created 2026-07-21
  */
 const sequelize = require('../../config/database');
+const { addTitleToInstance } = require('../persistence/PlayerStateStore');
 const { Op } = require('sequelize');
 const Player = require('../../models/player');
 const PlayerSparring = require('../../models/playerSparring');
@@ -840,11 +841,10 @@ class SparringService {
                     // 发放称号（去重：已有则不重复添加）
                     let titleAwarded = null;
                     if (reward.title) {
-                        const titles = player.titles || [];
-                        if (!titles.includes(reward.title)) {
-                            titles.push(reward.title);
-                            updateFields.titles = titles; // set hook 会自动 JSON.stringify
-                        }
+                        // 称号追加只走这一份定义（去重与顺序语义不再各抄一份）。
+                        // 注：players.titles 是 TEXT+parse 列，原先那种写法在这一列上其实照样落库；
+                        // "同引用赋回会丢写"只对**原生 JSON 列**成立（量法见 scripts/smoke_title_grant.js）。
+                        addTitleToInstance(player, reward.title);
                         titleAwarded = reward.title;
                     }
 

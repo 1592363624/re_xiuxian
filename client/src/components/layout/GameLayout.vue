@@ -6,6 +6,7 @@
         v-if="playerStore.player"
         :player="playerStore.player"
         :map-name="playerStore.worldState?.map_name || ''"
+        :synced="isStateSynced"
         @action="handleAction"
       />
     </aside>
@@ -23,10 +24,10 @@
         <div class="flex-1 overflow-y-auto p-2 space-y-2">
           <div class="bg-surface-raised rounded p-3 mb-4 border border-line-subtle">
              <div class="flex items-center gap-3 mb-2">
-               <div class="w-10 h-10 rounded bg-surface-hover border border-line overflow-hidden shrink-0">
-                  <img v-if="player.avatar_url && !mobileAvatarFailed" :src="player.avatar_url" alt="Avatar" class="w-full h-full object-cover" @error="mobileAvatarFailed = true">
-                  <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full p-1.5 text-fg-faint"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-               </div>
+                <div class="w-10 h-10 rounded bg-surface-hover border border-line overflow-hidden shrink-0" @contextmenu="onAvatarContextMenu">
+                   <img v-if="player.avatar_url && !mobileAvatarFailed" :src="player.avatar_url" alt="Avatar" class="w-full h-full object-cover" @error="mobileAvatarFailed = true">
+                   <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full p-1.5 text-fg-faint"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
                <div class="min-w-0">
                  <div class="font-bold text-fg-primary truncate">{{ player.name }}</div>
                  <div class="text-xs text-gold-600">{{ player.realm }}</div>
@@ -56,12 +57,7 @@
             v-for="item in systemMenuItems"
             :key="item.id"
             @click="handleAction(item.id)"
-            :class="[
-              'w-full flex items-center gap-3 px-4 py-3 text-sm rounded transition-colors border',
-              item.id === 'gm'
-                ? 'bg-gradient-to-r from-purple-900/40 to-pink-900/40 text-pink-300 hover:from-purple-800/60 hover:to-pink-800/60 hover:text-pink-200 border-pink-700/50 hover:border-pink-500 shadow-lg shadow-pink-900/20'
-                : 'text-fg-secondary hover:bg-surface-hover hover:text-gold-500 border-transparent hover:border-line'
-            ]"
+            class="w-full flex items-center gap-3 px-4 py-3 text-sm rounded transition-colors border text-fg-secondary hover:bg-surface-hover hover:text-gold-500 border-transparent hover:border-line"
           >
             {{ item.name }}
           </button>
@@ -89,15 +85,6 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
             <span class="hidden sm:inline">设置</span>
           </AppButton>
-
-          <button
-            v-if="player && player.role === 'admin'"
-            @click="handleAction('gm')"
-            class="flex items-center gap-2 px-3 py-2 rounded-control transition-all text-sm justify-center border bg-gradient-to-r from-purple-900/40 to-pink-900/40 hover:from-purple-800/60 hover:to-pink-800/60 text-pink-300 hover:text-pink-200 border-pink-700/50 hover:border-pink-500 shadow-lg shadow-pink-900/20"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-            <span class="hidden sm:inline">GM</span>
-          </button>
 
           <button @click="handleLogoutClick" class="p-2 ml-1 text-fg-faint hover:text-rose-500 transition-colors rounded-full hover:bg-surface-hover/50" title="退出登录" aria-label="退出登录">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -329,12 +316,25 @@ const handleAction = (actionId) => {
   isMobileMenuOpen.value = false;
   if (actionId === 'menu') { isMobileMenuOpen.value = true; return; }
   if (actionId === 'settings') { isSettingsOpen.value = true; return; }
-  if (actionId === 'gm') { isAdminPanelOpen.value = true; return; }
+  if (actionId === 'gm') {
+    // 后端 adminCheck 会再拦一层；前端只放行 admin，避免普通玩家误触
+    if (props.player?.role !== 'admin') return;
+    isAdminPanelOpen.value = true;
+    return;
+  }
   if (!resolvePanel(actionId)) {
     uiStore.showToast(`「${ACTIONS[actionId]?.name || actionId}」暂未开放`, 'warning');
     return;
   }
   goPanel(actionId);
+};
+
+/** 头像右键：仅 admin 打开 GM 后台，其他情况放行浏览器默认菜单 */
+const onAvatarContextMenu = (event) => {
+  if (props.player?.role !== 'admin') return;
+  event.preventDefault();
+  isMobileMenuOpen.value = false;
+  isAdminPanelOpen.value = true;
 };
 
 const handleReturnToBattle = () => goPanel('combat');
@@ -358,11 +358,8 @@ const mobileMenuGroups = computed(() =>
     items: tab.ids.map(id => ({ id, name: ACTIONS[id].name, icon: ACTIONS[id].icon }))
   }))
 );
-const systemMenuItems = computed(() => {
-  const items = [{ id: 'settings', name: '设置' }];
-  if (props.player?.role === 'admin') items.push({ id: 'gm', name: 'GM' });
-  return items;
-});
+// GM 入口不进任何菜单：admin 右键自己的头像进入（见 PlayerStatus / 抽屉头像）
+const systemMenuItems = computed(() => [{ id: 'settings', name: '设置' }]);
 
 // 等后端状态同步回来再渲染遮罩，否则会用 localStorage 的旧状态误显示闭关
 const isStateSynced = ref(false);

@@ -1,0 +1,34 @@
+{
+  "dataset": "item_data",
+  "into": "items",
+  "comment": "三件东西：试艺令与客卿印是成就发的信物（除了成就这条路径，全仓没有任何地方给它们 —— 这正是本轮新开的 reward.items 那条口的活证据），定魂香是这条丹方的产物、也当一回成就奖励。price 给的是万宝阁回收价，信物类刻意 0（不该能被卖掉换成灵石，否则成就奖励立刻变成一条套利路径）。品质档名只用现网词表里已有的（common/uncommon/rare/epic/legendary/mythic），写错一档启动期就会被 _validateItemQualities 拦下。",
+  "add": [
+    {
+      "id": "huangfeng_trial_token",
+      "name": "黄枫谷试艺令",
+      "type": "material",
+      "subtype": "token",
+      "quality": "rare",
+      "description": "内门试艺后由执事长老发的木令，正面刻一株黄枫，背面是本人名讳。谷中弟子把它别在袖中，算是认下这场比艺的凭据。",
+      "price": 0
+    },
+    {
+      "id": "huangfeng_guest_seal",
+      "name": "黄枫谷客卿印",
+      "type": "material",
+      "subtype": "token",
+      "quality": "epic",
+      "description": "谷主亲授的一枚铜印，无品级、不辖人事，只证明持印者可自由出入藏经阁与丹房。外姓修士得之最难，故印不离身。",
+      "price": 0
+    },
+    {
+      "id": "ding_hun_xiang",
+      "name": "定魂香",
+      "type": "material",
+      "subtype": "incense",
+      "quality": "uncommon",
+      "description": "灵草为君、凝气花为使，一线青烟能压住刚历大战后浮动的魂魄。斗法之前点一炷，是黄枫谷外门弟子传下来的老规矩。",
+      "price": 120
+    }
+  ]
+}

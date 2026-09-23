@@ -32,6 +32,7 @@ import LoadingBlock from '../ui/LoadingBlock.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
 import { formatTime, formatCompact } from '../../utils/format'
+import { useItemQualities } from '../../composables/useItemQualities'
 import { getInventory } from '../../api/inventory'
 import {
   getStatus,
@@ -151,24 +152,11 @@ const creditBonusText = computed(() => {
 /* ===================== 工具函数 ===================== */
 
 /**
- * 品质颜色与中文标签映射（与 InventoryPanel 保持一致）
+ * 品质文字色与中文标签：一律取服务端 game_balance.item_qualities（见 composables/useItemQualities.js）。
+ * 这里以前照着 InventoryPanel 抄了一份六键字典（同样没有 mythic）—— 抄写就是要漏档，
+ * 神话档在当铺里只能退成中性的"未知"，玩家看不出这件该留着还是该当掉。
  */
-const qualityStyleMap = {
-  common: { color: 'text-fg-secondary', label: '普通' },
-  uncommon: { color: 'text-emerald-400', label: '非凡' },
-  rare: { color: 'text-sky-400', label: '稀有' },
-  epic: { color: 'text-purple-400', label: '史诗' },
-  legendary: { color: 'text-gold-400', label: '传说' },
-  unknown: { color: 'text-fg-faint', label: '未知' }
-}
-
-/**
- * 获取品质样式
- * @param {string} quality - 品质 key
- */
-const getQualityStyle = (quality) => {
-  return qualityStyleMap[quality] || qualityStyleMap.unknown
-}
+const { styleOf: getQualityStyle } = useItemQualities()
 
 /**
  * 格式化时间为 MM-DD HH:mm

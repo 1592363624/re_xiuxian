@@ -48,6 +48,26 @@ class TaoismGateService {
         console.log('[TaoismGateService] 太一门引道服务初始化完成');
     }
 
+    /**
+     * 道途清单（内容 `taoism_gate_data.dao_paths` 原样导出，含资料片补的档）。
+     *
+     * 为什么由服务端给：面板以前自己抄了「五行道途全集」+ 一份中文名表 + 一份五段描述文案，
+     * 内容加一档道途时界面上永远少一张卡，改文案也不会跟着变（抄的那份描述还漏过技能名）。
+     * 配色留在客户端（是 tailwind 类名组合，不是内容），内容里那个 `color` 仍随载荷带着备用。
+     */
+    _daoPathOptions() {
+        return Object.entries(this.config?.dao_paths || {}).map(([key, path]) => ({
+            key,
+            name: path.name || key,
+            description: path.description || '',
+            color: path.color || null,
+            passive_bonus_desc: path.passive_bonus_desc || '',
+            skill_name: path.skill_name || '',
+            skill_min_level: path.skill_min_level ?? null,
+            restraint_targets: path.restraint_targets || []
+        }));
+    }
+
     // ==================== 玩家接口 ====================
 
     /**
@@ -113,6 +133,7 @@ class TaoismGateService {
                     max: divineSenseMax
                 },
                 skills: skills,
+                dao_path_options: this._daoPathOptions(),
                 daily_tasks: gate.daily_tasks || [],
                 resonance: {
                     same_path_player_count: samePathCount,
@@ -139,7 +160,9 @@ class TaoismGateService {
 
         // 校验道途key
         if (!this.config.dao_paths[pathKey]) {
-            throw new AppError('无效的道途，可选：metal（金）/wood（木）/water（水）/fire（火）/earth（土）', 400, ErrorCodes.VALIDATION_ERROR);
+            // 清单取自内容：以前这里抄了一份"metal（金）/wood（木）/…"，资料片加一档就会说错话
+            const options = this._daoPathOptions().map(o => `${o.key}（${o.name}）`).join('/');
+            throw new AppError(`无效的道途，可选：${options}`, 400, ErrorCodes.VALIDATION_ERROR);
         }
 
         // 校验境界

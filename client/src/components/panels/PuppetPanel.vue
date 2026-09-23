@@ -483,6 +483,7 @@ import EmptyState from '../ui/EmptyState.vue'
 import LoadingBlock from '../ui/LoadingBlock.vue'
 import { useUIStore } from '../../stores/ui'
 import { formatCompact } from '../../utils/format'
+import { useItemQualities } from '../../composables/useItemQualities'
 import {
   getWorkshop,
   learnBlueprint,
@@ -552,37 +553,12 @@ const materialName = (matKey) => {
   return materialNameMap[matKey] || matKey
 }
 
-/** 品质标签 */
-const qualityLabel = (quality) => {
-  const map = { common: '普通', uncommon: '精良', rare: '稀有', epic: '史诗', legendary: '传说', mythic: '神话' }
-  return map[quality] || quality
-}
-
-/** 品质背景色 class（暖色主题下的品阶梯度：石 → 翠 → 靛 → 紫 → 鎏金 → 神话渐变） */
-const qualityBgClass = (quality) => {
-  const map = {
-    common: 'bg-surface-active text-fg-secondary',
-    uncommon: 'bg-emerald-800 text-emerald-200',
-    rare: 'bg-sky-800 text-sky-200',
-    epic: 'bg-purple-800 text-purple-200',
-    legendary: 'bg-gold-700 text-gold-200',
-    mythic: 'bg-gradient-to-br from-gold-500 to-rose-600 text-fg-primary'
-  }
-  return map[quality] || 'bg-surface-active text-fg-secondary'
-}
-
-/** 品质文字色 class */
-const qualityTextClass = (quality) => {
-  const map = {
-    common: 'text-fg-secondary',
-    uncommon: 'text-emerald-300',
-    rare: 'text-sky-300',
-    epic: 'text-purple-300',
-    legendary: 'text-gold-300',
-    mythic: 'text-gold-200'
-  }
-  return map[quality] || 'text-fg-secondary'
-}
+/**
+ * 傀儡品质的档名与颜色：一律取服务端 game_balance.item_qualities（见 composables/useItemQualities.js）。
+ * 这里以前抄了三份字典，彼此还不一样：标签那份把 uncommon 叫"精良"（同一档在背包里叫"非凡"），
+ * 文字色那份只到 legendary —— mythic 落不进表，神话傀儡的名字就退成"普通"的中性灰。
+ */
+const { labelOf: qualityLabel, tileClass: qualityBgClass, textClass: qualityTextClass } = useItemQualities()
 
 // ===== 数据加载 =====
 /**
@@ -622,8 +598,14 @@ const openLearnConfirm = (mfg) => {
 const executeLearn = async () => {
   if (!pendingLearn.value) return
   const mfg = pendingLearn.value
-  // 通过类型配置反查 blueprint_key
-  const blueprintKey = mfg.puppet_type + '_blueprint'
+  if (!mfg.blueprint_key) {
+    uiStore.showToast?.(`${mfg.name || '这只傀儡'}没有登记图谱（内容里 blueprint_key 缺失）`, 'error')
+    return
+  }
+  // 图谱 key 由服务端随"可制造列表"下发（blueprint_key）。
+  // 以前这里在界面里按傀儡类型名拼出图谱键（补上 _blueprint 后缀）：那是把内容的一条命名约定抄进了 UI ——
+  // 资料片给新傀儡配的图谱只要不叫这个名字，点「参悟」就报图谱不存在，看起来像这傀儡根本学不了。
+  const blueprintKey = mfg.blueprint_key
   actionLoading.value = 'learn_' + mfg.puppet_type
   try {
     const res = await learnBlueprint(blueprintKey)

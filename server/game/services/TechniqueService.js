@@ -16,6 +16,7 @@ const sequelize = require('../../config/database');
 const Player = require('../../models/player');
 const CombatResolver = require('../combat/CombatResolver');
 const { resolveSpiritRoot, spiritRootTypes } = require('../stats/SpiritRoot');
+const { contentList } = require('../content/ContentRegistry');
 const { foldSkillStats } = require('../combat/skillEffects');
 const Realm = require('../../models/realm');
 const PlayerSect = require('../../models/playerSect');
@@ -172,10 +173,12 @@ class TechniqueService {
             return 1 + (Number(cfg.match_bonus_pct) || 0) / 100;
         }
 
-        // 玩家灵根克制功法属性 → 相冲衰减
+        // 玩家灵根克制功法属性 → 相冲衰减。值过 contentList：基础配置是裸数组，
+        // 资料片经 map 集合加的条目是 `{id,counters:[...]}` 对象 —— 只认 Array.isArray 的话，
+        // 片里那条会被静默丢掉，新灵根于是"能契合、不能相克"，而表看起来是配齐的。
         const conflicts = cfg.conflicts || {};
         for (const root of roots) {
-            if (Array.isArray(conflicts[root]) && conflicts[root].includes(element)) {
+            if (contentList(conflicts[root]).includes(element)) {
                 return 1 - (Number(cfg.conflict_penalty_pct) || 0) / 100;
             }
         }
@@ -339,9 +342,25 @@ class TechniqueService {
         const allTechniques = this.getConfig().techniques || {};
         const availableList = [];
 
+        /**
+         * 这份代价现在凑不凑得齐，由服务端一次算清再下发。
+         * 以前前端自己猜键名（读 acquire.cost_spirit_stones，配置里其实叫 cost_spirit_stone），
+         * 于是余额提示永远说"够"，点下去才被服务端拒 —— 契约对不上时表现是"按钮骗人"。
+         * 下面只多查两趟（背包、宗门行）+ 一份内存里的物品名，绝不在循环里逐条查库。
+         */
+        const Item = require('../../models/item');
+        const [bagRows, sectRow] = await Promise.all([
+            Item.findAll({ where: { player_id: player.id }, attributes: ['item_key', 'quantity'] }),
+            PlayerSect.findOne({ where: { player_id: player.id }, attributes: ['sect_id', 'contribution'] })
+        ]);
+        const bag = new Map(bagRows.map(r => [String(r.item_key), Number(r.quantity) || 0]));
+        const itemData = this.configLoader?.getConfig?.('item_data') || {};
+        const itemNames = new Map((itemData.items || []).map(i => [String(i.id), i.name]));
+
         for (const [id, cfg] of Object.entries(allTechniques)) {
             if (id.startsWith('_') || ownedIds.has(id)) continue;
             const gradeCfg = this.getGradeConfig(cfg.grade) || {};
+            const status = this._acquireStatus(cfg, { player, bag, sectRow, itemNames });
             availableList.push({
                 technique_id: id,
                 name: cfg.name,
@@ -353,6 +372,9 @@ class TechniqueService {
                 required_realm: cfg.required_realm,
                 realm_satisfied: await this.isRealmSatisfied(player.realm, cfg.required_realm),
                 acquire: cfg.acquire || {},
+                // 展示用快照（真正判定仍在 learnTechnique 的事务里，这里不许当成授权依据）
+                acquire_ready: status.ready,
+                acquire_hint: status.hint,
                 bonuses: cfg.bonuses || {}
             });
         }
@@ -424,6 +446,40 @@ class TechniqueService {
         return result;
     }
 
+    /**
+     * 展示用的"这份代价现在凑不凑得齐"。
+     *
+     * 与 learnTechnique 的强制校验同源同口径，但**只是列表打开那一刻的快照**：判定仍在习得事务里做，
+     * 这里绝不许被当成授权依据。它存在的全部意义是别让玩家点一个必然被拒的按钮。
+     * 只读调用方查好的三份数据（灵石在 player 上、背包 bag、宗门行 sectRow），不再查库。
+     */
+    _acquireStatus(cfg, { player, bag, sectRow, itemNames }) {
+        const acquire = cfg.acquire || {};
+        const stones = Number(player?.spirit_stones) || 0;
+        const scrollName = id => itemNames?.get(String(id)) || String(id);
+        switch (String(acquire.source ?? 'default')) {
+            case 'shop': {
+                const cost = Number(acquire.cost_spirit_stone) || 0;
+                return { ready: stones >= cost, hint: `${cost} 灵石` };
+            }
+            case 'sect': {
+                const need = Number(acquire.sect_contribution) || 0;
+                if (acquire.sect_id && String(sectRow?.sect_id || '') !== String(acquire.sect_id)) {
+                    return { ready: false, hint: `需入指定宗门，另需 ${need} 贡献` };
+                }
+                return { ready: Number(sectRow?.contribution || 0) >= need, hint: `${need} 宗门贡献` };
+            }
+            case 'recipe_scroll': {
+                const key = String(acquire.item_id || '');
+                return { ready: (bag?.get(key) || 0) >= 1, hint: `消耗《${scrollName(key)}》×1` };
+            }
+            case 'secret_realm':
+                return { ready: false, hint: '秘境奇遇所得，无法主动研习' };
+            default:
+                return { ready: true, hint: '新手指引' };
+        }
+    }
+
     // ==================== 习得功法 ====================
 
     /**
@@ -434,7 +490,13 @@ class TechniqueService {
      *   - default：新手默认功法，免费
      *   - shop：消耗灵石
      *   - sect：消耗宗门贡献（若限定宗门还需校验所属宗门）
+     *   - recipe_scroll：消耗背包里那卷残卷（功法侧 acquire.item_id 是权威，
+     *     物品侧 effect.learn_technique 回指这部功法，两头由内容层启动期闸强制对上）
      *   - secret_realm：不可主动习得，只能秘境掉落（由掉落逻辑调用 grantTechnique）
+     *
+     * 这份清单同时抄在 ContentRegistry._validateTechniqueAcquire 的 SUPPORTED 表里：
+     * 以前这里只认 shop/sect，资料片写的 recipe_scroll / sect_treasury 全都落到"什么都不扣"，
+     * 于是境界够就能白嫖一部功法、而那张贵价残卷又谁都消化不掉。加新分支时两处一起改。
      *
      * @param {number} playerId - 玩家ID
      * @param {string} techniqueId - 功法ID
@@ -512,6 +574,24 @@ class TechniqueService {
                 playerSect.contribution = Number(playerSect.contribution) - need;
                 await playerSect.save({ transaction: t });
                 costDesc = `${need} 宗门贡献`;
+            } else if (acquire.source === 'recipe_scroll') {
+                // 残卷：代价是一件物品，消耗走 CraftingService.learnRecipe 同一套写法
+                // （同一事务里 hasItem → removeItem，玩家行在函数开头已经 FOR UPDATE 锁过，
+                //  所以"双击同时交两卷"只会成功一次；事务回滚时残卷跟着回来，不会白吞。）
+                const InventoryService = require('./InventoryService');   // 延迟 require：背包侧也引用本服务
+                const itemKey = String(acquire.item_id || '');
+                const items = (this.configLoader?.getConfig('item_data') || {}).items || [];
+                const scroll = items.find(i => String(i.id) === itemKey);
+                if (!scroll || scroll.type !== 'recipe_scroll') {
+                    throw new AppError(`功法配置的残卷 ${itemKey || '(未填)'} 不是一件可研习的卷轴`, 500, ErrorCodes.INTERNAL_ERROR);
+                }
+                if (!(await InventoryService.hasItem(playerId, itemKey, 1, t))) {
+                    throw new AppError(`缺少《${scroll.name}》，此法非卷不传`, 400, ErrorCodes.CONDITION_NOT_MET);
+                }
+                if (!(await InventoryService.removeItem(playerId, itemKey, 1, t))) {
+                    throw new AppError('残卷消耗失败', 500, ErrorCodes.INTERNAL_ERROR);
+                }
+                costDesc = `${scroll.name} ×1`;
             }
 
             const record = await PlayerTechnique.create({

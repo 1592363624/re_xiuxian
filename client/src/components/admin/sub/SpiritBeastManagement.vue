@@ -147,13 +147,13 @@
                   <div class="text-[10px] text-fg-faint">{{ b.beast_name || '(默认名)' }}</div>
                 </td>
                 <td class="px-3 py-2">
-                  <span :class="rarityClass(b.rarity)" class="px-2 py-0.5 rounded text-xs">
-                    {{ rarityLabel(b.rarity) }}
+                  <span :style="rarityStyle(b.rarity, b.rarity_color)" class="px-2 py-0.5 rounded text-xs">
+                    {{ b.rarity_name || rarityLabel(b.rarity) }}
                   </span>
                 </td>
                 <td class="px-3 py-2">
-                  <span :class="elementClass(b.element)" class="px-2 py-0.5 rounded text-xs">
-                    {{ elementLabel(b.element) }}
+                  <span :style="elementStyle(b.element)" class="px-2 py-0.5 rounded text-xs">
+                    {{ b.element_name || elementLabel(b.element) }}
                   </span>
                 </td>
                 <td class="px-3 py-2 text-yellow-400">★{{ b.star_level }}</td>
@@ -205,11 +205,11 @@
           <h4 class="text-sm text-fg-muted mb-3">稀有度分布</h4>
           <div v-if="stats" class="space-y-2">
             <div v-for="r in stats.rarity_distribution" :key="r.rarity" class="flex items-center gap-2">
-              <span :class="rarityClass(r.rarity)" class="px-2 py-0.5 rounded text-xs w-12 text-center">
+              <span :style="rarityStyle(r.rarity, r.rarity_color)" class="px-2 py-0.5 rounded text-xs w-12 text-center">
                 {{ r.rarity_name }}
               </span>
               <div class="flex-1 h-3 bg-surface-sunken rounded overflow-hidden">
-                <div :class="rarityBgClass(r.rarity)" :style="`width: ${rarityPercent(r.count)}%`"></div>
+                <div :style="barStyle(rarityColorOf(r.rarity, r.rarity_color), rarityPercent(r.count))"></div>
               </div>
               <span class="text-fg-primary text-sm w-12 text-right num">{{ r.count }}</span>
             </div>
@@ -221,11 +221,11 @@
           <h4 class="text-sm text-fg-muted mb-3">元素分布</h4>
           <div v-if="stats" class="space-y-2">
             <div v-for="e in stats.element_distribution" :key="e.element" class="flex items-center gap-2">
-              <span :class="elementClass(e.element)" class="px-2 py-0.5 rounded text-xs w-12 text-center">
+              <span :style="elementStyle(e.element, e.element_color)" class="px-2 py-0.5 rounded text-xs w-12 text-center">
                 {{ e.element_name }}
               </span>
               <div class="flex-1 h-3 bg-surface-sunken rounded overflow-hidden">
-                <div :class="elementBgClass(e.element)" :style="`width: ${elementPercent(e.count)}%`"></div>
+                <div :style="barStyle(elementColorOf(e.element, e.element_color), elementPercent(e.count))"></div>
               </div>
               <span class="text-fg-primary text-sm w-12 text-right num">{{ e.count }}</span>
             </div>
@@ -454,20 +454,39 @@ async function loadBeastKeyList() {
   }
 }
 
-const RARITY_OPTIONS = [
-  { value: 'common', label: '凡品' },
-  { value: 'rare', label: '灵品' },
-  { value: 'epic', label: '宝品' },
-  { value: 'legendary', label: '仙品' }
-]
+/**
+ * 灵兽属性清单：同样取自内容（GET /config/content/keys/spirit_beast_data?collection=elements）。
+ * 以前这里抄了一份五行常量，而属性词表本轮才登记成资料片可扩的集合 ——
+ * 资料片自带新一档灵兽属性（凡人遗宝就补了一档「雷」）时，这个下拉里就会少一种，GM 改不了也发不出。
+ */
+const ELEMENT_OPTIONS = ref([])
 
-const ELEMENT_OPTIONS = [
-  { value: 'metal', label: '金' },
-  { value: 'wood', label: '木' },
-  { value: 'water', label: '水' },
-  { value: 'fire', label: '火' },
-  { value: 'earth', label: '土' }
-]
+async function loadElementOptions() {
+  try {
+    const res = await getContentKeyOptions('spirit_beast_data', 'elements')
+    ELEMENT_OPTIONS.value = (res.data?.data?.entries || []).map(e => ({ value: e.key, label: e.name, color: e.color }))
+  } catch (err) {
+    uiStore.showToast(err?.message || '获取灵兽属性清单失败', 'error')
+  }
+}
+
+/**
+ * 灵兽稀有度清单：取自内容（GET /config/content/keys/spirit_beast_data?collection=rarity_config）。
+ * 以前这里手抄了四档名字 + 两份 tailwind 类映射（rarityClass / rarityBgClass），
+ * 而词表 2026-09-22 才登记成资料片可扩的集合 —— 抄的那份不会跟着资料片长：
+ * 资料片加一档「神话」，这个下拉里就没有它（GM 筛不出、也发不出），徽标退回灰色，
+ * 玩家面板却照内容渲染得出颜色，两边看同一只灵兽不像同一只。
+ */
+const RARITY_OPTIONS = ref([])
+
+async function loadRarityOptions() {
+  try {
+    const res = await getContentKeyOptions('spirit_beast_data', 'rarity_config')
+    RARITY_OPTIONS.value = (res.data?.data?.entries || []).map(e => ({ value: e.key, label: e.name, color: e.color }))
+  } catch (err) {
+    uiStore.showToast(err?.message || '获取灵兽稀有度清单失败', 'error')
+  }
+}
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -532,49 +551,26 @@ const giveForm = reactive({
 // ====== 工具函数 ======
 
 const beastKeyLabel = (key) => BEAST_KEY_LIST.value.find(b => b.value === key)?.label || key
-const rarityLabel = (r) => RARITY_OPTIONS.find(x => x.value === r)?.label || r
-const elementLabel = (e) => ELEMENT_OPTIONS.find(x => x.value === e)?.label || e
+const rarityLabel = (r) => rarityOf(r)?.label || r
+const elementOf = (e) => ELEMENT_OPTIONS.value.find(x => x.value === e) || null
+const elementLabel = (e) => elementOf(e)?.label || e
 
-const rarityClass = (r) => {
-  const map = {
-    common: 'bg-surface-active text-fg-primary',
-    rare: 'bg-blue-600 text-fg-primary',
-    epic: 'bg-purple-600 text-fg-primary',
-    legendary: 'bg-orange-600 text-fg-primary'
-  }
-  return map[r] || 'bg-surface-active text-fg-primary'
+const rarityOf = (r) => RARITY_OPTIONS.value.find(x => x.value === r) || null
+
+/** 徽标/色条的颜色：优先用服务端随数据给的那份，其次查词表；两处都没有才退回中性底 */
+const rarityColorOf = (r, given) => given || rarityOf(r)?.color || ''
+const elementColorOf = (e, given) => given || elementOf(e)?.color || ''
+
+function badgeStyle(color) {
+  if (!color) return { background: 'rgba(128, 128, 128, 0.25)', color: 'inherit' }
+  return { background: color + '40', color }
 }
 
-const rarityBgClass = (r) => {
-  const map = {
-    common: 'bg-surface-active',
-    rare: 'bg-blue-500',
-    epic: 'bg-purple-500',
-    legendary: 'bg-orange-500'
-  }
-  return map[r] || 'bg-surface-active'
-}
+const rarityStyle = (r, given) => badgeStyle(rarityColorOf(r, given))
+const elementStyle = (e, given) => badgeStyle(elementColorOf(e, given))
 
-const elementClass = (e) => {
-  const map = {
-    metal: 'bg-yellow-700 text-yellow-100',
-    wood: 'bg-green-700 text-green-100',
-    water: 'bg-blue-700 text-blue-100',
-    fire: 'bg-red-700 text-red-100',
-    earth: 'bg-yellow-800 text-yellow-100'
-  }
-  return map[e] || 'bg-surface-active text-fg-primary'
-}
-
-const elementBgClass = (e) => {
-  const map = {
-    metal: 'bg-yellow-600',
-    wood: 'bg-green-600',
-    water: 'bg-blue-600',
-    fire: 'bg-red-600',
-    earth: 'bg-yellow-700'
-  }
-  return map[e] || 'bg-surface-active'
+function barStyle(color, width) {
+  return { width: `${width}%`, background: color || 'rgba(128, 128, 128, 0.4)' }
 }
 
 const rarityPercent = (count) => {
@@ -790,6 +786,8 @@ const handleResetCooldowns = async (beast) => {
 
 onMounted(() => {
   loadBeastKeyList()
+  loadElementOptions()
+  loadRarityOptions()
   fetchStats()
   fetchBeastList(1)
 })

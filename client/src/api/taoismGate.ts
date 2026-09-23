@@ -51,19 +51,28 @@ export interface ServiceResponse<T> {
  * - fire：火道·焚天（炼化效率 + 火眼金睛）
  * - earth：土道·厚土（法则转换 + 土牢定身）
  */
-export type DaoPath = 'metal' | 'wood' | 'water' | 'fire' | 'earth';
+/**
+ * 道途 key。以前是 `'metal' | 'wood' | ...` 五成员联合类型 —— 那份清单的真身在内容里
+ * （`taoism_gate_data.dao_paths`，资料片可自带新的一档，见 ContentRegistration 那条登记闸），
+ * 联合类型等于把主键抄进前端：加一档道途时 TS 编译与界面都会少一张卡。现在按 string 走，
+ * 清单与中文名/描述都由 `/taoism-gate/profile` 的 `dao_path_options` 下发。
+ */
+export type DaoPath = string;
 
 /**
- * 道途中文名映射
- * 用于前端展示，避免硬编码到模板中
+ * 一档道途的展示数据（服务端按内容拼好，含资料片新增的档）。
+ * 配色留在前端（DAO_PATH_THEME_MAP 是 tailwind 类名），`color` 是内容里那份备用色。
  */
-export const DAO_PATH_NAME_MAP: Record<DaoPath, string> = {
-  metal: '金道',
-  wood: '木道',
-  water: '水道',
-  fire: '火道',
-  earth: '土道'
-};
+export interface TaoismDaoPathOption {
+  key: string;
+  name: string;
+  description: string;
+  color: string | null;
+  passive_bonus_desc: string;
+  skill_name: string;
+  skill_min_level: number | null;
+  restraint_targets: string[];
+}
 
 /**
  * 道途主题色映射（Tailwind 工具类配置，用于卡片/边框/文字配色）
@@ -220,6 +229,8 @@ export interface TaoismProfileData {
   divine_sense: TaoismDivineSenseInfo;
   /** 道途技能列表（每种道途仅1个技能） */
   skills: TaoismSkillInfo[];
+  /** 全部道途档位（内容 taoism_gate_data.dao_paths 原样导出；卡片与"切换道途"下拉都由它驱动） */
+  dao_path_options: TaoismDaoPathOption[];
   /** 日常任务列表（未选择道途时为空数组） */
   daily_tasks: TaoismTaskInfo[];
   /** 共鸣信息 */

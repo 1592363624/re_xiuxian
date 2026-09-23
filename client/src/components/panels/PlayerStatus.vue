@@ -16,11 +16,27 @@ const props = defineProps({
   mapName: {
     type: String,
     default: ''
+  },
+  /**
+   * 世界状态是否已经同步回来。没同步时 mapName 必然为空，
+   * 但这时候断言"未知区域"是错的 —— 玩家明明在彩霞山，
+   * 首屏却先看到"未知区域"再跳成"彩霞山"，读起来像位置丢了。
+   */
+  synced: {
+    type: Boolean,
+    default: false
   }
 })
 
-// 侧栏两个入口点击后由 GameLayout 打开对应面板
+// 侧栏两个入口点击后由 GameLayout 打开对应面板；admin 右键头像进 GM 后台
 const emit = defineEmits(['action'])
+
+/** 仅 admin 右键头像时拦截默认菜单并上报 gm；普通玩家放行浏览器菜单 */
+const onAvatarContextMenu = (event) => {
+  if (props.player?.role !== 'admin') return
+  event.preventDefault()
+  emit('action', 'gm')
+}
 
 // 计算经验条百分比
 // 修复 4-3-P1-2：player.exp 是 BigInt 字符串（如 "99999999999"），
@@ -69,15 +85,17 @@ const lifespanColorClass = computed(() => {
   return 'text-fg-primary'
 })
 
-// 格式化年龄/寿元数值（保留 1 位小数，避免显示 102.61799999...）
-// 修仙游戏中"年"是粗粒度单位，1 位小数足够（如 102.6 年）
+// 格式化年龄/寿元数值（最多 1 位小数，整数不补 .0）
+// 修仙游戏中"年"是粗粒度单位，1 位小数足够（如 102.6 年）。
+// 原来一律 toFixed(1)，于是"1999.0 / 2000.0"这种整数值也带着 .0，
+// 和左边"年龄 1.0"挤在同一行时读起来像一串连续数字（1.01999.0 / 2000.0）。
 // 超过 1 万年后改用万/亿单位，否则窄侧栏放不下 6 位以上的数字
 function formatAge(value) {
   if (value === null || value === undefined) return '0'
   const num = Number(value)
   if (isNaN(num)) return '0'
   if (Math.abs(num) >= 10000) return formatCompact(num)
-  return num.toFixed(1)
+  return Number.isInteger(num) ? String(num) : num.toFixed(1)
 }
 
 // 头像：后端 /player/me 下发绑定 QQ 的头像，未绑定时为空
@@ -219,8 +237,14 @@ onUnmounted(() => {
     <!-- 顶部角色信息 -->
     <div class="flex flex-col mb-6 pt-2 px-2">
        <div class="flex items-center justify-between w-full mb-3">
-         <!-- 头像 (左侧)：绑定 QQ 后显示 QQ 头像，未绑定或图片加载失败时回退默认图标 -->
-         <div class="w-16 h-16 rounded-lg border-2 border-emerald-500/50 flex items-center justify-center bg-surface-canvas shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0 overflow-hidden relative group">
+         <!-- 头像 (左侧)：绑定 QQ 后显示 QQ 头像，未绑定或图片加载失败时回退默认图标；
+              admin 右键头像进入 GM 后台（无可见按钮） -->
+         <div
+           class="w-16 h-16 rounded-lg border-2 border-emerald-500/50 flex items-center justify-center bg-surface-canvas shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0 overflow-hidden relative group"
+           :class="{ 'cursor-pointer': player?.role === 'admin' }"
+           :title="player?.role === 'admin' ? '右键打开 GM 后台' : undefined"
+           @contextmenu="onAvatarContextMenu"
+         >
            <img
              v-if="avatarUrl && !avatarLoadFailed"
              :src="avatarUrl"
@@ -258,8 +282,9 @@ onUnmounted(() => {
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500/70"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
             <span class="font-display tracking-widest text-fg-muted">位置</span>
           </div>
-          <div class="text-emerald-400 text-sm font-bold tracking-wider truncate max-w-[60%]">
-            {{ mapName || '未知区域' }}
+          <div class="text-emerald-400 text-sm font-bold tracking-wider truncate max-w-[60%]"
+               :class="!mapName && !synced ? 'text-fg-faint font-normal' : ''">
+            {{ mapName || (synced ? '未知区域' : '定位中…') }}
           </div>
        </div>
     </div>
@@ -307,11 +332,12 @@ onUnmounted(() => {
            进度条按剩余比例渲染，颜色随 status（normal/warning/danger）变化，
            右侧另标"年龄 X 年"，避免玩家把 5% 读成快死了。 -->
       <div>
-        <div class="flex justify-between text-[10px] text-fg-muted mb-0.5">
+        <div class="flex justify-between text-[10px] text-fg-muted mb-0.5"
+             title="寿元条显示的是「剩余 / 最大」，不是已活年数">
           <span>寿元</span>
           <span class="num">
-            <span class="text-fg-faint mr-2">年龄 {{ formatAge(player.lifespan?.current) }}</span>
-            <span :class="lifespanColorClass">{{ formatAge(player.lifespan?.remaining) }} / {{ formatAge(player.lifespan?.max) }}</span>
+            <span class="text-fg-faint mr-2">年龄 {{ formatAge(player.lifespan?.current) }} 岁</span>
+            <span :class="lifespanColorClass">余 {{ formatAge(player.lifespan?.remaining) }} / {{ formatAge(player.lifespan?.max) }} 年</span>
           </span>
         </div>
         <div class="h-1.5 w-full bg-surface-sunken rounded-sm overflow-hidden border border-line-subtle relative">

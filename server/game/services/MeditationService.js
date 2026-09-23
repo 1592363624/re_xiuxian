@@ -454,8 +454,14 @@ class MeditationService {
 
         await locked.save({ transaction: t });
 
+        // 悟道/打坐**结算**一次进一格计数（中断也算一次完成结算：感悟与修为都按完成度折过了）。
+        // 键名与含义在 config/player_metrics.json 里声明，成就 seclusion_count 读的就是这一格。
+        const PlayerStateStore = require('../persistence/PlayerStateStore');
+        await PlayerStateStore.bumpStat(locked, 'meditation_count', 1, { transaction: t });
+
         return {
             mode: isDeep ? 'deep' : 'normal',
+
             actual_duration: actualDuration,
             planned_duration: plannedDuration,
             completion_ratio: completionRatio,

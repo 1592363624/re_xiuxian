@@ -29,6 +29,7 @@ const StockMarginAccount = require('../models/stockMarginAccount');
 const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const StockMarketService = require('../game/services/StockMarketService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNTS = ['stockp1', 'stockp2', 'stockp3'];
 const results = [];
@@ -42,22 +43,14 @@ const isDeadlock = e => /Deadlock|lock wait timeout/i.test(`${e && e.code || ''}
 const reasonOf = e => `${(e && e.name ? e.name + ': ' : '') + (e && e.message ? e.message : String(e))}`.slice(0, 90);
 
 async function ensurePlayer(username, stones) {
-    let p = await Player.findOne({ where: { username } });
-    if (!p) {
-        p = await Player.create({
-            username, password: 'not-a-real-hash', nickname: `股市探针${username.slice(-1)}`,
-            realm: '炼气3层', realm_rank: 3, exp: 0, spirit_stones: stones,
-            hp_current: 5000, mp_current: 5000, lifespan_current: 120, attributes: {}, token_version: 0
-        });
-    } else {
-        await Player.update({
-            spirit_stones: stones, stock_account_balance: 0, stock_margin_debt: 0,
-            is_stock_trading_locked: false, is_dead: false
-        }, { where: { id: p.id } });
-    }
-    await StockHolding.destroy({ where: { player_id: p.id }, force: true });
-    await StockTransaction.destroy({ where: { player_id: p.id }, force: true });
-    await StockMarginAccount.destroy({ where: { player_id: p.id }, force: true });
+    // 开头按账号名清历次残留（不是按 id）：上一轮崩在中途时留下的持仓/流水/融资账户行，换个新 id 永远找不回来。
+    // 这三张表都按 player_id 归属，交给生产代码里那一份级联 —— 探针不再自己列"收尾要清哪几张表"。
+    await PlayerCascadePurge.deleteByUsernames([username]);
+    const p = await Player.create({
+        username, password: 'not-a-real-hash', nickname: `股市探针${username.slice(-1)}`,
+        realm: '炼气3层', realm_rank: 3, exp: 0, spirit_stones: stones,
+        hp_current: 5000, mp_current: 5000, lifespan_current: 120, attributes: {}, token_version: 0
+    });
     return Player.findByPk(p.id);
 }
 
@@ -259,7 +252,9 @@ async function main() {
     const wP3Before = await wallet(p3.id);
     const proceedsP3Before = (await sellProceeds(p3.id)).amount;
     if (accP3.is_liquidated === true) {
-        // 上面那几轮任务已经把它平了：把状态恢复成"未平、仍有持仓与负债"再压 GM 这条路
+        // 上面那几轮任务已经把它平了：把状态恢复成"未平、仍有持仓与负债"再压 GM 这条路。
+        // 这条 destroy 不是"删号收尾"（号还活着，玩家行一句都没动），而是同一轮里给下面那条
+        // create 腾出 (player_id, stock_id) 唯一索引的位置 —— 级联管不到这里，所以留着。
         await StockHolding.destroy({ where: { player_id: p3.id }, force: true });
         await StockHolding.create({
             player_id: p3.id, stock_id: sB.id, quantity: 40n, available_quantity: 40n,
@@ -300,13 +295,15 @@ async function main() {
             await restoreStocks();
         } catch (e) { console.error('还原股票熔断/昨收状态失败:', e.message); }
         try {
+            const ids = [];
             for (const username of ACCOUNTS) {
                 const p = await Player.findOne({ where: { username } });
-                if (!p) continue;
-                await StockHolding.destroy({ where: { player_id: p.id }, force: true });
-                await StockTransaction.destroy({ where: { player_id: p.id }, force: true });
-                await StockMarginAccount.destroy({ where: { player_id: p.id }, force: true });
-                await Player.destroy({ where: { id: p.id }, force: true });
+                if (p) ids.push(p.id);
+            }
+            if (ids.length) {
+                // 持仓/流水/融资账户都按 player_id 归属，级联自己带走；探针只叫一次"删号"
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

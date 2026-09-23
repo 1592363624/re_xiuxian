@@ -22,12 +22,12 @@
         <span class="text-fg-faint">（{{ profile.skill_exp }}/{{ profile.next_level_exp }}）</span>
       </span>
       <span class="text-fg-muted">
-        LDC：<span class="text-gold-300 font-bold num" :title="String(profile.ldc_balance)">{{ formatCompact(profile.ldc_balance) }}</span>
+        <span title="LDC：论坛积分，在「氪金」商城购买钓竿、鱼饵时使用">LDC</span>：<span class="text-gold-300 font-bold num" :title="`LDC 余额 ${profile.ldc_balance}`">{{ formatCompact(profile.ldc_balance) }}</span>
         <span class="text-fg-faint mx-1">|</span>
         今日：<span class="text-cyan-300 font-bold">{{ profile.daily_casts }}</span>
         <span class="text-fg-faint">/ {{ profile.daily_limit }} 竿</span>
         <span class="text-fg-faint mx-1">|</span>
-        灵石：<span class="text-emerald-300 font-bold num" :title="String(profile.daily_stone_earned)">{{ formatCompact(profile.daily_stone_earned) }}</span>
+        <span title="今天钓鱼已经赚到的灵石，不是钱包余额">今日灵石</span>：<span class="text-emerald-300 font-bold num" :title="String(profile.daily_stone_earned)">{{ formatCompact(profile.daily_stone_earned) }}</span>
         <span class="text-fg-faint">/ {{ formatCompact(profile.daily_stone_limit) }}</span>
       </span>
     </div>
@@ -481,6 +481,7 @@ import AppButton from '../ui/AppButton.vue';
 import EmptyState from '../ui/EmptyState.vue';
 import LoadingBlock from '../ui/LoadingBlock.vue';
 import { formatCompact } from '../../utils/format';
+import { useItemQualities } from '../../composables/useItemQualities';
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -561,53 +562,18 @@ function showToast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
   setTimeout(() => { toastMsg.value = ''; }, 3000);
 }
 
-/** 品质背景色 */
-function qualityBgClass(q: string): string {
-  const map: Record<string, string> = {
-    common: 'bg-surface-active text-fg-secondary',
-    uncommon: 'bg-emerald-700 text-emerald-200',
-    rare: 'bg-blue-700 text-blue-200',
-    epic: 'bg-violet-700 text-violet-200',
-    legendary: 'bg-gold-700 text-gold-200',
-    mythic: 'bg-rose-700 text-rose-200',
-  };
-  return map[q] || 'bg-surface-active text-fg-secondary';
-}
-
-/** 品质文字色 */
-function qualityTextClass(q: string): string {
-  const map: Record<string, string> = {
-    common: 'text-fg-secondary',
-    uncommon: 'text-emerald-300',
-    rare: 'text-blue-300',
-    epic: 'text-violet-300',
-    legendary: 'text-gold-300',
-    mythic: 'text-rose-300',
-  };
-  return map[q] || 'text-fg-secondary';
-}
-
-/** 品质边框色 */
-function qualityBorderClass(q: string): string {
-  const map: Record<string, string> = {
-    common: 'border-line-strong/50',
-    uncommon: 'border-emerald-700/50',
-    rare: 'border-blue-700/50',
-    epic: 'border-violet-700/50',
-    legendary: 'border-gold-700/50',
-    mythic: 'border-rose-700/50',
-  };
-  return map[q] || 'border-line-strong/50';
-}
-
-/** 品质中文标签 */
-function qualityLabel(q: string): string {
-  const map: Record<string, string> = {
-    common: '普通', uncommon: '优秀', rare: '稀有',
-    epic: '史诗', legendary: '传说', mythic: '神话',
-  };
-  return map[q] || q;
-}
+/**
+ * 品质档位的外观与中文名：一律取服务端 game_balance.item_qualities（见 composables/useItemQualities.js）。
+ * 这里原来抄了四份字典（底块 / 文字 / 边框 / 档名），四份互不一致也各自可能漏档 ——
+ * 漏掉 mythic 的那一份就会把神话档鱼获印成最低档，而且资料片加档时这里不会跟着变。
+ * 名字仍叫 qualityBgClass / qualityTextClass / qualityBorderClass / qualityLabel，模板不必改。
+ */
+const {
+  labelOf: qualityLabel,
+  tileClass: qualityBgClass,
+  textClass: qualityTextClass,
+  borderClass: qualityBorderClass,
+} = useItemQualities();
 
 /** 获取鱼饵名称 */
 function getBaitName(key: string): string {

@@ -38,7 +38,13 @@
                 <div v-for="el in typesData.elements" :key="el.key"
                   class="text-[11px] px-2 py-1 rounded-control border"
                   :style="{ borderColor: el.color, color: el.color }">
-                  {{ el.name }}克{{ getElementName(el.strong_against) }} · 畏{{ getElementName(el.weak_against) }}
+                  <!-- 资料片可以自带新的一档灵兽属性（spirit_beast_data.elements），
+                       新档在业主定好它与五行的生克之前是"中性"的：两个键都为空，
+                       以前这里会印成"雷克 · 畏"，看着像缺字。 -->
+                  <template v-if="el.strong_against || el.weak_against">
+                    {{ el.name }}<template v-if="el.strong_against">克{{ getElementName(el.strong_against) }}</template><template v-if="el.weak_against"> · 畏{{ getElementName(el.weak_against) }}</template>
+                  </template>
+                  <template v-else>{{ el.name }}（暂未参与相克）</template>
                 </div>
               </div>
             </section>
@@ -140,6 +146,11 @@
                   <div><span class="text-fg-muted">攻</span> <span class="num">{{ beast.atk }}</span></div>
                   <div><span class="text-fg-muted">防</span> <span class="num">{{ beast.def }}</span></div>
                   <div><span class="text-fg-muted">速</span> <span class="num">{{ beast.speed }}</span></div>
+                  <!-- 资料片/新登记的属性没有专属列，服务端整块带标签外发（extra_stats），这里只负责排出来 -->
+                  <div v-for="st in (beast.extra_stats || [])" :key="st.key" :title="`${st.key} = ${st.value}`">
+                    <span class="text-fg-muted">{{ st.label }}</span>
+                    <span class="num">{{ st.unit === 'percent' ? `${st.value}%` : formatCompact(st.value) }}</span>
+                  </div>
                 </div>
                 <!-- 忠诚度进度条 -->
                 <StatBar

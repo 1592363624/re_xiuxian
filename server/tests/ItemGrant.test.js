@@ -13,8 +13,8 @@ const fs = require('fs');
 const path = require('path');
 
 const InventoryService = require('../game/services/InventoryService');
-const { grantItems, describeGrant } = require('../game/items/itemGrant');
-const { itemName } = require('../game/items/itemNaming');
+const { grantItems, describeGrant, collectGrantFailures, describeGrantFailures } = require('../game/items/itemGrant');
+const { itemName, withItemNames } = require('../game/items/itemNaming');
 const { initializeModules } = require('../modules');
 
 const serverRoot = path.join(__dirname, '..');
@@ -142,7 +142,7 @@ describe('发奖结果必须可分辨：发到 / 没发到', () => {
         }
     });
 
-    test('名字与键名都取自内容（引用字段名各家不同也认）', async () => {
+    test('引用字段名各家不同也认；但回执里刻意不带名字（名字属于出参那一层）', async () => {
         const real = InventoryService.addItem;
         const seen = [];
         InventoryService.addItem = async (playerId, key, qty) => { seen.push([key, qty]); };
@@ -153,10 +153,24 @@ describe('发奖结果必须可分辨：发到 / 没发到', () => {
                 { material: 'unknown_so_no_name' }
             ], null, { label: 'test' });
             expect(seen).toEqual([['zi_yun_shen', 3], ['huanglong_merit_token', 1], ['unknown_so_no_name', 1]]);
-            expect(out.granted.map(g => g.item_name)).toEqual(['紫云参', '黄龙军功牌', 'unknown_so_no_name']);
+            expect(out.granted.map(g => g.item_key)).toEqual(['zi_yun_shen', 'huanglong_merit_token', 'unknown_so_no_name']);
+            // 为什么硬判"回执里没有 item_name"：这份回执会被调用方原样 JSON.stringify 落库
+            // （历练的 player_adventures.rewards 就是），名字一旦冻进历史，
+            // 资料片改一次 item_data 就留下一屏过期名字 —— 探针 smoke_item_names 第三条断言抓的正是这件事。
+            expect(out.granted.every(g => g.item_name === undefined)).toBe(true);
+            expect(out.failed.every(f => f.item_name === undefined)).toBe(true);
+            // 名字仍然出得来，只是换到出参这一层现算：
+            expect(withItemNames(out.granted).map(i => i.item_name)).toEqual(['紫云参', '黄龙军功牌', undefined]);
+            expect(describeGrant(out.granted, []).text).toBe('紫云参x3、黄龙军功牌x1、unknown_so_no_namex1');
         } finally {
             InventoryService.addItem = real;
         }
+    });
+
+    test('控制跑：把名字塞回执里的那条断言不是空判（手工加一个 item_name 就必须红）', () => {
+        const polluted = [{ item_key: 'zi_yun_shen', quantity: 3, item_name: '紫云参' }];
+        expect(polluted.every(g => g.item_name === undefined)).toBe(false);
+        expect(withItemNames(polluted).map(i => i.item_name)).toEqual(['紫云参']);
     });
 
     test('摘要只报名字；全失败时明说而不是留空当成功', async () => {
@@ -223,5 +237,98 @@ describe('发奖这一层不许退回去（全 game/ 树扫描，不靠手点文
                 + swallows.join('\n  ') + '\n改用 grantItems()，只把真发到的写进给玩家看的列表。');
         }
         expect(swallows).toEqual([]);
+    });
+});
+
+describe('"抽中了但没发到"要能从结算摘要里收集出来，并进玩家读到的那句话', () => {
+    /** 现网结算摘要的真实形状（各分支各写各的键名，数量字段也不统一） */
+    const settlementSummary = () => ({
+        normal_drops: [
+            { player_id: 7, drops: [{ item_key: 'zi_yun_shen', count: 1 }], failed: [{ item_key: 'ju_yuan_dan', count: 2, reason: '背包容量不足' }] },
+            { player_id: 8, drops: [], failed: [] }
+        ],
+        rare_drop: { player_id: 7, item_key: 'hunling_xu_fu' },
+        rare_drop_failed: [{ player_id: 7, item_key: 'lingyan_sapling', reason: '背包已满' }],
+        xiaoji_rare_drops: [{ item_key: 'spirit_herb', count: 3 }],
+        xiaoji_rare_drops_failed: [{ item_key: 'golden_ore', quantity: 5, reason: '未知错误' }],
+        luoyun_sapling_drop_info: { rolled: true, dropped: false, error: '背包容量不足' },
+        cangkun_ticket_clue_drops: { dynamic_multiplier: 1.4, drops: [], failed: [{ item_key: 'array_flag_fragment', count: 1, reason: '背包已满', player_id: 9 }] }
+    });
+
+    test('收集只认 "*failed" 数组：键名不匹配的普通掉落列表不算失败', () => {
+        const found = collectGrantFailures(settlementSummary());
+        expect(found.map(f => `${f.item_key}x${f.quantity}`).sort()).toEqual([
+            'array_flag_fragmentx1', 'golden_orex5', 'ju_yuan_danx2', 'lingyan_saplingx1'
+        ]);
+        // reason 与出处都要在（出问题时要能一眼归到是哪个分支）
+        expect(found.find(f => f.item_key === 'ju_yuan_dan')).toMatchObject({ reason: '背包容量不足' });
+        expect(found.find(f => f.item_key === 'ju_yuan_dan').path).toContain('normal_drops[0].failed');
+        // `error` 这种**字符串**字段不是失败数组（它对应的条目已经在别的 failed 里了），不重复计
+        expect(found.some(f => f.path.includes('luoyun_sapling_drop_info.error'))).toBe(false);
+        // 控制跑：把键名改成不匹配的，就该什么都收不到 —— 否则"收得到"可能只是在遍历一切数组
+        const renamed = { normal_drops: [{ player_id: 7, drop_failures: [{ item_key: 'ju_yuan_dan', count: 1, reason: 'x' }] }] };
+        expect(collectGrantFailures(renamed)).toEqual([]);
+    });
+
+    test('环形引用与超深结构不会把收集器挂住', () => {
+        const cyclic = settlementSummary();
+        cyclic.self = cyclic;
+        cyclic.normal_drops.push(cyclic.normal_drops[0]);
+        expect(() => collectGrantFailures(cyclic)).not.toThrow();
+        expect(collectGrantFailures(cyclic).length).toBe(4);
+        const deep = { a: { b: { c: { d: { e: { f: { g: { failed: [{ item_key: 'x', count: 1, reason: 'r' }] } } } } } } } };
+        expect(collectGrantFailures(deep)).toEqual([]);      // 超过 maxDepth 就停（不会一路吃到栈溢出）
+        expect(collectGrantFailures(deep, { maxDepth: 8 })).toHaveLength(1);
+    });
+
+    test('文本只报名字、不报键名；没有失败时是空串（happy path 一个字都不变）', () => {
+        expect(describeGrantFailures([])).toBe('');
+        expect(describeGrantFailures(null)).toBe('');
+        const one = [{ item_key: 'ju_yuan_dan', quantity: 2, reason: '背包容量不足' }];
+        const text = describeGrantFailures(one);
+        expect(text).toContain('2 件未获得');            // 件数 = 各条数量之和（不是"几条记录"）
+        expect(text).toContain('聚元丹');
+        expect(text).not.toContain('ju_yuan_dan');
+        const many = ['a', 'b', 'c', 'd', 'e'].map(k => ({ item_key: `k_${k}`, quantity: 1, reason: 'r' }));
+        expect(describeGrantFailures(many)).toContain('5 件未获得');
+        expect(describeGrantFailures(many)).toContain('等 5 种');          // 只点前 4 种的名字，其余并一句
+        // 同一件东西好几个人没发到：名字印一次、件数按总量（探针实测过逐条印会写出"黄龙令x1、黄龙令x1…"）
+        const sameKey = [
+            { item_key: 'huanglong_merit_token', quantity: 2, reason: 'r' },
+            { item_key: 'huanglong_merit_token', quantity: 3, reason: 'r' }
+        ];
+        expect(describeGrantFailures(sameKey)).toContain('5 件未获得：黄龙军功牌x5');
+        expect(describeGrantFailures(sameKey).split('黄龙军功牌')).toHaveLength(2);
+    });
+
+    test('多人副本两处通关文本都接了这段尾巴（漏一处就是"有一半分支仍会谎报"）', () => {
+        const src = read('game/services/MultiDungeonService.js');
+        const calls = (src.match(/describeGrantFailures\(collectGrantFailures\(/g) || []).length;
+        expect(calls).toBeGreaterThanOrEqual(2);              // 普通推进 + 自动决战两条结算路
+        for (const m of src.matchAll(/clear_condition\.clear_message/g)) {
+            // 每条"通关文本"的拼装处（只此两处：普通推进与自动决战），后面 300 字里必须接上这段尾巴
+            const around = src.slice(Math.max(0, m.index - 300), m.index + 300);
+            expect(around).toMatch(/describeGrantFailures\(collectGrantFailures\(/);
+        }
+        expect((src.match(/clear_condition\.clear_message/g) || []).length).toBeGreaterThanOrEqual(2);
+    });
+
+    test('多人副本里不再有用 try 包 addItem、catch 只 console.warn 的位置（含控制跑）', () => {
+        const warnOnly = (catchBody) => /console\.warn|console\.log/.test(catchBody) && !FAILURE_MARKED.test(catchBody);
+        const src = read('game/services/MultiDungeonService.js').replace(/\r\n/g, '\n');
+        const bad = tryBlocksWrapping(src, 'InventoryService.addItem(')
+            .filter(b => warnOnly(b.catchBody))
+            .map(b => `:${b.line}`);
+        expect(bad).toEqual([]);
+        // 控制跑：迁移前那种写法必须被同一个判据抓到，否则上面那条是空判
+        const oldShape = `try {
+    await InventoryService.addItem(pid, 'x', 1, t);
+    summary.push({ item_key: 'x' });
+} catch (e) {
+    console.warn('[svc] 发放失败:', e.message);
+}`;
+        const oldBlocks = tryBlocksWrapping(oldShape, 'InventoryService.addItem(');
+        expect(oldBlocks).toHaveLength(1);
+        expect(warnOnly(oldBlocks[0].catchBody)).toBe(true);
     });
 });

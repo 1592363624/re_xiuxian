@@ -182,7 +182,8 @@ class InventoryService {
                 await playerItem.save({ transaction: t });
             }
 
-            await player.save({ transaction: t });
+            // 玩家侧的写入已经在 _applyItemEffect 里由 PlayerStateStore 键级落库（含 state_version 自增），
+            // 这里不再 player.save()：那一次整块写回正是"旧快照覆盖新快照"的入口
             await t.commit();
 
             return {
@@ -378,6 +379,117 @@ class InventoryService {
     }
 
     /**
+     * 把一份物品效果算成"要写什么"（键级补丁）+ "回执报什么"。**纯函数**：不查库、不写库。
+     *
+     * 为什么切成两半：落库那半（读锁内那份 → patchPlayerState → 镜像回实例）只有连库才断得出来，
+     * 而"效果 → 增量 → 钳制 → 回执"这半算法是这套系统里最容易随内容漂移的部分（新增一类丹药就新增一个分支）。
+     * 混在一个函数里，不连库的测试就只能整块跳过它（原来那三条就是靠改实例才跑得起来的），
+     * 于是被内容改到的调用点没有执行型断言 —— 这正是 §26 那类事故的形状。
+     * 现在：算法在 tests/AttributePillAndReset.test.js 里直接喂 `fresh` 跑；
+     * "回执报的每一项真的进了库、且没顺手抹掉同坨别的键"由 scripts/smoke_write_crossflow.js 的 P1–P4 在真库上断。
+     *
+     * @param {Object} options
+     * @param {Object} options.fresh            锁内读出的那一行（钳制与增量都以它为准）
+     * @param {Object} options.effect           物品效果配置
+     * @param {number} options.multiplier       数量倍率
+     * @param {number} options.qualityMultiplier 品质倍率（炼制产出的 effect_multiplier）
+     * @param {Object} options.resolvedStats    属性解析层的最终 hp_max/mp_max
+     * @returns {{columns: Object, amounts: Object, blobPatch: Object, applied: Object}}
+     */
+    _planItemEffect({ fresh, effect, multiplier, qualityMultiplier, resolvedStats }) {
+        const applied = {};
+        // 数量倍率与品质倍率叠加（品质倍率来自炼制产出的 effect_multiplier，打通"品质→收益"断链）
+        const totalMultiplier = Number(multiplier) * Number(qualityMultiplier || 1);
+        const attrs = fresh.attributes || {};
+        const columns = {};      // 需要"按上限钳制"的两列（血/蓝），绝对值但由 store 写并自增版本
+        const amounts = {};      // 纯增减的钱与修为（列上原子加，不读旧值）
+        const blobPatch = {};    // attributes 的键级补丁（属性丹的 *_bonus），$add 在锁内那份上算
+        // 上限取解析后的属性。blob 里的 hp_max/mp_max 是旧管线（换境界时写入的 realm 基数）留下的
+        // 输出键，不含装备/功法加成：拿它当钳制，气血 4000/5000 的玩家吃一颗 +500 的回春丹
+        // 会被 Math.min(1000, 4500) "补"到 1000 —— 吃药反而掉血，而且不报任何错。
+        const capOf = (resolved, mirrored, fallback) =>
+            Number(resolved) > 0 ? Number(resolved) : (Number(mirrored) || fallback);
+        const hpMax = capOf(resolvedStats.hp_max, attrs.hp_max, 100);
+        const mpMax = capOf(resolvedStats.mp_max, attrs.mp_max, 0);
+
+        // 恢复气血
+        if (effect.hp_restore) {
+            const restore = effect.hp_restore * totalMultiplier;
+            // max(当前值, …)：恢复类道具在任何内容里增量都是正的，
+            // 一旦上限算低了（或气血本身高于上限），宁可少补也不许把玩家打成残血。
+            columns.hp_current = Math.max(Number(fresh.hp_current), Math.min(hpMax, Number(fresh.hp_current) + restore));
+            applied.hp_restore = restore;
+        }
+
+        // 恢复灵力
+        if (effect.mp_restore) {
+            const restore = effect.mp_restore * totalMultiplier;
+            columns.mp_current = Math.max(Number(fresh.mp_current), Math.min(mpMax, Number(fresh.mp_current) + restore));
+            applied.mp_restore = restore;
+        }
+
+        // 增加灵石
+        if (effect.spirit_stones) {
+            const gain = effect.spirit_stones * totalMultiplier;
+            amounts.spirit_stones = BigInt(gain);
+            applied.spirit_stones = gain;
+        }
+
+        // 增加修为
+        if (effect.exp) {
+            const gain = effect.exp * totalMultiplier;
+            amounts.exp = BigInt(gain);
+            applied.exp = gain;
+        }
+
+        // 「突破加成」这条效果** 目前没人落账**（16 件物品的唯一或主要效果就是它，含筑基→渡劫整条丹药线）。
+        // 原注释写的是"仅记录，实际使用在突破流程读取" —— 突破流程读的其实是 attributes.breakthrough_bonus
+        // （RealmService.resolveBreakthroughBonus 走属性解析层，LawService 那一支就是这么写进去的），
+        // 而这里从来没往那个键写过任何东西 —— 于是回执里有 breakthrough_bonus、玩家身上没有。
+        // 现在把它从回执里摘掉（不再对外报一个没发生的数），死账由
+        // ContentRegistry 的启动告警 + tests/ItemEffectApplicationLedger.test.js 钉住，
+        // 出口等业主定（永久 / 本次一次性 / 提高注册表 30 点上限 —— 现网有 11 件配的值超过上限、
+        // 还有一件 化龙脉石 写 0.1，同一个键两种单位，所以我不替它猜语义）。
+        // 要接的线已经很短：blobPatch.breakthrough_bonus = { $add: N } 一行，属性与突破两处都会自己跟着算。
+
+        // 增加寿元上限（延寿丹）：作用于玩家持久字段 lifespan_max，与 LifespanService 衰老/死亡判定同一字段
+        if (effect.longevity_add) {
+            const gain = Math.floor(effect.longevity_add * totalMultiplier);
+            // lifespan_max 走"锁内读 + 绝对值"，不是原子加：它不在 PlayerStateStore 的增减白名单里
+            // （WALLET_COLUMNS 收的是钱/修为/寿元**当前值**这类，而 lifespan_max 同时被"按境界整值重设"
+            // 与"丹药累加"两种写法使用）。把它加进白名单会让前面那些合法整值重设被写回守卫拦下 ——
+            // 那是另一件事，要单独量过再改（见 docs/待业主拍板清单.md 里本轮那条）。
+            columns.lifespan_max = Number(fresh.lifespan_max || 0) + gain;
+            applied.longevity_add = gain;
+        }
+
+        // 清除丹毒（清心丹等）：作用于玩家持久字段 toxicity，钳制到非负
+        if (effect.toxicity_reduce) {
+            const reduce = Math.floor(effect.toxicity_reduce * totalMultiplier);
+            amounts.toxicity = -reduce;          // patchPlayerState 在行锁内夹到 0，不会扣成负数
+            applied.toxicity_reduce = reduce;
+        }
+
+        // 永久属性上限加成（属性丹）：键名与数值由服务端配置 + 白名单 + 上限钳制决定，
+        // 与 POST /api/attribute/use_pill 共用同一套解析逻辑，避免两条链路口径不一
+        const AttributeMaxService = require('../core/AttributeMaxService');
+        const pillEffect = AttributeMaxService.buildPillEffectFromConfig(effect);
+        if (pillEffect) {
+            // applyPillBonusToAttributes 返回新对象（不改动入参），所以这里只算差分、不碰实例那份 blob
+            const nextAttributes = AttributeMaxService.applyPillBonusToAttributes(attrs, pillEffect, qualityMultiplier);
+            const granted = AttributeMaxService.diffAttributeBonuses(attrs, nextAttributes);
+            for (const [bonusKey, delta] of Object.entries(granted)) {
+                blobPatch[bonusKey] = { $add: delta };
+            }
+            if (Object.keys(granted).length > 0) {
+                applied.permanent_attribute_bonus = granted;
+            }
+        }
+
+        return { columns, amounts, blobPatch, applied };
+    }
+
+    /**
      * 应用物品效果（内部方法）
      * 根据 effect 字段分别处理气血恢复、灵力恢复、灵石增益等
      * 最终效果 = 配置基础值 × 数量倍率(multiplier) × 品质倍率(qualityMultiplier)
@@ -389,82 +501,35 @@ class InventoryService {
      * @returns {Promise<Object>} 实际应用的效果
      */
     async _applyItemEffect(player, effect, multiplier, qualityMultiplier, transaction) {
-        const applied = {};
-        // 数量倍率与品质倍率叠加（品质倍率来自炼制产出的 effect_multiplier，打通"品质→收益"断链）
-        const totalMultiplier = Number(multiplier) * Number(qualityMultiplier || 1);
-        const attrs = player.attributes;
-        // 上限取解析后的属性。blob 里的 hp_max/mp_max 是旧管线（换境界时写入的 realm 基数）留下的
-        // 输出键，不含装备/功法加成：拿它当钳制，气血 4000/5000 的玩家吃一颗 +500 的回春丹
-        // 会被 Math.min(1000, 4500) "补"到 1000 —— 吃药反而掉血，而且不报任何错。
+        const PlayerStateStore = require('../persistence/PlayerStateStore');
+        // 钳制与增量都以**锁内那一份**为准：调用方手上的实例可能是请求开始时读的，
+        // 而这一函数以前是"改那份实例 + 最后整块 save()"，同一时间别的链写的键会被盖掉。
+        const fresh = transaction
+            ? await PlayerStateStore.readForUpdate(player.id, { transaction })
+            : await Player.findByPk(player.id);
+        if (!fresh) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+        // 上限取解析后的属性（装备/功法/丹药都算进来），所以恢复类效果不会"吃药反而掉血"
         const CombatResolver = require('../combat/CombatResolver');
         const { stats: resolvedStats } = await CombatResolver.resolveCombatStats(player);
-        const capOf = (resolved, mirrored, fallback) =>
-            Number(resolved) > 0 ? Number(resolved) : (Number(mirrored) || fallback);
-        const hpMax = capOf(resolvedStats.hp_max, attrs.hp_max, 100);
-        const mpMax = capOf(resolvedStats.mp_max, attrs.mp_max, 0);
+        const { columns, amounts, blobPatch, applied } = this._planItemEffect({
+            fresh, effect, multiplier, qualityMultiplier, resolvedStats
+        });
 
-        // 恢复气血
-        if (effect.hp_restore) {
-            const restore = effect.hp_restore * totalMultiplier;
-            // max(当前值, …)：恢复类道具在任何内容里增量都是正的，
-            // 一旦上限算低了（或气血本身高于上限），宁可少补也不许把玩家打成残血。
-            player.hp_current = Math.max(Number(player.hp_current), Math.min(hpMax, Number(player.hp_current) + restore));
-            applied.hp_restore = restore;
-        }
-
-        // 恢复灵力
-        if (effect.mp_restore) {
-            const restore = effect.mp_restore * totalMultiplier;
-            player.mp_current = Math.max(Number(player.mp_current), Math.min(mpMax, Number(player.mp_current) + restore));
-            applied.mp_restore = restore;
-        }
-
-        // 增加灵石
-        if (effect.spirit_stones) {
-            const gain = effect.spirit_stones * totalMultiplier;
-            player.spirit_stones = BigInt(player.spirit_stones || 0) + BigInt(gain);
-            applied.spirit_stones = gain;
-        }
-
-        // 增加修为
-        if (effect.exp) {
-            const gain = effect.exp * totalMultiplier;
-            player.exp = BigInt(player.exp || 0) + BigInt(gain);
-            applied.exp = gain;
-        }
-
-        // 突破加成（仅记录，实际使用在突破流程读取）
-        if (effect.breakthrough_bonus) {
-            applied.breakthrough_bonus = effect.breakthrough_bonus;
-        }
-
-        // 增加寿元上限（延寿丹）：作用于玩家持久字段 lifespan_max，与 LifespanService 衰老/死亡判定同一字段
-        if (effect.longevity_add) {
-            const gain = Math.floor(effect.longevity_add * totalMultiplier);
-            player.lifespan_max = Number(player.lifespan_max || 0) + gain;
-            applied.longevity_add = gain;
-        }
-
-        // 清除丹毒（清心丹等）：作用于玩家持久字段 toxicity，钳制到非负
-        if (effect.toxicity_reduce) {
-            const reduce = Math.floor(effect.toxicity_reduce * totalMultiplier);
-            player.toxicity = Math.max(0, Number(player.toxicity || 0) - reduce);
-            applied.toxicity_reduce = reduce;
-        }
-
-        // 永久属性上限加成（属性丹）：键名与数值由服务端配置 + 白名单 + 上限钳制决定，
-        // 与 POST /api/attribute/use_pill 共用同一套解析逻辑，避免两条链路口径不一
-        const AttributeMaxService = require('../core/AttributeMaxService');
-        const pillEffect = AttributeMaxService.buildPillEffectFromConfig(effect);
-        if (pillEffect) {
-            player.attributes = AttributeMaxService.applyPillBonusToAttributes(
-                attrs,
-                pillEffect,
-                qualityMultiplier
+        // 一次落库：标量按增量、血蓝按钳制后的绝对值、属性走 $add —— 全都在这一个事务里、
+        // 由 patchPlayerState 自己 FOR UPDATE + state_version 自增（以前是外面 player.save() 整块写回）
+        if (Object.keys(columns).length || Object.keys(amounts).length || Object.keys(blobPatch).length) {
+            const updated = await PlayerStateStore.patchPlayerState(
+                player.id,
+                { columns, amounts, attributes: blobPatch },
+                { transaction }
             );
-            const granted = AttributeMaxService.diffAttributeBonuses(attrs, player.attributes);
-            if (Object.keys(granted).length > 0) {
-                applied.permanent_attribute_bonus = granted;
+            // 把落库结果镜像回调用方手上那份实例（**不标脏**）：useItem 的回执要报新值，
+            // 但它之后不该再有任何一份整块写回参与这一行
+            PlayerStateStore.mirrorPatchedBlob(player, updated);
+            for (const column of ['hp_current', 'mp_current', 'spirit_stones', 'exp', 'lifespan_max', 'toxicity']) {
+                if (columns[column] !== undefined || amounts[column] !== undefined) {
+                    player.setDataValue(column, updated.getDataValue(column));
+                }
             }
         }
 

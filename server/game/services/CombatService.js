@@ -27,6 +27,7 @@ const InventoryService = require('./InventoryService');
 const { withItemNames } = require('../items/itemNaming');
 const { grantItems } = require('../items/itemGrant');
 const { infrastructure } = require('../../modules');
+const { applyExpPenalty } = require('../core/deathPenalty');
 // 引入 AppError 用于抛出带 HTTP 状态码的业务错误（避免 throw Error 被 errorHandler 当成 500）
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 
@@ -672,7 +673,13 @@ class CombatService {
             const dropResult = DropLoader.rollDrop(battle.monster_id) || { exp: 0, items: [] };
 
             const gainedExp = dropResult.exp || 0;
-            player.exp = safeBigInt(player.exp) + BigInt(gainedExp);
+            // 经验到账走列上原子加。以前是"读这份快照 + 算绝对值 + 整行 save()"，
+            // 正确性全靠注释里那句"调用方已加锁"的口头约定 —— 同一时间别的流程（历练结算、闭关出定、
+            // 丹药）给的修为会被这份绝对值写回抹掉，而两边看起来都返回了"获得了经验"。
+            if (gainedExp) {
+                const { patchPlayerState } = require('../persistence/PlayerStateStore');
+                await patchPlayerState(player.id, { amounts: { exp: BigInt(gainedExp) } }, { transaction: t });
+            }
 
             // 掉落逐件入包，只有真发到的才记进 gainedItems。
             // 原来无论 addItem 成败都 push 一条，背包满时玩家看到的"获得 X"其实什么都没拿到，
@@ -694,6 +701,12 @@ class CombatService {
             await this.saveBattleRecord(battle, player, 'win', { exp: gainedExp, items: gainedItems }, t);
             await battle.destroy(transactionOptions);
 
+            // 击杀计数进账（PVE 胜利这一次才算）。以前这个键只在 players.stats 的默认 JSON 里出现过，
+            // 全仓没有任何一处往上涨，而成就又按 `player.kill_count`（players 没这列）去读 → 5 条杀敌成就恒为 0。
+            // 计数键名与含义都声明在 config/player_metrics.json，事件点只说"发生了什么"。
+            const PlayerStateStore = require('../persistence/PlayerStateStore');
+            await PlayerStateStore.bumpStat(player, 'kill_count', 1, { transaction: t });
+
             return {
                 in_battle: false,
                 victory: true,
@@ -709,10 +722,9 @@ class CombatService {
         }
 
         if (safeBigInt(battle.player_hp) <= 0n) {
-            const currentExp = safeBigInt(player.exp);
-            const penaltyRate = getGameBalanceConfig().combat?.death_exp_penalty_rate ?? 0.1;
-            const penaltyExp = currentExp * BigInt(Math.round(penaltyRate * 100)) / 100n;
-            player.exp = currentExp - penaltyExp;
+            // 陨落扣修为走全仓唯一一份实现（列上原子减）；penaltyExp 只用于战报与回执
+            const deathPenalty = await applyExpPenalty({ playerId: player.id, scope: 'combat', transaction: t, reason: 'PVE战斗身死' });
+            const penaltyExp = deathPenalty.penalty;
             // hp_max 存储在 attributes JSON 字段中，需要从中读取
             const playerHpMax = (await CombatResolver.resolveCombatStats(player)).stats.hp_max ?? 100;
             const deathMinHp = getGameBalanceConfig().combat?.death_min_hp ?? 10;

@@ -146,7 +146,11 @@ class ExperienceService {
         
         if (!current || !next) return null;
 
-        return {
+        // 逐档点名"哪几项会涨"以前是手写的六行，于是资料片给属性声明了 base.realmField
+        // （境界表里的列名）也不在这份预览里露脸 —— 而玩家真突破完，属性面板是按注册表算的，
+        // 于是"预览说只涨六项、涨完多出第七项"。现在预览与面板同一份口径：注册表认得的境界列一律要涨。
+        // 旧六键无论如何都保留（调用方与前端按键读），新增列只在境界表真的写了那列时才出现。
+        const legacyKeys = {
             hp_max: next.base_hp - current.base_hp,
             mp_max: next.base_mp - current.base_mp,
             atk: next.base_atk - current.base_atk,
@@ -154,6 +158,16 @@ class ExperienceService {
             speed: (next.base_speed || 0) - (current.base_speed || 0),
             sense: (next.base_sense || 0) - (current.base_sense || 0)
         };
+        const { statRegistry, ensureStatRegistryLoaded } = require('../stats');
+        ensureStatRegistryLoaded();
+        const gain = { ...legacyKeys };
+        for (const def of statRegistry.all()) {
+            const field = def.base && def.base.realmField;
+            if (!field) continue;
+            if (!(field in current) && !(field in next)) continue;
+            gain[def.key] = (Number(next[field]) || 0) - (Number(current[field]) || 0);
+        }
+        return gain;
     }
 
     /**

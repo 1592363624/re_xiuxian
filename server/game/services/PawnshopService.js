@@ -27,6 +27,7 @@ const InventoryService = require('./InventoryService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const { infrastructure } = require('../../modules');
+const { qualityParamFor } = require('../items/itemQuality');
 // 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
 const RETURNED = { allowUnknownItem: true };
 
@@ -68,7 +69,11 @@ class PawnshopService {
         const basePrice = Number(itemConfig?.price || 0);
         const quality = itemConfig?.quality || 'common';
         const valuationRatios = cfg.valuation_ratios || {};
-        const qualityRatio = valuationRatios[quality] ?? valuationRatios['common'] ?? 0.6;
+        // 缺档不再兜到 common：那张表是"越高档越保守"的递减曲线（common 0.6 → legendary 0.3），
+        // 兜底兜到全表最大的那个系数，等于品质词表一长出新档（§26 的 mythic），最值钱的东西
+        // 反而拿到最慷慨的估价。现在按词表档序取"不高于本档的最近一档"，加档只会继承、不会反向。
+        const ratioForQuality = qualityParamFor(configLoader, valuationRatios, quality);
+        const qualityRatio = ratioForQuality.value ?? 0.6;
 
         // 信用加成：每点信用增加 credit_discount_bonus_per_point 的估值比例，最高 10%
         const creditBonusPerPoint = cfg.credit_discount_bonus_per_point || 0.001;
@@ -86,6 +91,9 @@ class PawnshopService {
         return {
             base_price: basePrice,
             quality_ratio: qualityRatio,
+            // 这一档自己没有系数、按词表档序继承了哪一档（null = 用的就是本档）：
+            // 静默继承与静默兜底是同一种病的两个阶段，所以把它随数据发出去，界面/探针都能点名
+            quality_ratio_inherited_from: ratioForQuality.inheritedFrom,
             credit_bonus: creditBonus,
             valuation
         };

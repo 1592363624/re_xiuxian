@@ -34,6 +34,8 @@ import {
   repairAll,
   type EquippedItem
 } from '../../api/equipment'
+import { getGameBalancePublic } from '../../api/config'
+import { useItemQualities } from '../../composables/useItemQualities'
 import { useUIStore } from '../../stores/ui'
 
 const emit = defineEmits(['close'])
@@ -44,6 +46,12 @@ const loading = ref(true)
 const operating = ref(false)
 const slots = ref<Record<string, any>>({})
 const count = ref(0)
+/**
+ * 槽位顺序：取自服务端配置 `game_balance.equipment.valid_slots`（资料片加一档槽位，这里自动跟着走）。
+ * 以前这里抄了一份 `['weapon','armor','accessory','boots','dharma']` —— 抄的那份既不会报错也不会消失，
+ * 只是配置改了顺序/加了槽位之后，面板默默按旧顺序排（新槽位还能显示，但被排到最后，且和背包那边的顺序不一致）。
+ */
+const slotOrder = ref<string[]>([])
 
 // 确认弹窗状态
 type ConfirmAction = 'refine' | 'benming' | 'summon' | 'recall' | 'disperse' | 'repair' | 'repairAll' | 'order'
@@ -72,16 +80,11 @@ const toastModal = ref<{ show: boolean; message: string; isSuccess: boolean }>({
  * 装备列表（按 slot 顺序排列）
  */
 const equipmentList = computed(() => {
-  const order = ['weapon', 'armor', 'accessory', 'boots', 'dharma']
-  const result: any[] = []
-  for (const slot of order) {
-    if (slots.value[slot]) {
-      result.push({ ...slots.value[slot], slot })
-    }
-  }
-  // 加上其他未在固定顺序中的槽位
+  const known = slotOrder.value.filter(slot => !!slots.value[slot])
+  const result: any[] = known.map(slot => ({ ...slots.value[slot], slot }))
+  // 服务端返回了、但配置里没登记的槽位照样列出（排在后面）：不许因为面板不认识就让它消失
   for (const [slot, item] of Object.entries(slots.value)) {
-    if (!order.includes(slot)) {
+    if (!slotOrder.value.includes(slot)) {
       result.push({ ...(item as any), slot })
     }
   }
@@ -237,20 +240,27 @@ function durabilityTone(durability: number, max: number): 'jade' | 'gold' | 'blo
 }
 
 /**
- * 品质颜色（暖色主题下不再用冷 gray/blue，一律取 fg / state / gold 令牌）
+ * 品质的文字色与描边：一律取服务端 game_balance.item_qualities（见 composables/useItemQualities.js），
+ * 与上面的槽位同理，不再抄第二份清单。以前这里抄了一份五档字典（common → legendary），
+ * mythic 压根不在表里 —— 神话档法宝在面板上退成最低档的灰边，资料片加一档也不会跟着变。
  */
-function qualityColor(quality: string): string {
-  const map: Record<string, string> = {
-    common: 'text-fg-secondary border-line',
-    uncommon: 'text-state-success border-state-success/50',
-    rare: 'text-state-info border-state-info/50',
-    epic: 'text-state-arcane border-state-arcane/50',
-    legendary: 'text-gold-300 border-gold-600'
+const { textClass, borderClass } = useItemQualities()
+const qualityColor = (quality: string) => `${textClass(quality)} ${borderClass(quality)}`
+
+/** 槽位顺序与中文名都取自服务端配置；拿不到就按服务端返回的槽位原序，不抄第二份清单 */
+async function fetchSlotOrder() {
+  try {
+    const res = await getGameBalancePublic()
+    const cfg: any = (res as any).data?.data ?? (res as any).data
+    const order = cfg?.equipment?.valid_slots
+    if (Array.isArray(order) && order.length) slotOrder.value = order
+  } catch {
+    // 配置接口挂了不影响装备本体：列表退回服务端给的槽位次序
   }
-  return map[quality] || map.common
 }
 
 onMounted(() => {
+  fetchSlotOrder()
   fetchEquipment()
 })
 </script>

@@ -52,7 +52,7 @@
                   {{ getPathName(path) }}
                 </div>
                 <div class="text-[10px] px-2 py-0.5 rounded border" :class="getPathTheme(path).badge">
-                  五行
+                  {{ getRestraintLabel(path) }}
                 </div>
               </div>
               <!-- 道途描述 -->
@@ -466,9 +466,9 @@ import {
   taoismGateClaimTask,
   taoismGateGetRanking,
   taoismGateGetResonance,
-  DAO_PATH_NAME_MAP,
   DAO_PATH_THEME_MAP,
   type DaoPath,
+  type TaoismDaoPathOption,
   type RankingCategory,
   type TaoismProfileData,
   type TaoismTasksData,
@@ -500,8 +500,15 @@ const rankingCategories = [
 /** 当前排行榜子分类 */
 const rankingCategory = ref<RankingCategory>('dao_level');
 
-/** 五行道途全集（用于未选择道途时展示卡片） */
-const allDaoPaths: DaoPath[] = ['metal', 'wood', 'water', 'fire', 'earth'];
+/**
+ * 道途全集：取自 `/taoism-gate/profile` 的 `dao_path_options`（内容 taoism_gate_data.dao_paths 导出）。
+ * 以前这里是写死的 `['metal','wood','water','fire','earth']` + 一份中文名表 + 一份五段描述文案，
+ * 三处都是内容的副本：资料片加一档道途就少一张卡，改文案界面也不跟着变
+ * （抄的那份中文名还比内容短一截："金道" vs 内容里的"金道·锐金"）。
+ */
+const daoPathOptions = computed<TaoismDaoPathOption[]>(() => profileData.value?.dao_path_options || []);
+const allDaoPaths = computed<DaoPath[]>(() => daoPathOptions.value.map(o => o.key));
+const daoPathOption = (path: DaoPath) => daoPathOptions.value.find(o => o.key === path) || null;
 
 /** 各模块加载状态 */
 const loading = reactive({
@@ -880,11 +887,17 @@ function showConfirm(title: string, message: string, onConfirm: () => void) {
 }
 
 /**
- * 获取道途中文名
+ * 获取道途中文名（内容里那份，含"·锐金"这类后缀；未加载 profile 时退回 key）
  * @param path 道途 key
  */
 function getPathName(path: DaoPath): string {
-  return DAO_PATH_NAME_MAP[path] || path;
+  return daoPathOption(path)?.name || path;
+}
+
+/** 卡片角标：这一档克制谁（内容的 restraint_targets），没配就只标"道途" */
+function getRestraintLabel(path: DaoPath): string {
+  const targets = daoPathOption(path)?.restraint_targets || [];
+  return targets.length ? `克${targets.map(t => getPathName(t)).join('、')}` : '道途';
 }
 
 /**
@@ -897,23 +910,13 @@ function getPathTheme(path: DaoPath | null | undefined) {
 }
 
 /**
- * 获取道途描述（从 profileData 中读取，避免硬编码）
+ * 获取道途描述：一律读内容下发那份（以前未选择道途时这里抄了五段文案，
+ * 里面连技能名都是手打的，内容改了技能或调整描述都不会跟着变）。
  * @param path 道途 key
  */
 function getPathDescription(path: DaoPath): string {
-  // 若已加载 profile，可从 gate 字段反查；否则返回通用占位
-  if (profileData.value?.gate.dao_path === path) {
-    return profileData.value.gate.dao_path_description;
-  }
-  // 各道途简要描述（仅作为未选择时的卡片简介，详细描述以道途选择后的服务端返回为准）
-  const descMap: Record<DaoPath, string> = {
-    metal: '金主杀伐，锐利无匹。修炼金道可提升神识攻击力，技能"金锋裂魂"能以神识化刃攻击他人灵兽。',
-    wood: '木主生机，绵延不绝。修炼木道可提升灵兽HP恢复速度，技能"木灵回春"能以神识恢复自己灵兽HP。',
-    water: '水主防御，以柔克刚。修炼水道可提升神识防御力，技能"水镜映心"能设置反弹盾，反弹下次探查。',
-    fire: '火主洞察，焚尽虚妄。修炼火道可提升炼化效率，技能"火眼金睛"能以神识探查他人储物袋。',
-    earth: '土主稳固，厚德载物。修炼土道可提升法则转换效率，技能"土牢定身"能定身他人灵兽。'
-  };
-  return descMap[path] || '';
+  return daoPathOption(path)?.description
+    || (profileData.value?.gate.dao_path === path ? profileData.value.gate.dao_path_description : '');
 }
 
 /**

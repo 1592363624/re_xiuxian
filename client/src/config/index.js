@@ -44,6 +44,19 @@ export const UI_CONFIG = {
   adminMenuStateKey: 'gm_admin_menu_state'
 }
 
+// 后台日志终端（GM 后台「后台日志」页）显示配置
+// 日志是要逐行扫读的，字号太小等于没给看；给几档可选并记住上次选择
+export const LOG_CONSOLE_CONFIG = {
+  // 可选字号（px）
+  optionsPx: [12, 14, 16, 18],
+  // 默认字号：原先固定 11px 在高分屏上根本看不清，默认提到 14
+  defaultPx: 14,
+  // 行高倍率：跟着字号一起放大，避免大字号下行距过挤
+  lineHeightRatio: 1.6,
+  // 上次选择的字号存本地（与菜单折叠状态同一套持久化口径）
+  storageKey: 'gm_log_console_font_size'
+}
+
 // 全服公告配图配置
 // 与后端 server/config/announcement_upload.json 保持一致：前端负责压缩与体积预检，
 // 后端负责最终校验，任一侧调阈值时两边都要改

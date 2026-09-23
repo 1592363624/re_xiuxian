@@ -33,6 +33,30 @@ class MarketService {
     }
 
     /**
+     * 给挂单行补上卖家昵称。
+     *
+     * 坊市列表原本只带 seller_id，界面只能印成「卖家 #1」—— 玩家在一个
+     * 社交向的换物系统里看不到跟谁交易，只能自己记 ID。
+     * 名字不进库、只在出参层现算（与 item_name / material_name 同一口径），
+     * 卖家改名后列表自然跟着变。
+     *
+     * @param {Array<Object>} rows - raw 查询出来的挂单行
+     * @returns {Promise<Array<Object>>} 每行多出 seller_name（查不到时留空，由界面兜底）
+     */
+    async _withSellerNames(rows) {
+        if (!Array.isArray(rows) || rows.length === 0) return rows || [];
+        const ids = [...new Set(rows.map(r => Number(r.seller_id)).filter(id => id > 0))];
+        if (ids.length === 0) return rows;
+        const players = await Player.findAll({
+            where: { id: ids },
+            attributes: ['id', 'nickname'],
+            raw: true
+        });
+        const nameById = new Map(players.map(p => [Number(p.id), p.nickname || '']));
+        return rows.map(r => ({ ...r, seller_name: nameById.get(Number(r.seller_id)) || '' }));
+    }
+
+    /**
      * 初始化服务，注入配置加载器
      * @param {Object} configLoader - 配置加载器实例
      */
@@ -138,7 +162,7 @@ class MarketService {
         });
 
         return {
-            list: rows,
+            list: await this._withSellerNames(rows),
             total: count,
             page,
             page_size: pageSize,
@@ -176,7 +200,7 @@ class MarketService {
         });
 
         return {
-            list: rows,
+            list: await this._withSellerNames(rows),
             total: count,
             page,
             page_size: pageSize,

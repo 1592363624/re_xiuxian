@@ -1,0 +1,18 @@
+{
+  "dataset": "technique_data",
+  "into": "techniques",
+  "comment": "阴罗宗传承的一部血修功法。acquire 只写代码真认识的分支：TechniqueService.learnTechnique 里有 shop（扣灵石）与 sect（扣宗门贡献、可限 sect_id）两条，secret_realm 会被拒，其余取值一律落到「不扣任何东西」——现网三处就因此变成白送：凡人遗宝两部（recipe_scroll / sect_treasury）、乱星海市舶两部（recipe_scroll / sect_treasury），本轮才把 recipe_scroll 这条通道真实现出来（同事务里 hasItem→removeItem 消耗那卷残卷）并给内容层加了 _validateTechniqueAcquire。本片用的是 di_blood_demon 那种已支持的 sect 写法，sect_contribution 4500 排在两部玄阶宗门功法（3000）之后、地阶血魔炼形诀（12000）之前。element 为 water：神通候选池按「同五行或 none」筛（TechniqueService.comprehend 第 905 行），与本片的血蝠、两门神通自洽。",
+  "add": [
+    {
+      "id": "xue_ying_shen_gong",
+      "name": "血影神功",
+      "grade": "xuan",
+      "element": "water",
+      "description": "阴罗宗入魔道的根基心法：不炼气先炼血，把一身精血养成本源，身法便能在血雾里留影。修到深处的人指尖常带一层洗不掉的暗红。",
+      "required_realm": "金丹初期",
+      "bonuses": { "blood_power": 14, "atk": 6, "hp_max": 70 },
+      "cultivate_speed_pct_per_layer": 1,
+      "acquire": { "source": "sect", "sect_id": "yinluo", "sect_contribution": 4500 }
+    }
+  ]
+}

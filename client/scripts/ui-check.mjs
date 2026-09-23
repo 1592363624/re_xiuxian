@@ -20,6 +20,8 @@
  *                资料片加一条，界面上就没有它，而且两端都不报错
  *   7. 裸物品键  玩家可见界面把 item_key / item_id 直接印出来：服务端已按 item_data
  *                在载荷里补了 item_name，抄一份物品典或干脆印键名都只会让新物品一进内容就露馅
+ *   11. 奖励露头  成就面板必须渲染服务端 ACHIEVEMENT_REWARD_KEYS 名单里的每一项：
+ *                服务端发得出而界面不显示，等于玩家白拿一次奖励（配了但看不见的客户端那一半）
  *
  * 有未登记项时只警告不失败的东西用 ⚠ 标出，返回码只反映真正的破坏。
  */
@@ -234,7 +236,11 @@ const contentEnums = []
      * （GET /artifact-spirit/list 的 spirit_types，文案由服务端按内容数值拼），豁免清零。
      * 空表是正常状态；出现条目就要问"为什么不是内容给"。
      */
-    const CONTENT_ENUM_EXEMPTIONS = new Map()
+    const CONTENT_ENUM_EXEMPTIONS = new Map([
+        // 2026-09-23：这条豁免已经按它自己写的"到期条件"过期并删掉了 —— 灵兽稀有度现在由内容下发
+        // （GET /config/content/keys/spirit_beast_data?collection=rarity_config + 行数据带 rarity_name/rarity_color），
+        // GM 后台那个下拉不再抄档位名，也不再按键名硬编颜色。
+    ])
     const matchedExemptions = new Set()
     const literalList = /\[\s*(?:'[^'\n]+'|"[^"\n]+")(?:\s*,\s*(?:'[^'\n]+'|"[^"\n]+")){2,}\s*\]/g
     // 另一种常见形状：`const TABS = [{ key: 'yanyue', label: '掩月抢亲' }, …]` —— 抄的是对象数组，
@@ -312,6 +318,270 @@ for (const stale of ITEM_NAME_EXEMPTIONS) {
   rawItemKeys.push(`豁免已过期，这一处不再命中裸键，请删掉它：${stale}`)
 }
 
+/* ───────────────────────── 8. 面板可达性（入口 → 分类 → 注册表 → 文件） ───────────────────────── */
+
+/**
+ * 一个面板要能被玩家点开，得同时满足四件事：
+ *   actionCatalog.ACTIONS 里有这条 id（有名字和图标）
+ *   → 它出现在 DOCK_TABS 某个分类或 QUICK_ACTION_IDS 里（坞里看得见）
+ *   → panels/registry.js 用同一个 id 登记了组件（点得开）
+ *   → 那个组件文件真的存在并且是本面板（不是抄错的同名文件）
+ * 任何一环漏掉都没有编译期错误：registry.js 的文档里就写着"漏掉 if 链就是卡片在但点不开"，
+ * 那是改造前的老形状；改造后链条只是换了地方，同样的漏法依旧只剩运行时 console.warn。
+ * 更要紧的是资料片模式：以后加玩法应当就是"补三步"，而每一步都可能只做一半。
+ * 所以这里把四环两头都对照一遍，认不出的必须写理由登记。
+ */
+const catalogText = fs.readFileSync(path.join(SRC, 'data/actionCatalog.js'), 'utf8')
+const balancedBlock = (text, marker) => {
+  const start = text.indexOf(marker)
+  if (start < 0) throw new Error(`actionCatalog 里找不到 ${marker}（目录形状变了，本项检查要跟着改）`)
+  const open = text.indexOf('{', start)
+  let depth = 0
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === '{') depth++
+    else if (text[i] === '}' && --depth === 0) return text.slice(open + 1, i)
+  }
+  throw new Error(`${marker} 的括号没闭合`)
+}
+const actionIds = new Set([...balancedBlock(catalogText, 'export const ACTIONS')
+  .matchAll(/^\s{2}([a-z_][a-z0-9_]*)\s*:/gm)].map(m => m[1]))
+const dockTabsStart = catalogText.indexOf('export const DOCK_TABS')
+const groupedIds = new Set([...catalogText.slice(dockTabsStart).matchAll(/ids:\s*\[([^\]]*)\]/g)]
+  .flatMap(m => [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1])))
+const quickStart = catalogText.indexOf('export const QUICK_ACTION_IDS')
+const quickIds = new Set([...catalogText.slice(quickStart, catalogText.indexOf(']', quickStart))
+  .matchAll(/'([^']+)'/g)].map(m => m[1]))
+const loaderIds = new Set(docked.keys())
+const loaderFiles = new Set([...docked.values()].map(p => path.basename(p).replace(/\.vue$/, '')))
+
+/**
+ * 不判失败的少数形状，必须写清"为什么这条链断在这里仍然算可达"。
+ * 与 ITEM_NAME_EXEMPTIONS 同一套纪律：豁免一旦被 grep 不到就反过来报错，防过期豁免。
+ */
+const REACHABILITY_EXEMPTIONS = new Map([
+  ['panel-not-in-catalog:combat', '战斗面板不是坞内入口，由战斗流程 goPanel(\'combat\') 直接打开（GameLayout.vue:308/340）'],
+  ['dead-panel-file:BloodSwordPanel', '2026-09-21 量到的存量缺陷：血魔剑深线的完整面板 + /api/artifact-deep-line 全部端点都在，但没有任何入口，玩家打不开（任务 #14 等业主选出口：挂进"养成"分类还是删）'],
+  ['dead-panel-file:GatheringPanel', '采集玩法已有别的落点，这份是重构前的残本，零引用；等业主确认后删（见 [[project-ui-refactor-open-items-2026-09-19]]）'],
+])
+
+const reachabilityFailures = []
+const consumeExemption = (key) => {
+  if (!REACHABILITY_EXEMPTIONS.has(key)) return false
+  REACHABILITY_EXEMPTIONS.delete(key)
+  return true
+}
+for (const id of [...actionIds].sort()) {
+  if (!loaderIds.has(id) && !consumeExemption(`action-without-panel:${id}`)) {
+    reachabilityFailures.push(`ACTIONS.${id} 有入口卡片，但 panels/registry.js 没登记 → 点了只会"暂未开放"`)
+  }
+  if (!groupedIds.has(id) && !quickIds.has(id) && !consumeExemption(`action-ungrouped:${id}`)) {
+    reachabilityFailures.push(`ACTIONS.${id} 既不在 DOCK_TABS 也不在 QUICK_ACTION_IDS → 玩家在坞里根本看不见这个入口`)
+  }
+}
+for (const id of [...loaderIds].sort()) {
+  if (!actionIds.has(id) && !consumeExemption(`panel-not-in-catalog:${id}`)) {
+    reachabilityFailures.push(`panels/registry.js 登记了 ${id}，但 ACTIONS 里没这条 → 没有名字与图标，任何地方都进不去`)
+  }
+}
+for (const id of [...groupedIds, ...quickIds].sort()) {
+  if (!actionIds.has(id) && !consumeExemption(`ghost-group-id:${id}`)) {
+    reachabilityFailures.push(`DOCK_TABS/QUICK_ACTION_IDS 点名了 ${id}，ACTIONS 里却没有 → resolveAction 会静默丢掉这张卡片`)
+  }
+}
+// 最后一种断链形状：文件在，但没有任何一条链走到它（等于已经删掉的代码）
+const allSources = filesOf(SRC, '.vue').concat(filesOf(SRC, '.ts'), filesOf(SRC, '.js'))
+  .map(f => ({ rel: rel(f), text: fs.readFileSync(f, 'utf8') }))
+for (const file of filesOf(path.join(SRC, 'components/panels')).sort()) {
+  const base = path.basename(file).replace(/\.vue$/, '')
+  if (loaderFiles.has(base)) continue
+  const importers = allSources.filter(s => s.rel !== rel(file) && s.text.includes(base))
+  if (!importers.length && !consumeExemption(`dead-panel-file:${base}`)) {
+    reachabilityFailures.push(`${rel(file)} 既没登记进 registry，也没被任何文件 import → 这个玩法对玩家完全不存在`)
+  }
+}
+for (const stale of REACHABILITY_EXEMPTIONS.keys()) {
+  reachabilityFailures.push(`豁免已过期（那条断链现在不存在了，请删掉它）：${stale}`)
+}
+
+/* ───────────────────────── 9. 把服务端下发的枚举抄成客户端字面量 ───────────────────────── */
+// 形状与第 5/6 项同族，但盯的是**值清单**而不是键名清单：装备槽位、物品子类型这些词由服务端配置说了算
+// （game_balance.equipment.valid_slots / item_data[].type|subtype，资料片可以加一档），
+// 客户端一抄就有了第二份真相：改顺序/加一档时不报错，只是面板默默按旧的排、新的那档落在"其他"里。
+// （EquipmentPanel 以前就抄过 ['weapon','armor','accessory','boots','dharma']，2026-09-22 改成读配置。）
+const SERVER_VOCAB = new Set([
+  'weapon', 'armor', 'accessory', 'boots', 'dharma', 'fabao', 'artifact',
+  'healing', 'mana', 'consumable', 'equipment', 'material', 'quest', 'badge', 'title', 'scroll'
+])
+// 豁免：文件 → 理由。**豁免一旦不再命中就反过来报错**（防过期豁免）
+const VOCAB_EXEMPTIONS = new Map()
+/**
+ * 抹掉注释再扫（同一类坑在探针那边也栽过：注释里引用了旧写法，负向断言就会自己误红）。
+ * 只抹三种安全形状：块注释、整行 `//`、HTML 注释 —— 不碰行内 `//`，否则 `https://…` 会被啃掉。
+ */
+function codeOnly(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+    .replace(/^[ \t]*\/\/.*$/gm, '')
+    .replace(/<!--[\s\S]*?-->/g, m => m.replace(/[^\n]/g, ' '))
+}
+
+const vocabCopies = []
+{
+  // 单双引号都要认：只认单引号的话，这条闸会在"有人换成 prettier 的双引号"时静默变成空跑
+  const arrayLiteral = /\[\s*((?:["'][a-z_]+["']\s*,\s*)+["'][a-z_]+["']\s*,?)\s*\]/g
+  for (const { rel: file, text: raw } of allSources) {
+    const text = codeOnly(raw)
+    const isScript = /(^|\/)scripts\//.test(file) || /api\//.test(file)
+    for (const m of text.matchAll(arrayLiteral)) {
+      const values = m[1].split(',').map(s => s.trim().replace(/^["']|["']$/g, ''))
+      if (values.length < 3) continue
+      if (!values.every(v => SERVER_VOCAB.has(v))) continue
+      // api/*.ts 里"我预期服务端会返回这些字段"的映射表不算抄枚举（它们按服务端给的键取值）
+      if (isScript) continue
+      const key = `${file}:${text.slice(0, m.index).split('\n').length}`
+      if (VOCAB_EXEMPTIONS.has(key)) { VOCAB_EXEMPTIONS.delete(key); continue }
+      vocabCopies.push(`${key} 抄了一份服务端值清单 [${values.join(', ')}] → 改成读接口下发的顺序/全集`)
+    }
+  }
+  for (const stale of VOCAB_EXEMPTIONS.keys()) {
+    vocabCopies.push(`豁免已过期（这份抄写现在不存在了，请删掉它）：${stale}`)
+  }
+}
+
+/* ───────────────────────── 10. 品质字典不许在面板里各抄一份 ───────────────────────── */
+/**
+ * 盯的形状：对象字面量里出现 ≥3 个品质档名当键（`common:` / `mythic:` …）。
+ * 品质是内容说了算（game_balance.item_qualities，资料片可以加一档），客户端一抄就定死两件事：
+ * 叫法（本轮之前同时存在"普通/非凡"、"凡品/灵品"、"普通/精良"、"良品"四套）和
+ * **档位全集** —— 漏一档不会报错，只会让那一档的东西印成最低档（九份抄写里六份漏了 mythic）。
+ * 唯一允许有这张表的地方是 composables/useItemQualities.js（它把服务端词表映射成 Tailwind 类）。
+ * GM 后台（components/admin）按既有口径豁免：那里要按原始档名排查问题。
+ */
+const QUALITY_KEYS = new Set(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'])
+/** 豁免：文件 → 理由（与第 6 项同纪律：不再命中就反过来报"豁免已过期"） */
+const QUALITY_DICT_EXEMPTIONS = new Map([
+    // 2026-09-23：原先豁免的 `api/spiritBeast.ts` 是"灵兽稀有度 → 数量"那份手打四档的载荷结构。
+    // 它现在改成 `Record<string, number>`（服务端按词表逐档给，0 也给），这条豁免按它自己写的
+    // 到期条件过期删掉了 —— 留着只会让下一个真的品质抄写从这条豁免里蒙过去。
+])
+const qualityCopies = []
+{
+  const OWNER = 'composables/useItemQualities.js'
+  const matched = new Set()
+  const objectLiteral = /\{([^{}]*?)\}/gs
+  for (const { rel: file, text: raw } of allSources) {
+    if (file === OWNER || /(^|\/)components\/admin\//.test(file)) continue
+    const text = codeOnly(raw)
+    for (const m of text.matchAll(objectLiteral)) {
+      const keys = [...m[1].matchAll(/(?:^|[,{\s])["']?([a-z_]+)["']?\s*:/g)].map(x => x[1])
+      const hits = keys.filter(k => QUALITY_KEYS.has(k))
+      if (hits.length < 3) continue
+      if (QUALITY_DICT_EXEMPTIONS.has(file)) { matched.add(file); continue }
+      const line = text.slice(0, m.index).split('\n').length
+      qualityCopies.push(`${file}:${line} 抄了一份品质字典（${[...new Set(hits)].join('/')}）→ 改用 useItemQualities()，档名与颜色由服务端词表下发`)
+    }
+  }
+  for (const file of QUALITY_DICT_EXEMPTIONS.keys()) {
+    if (!matched.has(file)) qualityCopies.push(`豁免已过期（这份抄写现在不存在了，请删掉它）：${file}`)
+  }
+}
+
+/* ───────────────────────── 11. 成就奖励的每一项都要在界面上露头 ───────────────────────── */
+// 服务端 claimReward 能发几样东西，唯一名单是 server/game/content/ContentRegistry.js 里的
+// ACHIEVEMENT_REWARD_KEYS（启动期未知键当场抛）。界面只渲染其中两样时，剩下的那几样就是
+// 「内容配了、服务端也真发了、玩家却看不见」—— 与第 7 项同族，只是这次盯的是奖励形状。
+// 名字（item_name / title_name）由服务端按合并视图现算随载荷下发，这里只判"有没有渲染这一项"。
+const rewardRenderFailures = []
+{
+  const registrySrc = fs.readFileSync(
+    path.resolve(CLIENT, '..', 'server', 'game', 'content', 'ContentRegistry.js'), 'utf8')
+  const declared = registrySrc.match(/const ACHIEVEMENT_REWARD_KEYS = \[([^\]]*)\]/)
+  const keys = declared ? [...declared[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1]) : []
+  if (!keys.length) {
+    rewardRenderFailures.push('读不到服务端的 ACHIEVEMENT_REWARD_KEYS → 这条判据失去依据，请改判据而不是删掉本项')
+  } else {
+    const panel = fs.readFileSync(path.join(SRC, 'components/panels/AchievementPanel.vue'), 'utf8')
+    for (const key of keys) {
+      if (!new RegExp(`reward\\??\\.${key}\\b`).test(panel)) {
+        rewardRenderFailures.push(`成就面板没渲染 reward.${key} → 服务端发得出、玩家看不见（名单里的每一项都要有出口）`)
+      }
+    }
+    // 同一块面板的第二条契约：分组标题必须取自服务端下发的 categories。
+    // `achievement_data.categories` 已是 map 集合，资料片能自带一档分组（huangfeng_trial 的「试艺」就是），
+    // 面板里若抄一份"键→中文名"字典，资料片那一档就会顶着一个裸键出现在界面上。
+    if (!/categories\[\s*cat\s*\]\s*\??\.\s*name/.test(panel)) {
+      rewardRenderFailures.push('成就面板的分组标题不再取自服务端下发的 categories（应写 categories[cat]?.name || cat）'
+        + ' → 资料片自带的那一档分组会印成裸键，或干脆要回来改前端')
+    }
+  }
+}
+
+/* ───────────────────────── 12. 把业务失败当成功（`code === 200` 不是成功判定） ───────────────────────── */
+/**
+ * 后端 `sendServiceResult()` 的约定（routes/concubine.js、routes/dungeon.js、routes/ascension.js… 每个路由顶部一份）：
+ *   成功 → { code: 200, message, data }
+ *   业务失败 → HTTP 200 + { code: 200, success: false, message, error_code }
+ * 于是两种路由约定在客户端混成了一件不好认的事：
+ *   · 走 sendServiceResult 的接口（concubine / companion / dungeon / ascension …）—— 被拒也是 200 + code:200
+ *     实测（server/scripts/smoke_companion_voyage.js V8b/C4b）"这笔远航奖励已经领过了""该心劫已处理"
+ *     回来的是 200 + success:false，玩家看到的却是一条绿色"成功"提示；
+ *   · 走"失败即 HTTP 400"的接口（routes/gambling_stone.js）—— 请求在拦截器里就被 reject 了，
+ *     `code === 200` 只是冗余，不是假绿。
+ * 这条闸分不出某个调用点属于哪一种（那要看它打的是哪个路由），所以它给的是**一份按文件计数的清单**，
+ * 不是"这 149 处全是缺陷"。唯一口径 = `api/response.ts` 的 isBizOk()：新代码一律用它，存量按文件棘轮只许变小。
+ */
+const BIZ_OK_BASELINE = {
+  'components/admin/sub/AscensionManagement.vue': 8,
+  'components/admin/sub/CompanionConcubineManagement.vue': 6,
+  'components/admin/sub/LateStageManagement.vue': 8,
+  'components/admin/sub/MultiDungeonManagement.vue': 5,
+  'components/admin/sub/StateCleanerMonitor.vue': 4,
+  'components/admin/sub/StateLogViewer.vue': 1,
+  'components/overlays/DeathOverlay.vue': 1,
+  'components/panels/ArtifactSpiritPanel.vue': 4,
+  'components/panels/AscensionPanel.vue': 11,
+  'components/panels/BeastAbyssPanel.vue': 9,
+  'components/panels/DayanPanel.vue': 3,
+  'components/panels/DivineSenseDuelPanel.vue': 5,
+  'components/panels/ExplorePanel.vue': 1,
+  'components/panels/FishingPanel.vue': 17,
+  'components/panels/FullMapList.vue': 1,
+  'components/panels/GamblingStonePanel.vue': 4,
+  'components/panels/InventoryPanel.vue': 1,
+  'components/panels/MapPanel.vue': 1,
+  'components/panels/MarketPanel.vue': 1,
+  'components/panels/MultiDungeonPanel.vue': 6,
+  'components/panels/PuppetPanel.vue': 10,
+  'components/panels/SecondSoulPanel.vue': 4,
+  'components/panels/SmallWorldPanel.vue': 16,
+  'components/panels/SpiritBeastPanel.vue': 5,
+  'components/panels/TaoismGatePanel.vue': 10,
+  'components/panels/TechniquePanel.vue': 6,
+  'components/panels/WorldMapPanel.vue': 1
+}
+const bizOkFailures = []
+{
+  const seen = new Map()
+  for (const { rel: file, text: raw } of allSources) {
+    if (file === 'api/response.ts') continue;            // 判定本身住在这里，它是唯一允许写 `code === 200` 的地方
+    const n = (codeOnly(raw).match(/\.code\s*[=!]==?\s*200/g) || []).length
+    if (n) seen.set(file, n)
+  }
+  for (const [file, n] of seen) {
+    const allowed = BIZ_OK_BASELINE[file]
+    if (allowed === undefined) {
+      bizOkFailures.push(`${file} 有 ${n} 处按 code 判成败（基线里没有这个文件＝新引入）→ 改用 isBizOk(resp)：业务失败也是 200，只是带 success:false`)
+    } else if (n > allowed) {
+      bizOkFailures.push(`${file} 从 ${allowed} 处涨到 ${n} 处按 code 判成败 → 新代码一律走 isBizOk(resp)，别把这条棘轮的账再加回去`)
+    }
+  }
+  for (const [file, allowed] of Object.entries(BIZ_OK_BASELINE)) {
+    const n = seen.get(file) || 0
+    if (!n) bizOkFailures.push(`基线过期：${file} 已经不按 code 判成败了，请把 ${allowed} 这条从 BIZ_OK_BASELINE 删掉`)
+    else if (n < allowed) bizOkFailures.push(`基线该变小：${file} 从 ${allowed} 降到 ${n} → 请同步更新 BIZ_OK_BASELINE（棘轮只许往小改）`)
+  }
+}
+
 /* ───────────────────────── 输出 ───────────────────────── */
 
 const section = (title, items, hard) => {
@@ -330,6 +600,11 @@ fail += section('4. SFC 可解析', uncompilable, true)
 fail += section('5. 模块级文案字典（服务端 meta/schema 才是来源）', labelDicts, true)
 fail += section('6. 客户端枚举内容主键（副本/BOSS 清单应由接口给）', contentEnums, true)
 fail += section('7. 玩家界面把物品键直接印出来了（名字服务端已随载荷下发）', rawItemKeys, true)
+fail += section('8. 面板可达性（ACTIONS ↔ DOCK_TABS ↔ registry ↔ 文件，四环两头对照）', reachabilityFailures, true)
+fail += section('9. 把服务端下发的值清单抄成客户端字面量（槽位/物品子类型）', vocabCopies, true)
+fail += section('10. 品质字典各面板各抄一份（档名/颜色应由 game_balance.item_qualities 下发）', qualityCopies, true)
+fail += section('11. 成就奖励每一项都要在界面露头（名单以服务端 ACHIEVEMENT_REWARD_KEYS 为准）', rewardRenderFailures, true)
+fail += section('12. 按 code 判成败（业务失败也是 200 + success:false；唯一口径是 api/response.ts 的 isBizOk，棘轮只许变小）', bizOkFailures, true)
 section('3. 主题令牌残留（冷灰/字面色/废弃别名；不判失败，逐项确认后再清）', [...chromeDup, ...palette], false)
 
 console.log(fail ? `\n✗ ${fail} 项破坏性检查未通过` : '\n✓ 破坏性检查全部通过')

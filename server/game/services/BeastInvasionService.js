@@ -49,6 +49,7 @@ const ArtifactDeepLineService = require('./ArtifactDeepLineService');
 const InventoryService = require('./InventoryService');
 const { grantItems, describeGrant } = require('../items/itemGrant');
 const { infrastructure } = require('../../modules');
+const { applyExpPenalty } = require('../core/deathPenalty');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
@@ -1018,8 +1019,8 @@ class BeastInvasionService {
                     playerDied = true;
                     runtimeState.isDead = true;
                     runtimeState.deathCount += 1;
-                    // 死亡修为惩罚（同 WorldBossService）
-                    this._applyDeathExpPenalty(player, Number(cfg.death_exp_penalty_rate) || 0.05);
+                    // 死亡修为惩罚：与全仓其它陨落入口共用同一份实现（以前这两处各抄一份、还把 attributes 整块赋回去）
+                    await applyExpPenalty({ playerId, scope: 'beast_invasion', transaction: t, reason: '妖兽入侵身死' });
                     invasion.total_damage_dealt = safeBigInt(invasion.total_damage_dealt) + counterDamageBigInt;
                 } else {
                     invasion.total_damage_dealt = safeBigInt(invasion.total_damage_dealt) + counterDamageBigInt;
@@ -1890,26 +1891,6 @@ class BeastInvasionService {
     // =========================================================================
     // 辅助方法层
     // =========================================================================
-
-    /**
-     * 应用死亡修为惩罚（不调用 LifespanService，仅扣 attributes.exp）
-     * @param {Object} player - 玩家实例（事务内已加锁）
-     * @param {number} penaltyRate - 惩罚比例（如 0.05 表示扣5%）
-     * @private
-     */
-    static _applyDeathExpPenalty(player, penaltyRate) {
-        const attrs = typeof player.attributes === 'string'
-            ? JSON.parse(player.attributes)
-            : (player.attributes || {});
-        // 修为的权威值是 players.exp 列（BIGINT）。旧实现只改 attributes.exp 这个镜像，
-        // 于是世界BOSS/妖兽入侵的"死亡扣修为"从来没真的扣到修为，还让两处数值互相矛盾。
-        const currentExp = BigInt(player.exp || 0);
-        const penalty = (currentExp * BigInt(Math.round(penaltyRate * 10000))) / 10000n;
-        const remaining = currentExp - penalty > 0n ? currentExp - penalty : 0n;
-        player.exp = remaining;
-        attrs.exp = Number(remaining);   // 镜像同步，避免读旧键的子系统看到两个数
-        player.attributes = attrs;
-    }
 
     /**
      * 计算境界加成倍率（与 AdventureEventService.getRealmMultiplier 一致）

@@ -66,10 +66,10 @@ function buildProviders(registry, configLoader) {
         id: 'spirit_root',
         label: '灵根',
         order: 10,
-        collect: (ctx) => spiritRootBonus(
+        collect: (ctx) => pickNumeric(spiritRootBonus(
             ctx.player,
             configLoader?.getConfig('role_init')
-        )
+        )),
     });
 
     // 2. 玩家加点 + 丹药等永久加成（attributes 里的 *_bonus 存储键，白名单由注册表推导）
@@ -202,6 +202,25 @@ function buildProviders(registry, configLoader) {
             return pickRegisteredStats(raw);
         }),
         info: (_raw, ctx) => ctx.puppetInfo || null
+    });
+
+    // 10. 夺舍继承：住在 attributes.reincarnation_bonus 里的一份独立加成。
+    //     为什么不复用 *_bonus（atk_bonus 那一族）：那些键是**玩家加点与丹药**的存储位，
+    //     夺舍去覆盖会把玩家自己点的点清掉，去累加则每夺一次舍就永久叠一层（可刷分）。
+    //     单独一个来源还有两个好处：面板能指名"这部分来自夺舍"，撤档/回滚时能整块清掉。
+    //     只读玩家行上那份 blob，不查库，所以同步快照路径（副本/宗门战开局）同样吃得到。
+    //     必须走 suppliedOr：夺舍服务要"把这一档清零后重算一遍"才知道这次该补多少差值，
+    //     第一版这里直接读 blob、不认 override，于是第二次夺舍把上一次的账当成"已经有的"，
+    //     算出补 0、落库却把旧账整块换掉 —— 玩家凭空掉一大截属性，而回执记的是掉完的数。
+    providers.push({
+        id: 'reincarnation',
+        label: '夺舍继承',
+        order: 100,
+        collect: async (ctx) => pickNumeric(await suppliedOr(ctx, 'reincarnation', () => {
+            // 延迟 require：ReincarnationService 顶层要解析玩家属性（CombatResolver→AttributeService→本文件），顶层 require 会成环
+            const ReincarnationService = require('../services/ReincarnationService');
+            return ReincarnationService.getInheritanceBonus(ctx.player);
+        }))
     });
 
     return providers;

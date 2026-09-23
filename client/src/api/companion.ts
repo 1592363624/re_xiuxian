@@ -108,16 +108,20 @@ export interface HeartContract {
 
 /** 心劫事件选项 */
 export interface HeartTribulationOption {
-  /** 选项类型：steady=稳 / ruthless=狠 / deceive=骗 */
-  option: 'steady' | 'ruthless' | 'deceive';
+  /** 选项的键（词表由内容决定，见 CompanionDataPayload.heart_tribulation_options） */
+  option: string;
   /** 选项名称 */
   name: string;
   /** 成功率（0-1） */
   success_rate: number;
   /** 亲密度变化（正数增加，负数减少） */
   intimacy_change: number;
-  /** 残魂消耗 */
-  remnant_soul_cost: number;
+  /**
+   * 残魂消耗。**后端目前不会扣它**（结算路径整体不读这颗键），
+   * 因此出参层已把它过滤掉 —— 界面不许再显示"残魂消耗：N"这种空头承诺。
+   * 业主若决定"接上扣费"，恢复出参即可（见 CompanionService.projectTribulationOptions）。
+   */
+  remnant_soul_cost?: number;
   /** 选项描述 */
   description: string;
 }
@@ -259,7 +263,7 @@ export interface ConcubineVoyage {
   voyage_id: number;
   /** 侍妾 ID（名称需从 /concubine/list 的 concubines 里按 id 关联） */
   concubine_id: number;
-  /** 远航模式：safe=稳妥 / balanced=均衡 / risky=冒险 / moon_palace=月殿寻痕 */
+  /** 远航模式的键（词表由后端从内容下发，见 ConcubineListData.voyage_modes） */
   voyage_mode: string;
   /** 出发时间 */
   started_at: string;
@@ -303,6 +307,29 @@ export interface ConcubineListData {
   concubines: Concubine[];
   /** 侍妾数量 */
   count: number;
+  /**
+   * 远航模式词表（2026-09-23 起由后端从 companion_data.voyage.modes 现取现发）：
+   * 面板的选择列表与"待领取"那行的中文标签都读这份，不再自己抄一张键→名字表（连时长都是抄的）。
+   */
+  voyage_modes?: VoyageModeOption[];
+}
+
+/** 远航模式一项（键、中文名、时长与魅力门槛都取自内容） */
+export interface VoyageModeOption {
+  /** API 里传的 mode */
+  key: string;
+  /** 中文名（内容里 name） */
+  name: string;
+  /** 内容里可选的说明 */
+  description?: string | null;
+  /** 耗时（小时） */
+  duration_hours: number;
+  /** 主人魅力门槛 */
+  min_charm: number;
+  /** 风险系数（进成功率公式） */
+  risk_modifier: number;
+  /** 奖励倍率 */
+  reward_multiplier: number;
 }
 
 /** POST /concubine/seek-fate 响应数据 */
@@ -387,8 +414,8 @@ export interface VoyageStartResult {
   voyage_id: number;
   /** 侍妾 ID */
   concubine_id: number;
-  /** 远航模式 */
-  mode: 'safe' | 'balanced' | 'risky' | 'moon_palace';
+  /** 远航模式（内容词表里的键） */
+  mode: string;
   /** 预计归来时间 */
   expected_return_time: string;
   /** 结果描述 */
@@ -544,11 +571,11 @@ export const companionGetHeartTribulation = () => {
  * 心劫抉择
  * POST /companion/heart-tribulation/choose
  * @param eventId 心劫事件 ID
- * @param option 选项：steady=稳 / ruthless=狠 / deceive=骗
+ * @param option 选项的键（词表由内容决定，见 HeartTribulationOptionChoice；资料片可自带新选项）
  */
 export const companionChooseHeartTribulation = (
   eventId: number,
-  option: 'steady' | 'ruthless' | 'deceive'
+  option: string
 ) => {
   return apiClient.post<ServiceResponse<HeartTribulationResult>>(
     '/companion/heart-tribulation/choose',
@@ -656,11 +683,11 @@ export const concubineDismiss = (concubineId: number) => {
  * 侍妾远航
  * POST /concubine/voyage/start
  * @param concubineId 侍妾 ID
- * @param mode 远航模式：safe=稳妥(4h) / balanced=均衡(8h) / risky=冒险(12h) / moon_palace=月殿寻痕(24h)
+ * @param mode 远航模式的键（取自 /concubine/list 下发的 voyage_modes；资料片可自带新模式）
  */
 export const concubineStartVoyage = (
   concubineId: number,
-  mode: 'safe' | 'balanced' | 'risky' | 'moon_palace'
+  mode: string
 ) => {
   return apiClient.post<ServiceResponse<VoyageStartResult>>('/concubine/voyage/start', {
     concubine_id: concubineId,

@@ -29,6 +29,7 @@ const registry = require('../game/state/StateRegistry');
 const { registerAllStates } = require('../game/state');
 const { PlayerState } = require('../game/state/PlayerStateMachine');
 const { bootApp } = require('./lib/smoke_http');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const results = [];
 
@@ -54,24 +55,23 @@ async function captureWarnings(fn) {
 }
 
 async function ensureProbePlayer() {
-    let player = await Player.findOne({ where: { username: 'snapprobe' } });
-    if (!player) {
-        player = await Player.create({
-            username: 'snapprobe',
-            password: 'not-a-real-hash',
-            nickname: '快照探针',
-            realm: '筑基初期',
-            realm_rank: 11,
-            exp: 0,
-            spirit_stones: 1000,
-            hp_current: 5000,
-            mp_current: 5000,
-            lifespan_current: 120,
-            attributes: {},
-            token_version: 0
-        });
-    }
-    await PlayerAdventure.destroy({ where: { player_id: player.id } });
+    // 开头按账号名清历次残留：上一轮崩在中途时留下的 players 行连同它的历练行一起被级联带走，
+    // 这一轮拿到的必然是新 id，S1 不可能读到上一轮的记录
+    await PlayerCascadePurge.deleteByUsernames(['snapprobe']);
+    const player = await Player.create({
+        username: 'snapprobe',
+        password: 'not-a-real-hash',
+        nickname: '快照探针',
+        realm: '筑基初期',
+        realm_rank: 11,
+        exp: 0,
+        spirit_stones: 1000,
+        hp_current: 5000,
+        mp_current: 5000,
+        lifespan_current: 120,
+        attributes: {},
+        token_version: 0
+    });
     return player;
 }
 
@@ -150,8 +150,9 @@ async function ensureProbePlayer() {
         `快照=${JSON.stringify(afterSnap)}`
     );
 
-    await PlayerAdventure.destroy({ where: { player_id: player.id } });
-    await Player.destroy({ where: { id: player.id } });
+    // 按 player_id 归属的历练行交给级联（S4 上面那条按 seeded.id 的清理是断言自己要用的，留着）
+    const purged = await PlayerCascadePurge.deletePlayers([player.id]);
+    console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
 
     const failed = results.filter(r => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} 项通过`);

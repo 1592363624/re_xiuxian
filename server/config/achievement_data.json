@@ -7,27 +7,22 @@
   "categories": {
     "cultivation": {
       "name": "修炼",
-      "color": "emerald",
       "icon": "🧘"
     },
     "combat": {
       "name": "战斗",
-      "color": "rose",
       "icon": "⚔️"
     },
     "wealth": {
       "name": "财富",
-      "color": "amber",
       "icon": "💰"
     },
     "social": {
       "name": "交际",
-      "color": "sky",
       "icon": "🤝"
     },
     "explore": {
       "name": "探索",
-      "color": "violet",
       "icon": "🧭"
     }
   },
@@ -125,7 +120,8 @@
       "target": 11,
       "reward": {
         "spirit_stones": 8000,
-        "exp": 30000
+        "exp": 30000,
+        "title_id": "qi_master"
       }
     },
     {
@@ -137,7 +133,8 @@
       "target": 15,
       "reward": {
         "spirit_stones": 50000,
-        "exp": 200000
+        "exp": 200000,
+        "title_id": "golden_core_venerable"
       }
     },
     {
@@ -149,7 +146,8 @@
       "target": 19,
       "reward": {
         "spirit_stones": 200000,
-        "exp": 1000000
+        "exp": 1000000,
+        "title_id": "nascent_patriarch"
       }
     },
     {
@@ -173,7 +171,8 @@
       "target": 1000,
       "reward": {
         "spirit_stones": 30000,
-        "exp": 150000
+        "exp": 150000,
+        "title_id": "hermit"
       }
     },
     {
@@ -197,7 +196,8 @@
       "target": 1000,
       "reward": {
         "spirit_stones": 20000,
-        "exp": 90000
+        "exp": 90000,
+        "title_id": "battle_master"
       }
     },
     {
@@ -209,7 +209,8 @@
       "target": 10000,
       "reward": {
         "spirit_stones": 150000,
-        "exp": 600000
+        "exp": 600000,
+        "title_id": "million_slayer"
       }
     },
     {
@@ -221,7 +222,8 @@
       "target": 1000000,
       "reward": {
         "spirit_stones": 50000,
-        "exp": 100000
+        "exp": 100000,
+        "title_id": "tycoon"
       }
     },
     {
@@ -269,7 +271,8 @@
       "target": 14,
       "reward": {
         "spirit_stones": 20000,
-        "exp": 100000
+        "exp": 100000,
+        "title_id": "foundation_taoist"
       }
     },
     {
@@ -305,7 +308,8 @@
       "target": 23,
       "reward": {
         "spirit_stones": 600000,
-        "exp": 3000000
+        "exp": 3000000,
+        "title_id": "spirit_sovereign"
       }
     },
     {
@@ -317,7 +321,8 @@
       "target": 27,
       "reward": {
         "spirit_stones": 2000000,
-        "exp": 10000000
+        "exp": 10000000,
+        "title_id": "void_immortal"
       }
     },
     {
@@ -329,7 +334,8 @@
       "target": 31,
       "reward": {
         "spirit_stones": 6000000,
-        "exp": 30000000
+        "exp": 30000000,
+        "title_id": "body_integration_zen"
       }
     },
     {
@@ -341,7 +347,8 @@
       "target": 35,
       "reward": {
         "spirit_stones": 20000000,
-        "exp": 80000000
+        "exp": 80000000,
+        "title_id": "great_vehicle_ancestor"
       }
     },
     {
@@ -353,7 +360,8 @@
       "target": 40,
       "reward": {
         "spirit_stones": 100000000,
-        "exp": 0
+        "exp": 0,
+        "title_id": "true_immortal_title"
       }
     },
     {
@@ -365,7 +373,8 @@
       "target": 5000,
       "reward": {
         "spirit_stones": 120000,
-        "exp": 600000
+        "exp": 600000,
+        "title_id": "reclusive_adept"
       }
     },
     {
@@ -377,7 +386,8 @@
       "target": 10000,
       "reward": {
         "spirit_stones": 400000,
-        "exp": 2000000
+        "exp": 2000000,
+        "title_id": "seclusion_10k"
       }
     },
     {

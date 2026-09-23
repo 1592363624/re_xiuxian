@@ -31,6 +31,7 @@ const BorderMilitaryService = require('../game/services/BorderMilitaryService');
 const BorderMilestoneReward = require('../models/border_milestone_reward');
 const BorderSupportLog = require('../models/border_support_log');
 const { itemName } = require('../game/items/itemNaming');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 const borderConfig = require('../config/border_military_data.json');
 const itemData = require('../config/item_data.json');
 
@@ -42,7 +43,9 @@ function check(name, ok, detail) {
 }
 
 async function ensureProbePlayer() {
-    await Player.destroy({ where: { username: 'borderprobe' }, force: true });
+    // 开头按账号名清历次残留（而不是只删 players 那一行）：上一轮崩在收尾之前留下的
+    // 里程碑记录 / 支援日志 / 背包行按新 id 永远找不回来，会污染本轮的对账。
+    await PlayerCascadePurge.deleteByUsernames(['borderprobe']);
     return Player.create({
         username: 'borderprobe',
         password: 'not-a-real-hash',
@@ -190,7 +193,7 @@ async function quantity(playerId, itemKey) {
     // 掉率是随机的，所以反复支援直到真掉下东西；一次都没掉过=本项空测。
     const dropRoutes = Object.entries(borderConfig.support_routes || {})
         .filter(([, r]) => Array.isArray(r.item_drops) && r.item_drops.length > 0);
-    let b6Failures = [], landedRounds = 0;
+    let b6Failures = [], landedRounds = 0, riskyRounds = 0;
     if (dropRoutes.length === 0) {
         b6Failures.push('内容里没有任何带 item_drops 的支援路线（这条链整段没内容，探针测不到）');
     }
@@ -203,7 +206,10 @@ async function quantity(playerId, itemKey) {
             const beforeQty = new Map();
             for (const k of routeKeys) beforeQty.set(k, await quantity(player.id, k));
             const res = await BorderMilitaryService.supportMulanan(await Player.findByPk(player.id), routeName);
-            if (!res.success) { b6Failures.push(`${routeName}: 支援本身失败 —— ${res.message}`); break; }
+            // 险棋路线本来就带"支援失败 + 赔 50 灵石 50 HP"的分支（设计如此，不是 bug）：
+            // 失败轮不计到账、继续重试，只要求最终真掉到过东西（landedRounds>0），否则这条才是空测。
+            // 原来这里 `break` 并把失败当缺陷 —— 6 轮里撞上一次随机失败就整条假红（2026-09-22 实测）。
+            if (!res.success) { riskyRounds++; continue; }
             const log = await BorderSupportLog.findOne({ where: { player_id: player.id }, order: [['id', 'DESC']] });
             const dropped = log && log.items_dropped ? JSON.parse(log.items_dropped) : [];
             if (dropped.length === 0) continue;
@@ -229,8 +235,13 @@ async function quantity(playerId, itemKey) {
         `真掉过 ${landedRounds} 轮${b6Failures.length ? ' —— ' + b6Failures.slice(0, 3).join(' | ') : ''}`
     );
 
-    await BorderMilestoneReward.destroy({ where: { player_id: player.id } });
-    await Player.destroy({ where: { id: player.id }, force: true });
+    // 上面 B2/B4/B5 里那几条 BorderMilestoneReward.destroy 是**跑到一半重置状态**用的
+    // （断言要的是"这一档此刻确实没发过"），删掉会改掉断言前提，所以留着；
+    // 收尾这一条不再手写表名 —— 里程碑记录/支援日志/背包都按 player_id 归属，交给那一份级联。
+    const purged = await PlayerCascadePurge.deletePlayer(Number(player.id));
+    console.log(`清理：删掉探针号 ${purged.username}（id ${purged.player_id}），级联带走 ${purged.total} 行派生数据`
+        + `（残留里程碑记录 ${await BorderMilestoneReward.count({ where: { player_id: player.id } })} 行、`
+        + `支援日志 ${await BorderSupportLog.count({ where: { player_id: player.id } })} 行）`);
 
     const failed = results.filter(r => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} 项通过`);

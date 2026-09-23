@@ -20,6 +20,7 @@ const { app } = require('../index');
 const Player = require('../models/player');
 const SpiritBeast = require('../models/spiritBeast');
 const sequelize = require('../config/database');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 const { bootApp, request, mintToken } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const configLoader = infrastructure.ConfigLoader;
@@ -113,8 +114,10 @@ async function probe(label, { method, path, body, query, expectKeys, source }) {
             && listed.length === facilities.length && facilities.every(k => listed.some(f => f.value === k))
             && namesFromContent.every(n => labels.includes(n)),
         `status=${facilitiesRes.status} 条数=${listed.length}/${facilities.length} 名字=${labels.join(',')} 响应=${JSON.stringify(facilitiesRes.body).slice(0, 120)}`);
-    // V9：GM 改灵兽属性。可改集合取自"属性注册表 ∩ spirit_beasts 上真有的列"，两个方向都要成立：
-    //   有列的注册属性（atk）改得动；注册了但表上没列的（crit_rate）必须回 400 并点名，不许悄悄丢掉。
+    // V9：GM 改灵兽属性。可改集合来自属性注册表，两个方向都要成立：
+    //   表上有列的（atk）写列；注册了但没有列的（crit_rate/dodge_rate）写进 spirit_beasts.stat_block 属性块。
+    //   2026-09-21 之前第二种是回 400 的（"改表需要授权"）；migration_0088 给了落脚点之后，
+    //   这一档改成"改得动、而且按块合并"—— 同块里另一档不许被后一次编辑抹掉。
     //   以前代码抄了 ['atk','def','speed'] 一份字面量，传 mdef/crit_rate 会被无声忽略。
     const beastKey = (configLoader.getConfig('spirit_beast_data').beasts || [])[0]?.id || 'smoke_beast';
     const beast = await SpiritBeast.create({
@@ -127,17 +130,99 @@ async function probe(label, { method, path, body, query, expectKeys, source }) {
     check('V9a GM 改灵兽：注册表里且表上有列的属性真的写进去了',
         okRes.status === 200 && Number(afterBeast?.atk) === 137,
         `status=${okRes.status} atk=${afterBeast?.atk} 响应=${JSON.stringify(okRes.body).slice(0, 140)}`);
-    const badRes = await request({ port: PORT, method: 'PUT', path: `/api/admin/spirit-beast/beasts/${beast.id}`,
+    const blobRes = await request({ port: PORT, method: 'PUT', path: `/api/admin/spirit-beast/beasts/${beast.id}`,
         token: adminToken, body: { crit_rate: 5 } });
-    const badBody = JSON.stringify(badRes.body || {});
-    check('V9b GM 改灵兽：注册了但没列的属性回 400 并点名（不静默丢掉）',
-        badRes.status === 400 && badBody.includes('crit_rate') && badBody.includes('spirit_beasts'),
-        `status=${badRes.status} 响应=${badBody.slice(0, 180)}`);
+    const afterBlob = await SpiritBeast.findByPk(beast.id);
+    const blobBody = blobRes.body?.data || {};
+    check('V9b GM 改灵兽：注册了但没有专属列的属性落进 stat_block 属性块（不再回 400）',
+        blobRes.status === 200 && Number(afterBlob?.stat_block?.crit_rate) === 5
+            && Number(blobBody.extra_stats?.crit_rate) === 5,
+        `status=${blobRes.status} 库里 stat_block=${JSON.stringify(afterBlob?.stat_block)} 响应 extra_stats=${JSON.stringify(blobBody.extra_stats)}`);
+    const mergeRes = await request({ port: PORT, method: 'PUT', path: `/api/admin/spirit-beast/beasts/${beast.id}`,
+        token: adminToken, body: { dodge_rate: 7 } });
+    const afterMerge = await SpiritBeast.findByPk(beast.id);
+    const mergedBlock = afterMerge?.stat_block || {};
+    check('V9c 属性块按块合并：后一次编辑不许把前一次的 crit_rate 覆盖掉',
+        mergeRes.status === 200 && Number(mergedBlock.dodge_rate) === 7 && Number(mergedBlock.crit_rate) === 5,
+        `status=${mergeRes.status} stat_block=${JSON.stringify(mergedBlock)}`);
     await beast.destroy();
+
+    // V10/V11：本轮把两份"客户端抄的主键清单"改成内容下发，这里核的是接口真给全。
+    //   V10 灵兽属性词表（后台那个下拉以前抄了五行；凡人遗宝刚补了一档「雷」，抄的那份就没有它）
+    //   V11 道途全集（面板以前抄了 key 列表 + 中文名 + 五段描述；内容里的名字其实是"金道·锐金"这种长名）
+    // 注意 query 必须拼进 path：lib/smoke_http 的 request() 只认 {port,method,path,token,body}，
+    // 传 `query:` 进去会被静默丢掉（第一版就这么"绿"过一次：拿回来的其实是默认集合 beast_types）。
+    const elementsRes = await request({ port: PORT, method: 'GET',
+        path: '/api/config/content/keys/spirit_beast_data?collection=elements', token: adminToken });
+    const contentElements = Object.keys(configLoader.getConfig('spirit_beast_data').elements || {});
+    const givenElements = (elementsRes.body?.data?.entries || []);
+    check('V10 灵兽属性清单接口回内容里的全部属性（含资料片补的那一档），中文名也取自内容',
+        elementsRes.status === 200 && contentElements.length >= 6
+            && contentElements.every(k => givenElements.some(e => e.key === k))
+            && givenElements.some(e => e.key === 'thunder' && e.name === '雷'),
+        `status=${elementsRes.status} 内容 ${contentElements.length} 档=${contentElements.join(',')} 接口=${givenElements.map(e => `${e.key}:${e.name}`).join(',')}`);
+
+    const profileRes = await request({ port: PORT, method: 'GET', path: '/api/taoism-gate/profile', token: adminToken });
+    const options = (profileRes.body?.data?.dao_path_options || []);
+    const contentPaths = configLoader.getConfig('taoism_gate_data').dao_paths || {};
+    check('V11 引道面板的"道途全集"由服务端随 profile 下发，名字与描述都取自内容',
+        profileRes.status === 200 && options.length === Object.keys(contentPaths).length
+            && Object.keys(contentPaths).every(k => options.some(o => o.key === k
+                && o.name === contentPaths[k].name && o.description === contentPaths[k].description)),
+        `status=${profileRes.status} 下发 ${options.length} 档/内容 ${Object.keys(contentPaths).length} 档：${options.map(o => o.name).join(',')} 响应=${JSON.stringify(profileRes.body).slice(0, 100)}`);
+
+    // V12：阵法名字表现在是"资料片能改的集合"（FormationService.formationCategories() 直接拿它的键
+    // 当合法全集，routes/formation.js:158 用它挡参数）。下发必须是纯字符串：
+    // 资料片经 map 集合补的一档是 {id,label} 对象，没过 contentLabel 就会印 [object Object]。
+    const formationRes = await request({ port: PORT, method: 'GET', path: '/api/formation/config' });
+    const fGlobal = formationRes.body?.data?.global || {};
+    const catLabels = fGlobal.category_display_names || {};
+    const gradeLabels = fGlobal.grade_display_names || {};
+    const contentFormation = configLoader.getConfig('formation_data').global;
+    check('V12 阵法流派/品级名字表下发是纯字符串，且键与内容一致（合法全集由这张表决定）',
+        formationRes.status === 200
+            && Object.keys(catLabels).length === Object.keys(contentFormation.category_display_names).length
+            && Object.keys(gradeLabels).length === Object.keys(contentFormation.grade_display_names).length
+            && Object.values(catLabels).every(v => typeof v === 'string' && v.trim() && !v.includes('[object'))
+            && Object.values(gradeLabels).every(v => typeof v === 'string' && v.trim() && !v.includes('[object')),
+        `status=${formationRes.status} 流派=${JSON.stringify(catLabels)} 品阶=${JSON.stringify(gradeLabels)}`);
+
+    // V13：装备槽位词表（2026-09-22 起 `equipment.slot_names` 是唯一来源，`valid_slots` 由它派生，
+    // 而且登记成了 map 集合 —— 资料片能加一档槽位）。两个面板（装备栏/背包）都读这份接口，
+    // 所以要两头都钉住：派生的数组与规范化后的字符串名字表必须一致，且不许把对象形状漏给前端。
+    const gbRes = await request({ port: PORT, method: 'GET', path: '/api/config/game-balance/public', token: adminToken });
+    const gbEquip = gbRes.body?.data?.equipment || {};
+    const gbSlots = Array.isArray(gbEquip.valid_slots) ? gbEquip.valid_slots : null;
+    const gbNames = gbEquip.slot_names || {};
+    check('V13 槽位词表下发：valid_slots 是数组、slot_names 是纯字符串、两边键集一致（只有一份真相）',
+        !!gbSlots && gbSlots.length >= 6
+        && gbSlots.every(s => typeof s === 'string' && s.trim())
+        && Object.keys(gbNames).slice().sort().join(',') === gbSlots.slice().sort().join(',')
+        && Object.values(gbNames).every(v => typeof v === 'string' && v.trim() && !v.includes('[object'))
+        // 槽位必须有自己的中文名，否则界面就在印裸键（V12 同一个坑的第二处）
+        && gbSlots.every(s => gbNames[s] !== s),
+        `status=${gbRes.status} valid_slots=${JSON.stringify(gbSlots)} 名字=${JSON.stringify(gbNames)}`);
+
+    // V14：品质词表（2026-09-22 起 `game_balance.item_qualities` 是唯一来源，客户端只在
+    // composables/useItemQualities.js 一处把色令牌换成 Tailwind 类）。
+    // 面板过去各抄一份字典、六份漏了 mythic → 神话档物品在界面上被印成"普通"，
+    // 所以这一条要钉住三件事：档全（含 mythic）、标签是人话、按 order 排好（客户端直接 v-for 当下拉）。
+    const gbQualities = gbRes.body?.data?.item_qualities;
+    const qKeys = Array.isArray(gbQualities) ? gbQualities.map(q => q.key) : [];
+    check('V14 品质词表下发：六档齐（含 mythic）、标签非空且不等于键名、order 严格递增',
+        Array.isArray(gbQualities) && gbQualities.length >= 6
+        && ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'].every(k => qKeys.includes(k))
+        && gbQualities.every(q => typeof q.label === 'string' && q.label.trim() && q.label !== q.key)
+        && gbQualities.every((q, i) => i === 0 || Number(q.order) > Number(gbQualities[i - 1].order))
+        && gbQualities.every(q => ['neutral', 'jade', 'azure', 'violet', 'gold', 'crimson'].includes(q.tone)),
+        `status=${gbRes.status} 档=${JSON.stringify(gbQualities?.map(q => `${q.key}:${q.label}:${q.tone}`))}`);
 
     await probePlayer.update({ role: 'player' });
 
-    await Player.destroy({ where: { username: 'optionprobe01' } });
+    // 先把 V8 临时提上去的 role='admin' 改回 player（上面那行），再走级联删号 ——
+    // deletePlayers 故意拒绝删管理员行，正是为了挡住"提权状态下误删真人号"。
+    const purged = await PlayerCascadePurge.deleteByUsernames(['optionprobe01']);
+    console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
     return finish();
 })().catch(async (error) => {
     console.error('探针自身失败:', error);

@@ -441,8 +441,8 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-bold text-fg-primary">{{ item.name }}</span>
-                <Badge :tone="item.quality === 'rare' ? 'arcane' : item.quality === 'uncommon' ? 'success' : 'muted'">
-                  {{ item.quality === 'rare' ? '稀有' : item.quality === 'uncommon' ? '良品' : '普通' }}
+                <Badge :tone="qualityBadgeTone(item.quality)">
+                  {{ qualityLabel(item.quality) }}
                 </Badge>
               </div>
               <p class="text-xs text-fg-faint mt-0.5">{{ item.description }}</p>
@@ -510,6 +510,7 @@ import { useUIStore } from '../../stores/ui'
 import { useAsyncTask } from '../../composables/useAsyncTask'
 import { usePlayerStore } from '../../stores/player'
 import { formatTime, formatCompact } from '../../utils/format'
+import { useItemQualities } from '../../composables/useItemQualities'
 import Modal from '../common/Modal.vue'
 import PanelShell from '../ui/PanelShell.vue'
 import PanelCard from '../ui/PanelCard.vue'
@@ -531,6 +532,12 @@ const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 // 引入 playerStore 用于读取当前玩家ID（PVP 结算时判断胜/败方）
 const playerStore = usePlayerStore()
+/**
+ * 战斗道具标签上的品质：档名与 Badge 语气都取服务端品质词表（composables/useItemQualities.js）。
+ * 这里原来是一串三元：只有 rare/uncommon 有名字，其余一律落到"普通"配 muted 语气 ——
+ * 于是传说/神话档的丹药在 PVP 面板上看着像凡品（第三套叫法"良品"也出自这里）。
+ */
+const { labelOf: qualityLabel, badgeTone: qualityBadgeTone } = useItemQualities()
 
 // ====== 响应式状态 ======
 const { loading, error, run } = useAsyncTask({ fallback: '获取 PVP 状态失败' })

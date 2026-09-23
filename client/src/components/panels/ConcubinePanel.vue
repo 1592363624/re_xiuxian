@@ -6,7 +6,9 @@
  * Tab 划分：
  *   1. 侍妾列表：网格展示所有侍妾卡片（名字/境界等阶/修为/亲密·魅力·忠诚/安置/操作）
  *   2. 红尘寻缘：今日剩余次数 + 寻缘按钮 + 寻缘结果展示
- *   3. 远航：4 种远航模式选择（稳妥 4h/均衡 8h/冒险 12h/月殿寻痕 24h）+ 进行中与归来待领取列表
+ *   3. 远航：远航模式选择 + 进行中与归来待领取列表
+ *      （模式有哪几档、叫什么、多久、魅力门槛多少，全部来自 /concubine/list 的 voyage_modes，
+ *       也就是 companion_data.voyage.modes —— 这里不抄第二份，抄了资料片加一档就看不见）
  *   4. 日志：简化为最近 20 条侍妾互动日志（由列表刷新间接呈现）
  *
  * 数据契约（以 server/game/services/ConcubineService.js 为准）：
@@ -241,7 +243,7 @@
           <div class="text-sm font-bold text-fuchsia-300 mb-2">侍妾远航</div>
           <div class="text-[11px] text-fg-muted mb-3">
             · 选择一位空闲侍妾执行远航任务<br>
-            · 时长越长奖励越丰厚，月殿寻痕为顶级远航
+            · 时长越长奖励越丰厚<span v-if="topVoyageMode">，当前时长最长的是「{{ topVoyageMode.label }}」</span>
           </div>
           <!-- 侍妾选择 -->
           <div class="mb-3">
@@ -270,7 +272,11 @@
               ]">
               <div>{{ mode.label }}</div>
               <div class="text-[10px] text-fg-muted mt-0.5">{{ mode.duration }}</div>
+              <div v-if="mode.minCharm > 0" class="text-[10px] text-fg-muted">魅力 ≥ {{ mode.minCharm }}</div>
             </button>
+            <div v-if="!voyageModes.length" class="col-span-2 md:col-span-4 text-[11px] text-rose-300">
+              · 后端未下发远航模式（companion_data.voyage.modes 为空或被清空）—— 此时任何远航都会被服务端拒绝
+            </div>
           </div>
           <AppButton
             variant="primary"
@@ -450,6 +456,7 @@ import AppButton from '../ui/AppButton.vue';
 import EmptyState from '../ui/EmptyState.vue';
 import LoadingBlock from '../ui/LoadingBlock.vue';
 import { useUIStore } from '../../stores/ui';
+import { isBizOk } from '../../api/response';
 import { formatCompact } from '../../utils/format';
 import {
   concubineGetList,
@@ -532,13 +539,23 @@ const listData = ref<ConcubineListData | null>(null);
 const voyageData = ref<VoyageStatusData | null>(null);
 const lastSeekResult = ref<SeekFatePayload | null>(null);
 
-/** 远航模式选项（4 种） */
-const voyageModes = [
-  { value: 'safe' as const, label: '稳妥', duration: '4 小时' },
-  { value: 'balanced' as const, label: '均衡', duration: '8 小时' },
-  { value: 'risky' as const, label: '冒险', duration: '12 小时' },
-  { value: 'moon_palace' as const, label: '月殿寻痕', duration: '24 小时' }
-];
+/**
+ * 远航模式选项：由 /concubine/list 下发的 `voyage_modes` 决定（内容 companion_data.voyage.modes）。
+ * 以前这里点写四种模式、连"4 小时"都抄了一份，下面 getVoyageModeLabel 还有第二份字典 ——
+ * 于是资料片加一档模式会被路由以"参数非法"挡掉，界面也看不见。
+ */
+const voyageModes = computed(() => (listData.value?.voyage_modes || []).map(mode => ({
+  value: mode.key,
+  label: mode.name,
+  duration: `${mode.duration_hours} 小时`,
+  minCharm: mode.min_charm
+})));
+
+/**
+ * 时长最长的那一档（服务端按 duration_hours 排序后下发，这里只取尾项）。
+ * 以前这句提示直接写着"月殿寻痕为顶级远航" —— 资料片加一档更长的，界面还在指旧的那一档。
+ */
+const topVoyageMode = computed(() => voyageModes.value[voyageModes.value.length - 1] || null);
 
 /** 安置地点选项（与后端配置保持一致，可扩展） */
 const placeLocations = ['药园', '洞府', '灵泉', '藏经阁'];
@@ -546,7 +563,7 @@ const placeLocations = ['药园', '洞府', '灵泉', '藏经阁'];
 /** 远航表单 */
 const voyageForm = reactive({
   concubineId: null as number | null,
-  mode: null as 'safe' | 'balanced' | 'risky' | 'moon_palace' | null
+  mode: null as string | null
 });
 
 /** 赠予物品弹窗 */
@@ -656,7 +673,7 @@ async function loadList() {
   loading.list = true;
   try {
     const resp = await concubineGetList();
-    if (resp.data?.code === 200 && resp.data.data) {
+    if (isBizOk(resp) && resp.data?.data) {
       listData.value = resp.data.data;
     } else {
       uiStore.showToast(resp.data?.message || '获取侍妾列表失败', 'error');
@@ -673,7 +690,7 @@ async function loadVoyageStatus() {
   loading.voyage = true;
   try {
     const resp = await concubineGetVoyageStatus();
-    if (resp.data?.code === 200 && resp.data.data) {
+    if (isBizOk(resp) && resp.data?.data) {
       voyageData.value = resp.data.data;
     } else {
       uiStore.showToast(resp.data?.message || '获取远航状态失败', 'error');
@@ -694,7 +711,7 @@ async function handleSeekFate() {
     const resp = await concubineSeekFate();
     // api/companion.ts 的 SeekFateResult 仍是设计稿字段，这里按后端实测形状接管
     const payload = resp.data.data as unknown as SeekFatePayload | null;
-    if (resp.data?.code === 200 && payload) {
+    if (isBizOk(resp) && payload) {
       lastSeekResult.value = { ...payload, message: resp.data.message || '' };
       uiStore.showToast(
         resp.data.message || (payload.obtained_concubine ? '寻得有缘人' : '缘分未至'),
@@ -719,7 +736,7 @@ async function handleAskAfter(concubineId: number) {
   loading.action = true;
   try {
     const resp = await concubineAskAfter(concubineId);
-    if (resp.data?.code === 200) {
+    if (isBizOk(resp)) {
       uiStore.showToast(resp.data.message || '问安完成', 'success');
       await loadList();
     } else {
@@ -741,7 +758,7 @@ async function handleBackfeed(concubineId: number) {
     loading.action = true;
     try {
       const resp = await concubineBackfeed(concubineId);
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '反哺完成', 'success');
         await loadList();
       } else {
@@ -775,7 +792,7 @@ async function handleGift() {
   loading.action = true;
   try {
     const resp = await concubineGift(giftModal.concubineId, giftModal.itemKey.trim(), giftModal.count);
-    if (resp.data?.code === 200) {
+    if (isBizOk(resp)) {
       uiStore.showToast(resp.data.message || '赠予成功', 'success');
       giftModal.show = false;
       await loadList();
@@ -808,7 +825,7 @@ async function handlePlace() {
   loading.action = true;
   try {
     const resp = await concubinePlace(placeModal.concubineId, placeModal.location);
-    if (resp.data?.code === 200) {
+    if (isBizOk(resp)) {
       uiStore.showToast(resp.data.message || '安置完成', 'success');
       placeModal.show = false;
       await loadList();
@@ -830,7 +847,7 @@ async function handleRecall(concubineId: number) {
   loading.action = true;
   try {
     const resp = await concubineRecall(concubineId);
-    if (resp.data?.code === 200) {
+    if (isBizOk(resp)) {
       uiStore.showToast(resp.data.message || '已召回', 'success');
       await loadList();
     } else {
@@ -852,7 +869,7 @@ async function handleDismiss(concubineId: number) {
     loading.action = true;
     try {
       const resp = await concubineDismiss(concubineId);
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '侍妾已遣散', 'success');
         await loadList();
       } else {
@@ -876,7 +893,7 @@ async function handleStartVoyage() {
     loading.action = true;
     try {
       const resp = await concubineStartVoyage(voyageForm.concubineId!, voyageForm.mode!);
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '远航已开始', 'success');
         // 重置表单
         voyageForm.concubineId = null;
@@ -902,7 +919,7 @@ async function handleReturnVoyage(voyageId: number) {
   loading.action = true;
   try {
     const resp = await concubineReturnVoyage(voyageId);
-    if (resp.data?.code === 200) {
+    if (isBizOk(resp)) {
       uiStore.showToast(resp.data.message || '远航归来', 'success');
       await Promise.all([loadList(), loadVoyageStatus()]);
     } else {
@@ -924,7 +941,7 @@ async function handleProtect(concubineId: number) {
     loading.action = true;
     try {
       const resp = await concubineProtect(concubineId);
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '已开始护法', 'success');
         await loadList();
       } else {
@@ -947,7 +964,7 @@ async function handleAwaken(concubineId: number) {
     loading.action = true;
     try {
       const resp = await concubineAwaken(concubineId);
-      if (resp.data?.code === 200) {
+      if (isBizOk(resp)) {
         uiStore.showToast(resp.data.message || '觉醒完成', 'success');
         await loadList();
       } else {
@@ -1014,17 +1031,13 @@ function getStatusBadgeClass(status: string): string {
 }
 
 /**
- * 获取远航模式中文标签
- * @param mode 远航模式
+ * 远航模式的展示标签（名字与时长都来自服务端下发的词表；库里只存键）
+ * @param mode 远航模式的键
  */
 function getVoyageModeLabel(mode: string): string {
-  const map: Record<string, string> = {
-    safe: '稳妥（4h）',
-    balanced: '均衡（8h）',
-    risky: '冒险（12h）',
-    moon_palace: '月殿寻痕（24h）'
-  };
-  return map[mode] || mode;
+  const known = voyageModes.value.find(item => item.value === mode);
+  if (!known) return mode;      // 词表里没有（历史键或内容已删档）就印键本身，不再回退到本地字典
+  return `${known.label}（${known.duration.replace(' 小时', 'h')}）`;
 }
 
 /**

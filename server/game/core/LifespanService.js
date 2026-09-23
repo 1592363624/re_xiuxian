@@ -21,6 +21,7 @@
 const Player = require('../../models/player');
 // 修复：统一通过 modules/index.js 导出引用 ConfigLoader
 const { infrastructure } = require('../../modules');
+const { applyExpPenalty } = require('./deathPenalty');
 const configLoader = infrastructure.ConfigLoader;
 
 class LifespanService {
@@ -196,12 +197,11 @@ class LifespanService {
         }
 
         const cfg = LifespanService._getLifespanConfig();
-        const lossRate = cfg.death_exp_loss_rate ?? 0.1;  // 默认 0.1（与 combat.death_exp_penalty_rate 一致）
 
-        const currentExp = BigInt(player.exp || 0);
-        const expLoss = currentExp * BigInt(Math.round(lossRate * 100)) / 100n;
-        const newExp = currentExp - expLoss;
-        player.exp = newExp < 0n ? 0n : newExp;
+        // 扣修为收进全仓唯一那份实现。这条链以前是"无锁读一份快照 → 算绝对值 → 整行 save()"，
+        // 同一时间别的流程给玩家加的修为会被抹回几分钟前那一份；现在是自己开事务、锁内读、列上原子减。
+        const deathPenalty = await applyExpPenalty({ playerId: player.id, scope: 'lifespan', reason: '寿元耗尽' });
+        const expLoss = deathPenalty.penalty;
 
         player.hp_current = BigInt(cfg.death_hp_current ?? 0);
         player.is_dead = true;                          // B3 修复：标记死亡状态
@@ -255,7 +255,9 @@ class LifespanService {
             playerId: player.id,
             nickname: player.nickname,
             expLoss: expLoss.toString(),
-            message: `寿元耗尽，修为损失 ${Math.round(lossRate * 100)}%`
+            // 率取自真正生效的那一份（以前这里读的是本函数自己算的 lossRate，
+            // 收口成一处之后那个局部量已经没了 —— 留着会把文案算成 NaN%）
+            message: `寿元耗尽，修为损失 ${Math.round(deathPenalty.rate * 100)}%`
         };
     }
 

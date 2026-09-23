@@ -132,7 +132,7 @@
                 </div>
                 <div class="text-[10px] text-fg-muted mt-2">
                   · 显灵：消耗 100 香火，获得信仰+5 / 稳定+3 / 灵石回馈<br>
-                  · 神迹每日限次：relieve_disaster=赈灾 / preach=布道
+                  · 赈灾、布道各有每日次数上限，用尽后次日恢复
                 </div>
               </section>
             </template>

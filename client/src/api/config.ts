@@ -74,6 +74,18 @@ export interface ItemCategory {
   label: string;
 }
 
+/**
+ * 物品品质档（服务端 game_balance.item_qualities 原样下发，已按 order 排好）。
+ * tone 是语义色令牌（neutral/jade/azure/violet/gold/crimson），不是 Tailwind 类 ——
+ * 令牌→类名只在 composables/useItemQualities.js 一处映射，面板不再各抄一份品质字典。
+ */
+export interface ItemQuality {
+  key: string;
+  label: string;
+  tone: string;
+  order: number;
+}
+
 /** 背包相关配置 */
 export interface InventoryConfig {
   /** 使用物品单次最大数量 */
@@ -89,6 +101,8 @@ export interface GameBalancePublicConfig {
   equipment: EquipmentConfig;
   /** 物品类型中文名映射（consumable→丹药 等） */
   item_types: Record<string, string>;
+  /** 物品品质词表（档名 + 色令牌 + 排序），按 order 排好；品质的唯一来源 */
+  item_qualities?: ItemQuality[];
   /** 背包分类 tabs */
   item_categories: ItemCategory[];
   /** 地图类型中文名映射 */

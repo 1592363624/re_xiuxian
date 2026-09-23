@@ -35,6 +35,7 @@ const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 const PlayerFishing = require('../../models/playerFishing');
 const PlayerFishCatch = require('../../models/playerFishCatch');
+const { qualityOrder, qualityAtLeast, qualityRank } = require('../items/itemQuality');
 const PlayerFishAlbum = require('../../models/playerFishAlbum');
 const sequelize = require('../../config/database');
 const InventoryService = require('./InventoryService');
@@ -44,7 +45,35 @@ const { ErrorCodes } = require('../../middleware/errorHandler');
 
 class FishingService {
     static _initialized = false;
-    static _config = null;
+    static _loader = null;
+    static _configCache = null;
+    static _configOverride = null;
+
+    /**
+     * `_config` 每次读都现读（2026-09-23，与 PuppetService / GamblingStoneService 同一套）。
+     *
+     * `hotUpdateConfig` 换的是缓存里的对象引用，所以 initialize 时抓到的那一份会一路用到重启：
+     * 钓竿序列（`_rodKeys` 按 `tier` 排）、鱼池、图鉴档序都住在这份内容里 —— 后台装上资料片之后
+     * 界面看不见新竿新鱼，重启又"莫名其妙好了"，且没有任何一处报错。
+     * 没注入过 loader 时返回 null（不猜一份配置），读过之后某次抛则沿用上一份好缓存。
+     * 单测喂假配置：赋 `FishingService._config = {...}`（走 setter），收尾赋 null 清掉覆盖。
+     */
+    static get _config() {
+        if (this._configOverride) return this._configOverride;
+        if (!this._loader) return this._configCache;
+        const fresh = this._loader.peekConfig
+            ? this._loader.peekConfig('fishing_data')
+            : (() => { try { return this._loader.getConfig('fishing_data'); } catch { return null; } })();
+        if (fresh) {
+            this._configCache = fresh;
+            return fresh;
+        }
+        return this._configCache;
+    }
+
+    static set _config(value) {
+        this._configOverride = value;
+    }
 
     /**
      * 钓竿序列：以内容里每根竿自己的 `tier` 排序，只算一处。
@@ -85,11 +114,16 @@ class FishingService {
      * @param {Object} configLoaderInstance - ConfigLoader 实例
      */
     static initialize(configLoaderInstance) {
-        this._config = configLoaderInstance.getConfig('fishing_data');
-        if (!this._config) {
+        // 记下 loader，配置每次现读（见上面 `_config`）；这里赋值的是"这一次有没有读到"，不是缓存
+        this._loader = configLoaderInstance;
+        const loaded = configLoaderInstance.peekConfig
+            ? configLoaderInstance.peekConfig('fishing_data')
+            : (() => { try { return configLoaderInstance.getConfig('fishing_data'); } catch { return null; } })();
+        if (!loaded) {
             console.warn('[FishingService] fishing_data 配置未加载');
             return;
         }
+        this._configCache = loaded;
         this._initialized = true;
         console.log('[FishingService] 灵溪垂钓服务初始化完成');
     }
@@ -981,8 +1015,8 @@ class FishingService {
             if (finalWeight > parseFloat(fishing.biggest_catch_kg)) {
                 fishing.biggest_catch_kg = finalWeight;
             }
-            const qualityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
-            if (qualityOrder.indexOf(fish.quality) > qualityOrder.indexOf(fishing.rarest_catch_quality)) {
+            // 谁更稀有 = 谁在品质词表里 order 更高（原来抄了一份六档清单比下标）
+            if (qualityRank(configLoader, fish.quality) > qualityRank(configLoader, fishing.rarest_catch_quality)) {
                 fishing.rarest_catch_quality = fish.quality;
             }
 
@@ -995,7 +1029,7 @@ class FishingService {
 
             // 推送通知
             try {
-                if (fish.quality === 'legendary' || fish.quality === 'mythic') {
+                if (qualityAtLeast(configLoader, fish.quality, 'legendary')) {
                     WebSocketNotificationService.notifyPlayer(playerId, {
                         type: 'fishing_rare_caught',
                         message: `钓到珍稀鱼获！${fish.name}（${fish.quality}）重 ${finalWeight}kg`,
@@ -1340,15 +1374,20 @@ class FishingService {
         const maxEntries = this._config.ranking.max_entries;
         let order;
         if (category === 'rarest_catch_quality') {
-            // 品质排行需要用 FIELD 函数
-            const qualityOrder = "'mythic','legendary','epic','rare','uncommon','common'";
+            // 品质排行要用 FIELD(...)：档序取自品质词表（倒序 = 高到低）。
+            // 以前是把六档手写进 SQL 字符串 —— 加一档不会报错，只会让新档在排行榜里排到最后一名。
+            // 键名过白名单（只放 snake_case 标识符）再拼进 SQL：值来自服务端内容，不是玩家输入。
+            const rankKeys = qualityOrder(configLoader).filter(k => /^[a-z][a-z0-9_]*$/.test(k)).reverse();
+            const qualityOrderSql = rankKeys.length
+                ? `FIELD(f.rarest_catch_quality, ${rankKeys.map(k => `'${k}'`).join(', ')}) DESC`
+                : 'f.total_success DESC';   // 词表读不到时退到成功次数，不给 SQL 留空参数位
             const [rows] = await sequelize.query(`
                 SELECT f.player_id, f.rarest_catch_quality, f.total_success, f.biggest_catch_kg, f.skill_level,
                        p.nickname
                 FROM player_fishing f
                 LEFT JOIN players p ON f.player_id = p.id
                 WHERE f.rarest_catch_quality != ''
-                ORDER BY FIELD(f.rarest_catch_quality, ${qualityOrder}) DESC
+                ORDER BY ${qualityOrderSql}
                 LIMIT ?
             `, { replacements: [maxEntries] });
 
@@ -1424,24 +1463,30 @@ class FishingService {
         const rodConfig = rodKey ? this._config.rods[rodKey] : null;
 
         // 计算每条鱼的最终权重
-        const qualityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+        // "稀有及以上才吃熟练度加成"：阈值取词表里的 rare 那一档（原来抄了一份六档清单、写死下标 2）
+        const rareRank = qualityRank(configLoader, 'rare');
         const weightedFishes = pool.fishes.map(fish => {
             let weight = fish.weight;
+            const fishQualityRank = qualityRank(configLoader, fish.quality);
+            // "珍稀鱼"这一判据本来在下面用了四次 —— 提成一个布尔，是因为上一版把
+            // `qualityOrder.indexOf(...)` 换成 `qualityRank(...)` 时只改了第一处，
+            // 剩下三处继续读已经不存在的 `fishQualityIndex`，于是每次抽鱼都 ReferenceError。
+            // 四次判定收成一个名字，既是为了不再漏改，也让"什么算珍稀鱼"只有一处口径。
+            const isRareFish = rareRank > 0 && fishQualityRank >= rareRank;
             // 熟练度提升珍稀鱼权重
-            const fishQualityIndex = qualityOrder.indexOf(fish.quality);
-            if (fishQualityIndex >= 2) { // rare 以上
+            if (isRareFish) {
                 weight *= (1 + skillEffects.rareBonus);
             }
             // 钓竿珍稀鱼加成
-            if (rodConfig && fishQualityIndex >= 2) {
+            if (rodConfig && isRareFish) {
                 weight *= (1 + rodConfig.rare_bonus);
             }
             // 试探提升品质权重
-            if (fishQualityIndex >= 2 && nibbleCount > 0) {
+            if (isRareFish && nibbleCount > 0) {
                 weight *= (1 + nibbleCount * this._config.nibble.rare_bonus_per_attempt);
             }
             // 幸运加成
-            if (fishQualityIndex >= 2) {
+            if (isRareFish) {
                 weight *= (1 + luckBonus);
             }
             return { fish, weight };

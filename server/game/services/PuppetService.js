@@ -44,21 +44,61 @@ const { Op } = require('sequelize');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 // 傀儡属性与其他战斗单位（敌人、木人、探渊怪）共用同一套折算与血量别名口径
 const { HP_KEYS, scaleStatBlock } = require('../combat/CombatStats');
+// 傀儡行对外露哪几列只在那一处定义（工坊/建表/三份回执以前各抄一遍四个键）
+const { puppetStatFields } = require('../stats/puppetView');
 
 class PuppetService {
     static _initialized = false;
-    static _config = null;
+    static _loader = null;
+    static _configCache = null;
+    static _configOverride = null;
 
     /**
-     * 初始化服务（从 ConfigLoader 读取 puppet_data 配置）
+     * `_config` 每次读都走记下来的 ConfigLoader，而不是把那份对象永久缓存在模块变量里。
+     *
+     * 为什么：`hotUpdateConfig` 是**换掉缓存里的对象**而不是原地改它 —— 以前 initialize 时抓到的
+     * 那一份会一直用到进程重启。后果正是这条目标最在意的那一类：后台热更或装上一支傀儡资料片之后，
+     * `puppet_types` 与图谱读的还是旧内容，界面看不出新傀儡，重启之后又"莫名其妙好了"。
+     *
+     * 两条例外的形状要记住，它们都是"别把配置问题变成静默兜底"：
+     *   · 没注入过 loader（离线脚本、单测）→ 与改造前同形状返回 null，**不去猜**一份配置；
+     *   · 注入过但这一次读抛（配置没加载/JSON 坏了）→ 沿用上一份好缓存并 warn 一次，
+     *     而不是让整个傀儡功能当场变成 undefined 连锁炸。
+     * 单测要喂假配置：直接赋值 `PuppetService._config = {...}`（走下面的 setter），收尾赋 null。
+     */
+    static get _config() {
+        if (this._configOverride) return this._configOverride;
+        if (!this._loader) return this._configCache;
+        // peekConfig：读不到返回 null 而不是抛 —— 与战线四个/遗府/神识对决那六处同一套现读取法
+        // （没有 peekConfig 的注入物退回 getConfig 并吃掉异常：单测与离线脚本喂的那份 loader 两种都有）
+        const fresh = this._loader.peekConfig
+            ? this._loader.peekConfig('puppet_data')
+            : (() => { try { return this._loader.getConfig('puppet_data'); } catch { return null; } })();
+        if (fresh) {
+            this._configCache = fresh;
+            return fresh;
+        }
+        return this._configCache;
+    }
+
+    static set _config(value) {
+        this._configOverride = value;
+    }
+
+    /**
+     * 初始化服务（记下 ConfigLoader；配置本身每次现读，见上面 `_config`）
      * @param {Object} configLoaderInstance - ConfigLoader 实例
      */
     static initialize(configLoaderInstance) {
-        this._config = configLoaderInstance.getConfig('puppet_data');
-        if (!this._config) {
+        this._loader = configLoaderInstance;
+        const loaded = configLoaderInstance.peekConfig
+            ? configLoaderInstance.peekConfig('puppet_data')
+            : (() => { try { return configLoaderInstance.getConfig('puppet_data'); } catch { return null; } })();
+        if (!loaded) {
             console.warn('[PuppetService] puppet_data 配置未加载');
             return;
         }
+        this._configCache = loaded;
         this._initialized = true;
         console.log('[PuppetService] 傀儡工坊服务初始化完成');
     }
@@ -69,6 +109,11 @@ class PuppetService {
      */
     static getConfig() {
         return this._config;
+    }
+
+    /** 测试用：清掉 _config 的覆盖值，恢复"每次现读 ConfigLoader" */
+    static clearConfigOverride() {
+        this._configOverride = null;
     }
 
     /**
@@ -148,10 +193,7 @@ class PuppetService {
                 level: p.level,
                 durability: p.durability,
                 max_durability: p.max_durability,
-                atk: p.atk,
-                def: p.def,
-                hp: p.hp,
-                speed: p.speed,
+                ...puppetStatFields(p),
                 status: p.status,
                 description: typeCfg ? typeCfg.description : '',
                 color: typeCfg ? typeCfg.color : 'stone',
@@ -159,13 +201,14 @@ class PuppetService {
             };
         });
 
-        // 组装已学图谱列表
+        // 组装已学图谱列表（名字以内容为准：参悟那一刻写进库里的 blueprint_name 是快照，
+        // 资料片改名或下架图谱后列表会继续显示旧名字 —— 与"库里只存 item_key、名字出参层现算"同一条口径）
         const blueprintList = blueprints.map(b => ({
             blueprint_key: b.blueprint_key,
-            blueprint_name: b.blueprint_name,
+            blueprint_name: this.blueprintOf(b.blueprint_key).name || b.blueprint_name,
             puppet_type: b.puppet_type,
             learned_at: b.learned_at,
-            source: this._config.blueprints[b.blueprint_key]?.source || ''
+            source: this.blueprintOf(b.blueprint_key).source
         }));
 
         // 组装可制造列表（含是否满足条件）
@@ -183,7 +226,11 @@ class PuppetService {
                 can_manufacture: hasBlueprint && dayanMet,
                 manufacture_cost: typeCfg.manufacture_cost,
                 base_stats: typeCfg.base_stats,
-                blueprint_source: this._config.blueprints[typeCfg.blueprint_key]?.source || ''
+                // 图谱的 key / 名字 / 出处由服务端一次给全：客户端以前自己按 类型 + '_blueprint' 拼 key
+                // 去调"参悟"，图谱不叫那个名字时一点就报"图谱不存在"（界面看起来像"这傀儡没法学"）
+                blueprint_key: typeCfg.blueprint_key || null,
+                blueprint_name: this.blueprintOf(typeCfg.blueprint_key).name,
+                blueprint_source: this.blueprintOf(typeCfg.blueprint_key).source
             };
         });
 
@@ -222,6 +269,17 @@ class PuppetService {
      * @param {string} blueprintKey - 图谱key（如 mechanical_wood_blueprint）
      * @returns {Promise<Object>} { success, message }
      */
+    /**
+     * 一张图谱的展示信息（名字与出处）。查不到时返回空串而不是抛：
+     * 现网正常内容永不到达（启动闸 _validatePuppetBlueprints 要求 puppet_types.blueprint_key 必须在
+     * blueprints 里，且名字与 source 非空），只有热更新途中短暂读不到才会走到这里。
+     */
+    static blueprintOf(blueprintKey) {
+        const table = this._config?.blueprints;
+        const cfg = (blueprintKey && table) ? table[blueprintKey] : null;
+        return { name: cfg?.name || '', source: cfg?.source || '' };
+    }
+
     static async learnBlueprint(playerId, blueprintKey) {
         const blueprintCfg = this._config.blueprints[blueprintKey];
         if (!blueprintCfg) {
@@ -375,10 +433,7 @@ class PuppetService {
                 exp: 0,
                 durability: this._config.repair.max_durability,
                 max_durability: this._config.repair.max_durability,
-                atk: stats.atk,
-                def: stats.def,
-                hp: stats.hp,
-                speed: stats.speed,
+                ...puppetStatFields(stats),
                 status: 'idle'
             }, { transaction: t });
 
@@ -402,10 +457,7 @@ class PuppetService {
                     puppet_type: puppetType,
                     name: typeCfg.name,
                     level: 1,
-                    atk: stats.atk,
-                    def: stats.def,
-                    hp: stats.hp,
-                    speed: stats.speed,
+                    ...puppetStatFields(stats),
                     durability: this._config.repair.max_durability,
                     spirit_stones_after: player.spirit_stones
                 }
@@ -531,10 +583,7 @@ class PuppetService {
                     puppet_id: puppetId,
                     name: puppet.name,
                     role,
-                    atk: puppet.atk,
-                    def: puppet.def,
-                    hp: puppet.hp,
-                    speed: puppet.speed
+                    ...puppetStatFields(puppet)
                 }
             };
         } catch (err) {
@@ -652,10 +701,7 @@ class PuppetService {
                     quench_success: isSuccess,
                     success_rate: successRate,
                     level: puppet.level,
-                    atk: puppet.atk,
-                    def: puppet.def,
-                    hp: puppet.hp,
-                    speed: puppet.speed,
+                    ...puppetStatFields(puppet),
                     durability: puppet.durability,
                     spirit_stones_after: player.spirit_stones
                 }

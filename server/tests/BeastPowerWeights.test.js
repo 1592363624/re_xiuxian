@@ -93,20 +93,37 @@ describe('灵兽战力由内容权重驱动', () => {
         expect(withNote).toBe(before);
     });
 
-    test('内容声明的每个权重键：注册表认得 + 表上有列（配了不生效的死权重不放行）', () => {
+    test('内容声明的每个权重键：注册表认得 + 确实有灵兽带这一档（配了不生效的死权重不放行）', () => {
         const registry = ensureStatRegistryLoaded();
         const weights = configLoader.getConfig('spirit_beast_data').settings.combat_power_weight;
         const columns = Object.keys(SpiritBeast.rawAttributes);
+        // "有列"不再是唯一活路：migration_0088 之后，没专属列的属性住在 stat_block 里，
+        // calculateCombatPower 走 statBlockOf 一样取到。所以判活的标准改成：
+        // 这一档要么是真列，要么合并内容里至少有灵兽声明得到它（base_<属性>），否则加了永远乘 0。
+        const carriedBySomeBeast = new Set();
+        for (const beast of Object.values(configLoader.getConfig('spirit_beast_data').beast_types || {})) {
+            if (!beast || typeof beast !== 'object') continue;
+            for (const [key, value] of Object.entries(beast)) {
+                if (key.startsWith('base_') && typeof value === 'number') {
+                    carriedBySomeBeast.add(registry.resolveStatKey(key.slice(5))?.key || key.slice(5));
+                }
+            }
+            for (const [key, value] of Object.entries(beast.stats || {})) {
+                if (typeof value === 'number') carriedBySomeBeast.add(registry.resolveStatKey(key)?.key || key);
+            }
+        }
         const dead = [];
         for (const key of Object.keys(weights)) {
             if (key.startsWith('_')) continue;   // 说明键
             const def = registry.resolveStatKey(key);
             if (!def) { dead.push(`${key}（不是注册属性）`); continue; }
-            if (!columns.includes(def.key)) { dead.push(`${key} → ${def.key}（spirit_beasts 没这一列，加了也算不进战力）`); }
+            if (!columns.includes(def.key) && !carriedBySomeBeast.has(def.key)) {
+                dead.push(`${key} → ${def.key}（既不是 spirit_beasts 的列，也没有任何灵兽声明过这一档，加了也算不进战力）`);
+            }
         }
         if (dead.length) {
             throw new Error('这些战力权重是死的：' + dead.join('；')
-                + '\n要么把这档属性并进已有的列，要么给 spirit_beasts 加列（改表需授权），别留着当配置真相。');
+                + '\n要么把这档属性并进已有的列/某只灵兽的 base_*，要么给 spirit_beasts 加列（改表需授权），别留着当配置真相。');
         }
         expect(dead).toEqual([]);
     });

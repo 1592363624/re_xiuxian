@@ -1,0 +1,42 @@
+{
+  "dataset": "crafting_data",
+  "into": "refining_recipes",
+  "comment": "血髓珠的炼法，与炼丹那条同片不同集合：文件名里的 __refining_recipes 指向 crafting_data 的第二个集合，一次「炼材→炼丹」两阶段链就此成形（乱星海市舶已经用过同一形状）。learn_source 给 default，因为它是这条链唯一的入口材料：再要一张图谱来解锁，玩家关掉掉落就只能干等。材料全是基础表已有的（妖魔精血 0.5 掉率、金精矿 0.3 掉率），产物回手就是上一条丹方主料。",
+  "add": [
+    {
+      "id": "craft_xue_sui_zhu",
+      "name": "熬炼血髓珠",
+      "type": "refining",
+      "description": "以妖魔精血五份、金精矿石两份，地火熬凝成血髓珠1粒",
+      "product": { "item_key": "xue_sui_zhu", "quantity": 1 },
+      "materials": [
+        { "item_key": "demon_blood", "quantity": 5 },
+        { "item_key": "golden_ore", "quantity": 2 }
+      ],
+      "required_realm_rank": 12,
+      "required_skill_level": 2,
+      "base_success_rate": 0.7,
+      "skill_exp": 20,
+      "cooldown_sec": 60,
+      "learn_source": "default"
+    },
+    {
+      "id": "craft_xuehe_fan",
+      "name": "炼血河幡",
+      "type": "refining",
+      "description": "以血魂晶三份、血煞符四份、心魔结晶一份，聚阴魂炼成血河幡1面",
+      "product": { "item_key": "xuehe_fan", "quantity": 1 },
+      "materials": [
+        { "item_key": "blood_soul_crystal", "quantity": 3 },
+        { "item_key": "blood_sha_charm", "quantity": 4 },
+        { "item_key": "heart_demon_crystal", "quantity": 1 }
+      ],
+      "required_realm_rank": 13,
+      "required_skill_level": 3,
+      "base_success_rate": 0.45,
+      "skill_exp": 80,
+      "cooldown_sec": 150,
+      "learn_source": "default"
+    }
+  ]
+}

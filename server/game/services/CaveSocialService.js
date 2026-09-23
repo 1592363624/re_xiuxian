@@ -16,6 +16,7 @@ const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const Player = require('../../models/player');
 const PlayerCave = require('../../models/playerCave');
+const { qualityOrder } = require('../items/itemQuality');
 const CaveMessage = require('../../models/caveMessage');
 const CaveVisitor = require('../../models/caveVisitor');
 const InventoryService = require('./InventoryService');
@@ -1615,12 +1616,15 @@ class CaveSocialService {
 
     /**
      * 获取品质等级数值（用于比较与奖励计算）
-     * @param {string} quality - 品质名（common/uncommon/rare/epic/legendary/mythic）
-     * @returns {number} 品质等级（0-5），未知品质返回 0
+     * @param {string} quality - 品质档名（合法全集 = `game_balance.item_qualities` 的键，资料片可加一档）
+     * @returns {number} 该档在词表里的位次（0 起）；未声明的档返回 0（按最低档算，不抛）
      */
     _getQualityRank(quality) {
-        const tpConfig = this.getTreasurePavilionConfig();
-        const order = tpConfig.quality_order || ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+        // 档序只问品质词表（`game_balance.item_qualities` 按 order 排）。
+        // 这里以前是 `tpConfig.quality_order || qualityOrder(...)`，而 cave_data 里那份
+        // `quality_order` 与词表逐字相同 = 一份镜像：资料片加一档时镜像不跟着长，
+        // 万宝阁的"最低档 / 荣誉档 / 排名"就全都算不到那一档。镜像已从内容删除，启动闸拒绝再写。
+        const order = qualityOrder(this.configLoader);
         const idx = order.indexOf(quality);
         return idx >= 0 ? idx : 0;
     }

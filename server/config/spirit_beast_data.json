@@ -140,11 +140,12 @@
         }
     ],
 
+    "_comment_rarity_config": "灵兽稀有度词表：档名/颜色/高低序/放生返还比例的单一来源（game/stats/beastRarity.js 读它）。2026-09-22 起登记成 map 集合，资料片可自带一档稀有度（文件名 spirit_beast_data__rarity_config.json）。order 必填且不可重复：图鉴排序与统计都按它。原每档的 star_up_cost_spirit_stones 已删——全仓无人读，升星消耗实际由 star_upgrade.upgrade_table × rarity_cost_multiplier 算。",
     "rarity_config": {
-        "common":    { "name": "凡品", "color": "#9ca3af", "star_up_cost_spirit_stones": 1000,  "release_return_ratio": 0.2 },
-        "rare":      { "name": "灵品", "color": "#3b82f6", "star_up_cost_spirit_stones": 5000,  "release_return_ratio": 0.3 },
-        "epic":      { "name": "宝品", "color": "#a855f7", "star_up_cost_spirit_stones": 20000, "release_return_ratio": 0.4 },
-        "legendary": { "name": "仙品", "color": "#f59e0b", "star_up_cost_spirit_stones": 80000, "release_return_ratio": 0.5 }
+        "common":    { "name": "凡品", "color": "#9ca3af", "order": 1, "release_return_ratio": 0.2 },
+        "rare":      { "name": "灵品", "color": "#3b82f6", "order": 2, "release_return_ratio": 0.3 },
+        "epic":      { "name": "宝品", "color": "#a855f7", "order": 3, "release_return_ratio": 0.4 },
+        "legendary": { "name": "仙品", "color": "#f59e0b", "order": 4, "release_return_ratio": 0.5 }
     },
 
     "settings": {

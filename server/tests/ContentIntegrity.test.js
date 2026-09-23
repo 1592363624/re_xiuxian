@@ -96,19 +96,42 @@ describe('players JSON 大字段的写入卫生', () => {
         // 改成 PlayerStateStore.mirrorPatchedBlob（只镜像内存、不标脏），四家已从此表退出 ——
         // 补丁落库后调用方那份实例不再参与整块写回，这张表因此又短了一截。
         'game/services/SecondSoulService.js': '仅剩 soul.attributes（player_second_soul 行），不写 players 整块列',
-        'game/services/BeastInvasionService.js': '_applyDeathExpPenalty，attackBeast 锁内实例',
-        'game/services/WorldBossService.js': '_applyDeathExpPenalty，performAction 锁内实例',
-        'game/services/DuelService.js': '_settleDuel / 战绩 stats，双方均 FOR UPDATE',
-        'game/services/PvpService.js': '战绩 stats 累加（executeAction 的 hp/mp 已改键级补丁写），锁内实例',
-        'game/services/InventoryService.js': '_applyItemEffect，useItem 锁内实例',
-        'game/services/NascentSoulService.js': '五处流程各自 findByPk ... FOR UPDATE 后同事务保存',
-        'game/services/ReincarnationService.js': 'chooseTarget，锁内实例',
-        'game/services/SectWarService.js': 'joinWar/attackPlayer 锁内；leaveWar 已改走 PlayerStateStore',
-        'game/services/MultiDungeonService.js': 'titles 追加，结算前 FOR UPDATE',
-        'game/services/SparringService.js': 'titles 追加，锁内实例',
-        'routes/admin.js': 'GM 重置整号，语义就是全量覆盖',
-        'routes/attribute.js': '/reset 属性点重置，锁内读后写',
-        'routes/breakthrough.js': '/try 突破成功分支，锁内实例'
+        'routes/admin.js': 'GM 重置整号，语义就是全量覆盖'
+        // 2026-09-23：routes/attribute.js 的 /reset 退出这张表 —— 它以前"锁内读出整行 → 摊平 attributes
+        // 改三个键 → 赋回实例 → save 整行"。现在回收的那几个 *_bonus 按 $add 负增量（$min 在行锁内夹 0）、
+        // 加点账本用 null 删键、冷却时点写一个键，扣费与退点走列上原子加减；一次重置只碰它该碰的那几个键。
+        // 判据：tests/AttributePillAndReset.test.js 那两条补丁断言（无关的键不许出现在补丁里）
+        // + scripts/smoke_write_crossflow.js 的 P5/P5b/P6（真 HTTP：退点与回收按回执落地、
+        // 账本删掉、哨兵键与另一条链同时写的键都在、灵石净变化 == +发放 − 扣费、同时点两次只成一次）。
+        // 2026-09-23：NascentSoulService 退出这张表 —— 出窍 / 凝练法相 / 探寻裂缝 / 天机回溯 四条链
+        // 各自抄了一份"摊平 attributes → 改 sense → 赋回实例 → save 整行"，四份兜底还各不相同
+        // （境界基数 / 10 / 10 / 0）。现在读与扣都在 game/core/sensePool.js 一处，
+        // 四条链只写 attributes.sense 这一个键（行锁内 $add + $min）。
+        // 顺带修掉 `attrs.sense || 兜底` 把 **0 当成"键不存在"**：神识是可以正常花光的
+        // （`current < cost` 拒绝、等于就通过 → 正好扣到 0），于是"用光了"的人下一次会白拿一份兜底余额。
+        // 现在 0 是合法余额，兜底只在键缺失/非数值时生效，且由调用点显式传。
+        // 2026-09-23：SectWarService 退出这张表 —— joinWar 那处"摊平 attributes 改四个键再整块赋回 + save 整行"
+        // 与 attackPlayer 双方的两段同类写法，全部改成 PlayerStateStore 的键级补丁（leaveWar 早就在这个形状上）。
+        // 这两处原本并不丢账（一笔事务里两边都持行锁），所以这一格的价值是**不再靠锁才算安全**：
+        // players.attributes 这一坨里住着十几个别的流程写的键，只要有人在同一条链上少写一句 FOR UPDATE，
+        // 整块写回就立刻变成真丢数据；键级补丁把这件事变成不可能。
+        // 2026-09-23：InventoryService 退出这张表 —— 使用物品（丹药）那条链以前是
+        // "改手上那份实例 + 最后整块 save()"：血蓝按上限钳制、灵石/修为/寿元/丹毒按旧值算绝对值、
+        // 属性丹整块替换 attributes。现在钳制值与增量都在 PlayerStateStore 一次键级落库
+        // （灵石/修为/寿元走列上原子加、丹毒走原子减并由 store 夹到 0、属性丹按 $add 差分），
+        // 回执要的数从落库那一份镜像回实例（不标脏）。
+        // 2026-09-22：ReincarnationService.chooseTarget 与 routes/breakthrough 双双退出这张表 ——
+        // 前者改成"标量列写在实例上 + 继承账走 patchPlayerState 键级补丁"，后者那段
+        // "往 blob 里写 atk/def/hp_max/mp_max"整块删掉（那几个键没人读，写了只是留下陈旧快照）。
+        // 少了一处整块写也要让这条断言红一次，才会逼着有人回来更新这张表：见下面那条 stale 检查。
+        // 同日 DuelService / PvpService 也退出：切磋与斗法的每日计数改走 PlayerStateStore.setStatKeys
+        // 键级补丁之后，这两个文件里已经没有整块赋回了。
+        // 2026-09-23：WorldBossService / BeastInvasionService 退出 —— 那两份逐字相同的
+        // `_applyDeathExpPenalty`（"绝对值写 exp + 把 attributes 整块赋回去"）合并成
+        // `game/core/deathPenalty.js` 一份实现，写的是列上原子减，blob 镜像由 PlayerStateStore 维护。
+        // （顺带一条自坑记录：第一版我在注释里写了 \`player.stats = {...}\` 作对比说明，
+        //  扫描器不剥注释，于是这两条登记"看起来仍然成立"、stale 检查没有响 ——
+        //  注释里出现被判据匹配的代码形状，会把一张本该变短的表钉住。判据能读到的文本要干净。）
     };
 
     // (?!=) 排除 `===` 比较：不写这个，`typeof player.attributes === 'string'` 会被当成赋值。
@@ -257,15 +280,26 @@ describe('内容体检命令 validate_content.js', () => {
 describe('成就度量必须真的有人计算', () => {
     const achievementPath = path.join(configDir, 'achievement_data.json');
 
-    test('现网每一条成就的 metric 都能取到数，且没有任何度量是恒为 0 的占位实现', () => {
-        const AchievementService = require('../game/services/AchievementService');
-        const known = new Set(AchievementService.constructor.knownMetrics());
-        const achievements = JSON.parse(fs.readFileSync(achievementPath, 'utf8')).achievements || [];
+    test('现网每一条成就的 metric 都在词表里（读合并视图，资料片加的那两边都算）', () => {
+        // 2026-09-22：词表从 AchievementService 的代码表搬进 config/player_metrics.json，
+        // "knownMetrics() 返回代码里的键"这个判据本身就不成立了 —— 它既看不见资料片加的度量，
+        // 也看不见资料片加的成就（原来只读基础文件）。现在两边都从 ContentRegistry 的合并视图取；
+        // 来源形状是否真取得到数由启动闸 _validatePlayerMetrics 判，"配了没人写"由
+        // tests/PlayerMetricsVocabulary.test.js 判（那里还有"合法扩展必须放行"的对照）。
+        const { loadRealContent, makeRealConfigLoader } = require('./helpers/realContent');
+        const { statRegistry } = require('../game/stats');
+        const content = loadRealContent(statRegistry);
+        const known = new Set(Object.keys(content.dataset('player_metrics').metrics || {})
+            .filter(k => !k.startsWith('_')));
+        const achievements = content.dataset('achievement_data').achievements || [];
 
         const unmapped = [...new Set(achievements.map(a => a.metric))]
             .filter(m => !known.has(m));
         expect(unmapped).toEqual([]);
-        expect(known.size).toBeGreaterThan(0);
+        expect(known.size).toBeGreaterThan(10);
+        // 资料片是"往集合里加条目"，所以合并视图只会 ≥ 基础文件；少了说明某片整块替换掉了基础成就
+        const baseAchievements = JSON.parse(fs.readFileSync(achievementPath, 'utf8')).achievements || [];
+        expect(achievements.length).toBeGreaterThanOrEqual(baseAchievements.length);
 
         // 恒 0 的度量等于"这条成就永远完成不了"，和拼错 metric 是同一个后果
         const serviceSource = fs.readFileSync(
@@ -473,8 +507,10 @@ describe('灵根概率表与灵根声明必须对得上', () => {
     function registryWithRoleInit(roleInit) {
         const content = new ContentRegistry({ configPath: configDir, packDir, statRegistry: new StatRegistry() });
         content.load();
-        const original = content._loadBase.bind(content);
-        content._loadBase = name => (name === 'role_init' ? roleInit : original(name));
+        // 换的是**合并视图**（content.datasets），不是 _loadBase：校验器读的就是合并后的 role_init
+        // （这样资料片加的灵根才会被同一条闸判到）。上一版在这里 patch `_loadBase` 且放在 load 之后，
+        // 合成内容根本没进校验器，"概率表写错名字"那条测试其实是假绿 —— 这次它先红了一次，才被抓出来。
+        content.datasets.set('role_init', roleInit);
         return content;
     }
 
@@ -486,10 +522,13 @@ describe('灵根概率表与灵根声明必须对得上', () => {
         expect(() => content._validateSpiritRootRoll()).toThrow(/雷/);
     });
 
-    test('每条灵根都有概率时不抛也不警告（现网这份内容也走这一条，但没概率的雷/冰/风是有意的）', () => {
+    test('每条灵根都有概率与加成时不抛也不警告（现网这份内容也走这一条，但没概率的雷/冰/风是有意的）', () => {
+        // 加成条目是 2026-09-22 新加的一条规则（"声明了灵根却没配加成 = 抽到它等于白抽"），
+        // 所以合法样本必须带上它；六条完整规则的覆盖与逐条控制跑在 tests/SpiritRootExtensibility.test.js。
         const content = registryWithRoleInit({
             spirit_roots: [{ name: '金' }, { name: '雷' }],
-            spiritRootProbabilities: { '金': 0.7, '雷': 0.3 }
+            spiritRootProbabilities: { '金': 0.7, '雷': 0.3 },
+            spiritRootBonuses: { '金': { atk: 4 }, '雷': { atk: 6, speed: 1 } }
         });
         const warns = [];
         const spy = jest.spyOn(console, 'warn').mockImplementation(msg => warns.push(String(msg)));

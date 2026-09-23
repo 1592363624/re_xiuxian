@@ -32,6 +32,7 @@ const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const InventoryService = require('../game/services/InventoryService');
 const AuctionService = require('../game/services/AuctionService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const NAMES = ['auc_s', 'auc_a', 'auc_b'];
 const GOODS = 'mid_healing_pill';     // 小还丹：type=consumable，不在禁售清单里
@@ -108,6 +109,8 @@ async function main() {
     const ids = [];
     for (const n of NAMES) ids.push((await seed(n)).id);
     const [S, A, Bb] = ids;
+    // 这里的三条清的是**还活着**的号上一轮的残留（seed 是"有就复用"，不删 players 行），
+    // 级联那扇门的语义是"连 players 行一起删"，用不上 —— 留着，且前两条按的是引用列。
     await AuctionBid.destroy({ where: { bidder_id: { [Op.in]: ids } }, force: true });
     await Auction.destroy({
         where: { [Op.or]: [{ seller_id: { [Op.in]: ids } }, { current_bidder_id: { [Op.in]: ids } }, { winner_id: { [Op.in]: ids } }] },
@@ -340,17 +343,20 @@ async function main() {
         try {
             const ps = await Player.findAll({ where: { username: { [Op.in]: NAMES } } });
             const ids = ps.map(p => p.id);
+            let purged = { ids: [], total: 0 };
             if (ids.length) {
+                // 拍卖这两张用的列是 seller_id / current_bidder_id / winner_id / bidder_id —— 都是"引用"档
+                // （一行是**别人**的历史，只是点了这个人的名字），级联故意不碰，所以这两条留着。
                 await AuctionBid.destroy({ where: { bidder_id: { [Op.in]: ids } }, force: true });
                 await Auction.destroy({
                     where: { [Op.or]: [{ seller_id: { [Op.in]: ids } }, { current_bidder_id: { [Op.in]: ids } }, { winner_id: { [Op.in]: ids } }] },
                     force: true
                 });
-                await Item.destroy({ where: { player_id: { [Op.in]: ids }, item_key: { [Op.in]: [GOODS] } }, force: true });
-                await Player.destroy({ where: { id: { [Op.in]: ids } }, force: true });
+                // 背包行与其余按 player_id / owner_player_id 归属的派生行，一次交给那扇门
+                purged = await PlayerCascadePurge.deletePlayers(ids);
             }
-            console.log(`清理：探针号 ${NAMES.join('/')} 与它们的拍卖/竞价/背包行已删（残留 ${
-                (await Player.count({ where: { username: { [Op.in]: NAMES } } }))} 个账号）`);
+            console.log(`清理：删掉 ${purged.ids.length} 个探针号（${NAMES.join('/')}），级联带走 ${purged.total} 行派生数据`
+                + `；拍卖/竞价行按引用列另删（残留 ${(await Player.count({ where: { username: { [Op.in]: NAMES } } }))} 个账号）`);
         } catch (ce) {
             console.warn('清理失败：', ce.message);
         }

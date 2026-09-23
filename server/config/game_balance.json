@@ -221,21 +221,14 @@
     "cave_garden_plots_max": 9
   },
   "equipment": {
-    "valid_slots": [
-      "weapon",
-      "armor",
-      "accessory",
-      "boots",
-      "dharma",
-      "fabao"
-    ],
+    "_slot_names_comment": "这一张表就是装备槽位的词表：键=槽位（物品的 subtype 要落在这里），值={id,label}。槽位清单（valid_slots）一律由它的键派生，界面上的槽位顺序也是键序（基础在前，资料片按 priority 追加）。登记成了 map 集合（game_balance__equipment__slot_names.json），所以【资料片可以新增一档槽位】而不改代码；以前槽位清单是一份裸字符串数组，不能按条增删，于是出现「能加一件新装备、却加不了它要进的那个槽位」。",
     "slot_names": {
-      "weapon": "武器",
-      "armor": "护甲",
-      "accessory": "饰品",
-      "boots": "靴子",
-      "dharma": "法器",
-      "fabao": "法宝"
+      "weapon": { "id": "weapon", "label": "武器" },
+      "armor": { "id": "armor", "label": "护甲" },
+      "accessory": { "id": "accessory", "label": "饰品" },
+      "boots": { "id": "boots", "label": "靴子" },
+      "dharma": { "id": "dharma", "label": "法器" },
+      "fabao": { "id": "fabao", "label": "法宝" }
     },
     "durability": {
       "comment": "耐久度配置：装备初始最大耐久、战斗损耗、死亡损耗、破碎阈值",
@@ -363,6 +356,15 @@
     "equipment": "装备",
     "currency": "货币"
   },
+  "item_qualities": {
+    "_comment": "物品品质词表：档名、显示色令牌、排序的唯一来源（2026-09-22）。登记成 map 集合，资料片能加一档或改叫法；键必须与 item_data[].quality 对得上，ContentRegistry._validateItemQualities 在启动期判。tone 只允许 neutral/jade/azure/violet/gold/crimson 六个语义令牌，客户端在 composables/useItemQualities.js 一处把令牌换成 Tailwind 类 —— 以前 9 个玩家面板各抄一份品质字典，其中 6 份漏了 mythic，于是现网 45 件神话档物品在背包/当铺/装备/炼器/世界聊天里被印成「普通」或「凡品」，而且三套叫法并存（普通/非凡 vs 凡品/灵品 vs 普通/精良）。",
+    "common": { "id": "common", "label": "普通", "tone": "neutral", "order": 1 },
+    "uncommon": { "id": "uncommon", "label": "非凡", "tone": "jade", "order": 2 },
+    "rare": { "id": "rare", "label": "稀有", "tone": "azure", "order": 3 },
+    "epic": { "id": "epic", "label": "史诗", "tone": "violet", "order": 4 },
+    "legendary": { "id": "legendary", "label": "传说", "tone": "gold", "order": 5 },
+    "mythic": { "id": "mythic", "label": "神话", "tone": "crimson", "order": 6 }
+  },
   "item_categories": [
     {
       "key": "all",
@@ -458,7 +460,6 @@
     "_comment_quality": "丹药品质浮动：以偏差评分映射品质档位。score 越高品质越好，upgrade 表示相对配方基准品质提升的档数。",
     "quality_float": {
       "enabled": true,
-      "quality_order": ["common", "uncommon", "rare", "epic", "legendary", "mythic"],
       "tiers": [
         { "name": "劣品", "max_deviation": 99, "upgrade": -1, "effect_multiplier": 0.7, "weight_hint": "偏差极大" },
         { "name": "凡品", "max_deviation": 6, "upgrade": 0, "effect_multiplier": 1.0 },

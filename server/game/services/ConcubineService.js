@@ -43,6 +43,14 @@ const sequelize = require('../../config/database');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 const { Op } = require('sequelize');
+// 玩家钱袋走 PlayerStateStore 的列上原子加（以前是"读旧值 → 拼字符串 → save 整行"，
+// 同一段时间里别的流程给这位玩家写的灵石/修为/属性键会被这份快照一起带走）；
+// 奖励池经 contentList 取形（资料片经 map 集合加的池子是 `{id, value:[...]}` 那种对象，
+// 不兼容就是「走出去必定空手回来」而回执一切正常）。
+const PlayerStateStore = require('../persistence/PlayerStateStore');
+const { contentList, contentLabel } = require('../content/ContentRegistry');
+// 发物品一律走这一处（背包容量、metadata、失败上报都在那儿管），不再各服务自己 findOne/create
+const { grantItems } = require('../items/itemGrant');
 
 /**
  * 工具函数：跨日重置每日次数（按 DATEONLY 比较）
@@ -124,6 +132,9 @@ class ConcubineService {
             success: true,
             data: {
                 count: concubines.length,
+                // 远航模式词表（键、中文名、时长、魅力门槛）每次从内容现取：
+                // 面板以前自己抄了两份（选择列表 + 标签映射，连"4 小时"都是抄的）
+                voyage_modes: this.voyageModes(),
                 concubines: concubines.map(c => ({
                     id: c.id,
                     concubine_key: c.concubine_key,
@@ -890,21 +901,52 @@ class ConcubineService {
     }
 
     /**
+     * 远航模式清单以内容为准（`companion_data.voyage.modes`，2026-09-23）。
+     *
+     * 以前"有哪四种模式、各叫什么、跑几小时"在**五处**各抄一遍：
+     * `routes/concubine.js` 与这里的字面数组（资料片加第五个模式会被以"参数非法"挡掉）、
+     * 客户端类型里的一个字面量联合、面板里的两份字典（选择列表 + 标签映射，连"4 小时"都是抄的）。
+     * 现在这里出一份（键 + 中文名 + 时长 + 门槛），路由与界面都用它，改内容即改玩法。
+     * @returns {Array<{key:string,name:string,description:string|null,duration_hours:number,min_charm:number,risk_modifier:number,reward_multiplier:number}>}
+     */
+    static voyageModes() {
+        const modes = configLoader.getConfig('companion_data')?.voyage?.modes || {};
+        return Object.entries(modes)
+            .filter(([key, cfg]) => !key.startsWith('_') && cfg && typeof cfg === 'object' && !Array.isArray(cfg))
+            .map(([key, cfg]) => ({
+                key,
+                name: contentLabel(cfg, key),
+                description: typeof cfg.description === 'string' ? cfg.description : null,
+                duration_hours: Number(cfg.duration_hours) || 0,
+                min_charm: Number(cfg.min_charm) || 0,
+                risk_modifier: Number(cfg.risk_modifier) || 0,
+                reward_multiplier: Number(cfg.reward_multiplier) || 0
+            }))
+            .sort((a, b) => a.duration_hours - b.duration_hours);
+    }
+
+    /** 模式的合法键（路由白名单与这里的参数校验共用这一份） */
+    static voyageModeKeys() {
+        return this.voyageModes().map(mode => mode.key);
+    }
+
+    /**
      * 侍妾远航
-     * 4 种模式（safe/balanced/risky/moon_palace），需达到对应魅力要求
+     * 模式由内容决定（companion_data.voyage.modes），需达到该档的魅力要求
      * @param {number} playerId - 玩家ID
      * @param {number} concubineId - 侍妾ID
-     * @param {string} mode - 远航模式（safe/balanced/risky/moon_palace）
+     * @param {string} mode - 远航模式（取自内容词表）
      * @returns {Promise<Object>} { success, message, data }
      */
     static async startVoyage(playerId, concubineId, mode) {
         if (!concubineId || typeof concubineId !== 'number') {
             return { success: false, message: 'concubine_id 必填且必须为数字', error_code: ErrorCodes.VALIDATION_ERROR };
         }
-        if (!['safe', 'balanced', 'risky', 'moon_palace'].includes(mode)) {
+        const modeKeys = this.voyageModeKeys();
+        if (!modeKeys.includes(mode)) {
             return {
                 success: false,
-                message: 'mode 必须为 safe(稳妥)/balanced(均衡)/risky(冒险)/moon_palace(月殿寻痕) 之一',
+                message: `mode 必须是 ${modeKeys.join('/')} 之一（companion_data.voyage.modes 里配的）`,
                 error_code: ErrorCodes.VALIDATION_ERROR
             };
         }
@@ -1123,8 +1165,8 @@ class ConcubineService {
 
             const isSuccess = Math.random() < successRate;
 
-            // 生成奖励
-            const rewardPool = voyageCfg.reward_pools[voyage.voyage_mode] || [];
+            // 生成奖励：先只算账，不在这里发（发的部分统一放到下面那一节，见注释）
+            const rewardPool = contentList(voyageCfg.reward_pools?.[voyage.voyage_mode], []);
             const rewards = {
                 is_success: isSuccess,
                 spirit_stones: 0,
@@ -1150,33 +1192,6 @@ class ConcubineService {
                         }
                     }
                 }
-
-                // 发放灵石
-                if (rewards.spirit_stones > 0) {
-                    const currentStones = BigInt(player.spirit_stones || 0);
-                    player.spirit_stones = (currentStones + BigInt(rewards.spirit_stones)).toString();
-                    await player.save({ transaction: t });
-                }
-
-                // 发放物品
-                for (const itemReward of rewards.items) {
-                    // 查询是否已有该物品
-                    const existingItem = await Item.findOne({
-                        where: { player_id: playerId, item_key: itemReward.item_key },
-                        transaction: t,
-                        lock: t.LOCK.UPDATE
-                    });
-                    if (existingItem) {
-                        existingItem.quantity += itemReward.count;
-                        await existingItem.save({ transaction: t });
-                    } else {
-                        await Item.create({
-                            player_id: playerId,
-                            item_key: itemReward.item_key,
-                            quantity: itemReward.count
-                        }, { transaction: t });
-                    }
-                }
             } else {
                 // 失败：保留 30% 灵石基础奖励，稀有材料全部消失
                 for (const picked of rewardPool) {
@@ -1187,12 +1202,23 @@ class ConcubineService {
                         break; // 只保留一次灵石
                     }
                 }
-                if (rewards.spirit_stones > 0) {
-                    const currentStones = BigInt(player.spirit_stones || 0);
-                    player.spirit_stones = (currentStones + BigInt(rewards.spirit_stones)).toString();
-                    await player.save({ transaction: t });
-                }
             }
+
+            // 落账（一件事一处做）：灵石写在 players.spirit_stones 这一列上原子加，
+            // 物品一律交 InventoryService.addItem —— 以前这里是" BigInt(读到的那份) + 奖励 → 整值写回 + save 整行"
+            // 外加自己 findOne/quantity+= /create 抄了一份发物品，两条都属已知危险形状：
+            // 前者会带走这段时间别的流程写的钱与 blob 键，后者绕开了背包容量与 metadata（含炼制品质）。
+            if (rewards.spirit_stones > 0) {
+                const granted = await PlayerStateStore.patchPlayerState(playerId, {
+                    amounts: { spirit_stones: BigInt(rewards.spirit_stones) }
+                }, { transaction: t });
+                PlayerStateStore.mirrorPatchedBlob(player, granted, ['attributes']);
+                player.setDataValue('spirit_stones', granted.getDataValue('spirit_stones'));
+            }
+            const { granted, failed } = await grantItems(playerId, rewards.items, t, { label: '侍妾远航归来' });
+            // 只把真发到的写进那份要落库、也要给玩家看的奖励清单（发不到就进 failed，带 reason 落日志）
+            rewards.items = granted;
+            if (failed.length) rewards.items_failed = failed;
 
             // 更新远航记录
             voyage.status = 'returned';

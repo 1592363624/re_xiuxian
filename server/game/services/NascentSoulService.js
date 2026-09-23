@@ -24,6 +24,7 @@ const Player = require('../../models/player');
 const sequelize = require('../../config/database');
 const { Op } = require('sequelize');
 const RealmService = require('../core/RealmService');
+const sensePool = require('../core/sensePool');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 
 /**
@@ -445,10 +446,9 @@ class NascentSoulService {
             const currentRealm = RealmService.getRealmByName(player.realm);
             const baseSense = currentRealm?.base_sense || 10;
             const senseCost = Math.floor(baseSense * cfg.sense_consumption_rate * (finalDuration / 3600));
-            const attrs = typeof player.attributes === 'string'
-                ? JSON.parse(player.attributes)
-                : (player.attributes || {});
-            const currentSense = attrs.sense || baseSense;
+            // 余额与扣费都走 game/core/sensePool.js：0 是"花光了"而不是"键不存在"（旧写法
+            // `attrs.sense || baseSense` 会在余额恰好为 0 时白送一份境界基数神识，再扣一次消耗）
+            const currentSense = sensePool.senseOf(player, baseSense);
             if (currentSense < senseCost) {
                 await t.rollback();
                 return {
@@ -457,9 +457,9 @@ class NascentSoulService {
                 };
             }
 
-            // 扣除神识
-            attrs.sense = currentSense - senseCost;
-            player.attributes = attrs;
+            // 扣除神识（只写 attributes.sense 这一个键；以前是摊平整份 attributes 再 save 整行，
+            // 那一坨里住着加点/丹药/功法/突破写的十几个别的键）
+            await sensePool.spendSense(player, senseCost, { transaction: t });
 
             // 设置出窍状态
             const now = new Date();
@@ -787,11 +787,9 @@ class NascentSoulService {
                 };
             }
 
-            // 神识检查
-            const attrs = typeof player.attributes === 'string'
-                ? JSON.parse(player.attributes)
-                : (player.attributes || {});
-            const currentSense = attrs.sense || 10;
+            // 神识检查（读与扣都在 game/core/sensePool.js 那一处；这里的兜底沿用旧的那份 10，
+            // 但 0 不再被当成"键不存在"）
+            const currentSense = sensePool.senseOf(player, 10);
             if (currentSense < senseCost) {
                 await t.rollback();
                 return {
@@ -802,8 +800,7 @@ class NascentSoulService {
 
             // 扣除消耗
             player.exp = BigInt(player.exp || 0) - BigInt(expCost);
-            attrs.sense = currentSense - senseCost;
-            player.attributes = attrs;
+            await sensePool.spendSense(player, senseCost, { transaction: t });
 
             // 提升法相等级
             player.dharma_form_level = nextLevel;
@@ -905,11 +902,8 @@ class NascentSoulService {
                 return { success: false, message: '元婴出窍中，无法探寻裂缝' };
             }
 
-            // 神识消耗
-            const attrs = typeof player.attributes === 'string'
-                ? JSON.parse(player.attributes)
-                : (player.attributes || {});
-            const currentSense = attrs.sense || 10;
+            // 神识消耗（同一份读法与扣法：game/core/sensePool.js）
+            const currentSense = sensePool.senseOf(player, 10);
             if (currentSense < cfg.sense_cost) {
                 await t.rollback();
                 return {
@@ -919,8 +913,7 @@ class NascentSoulService {
             }
 
             // 扣除神识
-            attrs.sense = currentSense - cfg.sense_cost;
-            player.attributes = attrs;
+            await sensePool.spendSense(player, cfg.sense_cost, { transaction: t });
 
             // 探寻结果判定
             const discoverRoll = Math.random();
@@ -1201,17 +1194,15 @@ class NascentSoulService {
             // 更新属性到元婴初期
             const newRealm = RealmService.getRealmByName('元婴初期');
             if (newRealm) {
-                const attrs = typeof player.attributes === 'string'
-                    ? JSON.parse(player.attributes)
-                    : (player.attributes || {});
-                attrs.hp_max = newRealm.base_hp;
-                attrs.mp_max = newRealm.base_mp;
-                attrs.atk = newRealm.base_atk;
-                attrs.def = newRealm.base_def;
-                player.attributes = attrs;
+                // 只写血蓝两列与寿元：属性本身（攻/防/气血上限）由属性解析链路按境界现算，
+                // 旧代码那份"往 attributes blob 里写 atk/def/hp_max/mp_max"已删——
+                // 新管线不读这些输出键，写进去只留下一个会骗人的陈旧快照。
                 player.hp_current = newRealm.base_hp;
                 player.mp_current = newRealm.base_mp;
-                player.lifespan_max = newRealm.base_lifespan;
+                // 配置里的字段名是 lifespan_max（realm_breakthrough.json 每一境都有），
+                // 旧代码读的 base_lifespan 根本不存在 → 这一行永远赋 undefined，"重置到元婴初期"
+                // 从来没真的加过寿元。routes/breakthrough.js 那处早就改成两种名字都认了，这里跟同一个口径。
+                player.lifespan_max = newRealm.lifespan_max || newRealm.base_lifespan;
             }
 
             await player.save({ transaction: t });
@@ -1335,11 +1326,9 @@ class NascentSoulService {
                 };
             }
 
-            // 8. 神识消耗校验（从 player.attributes.sense 读取，attributes 字段有 JSON get/set）
-            const attrs = typeof player.attributes === 'string'
-                ? JSON.parse(player.attributes)
-                : (player.attributes || {});
-            const currentSense = Number(attrs.sense) || 0;
+            // 8. 神识消耗校验（同一份读法与扣法：game/core/sensePool.js；这里没有兜底，
+            // 因为这条链原本的语义就是"库里没这个键 = 0 点，直接拒"）
+            const currentSense = sensePool.senseOf(player);
             if (currentSense < cfg.divine_sense_cost) {
                 await t.rollback();
                 return {
@@ -1360,9 +1349,8 @@ class NascentSoulService {
             player.remnant_soul = Math.max(cfg.remnant_soul_restore_value, beforeRemnantSoul);
             // 9.3 扣除灵石（BigInt 减法）
             player.spirit_stones = playerStones - stoneCost;
-            // 9.4 扣除神识
-            attrs.sense = currentSense - cfg.divine_sense_cost;
-            player.attributes = attrs;
+            // 9.4 扣除神识（键级补丁：这一坨 attributes 里同时住着别的流程写的十几个键）
+            const senseChange = await sensePool.spendSense(player, cfg.divine_sense_cost, { transaction: t });
             // 9.5 更新每日次数与日期、冷却时间
             player.daily_tianji_revert_count = (player.daily_tianji_revert_count || 0) + 1;
             player.last_tianji_revert_date = new Date().toISOString().slice(0, 10);
@@ -1399,7 +1387,7 @@ class NascentSoulService {
                     spirit_stones_before: beforeStones.toString(),
                     spirit_stones_after: player.spirit_stones.toString(),
                     sense_before: beforeSense,
-                    sense_after: attrs.sense,
+                    sense_after: senseChange.after,
                     spirit_stone_cost: cfg.spirit_stone_cost,
                     divine_sense_cost: cfg.divine_sense_cost,
                     daily_count: player.daily_tianji_revert_count,

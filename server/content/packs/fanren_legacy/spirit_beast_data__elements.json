@@ -1,0 +1,14 @@
+{
+  "dataset": "spirit_beast_data",
+  "into": "elements",
+  "comment": "给灵兽词表补一档「雷」。啼魂(ti_hun)的 element 一直写的是 thunder，而这张词表以前只有五行 —— 两个静默后果：图鉴 `elements[bt.element]?.name || bt.element` 退回打印原始键（玩家看到 \"thunder\"），而 SpiritBeastService.getElementMultiplier 第一句就是查不到攻击方就返回中性，于是这只雷音神兽在兽斗里既不克人也不被克。本轮把 elements 登记成 map 集合（内容层从此能自己补一档灵兽属性，不必改代码），并新增启动期闸 _validateBeastElements 盯住元素名与相克指向。刻意不给 thunder 写 strong_against/weak_against：那两条会改变现网已有啼魂的相克期望，属于要业主签字的数值；先按「名号与配色对得上、克制仍为中性」落地，前端对空键位显示「暂未参与相克」而不是缺字，定了雷与五行怎么生克再补这两个键。",
+  "add": [
+    {
+      "id": "thunder",
+      "name": "雷",
+      "color": "#a855f7",
+      "strong_against": null,
+      "weak_against": null
+    }
+  ]
+}

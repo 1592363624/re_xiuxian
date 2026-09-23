@@ -273,6 +273,23 @@
 
     <!-- 底部操作栏 -->
     <template #footer>
+      <!-- 闭关进行中：这里必须给出出口。
+           "结束修炼"原来只长在总览那条进度条上，而开着任何面板都看不到总览
+           （FeatureDock 的 v-show="!openPanelId"）—— 玩家刚在「修炼」面板里点了开始，
+           回头这个面板上已经没有"结束"了，实测找不到任何出关按钮。
+           是否算强行出关由后端 forced_end 决定，这里不另算一遍最短时长。 -->
+      <template v-if="store.player?.is_secluded">
+        <AppButton variant="outline" @click="emit('close')">返回</AppButton>
+        <button
+          @click="handleEndFromPanel"
+          :disabled="ending"
+          class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none bg-amber-950/40 border border-amber-700 text-amber-300 hover:bg-amber-900/40 hover:border-amber-500"
+        >
+          <span v-if="ending">结算中...</span>
+          <span v-else>{{ store.player.seclusion_mode === 'deep' ? '结束深度闭关' : '结束闭关' }}</span>
+        </button>
+      </template>
+      <template v-else>
       <AppButton variant="outline" @click="emit('close')">取消</AppButton>
       <button
         @click="handleStart"
@@ -292,6 +309,7 @@
         <span v-else-if="selectedMode === 'normal' && isNormalCooldown">常规闭关冷却中·还需{{ formatDuration(normalCooldownRemaining) }}</span>
         <span v-else>开始{{ selectedMode === 'deep' ? '深度' : '常规' }}闭关</span>
       </button>
+      </template>
     </template>
   </PanelShell>
 </template>
@@ -304,11 +322,28 @@ import PanelShell from '../ui/PanelShell.vue'
 import PanelCard from '../ui/PanelCard.vue'
 import Badge from '../ui/Badge.vue'
 import AppButton from '../ui/AppButton.vue'
+// 结束闭关的结算与日志实现，与总览进度条共用一份（见 composables 里的说明）
+import { useSeclusionSettle } from '../../composables/useSeclusionSettle'
 
 const emit = defineEmits(['close'])
 
 const store = usePlayerStore()
 const uiStore = useUIStore()
+
+/**
+ * 从本面板结束闭关。
+ *
+ * 结算文案与日志走 useSeclusionSettle —— 与总览进度条上那个"结束修炼"是同一条实现，
+ * 不在这里抄第二份（那份要照顾 exp_gain=0 不回退到总修为、强行出关扣益、HP/MP 恢复值）。
+ * 结束后再拉一次状态，让"今日剩余次数 / 冷却"立刻跟着变。
+ */
+const { ending, endNow } = useSeclusionSettle()
+const handleEndFromPanel = async () => {
+  const r = await endNow()
+  if (!r?.skipped && !r?.error) {
+    try { await store.fetchSeclusionStatus() } catch { /* 状态刷新失败不影响已完成的结算 */ }
+  }
+}
 
 const loading = ref(false)
 // 闭关状态加载标记：避免首次打开面板时 canDeep 默认 false 导致按钮误显示"境界不足"

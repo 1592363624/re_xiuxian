@@ -27,6 +27,7 @@ const { bootApp } = require('./lib/smoke_http');
 const { infrastructure } = require('../modules');
 const InventoryService = require('../game/services/InventoryService');
 const MarketService = require('../game/services/MarketService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNTS = ['mkt_s1', 'mkt_s2'];
 const HIGH = 'high_healing_pill';   // 大还丹 参考价 200
@@ -171,13 +172,19 @@ async function main() {
         console.error('探针异常：', e.message, e.stack);
     } finally {
         try {
+            const ids = [];
             for (const username of ACCOUNTS) {
                 const p = await Player.findOne({ where: { username } });
                 if (!p) continue;
+                // market_listings 用的是 seller_id / buyer_id（都不是归属列 player_id / owner_player_id），
+                // 级联不碰，仍要探针自己清；items 按 player_id 归属，交给下面那一份级联。
                 await MarketListing.destroy({ where: { seller_id: p.id }, force: true });
                 await MarketListing.destroy({ where: { buyer_id: p.id }, force: true });
-                await Item.destroy({ where: { player_id: p.id }, force: true });
-                await Player.destroy({ where: { id: p.id }, force: true });
+                ids.push(p.id);
+            }
+            if (ids.length) {
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

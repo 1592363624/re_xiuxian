@@ -276,7 +276,9 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 // 使用统一的 utils 替代组件内 formatTime 重复实现
-import { formatTime, formatNumber } from '../../utils/format'
+import { formatTime } from '../../utils/format'
+// 结束/强行出关的结算与日志实现收在 composable 里，与闭关面板共用一份
+import { useSeclusionSettle } from '../../composables/useSeclusionSettle'
 
 const store = usePlayerStore()
 const uiStore = useUIStore()
@@ -347,13 +349,10 @@ const reachedMinDuration = computed(() => {
 })
 
 /**
- * 强行出关损失百分比文案（如 "50%"），从后端 deep.forced_penalty 计算
- * 移除原硬编码 "50%"，GM 修改配置后前端立即同步
+ * 强行出关损失百分比文案（如 "50%"）—— 由 useSeclusionSettle 统一给，
+ * 面板与遮罩共用，避免两处各算一遍 forced_penalty。
  */
-const forcedPenaltyPercent = computed(() => {
-  const penalty = store.systemConfig?.seclusion?.deep?.forced_penalty ?? 0.5
-  return `${Math.round(penalty * 100)}%`
-})
+const { forcedPenaltyPercent, endNow, forceEndNow } = useSeclusionSettle()
 
 /**
  * 深度闭关倍率文案（如 "2倍收益"），从后端 deep.exp_rate 计算
@@ -365,91 +364,27 @@ const deepExpRateLabel = computed(() => {
 })
 
 /**
- * 拼装闭关结算日志文案（修为 + HP/MP 恢复值）
+ * 结束闭关 / 强行出关
  *
- * 后端 routes/seclusion.js 返回字段：
- *   - data.exp_gain: number  本次获得修为
- *   - data.forced_end: boolean  是否强行出关（深度闭关未达最短时长）
- *   - data.hp_restored: number  HP 恢复值
- *   - data.mp_restored: number  MP 恢复值
- *   - data.actual_duration: number  实际闭关时长（秒）
- *
- * 修复 B13（保持原修复）：exp_gain 必须用 ?? 0，禁止 fallback 到 player.exp，
- *   否则立即结束时 gain 会显示玩家总修为 BigInt 字符串。
- * 修复 B4-Reward（本轮新增）：补充 HP/MP 恢复值展示，避免后端返回字段被前端丢弃。
- *
- * @param {Object} res - store.endSeclusion / store.forceEndSeclusion 返回值
- * @param {boolean} isForceMode - 是否为强行出关按钮触发（用于文案区分）
- * @returns {string} 日志文案
- */
-const buildSeclusionSettleLog = (res, isForceMode = false) => {
-  // 严格使用 exp_gain 字段，未返回或为 0 时显示 0（不再 fallback 到总修为）
-  const gain = Number(res?.data?.exp_gain ?? 0)
-  const isForced = res?.data?.forced_end || isForceMode
-  const hpRestored = Number(res?.data?.hp_restored ?? 0)
-  const mpRestored = Number(res?.data?.mp_restored ?? 0)
-  const modeLabel = isDeep.value ? '深度闭关' : '闭关'
-
-  let logContent
-  if (isForced) {
-    logContent = `强行出关！${modeLabel}未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${formatNumber(gain)} 点。`
-  } else {
-    logContent = `结束${modeLabel}，本次修炼共获得修为 ${formatNumber(gain)} 点。`
-  }
-  // 补充 HP/MP 恢复值（仅在确实有恢复时显示，避免无意义的"+0"）
-  if (hpRestored > 0 || mpRestored > 0) {
-    const restoreParts = []
-    if (hpRestored > 0) restoreParts.push(`气血 +${formatNumber(hpRestored)}`)
-    if (mpRestored > 0) restoreParts.push(`灵力 +${formatNumber(mpRestored)}`)
-    logContent += ` 吐纳归元 ${restoreParts.join('、')}。`
-  }
-  return logContent
-}
-
-/**
- * 结束闭关修炼（正常结算）
+ * 结算文案与日志的实现搬到了 composables/useSeclusionSettle.js —— 闭关面板现在
+ * 也要给同一个出口，两处不能各抄一份（那份要同时照顾 exp_gain=0 不回退到总修为、
+ * 强行出关的扣益提示、HP/MP 恢复值）。这里只保留遮罩自己的 loading 态。
  */
 const handleEnd = async () => {
   if (loading.value) return
   loading.value = true
   try {
-    const res = await store.endSeclusion()
-    const logContent = buildSeclusionSettleLog(res, false)
-    const isForced = res?.data?.forced_end
-    uiStore.addLog({
-      content: logContent,
-      type: isForced ? 'warning' : 'success',
-      actorId: 'self'
-    })
-  } catch (err) {
-    console.error('结束闭关失败:', err)
-    uiStore.showApiError(err, '结束闭关失败，请重试')
+    await endNow()
   } finally {
     loading.value = false
   }
 }
 
-/**
- * 强行出关（深度闭关专用快捷入口）
- * 逻辑等同结束闭关，但语义上明确告知玩家是强行出关
- */
 const handleForceEnd = async () => {
   if (loading.value) return
   loading.value = true
   try {
-    const res = await store.forceEndSeclusion()
-    // 修复 B13：与 handleEnd 保持一致，使用 buildSeclusionSettleLog 统一拼装
-    // 旧逻辑 `res?.data?.exp_gain || res?.data?.player?.exp || ...` 在 exp_gain=0 时
-    // 会 fallback 到 player.exp（总修为 BigInt 字符串），显示"获得 99999999999 修为"
-    const logContent = buildSeclusionSettleLog(res, true)
-    uiStore.addLog({
-      content: logContent,
-      type: 'warning',
-      actorId: 'self'
-    })
-  } catch (err) {
-    console.error('强行出关失败:', err)
-    uiStore.showApiError(err, '强行出关失败，请重试')
+    await forceEndNow()
   } finally {
     loading.value = false
   }

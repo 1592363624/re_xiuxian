@@ -127,6 +127,9 @@
         <!-- 状态转移日志 -->
         <StateLogViewer v-if="currentTab === 'state_logs'" />
 
+        <!-- 后台日志（服务器控制台输出，支持实时跟随） -->
+        <SystemLogViewer v-if="currentTab === 'system_logs'" />
+
         <!-- 世界BOSS管理（批次2新增：BOSS刷新/过期/赛季管理） -->
         <WorldBossManagement v-if="currentTab === 'world_boss'" @showConfirm="showConfirm" />
 
@@ -316,6 +319,8 @@ import CultivationConfig from './sub/CultivationConfig.vue'
 import StateCleanerMonitor from './sub/StateCleanerMonitor.vue'
 // 状态转移日志查看器：展示 player_state_log 表数据
 import StateLogViewer from './sub/StateLogViewer.vue'
+// 后台日志（服务器控制台输出）：读取 PM2 落盘的日志文件，支持实时跟随与级别/关键词过滤
+import SystemLogViewer from './sub/SystemLogViewer.vue'
 // 世界BOSS管理（批次2新增）：GM 后台 BOSS刷新/过期、赛季创建/结算、统计指标查看
 import WorldBossManagement from './sub/WorldBossManagement.vue'
 // 宗门战/领地争夺管理（批次2新增）：GM 后台 赛季管理、资源点初始化、战役推进、产出结算
@@ -381,6 +386,7 @@ const tabGroups = [
   ]},
   // 运维监控：服务器统计、日志与状态数据排查
   { id: 'ops', name: '运维监控', tabs: [
+    { id: 'system_logs', name: '后台日志' },
     { id: 'stats', name: '服务器统计' },
     { id: 'logs', name: '操作日志' },
     { id: 'state_cleaner', name: '状态清理' },

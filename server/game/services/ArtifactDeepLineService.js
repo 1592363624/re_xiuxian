@@ -8,7 +8,8 @@
  *   4. thunderWashBloodSword：雷洗用天雷竹/金雷竹强力降魔染（24h 冷却）
  *   5. imprintBloodSword：铭印选择血契或镇契路线（7 天冷却）
  *   6. sheathBloodSword：封鞘 24h 期间不可出战，结束后大幅降魔染提镇契
- *   7. getBloodSwordCombatBonus：供战斗系统调用的战力加成计算
+ *   7. getBloodSwordCombatBonus：战力加成计算（由 getAllArtifactDeepLineCombatBonuses 汇总后经
+ *      属性引擎进战斗；战斗代码本身不调本方法，所以新增字段要落在 BONUS_ROUTES 的口径里）
  *
  * 设计原则：
  *   - 所有可变参数从 artifact_deep_lines.json 读取，禁止硬编码
@@ -23,6 +24,7 @@
 'use strict';
 
 const sequelize = require('../../config/database');
+const { logOnce } = require('../../utils/logOnce');
 const PlayerEquipment = require('../../models/playerEquipment');
 const Player = require('../../models/player');
 const PlayerSect = require('../../models/playerSect');
@@ -33,6 +35,52 @@ const { infrastructure } = require('../../modules');
 
 // 配置加载器：通过 modules/index.js 统一导出，避免循环依赖
 const configLoader = infrastructure.ConfigLoader;
+
+/**
+ * 深线加成字段 → 去向 的口径表（分发规则的说明见 ArtifactDeepLineService.BONUS_ROUTES 的文档）
+ *
+ * 放在模块顶层而不是 getter 里，是为了让它**可被测试改一笔验证**：
+ * 每次访问都新建字面量的话，"摘掉一条表项看泛化规则是否接管"这种控制跑根本不会生效。
+ */
+const BONUS_ROUTES = {
+    blood_sword: {
+        atk_bonus_rate: ['percent', 'atk'],
+        def_bonus_rate: ['percent', 'def'],
+        hp_steal_bonus_rate: ['effects', 'hp_steal_bonus_rate'],
+        crit_rate_bonus: ['effects', 'crit_rate_bonus'],
+        crit_damage_bonus: ['effects', 'crit_damage_bonus'],
+        blood_backlash_hp_rate_per_round: ['effects', 'backlash_rate_per_round']
+    },
+    xutian_cauldron: {
+        def_bonus: ['absolute', 'def'],
+        final_atk_bonus: ['absolute', 'atk'],
+        atk_bonus: ['skip'],          // 倍率前值，已折进 final_atk_bonus
+        atk_multiplier: ['skip'],     // 倍率本身不是属性加成
+        backlash_rate_per_round: ['effects', 'backlash_rate_per_round']
+    },
+    five_element_wheel: {
+        atk_bonus_rate: ['percent', 'atk'],
+        def_bonus_rate: ['percent', 'def'],
+        hp_bonus_rate: ['percent', 'hp_max'],
+        speed_bonus_rate: ['percent', 'speed'],
+        crit_rate_bonus: ['effects', 'crit_rate_bonus'],
+        crit_damage_bonus: ['effects', 'crit_damage_bonus'],
+        damage_reduction_rate: ['effects', 'damage_reduction_rate'],
+        hp_regen_bonus_rate: ['effects', 'hp_regen_bonus_rate']
+    }
+};
+
+/**
+ * 还没有结算通道的桶 —— **整个改造里唯一一处"这一档进不进战斗"的答案**。
+ *
+ * 为什么做成一个集合而不是一句 `bucket !== 'effects'` 写在展示层里：
+ * 展示层（法宝深线面板）与聚合层（属性/战斗）必须给玩家同一个说法。以前面板把手写的那五行
+ * （atk/吸血/防御/暴击率/暴伤）一律涂成绿色"+X%"，而 `effects` 这一整桶今天没有任何战斗代码读它
+ * （见 tests/DeepLineBonusRouting.test.js 的 EFFECTS_LEDGER）—— 玩家看到的就是假的。
+ * 哪天把 effects 真接进 CombatResolver，就从这个集合里删掉 'effects'：
+ * 面板的"未生效"标签、探针的断言、静态闸会同时跟着变，不需要再改第二个文件。
+ */
+const UNSETTLED_BUCKETS = new Set(['effects']);
 
 /**
  * 默认血魔剑状态（首次访问时初始化）
@@ -305,8 +353,9 @@ class ArtifactDeepLineService {
             sacrifice_cooldown_remaining: sacrificeCooldownRemaining,
             thunder_wash_cooldown_remaining: thunderWashCooldownRemaining,
             imprint_cooldown_remaining: imprintCooldownRemaining,
-            // 战力加成
+            // 战力加成（raw 那份留着给老前端；给玩家看的是下面这份带中文名与"有没有进战斗"的清单）
             combat_bonus: combatBonus,
+            combat_bonus_display: this.combatBonusDisplay('blood_sword', combatBonus),
             // 配置回显
             config: {
                 max_stage: cfg.blood_pact?.max_stage || 5,
@@ -1301,6 +1350,7 @@ class ArtifactDeepLineService {
             refine_flame_cooldown_remaining: calcRemaining(state.last_refine_flame_at, refineFlameCooldownMs),
             polarize_cooldown_remaining: calcRemaining(state.last_polarize_at, polarizeCooldownMs),
             combat_bonus: combatBonus,
+            combat_bonus_display: this.combatBonusDisplay('xutian_cauldron', combatBonus),
             divine_sense: divineSense,
             config: {
                 max_cauldron_stage: (cfg.cauldron_stages || []).length,
@@ -2921,6 +2971,7 @@ class ArtifactDeepLineService {
             // 战力加成
             phase_multiplier: phaseBonus.multiplier,
             combat_bonus: phaseBonus.bonus,
+            combat_bonus_display: this.combatBonusDisplay('five_element_wheel', phaseBonus.bonus),
             // 五行相克提示
             element_advantage_hint: elementAdvantageHint,
             // 统计
@@ -3306,7 +3357,7 @@ class ArtifactDeepLineService {
         const cfg = this.getFiveElementWheelConfig();
         const equipment = await this._findWheelEquipment(playerId);
         if (!equipment) {
-            return { has_wheel: false, combat_bonus: {} };
+            return { has_wheel: false, combat_bonus: {}, combat_bonus_display: [] };
         }
         const state = this._initWheelState(equipment);
         const phaseBonus = this._calculatePhaseBonus(state, cfg);
@@ -3317,11 +3368,191 @@ class ArtifactDeepLineService {
             insight_stage: state.insight_stage,
             wheel_spin_enabled: state.wheel_spin_enabled,
             phase_multiplier: phaseBonus.multiplier,
-            combat_bonus: phaseBonus.bonus
+            combat_bonus: phaseBonus.bonus,
+            combat_bonus_display: this.combatBonusDisplay('five_element_wheel', phaseBonus.bonus)
         };
     }
 
     // ==================== 法宝深线战力加成统一聚合（供 AttributeService 调用） ====================
+
+    /**
+     * 深线加成字段 → 去向 的口径表（2026-09-21）
+     *
+     * 为什么要写下来：三条深线各自返回一套字段名，而属性引擎只认 absolute/percent 里的**属性键**。
+     * 以前这里是手写的 `percent.atk += cb.atk_bonus_rate` 一类的四行，于是"幻世轮某相位想加血元"
+     * 必须回来改代码；改漏了也不报错，只是这个属性对法宝永远不生效（血魔剑面板却照印不误）。
+     * 而 `_calculatePhaseBonus` 早就是泛化的（相位配置里每个数值字段 × 阶数倍率），
+     * 也就是**内容侧本来就能声明，代码这一头只认几个点名字**。
+     *
+     * 分发规则（顺序即优先级）：
+     *   1. 这张表点名的字段照旧进原来的桶 —— 现网语义一字不变。
+     *      表里的 `['skip']` 表示"这个数值不是属性加成，别自己往里塞"：虚天鼎的 atk_bonus 是倍率前值，
+     *      已经折进 final_atk_bonus，泛化规则若把它按 `<属性>_bonus` 认出来就是**双算**。
+     *      同理 crit_rate_bonus 必须留在表里：它的 scale 是效果口径（0.12 = +12 点），
+     *      被认成 absolute.crit_rate 就变成 +0.12 点。
+     *   2. 其余以 `_bonus_rate` / `_bonus` 结尾的字段，用属性注册表（config/stat_definitions.json，
+     *      含资料片追加的）判定：去掉后缀是注册过的属性键 → 自动进 percent / absolute。
+     *      这一条就是"资料片给法宝加一个新属性、零代码进面板/战力/战斗"的落点。
+     *   3. 两条都不认的非零数值字段记进 `unconsumed`（随返回值一起出去），由
+     *      tests/DeepLineBonusRouting.test.js 逐条要结论 —— 新增死键当场红，不再静默。
+     *
+     * @returns {Object} source → { 字段名: ['absolute'|'percent'|'effects', 目标键] | ['skip'] }
+     */
+    static get BONUS_ROUTES() {
+        return BONUS_ROUTES;
+    }
+
+    /**
+     * 泛化规则：`<属性>_bonus` → 绝对值、`<属性>_bonus_rate` → 百分比，且属性必须真在注册表里
+     *
+     * @param {string} field - 深线返回的字段名
+     * @returns {Array|null} [桶, 属性键]，认不出返回 null
+     * @private
+     */
+    static _genericBonusRoute(field) {
+        // 延迟 require：game/stats 的 providers 反向依赖本服务，顶层 require 会成环
+        const { statRegistry } = require('../stats');
+        const rate = /^(.+)_bonus_rate$/.exec(field);
+        const flat = rate ? null : /^(.+)_bonus$/.exec(field);
+        const stat = rate ? rate[1] : (flat ? flat[1] : null);
+        if (!stat || !statRegistry.has(stat)) return null;
+        return [rate ? 'percent' : 'absolute', stat];
+    }
+
+    /**
+     * 按口径表把一个来源的数值加成分发进 acc（就地累加）
+     *
+     * @param {string} source - blood_sword | xutian_cauldron | five_element_wheel
+     * @param {Object} bonuses - 该来源返回的加成块（可能混着字符串/布尔字段，非数值一律忽略）
+     * @param {Object} acc - { absolute, percent, effects, unconsumed }
+     * @private
+     */
+    static _routeBonusFields(source, bonuses, acc) {
+        const table = this.BONUS_ROUTES[source] || {};
+        for (const [field, value] of Object.entries(bonuses || {})) {
+            if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) continue;
+            const route = table[field] || this._genericBonusRoute(field);
+            if (!route) {
+                acc.unconsumed.push(`${source}.${field}=${value}`);
+                continue;
+            }
+            if (route[0] === 'skip') continue;
+            const [bucket, key] = route;
+            acc[bucket][key] = (acc[bucket][key] || 0) + value;
+        }
+    }
+
+    /**
+     * 这一档加成今天到底进不进战斗 —— 答案只有一处（UNSETTLED_BUCKETS），展示层与聚合层共用。
+     * @param {string} bucket - absolute | percent | effects | skip
+     */
+    static bonusBucketSettled(bucket) {
+        return !UNSETTLED_BUCKETS.has(bucket);
+    }
+
+    /**
+     * 一条加成的中文名与"它是奖励还是代价"（内容说了算，抄不得）：
+     *   内容 `artifact_deep_lines.bonus_field_labels[field]`
+     *     · 字符串 → 只给名字，语气按奖励（现网大部分就是这种写法）
+     *     · 对象   → `{label, tone}`，tone 只认 bonus | cost（反噬那一类是代价，界面要标红）
+     *   取不到名字时：泛化字段（`<注册属性>_bonus(_rate)`）退到那一档属性的注册中文名；
+     *   再取不到就抛 —— 这条链上已经吃过两次"界面把 atk_bonus_rate 这种键名印给玩家"的亏。
+     * @returns {{label:string, tone:'bonus'|'cost'}}
+     */
+    static _bonusFieldMeta(field, bucket, key) {
+        const labels = configLoader.getConfig('artifact_deep_lines')?.bonus_field_labels || {};
+        const { contentLabel } = require('../content/ContentRegistry');
+        const entry = labels[field];
+        const fromContent = contentLabel(entry, '');
+        if (fromContent) {
+            const tone = (entry && typeof entry === 'object' && entry.tone) || 'bonus';
+            if (tone !== 'bonus' && tone !== 'cost') {
+                throw new Error(`[ArtifactDeepLineService] bonus_field_labels.${field}.tone="${tone}" 不认识`
+                    + `（只认 bonus / cost）—— 猜一个会把代价显示成奖励，宁可直接抛`);
+            }
+            return { label: String(fromContent), tone };
+        }
+        if (bucket === 'absolute' || bucket === 'percent') {
+            // 泛化生成出来的字段（`<注册属性>_bonus` / `_bonus_rate`）没有手抄标签，就直接用那一档属性的中文名
+            const { statRegistry } = require('../stats');
+            const def = statRegistry.get(key);
+            if (def && def.label) return { label: def.label, tone: 'bonus' };
+        }
+        throw new Error(`[ArtifactDeepLineService] 加成字段 "${field}" 取不到中文名（桶=${bucket}）。`
+            + `补法：在 artifact_deep_lines.bonus_field_labels 里加一条 {"${field}":{"label":"…"}}`
+            + `（这条是 map 集合，资料片也能加）`);
+    }
+
+    /**
+     * 把一条深线的原始加成块翻成"给玩家看的那份清单"。
+     *
+     * 存在的理由：界面以前自己抄字段名与换算（BloodSwordPanel 手写五行 `combat_bonus.xxx * 100` + 绿色 +X%），
+     * 于是两件事必然发生 —— ① 资料片给某条线加一档新加成，界面永远不显示；② 界面把"战斗根本没结算"的那几档
+     * 也涂成生效中的绿色。这里把三个问题一次答完，而且答案全部来自 BONUS_ROUTES 那一张表：
+     *   - 显不显：route=skip（倍率前值一类）不显；口径表与泛化规则都不认的也不显（那条由 unconsumed 去响）
+     *   - 叫什么：_bonusFieldLabel（内容 → 属性注册表 → 抛）
+     *   - 有没有进战斗：bonusBucketSettled(bucket)
+     * @param {string} source - blood_sword | xutian_cauldron | five_element_wheel
+     * @param {Object} bonuses - 该来源的原始加成块
+     * @returns {Array<{key,label,value,format,applied,bucket,reason}>} 按内容声明顺序
+     */
+    static combatBonusDisplay(source, bonuses) {
+        const out = [];
+        const table = this.BONUS_ROUTES[source] || {};
+        for (const [field, value] of Object.entries(bonuses || {})) {
+            if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) continue;
+            const route = table[field] || this._genericBonusRoute(field);
+            if (!route || route[0] === 'skip') continue;
+            const [bucket, key] = route;
+            const applied = this.bonusBucketSettled(bucket);
+            const meta = this._bonusFieldMeta(field, bucket, key);
+            out.push({
+                key: field,
+                label: meta.label,
+                tone: meta.tone,
+                value,
+                format: bucket === 'absolute' ? 'point' : 'percent',
+                applied,
+                bucket,
+                // 落到哪一档属性上（探针与界面都拿它对账，省得再抄一份 BONUS_ROUTES）
+                target: key,
+                reason: applied
+                    ? `计入 ${key}（${bucket === 'percent' ? '百分比' : '绝对值'}）`
+                    : `战斗侧还没有 ${field} 的结算通道，这一档只在面板上挂着`
+            });
+        }
+        return out;
+    }
+
+    /**
+     * 启动期口径自检：`BONUS_ROUTES` 里每一条**会被玩家看到**的字段都必须取到中文名。
+     *
+     * 为什么要在启动期跑，而不是等玩家打开面板：`_bonusFieldLabel` 取不到名字时是抛的，
+     * 那意味着某个玩家的请求会拿到 500 —— 而这条链上"少写一条标签"是一份纯数据的疏漏
+     * （改配置/加资料片的人不会想到要跑一遍面板）。启动期点名比运行期 500 便宜得多。
+     * 表优先、泛化其次、都没有就点名 —— 报错里把该补哪张表、补成什么形状写清楚。
+     * @returns {{checked:number}}
+     */
+    static assertBonusLabelCoverage() {
+        const problems = [];
+        let checked = 0;
+        for (const [source, table] of Object.entries(this.BONUS_ROUTES)) {
+            for (const [field, route] of Object.entries(table)) {
+                if (!route || route[0] === 'skip') continue;     // skip 的那几档不给玩家看，不需要名字
+                checked += 1;
+                try {
+                    this._bonusFieldMeta(field, route[0], route[1]);
+                } catch (e) {
+                    problems.push(`${source}.${field}（→ ${route.join('.')}）：${e.message}`);
+                }
+            }
+        }
+        if (problems.length) {
+            throw new Error(`[ArtifactDeepLineService] ${problems.length} 条法宝深线加成会显示成裸键名：\n  `
+                + problems.join('\n  '));
+        }
+        return { checked };
+    }
 
     /**
      * 获取玩家所有法宝深线的统一战力加成（供 AttributeService.calculateFullAttributesAsync 调用）
@@ -3334,21 +3565,56 @@ class ArtifactDeepLineService {
      *   本方法将三者归一化为统一结构，便于 AttributeService 统一叠加：
      *     - absolute: 绝对值加成（直接 addAttr 到 final）
      *     - percent: 百分比加成（基于 final 乘算，0.05 表示 +5%）
-     *     - effects: 战斗特殊效果（不体现在属性面板，供战斗系统读取）
+     *     - effects: 战斗特殊效果（不进属性面板；**注意：现网战斗侧没有读取方**，
+     *       详见 tests/DeepLineBonusRouting.test.js 的 EFFECTS_LEDGER，逐条要结论）
      *     - breakdown: 各法宝深线的原始返回（供前端展示和调试）
+     *     - unconsumed: 内容里声明了、但口径表和泛化规则都不认的加成字段（死内容清单，测试钉住）
+     *
+     * 字段该进哪个桶由 BONUS_ROUTES 那张表决定，不要在这里再手写 `percent.atk +=` 一行。
      *
      * 掌天瓶线为纯辅助法宝（炼丹/药园/养竹等），无战力加成，不参与本方法聚合
      *
      * @param {number} playerId - 玩家ID
      * @returns {Promise<Object>} 归一化后的统一战力加成对象
      */
+    /**
+     * 战力加成来源清单（内容说了算）：config/artifact_deep_lines.json 的 combat_bonus_sources，
+     * 已登记成集合，资料片可以 add 一条自己的法宝线进来。
+     *
+     * 配置没加载好时**不静默返回空表**（那等于把所有法宝线的加成抹掉），而是把这条挂在 problems 上，
+     * 由聚合器带进 source_problems 与日志 —— 面板那一层本来就有 catch，不会因此炸给玩家。
+     * @returns {Array<Object>} 每条含 key / method / active_field / bonus_field? / copy_effects? / backlash?
+     */
+    static getCombatBonusSourceRegistry() {
+        try {
+            const list = configLoader.getConfig('artifact_deep_lines')?.combat_bonus_sources;
+            if (!Array.isArray(list)) {
+                return { sources: [], problem: '来源清单不是一张数组（artifact_deep_lines.combat_bonus_sources 缺失或形状不对）' };
+            }
+            if (!list.length) {
+                return { sources: [], problem: '来源清单是空的：所有法宝深线的战力加成都不会进账' };
+            }
+            return { sources: list, problem: null };
+        } catch (error) {
+            return { sources: [], problem: `来源清单读不出来：${error && error.message ? error.message : error}` };
+        }
+    }
+
     static async getAllArtifactDeepLineCombatBonuses(playerId) {
-        // 并行查询三条法宝深线的战力加成（提升性能）
-        const [bloodSwordBonus, xutianCauldronBonus, wheelBonus] = await Promise.all([
-            this.getBloodSwordCombatBonus(playerId).catch(() => ({ is_active: false })),
-            this.getXutianCauldronCombatBonus(playerId).catch(() => ({ is_active: false })),
-            this.getFiveElementWheelCombatBonus(playerId).catch(() => ({ has_wheel: false, combat_bonus: {} }))
-        ]);
+        // 有哪几条深线参与聚合、每条怎么取数，来自内容那张表（不在这里点名 blood_sword / xutian_cauldron / …）
+        const { sources, problem } = this.getCombatBonusSourceRegistry();
+        const raws = await Promise.all(sources.map(async (src) => {
+            const method = this[src && src.method];
+            if (!src || !src.key || typeof method !== 'function') {
+                return { __problem: `${src && src.key ? src.key : '(缺 key)'}：服务上没有方法 ${src && src.method}` };
+            }
+            try {
+                return (await method.call(this, playerId)) || {};
+            } catch (error) {
+                // 与改造前一致：某条线自己炸了不影响别的线，但要留下痕迹（source_problems）
+                return { __problem: `${src.key}.${src.method} 抛错：${error && error.message ? error.message : error}` };
+            }
+        }));
 
         // 绝对值加成（直接叠加到 final 属性）
         const absolute = { atk: 0, def: 0, hp_max: 0, speed: 0, mp_max: 0, sense: 0, luck: 0, wisdom: 0 };
@@ -3368,59 +3634,46 @@ class ArtifactDeepLineService {
         };
         const breakdown = {};
 
-        // 1. 血魔剑加成归一化
-        if (bloodSwordBonus.is_active) {
-            breakdown.blood_sword = bloodSwordBonus;
-            effects.active_sources.push('blood_sword');
-            // 血魔剑为百分比加成（atk_bonus_rate=0.05 表示 +5%）
-            percent.atk += bloodSwordBonus.atk_bonus_rate || 0;
-            percent.def += bloodSwordBonus.def_bonus_rate || 0;
-            // 战斗特殊效果
-            effects.crit_rate_bonus += bloodSwordBonus.crit_rate_bonus || 0;
-            effects.crit_damage_bonus += bloodSwordBonus.crit_damage_bonus || 0;
-            effects.hp_steal_bonus_rate += bloodSwordBonus.hp_steal_bonus_rate || 0;
-            effects.backlash_rate_per_round += bloodSwordBonus.blood_backlash_hp_rate_per_round || 0;
-            if (bloodSwordBonus.blood_backlash_hp_rate_per_round > 0) {
-                effects.backlash_target = 'self';
-            }
-        }
+        // 每条来源的数值字段按口径表分发（见 BONUS_ROUTES 的说明），认不出的进 unconsumed
+        const acc = { absolute, percent, effects, unconsumed: [] };
+        const sourceProblems = problem ? [problem] : [];
 
-        // 2. 虚天鼎加成归一化
-        if (xutianCauldronBonus.is_active) {
-            breakdown.xutian_cauldron = xutianCauldronBonus;
-            effects.active_sources.push('xutian_cauldron');
-            // 虚天鼎为绝对值加成（def_bonus=100 表示 +100 防御）
-            absolute.def += xutianCauldronBonus.def_bonus || 0;
-            // 化极后的最终攻击加成 = atk_bonus × atk_multiplier
-            absolute.atk += xutianCauldronBonus.final_atk_bonus || 0;
-            // 反噬效果
-            if (xutianCauldronBonus.backlash_rate_per_round > 0) {
-                effects.backlash_rate_per_round += xutianCauldronBonus.backlash_rate_per_round;
-                effects.backlash_target = xutianCauldronBonus.backlash_target || 'self';
+        sources.forEach((src, index) => {
+            const raw = raws[index] || {};
+            if (raw.__problem) {
+                sourceProblems.push(raw.__problem);
+                return;
             }
-        }
+            // "这条线现在生效吗"由内容那张表的 active_field 决定（blood/xutian 看 is_active，幻世轮看 has_wheel）
+            if (raw[src.active_field] !== true) return;
+            breakdown[src.key] = raw;
+            effects.active_sources.push(src.key);
+            // 数值块住在哪儿也由表决定：幻世轮的 combat_bonus 是 _calculatePhaseBonus 泛化生成的
+            // （相位配置里每个数值字段 × 阶数倍率），所以它比另外两条线更容易出现"内容加了键、代码没接"
+            this._routeBonusFields(src.key, src.bonus_field ? (raw[src.bonus_field] || {}) : raw, acc);
+            // 布尔/字符串这类语义开关原样搬进 effects（幻世轮的 wheel_spin_enabled 就是这个形状）
+            for (const field of src.copy_effects || []) effects[field] = !!raw[field];
+            // 反噬目标是语义字段（字符串），不参与数值分发：什么时候设、设成什么，同样写在表里
+            const rule = src.backlash;
+            if (rule && Number(raw[rule.when]) > 0) {
+                effects.backlash_target = rule.value
+                    || String(raw[rule.take_from] === undefined || raw[rule.take_from] === null ? '' : raw[rule.take_from]).trim()
+                    || rule.default || 'self';
+            }
+        });
 
-        // 3. 大五行幻世轮加成归一化
-        if (wheelBonus.has_wheel) {
-            breakdown.five_element_wheel = wheelBonus;
-            effects.active_sources.push('five_element_wheel');
-            effects.wheel_spin_enabled = !!wheelBonus.wheel_spin_enabled;
-            // 幻世轮 combat_bonus 内含相位基础加成 × 阶数倍率（百分比形式）
-            const cb = wheelBonus.combat_bonus || {};
-            // atk_bonus_rate/def_bonus_rate/hp_bonus_rate 等为百分比加成
-            percent.atk += cb.atk_bonus_rate || 0;
-            percent.def += cb.def_bonus_rate || 0;
-            percent.hp_max += cb.hp_bonus_rate || 0;
-            percent.speed += cb.speed_bonus_rate || 0;
-            // 战斗特殊效果
-            effects.crit_rate_bonus += cb.crit_rate_bonus || 0;
-            effects.crit_damage_bonus += cb.crit_damage_bonus || 0;
-            effects.damage_reduction_rate += cb.damage_reduction_rate || 0;
-            effects.hp_regen_bonus_rate += cb.hp_regen_bonus_rate || 0;
+        if (sourceProblems.length) {
+            // 来源清单是内容写的：写错方法名 = 那条法宝线的加成静默消失，所以必须响
+            logOnce('artifactDeepLine.combatBonusSources',
+                `[ArtifactDeepLine] 战力加成来源清单有取不到数的条目（这些法宝线的加成本轮没进账）：`
+                + sourceProblems.join(' | '));
         }
 
         const is_active = effects.active_sources.length > 0;
-        return { is_active, absolute, percent, effects, breakdown };
+        return {
+            is_active, absolute, percent, effects, breakdown,
+            unconsumed: acc.unconsumed, source_problems: sourceProblems
+        };
     }
 
     // ==================== 战斗结算集成辅助方法 ====================

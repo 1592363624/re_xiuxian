@@ -1,0 +1,24 @@
+{
+  "dataset": "crafting_data",
+  "into": "alchemy_recipes",
+  "comment": "血煞丹的炉子。这一条要配合 item_data.json 里的「血煞丹方」看：丹方物品的 effect.learn_recipe 指的就是这里的 id，CraftingService.learnRecipe 只认得到本表与炼器表里的配方（这正是凡人遗宝那张残卷学不会的原因——它的 learn_recipe 指的是一个功法 id）。learn_source 写成 scroll 而不是 default：_ensureDefaultRecipes 只自动补 learn_source===\"default\" 的配方，别的取值一律要先用掉丹方，所以魔道丹方是真要花钱打的。材料用的是基础表就存在的血灵草（blood_grass，50 灵石那味）加本片自己的血髓珠，血髓珠有两条来路——妖魔直接掉，或按下一份炼器表自己炼——所以这条链不会因为一张掉落表被关掉就断。数值是草案，等业主签字：单次 120 秒冷却、基础成功率 0.5，与同境界段的宗门丹方（五珍丹 0.55）持平略低。",
+  "add": [
+    {
+      "id": "craft_xuesha_dan",
+      "name": "炼制血煞丹",
+      "type": "alchemy",
+      "description": "以血髓珠为君、血灵草为使，封炉慢煨，成血煞丹1枚",
+      "product": { "item_key": "xuesha_dan", "quantity": 1 },
+      "materials": [
+        { "item_key": "xue_sui_zhu", "quantity": 1 },
+        { "item_key": "blood_grass", "quantity": 6 }
+      ],
+      "required_realm_rank": 15,
+      "required_skill_level": 4,
+      "base_success_rate": 0.5,
+      "skill_exp": 40,
+      "cooldown_sec": 120,
+      "learn_source": "scroll"
+    }
+  ]
+}

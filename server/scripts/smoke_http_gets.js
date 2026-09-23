@@ -11,12 +11,17 @@
  * 那是接口设计问题，应该改接口而不是改这里。
  *
  * 用法：cd server && node --env-file=.env scripts/smoke_http_gets.js [playerId]
- *       单独跑某条：node --env-file=.env scripts/smoke_http_gets.js 1 /api/technique
+ *       单独跑某一段：node --env-file=.env scripts/smoke_http_gets.js 1 api/fishing
+ *       （筛选参数**别带开头的斜杠**：Git Bash 会把 `/api/x` 改写成 `C:/Program Files/Git/api/x`，
+ *        以前这样传会静默变成"0 条目标、退出码 0"的假绿 —— 现在这种输入直接红。）
  */
 'use strict';
 
 const PORT = Number(process.env.SMOKE_PORT || 5099);
 process.env.PORT = String(PORT);
+// 全量跑时的底线：路由表 250 上下（实测 2026-09-22：整棵树 307 条 GET、去掉 admin 与 changelog 后 251）。
+// 没有这条底线，"挂载没完成/express 换了形状"会伪装成"一条都没失败"。
+const MIN_TARGETS = 200;
 
 const { app } = require('../index');
 const Player = require('../models/player');
@@ -42,14 +47,29 @@ function materialize(path) {
     const token = mintToken(player);
 
     const stack = (app._router || app.router)?.stack || [];
-    const targets = collectRoutes(stack, '', ['get'])
+    const beforeFilter = collectRoutes(stack, '', ['get'])
         .map(r => r.path)
         .filter(p => p.startsWith('/api'))
         .filter(p => !/^\/api\/admin/.test(p))
         .filter(p => !/changelog|github/.test(p))
-        .map(materialize)
-        .filter(p => !filter || p.startsWith(filter))
+        .map(materialize);
+    const targets = beforeFilter
+        .filter(p => !filter || p.includes(filter))
         .sort();
+    // 一条都没匹配到 ≠ "全绿"：以前按文档写法 `… 1 /api/technique` 传进来会被 Git Bash 改写成
+    // `C:/Program Files/Git/api/technique`（MSYS 的路径转换），于是 0 条目标、0 条失败、退出码 0 ——
+    // 一份"看起来跑过了"的空结果。所以：带筛选却没匹配到 = 直接红，并告诉你它到底收到了什么。
+    if (filter && !targets.length) {
+        console.error(`筛选条件没匹配到任何接口：收到的是 ${JSON.stringify(filter)}`);
+        console.error('（Git Bash 会把 /api/xxx 改写成 C:/Program Files/Git/api/xxx —— 传参时写成 api/xxx 即可）');
+        console.error(`可选：${[...new Set(beforeFilter)].slice(0, 8).join(' ')}`);
+        process.exit(2);
+    }
+    if (!filter && targets.length < MIN_TARGETS) {
+        console.error(`只收到 ${targets.length} 条 GET 接口（底线 ${MIN_TARGETS}）—— 路由没挂全或 express 挂载方式变了，别看成"都通过了"`);
+        process.exit(2);
+    }
+    if (filter) console.log(`[筛选 ${filter}] 匹配到 ${new Set(targets).size} 条`);
 
     async function runPass(label, passToken, coverage = null) {
         const failures = [];
@@ -68,8 +88,16 @@ function materialize(path) {
                     coverage.seen.set(check.key, { status: res.status, volume });
                 }
             }
-            if (res.status >= 500 || res.status === 0) {
-                failures.push({ path, status: res.status, body: String(res.raw).slice(0, 200) });
+            // 状态码之外还要看回执文本：服务层普遍写着 `catch (err) { return {success:false, message:'…服务器内部错误'} }`，
+            // 于是被吞掉的 ReferenceError 在 HTTP 上是一个 200/400 的正常响应 —— 只看 5xx 的判据结构上抓不到它
+            // （`_rollFish` 那一处就是这么躲过一整轮的，见 scripts/smoke_fishing_flow.js 的开头）。
+            const swallowedError = /内部错误|服务器错误|Internal Server Error/i.test(String(res.raw || ''));
+            if (res.status >= 500 || res.status === 0 || swallowedError) {
+                failures.push({
+                    path, status: res.status,
+                    body: (swallowedError && res.status < 500 ? '[吞掉的异常：回执里写着内部错误] ' : '')
+                        + String(res.raw).slice(0, 200)
+                });
                 console.log(`${label}FAIL  ${res.status}  ${path}`);
             } else if (res.status === 404 && /\/1$/.test(path)) {
                 skipped.push(path);
@@ -100,7 +128,9 @@ function materialize(path) {
         console.log(`\n[有内容玩家] 用 ${rich.username}(#${rich.id}：物品 ${c.items}、功法 ${c.techs}、装备 ${c.equips}) 再打一遍`);
         // 这几个接口是"有内容才会执行到 map 里那一行"的典型；
         // 它们若返回空数组，说明这一遍其实又退化成空号了 —— 必须当场报，而不是继续全绿
-        const coverage = {
+        // 带筛选跑的是"只打这一段"，那三条关键接口可能压根不在这一批里 —— 这时不判覆盖，
+        // 否则会报一条假的"覆盖不足"（判据不能因为调用者缩小了范围就自己变红）
+        const coverage = filter ? null : {
             checks: [
                 { key: '功法面板', re: /\/api\/technique\/list$/, count: d => (d?.data?.owned || []).length },
                 // 路由表里根路径带尾斜杠（/api/inventory/），判据要容得下带与不带两种

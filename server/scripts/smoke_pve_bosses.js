@@ -114,6 +114,13 @@ async function prepareBoss() {
     boss.expire_time = new Date(Date.now() + 30 * 60000);
     boss.hp_current = 500000;
     boss.hp_max = 500000;
+    // 上一轮如果崩在"把 BOSS 攻击抬到必杀"之后（D 段要刻意打死玩家），这里按内容自愈：
+    // 探针自己的输入状态不能指望上一次运行收拾干净，否则从 B1 起就一路是"玩家被一记秒死"的假失败。
+    const staticBoss = worldBossData.bosses.find(x => x.boss_key === boss.boss_key) || {};
+    if (staticBoss.base_atk !== undefined && Number(boss.atk) > Number(staticBoss.base_atk) * 10) {
+        console.log(`  [自愈] BOSS 攻击从 ${boss.atk} 复位到内容声明的 ${staticBoss.base_atk}`);
+        boss.atk = staticBoss.base_atk;
+    }
     await boss.save();
     return WorldBossInstance.findByPk(boss.id);
 }
@@ -296,6 +303,70 @@ async function prepareBeast() {
     }
     check('B7 玩家闪避属性能闪掉 BOSS 技能（改造前 BOSS 反击无视一切减免）', !!dodged, dodgeDetail);
     await PlayerStateStore.patchPlayerState(player.id, { attributes: { dodge_rate_bonus: null } });
+
+    // ========== D 段：陨落扣修为（全仓唯一一份实现，写在列上是原子减） ==========
+    // 这一族以前有 5 份实现，其中世界BOSS 与兽潮那两份逐字相同，
+    // 写的是"读一份快照 → 算绝对值 → 把 exp 和整个 attributes 赋回去"。
+    // 这里跑一次真致死，钉住三件只有连库才断得出来的事：扣的数对、blob 镜像与列一致、配 0 就不扣。
+    const { resolveExpPenaltyRate } = require('../game/core/deathPenalty');
+    WorldBossService._battleRuntime.delete(`${boss.id}:${player.id}`);
+    const EXP_BEFORE = 1000000n;
+    await PlayerStateStore.patchPlayerState(player.id, { columns: { exp: EXP_BEFORE } });
+    const atkOriginal = Number((await WorldBossInstance.findByPk(boss.id)).atk);
+    await WorldBossInstance.update({ atk: 99999999 }, { where: { id: boss.id } });
+    const liveBoss = await WorldBossInstance.findByPk(boss.id);
+    let diedOn = null;
+    let deathErr = '无';
+    for (let i = 0; i < 6 && !diedOn; i++) {
+        await clearBossCooldown(liveBoss.id, player.id);
+        const res = await WorldBossService.attackBoss(player.id, liveBoss.id, 'basic')
+            .catch((error) => ({ error: error.message }));
+        if (res?.error) { deathErr = res.error; continue; }
+        if (res?.player?.is_dead === true) diedOn = res;
+    }
+    const rate = resolveExpPenaltyRate('world_boss');
+    const expectedPenalty = EXP_BEFORE * BigInt(Math.round(rate * 10000)) / 10000n;
+    const afterDeath = await Player.findByPk(player.id);
+    check('D1 世界BOSS 身死扣的是内容里那一档率算出的修为（库里那一行，不看回执）',
+        !!diedOn && BigInt(afterDeath.exp) === EXP_BEFORE - expectedPenalty,
+        `率=${rate} 期望扣=${expectedPenalty} 库里 exp=${afterDeath.exp}（打前 ${EXP_BEFORE}）err=${deathErr}`);
+    check('D2 attributes.exp 镜像与 players.exp 列同一个数（不留两个真相）',
+        Number(afterDeath.attributes?.exp) === Number(afterDeath.exp),
+        `列=${afterDeath.exp} 镜像=${afterDeath.attributes?.exp}`);
+    // 死亡那一记之后哨兵键还在：以后有人把"整块赋回 attributes"加回来，这条会先响
+    check('D3 死过一次之后 blob 哨兵键仍在（惩罚不参与整块写回）',
+        afterDeath.attributes?.[SENTINEL] === 'keep-me',
+        `哨兵=${afterDeath.attributes?.[SENTINEL]}`);
+    await WorldBossInstance.update({ atk: atkOriginal }, { where: { id: boss.id } });
+
+    // 配置里的 0 必须是"不罚"，不能被 || 兜底吃回默认 5%（这条以前是活的缺陷）
+    const { infrastructure: infraForRate } = require('../modules');
+    const realBalance = infraForRate.ConfigLoader.getConfig('game_balance');
+    infraForRate.ConfigLoader.setMergedConfig('game_balance', {
+        ...realBalance,
+        world_boss: { ...(realBalance.world_boss || {}), death_exp_penalty_rate: 0 }
+    });
+    await PlayerStateStore.patchPlayerState(player.id, { columns: { exp: EXP_BEFORE } });
+    await WorldBossInstance.update({ atk: 99999999 }, { where: { id: boss.id } });
+    await clearBossCooldown(boss.id, player.id);
+    // 上一段那次陨落把战斗运行时标成 isDead，attackBoss 会直接抛"请先复活" —— 要再死一次得先把这份内存清掉
+    WorldBossService._battleRuntime.delete(`${boss.id}:${player.id}`);
+    let zeroRateDied = false;
+    for (let i = 0; i < 6 && !zeroRateDied; i++) {
+        const res = await WorldBossService.attackBoss(player.id, boss.id, 'basic')
+            .catch(() => ({ error: 'x' }));
+        if (res?.error) { await clearBossCooldown(boss.id, player.id); continue; }
+        if (res?.player?.is_dead === true) zeroRateDied = true;
+    }
+    const zeroAfter = await Player.findByPk(player.id);
+    infraForRate.ConfigLoader.setMergedConfig('game_balance', realBalance);
+    await WorldBossInstance.update({ atk: atkOriginal }, { where: { id: boss.id } });
+    WorldBossService._battleRuntime.delete(`${boss.id}:${player.id}`);
+    check('D4 惩罚率配成 0 → 一次不死扣（以前 Number(cfg)||0.05 会把 0 吃回 5%）',
+        zeroRateDied && BigInt(zeroAfter.exp) === EXP_BEFORE,
+        `死过=${zeroRateDied} 库里 exp=${zeroAfter.exp}（应仍为 ${EXP_BEFORE}）`);
+
+    await PlayerStateStore.patchPlayerState(player.id, { columns: { exp: 0 } });
 
     // 收尾：把探针造成的派生状态清掉，免得下一次运行一上来就被"斩妖中/讨伐中"挡住
     await clearBeastCooldown(beast.id, player.id);

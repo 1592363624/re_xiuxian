@@ -607,6 +607,9 @@ const startServer = async () => {
     // GM 后台统一限流（所有 /api/admin/* 挂载点均以此为前缀，一次覆盖）
     app.use('/api/admin', adminLimiter);
     app.use('/api/admin', require('./routes/admin'));
+    // 后台日志查看器（GM 后台「后台日志」页）：读取 PM2 落盘的日志文件，
+    // 支持尾部快照、关键词/级别过滤与 offset 增量跟随；可读范围由 config/system_log_viewer.json 白名单决定
+    app.use('/api/admin/system-logs', require('./routes/admin_system_logs'));
     app.use('/api/admin/ai-config', require('./routes/admin_ai'));
     app.use('/api/admin/sect', require('./routes/admin_sect'));
     // 洞府管理（GM 后台）：玩家洞府列表查询、设施等级调整、洞府重置、药园地块数调整
@@ -637,6 +640,15 @@ const startServer = async () => {
     app.use('/api/lottery', require('./routes/lottery'));
     app.use('/api/time', require('./routes/time'));
     app.use('/api/notifications', require('./routes/notifications'));
+    // 通知调度：预约发布的公告到点推送 + 过期公告自动下架（顺带清理其已读回执）
+    // 周期与批量大小来自 notification_policy.scheduler，改完热更即时生效
+    try {
+        const NotificationSchedulerService = require('./game/services/NotificationSchedulerService');
+        NotificationSchedulerService.start();
+    } catch (err) {
+        console.error('通知调度任务启动失败:', err.message);
+    }
+
     // 公告配图孤儿文件清理（GM 上传后未发送、或通知已被删掉图的残留）
     // 周期与保留窗口来自 announcement_upload.cleanup，改完热更即时生效
     try {
@@ -644,6 +656,15 @@ const startServer = async () => {
         AnnouncementImageCleanupService.start();
     } catch (err) {
         console.error('公告配图清理任务启动失败:', err.message);
+    }
+
+    // 错误日志飞书告警：增量读取日志文件，把 error 级行聚合后推到飞书（避免必须有人盯着后台）
+    // 监控级别/日志源/节流阈值全部来自 system_log_viewer.alert，改完热更即时生效
+    try {
+        const LogAlertService = require('./game/services/LogAlertService');
+        LogAlertService.start();
+    } catch (err) {
+        console.error('日志告警任务启动失败:', err.message);
     }
 
     // 公告配图：上传接口 + 静态托管（URL 形如 /api/uploads/announcements/ann_1730000000_ab12cd34ef56.png）
@@ -1026,6 +1047,13 @@ function shutdown(reason, exitCode) {
     if (shutdown.started) return;
     shutdown.started = true;
     console.log(`收到 ${reason}，开始优雅关闭...`);
+
+    // 先停掉日志告警轮询：关闭过程本身会产生日志，别让它再往外发告警
+    try {
+        require('./game/services/LogAlertService').stop();
+    } catch (err) {
+        // 服务未启动（或配置关闭）时无需处理
+    }
 
     // 兜底强退：略小于 ecosystem.config.js 的 kill_timeout，避免被 PM2 直接 SIGKILL
     const forceExit = setTimeout(() => {

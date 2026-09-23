@@ -41,6 +41,9 @@ const ErrorCodes = {
     COOLDOWN: 'COOLDOWN',                              // 冷却中
     INSUFFICIENT_RESOURCES: 'INSUFFICIENT_RESOURCES',  // 资源不足（灵石/物品）
     PLAYER_DEAD: 'PLAYER_DEAD',                         // 玩家已陨落
+    // 数值写回守卫判定"我这行是从哪个值算出来的"已经过期（并发里对手先提交了）。
+    // 与 numericWriteGuard.StaleNumericWriteError.errorCode 必须同名，tests/NumericWriteGuard.test.js 钉着这条。
+    CONCURRENT_UPDATE: 'CONCURRENT_UPDATE',             // 并发更新冲突：重试即可，不是服务器坏了
 
     // 系统错误 (5xx)
     INTERNAL_ERROR: 'INTERNAL_ERROR',
@@ -59,7 +62,8 @@ function errorHandler(err, req, res, next) {
 
     // 仅记录非业务错误的完整堆栈
     if (err.isOperational) {
-        console.warn(`[${errorCode}] ${err.message}`);
+        // detail：写给开发看的那一份（并发守卫刻意把 message 留成玩家可读的短句，细节不能丢）
+        console.warn(`[${errorCode}] ${err.message}${err.detail ? ` ｜ ${err.detail}` : ''}`);
     } else {
         console.error(`[${errorCode}] ${err.message}`, err.stack);
     }

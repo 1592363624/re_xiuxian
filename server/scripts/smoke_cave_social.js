@@ -115,10 +115,16 @@ async function withTreasureHuntOverride(patch, fn) {
  * 选项（treasure），于是"锁第二行 players"这件事从概率变成必然（借取率取下限 5%），并发腿的死锁计数才读得懂。
  * 只在探针窗口里生效，finally 必须还原（调度器也在这个进程里跑）。
  */
+let pinDepth = 0;
+let pinnedOrig = null;
 async function withZeroRandom(fn) {
-    const orig = Math.random;
-    Math.random = () => 0;
-    try { return await fn(); } finally { Math.random = orig; }
+    // 可重入：两条腿并发时"各自存 orig、各自还原"会互相踩 —— 内层退出时把 Math.random 还原成
+    // **真实函数**，外层剩下的那段就拿到真随机了（实测后果：T3 号称"每轮必走 treasure"，
+    // 其实会撞上 trap，陷阱损耗 54/198 这类值只有真随机才抽得出来，于是 T4 被读成"灵石凭空少了"）。
+    if (pinDepth++ === 0) { pinnedOrig = Math.random; Math.random = () => 0; }
+    try { return await fn(); } finally {
+        if (--pinDepth === 0) { Math.random = pinnedOrig; pinnedOrig = null; }
+    }
 }
 
 async function main() {
@@ -250,10 +256,27 @@ async function main() {
     if (opened !== 2) return;
     const boxT0 = await boxStones();
     const logT0 = await CaveTreasureLog.count({ where: { hunter_id: { [Op.in]: ids } } });
+    /**
+     * 逐笔记账：钱离开"格子"（两人合计）只有两种合法出路 —— 手续费与**内容里声明的陷阱/遭遇损耗**。
+     * 借取是两人之间的搬运（同一条 BigInt，不动总量）。
+     * 以前 T4 只算手续费，于是"这一轮撞上了 trap/encounter"会被读成"灵石凭空少了 50/20"：
+     * 结果类型的种子是按秒算的（`_seededState` 用时间戳），所以那条断言间歇性红，
+     * 且红不红跟守卫档期只隔一次额外 SELECT 的时序 —— 差点把探针的账本缺口当成游戏的丢钱。
+     */
+    const ledger = { loss: 0, types: {}, credited: 0n };
+    const noteResult = (raw) => {
+        const r = raw && raw.result_type ? raw : (raw && raw.r) || null;
+        if (!r) return;
+        ledger.types[r.result_type || '(未知)'] = (ledger.types[r.result_type || '(未知)'] || 0) + 1;
+        const rw = r.rewards || {};
+        ledger.loss += Number(rw.spirit_stone_loss) || 0;
+        ledger.credited += BigInt(Number(rw.spirit_stones) || 0);
+    };
 
     // ===== T1 一次寻宝：手续费离开格子，借取量在两人之间原样搬运 =====
     const aBefore = await stonesOf(A), bBefore = await stonesOf(B);
     const t1 = await withZeroRandom(() => CaveSocialService.treasureHunt(A, B, 1));
+    noteResult(t1);
     const steal = bBefore * 50n / 1000n;      // treasure.spirit_stone_steal_rate 下限 5%（random 钉成 0）
     check('T1 寻得宝物：手续费 100 离开格子、借取量在两人之间原样搬运（回执等于库里真动的量）',
         t1.result_type === 'treasure' && Number(t1.rewards.spirit_stones) === Number(steal)
@@ -271,6 +294,7 @@ async function main() {
         withZeroRandom(() => safe(() => CaveSocialService.treasureHunt(A, B, 3)))
     ]));
     const passed = pair.filter(p => p.ok).length;
+    pair.forEach(noteResult);
     check('T2 同一个人同时点同一个洞府两次：daily_limit=1 与冷却只该放行一笔（校验必须排在锁住寻宝者之后）',
         passed === 1 && await CaveTreasureLog.count({ where: { hunter_id: A } }) === logsBefore2 + 1
         && await stonesOf(B) === bBefore2 - bBefore2 * 50n / 1000n,
@@ -290,6 +314,7 @@ async function main() {
                 withZeroRandom(() => safe(() => CaveSocialService.treasureHunt(B, A, 1)))
             ]);
             roundsT++;
+            noteResult(r1); noteResult(r2);
             if (!r1.ok && isDeadlock(r1.why)) deadT++;
             if (!r2.ok && isDeadlock(r2.why)) deadT++;
             if (!r1.ok) whyT = `A→B:${r1.why}`;
@@ -301,13 +326,16 @@ async function main() {
         deadT === 0 && bothT === roundsT,
         `实况=${roundsT} 轮里 ${deadT} 次 Deadlock、双方都成交 ${bothT} 轮（每轮都被强制走 treasure 分支＝两边真的都要第二行锁）｜被拒理由：${whyT || '无'}`);
 
-    // ===== T4 全部跑完：格子里少掉的灵石必须正好等于成功笔数 × 手续费 =====
+    // ===== T4 全部跑完：格子里少掉的灵石必须正好等于"手续费 + 回执里报出的陷阱/遭遇损耗" =====
     // 笔数不能拿日志表当计数：T3 每轮开头会清日志（绕开 24h 冷却），清掉的笔就不在表里了
     const logsAll = await CaveTreasureLog.count({ where: { hunter_id: { [Op.in]: ids } } });
     const success = 1 + passed + bothT * 2;
-    check('T4 账本收口：格子只因为手续费变小，借取全是两人之间的搬运（多扣/漏退/重复借都会在这里露）',
-        await boxStones() === boxT0 - 100n * BigInt(success),
-        `成功 ${success} 笔（T1 一笔 + T2 放行 ${passed} 笔 + T3 ${bothT} 轮各 2 笔；日志表现存 ${logsAll - logT0} 条，清过的不算）× 100 手续费｜格 ${boxT0}→${await boxStones()}`);
+    const expectedBox = boxT0 - 100n * BigInt(success) - BigInt(ledger.loss);
+    check('T4 账本收口：格子只因为手续费与"内容声明的陷阱/遭遇损耗"变小（借取全是两人之间的搬运）',
+        await boxStones() === expectedBox,
+        `成功 ${success} 笔（T1 一笔 + T2 放行 ${passed} 笔 + T3 ${bothT} 轮各 2 笔）× 100 手续费 + 回执报出的损耗 ${ledger.loss}`
+        + `｜结果分布=${JSON.stringify(ledger.types)}｜日志表现存 ${logsAll - logT0} 条（清过的不算）`
+        + `｜格 ${boxT0}→${await boxStones()}（应为 ${expectedBox}）`);
 }
 
 (async () => {
@@ -336,9 +364,12 @@ async function main() {
                 await CaveTreasureLog.destroy({
                     where: { [Op.or]: [{ hunter_id: { [Op.in]: ids } }, { cave_owner_id: { [Op.in]: ids } }] }, force: true
                 });
-                await PlayerCave.destroy({ where: { player_id: { [Op.in]: ids } }, force: true });
-                await Item.destroy({ where: { player_id: { [Op.in]: ids }, item_key: { [Op.in]: GOODS } }, force: true });
-                await Player.destroy({ where: { id: { [Op.in]: ids } }, force: true });
+                // 洞府行、背包行、冷却、灵根、称号…凡是按 player_id 归属的都交给生产里那一份级联
+                // （口径只有一份；探针手写"顺手删三张表"迟早漏一张，那正是隔离库攒下 761 行孤儿的方式）。
+                // 只有按别人那半截键归属的（hunter_id / cave_owner_id 的鉴赏与展品记录）留在这里自己清。
+                const purged = await require('../game/persistence/PlayerCascadePurge')
+                    .deletePlayers(ids);
+                console.log(`清理：级联带走 ${purged.total} 行派生数据（含 players 行本身）`);
             }
             console.log(`清理：探针号 ${NAMES.join('/')} 与它们的展品/鉴赏记录/背包行已删（残留 ${
                 (await Player.count({ where: { username: { [Op.in]: NAMES } } }))} 个账号）`);

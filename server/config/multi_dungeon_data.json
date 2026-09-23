@@ -437,7 +437,7 @@
           { "item_key": "spirit_stones", "name": "灵石", "chance": 1.0, "count_min": 5000, "count_max": 20000, "desc": "基础保底", "is_spirit_stones": true }
         ],
         "first_clear_bonus": [
-          { "type": "title", "title_id": "yanyue_breaker", "title_name": "掩月破阵者", "desc": "首通掩月抢亲的称号" },
+          { "type": "title", "title_id": "yanyue_breaker", "desc": "首通掩月抢亲的称号" },
           { "type": "item", "item_key": "yuehua_yulu", "count": 5, "desc": "额外月华玉露×5" },
           { "type": "spirit_stones", "count": 50000, "desc": "额外灵石 50000" }
         ],
@@ -661,7 +661,7 @@
           ]
         },
         "first_clear_bonus": [
-          { "type": "title", "title_id": "canglongjiang_zhenjiaozhe_title", "title_name": "沧龙江镇蛟者", "desc": "全服首通称号" },
+          { "type": "title", "title_id": "canglongjiang_zhenjiaozhe_title", "desc": "全服首通称号" },
           { "type": "item", "item_key": "canglongjiang_hongbao", "count": 3, "desc": "全员额外沧龙江灵石红包×3" },
           { "type": "global_announce", "desc": "全服公告首通成就" }
         ]
@@ -1026,7 +1026,7 @@
           { "item_key": "kunwu_pass_token", "name": "昆吾通行令", "chance": 0.10, "count_min": 1, "count_max": 1, "desc": "再次进入副本的通行令" }
         ],
         "first_clear_bonus": [
-          { "type": "title", "title_id": "kunwu_tower_master", "title_name": "封魔塔主", "desc": "首通昆吾山·封魔塔的称号" },
+          { "type": "title", "title_id": "kunwu_tower_master", "desc": "首通昆吾山·封魔塔的称号" },
           { "type": "item", "item_key": "fabao_tupu", "count": 3, "desc": "额外法宝图谱×3" },
           { "type": "spirit_stones", "count": 50000, "desc": "额外灵石 50000" },
           { "type": "global_announce", "desc": "全服公告首通成就" }
@@ -1441,7 +1441,7 @@
           { "item_key": "xutian_pass_token", "name": "虚天令", "chance": 0.10, "count_min": 1, "count_max": 1, "desc": "再次进入副本的通行令" }
         ],
         "first_clear_bonus": [
-          { "type": "title", "title_id": "xutian_conqueror", "title_name": "虚天破局者", "desc": "首通虚天殿的称号" },
+          { "type": "title", "title_id": "xutian_conqueror", "desc": "首通虚天殿的称号" },
           { "type": "item", "item_key": "fabao_tupu", "count": 3, "desc": "额外法宝图谱×3" },
           { "type": "spirit_stones", "count": 60000, "desc": "额外灵石 60000" },
           { "type": "global_announce", "desc": "全服公告首通成就" }
@@ -1716,11 +1716,9 @@
         "rare_drop_count_min": 1,
         "rare_drop_count_max": 3,
         "title": "beiming_breaker",
-        "title_name": "北冥破局者",
-        "title_desc": "高评分或完美通关小极宫有机会获得的称号",
         "title_chance": 0.20,
         "first_clear_bonus": [
-          { "type": "title", "title_id": "beiming_breaker", "title_name": "北冥破局者", "desc": "首通小极宫的称号" },
+          { "type": "title", "title_id": "beiming_breaker", "desc": "首通小极宫的称号" },
           { "type": "item", "item_key": "wannian_xuanyu", "count": 1, "desc": "额外万年玄玉×1" },
           { "type": "spirit_stones", "count": 30000, "desc": "额外灵石 30000" },
           { "type": "global_announce", "desc": "全服公告首通成就" }
@@ -1934,11 +1932,9 @@
         "rare_drop_count_min": 1,
         "rare_drop_count_max": 2,
         "title": "luoyun_guardian",
-        "title_name": "落云守护者",
-        "title_desc": "完美通关落云秘圃有机会获得的称号",
         "title_chance": 0.20,
         "first_clear_bonus": [
-          { "type": "title", "title_id": "luoyun_guardian", "title_name": "落云守护者", "desc": "首通落云秘圃的称号" },
+          { "type": "title", "title_id": "luoyun_guardian", "desc": "首通落云秘圃的称号" },
           { "type": "item", "item_key": "lingyan_sapling", "count": 1, "desc": "额外灵眼树胚×1" },
           { "type": "spirit_stones", "count": 30000, "desc": "额外灵石 30000" },
           { "type": "global_announce", "desc": "全服公告首通成就" }
@@ -2196,7 +2192,7 @@
           { "item_key": "fabao_tupu", "name": "法宝图谱", "chance": 0.04, "count_min": 1, "count_max": 1, "desc": "随机法宝图谱" }
         ],
         "first_clear_bonus": [
-          { "type": "title", "title_id": "cangkun_explorer", "title_name": "苍坤探秘者", "desc": "首通苍坤洞府的称号" },
+          { "type": "title", "title_id": "cangkun_explorer", "desc": "首通苍坤洞府的称号" },
           { "type": "item", "item_key": "qianji_fragment", "count": 1, "desc": "千机残篇×1（大衍诀残篇之一，来自苍坤洞府）" },
           { "type": "spirit_stones", "count": 40000, "desc": "额外灵石 40000" },
           { "type": "global_announce", "desc": "全服公告首通成就" }
@@ -2248,8 +2244,6 @@
           "spirit_stones": 500
         },
         "title": "cangkun_explorer",
-        "title_name": "苍坤探秘者",
-        "title_desc": "完美通关苍坤洞府有机会获得的称号",
         "title_chance": 0.20
       }
     },
@@ -2519,7 +2513,6 @@
           {
             "type": "title",
             "title_id": "blood_purgatory_survivor",
-            "title_name": "血色试炼幸存者",
             "desc": "首通血色试炼的称号"
           },
           {
@@ -2561,8 +2554,6 @@
           "spirit_stones": 2000
         },
         "title": "blood_purgatory_survivor",
-        "title_name": "血色试炼幸存者",
-        "title_desc": "完美通关血色试炼有机会获得的称号",
         "title_chance": 0.30
       }
     },
@@ -2827,7 +2818,6 @@
           {
             "type": "title",
             "title_id": "demon_slayer",
-            "title_name": "伏魔者",
             "desc": "首通坠魔谷的称号"
           },
           {
@@ -2864,8 +2854,6 @@
           "spirit_stones": 1500
         },
         "title": "demon_slayer",
-        "title_name": "伏魔者",
-        "title_desc": "道心≥80通关坠魔谷有机会获得的称号",
         "title_chance": 0.25,
         "title_min_dao_heart": 80
       }
@@ -2998,7 +2986,7 @@
           { "item_key": "sect_medal", "name": "宗门勋章", "chance": 0.12, "count_min": 1, "count_max": 2, "desc": "黄龙山战功徽章，可在宗门兑换珍稀物品" }
         ],
         "first_clear_bonus": [
-          { "type": "title", "title_id": "huanglong_master", "title_name": "黄龙阵主", "desc": "首通黄龙山的称号" },
+          { "type": "title", "title_id": "huanglong_master", "desc": "首通黄龙山的称号" },
           { "type": "item", "item_key": "huanglong_formation_map", "count": 1, "desc": "黄龙阵图×1（可用于布置宗门级阵法）" },
           { "type": "spirit_stones", "count": 50000, "desc": "额外灵石 50000" },
           { "type": "global_announce", "desc": "全服公告首通成就" }
@@ -3021,8 +3009,6 @@
           "spirit_stones": 2000
         },
         "title": "huanglong_master",
-        "title_name": "黄龙阵主",
-        "title_desc": "阵法强度≥120通关黄龙山有机会获得的称号",
         "title_chance": 0.30,
         "title_min_formation_power": 120
       }

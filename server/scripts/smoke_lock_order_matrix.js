@@ -37,6 +37,7 @@ const PlayerDivineDuel = require('../models/playerDivineDuel');
 const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const { LOCK_PRECEDENCE, rankOf } = require('../game/persistence/lockOrder');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNT = 'lockmatrix01';
 const PEER_ACCOUNT = 'lockmatrix02';
@@ -255,24 +256,23 @@ async function main() {
         try {
             const p = await Player.findOne({ where: { username: ACCOUNT } });
             if (p) {
-                await ActiveBattle.destroy({ where: { player_id: p.id }, force: true });
-                await PlayerLaw.destroy({ where: { player_id: p.id } });
-                await PlayerDivineSense.destroy({ where: { player_id: p.id } });
-                await StockMarginAccount.destroy({ where: { player_id: p.id } });
-                await Item.destroy({ where: { player_id: p.id, item_key: 'lock_matrix_pill' }, force: true });
-                await SpiritBeast.destroy({ where: { player_id: p.id, beast_key: 'lock_matrix_beast' }, force: true });
-                // 一律按"探针自己的行"删，不用跨作用域的标志位 ——
-                // 之前这里读了一个只在 main() 里声明的 caveRowCreated，finally 抛 ReferenceError
-                // 被 catch 吞成一行"清理失败"，后面的删号根本没跑（探针号每跑一次漏一个）。
-                await PlayerCave.destroy({ where: { player_id: p.id }, force: true });
+                // 这几张表的行不在级联的"归属"档（只认 player_id / owner_player_id）里，仍要探针自己清：
+                // dao_companion(s) 按 player_a_id + player_b_id、beast_invasions 按 beast_key、
+                // multi_dungeon_instance 按 instance_key、player_divine_duels 按 challenger_id（都是引用列）。
                 await DaoCompanion.destroy({ where: { player_a_id: p.id, player_b_id: p.id }, force: true });
                 await DaoCompanions.destroy({ where: { player_a_id: p.id, player_b_id: p.id }, force: true });
                 await BeastInvasion.destroy({ where: { beast_key: 'lock_matrix_beast_invader' }, force: true });
                 await MultiDungeonInstance.destroy({ where: { instance_key: 'lock_matrix_dungeon' }, force: true });
                 await PlayerDivineDuel.destroy({ where: { challenger_id: p.id }, force: true });
+                // active_battles / player_law / player_divine_sense / stock_margin_accounts / items /
+                // spirit_beasts / player_caves 这些按 player_id 归属的行全部交给那一份级联（口径只有一份）；
+                // 一律按"探针自己的行"删，不用跨作用域的标志位 —— 之前这里读了一个只在 main() 里声明的
+                // caveRowCreated，finally 抛 ReferenceError 被 catch 吞成一行"清理失败"，后面的删号根本没跑。
+                const ids = [p.id];
                 const peerRow = await Player.findOne({ where: { username: PEER_ACCOUNT } });
-                if (peerRow) await Player.destroy({ where: { id: peerRow.id }, force: true });
-                await Player.destroy({ where: { id: p.id }, force: true });
+                if (peerRow) ids.push(peerRow.id);
+                const purged = await PlayerCascadePurge.deletePlayers(ids);
+                console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
             }
         } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});

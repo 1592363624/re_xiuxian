@@ -243,8 +243,8 @@ router.post('/dismiss', auth, async (req, res, next) => {
 
 /**
  * POST /api/concubine/voyage/start
- * 侍妾远航（4 种模式：safe/balanced/risky/moon_palace）
- * 请求体：{ concubine_id: number, mode: 'safe'|'balanced'|'risky'|'moon_palace' }
+ * 侍妾远航（模式由 companion_data.voyage.modes 决定，资料片可自带新模式）
+ * 请求体：{ concubine_id: number, mode: <内容词表里的键> }
  */
 router.post('/voyage/start', auth, async (req, res, next) => {
     try {
@@ -256,11 +256,13 @@ router.post('/voyage/start', auth, async (req, res, next) => {
                 message: 'concubine_id 必填且必须为数字'
             });
         }
-        if (!['safe', 'balanced', 'risky', 'moon_palace'].includes(mode)) {
+        // 白名单从服务那一份内容读取口拿（以前这里点写四个模式 = 资料片加第五个模式会被挡在路由外）
+        const modeKeys = ConcubineService.voyageModeKeys();
+        if (!modeKeys.includes(mode)) {
             return res.status(400).json({
                 code: 400,
                 error_code: ErrorCodes.VALIDATION_ERROR,
-                message: 'mode 必须为 safe(稳妥)/balanced(均衡)/risky(冒险)/moon_palace(月殿寻痕) 之一'
+                message: `mode 必须是 ${modeKeys.join('/')} 之一`
             });
         }
         const result = await ConcubineService.startVoyage(req.player.id, concubine_id, mode);

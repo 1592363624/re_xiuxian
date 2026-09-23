@@ -25,6 +25,7 @@ const { bootApp } = require('./lib/smoke_http');
 const PlayerStateStore = require('../game/persistence/PlayerStateStore');
 const CombatResolver = require('../game/combat/CombatResolver');
 const FengshenService = require('../game/services/FengshenService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const DECOY = 999999;
 const results = [];
@@ -336,10 +337,14 @@ async function widenRankingTable(size) {
         `旧顺序死锁 ${oldOrderDeadlocks} 笔，新顺序 ${newOrderDeadlocks} 笔（own 行 id=${lowId}/${highId}）`
     );
 
+    // wideIds / seededIds 用的是假 player_id（998xxx / 999xxx），根本没有对应的 players 行，
+    // 级联只按传进去的真实 id 清，所以这两批撑表/种子行仍然要探针自己删。
     await FengshenRanking.destroy({ where: { player_id: wideIds } });
-    await FengshenRanking.destroy({ where: { player_id: probePlayers.map(p => p.id) } });
-    await Player.destroy({ where: { id: probePlayers.map(p => p.id) } });
     await FengshenRanking.destroy({ where: { player_id: seededIds } });
+    // 6 个 fsprobe 探针号：它们的 fengshen_rankings 行按 player_id 归属，连同其它派生行一起交给级联那扇门
+    const purged = await PlayerCascadePurge.deletePlayers(probePlayers.map(p => p.id));
+    console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
+    // fengshentest1 跨运行复用、不删，所以它那一行排名记录仍要手写清掉
     await FengshenRanking.destroy({ where: { player_id: player.id } });
     await PlayerStateStore.patchPlayerState(player.id, {
         attributes: { atk: null, def: null, speed: null, hp_max: null, hp_current: null }

@@ -17,11 +17,12 @@
  *   - 红包卡片使用红色/金色主题，区分于普通消息
  */
 import { ref, nextTick, watch, onMounted, onUnmounted, reactive, computed } from 'vue'
-import { formatBeijing } from '../../utils/time'
+import { formatBeijing, toBeijingDate } from '../../utils/time'
 import { getChatHistory, sendMessage, getUnreadCount, markRead, sendRedPacket, claimRedPacket, getRedPacketDetail, showItem } from '../../api/chat'
 import { getInventory } from '../../api/inventory'
 import { socketService } from '../../services/socket'
 import { formatCompact } from '../../utils/format'
+import { useItemQualities } from '../../composables/useItemQualities'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 
@@ -29,13 +30,47 @@ const isOpen = ref(false)
 const newMessage = ref('')
 const messages = ref([])
 const messagesContainer = ref(null)
+
+/* ============================================================
+ * 窗口尺寸配置（展开 / 收起两档，仿常见右下角客服窗口）
+ * ============================================================ */
+// 收起档：默认小窗
+const WINDOW_SIZE_NORMAL = 'w-80 h-96'
+// 展开档：更高更宽一些，上限用视口高度兜底，避免小屏幕溢出
+const WINDOW_SIZE_EXPANDED = 'w-[28rem] h-[min(45rem,70vh)]'
+// 展开状态持久化 key（玩家偏好，记住上次选择）
+const CHAT_EXPANDED_STORAGE_KEY = 'chatExpanded'
+
+// 是否处于展开档（读取本地缓存，记住玩家上次的偏好）
+const isExpanded = ref(localStorage.getItem(CHAT_EXPANDED_STORAGE_KEY) === '1')
+// 窗口尺寸样式：根据展开档位切换，transition-all 已带平滑过渡
+const windowSizeClass = computed(() => (isExpanded.value ? WINDOW_SIZE_EXPANDED : WINDOW_SIZE_NORMAL))
 const playerStore = usePlayerStore()
 const uiStore = useUIStore()
 let unsubscribe = null // Socket 事件取消监听函数
+let unsubscribeConnect = null // Socket 重连事件取消监听函数（用于重连后补拉未读数）
+
+/* ============================================================
+ * "跳到最新"按钮相关配置
+ * ============================================================ */
+// 距底部超过该像素数即认为"不在底部"，显示跳到最新按钮
+const NEAR_BOTTOM_THRESHOLD_PX = 80
+const showJumpToBottom = ref(false)
 
 // 新消息提醒相关
 const unreadCount = ref(0)
 const lastReadTime = ref(localStorage.getItem('chatLastReadTime') || null)
+
+/* ============================================================
+ * 悬浮最近消息条（ticker）相关配置
+ * 聊天窗口关闭时，在悬浮按钮旁轮播最近消息，让玩家不点开也能"路过看到"
+ * ============================================================ */
+const TICKER_MESSAGE_COUNT = 5   // 轮播范围：最多 5 条消息
+const TICKER_INTERVAL_MS = 4000  // 轮播切换间隔（毫秒）
+const tickerIndex = ref(0)       // 当前轮播到的消息下标
+let tickerTimer = null           // 轮播定时器
+// 是否开启"仅轮播未读期间的消息"：开启后没有未读就不显示悬浮条，避免一直轮播旧消息
+const TICKER_ONLY_UNREAD_MESSAGES = true
 const topNotification = ref({
   visible: false,
   content: ''
@@ -68,16 +103,11 @@ const redPacketDetail = reactive({
  * 物品展示相关状态
  * ============================================================ */
 
-// 品质颜色映射（复用 InventoryPanel.vue 的 qualityColorMap 配置）
-// common 白 / uncommon 绿 / rare 蓝 / epic 紫 / legendary 橙
-const qualityColorMap = {
-  common: { border: 'border-line-strong', text: 'text-fg-secondary', label: '普通' },
-  uncommon: { border: 'border-emerald-600', text: 'text-emerald-400', label: '非凡' },
-  rare: { border: 'border-blue-600', text: 'text-blue-400', label: '稀有' },
-  epic: { border: 'border-purple-600', text: 'text-purple-400', label: '史诗' },
-  legendary: { border: 'border-gold-600', text: 'text-gold-400', label: '传说' },
-  unknown: { border: 'border-line', text: 'text-fg-faint', label: '未知' }
-}
+// 品质样式（文字色 / 描边 / 中文档名）：一律取服务端 game_balance.item_qualities
+// （见 composables/useItemQualities.js）。这里以前抄了一份"复用 InventoryPanel"的五档 + unknown 字典，
+// mythic 压根不在表里 —— 玩家在世界频道晒出的神话档物品只能落进 unknown，卡片上印成"未知"；
+// 资料片加一档品质时，这种抄写永远追不上，现在全部读同一个单例。
+const { styleOf: getQualityStyle } = useItemQualities()
 
 // 物品类型中文名映射
 const itemTypeLabelMap = {
@@ -204,6 +234,19 @@ function parseRedPacketContent(content) {
 }
 
 /**
+ * 生成消息的简短描述文案（顶部通知与悬浮消息条共用）
+ * 红包/物品消息展示玩法信息，普通消息展示"发送人: 内容"
+ * @param {Object} msg - 本地消息对象
+ * @returns {string} 描述文案，空消息返回空串
+ */
+const describeMessage = (msg) => {
+  if (!msg) return ''
+  if (msg.messageType === 'red_packet') return `${msg.sender} 发了一个红包！`
+  if (msg.messageType === 'item_show' && msg.itemShowInfo) return `${msg.sender} 展示了【${msg.itemShowInfo.item_name}】`
+  return `${msg.sender}: ${msg.content}`
+}
+
+/**
  * 获取聊天历史
  */
 const fetchMessages = async () => {
@@ -259,6 +302,88 @@ const toggleChat = () => {
     fetchMessages()
     markMessagesRead()
   }
+}
+
+/**
+ * 切换展开/收起档位（仿客服窗口的"展开"按钮）
+ * 展开后窗口更高更宽，偏好写入 localStorage 以便下次打开时保持
+ */
+const toggleExpand = () => {
+  isExpanded.value = !isExpanded.value
+  localStorage.setItem(CHAT_EXPANDED_STORAGE_KEY, isExpanded.value ? '1' : '0')
+  // 尺寸变化后重新滚动到底部，保证最新消息可见
+  scrollToBottom()
+}
+
+/**
+ * 聊天消息时间格式化：
+ *   - 当天消息 → 只显示 HH:mm，界面简洁
+ *   - 非当天消息 → 必须带上年月日，否则玩家无法分辨消息时间
+ * 日期比较基于"北京时间墙上时间"，与项目展示口径一致
+ * @param {Date|number|string} value - 消息时间
+ * @returns {string} 如 "16:34" 或 "2026-09-21 16:34"
+ */
+const formatChatTime = (value) => {
+  const msgDate = toBeijingDate(value)
+  const nowDate = toBeijingDate(new Date())
+  if (!msgDate || !nowDate) return ''
+  // 逐字段比较年/月/日，判断是否为"今天"（北京时间口径）
+  const sameDay =
+    msgDate.getUTCFullYear() === nowDate.getUTCFullYear() &&
+    msgDate.getUTCMonth() === nowDate.getUTCMonth() &&
+    msgDate.getUTCDate() === nowDate.getUTCDate()
+  return sameDay
+    ? formatBeijing(value, { showDate: false, seconds: false })
+    : formatBeijing(value, { showDate: true, seconds: false })
+}
+
+/* ============================================================
+ * 悬浮最近消息条（ticker）逻辑
+ * ============================================================ */
+
+/**
+ * 轮播候选消息
+ * - 普通模式：取最近 N 条
+ * - 仅未读模式（TICKER_ONLY_UNREAD_MESSAGES）：只取"上次已读之后、非自己发送"的消息；
+ *   没有未读时直接返回空数组（悬浮条自动隐藏），避免旧消息被反复轮播
+ */
+const tickerMessages = computed(() => {
+  // 普通模式：始终轮播最近消息
+  if (!TICKER_ONLY_UNREAD_MESSAGES) return messages.value.slice(-TICKER_MESSAGE_COUNT)
+  // 仅未读模式：无未读则不展示
+  if (unreadCount.value <= 0) return []
+  // 首次进入还没有"上次已读时间"时，退化为最近 N 条，保证有内容可看
+  if (!lastReadTime.value) return messages.value.slice(-TICKER_MESSAGE_COUNT)
+
+  const readAt = new Date(lastReadTime.value).getTime()
+  if (!Number.isFinite(readAt)) return messages.value.slice(-TICKER_MESSAGE_COUNT)
+
+  // 只保留已读时间点之后到达的他人消息，最多 N 条
+  return messages.value
+    .filter(msg => msg.type !== 'self' && new Date(msg.createdAt).getTime() > readAt)
+    .slice(-TICKER_MESSAGE_COUNT)
+})
+// 当前轮播到的消息（下标对长度取模，防止列表收缩后越界）
+const tickerCurrent = computed(() => {
+  if (tickerMessages.value.length === 0) return null
+  return tickerMessages.value[tickerIndex.value % tickerMessages.value.length]
+})
+// 悬浮条展示文案（复用顶部通知的描述逻辑）
+const tickerText = computed(() => describeMessage(tickerCurrent.value))
+
+// 有新消息时，把轮播定位到最新一条，保证玩家第一时间看到
+watch(() => tickerMessages.value.length, () => {
+  tickerIndex.value = Math.max(0, tickerMessages.value.length - 1)
+})
+
+/**
+ * 消息区滚动：距底部超过阈值时显示"跳到最新"按钮
+ */
+const onMessagesScroll = () => {
+  const el = messagesContainer.value
+  if (!el) return
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  showJumpToBottom.value = distance > NEAR_BOTTOM_THRESHOLD_PX
 }
 
 /**
@@ -488,15 +613,6 @@ function parseItemShowContent(content) {
 }
 
 /**
- * 获取品质对应的样式配置
- * @param {string} quality - 品质 key
- * @returns {Object} 品质样式对象
- */
-const getQualityStyle = (quality) => {
-  return qualityColorMap[quality] || qualityColorMap.unknown
-}
-
-/**
  * 获取物品类型中文名
  * @param {string} type - 类型 key
  * @returns {string} 中文名
@@ -610,7 +726,18 @@ watch(messages, (newVal, oldVal) => {
 
 onMounted(() => {
   fetchMessages()
+  // 初始拉取一次未读数；之后的增量由 new_message 事件累加（Socket 事件驱动，无需轮询）
   fetchUnreadCount()
+
+  // 悬浮最近消息条轮播定时器
+  tickerTimer = setInterval(() => {
+    tickerIndex.value++
+  }, TICKER_INTERVAL_MS)
+
+  // 断线重连后补拉未读数，弥补离线期间通过增量统计不到的消息
+  unsubscribeConnect = socketService.on('connect', () => {
+    fetchUnreadCount()
+  })
 
   // 使用统一 Socket 服务监听新消息
   unsubscribe = socketService.on('new_message', (msg) => {
@@ -677,19 +804,9 @@ onMounted(() => {
         clearTimeout(notificationTimer)
       }
 
-      // 红包/物品消息特殊通知文案
-      let notifyContent
-      if (lastMsg.messageType === 'red_packet') {
-        notifyContent = `${lastMsg.sender} 发了一个红包！`
-      } else if (lastMsg.messageType === 'item_show' && lastMsg.itemShowInfo) {
-        notifyContent = `${lastMsg.sender} 展示了【${lastMsg.itemShowInfo.item_name}】`
-      } else {
-        notifyContent = `${lastMsg.sender}: ${lastMsg.content}`
-      }
-
       topNotification.value = {
         visible: true,
-        content: notifyContent
+        content: describeMessage(lastMsg)
       }
 
       notificationTimer = setTimeout(() => {
@@ -703,6 +820,13 @@ onUnmounted(() => {
   // 取消 Socket 监听
   if (unsubscribe) {
     unsubscribe()
+  }
+  if (unsubscribeConnect) {
+    unsubscribeConnect()
+  }
+  // 清理悬浮消息条轮播定时器
+  if (tickerTimer) {
+    clearInterval(tickerTimer)
   }
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
@@ -726,7 +850,8 @@ onUnmounted(() => {
     <!-- Chat Window -->
     <div
       v-if="isOpen"
-      class="mb-4 w-80 h-96 bg-surface-base border border-gold-500/40 rounded-2xl shadow-[0_0_25px_rgba(180,119,37,0.35)] flex flex-col backdrop-blur-sm overflow-hidden transition-all duration-300 origin-bottom-right animate-fade-in-up select-none"
+      class="mb-4 bg-surface-base border border-gold-500/40 rounded-2xl shadow-[0_0_25px_rgba(180,119,37,0.35)] flex flex-col backdrop-blur-sm overflow-hidden transition-all duration-300 origin-bottom-right animate-fade-in-up select-none"
+      :class="windowSizeClass"
     >
       <!-- Header -->
       <div class="h-12 bg-surface-base border-b border-gold-500/20 flex items-center justify-between px-4 shrink-0 cursor-move" @mousedown="onMouseDown">
@@ -734,13 +859,29 @@ onUnmounted(() => {
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gold-400"><path d="M13 10V3a1 1 0 0 0-2 0v7"></path><path d="M18 10a6 6 0 0 0-12 0v4"></path><path d="M4 19h16"></path><path d="M9 22h6"></path></svg>
           <span>千里传音</span>
         </div>
-        <div class="text-xs text-gold-900/70 flex items-center gap-1 pointer-events-none">
-          在线参与中
+        <div class="flex items-center gap-2">
+          <div class="text-xs text-gold-900/70 flex items-center gap-1 pointer-events-none">
+            在线参与中
+          </div>
+          <!-- 展开/收起按钮：切换窗口大小档位 -->
+          <button
+            type="button"
+            @click.stop="toggleExpand"
+            @mousedown.stop
+            class="focus-ring w-6 h-6 rounded-full flex items-center justify-center text-gold-400 hover:text-amber-100 hover:bg-gold-900/40 transition-colors active:scale-95"
+            :title="isExpanded ? '收起窗口' : '展开窗口'"
+            :aria-label="isExpanded ? '收起窗口' : '展开窗口'"
+          >
+            <!-- 展开时显示向下箭头（点击收起），收起时显示向上箭头（点击展开） -->
+            <svg v-if="isExpanded" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 12 6 20 14"/></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 10 12 18 20 10"/></svg>
+          </button>
         </div>
       </div>
 
-      <!-- Messages -->
-      <div ref="messagesContainer" class="flex-1 overflow-y-auto px-4 py-3 space-y-4 scroll-thin bg-surface-canvas">
+      <!-- Messages（外层 relative 用于悬浮"跳到最新"按钮定位） -->
+      <div class="relative flex-1 min-h-0">
+        <div ref="messagesContainer" @scroll="onMessagesScroll" class="h-full overflow-y-auto px-4 py-3 space-y-4 scroll-thin bg-surface-canvas">
         <!-- 顶部分割线 -->
         <div class="w-full h-px bg-gradient-to-r from-transparent via-gold-500/40 to-transparent mx-auto"></div>
 
@@ -770,7 +911,7 @@ onUnmounted(() => {
               class="num"
               :class="msg.type === 'self' ? 'order-first' : ''"
             >
-              {{ formatBeijing(msg.createdAt, { showDate: false, seconds: false }) }}
+              {{ formatChatTime(msg.createdAt) }}
             </span>
           </div>
 
@@ -861,12 +1002,24 @@ onUnmounted(() => {
 
           <!-- 系统消息显示时间 -->
           <span v-if="msg.type === 'system'" class="text-[10px] text-fg-faint mt-0.5 px-1 num">
-            {{ formatBeijing(msg.createdAt, { showDate: false, seconds: false }) }}
+            {{ formatChatTime(msg.createdAt) }}
           </span>
 
           <!-- Divider for system msgs -->
           <div v-if="msg.type === 'system'" class="w-16 h-px bg-gradient-to-r from-transparent via-gold-700/60 to-transparent mx-auto mt-2"></div>
         </div>
+        </div>
+
+        <!-- 跳到最新按钮：向上翻阅历史时出现，点击回到底部 -->
+        <button
+          v-if="showJumpToBottom"
+          type="button"
+          @click="scrollToBottom"
+          class="focus-ring absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full bg-surface-base border border-gold-500/50 text-gold-300 shadow-[0_0_12px_rgba(180,119,37,0.4)] flex items-center justify-center hover:text-amber-100 hover:border-gold-400 active:scale-95 transition-all"
+          aria-label="跳到最新消息"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
       </div>
 
       <!-- Input -->
@@ -919,8 +1072,24 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Toggle Button -->
-    <button
+    <!-- 底部操作行：悬浮最近消息条 + 开关按钮 -->
+    <div class="flex items-center gap-3">
+      <!-- 悬浮最近消息条：窗口关闭时轮播最近消息，路过可见，点击打开聊天 -->
+      <div
+        v-if="!isOpen && tickerCurrent"
+        :key="tickerCurrent.id"
+        @click="toggleChat"
+        class="animate-ticker-slide flex items-center gap-2 max-w-[200px] sm:max-w-[280px] px-3 py-2 rounded-full bg-surface-base border border-gold-500/40 shadow-[0_0_14px_rgba(180,119,37,0.3)] cursor-pointer hover:border-gold-400/70 transition-colors select-none"
+        role="button"
+        aria-label="查看最新消息"
+      >
+        <!-- 未读红点 -->
+        <span v-if="unreadCount > 0" class="w-2 h-2 rounded-full bg-red-500 shrink-0 shadow-[0_0_6px_rgba(239,68,68,0.8)]"></span>
+        <span class="text-xs text-gold-300 truncate">{{ tickerText }}</span>
+      </div>
+
+      <!-- Toggle Button -->
+      <button
       type="button"
       @mousedown="onMouseDown"
       @click="toggleChat"
@@ -930,14 +1099,20 @@ onUnmounted(() => {
     >
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
 
-      <!-- Notification Dot -->
-      <span v-if="!isOpen && unreadCount > 0" class="absolute top-0 right-0 w-3 h-3 bg-red-600 rounded-full border-2 border-surface-raised"></span>
+      <!-- Notification Dot（未读红点：带数字，超过 99 显示 99+） -->
+      <span
+        v-if="!isOpen && unreadCount > 0"
+        class="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 bg-red-600 rounded-full border-2 border-surface-raised flex items-center justify-center text-[10px] font-bold text-white num shadow-[0_0_8px_rgba(239,68,68,0.6)]"
+      >
+        {{ unreadCount > 99 ? '99+' : unreadCount }}
+      </span>
 
       <!-- Tooltip -->
       <div v-if="!isDragging" class="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 bg-black/80 text-xs text-gold-500 rounded border border-gold-900/30 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
         千里传音
       </div>
     </button>
+    </div>
 
     <!-- ============================================================ -->
     <!-- 发红包弹窗 -->
@@ -1317,5 +1492,20 @@ onUnmounted(() => {
 }
 .animate-fade-in-down {
   animation: fade-in-down 0.2s ease-out forwards;
+}
+
+/* 悬浮消息条切换动画：轻量侧滑淡入，配合 :key 变化触发重放 */
+@keyframes ticker-slide {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.animate-ticker-slide {
+  animation: ticker-slide 0.35s ease-out forwards;
 }
 </style>

@@ -32,6 +32,7 @@ const PlayerSect = require('../models/playerSect');
 const sequelize = require('../config/database');
 const { bootApp } = require('./lib/smoke_http');
 const SectService = require('../game/services/SectService');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 
 const ACCOUNT = 'sectreset01';
 const results = [];
@@ -50,7 +51,8 @@ function pickSectAndQuest() {
 }
 
 async function ensureProbePlayer(sectId) {
-    await Player.destroy({ where: { username: ACCOUNT }, force: true });
+    // 开头按账号名清历次残留（只走级联那扇门）：崩过一次的那轮留下的关系行按新 id 永远找不回来
+    await PlayerCascadePurge.deleteByUsernames([ACCOUNT]);
     const player = await Player.create({
         username: ACCOUNT,
         password: 'not-a-real-hash',
@@ -65,7 +67,7 @@ async function ensureProbePlayer(sectId) {
         attributes: {},
         token_version: 0
     });
-    await PlayerSect.destroy({ where: { player_id: player.id } });
+    // player_sects 按 player_id 归属，级联已随上一步把历次残留带走；新号还没有关系行，不必再手写一遍 destroy
     const row = await PlayerSect.create({
         player_id: player.id,
         sect_id: sectId,
@@ -165,7 +167,10 @@ async function main() {
         hard = 1;
         console.error('探针异常：', e.message, e.stack);
     } finally {
-        await Player.destroy({ where: { username: ACCOUNT }, force: true }).catch(() => {});
+        try {
+            const purged = await PlayerCascadePurge.deleteByUsernames([ACCOUNT]);
+            console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
+        } catch (e) { console.error('清理失败:', e.message); }
         await sequelize.close().catch(() => {});
         const failed = results.filter(r => !r.ok).length + hard;
         console.log(`\n${results.length} 项断言，失败 ${failed}`);

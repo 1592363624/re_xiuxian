@@ -13,7 +13,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { ContentRegistry } = require('../game/content/ContentRegistry');
+const { ContentRegistry, DATASET_SPECS } = require('../game/content/ContentRegistry');
 
 const serverRoot = path.join(__dirname, '..');
 const configDir = path.join(serverRoot, 'config');
@@ -55,9 +55,16 @@ const NOT_EXTENSIBLE = {
     auction_data: '拍卖时长/加价率/手续费/调度间隔等阈值，没有可增删的条目集合',
     cave_legacy_data: '坐化遗府的活动时长、参与资格阈值与物品筛选规则，条目本身来自 item_data',
     dao_companion_data: '道侣/双修的门槛与冷却数值；heart_contract_effects.levels 按心契等级索引，扩等级同时要改玩法代码',
-    game_balance: '全局数值开关（间隔、分页、限速、段位表…），是"改数值"不是"加内容"',
+    // game_balance 已从"整份不可扩"移到 DATASET_SPECS，但只登记了一条嵌套路径
+    // `equipment.slot_names`（装备槽位词表）。理由：槽位清单以前是裸字符串数组，不能按条增删，
+    // 于是资料片加得了新装备却加不了它要进的那个槽位 —— 那是"加内容"，不是"改数值"。
+    // 其余 game_balance 段落（间隔/分页/限速/段位表）仍然不可扩：写进 pack 会被"没有该集合"挡下。
     notification_icons: '事件名 → 图标映射，加事件本来就要写发事件的那行代码',
-    role_init: '建号初始值与成长率；spirit_roots 虽是一条条，但抽灵根读的是 spiritRootProbabilities 这个"标量映射"，注册表当前的 map 集合只支持对象值 —— 要让资料片能加灵根得先补这个约定',
+    notification_policy: '通知调度周期/批量大小/回执回收开关与重提示文案：纯运维阈值与文案模板，没有可按条增删的内容集合',
+    // role_init 已登记（2026-09-22）：spirit_roots 是条目集合、概率表与加成表是 map 集合。
+    // 原来那条"map 集合只支持对象值所以加不了灵根"的理由被 CollectionShapeLedger 的实测否证；
+    // 而它作为"元素权威词表"的身份仍然成立 —— 校验读的是合并视图，所以资料片扩了词表，
+    // 校验也跟着扩（而不是像以前那样：新灵根的 element 会被写死在基础文件上的校验拒收）。
     seclusion: '闭关参数，每个叶子都是 {value,unit,displayName} 形式的标量',
     system: '服务端口、版本、GitHub 仓库地址等运行时配置'
 };
@@ -103,6 +110,44 @@ describe('每个被代码读取的数据集都要么能被资料片扩展，要�
                 + unexplained.join('/') + '（要么补基础文件，要么进 PACK_ONLY_DATASETS 说明它就该由资料片供内容）');
         }
         expect(unexplained).toEqual([]);
+    });
+
+    test('登记的嵌套集合路径在基础配置里真存在（写错一截就等于资料片永远合并不进来）', () => {
+        const broken = [];
+        for (const [dataset, spec] of Object.entries(DATASET_SPECS)) {
+            if (!spec.collections) continue;
+            let base;
+            try { base = JSON.parse(fs.readFileSync(path.join(serverRoot, 'config', `${dataset}.json`), 'utf8')); }
+            catch { continue; }   // 没有基础文件的数据集由"资料片扩展点"那条用例管
+            for (const [path_, def] of Object.entries(spec.collections)) {
+                if (!path_.includes('.') || def?.optional) continue;
+                let cursor = base;
+                for (const seg of path_.split('.')) {
+                    cursor = cursor && typeof cursor === 'object' ? cursor[seg] : undefined;
+                }
+                if (cursor === undefined) broken.push(`${dataset}.${path_}`);
+            }
+        }
+        if (broken.length) {
+            throw new Error('这些登记的嵌套集合路径在基础配置里找不到容器（资料片写它会报"没有该集合"，等于白登记）：'
+                + broken.join(', '));
+        }
+        expect(broken).toEqual([]);
+    });
+
+    test('代码把"某张表的键"当合法全集来遍历的地方，那张表必须登记成集合（两张已知的现在都登记了）', () => {
+        // 这两处的形状一模一样：Object.keys(内容表) 决定"允许哪些值 / 算哪些档"。
+        // 表不可扩展 = 资料片加了新条目却被自己的合法集挡在外头，而且报错点在代码里查不到（因为代码是泛化的）。
+        const collections = DATASET_SPECS.formation_data.collections;
+        expect(collections['global.category_display_names']).toEqual({ map: true });   // 阵法流派全集
+        expect(collections['global.grade_display_names']).toEqual({ map: true });       // 阵法品阶全集
+        expect(DATASET_SPECS.spirit_beast_data.collections.settings).toEqual({ map: true });   // 灵兽战力权重表
+        // 反向钉子：相克引用表刻意不登记（值是引用不是标签，登记了才会造出"配了不生效"）
+        expect(collections['global.counter_relationships']).toBeUndefined();
+        const formation = fs.readFileSync(path.join(serverRoot, 'game/services/FormationService.js'), 'utf8');
+        expect(formation).toMatch(/Object\.keys\(cfg\?\.global\?\.category_display_names \|\| \{\}\)/);
+        const beast = fs.readFileSync(path.join(serverRoot, 'game/services/SpiritBeastService.js'), 'utf8');
+        expect(beast).toMatch(/of Object\.entries\(weights\)/);
     });
 
     test('attribute_system.attribute_bonuses 仍是死配置（有人开始读它时，要重新评估该不该登记）', () => {

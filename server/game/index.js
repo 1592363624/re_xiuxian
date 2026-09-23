@@ -62,6 +62,11 @@ async function initializeGameServices(configLoader) {
     SectService.initialize(configLoader);
     MarketService.initialize(configLoader);
     EquipmentService.initialize(configLoader);
+    // 启动期把"配了但穿不上"的装备挡下来（槽位合法集与物品 subtype 两边各写各的时，只有这里能同时看见）
+    EquipmentService.assertEquipableContent();
+    // 法宝深线要给玩家显示的每一档加成都必须取到中文名（名字住在 artifact_deep_lines.bonus_field_labels）。
+    // 取不到就在启动期点名，而不是等玩家打开面板时收一个 500。
+    require('./services/ArtifactDeepLineService').assertBonusLabelCoverage();
     CraftingService.initialize(configLoader);
     // PVP 扩展系统服务初始化
     DuelService.initialize(configLoader);

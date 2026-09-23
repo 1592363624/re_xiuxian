@@ -33,10 +33,18 @@ export interface AdminSpiritBeastItem {
   beast_key: string;
   /** 灵兽自定义昵称（null 表示使用默认名） */
   beast_name: string | null;
-  /** 元素属性：metal/wood/water/fire/earth */
+  /** 元素属性 key（词表：spirit_beast_data.elements，资料片可自带新档，所以这里不列清单） */
   element: string;
-  /** 稀有度：common/rare/epic/legendary */
+  /** 元素中文名（取自内容，界面不再自己按键名硬编） */
+  element_name?: string;
+  /** 稀有度 key（词表：spirit_beast_data.rarity_config，同上） */
   rarity: string;
+  /** 稀有度中文名 */
+  rarity_name?: string;
+  /** 稀有度配色（内容里的十六进制，界面直接用它画徽标与色条） */
+  rarity_color?: string;
+  /** 稀有度档序（内容 order，越大越稀有；排序用） */
+  rarity_order?: number;
   /** 星级（1-10） */
   star_level: number;
   /** 等级（1-100） */
@@ -77,10 +85,12 @@ export interface SpiritBeastStats {
   players_with_beasts: number;
   /** 今日新增捕获数 */
   today_new_beasts: number;
+  /** 稀有度词表全档（含 0 只的那一档与配色）：下拉与图例都读它，界面不再抄一份档位名 */
+  rarities: Array<{ key: string; name: string; color: string; order: number; release_return_ratio: number; star_up_cost_multiplier: number }>;
   /** 按稀有度分布 */
-  rarity_distribution: Array<{ rarity: string; rarity_name: string; count: number }>;
+  rarity_distribution: Array<{ rarity: string; rarity_name: string; rarity_color?: string; count: number }>;
   /** 按元素分布 */
-  element_distribution: Array<{ element: string; element_name: string; count: number }>;
+  element_distribution: Array<{ element: string; element_name: string; element_color?: string; count: number }>;
   /** 按种类分布 */
   breed_distribution: Array<{ beast_key: string; count: number }>;
   /** 灵兽数量 Top10 玩家 */

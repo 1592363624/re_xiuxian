@@ -17,7 +17,7 @@
  * 配置：border_military_data.json#beast_patrol
  */
 const { infrastructure } = require('../../modules');
-const { grantItems } = require('../items/itemGrant');
+const { grantItems, toDropSummary } = require('../items/itemGrant');
 const configLoader = infrastructure.ConfigLoader;
 const Player = require('../../models/player');
 const SpiritBeast = require('../../models/spiritBeast');
@@ -368,7 +368,7 @@ class BorderBeastPatrolSubService {
             // 发放物品：只把真发到的留在 drops 里（它既进玩家消息也进 items_dropped 记录）
             if (drops.length > 0) {
                 const grant = await grantItems(freshPlayer.id, drops, t, { label: '战线·灵兽巡边奖励' });
-                drops = grant.granted.map(g => ({ key: g.item_key, quantity: g.quantity, item_name: g.item_name }));
+                drops = toDropSummary(grant.granted);
             }
 
             // 更新巡边记录

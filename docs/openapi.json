@@ -283,6 +283,10 @@
     {
       "name": "Lottery",
       "description": "抽奖（寻仙机缘）系统（面板 / 抽奖）"
+    },
+    {
+      "name": "管理员-后台日志",
+      "description": "GM 后台服务器日志查看 - 只读读取 PM2 落盘的日志文件，支持尾部快照、级别/关键词过滤与 offset 增量跟随"
     }
   ],
   "security": [
@@ -15440,7 +15444,7 @@
     "/api/notifications/announcement": {
       "post": {
         "summary": "发送全服公告",
-        "description": "向全服玩家发送公告通知（需要管理员权限）（需要管理员权限，后端通过 interfaceGateway.requireRole('admin') 中间件校验）",
+        "description": "向全服玩家发送公告通知（需要管理员权限）（需要管理员权限，后端通过 interfaceGateway.requireRole('admin') 中间件校验）。支持配图（imageUrls）与定时（publishAt 预约发布、expiresAt 自动下架）：传了未来的 publishAt 时接口只做入库，返回文案为“公告已创建，将在预约时间自动发布”，到点由服务端调度器推送。",
         "tags": [
           "Notification",
           "GM"
@@ -15488,6 +15492,18 @@
                     "example": [
                       "/api/uploads/announcements/ann_1730000000_ab12cd34ef56.png"
                     ]
+                  },
+                  "publishAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "预约发布时间（ISO 8601）。传未来时间时：到点前玩家侧不可见、不计入未读、也不推送弹窗；到点由 NotificationSchedulerService 自动全服推送。留空或传已过去的时间表示立即发布"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "自动下架时间（ISO 8601）。到点后自动置为不可见，并清理该公告的已读回执（开关见 server/config/notification_policy.json 的 retention.delete_receipts_on_expire）。必须晚于 publishAt；留空表示长期有效"
                   }
                 }
               },
@@ -15508,6 +15524,16 @@
                     "imageUrls": [
                       "/api/uploads/announcements/ann_1730000000_ab12cd34ef56.png"
                     ]
+                  }
+                },
+                "scheduled": {
+                  "summary": "预约早间发布、当天中午自动下架",
+                  "value": {
+                    "title": "早间活动开启",
+                    "content": "今日活动 10:00 开启。",
+                    "priority": "high",
+                    "publishAt": "2026-09-23T09:00:00.000Z",
+                    "expiresAt": "2026-09-23T12:00:00.000Z"
                   }
                 }
               }
@@ -16992,7 +17018,7 @@
     "/api/admin/notifications/{id}": {
       "put": {
         "summary": "编辑通知 (GM)",
-        "description": "部分更新通知的标题 / 内容 / 优先级 / 配图。配图按“最终列表”提交：保留原有的地址即复用已上传的图片，无需重新上传；被移除的地址不会立刻删除磁盘文件（同一张图可能被别的通知引用），由 AnnouncementImageCleanupService 按保留窗口回收。",
+        "description": "部分更新通知的标题 / 内容 / 优先级 / 配图 / 定时（publishAt、expiresAt）。配图按“最终列表”提交：保留原有的地址即复用已上传的图片，无需重新上传；被移除的地址不会立刻删除磁盘文件（同一张图可能被别的通知引用），由 AnnouncementImageCleanupService 按保留窗口回收。publishAt 改成未来时间会清掉“已推送”标记，到点由调度器重新推送。notifyReaders=true 时对“已经读过这条公告的人”做重提示：重置他们的已读回执（未读红点回来）并定向推送一条更正提示，用于更正错别字或改时间。",
         "tags": [
           "Admin",
           "GM"
@@ -17044,6 +17070,23 @@
                       "type": "string"
                     },
                     "description": "配图最终列表，必须来自 POST /api/uploads/announcement-image；传空数组表示清空配图"
+                  },
+                  "publishAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "预约发布时间；传 null 表示改为立即生效。改成未来时间会清掉“已推送”标记并重新排队"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "自动下架时间；传 null 表示长期有效。必须晚于 publishAt（与库里已有的另一个时间合并后校验）"
+                  },
+                  "notifyReaders": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "是否通知“已读过这条公告的玩家”：重置其已读回执（未读红点回来）并定向推送一条更正提示。推送条数上限见 notification_policy.republish_notice.max_recipients"
                   }
                 }
               },
@@ -17084,6 +17127,16 @@
                         "after": {
                           "type": "object",
                           "description": "修改后的字段值"
+                        },
+                        "readersNotice": {
+                          "type": "object",
+                          "nullable": true,
+                          "description": "勾选 notifyReaders 时才有值：{ readers 已读人数, pushed 实际推送条数, reset 是否重置了回执 }",
+                          "example": {
+                            "readers": 128,
+                            "pushed": 37,
+                            "reset": true
+                          }
                         }
                       }
                     }
@@ -17093,7 +17146,7 @@
             }
           },
           "400": {
-            "description": "标题为空 / 内容与配图同时为空 / 图片地址不合法",
+            "description": "标题为空 / 内容与配图同时为空 / 图片地址不合法 / 下架时间早于发布时间",
             "content": {
               "application/json": {
                 "example": {
@@ -80638,6 +80691,355 @@
           },
           "403": {
             "description": "抽奖功能未开放"
+          }
+        }
+      }
+    },
+    "/api/admin/system-logs/sources": {
+      "get": {
+        "tags": [
+          "管理员-后台日志"
+        ],
+        "summary": "获取日志源列表、查看器选项与告警状态",
+        "description": "返回 config/system_log_viewer.json 中登记的日志源（是否可读、体积、最后修改时间、是否配置有误）以及前端渲染所需的全部选项：默认/最大行数、行数选项、级别枚举（含中文名）、轮询间隔选项、缓冲区上限、彩色输出分词规则（highlight_rules）、错误日志飞书告警状态（alert）。前端据此渲染筛选栏与告警条，不硬编码任何阈值或文案。可读范围受白名单与 allowed_extensions（默认仅 .log）双重限制。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "日志源、选项与告警状态",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "sources": [
+                      {
+                        "id": "startup_backend",
+                        "name": "后端启动日志",
+                        "file": "logs/startup_backend.log",
+                        "description": "scripts/run-server.bat 用 tee.js 抓下来的后端控制台全文（本机开发默认看这个）",
+                        "exists": true,
+                        "size": 99514,
+                        "modified_at": "2026-09-23T10:00:00.000Z",
+                        "error": null,
+                        "misconfigured": false
+                      },
+                      {
+                        "id": "pm2_out",
+                        "name": "PM2 标准输出",
+                        "file": "server/logs/out.log",
+                        "description": "生产环境 PM2 采集的 console.log 输出（ecosystem.config.js 的 out_file）",
+                        "exists": false,
+                        "size": 0,
+                        "modified_at": null,
+                        "error": "当前不可读：ENOENT",
+                        "misconfigured": false
+                      }
+                    ],
+                    "tail_default_lines": 200,
+                    "tail_max_lines": 2000,
+                    "line_options": [
+                      100,
+                      200,
+                      500,
+                      1000,
+                      2000
+                    ],
+                    "max_keyword_length": 100,
+                    "refresh_default_interval_ms": 5000,
+                    "refresh_interval_options_ms": [
+                      2000,
+                      5000,
+                      10000,
+                      30000
+                    ],
+                    "max_buffer_lines": 5000,
+                    "levels": [
+                      {
+                        "value": "all",
+                        "label": "全部"
+                      },
+                      {
+                        "value": "error",
+                        "label": "错误"
+                      },
+                      {
+                        "value": "warn",
+                        "label": "警告"
+                      },
+                      {
+                        "value": "debug",
+                        "label": "调试"
+                      },
+                      {
+                        "value": "info",
+                        "label": "信息"
+                      }
+                    ],
+                    "highlight_rules": [
+                      {
+                        "kind": "prefix",
+                        "pattern": "^\\d+\\|[^|]*\\|\\s*"
+                      },
+                      {
+                        "kind": "time",
+                        "pattern": "\\d{4}[-/]\\d{2}[-/]\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}"
+                      },
+                      {
+                        "kind": "error",
+                        "flags": "gi",
+                        "pattern": "\\[ERROR\\]|[A-Za-z]*(?:Error|Exception)\\b|失败"
+                      },
+                      {
+                        "kind": "success",
+                        "flags": "gi",
+                        "pattern": "\\bready\\b|成功|完成"
+                      },
+                      {
+                        "kind": "url",
+                        "pattern": "https?://[^\\s\"']+"
+                      },
+                      {
+                        "kind": "number",
+                        "pattern": "\\b\\d+(?:\\.\\d+)?\\b"
+                      }
+                    ],
+                    "alert": {
+                      "enabled": true,
+                      "levels": [
+                        "error"
+                      ],
+                      "sources": [
+                        "startup_backend",
+                        "pm2_out",
+                        "pm2_error"
+                      ],
+                      "webhook_configured": true,
+                      "webhook_env": "FEISHU_LOG_ALERT_WEBHOOK",
+                      "poll_interval_ms": 15000,
+                      "min_interval_ms": 60000,
+                      "dedupe_window_ms": 300000,
+                      "max_lines_per_alert": 5,
+                      "max_alerts_per_hour": 20
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "权限不足（需要管理员权限）/ 功能已在配置中关闭",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 403,
+                  "error_code": "FEATURE_DISABLED",
+                  "message": "后台日志查看功能已在配置中关闭（system_log_viewer.enabled）"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/system-logs/tail": {
+      "get": {
+        "tags": [
+          "管理员-后台日志"
+        ],
+        "summary": "抓取日志尾部内容（快照 / 增量跟随）",
+        "description": "只读读取指定日志源的尾部内容（绝不修改/清空日志文件）。不传 offset 时为快照模式：回扫文件末尾若干字节（上限 max_read_bytes），按级别/关键词过滤后返回最近 lines 行。传 offset 时为增量模式：只返回该偏移之后的新增内容，用于实时跟随。返回的 offset 永远停在某个换行之后，可直接作为下次轮询入参；pending 是尚未以换行结尾的临时行（可能正在写入），下次轮询会被完整行替换；rotated 表示文件被清空/轮转，已自动从头跟随。source 只接受 /sources 列出的 id，不接受任意路径；文件必须位于项目目录内且后缀为 .log。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "日志源 id（取值见 /sources 接口）"
+          },
+          {
+            "name": "lines",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 200,
+              "minimum": 1
+            },
+            "description": "返回行数上限（默认取配置 tail_default_lines，超过 tail_max_lines 会被夹到上限）"
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "error",
+                "warn",
+                "info",
+                "debug"
+              ],
+              "default": "all"
+            },
+            "description": "按行级别过滤，判定规则来自配置 system_log_viewer.levels"
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "关键词过滤（不区分大小写，长度上限 max_keyword_length）"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "字节偏移（上次响应返回的 offset）。传了即按增量模式，只返回新增内容"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "日志内容",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "data": {
+                    "source": "startup_backend",
+                    "file": "logs/startup_backend.log",
+                    "size": 99514,
+                    "offset": 99514,
+                    "rotated": false,
+                    "scanned": 200,
+                    "matched": 12,
+                    "returned": 12,
+                    "truncated": false,
+                    "modified_at": "2026-09-23T10:00:00.000Z",
+                    "pending": "",
+                    "lines": [
+                      {
+                        "level": "info",
+                        "text": "[SectWarService] 状态转移日志检查完成，检查 12 个玩家，修复 0 个异常"
+                      },
+                      {
+                        "level": "error",
+                        "text": "[CultivationService] 结算失败: Error: 玩家状态已变更"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误（未知日志源 / 路径越界 / 后缀不在白名单 / 目标不是文件）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "VALIDATION_ERROR",
+                  "message": "未知的日志源: foo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "权限不足（需要管理员权限）"
+          },
+          "404": {
+            "description": "日志文件当前不可读（不存在或无权限）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 404,
+                  "error_code": "NOT_FOUND",
+                  "message": "日志文件当前不可读（server/logs/error.log）：ENOENT"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/system-logs/alert/test": {
+      "post": {
+        "tags": [
+          "管理员-后台日志"
+        ],
+        "summary": "发送飞书测试告警",
+        "description": "往 config/system_log_viewer.json 的 alert 段所配的飞书机器人 webhook 发一条测试卡片，用于确认告警通道真的通（告警平时不出声，等出事才发现 webhook 写错就晚了）。webhook 地址优先取环境变量（alert.webhook_env，默认 FEISHU_LOG_ALERT_WEBHOOK，建议放 server/.env），配置里的 alert.webhook_url 仅作本地调试兜底。发送成功会记一条管理员操作日志 test_log_alert。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "测试告警已发送",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "测试告警已发送到飞书，请查看群消息",
+                  "data": {
+                    "sent": true,
+                    "webhook_configured": true,
+                    "message": "测试告警已发送到飞书，请查看群消息"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "未配置 webhook",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 400,
+                  "error_code": "CONFIG_ERROR",
+                  "message": "未配置飞书 webhook：请设置环境变量 FEISHU_LOG_ALERT_WEBHOOK（推荐，见 server/.env）或配置 system_log_viewer.alert.webhook_url"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "权限不足（需要管理员权限）"
+          },
+          "502": {
+            "description": "飞书接口拒绝了这条消息（webhook 失效 / 机器人被移除 / 触发频率限制）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 502,
+                  "error_code": "SERVICE_UNAVAILABLE",
+                  "message": "飞书告警发送失败：sign match fail or timestamp is not within one hour from current time"
+                }
+              }
+            }
           }
         }
       }

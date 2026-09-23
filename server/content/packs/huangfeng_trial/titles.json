@@ -1,0 +1,23 @@
+{
+  "dataset": "titles",
+  "into": "root",
+  "comment": "两档称号，都由本资料的成就发放（reward.title_id）。bonuses 里的键必须是 stat_definitions 注册过的属性 —— 称号加成走属性引擎第 40 站（game/stats/providers.js 的 title 站），写一个没注册的键就是「戴着称号却没有加成」那种静默空转，启动期的属性键校验会点名。condition 一栏是给人看的来路说明，真正的判定在成就那边（title 本身不含条件字段被代码读）。",
+  "add": [
+    {
+      "id": "huangfeng_guest_elder",
+      "name": "黄枫谷客卿",
+      "quality": "epic",
+      "description": "不以门资论，只以丹成论。谷中见这枚称号，知是丹心上人，藏经阁与丹房随心出入。",
+      "condition": "完成成就「丹心不辍」（炼丹十五次）",
+      "bonuses": { "sense": 30, "cultivate_speed_pct": 12 }
+    },
+    {
+      "id": "huangfeng_artificer",
+      "name": "黄枫谷器师",
+      "quality": "rare",
+      "description": "试艺场上亲手炼出一件像样法器的人，才佩得起这二字。器道一途，谷中认手不认证。",
+      "condition": "完成成就「器道通名」（炼器三十次）",
+      "bonuses": { "atk_pct": 4, "def_pct": 4 }
+    }
+  ]
+}

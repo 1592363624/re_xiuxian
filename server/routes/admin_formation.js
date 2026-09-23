@@ -26,6 +26,9 @@ const PlayerFormation = require('../models/playerFormation');
 const AdminLog = require('../models/admin_log');
 const auth = require('../middleware/auth');
 const FormationService = require('../game/services/FormationService');
+// 名字表可能是两种形状：基础配置里是字符串，资料片经 map 集合补的是 {id,label} 对象。
+// 一律过 contentLabel，否则资料片加一档流派/品级之后后台会印 [object Object]。
+const { contentLabel } = require('../game/content/ContentRegistry');
 const { infrastructure } = require('../modules');
 const { ErrorCodes } = require('../middleware/errorHandler');
 
@@ -116,9 +119,9 @@ router.get('/player/:playerId', auth, adminCheck, async (req, res, next) => {
                 formation_id: pf.formation_id,
                 formation_name: f?.name || pf.formation_id,
                 category: f?.category,
-                category_display: f ? (cfg.global.category_display_names?.[f.category] || f.category) : null,
+                category_display: f ? contentLabel(cfg.global.category_display_names?.[f.category], f.category) : null,
                 grade: f?.grade,
-                grade_display: f ? (cfg.global.grade_display_names?.[f.grade] || f.grade) : null,
+                grade_display: f ? contentLabel(cfg.global.grade_display_names?.[f.grade], f.grade) : null,
                 proficiency: pf.proficiency,
                 learned_at: pf.learned_at,
                 is_active: player.active_formation_id === pf.formation_id

@@ -39,12 +39,47 @@ const sequelize = require('../../config/database');
 const InventoryService = require('./InventoryService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const { itemName, withItemNames } = require('../items/itemNaming');
+// 产出区间与称号都过内容兼容层：基础配置写的是 `[min,max]` / 裸字符串，
+// 而资料片经 map 集合追加的条目必然是对象（`{id, value:[min,max]}`）—— 两种形状都要认，
+// 否则资料片加的那一档会在"发钱那一步"算成 NaN（详见 ContentRegistry.contentRange 的注释）。
+const { contentRange, contentList, contentLabel } = require('../content/ContentRegistry');
 const { Op } = require('sequelize');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 
 class GamblingStoneService {
     static _initialized = false;
-    static _config = null;
+    static _loader = null;
+    static _configCache = null;
+    static _configOverride = null;
+
+    /**
+     * `_config` 每次读都现读，而不是把那份对象永久留在类变量里（与 PuppetService 同一套，2026-09-23）。
+     *
+     * 为什么：`hotUpdateConfig` 换的是缓存里的**对象引用**，initialize 时抓到的那一份会一直用到重启。
+     * 赌石这一坨内容里有品质档序（`_qualityKeys` 按 `tier` 排）、切法清单（`cutMethodKeys`，
+     * 路由层直接拿它当白名单）、线索表与产出池 —— 后台装了新资料片之后如果还读旧内容，
+     * 表现是"新切法被路由挡掉、新品质被当成不在表里"，而且没有任何一处报错。
+     *
+     * 两条例外照抄 PuppetService：没注入过 loader（离线脚本、单测）返回 null 不猜配置；
+     * 读过之后某一次抛，沿用上一份好缓存并 warn，而不是让整条玩法链变成 undefined。
+     * 单测要喂假配置：赋 `GamblingStoneService._config = {...}`（走 setter），收尾赋 null。
+     */
+    static get _config() {
+        if (this._configOverride) return this._configOverride;
+        if (!this._loader) return this._configCache;
+        const fresh = this._loader.peekConfig
+            ? this._loader.peekConfig('gambling_stone_data')
+            : (() => { try { return this._loader.getConfig('gambling_stone_data'); } catch { return null; } })();
+        if (fresh) {
+            this._configCache = fresh;
+            return fresh;
+        }
+        return this._configCache;
+    }
+
+    static set _config(value) {
+        this._configOverride = value;
+    }
 
     /**
      * 可切的切法清单以内容为准（`gambling_stone_data.cut_methods`）。
@@ -71,15 +106,19 @@ class GamblingStoneService {
     }
 
     /**
-     * 初始化服务（从 ConfigLoader 读取 gambling_stone_data 配置）
+     * 初始化服务（记下 ConfigLoader；配置本身每次现读，见上面 `_config`）
      * @param {Object} configLoaderInstance - ConfigLoader 实例
      */
     static initialize(configLoaderInstance) {
-        this._config = configLoaderInstance.getConfig('gambling_stone_data');
-        if (!this._config) {
+        this._loader = configLoaderInstance;
+        const loaded = configLoaderInstance.peekConfig
+            ? configLoaderInstance.peekConfig('gambling_stone_data')
+            : (() => { try { return configLoaderInstance.getConfig('gambling_stone_data'); } catch { return null; } })();
+        if (!loaded) {
             console.warn('[GamblingStoneService] gambling_stone_data 配置未加载');
             return;
         }
+        this._configCache = loaded;
         this._initialized = true;
         console.log('[GamblingStoneService] 赌石系统服务初始化完成');
     }
@@ -191,7 +230,40 @@ class GamblingStoneService {
     }
 
     /**
-     * 生成单块原石的4维线索（含假线索博弈）
+     * 线索维度清单以内容为准（`gambling_stone_data.clues` 里带 `values` 的那几档）。
+     *
+     * 以前这里写死 `['crust','weight','aura','color']`，而 `clues` 整块是内容 ——
+     * 于是资料片加一个第五维（比如"石温"）会**静静不出现**，删掉或改名一维则 `clueCfg[dim].values`
+     * 当场抛（服务把异常吞成"服务器内部错误"，玩家看到的是切不开石头）。
+     * `_` 前缀的是注释/参数（`_fake_comment`、`fake_probability` 不是维度，它没有 values）。
+     * @returns {string[]}
+     */
+    static _clueDimensions() {
+        const clues = this._config?.clues || {};
+        return Object.entries(clues)
+            .filter(([key, cfg]) => !key.startsWith('_') && cfg && Array.isArray(cfg.values) && cfg.values.length >= 2)
+            .map(([key]) => key);
+    }
+
+    /**
+     * 线索的对外投影：`[{key, name, value}]`，顺序与维度都跟着内容走（2026-09-23）。
+     *
+     * 为什么不发 `{crust:…, weight:…}` 那种对象：客户端就得再抄一份"哪四维、各叫什么"，
+     * 于是资料片加第五维时服务端算进去了、界面上看不见（和灵兽 rarity 下拉、傀儡 blueprint_key
+     * 同一族）。发有序行 + 名字，界面只负责排布与配色（配色是纯展示，留在客户端按位次取）。
+     * 中文名每次从内容现算，改名不用刷库 —— 库里那份 `player_stone_records.clues` 只有值。
+     */
+    static _clueRowsOf(clues = {}) {
+        const dict = this._config?.clues || {};
+        return this._clueDimensions().map(dim => ({
+            key: dim,
+            name: contentLabel(dict[dim], dim),
+            value: clues[dim] ?? null
+        }));
+    }
+
+    /**
+     * 生成单块原石的品质线索（含假线索博弈）
      * @param {string} realQuality - 真实品质
      * @param {number} skillLevel - 玩家赌石熟练度（影响假线索概率）
      * @param {string} origin - 产地（诅咒矿脉会反向线索）
@@ -200,22 +272,33 @@ class GamblingStoneService {
      */
     static _generateClues(realQuality, skillLevel, origin) {
         const clueCfg = this._config.clues;
-        const qualities = this._config.qualities;
         const qualityList = this._qualityKeys();
         const realQualityIdx = qualityList.indexOf(realQuality);
 
-        // 假线索基础概率30%，熟练度每级降低0.5%
-        const fakeProb = Math.max(0.05, clueCfg.fake_probability - skillLevel * clueCfg.fake_reduction_per_level);
+        // 假线索基础概率 30%，熟练度每级降低 0.5%（减幅在 `skill` 那一节，与 rare_bonus_per_10_level 同一处）
+        //
+        // 这行以前写的是 `clueCfg.fake_reduction_per_level` —— 那个键根本不在 clues 里（内容把它放在
+        // `skill.fake_reduction_per_level = 0.005`，就在它旁边那三个键的同一节里），于是
+        // `0.3 - 熟练度 × undefined` = NaN，`Math.max(0.05, NaN)` 也是 NaN，
+        // 而 `Math.random() < NaN` 恒 false —— **"每条线索 30% 是假的"这一层博弈从来没触发过**，
+        // 赌石实际是纯读表：线索永远真、熟练度永远没用（内容里那句 `_fake_comment`
+        // 与熟练度那一整条成长线都在描述一个不存在的行为）。修好它等于把这条玩法线从 0% 假线索
+        // 变成 30%（满级 100 级降到 5% 下限），玩家可见，所以进了 docs/待业主拍板清单.md。
+        const fakeProbBase = Number(clueCfg.fake_probability);
+        const fakeReduction = Number(this._config.skill?.fake_reduction_per_level);
+        const fakeProb = Number.isFinite(fakeProbBase) && Number.isFinite(fakeReduction)
+            ? Math.min(1, Math.max(0.05, fakeProbBase - Math.max(0, Number(skillLevel) || 0) * fakeReduction))
+            : 0;
         // 诅咒矿脉额外增加10%假线索概率
         const isCursed = origin === 'cursed_vein';
 
         const clues = {};
         const fakes = [];
 
-        for (const dim of ['crust', 'weight', 'aura', 'color']) {
+        for (const dim of this._clueDimensions()) {
             const values = clueCfg[dim].values;
             // 真实线索：按品质档位对应线索档位（品质越高，线索档位越高）
-            let trueIdx = Math.min(realQualityIdx, values.length - 1);
+            let trueIdx = Math.min(Math.max(realQualityIdx, 0), values.length - 1);
             // 诅咒矿脉反向：高品质显示低线索，低品质显示高线索
             if (isCursed) {
                 trueIdx = values.length - 1 - trueIdx;
@@ -224,12 +307,13 @@ class GamblingStoneService {
             // 判定是否为假线索
             const isFake = Math.random() < fakeProb;
             if (isFake) {
-                // 假线索：随机选一个不同的档位
-                let fakeIdx;
-                do {
-                    fakeIdx = Math.floor(Math.random() * values.length);
-                } while (fakeIdx === trueIdx);
-                clues[dim] = values[fakeIdx];
+                // 假线索：在"与真值不同的那些档位"里挑一个。
+                // 不用 `do { 重抽 } while (抽到同一个)`：那种写法一旦 RNG 退化就转死循环
+                // （探针把 Math.random 钉成 0 时，只要 trueIdx 也是 0 就永远出不来 —— 本轮实测挂过一次），
+                // 而且它重抽的次数不固定，等于让"随机分布"依赖循环次数。按偏移量取一次成型：
+                // offset ∈ 1..len-1 与 len 互配，(trueIdx+offset) % len 恰好遍历除真值外的每一档各一次。
+                const offset = 1 + (Math.floor(Math.random() * (values.length - 1)) % (values.length - 1));
+                clues[dim] = values[(trueIdx + offset) % values.length];
                 fakes.push(dim);
             } else {
                 clues[dim] = values[trueIdx];
@@ -278,8 +362,13 @@ class GamblingStoneService {
         };
 
         // 2. 基础产出：灵石 + 修为（每块原石必出，受品质yield_multiplier和切法loss_rate影响）
-        const stoneRange = pools.spirit_stones[quality];
-        const cultRange = pools.cultivation[quality];
+        //    区间经 contentRange 取形：资料片经 map 集合加的池子是 `{id,value:[min,max]}` 那种对象
+        const stoneRange = contentRange(pools.spirit_stones?.[quality]);
+        const cultRange = contentRange(pools.cultivation?.[quality]);
+        if (!stoneRange || !cultRange) {
+            // 启动闸已经拦过"每一档都必须有区间"，这里再响一次是为了不静默发 NaN 出去
+            throw new Error(`gambling_stone_data.yield_pools 缺品质 "${quality}" 的 ${stoneRange ? 'cultivation' : 'spirit_stones'} 区间`);
+        }
         let baseStones = stoneRange[0] + Math.floor(Math.random() * (stoneRange[1] - stoneRange[0] + 1));
         let baseCult = cultRange[0] + Math.floor(Math.random() * (cultRange[1] - cultRange[0] + 1));
 
@@ -301,9 +390,10 @@ class GamblingStoneService {
         yieldData.spirit_stones = baseStones;
         yieldData.cultivation = baseCult;
 
-        // 3. 材料产出（50%概率出材料）
+        // 3. 材料产出（50%概率出材料）—— 池子经 contentList 取形（基础配置是裸数组，
+        //    资料片经 map 集合新加一档品质的池子时只能写成 `{id, items:[...]}` 对象）
         if (Math.random() < 0.5) {
-            const materialPool = pools.materials[quality];
+            const materialPool = contentList(pools.materials?.[quality]);
             if (materialPool && materialPool.length > 0) {
                 const picked = this._weightedPick(materialPool);
                 const qty = picked.min + Math.floor(Math.random() * (picked.max - picked.min + 1));
@@ -315,7 +405,7 @@ class GamblingStoneService {
         }
 
         // 4. 稀有掉落判定
-        const rarePool = pools.rare_drops[quality];
+        const rarePool = contentList(pools.rare_drops?.[quality]);
         if (rarePool && rarePool.length > 0) {
             // 稀有掉落概率：基础chance + 品质rare_chance_bonus + 熟练度每10级+1%
             const skillBonus = Math.floor(skillLevel / 10) * cfg.skill.rare_bonus_per_10_level;
@@ -385,10 +475,14 @@ class GamblingStoneService {
      */
     static _getSkillTitle(level) {
         const titles = this._config.skill.level_titles;
-        let title = titles['0'];
-        for (const lv of Object.keys(titles).map(Number).sort((a, b) => b - a)) {
+        // 两种形状都认：基础配置是裸字符串，资料片经 map 集合加的是 `{id:'20', label:'铁口直断'}`
+        // （不过 contentLabel 的话，资料片那一档称号会印成 [object Object]）
+        const labelOf = value => contentLabel(value, null);
+        const thresholds = Object.keys(titles || {}).map(Number).filter(Number.isFinite).sort((a, b) => b - a);
+        let title = labelOf((titles || {})['0']) || '赌石新手';
+        for (const lv of thresholds) {
             if (level >= lv) {
-                title = titles[lv.toString()];
+                title = labelOf(titles[lv.toString()]) ?? title;
                 break;
             }
         }
@@ -512,12 +606,7 @@ class GamblingStoneService {
                     quality: displayQuality,
                     quality_name: qualityCfg.name,
                     base_price: stone.base_price,
-                    clues: {
-                        crust: clues.crust,
-                        weight: clues.weight,
-                        aura: clues.aura,
-                        color: clues.color
-                    },
+                    clue_rows: this._clueRowsOf(clues),
                     generated_at: stone.generated_at
                 });
             }
@@ -565,12 +654,7 @@ class GamblingStoneService {
                     quality_name: this._config.qualities[s.quality]?.name || s.quality,
                     quality_color: this._config.qualities[s.quality]?.color || '#9ca3af',
                     base_price: s.base_price,
-                    clues: {
-                        crust: clues.crust,
-                        weight: clues.weight,
-                        aura: clues.aura,
-                        color: clues.color
-                    },
+                    clue_rows: this._clueRowsOf(clues),
                     is_listed: s.is_listed === 1,
                     listing_price: s.listing_price ? s.listing_price.toString() : null,
                     generated_at: s.generated_at
@@ -618,12 +702,7 @@ class GamblingStoneService {
                     quality_name: this._config.qualities[stone.quality]?.name,
                     quality_color: this._config.qualities[stone.quality]?.color,
                     base_price: stone.base_price,
-                    clues: {
-                        crust: { name: this._config.clues.crust.name, value: clues.crust },
-                        weight: { name: this._config.clues.weight.name, value: clues.weight },
-                        aura: { name: this._config.clues.aura.name, value: clues.aura },
-                        color: { name: this._config.clues.color.name, value: clues.color }
-                    },
+                    clue_rows: this._clueRowsOf(clues),
                     is_listed: stone.is_listed === 1,
                     listing_price: stone.listing_price ? stone.listing_price.toString() : null,
                     generated_at: stone.generated_at,
@@ -1114,12 +1193,14 @@ class GamblingStoneService {
             const qualityList = this._qualityKeys();
             const realQualityIdx = qualityList.indexOf(realQuality);
 
-            // 随机选一个维度透示真实线索
-            const dims = ['crust', 'weight', 'aura', 'color'];
+            // 随机选一个维度透示真实线索（维度清单按内容，见 _clueDimensions）
+            const dims = this._clueDimensions();
+            if (!dims.length) return { success: false, message: '线索维度表是空的，无法透示' };
             const pickedDim = dims[Math.floor(Math.random() * dims.length)];
             const values = this._config.clues[pickedDim].values;
             const isCursed = stone.origin === 'cursed_vein';
-            let trueIdx = Math.min(realQualityIdx, values.length - 1);
+            // 品质在档序里找不到时按最低档处理（以前是 -1 下标 → 给玩家念一句「undefined」）
+            let trueIdx = Math.min(Math.max(realQualityIdx, 0), values.length - 1);
             if (isCursed) trueIdx = values.length - 1 - trueIdx;
             const trueValue = values[trueIdx];
 

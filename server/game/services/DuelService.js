@@ -272,9 +272,15 @@ class DuelService {
             target.spirit_stones = targetStones - betBig;
 
             // 更新发起方 stats（每日次数累加、冷却时间记录）
-            challengerStats.duel_count = dailyCount + 1;
-            challengerStats.duel_last_time = new Date().toISOString();
-            challenger.stats = challengerStats;
+            // 走 PlayerStateStore.setStatKeys 的**键级**补丁：以前是"读整份 stats、改两格、再把整份赋回这一列"，
+            // 那一形状态今天安全（双方行都在本事务里 FOR UPDATE 锁着），但它会盖掉同一事务里
+            // 任何更早的键级补丁，而且一旦有人把取实例改成锁外读就真的变成"旧快照覆盖新快照"。
+            // 计数与同日标记必须一起写（拆两笔会出现"计数涨了、日期标记还是昨天"的半态）。
+            await PlayerStateStore.setStatKeys(challenger, {
+                duel_count: dailyCount + 1,
+                duel_last_date: challengerStats.duel_last_date,
+                duel_last_time: new Date().toISOString()
+            }, { transaction: t });
 
             // 双方开局 HP/MP 取统一解析后的上限（含装备/功法等）。
             // 旧实现读 attributes.hp_max 这份陈旧快照，决斗一开始就按错误的血量上限打。

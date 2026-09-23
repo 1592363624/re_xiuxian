@@ -36,6 +36,7 @@ const sequelize = require('../config/database');
 const { infrastructure } = require('../modules');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { ensureStatRegistryLoaded } = require('../game/stats');
+const { FALLBACK, rarityMap, vocabularyForApi } = require('../game/stats/beastRarity');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -87,8 +88,15 @@ function findBeastType(beastKey) {
     return (config?.beast_types || []).find(bt => bt.beast_key === beastKey) || null;
 }
 
+/** 灵兽属性词表（spirit_beast_data.elements）里的中文名；查不到退回内容层那套兜底 */
+function elementLabel(element) {
+    const elements = configLoader.getConfig('spirit_beast_data')?.elements || {};
+    return elements[element]?.name || element;
+}
+
 /**
  * 格式化灵兽对象为响应数据
+
  * 统一处理 BigInt 字段序列化与玩家信息拼装
  * @param {Object} beast - SpiritBeast 模型实例
  * @param {Object} [player] - 关联的 Player 模型实例（可选）
@@ -96,6 +104,7 @@ function findBeastType(beastKey) {
  */
 function formatBeast(beast, player) {
     if (!beast) return null;
+    const rarities = rarityMap(configLoader);
     return {
         beast_id: beast.id,
         player_id: beast.player_id,
@@ -105,7 +114,13 @@ function formatBeast(beast, player) {
         beast_key: beast.beast_key,
         beast_name: beast.beast_name,
         element: beast.element,
+        element_name: elementLabel(beast.element),
         rarity: beast.rarity,
+        // 档名与配色由内容下发：以前后台界面自己抄了一份"凡品/灵品/宝品/仙品"+四个 tailwind 类，
+        // 资料片加一档就会印裸键、并且没有颜色（GM 连筛都筛不到它）。
+        rarity_name: rarities[beast.rarity]?.label || FALLBACK.label,
+        rarity_color: rarities[beast.rarity]?.color || FALLBACK.color,
+        rarity_order: rarities[beast.rarity]?.order ?? 0,
         star_level: beast.star_level,
         level: beast.level,
         exp: beast.exp?.toString() || '0',
@@ -113,6 +128,8 @@ function formatBeast(beast, player) {
         atk: beast.atk,
         def: beast.def,
         speed: beast.speed,
+        // 没有专属列的属性整块外发（GM 面板按注册表标签渲染，不必每加一档属性就改一次这里）
+        extra_stats: beast[SpiritBeastService.STAT_BLOB_COLUMN] || {},
         loyalty: beast.loyalty,
         is_active: beast.is_active,
         last_feed_time: beast.last_feed_time,
@@ -202,9 +219,9 @@ router.get('/stats', auth, adminCheck, async (req, res, next) => {
             : [];
         const playerMap = new Map(topPlayerInfos.map(p => [p.id, p]));
 
-        // 读取配置用于展示稀有度中文名
+        // 读取词表用于展示稀有度/属性的中文名与配色（整份词表也一起下发，界面不再自己抄档位清单）
         const config = configLoader.getConfig('spirit_beast_data');
-        const rarityConfig = config?.rarity_config || {};
+        const rarities = rarityMap(configLoader);
         const elementsConfig = config?.elements || {};
 
         res.json({
@@ -214,14 +231,18 @@ router.get('/stats', auth, adminCheck, async (req, res, next) => {
                 active_beasts: activeBeasts,
                 players_with_beasts: playersWithBeasts,
                 today_new_beasts: todayNewBeasts,
+                // 词表全档都发（0 也发）：只发"有灵兽的档"会让 GM 看不出这一档还没内容
+                rarities: vocabularyForApi(configLoader),
                 rarity_distribution: rarityDistribution.map(r => ({
                     rarity: r.rarity,
-                    rarity_name: rarityConfig[r.rarity]?.name || r.rarity,
+                    rarity_name: rarities[r.rarity]?.label || FALLBACK.label,
+                    rarity_color: rarities[r.rarity]?.color || FALLBACK.color,
                     count: Number(r.count)
                 })),
                 element_distribution: elementDistribution.map(e => ({
                     element: e.element,
                     element_name: elementsConfig[e.element]?.name || e.element,
+                    element_color: elementsConfig[e.element]?.color || null,
                     count: Number(e.count)
                 })),
                 breed_distribution: breedDistribution.map(b => ({
@@ -630,11 +651,13 @@ router.put('/beasts/:beastId', auth, adminCheck, async (req, res, next) => {
             changes.is_active = { from: beast.is_active, to: newActive };
         }
 
-        // 可手改的属性 = 属性注册表里的键 ∩ spirit_beasts 上真有的列（现在是 hp_max/atk/def/speed）。
-        // 这么取有两个好处：注册表新加一档属性、又给表加了列，这里不用改就认得；
-        // 反过来"注册了但没列"的属性不会悄悄丢掉 —— 下面单独点名拒掉，因为加列属于改表，要先走授权。
+        // 可手改的属性 = 属性注册表里的键：spirit_beasts 上有列的写列，没有列的写进 stat_block 属性块。
+        // 这么取有两个好处：注册表新加一档属性，这里不用改就认得；
+        // 反过来"注册表不认识的名字"不会被当成属性改掉任何东西。
         const statRegistry = ensureStatRegistryLoaded();
-        const statColumns = Object.keys(SpiritBeast.rawAttributes).filter(name => statRegistry.has(name));
+        const blobColumn = SpiritBeastService.STAT_BLOB_COLUMN;
+        const statColumns = Object.keys(SpiritBeast.rawAttributes)
+            .filter(name => name !== blobColumn && statRegistry.has(name));
         for (const field of statColumns) {
             if (req.body[field] === undefined) continue;
             const isBigInt = /BIGINT/i.test(String(SpiritBeast.rawAttributes[field].type));
@@ -659,15 +682,23 @@ router.put('/beasts/:beastId', auth, adminCheck, async (req, res, next) => {
             changes[field] = { from: isBigInt ? (beast[field]?.toString() || '0') : beast[field], to: stored };
         }
 
-        // 传了注册表认得、但这张表没有列的属性：明说，别当没看见（只改名字顺带传个 mdef 时最容易漏）
-        const dropped = Object.keys(req.body)
+        // 注册表认识、但这张表没有专属列的属性：住在 stat_block 属性块里（migration_0088 之后才成立）。
+        // 必须按现有块合并再整块写回 —— 直接赋新对象会把同块里其它属性抹掉，
+        // 那正是"旧快照覆盖新快照"在这一列上的形状。
+        const blobKeys = Object.keys(req.body)
             .filter(key => statRegistry.has(key) && !statColumns.includes(key));
-        if (dropped.length) {
-            throw new AppError(
-                `这些属性改不了，因为 spirit_beasts 上没有对应列：${dropped.join('/')}。`
-                + `当前可改的列：${statColumns.join('/')}（要给灵兽加一档属性 = 先加列，改表需要授权）`,
-                400, ErrorCodes.VALIDATION_ERROR
-            );
+        if (blobKeys.length) {
+            const before = { ...(beast[blobColumn] || {}) };
+            const merged = { ...before };
+            for (const key of blobKeys) {
+                const value = Number(req.body[key]);
+                if (!Number.isFinite(value) || value < 0) {
+                    throw new AppError(`${key} 必须为非负数`, 400, ErrorCodes.VALIDATION_ERROR);
+                }
+                merged[key] = value;
+                changes[key] = { from: before[key] ?? null, to: value };
+            }
+            updates[blobColumn] = merged;
         }
 
         // 是否按新 level/star 重算属性
@@ -678,6 +709,9 @@ router.put('/beasts/:beastId', auth, adminCheck, async (req, res, next) => {
                 const finalStar = updates.star_level ?? beast.star_level;
                 const stats = SpiritBeastService.computeStats(beastType, finalLevel, finalStar);
                 Object.assign(updates, stats);
+                // 内容里没有"无列属性"时要把属性块清空，否则重算之后旧属性块还留在行上
+                // （玩家继续吃到已经撤掉的那一档，与列上"重算即覆盖"的口径不一致）
+                if (!(blobColumn in stats)) updates[blobColumn] = null;
                 if (updates.hp_max !== undefined) updates.hp_max = String(updates.hp_max);
                 changes.recalculated = {
                     final_level: finalLevel,

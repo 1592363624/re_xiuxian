@@ -7,6 +7,8 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const Player = require('../models/player');
+const PlayerStateStore = require('../game/persistence/PlayerStateStore');
+const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
 const SystemConfig = require('../models/system_config');
 const AdminLog = require('../models/admin_log');
 const Item = require('../models/item');
@@ -18,11 +20,14 @@ const fs = require('fs');
 const path = require('path');
 // 公告配图清理：删除通知时同步删除其落盘图片，避免 uploads 目录留下孤儿文件
 const { deleteImagesOfNotifications, getImageConfig, sanitizeImageUrls } = require('../utils/announcementImage');
-// 通知服务：删除通知时顺带清理其已读回执
+// 通知服务：删除/编辑通知、清理已读回执、对已读玩家重提示
 const NotificationService = require('../game/services/NotificationService');
+// 预约发布时间 / 自动下架时间的解析与校验
+const { parseScheduleTime, validateScheduleRange } = require('../utils/notificationSchedule');
 
 const LifespanService = require('../game/core/LifespanService');
 const RealmService = require('../game/core/RealmService');
+const PlayerService = require('../game/core/PlayerService');
 const webSocketNotificationService = require('../game/services/WebSocketNotificationService');
 // 用于 give-item 接口：通过 InventoryService.addItem 合并到已有记录，避免重复创建同 item_key 的记录
 const InventoryService = require('../game/services/InventoryService');
@@ -380,13 +385,24 @@ router.post('/give-item', auth, adminCheck, async (req, res) => {
         // 原实现 Item.create 会绕过容量检查并创建多条同 item_key 记录，导致背包数据混乱
         let itemRecordId = null;
         try {
-            await InventoryService.addItem(playerId, itemId, quantity);
-            // 查询刚写入的记录用于日志记录
-            const created = await Item.findOne({
-                where: { player_id: playerId, item_key: itemId },
-                order: [['id', 'DESC']]
-            });
-            itemRecordId = created?.id || null;
+            // 必须把事务交给 addItem：它只在有事务时才对该行 `lock: t.LOCK.UPDATE`。
+            // 无事务的写法是"读数量 → 在 JS 里加 → 整值写回"，与玩家同一时刻用掉这枚丹药的那笔互相覆盖
+            // —— GM 发物品于是能凭空把一堆材料变多（全仓 91 个 addItem/removeItem 调用点里只有这一处没传事务）。
+            const t = await sequelize.transaction();
+            try {
+                await InventoryService.addItem(playerId, itemId, quantity, t);
+                // 查询刚写入的记录用于日志记录（读也放在同一笔事务里，别拿另一份快照）
+                const created = await Item.findOne({
+                    where: { player_id: playerId, item_key: itemId },
+                    order: [['id', 'DESC']],
+                    transaction: t
+                });
+                itemRecordId = created?.id || null;
+                await t.commit();
+            } catch (inner) {
+                await t.rollback();
+                throw inner;
+            }
         } catch (addError) {
             // 容量不足或其他业务错误，直接返回 400
             return res.status(400).json({
@@ -449,8 +465,11 @@ router.post('/give-spirit-stones', auth, adminCheck, async (req, res) => {
             return res.status(404).json({ code: 404, message: '目标玩家不存在' });
         }
 
-        player.spirit_stones = (BigInt(player.spirit_stones) + BigInt(amount)).toString();
-        await player.save();
+        // 原来是"读出来 → 在 JS 里加 → 整值写回"（无事务、无行锁）：两次同时发放，
+        // 后写的那一份会按自己读到的旧余额覆盖掉前一笔 —— 少掉的钱既不报错也不自愈。
+        // 改成列上原子累加（算术交给数据库），余额再按库里那份回报。见 game/persistence/numericWriteGuard.js
+        await PlayerStateStore.grantAmount(playerId, 'spirit_stones', amount);
+        const after = await Player.findByPk(playerId);
 
         await logAdminAction(req.player.id, 'give_spirit_stones', {
             target_id: playerId,
@@ -465,7 +484,7 @@ router.post('/give-spirit-stones', auth, adminCheck, async (req, res) => {
             code: 200,
             message: '灵石发放成功',
             data: {
-                current_balance: player.spirit_stones
+                current_balance: after ? String(after.spirit_stones) : null
             }
         });
     } catch (error) {
@@ -490,8 +509,9 @@ router.post('/add-exp', auth, adminCheck, async (req, res) => {
             return res.status(404).json({ code: 404, message: '目标玩家不存在' });
         }
 
-        player.exp = (BigInt(player.exp) + BigInt(amount)).toString();
-        await player.save();
+        // 同 give-spirit-stones：修为也改成列上原子累加，别拿请求开始时那份余额当结论
+        await PlayerStateStore.grantAmount(playerId, 'exp', amount);
+        const after = await Player.findByPk(playerId);
 
         await logAdminAction(req.player.id, 'add_exp', {
             target_id: playerId,
@@ -506,7 +526,7 @@ router.post('/add-exp', auth, adminCheck, async (req, res) => {
             code: 200,
             message: '修为增加成功',
             data: {
-                current_exp: player.exp
+                current_exp: after ? String(after.exp) : null
             }
         });
     } catch (error) {
@@ -555,7 +575,10 @@ router.post('/reset-player', auth, adminCheck, async (req, res) => {
         player.toxicity = 0;
         // 原先这里赋的是 JSON.stringify(initialAttrs)，而 attributes 的 setter 会再 stringify 一次，
         // 于是库里存的是"字符串的 JSON"，getter 解出来是字符串而不是对象 —— 重置过的玩家属性全是 undefined。
-        player.attributes = initialAttrs;
+        // 2026-09-22：初值过一道 PlayerService.initialAttributeBlob（与新号同一口径），
+        // 因为 initialAttributes 里那五个旧管线输出键（atk/def/hp_max/mp_max/speed）没人读，
+        // 种进 blob 只是再埋一份会骗人的陈旧快照。
+        player.attributes = PlayerService.initialAttributeBlob(initialAttrs);
         // 同步重置死亡相关字段（避免重置后仍处于死亡状态）
         player.is_dead = false;
         player.death_reason = null;
@@ -825,18 +848,41 @@ router.delete('/players/:id', auth, adminCheck, async (req, res) => {
             return res.status(400).json({ message: '无法删除管理员账号' });
         }
 
-        await Item.destroy({ where: { player_id: req.params.id } });
-        await AdminLog.destroy({ where: { admin_id: player.id } });
+        const playerId = player.id;
+        // 先量"这个号还被谁的记录点着名"（引用列一律保留，删它们等于替活人抹历史）。
+        // 放在事务外做：那十几条只读 SELECT 不该拉长写事务的持锁时间。
+        const references = await PlayerCascadePurge.countReferences(playerId);
+        // 派生行与 players 行同生同死：这个库一个外键都没声明（Sequelize sync() 不建 FK），
+        // 以前只清两张表就删号，实测在 25 张表上留下过 925 行孤儿（记账表、排行榜、冷却都算数）。
+        // 清单由 PlayerCascadePurge 从 information_schema 现查，新增带 player_id 的表不需要改这里。
+        const t = await sequelize.transaction();
+        let purged;
+        try {
+            purged = await PlayerCascadePurge.purge(playerId, { transaction: t });
+            await AdminLog.destroy({ where: { admin_id: playerId }, transaction: t });
+            await Player.destroy({ where: { id: playerId }, transaction: t });
+            await t.commit();
+        } catch (error) {
+            await t.rollback();
+            throw error;
+        }
 
-        webSocketNotificationService.notifyPlayerUpdate(req.params.id, 'gm_delete');
+        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_delete');
 
-        await player.destroy();
-
-        await logAdminAction(req.player.id, 'delete_player', { target_id: req.params.id }, req);
+        await logAdminAction(req.player.id, 'delete_player', {
+            target_id: playerId,
+            purged_rows: purged.total,
+            purged_tables: purged.tables.length,
+            kept_references: references.map(r => `${r.table}.${r.column}=${r.rows}`)
+        }, req);
 
         res.json({
             code: 200,
-            message: '玩家删除成功'
+            message: '玩家删除成功',
+            purged: purged.tables,
+            purged_total: purged.total,
+            // "别人记着这个号"的行一律保留（删它们等于替活人抹历史），点名让 GM 自己判断
+            kept_references: references
         });
     } catch (error) {
         res.status(500).json({ message: '删除失败', error: error.message });
@@ -959,13 +1005,25 @@ const NOTIFICATION_PRIORITIES = ['low', 'normal', 'high', 'critical'];
  * 配图按"最终列表"提交（增删都在这一个数组里表达），因此重新提交原来的地址就是复用已上传的图，
  * 不需要再上传一次。
  *
+ * notifyReaders=true 时，会对"已经读过这条公告的人"做一次重提示：
+ * 重置他们的已读回执（未读红点回来）并定向推送一条站内提示 —— 用于更正错别字/改时间等场景。
+ *
  * 刻意不在这里删除被移除的配图文件：同一张图可能被其它通知引用，
  * 立刻删会连带弄坏别的公告；孤儿文件由 AnnouncementImageCleanupService 按保留窗口回收。
  */
 router.put('/notifications/:id', auth, adminCheck, async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, content, priority, imageUrls } = req.body || {};
+        const { title, content, priority, imageUrls, notifyReaders } = req.body || {};
+
+        // 时间字段只在请求体里出现时才解析（未出现 = 不改），否则编辑文字会把预约时间清成 null
+        const schedule = {};
+        if ('publishAt' in (req.body || {})) schedule.publishAt = parseScheduleTime(req.body.publishAt, '预约发布时间');
+        if ('expiresAt' in (req.body || {})) schedule.expiresAt = parseScheduleTime(req.body.expiresAt, '自动下架时间');
+        // 只校验"两个都传了"的情况：单改其中一个时，与库里另一个的关系留给下面合并后校验
+        if (schedule.publishAt && schedule.expiresAt) {
+            validateScheduleRange(schedule.publishAt, schedule.expiresAt);
+        }
 
         const SystemNotification = require('../models/system_notification');
         const notification = await SystemNotification.findByPk(id);
@@ -994,6 +1052,15 @@ router.put('/notifications/:id', auth, adminCheck, async (req, res) => {
             return res.status(400).json({ message: `优先级必须是 ${NOTIFICATION_PRIORITIES.join(' / ')}` });
         }
 
+        // 与库里另一个时间合并后再校验：只改下架时间时，也要保证它不早于已有的发布时间
+        const mergedPublishAt = 'publishAt' in schedule ? schedule.publishAt : notification.publishAt;
+        const mergedExpiresAt = 'expiresAt' in schedule ? schedule.expiresAt : notification.expiresAt;
+        try {
+            validateScheduleRange(mergedPublishAt, mergedExpiresAt);
+        } catch (error) {
+            return res.status(400).json({ message: error.message });
+        }
+
         // 写操作交给服务层：本文件同时 require 了 models/item，而 BlobColumnCensus 门禁
         // 是按"文件里 import 了哪个模型"来归属写方的 —— 在这里写 metadata 列会被误判成
         // item.metadata 多了一个写方（实际改的是 system_notifications.metadata）
@@ -1001,19 +1068,33 @@ router.put('/notifications/:id', auth, adminCheck, async (req, res) => {
             title: nextTitle,
             content: nextContent,
             priority: nextPriority,
-            imageUrls: safeImageUrls
+            imageUrls: safeImageUrls,
+            ...schedule
         });
+
+        // 重提示：重置"已读过它的人"的回执（未读红点回来）并定向推一条站内提示。
+        // 必须放在更新之后：推的内容里带的是新标题，回执重置也只能针对已存在的通知。
+        let readersNotice = null;
+        if (notifyReaders === true || notifyReaders === 'true') {
+            readersNotice = await NotificationService.notifyReadersOfUpdate({
+                id: notification.id,
+                title: nextTitle
+            });
+        }
 
         await logAdminAction(req.player.id, 'update_notification', {
             notification_id: notification.id,
             before: result.before,
-            after: result.after
+            after: result.after,
+            readersNotice
         }, req);
 
         res.json({
             code: 200,
-            message: '通知已更新',
-            data: result
+            message: readersNotice
+                ? `通知已更新，已提醒 ${readersNotice.readers} 位已读玩家`
+                : '通知已更新',
+            data: { ...result, readersNotice }
         });
     } catch (error) {
         res.status(500).json({ message: '更新失败', error: error.message });

@@ -1,0 +1,12 @@
+{
+  "dataset": "achievement_data",
+  "into": "categories",
+  "comment": "自带一档成就分组：这一格以前是 passthrough（不是集合），所以资料片只能复用现网那五个分组 —— 本轮把它登记成 map 集合，加一档分组就是一条数据。客户端成就是**按分组归堆**渲染的（标题取 categories[cat].name、图标取 .icon），所以每档必须有 name 且不能与键同名，也没有人读的 color 这一格刻意不写（启动闸 _validateAchievementCategories 会拦）。",
+  "add": [
+    {
+      "id": "trial",
+      "name": "试艺",
+      "icon": "🏅"
+    }
+  ]
+}

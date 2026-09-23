@@ -39,6 +39,10 @@ const { Op } = require('sequelize');
 const RealmService = require('../core/RealmService');
 const WebSocketNotificationService = require('./WebSocketNotificationService');
 const PlayerStateMachine = require('../state/PlayerStateMachine');
+// 夺舍继承要按"解析出来的真实属性"算，血蓝要写 players 的列，所以这两层是这条链的依赖：
+const CombatResolver = require('../combat/CombatResolver');
+const { patchPlayerState, mirrorPatchedBlob } = require('../persistence/PlayerStateStore');
+const sensePool = require('../core/sensePool');
 
 // 夺舍状态机枚举值（与 registrations/reincarnation.js 中保持一致）
 const REINCARNATION_STATE_ENUM = 'REINCARNATING';
@@ -81,14 +85,53 @@ function weightedRandomPickN(pool, count) {
 }
 
 /**
+ * 夺舍要继承的属性档位：注册表属性键 → 目标内容里的字段名。
+ * 只有这四档进"继承"，sense（神识池）是另一种东西——它是可花掉的资源，不是属性加成。
+ */
+const INHERIT_STAT_FIELDS = [
+    { stat: 'atk', targetField: 'base_atk' },
+    { stat: 'def', targetField: 'base_def' },
+    { stat: 'hp_max', targetField: 'base_hp_max' },
+    { stat: 'speed', targetField: 'base_speed' }
+];
+
+/**
+ * 夺舍继承的属性换算（纯函数，逐格可测）。
+ *
+ * 口径：夺舍后这一档的**目标总值** = floor(夺舍前真实总值 × inherit_ratio) + 这具身体自己的底子。
+ * 差多少补多少（写进 attributes.reincarnation_bonus，由属性引擎当成一个独立来源吃进），
+ * 补不出来（装备/功法已经给得更多）就写 0 —— 继承只托底，不会反过来扣掉玩家已有的东西。
+ *
+ * 三个入参都必须是**解析出来的属性**（CombatResolver.resolveCombatStats 的 stats），
+ * 不能是 players.attributes 里的 atk/def/hp_max 那几个旧输出键：那是一份建号时写下的快照，
+ * 拿它算继承等于按一个玩家从来没有过的数字给他加属性。
+ *
+ * @param {Object} origin   夺舍前（原境界）的解析属性
+ * @param {Object} target   夺舍目标内容（inherit_ratio + base_atk/base_def/base_hp_max/base_speed）
+ * @param {Object} postDrop 跌到新境界、且把**上一次**夺舍的继承清零后的解析属性
+ * @returns {{bonus: Object, totals: Object}} bonus=要落库的存储值，totals=夺舍后应当生效的总值
+ */
+function inheritanceOf(origin, target, postDrop) {
+    const ratio = Number(target?.inherit_ratio);
+    const bonus = {};
+    const totals = {};
+    if (!Number.isFinite(ratio) || ratio <= 0) return { bonus, totals };   // 目标没配比例 = 不继承，旧的继承账一并清掉
+    for (const { stat, targetField } of INHERIT_STAT_FIELDS) {
+        const intended = Math.floor((Number(origin?.[stat]) || 0) * ratio) + (Number(target?.[targetField]) || 0);
+        const already = Number(postDrop?.[stat]) || 0;
+        totals[stat] = Math.max(already, intended);
+        bonus[stat] = Math.max(0, intended - already);
+    }
+    return { bonus, totals };
+}
+
+/**
  * 工具函数：从玩家对象读取神识值
  * @param {Object} player - 玩家对象
  * @returns {number}
  */
 function getDivineSense(player) {
-    if (!player) return 0;
-    const attrs = player.attributes || {};
-    return Number(attrs.sense || 0);
+    return sensePool.senseOf(player);
 }
 
 /**
@@ -103,6 +146,25 @@ function getSuccessRateByRisk(config, riskLevel) {
 }
 
 class ReincarnationService {
+    /**
+     * 玩家现在这份"夺舍继承"加成（属性引擎的第 10 个来源 getInheritanceBonus 取数点）。
+     *
+     * 为什么由本服务出这个取数函数而不是让引擎直接认 blob 里的键名：这条账的键名、形状与
+     * 含义都归夺舍玩法管（写它的是 chooseTarget），住在服务里才找得到人；
+     * 台账 tests/AttributeBonusDestinations.test.js 就是靠这个方法名把它认成 provider 的。
+     *
+     * @param {Object} player - 玩家实例或任意带 attributes 的对象
+     * @returns {Object} 注册属性键 → 平加值（没有这笔账时返回空对象）
+     */
+    static getInheritanceBonus(player) {
+        let raw = player?.attributes?.reincarnation_bonus;
+        if (typeof raw === 'string') {
+            // 历史行里可能有把 blob 存成"字符串的 JSON"的（routes/admin 那个缺陷的同族），容一次
+            try { raw = JSON.parse(raw); } catch { return {}; }
+        }
+        return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    }
+
     /**
      * 触发夺舍（飞升失败/寿命尽/PVP被杀时调用）
      * 推送 3 个目标按 weight 加权随机，缓存到内存 Map
@@ -356,29 +418,15 @@ class ReincarnationService {
             const inheritedExp = originExp * BigInt(Math.floor(target.inherit_ratio * 100)) / BigInt(100);
             const newExp = inheritedExp > BigInt(newRealmExpCap) ? BigInt(newRealmExpCap) : inheritedExp;
 
-            // 计算继承属性
-            // 继承攻击 = 原攻击 * inherit_ratio + 目标基础攻击
-            const attrs = player.attributes || {};
-            const originAtk = Number(attrs.atk || 0);
-            const originDef = Number(attrs.def || 0);
-            const originHpMax = Number(attrs.hp_max || 100);
-            const inheritedAtk = Math.floor(originAtk * target.inherit_ratio) + target.base_atk;
-            const inheritedDef = Math.floor(originDef * target.inherit_ratio) + target.base_def;
-            const inheritedHpMax = Math.floor(originHpMax * target.inherit_ratio) + target.base_hp_max;
-
             if (isSuccess) {
                 // ===== 夺舍成功 =====
-                // 更新玩家基础属性
-                const newAttrs = { ...attrs };
-                newAttrs.atk = inheritedAtk;
-                newAttrs.def = inheritedDef;
-                newAttrs.hp_max = inheritedHpMax;
-                newAttrs.hp_current = inheritedHpMax; // 满血复活
-                newAttrs.sense = Math.max(Number(attrs.sense || 0), target.base_sense);
-                newAttrs.speed = Math.max(Number(attrs.speed || 0), target.base_speed);
-                player.attributes = newAttrs;
+                // 1) 先量"夺舍前真实是多少"：走解析链路（境界+加点/丹药+天赋+称号+装备+灵兽+功法+法宝+傀儡+上一次继承），
+                //    不读 players.attributes 里的 atk/def/hp_max —— 那是旧管线留下的输出快照，
+                //    现网实测有人 blob 里写着战力 6185、真实只有 98，按它算继承就是按一个玩家从来没有过的数给他加属性。
+                const origin = (await CombatResolver.resolveCombatStats(player)).stats;
+                const originSense = getDivineSense(player);
 
-                // 更新境界、修为、残魂
+                // 2) 境界、修为、残魂、死亡状态：标量列仍写在实例上，一次 save（不再整块覆盖 attributes blob）
                 player.realm = newRealm;
                 player.realm_rank = newRealmRank;
                 player.exp = newExp.toString();
@@ -397,6 +445,43 @@ class ReincarnationService {
 
                 await player.save({ transaction: t });
 
+                // 3) 量"跌到新境界、并且把上一次夺舍的继承账清零之后是多少"。
+                //    sourceOverrides 里那个空的 reincarnation 是关键：不显式清零，这一步会把上一次夺舍攒下的
+                //    加成也算成"已经有的"，于是补差值时补不够，玩家拿不到本次承诺的总值（继承会悄悄缩水）。
+                const postDrop = (await CombatResolver.resolveCombatStats(player, {
+                    sourceOverrides: { reincarnation: {} }
+                })).stats;
+
+                // 4) 继承账：目标总值 = floor(原总值 × inherit_ratio) + 这具身体的底子；差多少补多少。
+                const { bonus } = inheritanceOf(origin, target, postDrop);
+                const nextSense = Math.max(originSense, Number(target.base_sense) || 0);
+
+                // 5) 先把继承账落进"真的会被读到的地方"（键级补丁，不整块覆盖 attributes blob）。
+                const patched = await patchPlayerState(player.id, {
+                    attributes: { reincarnation_bonus: bonus, sense: nextSense }
+                }, { transaction: t });
+                mirrorPatchedBlob(player, patched);
+
+                // 6) 再按**此刻真的生效的数**记血蓝与夺舍记录。
+                //    为什么不直接用第 4 步算出来的目标值：属性引擎是 (基数+全部平加)×(1+百分比)，
+                //    补进去的这笔平加会被同一套百分比再乘一遍（天赋/称号带 *_pct 时实际值高于纸面值）。
+                //    用换算式的纸面值记账，就会出现"记录写 5578、面板显示 5900"这种两个数——
+                //    记录表与回执都是玩家可查的历史，只许等于他实际拿到的那份。
+                const landed = (await CombatResolver.resolveCombatStats(patched)).stats;
+                const toInt = v => Math.floor(Number(v) || 0);
+                // 回执、推送与记录共用这一份"按词表推导"的清单：键名只在 INHERIT_STAT_FIELDS 里写一次
+                const inherited = Object.fromEntries(
+                    INHERIT_STAT_FIELDS.map(({ stat }) => [stat, toInt(landed[stat])])
+                );
+                const inheritedHpMax = Math.max(1, inherited.hp_max);
+
+                // 7) "满血复活"写的是 players.hp_current **那一列**——旧实现只写了 blob 里的同名键，
+                //    而全服务血蓝真值一律取列值，于是夺舍成功后人还是 0 血（is_dead=false 但血是空的）。
+                const revived = await patchPlayerState(player.id, {
+                    columns: { hp_current: BigInt(inheritedHpMax) }
+                }, { transaction: t });
+                mirrorPatchedBlob(player, revived);
+
                 // 写入夺舍记录
                 await PlayerReincarnation.create({
                     player_id: playerId,
@@ -408,8 +493,10 @@ class ReincarnationService {
                     new_realm: newRealm,
                     new_realm_rank: newRealmRank,
                     new_exp: newExp.toString(),
-                    inherited_atk: inheritedAtk,
-                    inherited_def: inheritedDef,
+                    // inherited_* 记的是"落库之后此刻真的生效的解析值"（第 6 步现算的那一份），
+                    // 不是换算式子的纸面值：记录表与回执都是玩家可查的历史，写一个他从没拿到的数就是假账。
+                    inherited_atk: inherited.atk,
+                    inherited_def: inherited.def,
                     inherited_hp_max: inheritedHpMax,
                     inherit_ratio: target.inherit_ratio,
                     success: 1,
@@ -435,13 +522,8 @@ class ReincarnationService {
                         new_realm: newRealm,
                         new_realm_rank: newRealmRank,
                         new_exp: newExp.toString(),
-                        inherited: {
-                            atk: inheritedAtk,
-                            def: inheritedDef,
-                            hp_max: inheritedHpMax,
-                            sense: newAttrs.sense,
-                            speed: newAttrs.speed
-                        },
+                        // 按词表推导，不在这两处再各抄一遍键名；神识单独带（它是可花掉的池子，不属于属性加成那一族）
+                        inherited: { ...inherited, sense: nextSense },
                         remnant_soul: player.remnant_soul,
                         cooldown_end_time: cooldownEnd.toISOString()
                     });
@@ -474,11 +556,8 @@ class ReincarnationService {
                             realm_rank: newRealmRank,
                             exp: newExp.toString()
                         },
-                        inherited: {
-                            atk: inheritedAtk,
-                            def: inheritedDef,
-                            hp_max: inheritedHpMax
-                        },
+                        // 原来是手写 atk/def/hp_max 三档（漏了 speed，且每加一档要回来补一行），现在整份按词表带出去
+                        inherited,
                         remnant_soul: player.remnant_soul,
                         cooldown_end_time: cooldownEnd.toISOString()
                     }
@@ -981,3 +1060,6 @@ class ReincarnationService {
 }
 
 module.exports = ReincarnationService;
+// 纯函数单独挂出去：换算规则要能逐格测（与 SecondSoulService.inheritSoulAttributes 同一套做法）
+module.exports.inheritanceOf = inheritanceOf;
+module.exports.INHERIT_STAT_FIELDS = INHERIT_STAT_FIELDS;

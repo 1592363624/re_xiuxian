@@ -47,6 +47,7 @@ const { Op } = require('sequelize');
 
 // 数据模型
 const Player = require('../../models/player');
+const { qualityOrder } = require('../items/itemQuality');
 const Item = require('../../models/item');
 const PlayerEquipment = require('../../models/playerEquipment');
 const CaveLegacy = require('../../models/caveLegacy');
@@ -59,6 +60,8 @@ const WebSocketNotificationService = require('./WebSocketNotificationService');
 const InventoryService = require('./InventoryService');
 const { ErrorCodes } = require('../../middleware/errorHandler');
 const { logOnce } = require('../../utils/logOnce');
+// 玩家统计量词表（总指令数累加哪几档计数由内容声明，不在这里抄清单）
+const PlayerMetrics = require('../stats/PlayerMetrics');
 // 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
 const RETURNED = { allowUnknownItem: true };
 
@@ -851,7 +854,9 @@ class CaveLegacyService {
         const includeTypes = filter.include_types || ['material', 'consumable'];
         const includeSubtypes = filter.include_subtypes || [];
         const excludeSubtypes = filter.exclude_subtypes || ['quest', 'badge'];
-        const includeQualities = filter.include_qualities || ['common', 'uncommon', 'rare', 'epic'];
+        // 默认档集不再在代码里抄一遍：内容没写就取词表里**order 最低的四档**
+        // （遗宝的语义就是"只发低档存货"，要改范围改 cave_legacy_data 的 include_qualities）
+        const includeQualities = filter.include_qualities || qualityOrder(configLoader).slice(0, 4);
         const excludeKeys = new Set(filter.exclude_item_keys || []);
 
         const result = [];
@@ -933,17 +938,12 @@ class CaveLegacyService {
             return { eligible: false, reason: `累计在线时长不足（需 ${Math.floor(minOnlineMs / 60000)} 分钟，当前 ${Math.floor(totalOnline / 60000)} 分钟）` };
         }
 
-        // 3. 总指令数（stats JSON 的 meditation_count + breakthrough_count + exploration_count 等）
+        // 3. 总指令数：累加哪几档计数由内容声明（player_metrics 里 cumulative_command:true 的那些），
+        //    以前这里是手抄的八行 stats.xxx 求和 —— 新加一档计数永远进不了祖业门槛。
         const minCmd = Number(elig.min_command_count) || 50;
         const stats = player.stats || {};
-        const cmdCount = Number(stats.meditation_count || 0)
-            + Number(stats.breakthrough_count || 0)
-            + Number(stats.kill_count || 0)
-            + Number(stats.exploration_count || 0)
-            + Number(stats.alchemy_count || 0)
-            + Number(stats.refining_count || 0)
-            + Number(stats.items_collected || 0)
-            + Number(stats.achievements_completed || 0);
+        const cmdCount = PlayerMetrics.commandCounterKeys()
+            .reduce((sum, key) => sum + (Number(stats[key]) || 0), 0);
         if (cmdCount < minCmd) {
             return { eligible: false, reason: `总指令数不足（需 ${minCmd}，当前 ${cmdCount}）` };
         }

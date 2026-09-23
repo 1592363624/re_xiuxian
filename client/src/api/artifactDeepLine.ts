@@ -31,17 +31,34 @@ export interface BloodPactStageConfig {
   materials: Array<{ item_key: string; count: number }>;
 }
 
-/** 战力加成汇总 */
+/**
+ * 战力加成的原始块：键名就是配置里的字段名，资料片给某条线加一档就会多一个键。
+ * 所以这里刻意不逐个点名（逐个点名正是面板手写六行 `combat_bonus.xxx * 100` 的由来，
+ * 于是新加的档位在界面上永远看不见）。界面渲染的是下面那份服务端清单。
+ */
 export interface BloodSwordCombatBonus {
-  atk_bonus_rate: number;
-  hp_steal_bonus_rate: number;
-  def_bonus_rate: number;
-  crit_rate_bonus: number;
-  crit_damage_bonus: number;
-  blood_backlash_hp_rate_per_round: number;
   is_active: boolean;
   reason?: string;
   imprint_type?: ImprintType;
+  [bonusField: string]: number | boolean | string | undefined;
+}
+
+/** 服务端下发的"给玩家看的那一档加成"（名字与语气来自 artifact_deep_lines.bonus_field_labels） */
+export interface DeepLineBonusDisplay {
+  /** 配置里的字段名，只当 key 用，不直接印给玩家 */
+  key: string;
+  label: string;
+  /** 原始值（percent 档是 0.05 表示 +5%；point 档是绝对值） */
+  value: number;
+  format: 'percent' | 'point';
+  /** bonus=奖励（绿字），cost=代价（红字，反噬那一类） */
+  tone: 'bonus' | 'cost';
+  /** 这一档今天有没有真的进战斗：false 时界面必须标"未生效"，不许涂成绿色 +X% */
+  applied: boolean;
+  bucket: string;
+  /** 落到哪一档注册属性上（对账用；界面可放进悬停说明） */
+  target: string;
+  reason: string;
 }
 
 /** 系统配置回显 */
@@ -106,8 +123,14 @@ export interface BloodSwordStatusHeld {
   sacrifice_cooldown_remaining: number;
   thunder_wash_cooldown_remaining: number;
   imprint_cooldown_remaining: number;
-  // 战力加成
+  // 战力加成（raw：字段名跟着配置走，界面不该逐个点名）
   combat_bonus: BloodSwordCombatBonus;
+  /**
+   * 给玩家看的那份清单，由服务端按 BONUS_ROUTES + artifact_deep_lines.bonus_field_labels 生成：
+   * 名字、换算方式、是奖励还是代价、以及**这一档今天到底进不进战斗**（applied）。
+   * 面板只渲染这张表 —— 资料片加一档加成，界面不用改第二处。
+   */
+  combat_bonus_display?: DeepLineBonusDisplay[];
   // 配置回显
   config: BloodSwordConfigEcho;
   server_time: number;

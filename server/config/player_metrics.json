@@ -1,0 +1,93 @@
+{
+  "_comment": "玩家统计量（成就、后台、玩法判定共用的唯一一份取数声明）。2026-09-22 之前这些数散在三处：成就服务里一张 `metric → (p) => p.xxx` 的代码表、洞府祖业里手写的六个计数求和、以及 players.stats 那坨没人写的历史残留。现在只认这一份：加一档统计量 = 写一条 JSON，成就与祖业累加自动认得；资料片给装备加的新属性也能直接当度量用（`from: \"attr.新属性键\"`）。",
+  "_comment_from": "来源形状只有四种，写别的启动期直接抛：`stats.<key>` 读 players.stats 这坨 JSON 计数（由 PlayerStateStore.bumpStat 在事件点累加）；`column.<列名>` 读 players 上的标量列；`attr.<属性键>` 读属性引擎解析出来的最终值（必须是 stat_definitions 注册过的属性，所以资料片新属性天然可被引用）；`query.<名字>` 走代码侧注册表里那几个真的要去查库的取数函数（见 game/stats/PlayerMetrics.js 的 QUERIES）。另有 `realm_index` 这一种内置形状：按 players.realm 的名字去境界表查 rank。",
+  "_comment_cumulative_command": "cumulative_command:true 表示这一档计进洞府祖业的「总修行次数」。哪些算一次修行是玩法口径，改这条数据就行，不用回去改 CaveLegacyService 的求和。",
+  "_comment_pending_writer": "配了来源但**代码里还没有任何事件点往它累加**的，必须写 pending_writer 说明为什么（启动闸会硬拦“stats.<key> 没人写”这种静默空转，只有带理由的才放行）；等真加了写入点，这一格不删就会反过来报“豁免已过期”。",
+  "_comment_legacy_writer": "另一条出口：这一格今天确实有人在写，只是走的是旧口径（整块回写 players.stats，没走 PlayerStateStore 的键级补丁）。写 legacy_writer 点名那个文件，启动闸会去读它、要求里面真有 `<键名> = ` 这一行赋值 —— 点名点错或文件里根本没写，照样红。两条出口同时写也算错。**现网 0 次使用**：原来挂着的两处（sparring_count / duel_count）已在 2026-09-22 迁到 `PlayerStateStore.setStatKeys`（每日计数要「换日则从 1 重新开始」，$add 表达不出来，所以是键级绝对值写），这一格留着是给以后真的发现旧口径时用的，不是给新代码开的后门。",
+  "metrics": {
+    "exp": {
+      "label": "修为",
+      "from": "column.exp"
+    },
+    "total_spirit_stones": {
+      "label": "灵石",
+      "from": "column.spirit_stones"
+    },
+    "realm_index": {
+      "label": "境界序号",
+      "from": "realm_index",
+      "_comment": "刻意不读 realm_rank 那一列：历史上出过 realm 改了 realm_rank 没改的号，名字才是真相"
+    },
+    "seclusion_count": {
+      "label": "悟道打坐完成次数",
+      "from": "stats.meditation_count",
+      "cumulative_command": true,
+      "_comment": "成就文案写的是“闭关修炼”，实现上取的是悟道/打坐的**结算**次数（MeditationService._settleMeditation）；这一条口径是我定的，要改就改 from"
+    },
+    "kill_count": {
+      "label": "击杀数",
+      "from": "stats.kill_count",
+      "cumulative_command": true,
+      "_comment": "只在 PVE 战斗胜利那一次进账（CombatService 的 victory 分支）；宗门战/切磋/探渊各自的杀不并进来，免得同一次出手记两遍"
+    },
+    "breakthrough_count": {
+      "label": "突破成功次数",
+      "from": "stats.breakthrough_count",
+      "cumulative_command": true
+    },
+    "alchemy_count": {
+      "label": "炼丹次数",
+      "from": "stats.alchemy_count",
+      "cumulative_command": true
+    },
+    "refining_count": {
+      "label": "炼器次数",
+      "from": "stats.refining_count",
+      "cumulative_command": true
+    },
+    "items_collected": {
+      "label": "采集所得件数",
+      "from": "stats.items_collected",
+      "cumulative_command": true
+    },
+    "sparring_count": {
+      "label": "当日切磋次数",
+      "from": "stats.sparring_count",
+      "resets": "daily",
+      "_comment": "口径提醒：这一格是**当日**计数（PvpService 换日清零），不是累计。成就是领一次的，所以任何成就都不许拿它当进度（_validateAchievementRewards 硬拦）。要一条「累计切磋 N 场」的成就，得先在 PvpService 补一个不清零的键。2026-09-22：写入点已从「整块回写 players.stats」迁到 PlayerStateStore.setStatKeys 的键级补丁（计数与 last_sparring_date/time 同一笔写），所以这一格不再需要 legacy_writer"
+    },
+    "duel_count": {
+      "label": "当日斗法次数",
+      "from": "stats.duel_count",
+      "resets": "daily",
+      "_comment": "同 sparring_count：DuelService 每天清零，且受 daily_duel_limit 上限约束，所以它天然不可能爬到 10 以上。写入点同样已迁到 setStatKeys 键级补丁"
+    },
+    "achievements_completed": {
+      "label": "已达成成就数",
+      "from": "stats.achievements_completed",
+      "cumulative_command": true,
+      "_comment": "领奖那一次进账（AchievementService.claimReward），所以它数的是「真的拿到过奖励」的成就数；洞府祖业的总指令数也含它（与改造前那份手写求和逐项一致）"
+    },
+    "death_count": {
+      "label": "陨落次数",
+      "from": "stats.death_count",
+      "_comment": "刻意不是 column.death_count：players 上没有这一列（模型里 death_count 只出现在 stats 那份默认 JSON 里），把它当列读就又是 spirit_root 那一回的空转"
+    },
+    "hp_ceiling": {
+      "label": "当前气血上限",
+      "from": "attr.hp_max",
+      "_comment": "attr. 这一族的样例：值来自属性引擎解析结果，所以资料片新加的属性不用写任何代码就能被成就引用（tests/PlayerMetricsVocabulary.test.js 用一份临时资料片钉住这条）"
+    },
+    "friend_count": {
+      "label": "到访过洞府的访客数",
+      "from": "query.cave_distinct_visitors",
+      "_comment": "要查 cave_visitors 表所以走 query 注册表；以前这里是个 `() => 0` 的占位，广结善缘那条成就永远停在 0%"
+    },
+    "explore_count": {
+      "label": "探索次数",
+      "from": "stats.exploration_count",
+      "cumulative_command": true,
+      "pending_writer": "代码里没有任何叫“探索”的事件（v0.3 时代留下的计数名，全仓搜不到写入点），所以引用它的 4 条成就今天仍然到不了。要么业主指定它绑哪个真实事件（历练完成？采集完成？云游/赶路到新地图？），要么把这 4 条成就改掉 —— 在它有人写之前，这一格就是把洞明写着，不让它假装正常。"
+    }
+  }
+}

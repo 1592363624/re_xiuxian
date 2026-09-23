@@ -117,12 +117,17 @@ export interface GamblingStoneProfile {
   insight_unlocked: boolean;
 }
 
-/** 原石线索（4维） */
-export interface StoneClues {
-  crust: string;
-  weight: string;
-  aura: string;
-  color: string;
+/**
+ * 原石线索的一行（服务端按内容维度表排好序发下来）
+ *
+ * 以前这里是一个 `{crust, weight, aura, color}` 的写死四键接口，面板也按这四个名字各写一格
+ * —— 于是资料片加第五维（或改维度的中文名）时，服务端算进去了、界面上看不见。
+ * 现在名字与顺序都由服务端的 `clue_rows` 决定，界面只负责排布与配色。
+ */
+export interface StoneClueRow {
+  key: string;
+  name: string;
+  value: string | null;
 }
 
 /** 未切开原石 */
@@ -135,7 +140,7 @@ export interface UncutStone {
   quality_name: string;
   quality_color: string;
   base_price: number;
-  clues: StoneClues;
+  clue_rows: StoneClueRow[];
   is_listed: boolean;
   listing_price: string | null;
   generated_at: string;
@@ -144,7 +149,6 @@ export interface UncutStone {
 /** 原石详情 */
 export interface StoneDetail extends UncutStone {
   origin_description: string;
-  clues: StoneClues;
   skill_level: number;
   skill_title: string;
   insight_unlocked: boolean;

@@ -4,6 +4,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const { assertBlobWriteAllowed, assertBulkBlobWriteAllowed } = require('../game/persistence/blobWriteGuard');
+const { assertNumericWriteAllowed, rememberLoaded, refreshLoaded } = require('../game/persistence/numericWriteGuard');
 
 const Player = sequelize.define('Player', {
     id: {
@@ -799,10 +800,26 @@ const Player = sequelize.define('Player', {
  * 那里有完整背景说明与单元测试。第三参数是 Player 自身：守卫拿它在同一事务里
  * 锁读一次 state_version，用来判定"手上这份快照是否已经比库里旧"。
  * 钩子必须返回 Promise，否则异步判定会被吞掉（Sequelize 不会等它）。
+ *
+ * 第二条是同一族问题的另一半：players 上的标量数值列（灵石/修为/荣誉/…）也是
+ * "读出来 → JS 里加减 → 整值写回"，只是覆盖单位从一坨键变成一列。规则与调用点统计见
+ * game/persistence/numericWriteGuard.js（实测 176 处自引用赋值，逐点重排不现实，
+ * 所以同样绑在写回这一步判定）。
  */
 Player.beforeSave(async (instance, options) => {
     await assertBlobWriteAllowed(instance, options, Player);
+    await assertNumericWriteAllowed(instance, options, Player);
 });
+
+/**
+ * 数值守卫的"锚点"来源：读出来那一刻记一份数值列，保存成功后按真正写进去的列刷新。
+ * 为什么不能直接用 Sequelize 的 previous()：同一列被赋值两次时它会被改成中间那份内存值
+ * （见 numericWriteGuard.js 里 previousValue 的注释），而"先扣手续费再加奖励"正是现网形状。
+ * 只存白名单里的 14 档，不是整行副本。
+ */
+Player.afterFind((rows) => rememberLoaded(rows));
+Player.afterSave((instance, options) => refreshLoaded(instance, options));
+Player.afterCreate((instance, options) => refreshLoaded(instance, options));
 
 /**
  * Player.update() 走的是 bulk 路径，不触发 beforeSave —— 那道拦不住，单独挂一条。

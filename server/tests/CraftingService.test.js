@@ -41,6 +41,13 @@ jest.mock('../game/services/InventoryService', () => ({
 jest.mock('../game/services/CaveService', () => ({
     getCaveBonus: jest.fn()
 }));
+// 炼制成功会给 players.stats 记一笔计数（走 PlayerStateStore 的键级补丁 + 行锁）。
+// 本套件只测炼制算法，不测计数落库 —— 那条链路归 tests/PlayerMetricsVocabulary.test.js
+// 与 scripts/smoke_player_metrics.js（真库）；在这里 mock 掉，免得每个用例都要造一份假事务锁。
+jest.mock('../game/persistence/PlayerStateStore', () => ({
+    bumpStat: jest.fn(async () => ({})),
+    patchPlayerState: jest.fn(async () => ({}))
+}));
 
 const CraftingService = require('../game/services/CraftingService');
 const PlayerRecipe = require('../models/playerRecipe');
@@ -48,7 +55,14 @@ const Player = require('../models/player');
 const InventoryService = require('../game/services/InventoryService');
 const CaveService = require('../game/services/CaveService');
 
-/** 测试用炼制平衡配置，与 game_balance.json 结构保持一致 */
+/**
+ * 测试用炼制平衡配置，与 game_balance.json 结构保持一致。
+ * 品质档序不在这里抄一份：`quality_order` 那把覆盖退路已被拆掉（它当时就是一份与词表逐字相同的镜像），
+ * 夹具改为把**真词表**递给被测代码，断言里需要位次时也从同一份推导。
+ */
+const realItemQualities = require('../config/game_balance.json').item_qualities;
+const { qualityOrder: ladderOf } = require('../game/items/itemQuality');
+const TEST_LADDER = ladderOf({ getConfig: () => ({ item_qualities: realItemQualities }) });
 const balanceCrafting = {
     max_craft_quantity: 10,
     fail_exp_ratio: 0.2,
@@ -77,7 +91,6 @@ const balanceCrafting = {
     },
     quality_float: {
         enabled: true,
-        quality_order: ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'],
         tiers: [
             { name: '完美', max_deviation: 0, upgrade: 1, effect_multiplier: 1.6 },
             { name: '极品', max_deviation: 1, upgrade: 1, effect_multiplier: 1.35 },
@@ -126,7 +139,7 @@ function buildConfigLoader(overrides = {}) {
     const crafting = { ...balanceCrafting, ...overrides };
     return {
         getConfig: (name) => {
-            if (name === 'game_balance') return { crafting };
+            if (name === 'game_balance') return { crafting, item_qualities: realItemQualities };
             if (name === 'crafting_data') {
                 return {
                     alchemy_recipes: [testRecipe],
@@ -259,7 +272,7 @@ describe('calcQualityTier 品质浮动', () => {
     test('未知基准品质回退为序列首位再计算，不产生 undefined', () => {
         const r = CraftingService.calcQualityTier(3, 0, 'not_exist_quality');
         expect(r.quality).toBeDefined();
-        expect(balanceCrafting.quality_float.quality_order).toContain(r.quality);
+        expect(TEST_LADDER).toContain(r.quality);   // 档序也从词表推导，夹具里不再抄一份
     });
 
     test('功能关闭时保持基准品质（向后兼容）', () => {

@@ -34,6 +34,7 @@ import Badge from '../ui/Badge.vue'
 import StatBar from '../ui/StatBar.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import LoadingBlock from '../ui/LoadingBlock.vue'
+import { useItemQualities } from '../../composables/useItemQualities'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
@@ -333,34 +334,12 @@ const formatCountdown = (sec: number): string => {
 }
 
 /**
- * 品质对应的文字颜色类
- * @param quality - 品质 key
+ * 品质的颜色与中文名一律取服务端品质词表（composables/useItemQualities.js）。
+ * 这里原来抄了两份五档字典，还用了另一套叫法（凡品/灵品/珍品/仙品/神品）：
+ * 同一件东西在背包里叫"传说"、在炼器面板里叫"神品"；而两份都漏了 mythic，
+ * 于是神话档产物在面板上直接印成"凡品"（本轮补的玄天斩灵剑就是那一档）。
  */
-const qualityClass = (quality: string): string => {
-  const map: Record<string, string> = {
-    common: 'text-fg-secondary',
-    uncommon: 'text-emerald-400',
-    rare: 'text-sky-400',
-    epic: 'text-purple-400',
-    legendary: 'text-gold-400'
-  }
-  return map[quality] || 'text-fg-secondary'
-}
-
-/**
- * 品质中文名
- * @param quality - 品质 key
- */
-const qualityLabel = (quality: string): string => {
-  const map: Record<string, string> = {
-    common: '凡品',
-    uncommon: '灵品',
-    rare: '珍品',
-    epic: '仙品',
-    legendary: '神品'
-  }
-  return map[quality] || '凡品'
-}
+const { textClass: qualityClass, labelOf: qualityLabel } = useItemQualities()
 
 /**
  * 判断配方是否可炼制（材料充足 + 无冷却 + 非操作中）

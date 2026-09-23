@@ -2,6 +2,46 @@
   "description": "法宝深线系统配置（玩法文档第19节）",
   "version": "1.0.0",
   "lastUpdated": "2026-07-21T00:00:00.000Z",
+  "combat_bonus_sources": [
+    {
+      "comment": "法宝深线战力加成的来源清单。聚合器 getAllArtifactDeepLineCombatBonuses 按这张表逐条取数：新增一条法宝深线只要在这里加一项 + 写好那个 getter，聚合处不用改一行；资料片也可以直接 add 一条自己的来源（这张表登记成集合，按 key 追加）。字段含义：method=服务上的方法名；active_field=哪个字段为 true 才算生效；bonus_field=数值块在返回值里的键（不填表示整个返回值）；copy_effects=原样进 effects 的开关字段；backlash=反噬目标的语义规则（when 那个数值字段大于 0 时，把 take_from 字段抄进 effects.backlash_target，抄不到用 default；直接写 value 则固定成那个值）。",
+      "key": "blood_sword",
+      "method": "getBloodSwordCombatBonus",
+      "active_field": "is_active",
+      "backlash": { "when": "blood_backlash_hp_rate_per_round", "value": "self" }
+    },
+    {
+      "comment": "虚天鼎：反噬目标由内容自己声明（enemy/self/none），所以走 take_from",
+      "key": "xutian_cauldron",
+      "method": "getXutianCauldronCombatBonus",
+      "active_field": "is_active",
+      "backlash": { "when": "backlash_rate_per_round", "take_from": "backlash_target", "default": "self" }
+    },
+    {
+      "comment": "大五行幻世轮：数值块住在 combat_bonus 里（相位配置泛化生成），轮转开关是布尔字段",
+      "key": "five_element_wheel",
+      "method": "getFiveElementWheelCombatBonus",
+      "active_field": "has_wheel",
+      "bonus_field": "combat_bonus",
+      "copy_effects": ["wheel_spin_enabled"]
+    }
+  ],
+  "bonus_field_labels": {
+    "_comment": "法宝深线加成字段的中文名。面板不再自己抄字段名与换算方式（以前 BloodSwordPanel 手写五行 combat_bonus.xxx*100），改成服务端按 BONUS_ROUTES 出清单、名字在这里取。登记成 map 集合，资料片能往里加档；新增一个被 BONUS_ROUTES 认领的字段而这里没名字，服务启动期就会点名。",
+    "atk_bonus_rate": "攻击加成",
+    "def_bonus_rate": "防御加成",
+    "hp_bonus_rate": "气血加成",
+    "speed_bonus_rate": "速度加成",
+    "hp_steal_bonus_rate": "吸血加成",
+    "crit_rate_bonus": "暴击率",
+    "crit_damage_bonus": "暴击伤害",
+    "damage_reduction_rate": "伤害减免",
+    "hp_regen_bonus_rate": "每回合回复气血",
+    "blood_backlash_hp_rate_per_round": { "label": "每回合血祭反噬", "tone": "cost" },
+    "backlash_rate_per_round": { "label": "每回合反噬", "tone": "cost" },
+    "def_bonus": "防御（固定值）",
+    "final_atk_bonus": "最终攻击（固定值）"
+  },
   "settings": {
     "blood_sword": {
       "comment": "血魔剑残契线：5阶血契 + 魔染/镇契双值博弈 + 铭印/封鞘/雷洗",

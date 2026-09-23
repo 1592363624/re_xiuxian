@@ -461,8 +461,10 @@ router.post('/sky-bottle/nurture-tree', auth, async (req, res, next) => {
 // ========== 大五行幻世轮线路由（玩法文档第19节·法宝深线第四条） ==========
 // 被动战斗驱动成长 + 五行定相系统 + 五行相生相克 + 轮转技能（5阶解锁）
 
-// 定相白名单校验常量（与配置 phases 键对应，避免硬编码到路由逻辑中）
-const VALID_WHEEL_PHASES = ['rotation', 'metal', 'water', 'wood', 'fire', 'earth'];
+// 定相的合法取值**只由内容判**：ArtifactDeepLineService.setPhase 读 `artifact_deep_lines.settings
+// .five_element_wheel.phases` 的键并给出同样的报错。这里以前另抄了一份
+// `['rotation','metal','water','wood','fire','earth']`（注释还写着"与配置 phases 键对应"）——
+// 资料片加一档相位时抄的这份会把它拒掉，而内容明明是有的。
 
 /**
  * GET /api/artifact-deep-line/five-element-wheel/status
@@ -480,16 +482,13 @@ router.get('/five-element-wheel/status', auth, async (req, res, next) => {
 /**
  * POST /api/artifact-deep-line/five-element-wheel/set-phase
  * 定相（决定成长倾向），7 天冷却
- * body: { phase: 'rotation'|'metal'|'water'|'wood'|'fire'|'earth' }
+ * body: { phase: <内容 phases 里的任一相位键> }
  */
 router.post('/five-element-wheel/set-phase', auth, async (req, res, next) => {
     try {
         const { phase } = req.body || {};
         if (!phase) {
             throw new AppError('定相 phase 不能为空', 400, ErrorCodes.VALIDATION_ERROR);
-        }
-        if (!VALID_WHEEL_PHASES.includes(phase)) {
-            throw new AppError(`定相无效，应为：${VALID_WHEEL_PHASES.join('/')}`, 400, ErrorCodes.VALIDATION_ERROR);
         }
         const result = await ArtifactDeepLineService.setPhase(req.user.id, phase);
         res.json({ code: 200, ...result });

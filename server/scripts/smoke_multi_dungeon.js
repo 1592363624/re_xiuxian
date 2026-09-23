@@ -26,6 +26,7 @@ const MultiDungeonInstance = require('../models/multiDungeonInstance');
 const MultiDungeonMember = require('../models/multiDungeonMember');
 const MultiDungeonChoice = require('../models/multiDungeonChoice');
 const InventoryService = require('../game/services/InventoryService');
+const { itemName } = require('../game/items/itemNaming');
 const { bootApp } = require('./lib/smoke_http');
 
 const DUNGEON = 'huanglong';
@@ -60,8 +61,12 @@ async function cleanup() {
         await MultiDungeonMember.destroy({ where: { instance_id: instanceIds } });
         await MultiDungeonInstance.destroy({ where: { id: instanceIds } });
     }
-    await PlayerSect.destroy({ where: { player_id: ids } });
-    await Player.destroy({ where: { id: ids } });
+    // 副本实例/成员行按 instance_id 归属，级联清不到，所以上面那两条留着；
+    // 但"宗门关系 + 冷却 + 背包 + 称号"这些按 player_id 归属的全部交给生产代码里那一份级联
+    // （口径只有一份；探针手写"顺手删三张表"迟早漏一张，那正是隔离库攒出 761 行孤儿的方式）。
+    const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
+    const purged = await PlayerCascadePurge.deletePlayers(ids);
+    console.log(`清理：删掉 ${purged.ids.length} 个探针号，级联带走 ${purged.total} 行派生数据`);
 }
 
 async function seed() {
@@ -298,6 +303,116 @@ async function seed() {
     check('X16 结算过的副本再推一次不重复发钱（第二笔必须被拒且分文不动）',
         again?.success !== true && moved.length === 0,
         `再推=${again?.message || again?.success}｜又动账的人=${moved.join(',') || '无'}`);
+
+    // X17：首通称号必须真的写进 players.titles。
+    // 结算那 7 处"发称号"以前各自抄一份（读出来判重 → push → 赋回 → save），
+    // 2026-09-21 收成 PlayerStateStore.addTitleToInstance 一份定义，这条钉住改完仍然真的发到手。
+    const titleReported = [];
+    const titleMissing = [];
+    for (const fc of (summary?.first_clear || [])) {
+        for (const b of (fc.bonuses || []).filter(x => x.type === 'title' && x.title_id)) {
+            titleReported.push(`${fc.player_id}/${b.title_id}`);
+            const owner = await Player.findByPk(Number(fc.player_id));
+            const owned = Array.isArray(owner?.titles) ? owner.titles : [];
+            if (!owned.includes(b.title_id)) titleMissing.push(`${fc.player_id}缺${b.title_id}`);
+        }
+    }
+    check('X17 首通报出来的称号真的落进 players.titles（称号入口只有一份定义，也不能少发）',
+        titleReported.length > 0 && titleMissing.length === 0,
+        `报出 ${titleReported.length} 条（${titleReported.slice(0, 3).join(', ')}${titleReported.length > 3 ? '…' : ''}）｜没落库的=${titleMissing.join(',') || '无'}`);
+
+    // ===== X18/X19 背包放不下那一件：不发第二遍、不静默、也不谎报 =====
+    // 形状与战线里程碑那条同族：以前 `try { addItem } catch { console.warn }` 之后照旧通关结算，
+    // 玩家读到的是"通关！"+ 一件永远不到的东西。现在走 grantItems：发到才进 drops，
+    // 没发到进 failed，并由 collectGrantFailures/describeGrantFailures 汇进玩家那句 message。
+    // 注入哪一件不能取自"上一次真掉到的那件"：那一局没钉随机数，整局不掉物品的概率不低
+    // （2026-09-22 实测 normal_drops 里只剩 exp/灵石/神识，X18 因此假红、X19 连带没跑到）。
+    // 改成两步：先跑一局把 Math.random 钉成 0（`if (random < chance)` 一律成立、加权表 roll=0 必取池子第一条、
+    // 数量取 count_min → 这一局的掉落集合是确定的），从它拿到"这一局必然 attempt 的那件"，再拿这个键注进第二局。
+    const dropKeysOf = (sum) => {
+        const keys = new Set();
+        for (const nd of (sum?.normal_drops || [])) {
+            for (const d of (nd.drops || [])) if (d.item_key && d.item_key !== 'spirit_stones') keys.add(d.item_key);
+        }
+        return [...keys];
+    };
+    const cycleIds = players.map(p => p.id);
+    const sumQty = async (key) => {
+        const rows = await Item.findAll({ where: { player_id: cycleIds, item_key: key }, attributes: ['quantity'] });
+        return rows.reduce((s, r) => s + Number(r.quantity), 0);
+    };
+    /** 开一局黄龙山、走完三档抉择、钉住随机数后推进到结算；rejectKey 非空则让那一件发放必失败 */
+    const settleOneCycle = async (rejectKey, onBeforeAdvance = null) => {
+        const realAddItem = InventoryService.addItem;
+        const realRandom = Math.random;
+        let advanced = null;
+        let created = null;
+        let instanceId = null;
+        try {
+            // 门票先补齐：`create` 会真消耗 `consume_item_key`（内容说了算），上一局把它吃掉之后
+            // 这一局的建局会直接失败 —— 失败点在 X18 的 summary 里表现为"一件都没掉"，很容易被误读成掉落坏了。
+            const dgCfg = require('../modules').infrastructure.ConfigLoader
+                .getConfig('multi_dungeon_data')?.dungeons?.[DUNGEON];
+            if (dgCfg?.consume_item_key) {
+                await InventoryService.addItem(leader.id, dgCfg.consume_item_key,
+                    Number(dgCfg.consume_item_count) || 1, null);
+            }
+            for (const p of players) await MultiDungeonService.gmResetCooldown(p.id, DUNGEON, leader.id);
+            created = await MultiDungeonService.create(leader.id, DUNGEON);
+            instanceId = created?.data?.instance_id ?? created?.data?.instance?.id;
+            const hid = instanceId;
+            for (const m of players.slice(1)) await MultiDungeonService.join(m.id, hid);
+            await MultiDungeonService.enter(leader.id);
+            for (const key of ['center', 'raid', 'guard_formation']) await MultiDungeonService.choose(leader.id, key);
+            if (hid) await MultiDungeonService.gmAdjustVariable(hid, 'huanglong_formation_power', 9999, leader.id);
+            if (rejectKey) {
+                InventoryService.addItem = function (playerId, itemKey, quantity, t, ...rest) {
+                    if (itemKey === rejectKey) return Promise.reject(new Error('背包容量不足（探针注入）'));
+                    return realAddItem.call(InventoryService, playerId, itemKey, quantity, t, ...rest);
+                };
+            }
+            // 基线在"门票已被 create 吃掉、结算还没跑"这一刻取，否则等式会被门票差 1 件
+            if (onBeforeAdvance) await onBeforeAdvance();
+            Math.random = () => 0;
+            advanced = await MultiDungeonService.advance(leader.id);
+        } finally {
+            Math.random = realRandom;
+            InventoryService.addItem = realAddItem;
+        }
+        return { advanced, summary: advanced?.data?.rewards, created, instanceId };
+    };
+
+    const probeCycle = await settleOneCycle(null);
+    const injected = dropKeysOf(probeCycle.summary)[0];
+    if (!injected) {
+        check('X18 背包放不下那一件要在结算文本里点名', false,
+            '把 Math.random 钉成 0 的这一局仍然一件物品都没掉，说明掉落这条路本身是断的：'
+            + JSON.stringify((probeCycle.summary?.normal_drops || [])[0] || null)
+            // 结算本身被拒时 summary 是空的，必须把被拒理由一起报出来，否则分不清"没掉"与"没结算"
+            + `｜建局=${probeCycle.created?.success} ${probeCycle.created?.message || ''}`
+            + `｜推进=${probeCycle.advanced?.success} ${probeCycle.advanced?.message || ''}`
+            + `｜normal_drops 条数=${(probeCycle.summary?.normal_drops || []).length}`);
+    } else {
+        // 先让队长包里有一件这件：否则"数量一分没动"可能只是 0→0 的空转
+        await InventoryService.addItem(leader.id, injected, 1, null);
+        let wasInjectedQty = 0;
+        const injectedCycle = await settleOneCycle(injected, async () => { wasInjectedQty = await sumQty(injected); });
+        const advanced3 = injectedCycle.advanced;
+        const summary3 = injectedCycle.summary;
+        const nowInjectedQty = await sumQty(injected);
+        const msg3 = advanced3?.message || '';
+        const failedForInjected = (summary3?.normal_drops || [])
+            .flatMap(d => d.failed || []).filter(f => f.item_key === injected);
+        check('X18 背包放不下那一件：没进包、摘要里有 failed、结算文本点名（不谎报也不静默）',
+            advanced3?.success === true && wasInjectedQty > 0 && nowInjectedQty === wasInjectedQty && failedForInjected.length > 0
+            && /未获得/.test(msg3) && msg3.includes(itemName(injected) || '') && !msg3.includes(injected),
+            `注入=${injected}（${itemName(injected)}）｜背包 ${wasInjectedQty}→${nowInjectedQty}｜摘要 failed=${failedForInjected.length} 条`
+            + `（理由=${failedForInjected[0]?.reason}）｜文本尾巴=${msg3.slice(-70)}`);
+        const othersDelivered = (summary3?.normal_drops || []).some(d => (d.drops || []).length > 0);
+        check('X19 同一笔结算里其它物品照发到（注入那一件不连带拖垮整笔）',
+            othersDelivered && String((await MultiDungeonInstance.findByPk(advanced3?.data?.instance_id))?.instance_state) === 'cleared',
+            `其它条目=${(summary3?.normal_drops || []).map(d => `${d.player_id}:${(d.drops || []).length}`).join(' ')}｜state=${advanced3?.data?.instance_state}`);
+    }
 
     return finish();
 })().catch(error => {

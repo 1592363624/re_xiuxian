@@ -210,3 +210,53 @@ describe('资料片属性真的参与计算', () => {
         }
     });
 });
+
+/**
+ * 啼魂的「雷」（2026-09-22）：以前灵兽词表只有五行，ti_hun 的 element:"thunder" 没人校验 ——
+ * 表现是图鉴印原始键、兽斗里它永远中性。修法分两半：把 elements 登记成 map 集合（资料片能自带新档），
+ * 并加启动期闸 _validateBeastElements。这里钉的是**行为没变**：雷仍然不参与克制，
+ * 变的只是"名号显示对了"与"这份词表现在是内容说了算"。给雷配真正的生克属数值改动，等业主签字。
+ */
+describe('凡人遗宝：灵兽属性词表也可以由资料片扩', () => {
+    const beastData = () => content.dataset('spirit_beast_data');
+
+    test('thunder 是资料片带进来的一档灵兽属性，图鉴因此能叫出中文名', () => {
+        const elements = beastData().elements;
+        expect(elements.thunder?.name).toBe('雷');
+        expect(elements.thunder?.__content_origin).toBe('fanren_legacy');
+        const tiHun = beastData().beast_types.find(b => b.beast_key === 'ti_hun');
+        expect(tiHun.element).toBe('thunder');
+        // 与图鉴那行取值式等价：查得到就用中文名，查不到才退回原始键
+        expect(elements[tiHun.element]?.name || tiHun.element).toBe('雷');
+    });
+
+    test('雷不参与克制（与改造前逐字相同），五行之间的相克一格没动', () => {
+        const SpiritBeastService = require('../game/services/SpiritBeastService');
+        const { infrastructure } = require('../modules');
+        const spy = jest.spyOn(infrastructure.ConfigLoader, 'getConfig')
+            .mockImplementation(name => (name === 'spirit_beast_data' ? beastData() : undefined));
+        try {
+            const neutral = new Set(['water', 'fire', 'metal', 'wood', 'earth', 'thunder']);
+            for (const foe of neutral) {
+                expect(SpiritBeastService.getElementMultiplier('thunder', foe)).toBe(1.0);
+                expect(SpiritBeastService.getElementMultiplier(foe, 'thunder')).toBe(1.0);
+            }
+            // 老关系必须还在：只加一档新属性，不该把五行的期望改掉
+            expect(SpiritBeastService.getElementMultiplier('metal', 'wood')).toBe(1.5);
+            expect(SpiritBeastService.getElementMultiplier('water', 'fire')).toBe(1.5);
+            expect(SpiritBeastService.getElementMultiplier('fire', 'metal')).toBe(1.5);    // 攻方克对面 → 强
+            expect(SpiritBeastService.getElementMultiplier('metal', 'fire')).toBe(0.75);   // 攻方畏对面 → 弱
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    test('现网每只灵兽的 element 都在词表里（这条闸不许空转：内容层启动期就会拦）', () => {
+        const declared = new Set(Object.keys(beastData().elements));
+        const offenders = beastData().beast_types
+            .filter(b => b.element && !declared.has(String(b.element)))
+            .map(b => `${b.beast_key}=${b.element}`);
+        expect(offenders).toEqual([]);
+        expect(declared.size).toBeGreaterThan(5);     // 少于六档说明资料片那档没并进来
+    });
+});
