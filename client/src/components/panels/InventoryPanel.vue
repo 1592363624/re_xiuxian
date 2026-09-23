@@ -459,7 +459,7 @@ const handleEquip = async () => {
     // 收起操作菜单并刷新背包、装备栏、加成和玩家属性
     closeEquipConfirmModal()
     expandedItemKey.value = null
-    await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus(), playerStore.fetchPlayer()])
+    await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus(), playerStore.scheduleFetchPlayer(0)])
   } catch (error) {
     uiStore.showApiError(error, '穿戴失败')
   } finally {
@@ -514,7 +514,7 @@ const handleUnequip = async () => {
 
     // 关闭弹窗并刷新背包、装备栏、加成和玩家属性
     closeUnequipConfirmModal()
-    await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus(), playerStore.fetchPlayer()])
+    await Promise.all([fetchInventory(), fetchEquipped(), fetchEquipmentBonus(), playerStore.scheduleFetchPlayer(0)])
   } catch (error) {
     uiStore.showApiError(error, '卸下失败')
   } finally {

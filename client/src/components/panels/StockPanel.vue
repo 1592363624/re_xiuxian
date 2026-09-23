@@ -558,7 +558,7 @@ const confirmTrade = async () => {
     // 刷新状态、行情、持仓、玩家信息
     await Promise.all([fetchStatus(), fetchStockList(), fetchHoldings()])
     if (playerStore.fetchPlayer) {
-      playerStore.fetchPlayer()
+      playerStore.scheduleFetchPlayer()
     }
   } catch (error) {
     console.error('[StockPanel] 交易失败:', error)
@@ -636,7 +636,7 @@ const confirmTransfer = async () => {
     // 刷新状态与玩家信息
     await Promise.all([fetchStatus(), fetchMarginAccount()])
     if (playerStore.fetchPlayer) {
-      playerStore.fetchPlayer()
+      playerStore.scheduleFetchPlayer()
     }
   } catch (error) {
     console.error('[StockPanel] 转账失败:', error)

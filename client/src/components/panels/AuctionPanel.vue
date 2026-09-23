@@ -452,7 +452,7 @@ const confirmBid = async () => {
     if (activeTab.value === 'list') await loadList()
     if (activeTab.value === 'bids') await loadMyBids()
     // 刷新玩家灵石
-    await playerStore.fetchPlayer()
+    playerStore.scheduleFetchPlayer()
   } catch (error) {
     console.error('[AuctionPanel] 出价失败:', error)
     uiStore.showApiError(error, '出价失败')
@@ -506,7 +506,7 @@ const confirmCreate = async () => {
     // 切换到我的拍卖 Tab 查看刚创建的
     await switchTab('mine')
     // 刷新储物袋
-    await playerStore.fetchPlayer()
+    playerStore.scheduleFetchPlayer()
   } catch (error) {
     console.error('[AuctionPanel] 创建拍卖失败:', error)
     uiStore.showApiError(error, '创建拍卖失败')
@@ -535,7 +535,7 @@ const confirmCancel = async () => {
     uiStore.showToast(res.data.message || '拍卖已撤销', 'success')
     cancelConfirmModal.value.show = false
     await loadMyAuctions()
-    await playerStore.fetchPlayer()
+    playerStore.scheduleFetchPlayer()
   } catch (error) {
     console.error('[AuctionPanel] 撤销拍卖失败:', error)
     uiStore.showApiError(error, '撤销拍卖失败')

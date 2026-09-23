@@ -666,7 +666,7 @@ const deathMessage = ref('')
 const handleTimeTravelComplete = async (result) => {
   // 刷新玩家数据
   try {
-    await playerStore.fetchPlayer()
+    await playerStore.scheduleFetchPlayer(0)
   } catch (e) {
     console.warn('Refresh player failed:', e)
   }

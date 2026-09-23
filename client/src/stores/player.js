@@ -12,6 +12,38 @@ import { getExploreStatus } from '../api/explore'
 import { getCombatStatus } from '../api/combat'
 import { socketService } from '../services/socket'
 import { useUIStore } from './ui'
+import { calcExpProgress } from '../utils/format'
+
+/**
+ * fetchPlayer 合并器状态（模块作用域，不属于 pinia state）
+ * 多个操作 / Socket 事件在 80ms 内同时要求刷新时，只打一次 /player/me。
+ */
+let _fetchPlayerInflight = null
+let _fetchPlayerTimer = null
+let _fetchPlayerDirty = false
+
+/**
+ * 属性是否可能被本次更新弄脏（需要重算全量属性）。
+ * 装备/功法层数/灵兽出战/突破会改战斗属性，必须全量；
+ * 纯资源（灵石/灵力/修为）走 patch，禁止再打 /player/me。
+ */
+const ATTR_DIRTY_TYPES = new Set([
+  'technique_learn', 'technique_breakthrough', 'technique_comprehend', 'technique_equip',
+  'player_breakthrough_success', 'player_breakthrough_failed',
+  'player_death', 'player_reincarnate',
+  'gm_modify', 'gm_reset', 'gm_breakthrough',
+  'gm_player_editor', 'gm_player_editor_equipment', 'gm_player_editor_technique',
+  'beast_set_active', 'beast_star_upgraded', 'beast_released',
+  'equipment_change', 'equip', 'unequip',
+  'account_wipe'
+])
+
+/** 只动资源、不必重算属性的事件（可本地 patch） */
+const RESOURCE_ONLY_TYPES = new Set([
+  'technique_practice',
+  'gm_give_spirit_stones', 'gm_add_exp', 'gm_give_item',
+  'resource', 'seclusion_tick', 'adventure_tick'
+])
 
 export const usePlayerStore = defineStore('player', {
   state: () => ({
@@ -48,6 +80,9 @@ export const usePlayerStore = defineStore('player', {
     // 收进 store 后面板自己读，GameLayout 不再为单个面板开例外。
     activeBattleId: null
   }),
+
+  // 模块级：fetchPlayer 合并器（挂在 store 外，避免被 state 序列化）
+  // 见 scheduleFetchPlayer
   
   actions: {
     setToken(token) {
@@ -78,54 +113,51 @@ export const usePlayerStore = defineStore('player', {
       })
 
       // 监听玩家数据更新
+      // 架构约定：Socket 不再无脑 fetchPlayer（/player/me 会重算全量属性，很贵）。
+      //   1. 纯资源变化 → applyResourceChanges 本地 patch（幂等，与 HTTP 回包可并存）
+      //   2. 属性可能变化（装备/功法层/突破）→ scheduleFetchPlayer 合并去重
+      //   3. 闭关/历练状态类 → 只刷对应 status 接口
       socketService.on('player:updated', async (data) => {
-        console.log('[PlayerStore] 收到玩家数据更新:', data)
+        const type = data?.updateType
+        if (!type) return
 
-        if (data.updateType === 'gm_delete') {
+        if (type === 'gm_delete') {
           this.logout('您的账号已被管理员删除')
           return
         }
-
-        if (data.updateType === 'gm_ban') {
+        if (type === 'gm_ban') {
           this.logout(`您已被管理员封禁，原因：${data.reason || '未说明'}`)
           return
         }
 
-        // 死亡事件：寿元耗尽/被击杀等导致玩家 is_dead=true
-        // 后端 LifespanService.handleLifespanEnd 推送，payload 包含 death_reason/death_time
-        // 前端只需 fetchPlayer 刷新 is_dead 字段，DeathOverlay 自动渲染
-        // 死亡后不再刷新闭关/历练状态（玩家已无法操作），避免无意义请求
-        if (data.updateType === 'player_death') {
-          console.warn('[PlayerStore] 玩家死亡事件:', data.changes)
+        // 死亡 / 轮回：状态机级变化，必须全量对齐
+        if (type === 'player_death' || type === 'player_reincarnate') {
           await this.fetchPlayer()
           return
         }
 
-        // 轮回重生事件：后端 /api/player/reincarnate 成功后推送
-        // 前端 fetchPlayer 刷新 is_dead=false，DeathOverlay 自动隐藏
-        if (data.updateType === 'player_reincarnate') {
-          console.log('[PlayerStore] 玩家轮回重生事件:', data.changes)
-          await this.fetchPlayer()
-          return
+        // 1) 本地 patch 资源（绝对值优先；增量键只在响应里给出余额时才用绝对值）
+        const patched = this.applyResourceChanges(data.changes)
+
+        // 2) 属性脏 → 合并全量刷新；纯资源事件跳过
+        const needFull =
+          ATTR_DIRTY_TYPES.has(type) ||
+          (!RESOURCE_ONLY_TYPES.has(type) && !patched)
+
+        if (needFull) {
+          this.scheduleFetchPlayer()
         }
 
-        // 重新获取玩家数据（含 HP/修为/灵石/突破状态等）
-        await this.fetchPlayer()
-
-        // 关键节点同步刷新闭关状态（含冷却剩余、每日次数等）
-        // 确保 ActionBar 冷却倒计时、SeclusionPanel 等组件在面板重开时显示最新值
-        // 触发场景：闭关开始/结束、历练开始/完成、战斗遭遇、GM 发放物品/灵石/修为
-        const cooldownAffectingEvents = [
+        // 3) 状态类接口按需
+        const seclusionEvents = [
           'seclusion_start', 'seclusion_end',
           'adventure_start', 'adventure_complete',
-          'combat_encounter', 'combat_action', 'combat_flee',
-          'gm_give_item', 'gm_give_spirit_stones', 'gm_add_exp'
+          'combat_encounter', 'combat_action', 'combat_flee'
         ]
-        if (cooldownAffectingEvents.includes(data.updateType)) {
-          await this.fetchSeclusionStatus()
-          // 历练事件额外刷新历练状态，确保 ExploreOverlay 浮动条同步显示/隐藏
-          if (data.updateType === 'adventure_start' || data.updateType === 'adventure_complete') {
-            await this.fetchAdventureStatus()
+        if (seclusionEvents.includes(type)) {
+          this.fetchSeclusionStatus()
+          if (type === 'adventure_start' || type === 'adventure_complete') {
+            this.fetchAdventureStatus()
           }
         }
       })
@@ -133,7 +165,8 @@ export const usePlayerStore = defineStore('player', {
       // 监听移动完成
       socketService.on('move:completed', async () => {
         this.clearMovingState()
-        await this.fetchPlayer()
+        // 移动通常不改属性，合并刷新即可（有遭遇/状态变化时后续事件会再拉）
+        this.scheduleFetchPlayer()
       })
 
       // 监听大世界移动广播：自己移动时同步 worldState（其他人由 WorldMapPanel 处理）
@@ -274,7 +307,7 @@ export const usePlayerStore = defineStore('player', {
 
       // 5. 如果状态有变化（如闭关被自动结算），刷新玩家数据获取最新 exp/hp
       if (needFetchPlayer) {
-        await this.fetchPlayer()
+        this.scheduleFetchPlayer(0)
       }
     },
 
@@ -287,7 +320,8 @@ export const usePlayerStore = defineStore('player', {
     },
 
     /**
-     * 获取玩家信息
+     * 获取玩家信息（全量，含属性重算 —— 贵）
+     * 日常资源变化请用 patchPlayer / applyResourceChanges / scheduleFetchPlayer
      */
     async fetchPlayer() {
       if (!this.token) return
@@ -312,6 +346,105 @@ export const usePlayerStore = defineStore('player', {
         }
         console.error('获取玩家信息失败:', error)
       }
+    },
+
+    /**
+     * 合并 / 去抖的全量刷新。
+     * 点修炼同时触发 HTTP 回调 + Socket 推送时，只打一次 /player/me。
+     * @param {number} [delay=60] - 合并窗口（ms）
+     */
+    scheduleFetchPlayer(delay = 60) {
+      if (!this.token) return Promise.resolve()
+      // 已有在途请求：标记 dirty，完成后补一枪，保证不丢更新
+      if (_fetchPlayerInflight) {
+        _fetchPlayerDirty = true
+        return _fetchPlayerInflight
+      }
+      if (_fetchPlayerTimer) clearTimeout(_fetchPlayerTimer)
+      return new Promise((resolve) => {
+        _fetchPlayerTimer = setTimeout(() => {
+          _fetchPlayerTimer = null
+          _fetchPlayerInflight = Promise.resolve(this.fetchPlayer()).finally(() => {
+            _fetchPlayerInflight = null
+            if (_fetchPlayerDirty) {
+              _fetchPlayerDirty = false
+              this.scheduleFetchPlayer(0)
+            }
+          })
+          resolve(_fetchPlayerInflight)
+        }, delay)
+      })
+    },
+
+    /**
+     * 局部字段补丁：只覆盖传入的键，不重算属性、不打 /player/me。
+     * @param {Object} fields - { spirit_stones, exp, mp_current, ... }
+     */
+    patchPlayer(fields) {
+      if (!fields || !this.player) return
+      let touched = false
+      for (const [k, v] of Object.entries(fields)) {
+        if (v === undefined) continue
+        if (this.player[k] !== v) {
+          this.player[k] = v
+          touched = true
+        }
+      }
+      if (touched) {
+        // exp 变了要同步进度百分比，保证左栏 / 数据统计一致
+        if (fields.exp !== undefined || fields.exp_next !== undefined || fields.exp_cap !== undefined) {
+          const cap = this.player.exp_next || this.player.exp_cap
+          if (cap) {
+            this.player.exp_progress = calcExpProgress(this.player.exp, cap)
+          }
+        }
+        this.setPlayer({ ...this.player })
+      }
+    },
+
+    /**
+     * 把 Socket / 接口回包里的资源变化写回本地。
+     * 绝对值字段直接覆盖；增量字段（*_cost / *_gain）做加减。
+     * 幂等：同一绝对值 patch 两次结果不变，可与 HTTP 回包并存。
+     * @returns {boolean} 是否有字段被写入
+     */
+    applyResourceChanges(changes) {
+      if (!changes || typeof changes !== 'object' || !this.player) return false
+      const absKeys = ['spirit_stones', 'mp_current', 'hp_current', 'exp', 'exp_next', 'exp_cap', 'toxicity']
+      const patch = {}
+      let touched = false
+
+      for (const key of absKeys) {
+        if (changes[key] !== undefined && changes[key] !== null) {
+          patch[key] = changes[key]
+          touched = true
+        }
+      }
+
+      // 增量键：仅当绝对值未同时给出时才做本地加减，避免双算
+      const bi = (v) => {
+        try { return BigInt(v || 0) } catch { return 0n }
+      }
+      if (patch.spirit_stones === undefined && (changes.spirit_stone_cost !== undefined || changes.spirit_stones_gain !== undefined)) {
+        const cur = bi(this.player.spirit_stones)
+        const cost = bi(changes.spirit_stone_cost)
+        const gain = bi(changes.spirit_stones_gain)
+        patch.spirit_stones = (cur - cost + gain).toString()
+        touched = true
+      }
+      if (patch.mp_current === undefined && changes.mp_cost !== undefined) {
+        const cur = Number(this.player.mp_current) || 0
+        patch.mp_current = String(Math.max(0, cur - (Number(changes.mp_cost) || 0)))
+        touched = true
+      }
+      if (patch.exp === undefined && changes.exp_gain !== undefined) {
+        const cur = bi(this.player.exp)
+        patch.exp = (cur + bi(changes.exp_gain)).toString()
+        touched = true
+      }
+
+      if (touched) this.patchPlayer(patch)
+      return touched
     },
 
     /**
@@ -493,12 +626,11 @@ export const usePlayerStore = defineStore('player', {
       try {
         // 修复：使用统一封装的 breakthrough API 替代动态 import，避免循环依赖警告
         const res = await tryBreakthroughApi()
-        // 无论突破成功或失败，都需要刷新玩家数据（失败时后端会扣除修为），确保 UI 及时更新
-        await this.fetchPlayer()
+        // 突破会改境界/属性/清空修为，必须全量（合并窗口内与 Socket 去重）
+        this.scheduleFetchPlayer(0)
         return res.data
       } catch (error) {
-        // 即使接口返回错误（如修为不足），也刷新数据以保持 UI 同步
-        await this.fetchPlayer()
+        this.scheduleFetchPlayer(0)
         console.error('尝试突破失败:', error.response?.data || error.message || error)
         throw error
       }

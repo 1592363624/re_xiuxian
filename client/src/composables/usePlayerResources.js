@@ -25,10 +25,20 @@ export const PLAYER_FIELDS = Object.freeze({
   mpMax: 'mp_max',
   exp: 'exp',
   expNext: 'exp_next',
-  spiritStones: 'spirit_stones'
+  expCap: 'exp_cap',
+  expProgress: 'exp_progress',
+  spiritStones: 'spirit_stones',
+  toxicity: 'toxicity'
 })
 
-const CANONICAL_KEYS = new Set(Object.values(PLAYER_FIELDS))
+const CANONICAL_KEYS = new Set([
+  ...Object.values(PLAYER_FIELDS),
+  // 其它可安全局部写回的玩家字段（状态类；不含 attributes 这种要重算的）
+  'is_dead', 'death_reason', 'death_time',
+  'is_secluded', 'seclusion_mode', 'seclusion_start_time', 'seclusion_end_time', 'seclusion_duration',
+  'is_meditating', 'meditation_mode', 'meditation_start_time', 'meditation_end_time', 'meditation_duration',
+  'can_breakthrough', 'realm', 'realm_rank'
+])
 
 /**
  * 各接口历史别名 → 规范字段。
@@ -72,17 +82,18 @@ export function usePlayerResources() {
    * 把任意接口回包里的资源字段写回 player store。
    * 同时接受规范字段与历史别名；只覆盖「本次响应里出现过」的键，
    * 不会把没返回的字段抹成 0。递归处理 { player: {...} } 这类嵌套。
+   * 走 store.patchPlayer，自动同步 exp_progress。
    */
   const patchFromResponse = (payload) => {
     if (!payload || typeof payload !== 'object' || !playerStore.player) return
-    const target = playerStore.player
+    const pick = {}
     let touched = false
 
     for (const [rawKey, rawVal] of Object.entries(payload)) {
       if (rawVal === undefined || rawVal === null || typeof rawVal === 'object') continue
       const key = FIELD_ALIASES[rawKey] || rawKey
       if (CANONICAL_KEYS.has(key)) {
-        target[key] = rawVal
+        pick[key] = rawVal
         touched = true
       }
     }
@@ -90,15 +101,18 @@ export function usePlayerResources() {
     // 常见嵌套：{ player: { hp_current, ... } } 或战斗 { player: { hp, mp } }
     if (payload.player && typeof payload.player === 'object') {
       patchFromResponse(payload.player)
-      return
     }
 
-    if (touched) playerStore.setPlayer({ ...target })
+    if (touched) playerStore.patchPlayer(pick)
   }
+
+  /** 局部写回（优先于 fetchPlayer） */
+  const patchPlayer = (fields) => playerStore.patchPlayer(fields)
 
   return {
     hp, hpMax, mp, mpMax, exp, expNext, spiritStones,
     enoughHp, enoughMp, enoughSpirit,
-    patchFromResponse
+    patchFromResponse,
+    patchPlayer
   }
 }

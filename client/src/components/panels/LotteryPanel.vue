@@ -41,7 +41,7 @@ const fetchPanel = () => run(async () => {
 })
 
 const refreshResources = async () => {
-  try { await playerStore.fetchPlayer() } catch (e) { /* 忽略 */ }
+  try { playerStore.scheduleFetchPlayer() } catch (e) { /* 忽略 */ }
 }
 
 /** 抽奖 */

@@ -139,7 +139,7 @@ watch(items, async (list) => {
   justExpired.forEach(i => settledOnce.add(i.id))
   settleRefreshing = true
   try {
-    await playerStore.fetchPlayer()
+    await playerStore.scheduleFetchPlayer(0)
     await playerStore.fetchSeclusionStatus()
     await playerStore.fetchAdventureStatus()
   } catch {

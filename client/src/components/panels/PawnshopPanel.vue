@@ -478,7 +478,7 @@ const confirmPawn = async () => {
     // 刷新状态、储物袋、玩家信息
     await Promise.all([fetchStatus(), fetchInventory()])
     if (playerStore.fetchPlayer) {
-      playerStore.fetchPlayer()
+      playerStore.scheduleFetchPlayer()
     }
   } catch (error) {
     console.error('[PawnshopPanel] 典当失败:', error)
@@ -529,7 +529,7 @@ const confirmRedeem = async () => {
     // 刷新当票列表、状态、玩家信息
     await Promise.all([fetchListings(), fetchStatus()])
     if (playerStore.fetchPlayer) {
-      playerStore.fetchPlayer()
+      playerStore.scheduleFetchPlayer()
     }
   } catch (error) {
     console.error('[PawnshopPanel] 赎回失败:', error)

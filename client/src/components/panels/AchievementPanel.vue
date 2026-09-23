@@ -80,7 +80,7 @@ const onClaim = async (item) => {
     // 列表与资源并行刷新；串行会把转圈拖长到三倍 RTT
     await Promise.all([
       fetchList({ silent: true }),
-      playerStore.fetchPlayer().catch(() => { /* 资源刷新失败不该挡成就列表 */ })
+      playerStore.scheduleFetchPlayer().catch(() => { /* 资源刷新失败不该挡成就列表 */ })
     ])
   } catch (err) {
     uiStore.showApiError(err, '领取失败')

@@ -84,8 +84,11 @@ router.post('/practice', authMiddleware, async (req, res) => {
         }
 
         const result = await TechniqueService.practice(req.player.id, technique_id);
-        // 修炼会扣灵石/灵力、加修为，事务提交后推送，驱动前端资源条联动刷新
+        // 资源事件：带上绝对余额，前端可本地 patch，禁止再触发全量 /player/me
         WebSocketNotificationService.notifyPlayerUpdate(req.player.id, 'technique_practice', {
+            spirit_stones: result.spirit_stones,
+            mp_current: result.mp_current,
+            exp: result.exp,
             spirit_stone_cost: result.spirit_stone_cost,
             mp_cost: result.mp_cost,
             exp_gain: result.exp_gain

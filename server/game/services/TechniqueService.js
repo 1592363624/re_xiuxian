@@ -769,6 +769,10 @@ class TechniqueService {
                 exp_gain: expGain,
                 spirit_stone_cost: cost,
                 mp_cost: mpCost,
+                // 绝对余额一并回传：前端资源条直接 patch，不必再打 /player/me 全量重算
+                spirit_stones: String(player.spirit_stones ?? 0),
+                mp_current: String(player.mp_current ?? 0),
+                exp: player.exp?.toString?.() ?? String(player.exp ?? 0),
                 proficiency: record.proficiency,
                 required_proficiency: required,
                 can_breakthrough: record.proficiency >= required,

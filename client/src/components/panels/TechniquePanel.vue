@@ -431,13 +431,19 @@ const emitRefresh = () => {
 }
 
 /**
- * 资源联动刷新：操作后主动拉取玩家最新资源（灵石/灵力/修为等）
- * 后端对功法类操作未必推送 player_update 事件，前端主动 fetchPlayer
- * 以保证顶部资源条与本面板余额实时同步，避免"消耗不显示"的错位。
+ * 资源联动刷新：
+ *   - 回包带绝对余额 → patchFromResponse 本地写，不打 /player/me
+ *   - 属性会变的操作（突破/装备）才 scheduleFetchPlayer（合并去抖）
  */
-const refreshResources = async () => {
+const refreshResources = async (envelope) => {
+  // 接口形状：{ code, message, data: { spirit_stones, mp_current, exp, ... } }
+  const result = envelope?.data && typeof envelope.data === 'object' ? envelope.data : envelope
+  if (result && (result.spirit_stones !== undefined || result.mp_current !== undefined || result.exp !== undefined)) {
+    patchFromResponse(result)
+    return
+  }
   try {
-    await playerStore.fetchPlayer()
+    playerStore.scheduleFetchPlayer()
   } catch (err) {
     console.error('刷新玩家资源失败:', err)
   }
@@ -462,7 +468,7 @@ const doPractice = async (id) => {
     if (p.code !== 200) { uiStore.showToast(p.message || '修炼失败', 'warning'); return }
     uiStore.showToast(p.message || '修炼成功', 'success')
     await fetchList()
-    await refreshResources()
+    await refreshResources(p)
   } catch (err) {
     console.error('修炼失败:', err)
     uiStore.showApiError(err, '修炼失败')
@@ -491,7 +497,8 @@ const doBreakthrough = async (id) => {
     if (p.code !== 200) { uiStore.showToast(p.message || '突破失败', 'warning'); return }
     uiStore.showToast(p.message || '突破完成', 'success')
     await fetchList()
-    await refreshResources()
+    // 突破改层数 → 战斗属性变化，走合并全量刷新
+    playerStore.scheduleFetchPlayer()
   } catch (err) {
     console.error('突破失败:', err)
     uiStore.showApiError(err, '突破失败')
@@ -522,7 +529,8 @@ const doComprehend = async (id) => {
     if (p.code !== 200) { uiStore.showToast(p.message || '领悟失败', 'warning'); return }
     uiStore.showToast(p.message || '领悟完成', 'success')
     await fetchList()
-    await refreshResources()
+    // 领悟改神通槽位 → 属性可能变，合并全量
+    playerStore.scheduleFetchPlayer()
   } catch (err) {
     console.error('领悟失败:', err)
     uiStore.showApiError(err, '领悟失败')
@@ -551,7 +559,8 @@ const doLearn = async (id) => {
     if (p.code !== 200) { uiStore.showToast(p.message || '研习失败', 'warning'); return }
     uiStore.showToast(p.message || '研习成功', 'success')
     await fetchList()
-    await refreshResources()
+    // 新学功法 → 属性加成变化
+    playerStore.scheduleFetchPlayer()
   } catch (err) {
     console.error('研习失败:', err)
     uiStore.showApiError(err, '研习失败')
@@ -633,7 +642,8 @@ const doEquip = async (id, slot) => {
     if (p.code !== 200) { uiStore.showToast(p.message || '装备失败', 'warning'); return }
     uiStore.showToast(p.message || '装备成功', 'success')
     await fetchList()
-    await refreshResources()
+    // 主修/辅修切换改属性加成
+    playerStore.scheduleFetchPlayer()
   } catch (err) {
     console.error('装备失败:', err)
     uiStore.showApiError(err, '装备失败')
@@ -651,7 +661,7 @@ const doUnequip = async (id) => {
     if (p.code !== 200) { uiStore.showToast(p.message || '卸下失败', 'warning'); return }
     uiStore.showToast(p.message || '已卸下', 'success')
     await fetchList()
-    await refreshResources()
+    playerStore.scheduleFetchPlayer()
   } catch (err) {
     console.error('卸下失败:', err)
     uiStore.showApiError(err, '卸下失败')
