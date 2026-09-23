@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "dataset": "trial_tower",
+    "version": 1,
+    "comment": "试炼古塔（琉璃塔）：每日免费挑战，精英层(5倍数)/首领层(10倍数)首通大奖，全服首杀公告。"
+  },
+  "trial_tower": {
+    "max_floor": 100,
+    "daily_free_attempts": 1,
+    "reset_cost_exp": 500,
+    "elite_every": 5,
+    "boss_every": 10,
+    "challenge_cooldown_seconds": 2,
+    "base_exp_per_floor": 80,
+    "base_stones_per_floor": 30,
+    "realm_bonus_threshold_rank": 12,
+    "realm_bonus_multiplier": 1.5,
+    "elite_first_clear_stones": 500,
+    "elite_first_clear_exp": 800,
+    "boss_first_clear_stones": 1500,
+    "boss_first_clear_exp": 2000,
+    "floor_difficulty": {
+      "base_power": 800,
+      "power_per_floor": 120,
+      "elite_multiplier": 1.35,
+      "boss_multiplier": 1.8
+    }
+  }
+}
