@@ -33,7 +33,6 @@ server/uploads/
 *.sln
 .codebuddy/
 .opencode/
-
 # OS System Files
 .DS_Store
 Thumbs.db
