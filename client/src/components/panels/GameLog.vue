@@ -17,6 +17,7 @@ const uiStore = useUIStore()
 const FILTERS = [
   { key: 'all', label: '全部' },
   { key: 'self', label: '我的' },
+  { key: 'others', label: '他人' },
   { key: 'system', label: '系统' },
 ]
 
@@ -50,12 +51,13 @@ watch(() => uiStore.logs.length, () => {
 })
 
 // 「我的」只看自己发起的动作（后端以 actorId='self' 标记）；
-// 「系统」同时收 system 与 notice，两者都是全服播报。
+// 「他人」看同图道友动向（actorId='other'）；「系统」同时收 system 与 notice。
 const filteredLogs = computed(() =>
   uiStore.logs.filter(log => {
     if (log.isImportant) return true
     if (filterMode.value === 'all') return true
     if (filterMode.value === 'self') return log.actorId === 'self'
+    if (filterMode.value === 'others') return log.actorId === 'other'
     if (filterMode.value === 'system') return log.type === 'system' || log.type === 'notice'
     return true
   })
@@ -77,8 +79,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- 窄阅读栏：限宽并贴左锚定，避免一行字横跨整个视口 -->
-  <div class="flex-1 w-full max-w-[680px] mr-2 ml-0 md:ml-2 my-1 flex flex-col bg-surface-canvas overflow-hidden relative min-h-[200px] border border-line-subtle rounded-panel">
+  <!-- 填满父容器（竖条侧栏 / 移动抽屉），不再自限 680px 阅读宽 -->
+  <div class="flex-1 w-full min-h-0 flex flex-col bg-surface-canvas overflow-hidden relative">
     <div
       ref="logContainer"
       @scroll="onLogScroll"
@@ -126,13 +128,13 @@ onMounted(() => {
       有新日志 · 回到底部
     </button>
 
-    <!-- 阅读过滤器：浮在右下角，不占正文行高 -->
-    <div class="absolute bottom-3 right-3 z-nav flex items-center gap-0.5 p-0.5 rounded-full bg-surface-base/90 border border-line-subtle backdrop-blur-sm">
+    <!-- 阅读过滤器：竖条里贴底铺开，避免四个标签挤成一团 -->
+    <div class="absolute bottom-2 inset-x-2 z-nav flex items-center justify-center gap-0.5 p-0.5 rounded-full bg-surface-base/90 border border-line-subtle backdrop-blur-sm">
       <button
         v-for="f in FILTERS"
         :key="f.key"
         @click="filterMode = f.key"
-        class="focus-ring px-2.5 py-1 rounded-full text-[11px] tracking-wide transition-colors"
+        class="focus-ring flex-1 px-1 py-1 rounded-full text-[11px] tracking-wide transition-colors"
         :class="filterMode === f.key
           ? 'bg-gold-800/80 text-gold-100 font-bold'
           : 'text-fg-muted hover:text-fg-secondary'"

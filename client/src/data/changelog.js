@@ -12,10 +12,41 @@
  */
 import { formatBeijingDate } from '../utils/time'
 
-export const currentVersion = 'v0.4.8_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
+export const currentVersion = 'v0.4.10_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
 
 // 🛡️ 兜底数据：仅在无法连接 GitHub API 时显示
 export const changelog = [
+  {
+    version: 'v0.4.10_BETA',
+    date: '2026-09-23',
+    sections: [
+      {
+        title: '修复与补全：玩家功能入口断链（采集 / 血魔剑 / 兽潮 / 封神台结算）',
+        type: 'fix',
+        items: [
+          '【采集】资源采集面板挂进右坞「历练 → 采集」，并改造为 PanelShell 停靠契约（原先只有地图格子能采，独立入口缺失）。',
+          '【血魔剑】法宝深线·血魔剑残契面板挂进「养成 → 血魔剑」，冷灰配色统一为主题令牌；祭血/镇契/雷洗/铭印/封鞘操作对玩家可见。',
+          '【兽潮】妖兽入侵补全客户端：新建 BeastInvasionPanel（战况/捐献/排行/说明）+ beastInvasion API，挂进「征伐 → 兽潮」。此前服务端 12 接口完整但玩家零入口。',
+          '【封神台】赛季结算补上 GM 入口：POST /api/admin/fengshen/season/settle + PVP 斗法管理「封神台结算」按钮（此前 settleSeason 写完却无 routes/调度器，赛季永远停在 1）。',
+          '【OpenAPI】+2 paths（/api/admin/fengshen/season、/api/admin/fengshen/season/settle）。',
+        ],
+      },
+      {
+        title: '新增功能：指南补完·纯玩法批次（琉璃古塔 / 剑诀线 / 事件奇遇 / 宗门外交 / 落云宗定脉）',
+        type: 'feature',
+        items: [
+          '【琉璃古塔】玩法文档第30节·古塔流程：九重试炼闯塔（自动回合制）+ 继续闯塔/退出/重置 + 琉璃塔榜 + 闯关历史 + 首通奖励与称号。',
+          '【剑诀线】玩法文档第30节：古剑诀残篇合成剑诀 → 参悟剑意 → 分阶炼剑 → 参悟/布下剑阵；加成为展示向（display_bonus_only），本批不接战斗数值。',
+          '【事件奇遇】玩法文档第22节·隐藏/事件式命令：献上魂魄/收敛气息/作答/献祭法则/南宫侯交易/换取/赎罪/卜筮问天 七类事件，抉择定缘。',
+          '【宗门外交】玩法文档第33节：天下大势 + 示好/结盟/敌对/解除，关系值 -100~100 分六档，宗主/长老专属高阶行动。',
+          '【落云宗定脉】玩法文档第25节·云梦灵眼定脉：注灵/固脉/净浊/冲脉四动作 + 今日脉象 + 浊息/脉稳 + 分枝榜/净化榜。',
+          '【纯玩法约定】本批不改战斗公式、不接器灵/法相天地/法宝深线 effects 数值链路（待业主拍板项保持原状）。',
+          '【数据库】migration_0089 创建 player_pagoda / player_pagoda_records / player_sword_arts / player_fated_events / sect_diplomacies / player_dingmai 六表（幂等）。',
+          '【前端】5 个新面板（Pagoda/SwordArt/FatedEvent/SectDiplomacy/Dingmai）接入 actionCatalog + registry 动态加载。',
+        ],
+      },
+    ],
+  },
   {
     version: 'v0.4.5_BETA',
     date: '2026-07-23',

@@ -222,6 +222,12 @@ const attributeGrid = computed(() => {
   ]
 })
 
+/** 触屏点按切换精确值（hover 浮层在触屏上出不来） */
+const expandedStatKey = ref(null)
+const toggleExact = (key) => {
+  expandedStatKey.value = expandedStatKey.value === key ? null : key
+}
+
 onMounted(() => {
   fetchStats(true)
   statsInterval = setInterval(() => fetchStats(false), POLL_INTERVALS.stats)
@@ -295,7 +301,7 @@ onUnmounted(() => {
       <div>
         <div class="flex justify-between text-xs text-fg-muted mb-1">
           <span>气血</span>
-          <span class="num whitespace-nowrap" :title="`${player.hp_current || 0} / ${player.hp_max || 0}`">{{ formatCompact(player.hp_current || 0) }} / {{ formatCompact(player.hp_max || 0) }}</span>
+          <span class="num whitespace-nowrap cursor-help underline decoration-dotted decoration-fg-faint/40 underline-offset-2" :title="`${player.hp_current || 0} / ${player.hp_max || 0}`">{{ formatCompact(player.hp_current || 0) }} / {{ formatCompact(player.hp_max || 0) }}</span>
         </div>
         <div class="h-2 w-full bg-surface-sunken rounded-sm overflow-hidden border border-line-subtle relative">
           <div class="h-full bg-rose-700 progress-flow transition-all duration-300" :style="{ width: player.hp_max ? Math.min((player.hp_current / player.hp_max) * 100, 100) + '%' : '0%' }"></div>
@@ -306,7 +312,7 @@ onUnmounted(() => {
       <div>
         <div class="flex justify-between text-xs text-fg-muted mb-1">
           <span>灵力</span>
-          <span class="num whitespace-nowrap" :title="`${player.mp_current || 0} / ${player.mp_max || 0}`">{{ formatCompact(player.mp_current || 0) }} / {{ formatCompact(player.mp_max || 0) }}</span>
+          <span class="num whitespace-nowrap cursor-help underline decoration-dotted decoration-fg-faint/40 underline-offset-2" :title="`${player.mp_current || 0} / ${player.mp_max || 0}`">{{ formatCompact(player.mp_current || 0) }} / {{ formatCompact(player.mp_max || 0) }}</span>
         </div>
         <div class="h-2 w-full bg-surface-sunken rounded-sm overflow-hidden border border-line-subtle relative">
           <div class="h-full bg-sky-600 progress-flow transition-all duration-300" :style="{ width: player.mp_max ? Math.min((player.mp_current / player.mp_max) * 100, 100) + '%' : '0%' }"></div>
@@ -318,7 +324,7 @@ onUnmounted(() => {
         <div class="flex justify-between text-[10px] text-fg-muted mb-0.5">
           <span>修为</span>
           <!-- 大数走万/亿单位，hover 看精确值（全站数字展示约定） -->
-          <span class="num whitespace-nowrap" :title="`${formatNumber(player.exp || 0)} / ${formatNumber(player.exp_next || 0)}`">{{ formatCompact(player.exp || 0) }} / {{ formatCompact(player.exp_next || 0) }}</span>
+          <span class="num whitespace-nowrap cursor-help underline decoration-dotted decoration-fg-faint/40 underline-offset-2" :title="`${formatNumber(player.exp || 0)} / ${formatNumber(player.exp_next || 0)}`">{{ formatCompact(player.exp || 0) }} / {{ formatCompact(player.exp_next || 0) }}</span>
         </div>
         <div class="h-1.5 w-full bg-surface-sunken rounded-sm overflow-hidden border border-line-subtle relative">
           <div class="h-full bg-emerald-600 progress-flow transition-all duration-300"
@@ -392,10 +398,19 @@ onUnmounted(() => {
       <div
         v-for="stat in attributeGrid"
         :key="stat.key"
-        class="bg-surface-raised px-1 py-3 rounded-lg border border-line-subtle flex flex-col justify-center items-center min-w-0 hover:bg-surface-hover transition-colors"
+        class="group relative bg-surface-raised px-1 py-3 rounded-lg border border-line-subtle flex flex-col justify-center items-center min-w-0 hover:bg-surface-hover hover:border-line transition-colors cursor-help"
+        :title="`${stat.label} ${stat.exact}`"
+        @click="toggleExact(stat.key)"
       >
         <span class="text-xs text-fg-faint mb-1.5">{{ stat.label }}</span>
-        <span class="font-bold num text-base leading-none whitespace-nowrap" :class="stat.cls" :title="stat.exact">{{ stat.shown }}</span>
+        <span
+          class="font-bold num text-base leading-none whitespace-nowrap underline decoration-dotted decoration-fg-faint/40 underline-offset-[3px]"
+          :class="stat.cls"
+        >{{ expandedStatKey === stat.key ? stat.exact : stat.shown }}</span>
+        <!-- 桌面 hover 浮层：比原生 title 更醒目，触屏可点按切换精确值 -->
+        <div
+          class="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-20 whitespace-nowrap rounded bg-surface-sunken border border-line px-2 py-1 text-[11px] text-fg-secondary num shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+        >{{ stat.exact }}</div>
       </div>
     </div>
 

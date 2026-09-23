@@ -10,7 +10,7 @@ defineProps({
   modelValue: { type: String, required: true },
   items: { type: Array, required: true },
 })
-defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue'])
 </script>
 
 <template>
@@ -19,12 +19,14 @@ defineEmits(['update:modelValue'])
     role="tablist"
   >
     <button
-      v-for="item in items"
+      v-for="(item, index) in items"
       :key="item.key"
       type="button"
       role="tab"
       :aria-selected="modelValue === item.key"
-      @click="$emit('update:modelValue', item.key)"
+      @click="emit('update:modelValue', item.key)"
+      @keydown.left.prevent="emit('update:modelValue', items[(index - 1 + items.length) % items.length].key)"
+      @keydown.right.prevent="emit('update:modelValue', items[(index + 1) % items.length].key)"
       class="focus-ring relative shrink-0 px-3 py-2 text-[13px] tracking-wide transition-colors border-b-2 -mb-px
              flex items-center gap-1.5"
       :class="modelValue === item.key

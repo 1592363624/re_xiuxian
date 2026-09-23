@@ -1,14 +1,23 @@
 <template>
   <div class="flex flex-col md:flex-row h-screen bg-surface-canvas text-fg-primary overflow-hidden relative font-sans">
-    <!-- 侧边栏 (Desktop) -->
-    <aside class="hidden md:flex w-72 flex-col border-r border-line-subtle bg-surface-base">
-      <PlayerStatus
-        v-if="playerStore.player"
-        :player="playerStore.player"
-        :map-name="playerStore.worldState?.map_name || ''"
-        :synced="isStateSynced"
-        @action="handleAction"
-      />
+    <!-- 角色详栏收进抽屉；主视野让给大地图（L1） -->
+    <aside
+      v-if="isStatusOpen"
+      class="hidden md:flex w-72 flex-col border-r border-line-subtle bg-surface-base shrink-0"
+    >
+      <div class="flex items-center justify-between px-3 py-2 border-b border-line-subtle">
+        <span class="text-[12px] text-gold-500 font-bold">角色</span>
+        <button class="text-fg-muted hover:text-fg-primary text-[12px]" @click="isStatusOpen = false">收起</button>
+      </div>
+      <div class="flex-1 min-h-0 overflow-y-auto">
+        <PlayerStatus
+          v-if="playerStore.player"
+          :player="playerStore.player"
+          :map-name="playerStore.worldState?.map_name || ''"
+          :synced="isStateSynced"
+          @action="handleAction"
+        />
+      </div>
     </aside>
 
     <!-- 移动端/窄屏功能抽屉（xl 以上由右坞承担导航） -->
@@ -81,6 +90,17 @@
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
+          <button
+            class="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-line-subtle text-[12px] text-fg-secondary hover:text-gold-500"
+            @click="isStatusOpen = !isStatusOpen"
+            title="角色详情"
+          >
+            <span class="w-6 h-6 rounded bg-surface-hover border border-line overflow-hidden flex items-center justify-center text-[10px] text-gold-500">
+              {{ (playerStore.player?.name || '?').slice(0, 1) }}
+            </span>
+            <span class="hidden lg:inline max-w-[6rem] truncate">{{ playerStore.player?.name || '角色' }}</span>
+            <span class="hidden xl:inline text-gold-600">{{ playerStore.player?.realm || '' }}</span>
+          </button>
           <AppButton size="sm" @click="handleAction('settings')">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
             <span class="hidden sm:inline">设置</span>
@@ -107,29 +127,121 @@
       <!-- 赶路移动浮动状态条（header 下方，不遮挡内容） -->
       <MovingOverlay :show="movingState.isMoving" @complete="handleMoveComplete" />
 
-      <!-- 中部三栏：【日志窄栏】+【右坞：分类导航 / 功能面板停靠】
-           xl 以下放不下三栏，日志独占宽度、导航退回底部操作条 -->
-      <div class="flex-1 flex flex-col xl:flex-row overflow-hidden relative min-h-0">
-        <div class="w-full xl:w-[560px] 2xl:w-[680px] shrink-0 flex flex-col overflow-hidden relative min-w-0">
-          <!-- 窄阅读栏之外的留白用灵尘氛围层填充，避免读作渲染缺陷 -->
-          <div class="absolute inset-0 pointer-events-none overflow-hidden">
-            <div class="absolute inset-0 bg-[radial-gradient(90%_70%_at_72%_18%,rgba(56,189,248,0.05),transparent_65%)]"></div>
-            <div class="absolute w-2 h-2 bg-emerald-500/25 rounded-full blur-[1px] animate-float top-1/3 left-[64%]"></div>
-            <div class="absolute w-3 h-3 bg-cyan-500/15 rounded-full blur-[2px] animate-float top-2/3 left-[78%]" style="animation-duration: 9s; animation-delay: 1.2s;"></div>
-            <div class="absolute w-1 h-1 bg-amber-500/35 rounded-full animate-float top-1/2 left-[88%]" style="animation-duration: 6s; animation-delay: 2.4s;"></div>
-            <div class="absolute w-4 h-4 bg-purple-500/10 rounded-full blur-[3px] animate-float top-1/4 left-[94%]" style="animation-duration: 11s; animation-delay: 0.6s;"></div>
-          </div>
-          <GameLog />
+      <!-- ============================================================
+           主舞台（L1）：【脚下操作板】+【大地图常驻】+【修仙录竖条】+【右坞】
+           地图不是「地图面板」，是游戏本体；日志是常驻竖条（可收起），窄屏才走抽屉。
+           ============================================================ -->
+      <MapHud
+        :region-name="mapHud.regionName"
+        :zone-name="mapHud.zoneName"
+        :cell-x="mapHud.cellX"
+        :cell-y="mapHud.cellY"
+        :vision-r="mapHud.visionR"
+        :moving="!!pathPreview"
+        :move-seconds="pathPreview?.seconds || 0"
+        :move-steps="pathPreview?.steps || 0"
+        :online="onlineCount"
+        @stop="handleStopMove"
+        @center="handleCenterMap"
+        @toggle-log="isLogOpen = !isLogOpen"
+      />
+
+      <div class="flex-1 flex min-h-0 overflow-hidden relative">
+        <!-- 左：脚下格操作板（世界行动唯一出口） -->
+        <CellPanel
+          class="hidden md:flex"
+          :cell="footCell"
+          :is-self="footIsSelf"
+          :visibility="footVisibility"
+          :path-preview="pathPreview"
+          :vision-r="mapHud.visionR"
+          :region-name="mapHud.regionName"
+          :zone-name="mapHud.zoneName"
+          :cell-x="mapHud.cellX"
+          :cell-y="mapHud.cellY"
+          @action="handleCellAction"
+          @depart="handleDepart"
+          @cancel-path="handleCancelPath"
+        />
+
+        <!-- 中：大地图主舞台（限宽，避免在宽屏上摊成一片空场） -->
+        <div class="flex-1 min-w-0 max-w-[640px] relative">
+          <WorldStage
+            ref="worldStageRef"
+            @cell-select="onCellSelect"
+            @path-preview="onPathPreview"
+            @region-ready="onRegionReady"
+            @action="onWorldAction"
+          />
         </div>
 
+        <!-- 修仙录：常驻竖条文本日志（看自己/系统/他人动向），不再是抽屉 -->
+        <aside
+          v-if="isLogOpen"
+          class="hidden md:flex w-[260px] xl:w-[280px] shrink-0 flex-col border-l border-line-subtle bg-surface-base min-h-0"
+        >
+          <div class="flex items-center justify-between px-3 py-2 border-b border-line-subtle shrink-0">
+            <span class="text-[12px] text-gold-500 font-bold">修仙录</span>
+            <button class="text-fg-muted hover:text-fg-primary text-[12px]" title="收起竖条" @click="isLogOpen = false">收起</button>
+          </div>
+          <div class="flex-1 min-h-0 border-t border-line-subtle">
+            <GameLog />
+          </div>
+        </aside>
+        <button
+          v-else
+          class="hidden md:flex w-9 shrink-0 flex-col items-center gap-2 border-l border-line-subtle bg-surface-base py-3 text-fg-muted hover:text-gold-500"
+          title="展开修仙录"
+          @click="isLogOpen = true"
+        >
+          <span class="text-[11px] tracking-[0.3em] [writing-mode:vertical-rl]">修仙录</span>
+        </button>
+
+        <!-- 右：功能坞（书签 + 面板停靠；不得是世界行动总闸） -->
         <FeatureDock :player="playerStore.player" :open-panel-id="openPanel" @action="handleAction" @close-panel="dismissPanel">
-          <!-- 闭关 / 悟道 / 历练 进度条收进总览的状态卡，不再各占一条 header 下方的横条 -->
           <template #status>
             <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
             <MeditationOverlay v-if="isStateSynced && playerStore.player?.is_meditating" />
             <ExploreOverlay v-if="isStateSynced && playerStore.adventureStatus?.is_adventuring" />
           </template>
         </FeatureDock>
+      </div>
+
+      <!-- 移动端修仙录抽屉（桌面端是右侧竖条） -->
+      <div
+        v-if="isLogOpen"
+        class="md:hidden absolute inset-x-0 bottom-14 top-auto h-[40vh] z-floating bg-surface-base border-t border-line-subtle shadow-2xl flex flex-col"
+      >
+        <div class="flex items-center justify-between px-3 py-2 border-b border-line-subtle">
+          <span class="text-[12px] text-gold-500 font-bold">修仙录</span>
+          <button class="text-fg-muted hover:text-fg-primary text-[12px]" @click="isLogOpen = false">收起</button>
+        </div>
+        <div class="flex-1 min-h-0"><GameLog /></div>
+      </div>
+
+      <!-- 窄屏脚下浮条 -->
+      <div class="md:hidden fixed bottom-14 left-0 right-0 z-floating px-2 pb-2">
+        <div class="rounded-xl bg-surface-raised/95 border border-line-subtle px-3 py-2 flex items-center gap-2 shadow-xl">
+          <div class="min-w-0 flex-1">
+            <div class="text-[12px] font-bold text-gold-400 truncate">
+              {{ mapHud.regionName }} › {{ mapHud.zoneName }}
+              <span class="num text-fg-muted">({{ mapHud.cellX }},{{ mapHud.cellY }})</span>
+            </div>
+            <div class="text-[11px] text-fg-faint truncate">
+              {{ footCell?.name || footCell?.cell_type || '脚下' }}
+            </div>
+          </div>
+          <button
+            v-if="footPrimaryLabel"
+            class="shrink-0 px-3 py-2 rounded bg-gold-700 text-white text-[12px] font-bold"
+            @click="handleFootPrimary"
+          >{{ footPrimaryLabel }}</button>
+          <button
+            v-else-if="pathPreview"
+            class="shrink-0 px-3 py-2 rounded bg-sky-700 text-white text-[12px] font-bold"
+            @click="handleDepart"
+          >启程</button>
+        </div>
       </div>
 
       <!-- 移动端底部操作条（桌面端导航由右坞承担） -->
@@ -192,7 +304,7 @@
 /**
  * 游戏主布局
  *
- * 三栏：左角色状态 · 中日志流 · 右坞（分类导航 + 功能面板停靠）
+ * 四栏：左脚下操作 · 中大地图 · 修仙录竖条 · 右坞（分类导航 + 功能面板停靠）
  *
  * 面板开关收敛到单一 openPanel + panels/registry.js：
  *   actionId 就是面板标识，本文件不再认识任何具体玩法组件。
@@ -214,6 +326,11 @@ import PlayerStatus from '../panels/PlayerStatus.vue';
 import GameLog from '../panels/GameLog.vue';
 import ActionBar from '../panels/ActionBar.vue';
 import FeatureDock from '../dock/FeatureDock.vue';
+import WorldStage from '../world/WorldStage.vue';
+import MapHud from '../world/MapHud.vue';
+import CellPanel from '../world/CellPanel.vue';
+import { PLACE_ACTIONS } from '../../world/regions';
+import { runCellAction, autoEnterOnArrive } from '../../world/cellEffects';
 import GlobalChat from '../widgets/GlobalChat.vue';
 import BreakthroughPortal from '../widgets/BreakthroughPortal.vue';
 import SettingsModal from '../modals/SettingsModal.vue';
@@ -244,6 +361,135 @@ const isMobileMenuOpen = ref(false);
 const isSettingsOpen = ref(false);
 const isAdminPanelOpen = ref(false);
 const isLogoutConfirmOpen = ref(false);
+const isStatusOpen = ref(false);
+/** 修仙录竖条：桌面默认常驻，窄屏默认收起（顶栏「日志」可开关） */
+const isLogOpen = ref(typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches);
+
+/** 大地图主舞台状态 */
+const worldStageRef = ref(null);
+const footCell = ref(null);
+const footIsSelf = ref(true);
+const footVisibility = ref('visible');
+const pathPreview = ref(null);
+const onlineCount = ref(0);
+const mapHud = ref({ regionName: '', zoneName: '—', cellX: 0, cellY: 0, visionR: 3 });
+
+const footPrimaryLabel = computed(() => {
+  if (!footIsSelf.value || footVisibility.value !== 'visible' || !footCell.value) return '';
+  const key = footCell.value.cell_type === 'empty' && footCell.value.resource ? 'resource' : footCell.value.cell_type;
+  const acts = PLACE_ACTIONS[key] || [];
+  return acts.find((a) => a.primary)?.label || '';
+});
+
+const onRegionReady = ({ region, cell, self, visionR }) => {
+  mapHud.value = {
+    regionName: region?.name || '',
+    zoneName: cell?.zone_name || '—',
+    cellX: self.x,
+    cellY: self.y,
+    visionR,
+  };
+  footCell.value = cell;
+  footIsSelf.value = true;
+  footVisibility.value = 'visible';
+};
+
+const onCellSelect = ({ cell, isSelf, visibility }) => {
+  footCell.value = cell;
+  footIsSelf.value = isSelf;
+  footVisibility.value = visibility;
+  if (isSelf) {
+    mapHud.value = {
+      ...mapHud.value,
+      zoneName: cell?.zone_name || mapHud.value.zoneName,
+      cellX: cell?.x ?? mapHud.value.cellX,
+      cellY: cell?.y ?? mapHud.value.cellY,
+    };
+  }
+};
+
+const onPathPreview = (pv) => {
+  pathPreview.value = pv;
+};
+
+const onWorldAction = async (evt) => {
+  if (evt?.type === 'arrive') {
+    const cell = evt.cell;
+    footCell.value = cell;
+    footIsSelf.value = true;
+    footVisibility.value = 'visible';
+    mapHud.value = {
+      ...mapHud.value,
+      zoneName: cell?.zone_name || mapHud.value.zoneName,
+      cellX: evt.self?.x ?? cell?.x,
+      cellY: evt.self?.y ?? cell?.y,
+    };
+    uiStore.showToast(`到达 ${(cell?.name || '此处')}`, 'success');
+
+    // 强制 on_enter：踩进据点必须接战（§4.2）
+    const force = autoEnterOnArrive(cell);
+    if (force) {
+      uiStore.showToast('此地妖气冲天，避无可避！', 'warning');
+      await handleCellAction({ id: force.type, label: '挑战据点', cell: force.cell });
+      return;
+    }
+    // 资源格：提示可采
+    if (cell?.resource) {
+      uiStore.showToast(`此处有${cell.resource.id}，可采集`, 'info');
+    }
+  }
+  if (evt?.type === 'force-event') {
+    // 途中强制事件：停在前一格并结算（L3 对强制事件例外）
+    uiStore.showToast(`途中有变：${evt.cell?.name || '据点拦路'}！`, 'warning');
+    await runCellAction({
+      id: 'challenge',
+      cell: evt.cell,
+      playerStore,
+      uiStore,
+      goPanel,
+    });
+  }
+};
+
+const handleDepart = () => worldStageRef.value?.confirmMove();
+const handleCancelPath = () => worldStageRef.value?.cancelPath();
+const handleCenterMap = () => worldStageRef.value?.centerOnSelf();
+const handleStopMove = () => {
+  worldStageRef.value?.cancelPath();
+  uiStore.showToast('已停在当前格', 'info');
+};
+
+const handleFootPrimary = () => {
+  const label = footPrimaryLabel.value;
+  if (!label) return;
+  const key = footCell.value?.cell_type === 'empty' && footCell.value?.resource
+    ? 'resource' : footCell.value?.cell_type;
+  const acts = PLACE_ACTIONS[key] || [];
+  const primary = acts.find((a) => a.primary);
+  handleCellAction({
+    id: primary?.action || primary?.id || 'enter',
+    label,
+    cell: footCell.value,
+  });
+};
+
+/**
+ * 脚下格世界行动（L2）：采/进/建/访 —— 全部接到真实后端（cellEffects）
+ */
+const handleCellAction = async ({ id, label, cell }) => {
+  if (!footIsSelf.value) {
+    uiStore.showToast('只能操作脚下这一格', 'warning');
+    return;
+  }
+  const target = cell || footCell.value;
+  await runCellAction({
+    id: id || 'look',
+    cell: target,
+    playerStore,
+    uiStore,
+    goPanel,
+  });
+};
 
 // 移动端抽屉里的 QQ 头像加载失败时回退默认图标；换头像后重置，避免新头像被旧失败状态挡掉
 const mobileAvatarFailed = ref(false);
@@ -323,6 +569,13 @@ const handleMoveComplete = () => {
  */
 const handleAction = (actionId) => {
   isMobileMenuOpen.value = false;
+  // L1：地图是主舞台，点「地图」= 回中聚焦，不打开副面板
+  if (actionId === 'map') {
+    handleCenterMap();
+    dismissPanel();
+    uiStore.showToast('已在主舞台地图上', 'info');
+    return;
+  }
   if (actionId === 'menu') { isMobileMenuOpen.value = true; return; }
   if (actionId === 'settings') { isSettingsOpen.value = true; return; }
   if (actionId === 'gm') {

@@ -29,6 +29,9 @@ const LOADERS = {
   dungeon: () => import('./DungeonPanel.vue'),
   multi_dungeon: () => import('./MultiDungeonPanel.vue'),
   beast_abyss: () => import('./BeastAbyssPanel.vue'),
+  pagoda: () => import('./PagodaPanel.vue'),
+  fated_event: () => import('./FatedEventPanel.vue'),
+  gathering: () => import('./GatheringPanel.vue'),
 
   /* ── 征伐 ── */
   combat: () => import('./CombatPanel.vue'),
@@ -38,6 +41,7 @@ const LOADERS = {
   bounty: () => import('./BountyPanel.vue'),
   world_boss: () => import('./WorldBossPanel.vue'),
   sect_war: () => import('./SectWarPanel.vue'),
+  beast_invasion: () => import('./BeastInvasionPanel.vue'),
 
   /* ── 经营 ── */
   inventory: () => import('./InventoryPanel.vue'),
@@ -51,10 +55,12 @@ const LOADERS = {
   /* ── 养成 ── */
   cave: () => import('./CavePanel.vue'),
   treasure: () => import('./EquipmentPanel.vue'),
+  blood_sword: () => import('./BloodSwordPanel.vue'),
   artifact_spirit: () => import('./ArtifactSpiritPanel.vue'),
   formation: () => import('./FormationPanel.vue'),
   puppet: () => import('./PuppetPanel.vue'),
   spirit_beast: () => import('./SpiritBeastPanel.vue'),
+  sword_art: () => import('./SwordArtPanel.vue'),
 
   /* ── 境界 ── */
   nascent_soul: () => import('./NascentSoulPanel.vue'),
@@ -65,6 +71,8 @@ const LOADERS = {
   /* ── 宗门 ── */
   sect: () => import('./SectPanel.vue'),
   taoism_gate: () => import('./TaoismGatePanel.vue'),
+  sect_diplomacy: () => import('./SectDiplomacyPanel.vue'),
+  dingmai: () => import('./DingmaiPanel.vue'),
 
   /* ── 红尘 ── */
   companion: () => import('./CompanionPanel.vue'),

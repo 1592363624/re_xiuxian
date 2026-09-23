@@ -12,6 +12,8 @@
  *   5. PUT  /admin/pvp/:playerId/score：调整玩家 PVP 积分
  *   6. POST /admin/pvp/:playerId/score/reset：重置玩家段位（清零积分与赛季战绩）
  *   7. POST /admin/pvp/battle/:battleId/cancel：强制取消进行中的战斗
+ *   8. GET  /admin/fengshen/season：封神台赛季信息（settleSeason 入口配套）
+ *   9. POST /admin/fengshen/season/settle：强制结算封神台赛季
  */
 import apiClient from './index';
 import type { BattleType } from './pvp';
@@ -225,4 +227,39 @@ export const resetScore = (playerId: number) => {
  */
 export const cancelBattle = (battleId: number | string) => {
   return apiClient.post<{ message: string }>(`/admin/pvp/battle/${battleId}/cancel`);
+};
+
+/** 封神台赛季信息 + 结算配置摘要 */
+export interface FengshenSeasonAdminInfo {
+  season: Record<string, unknown>;
+  settle_config: {
+    top_rank_reward_enabled: boolean;
+    top_ranks: number[];
+    rank_reward_honor: number[];
+    rank_reward_stones: number[];
+    base_score: number;
+  };
+}
+
+/**
+ * 封神台赛季信息（GM）
+ * GET /admin/fengshen/season
+ */
+export const getFengshenSeason = () => {
+  return apiClient.get<FengshenSeasonAdminInfo>('/admin/fengshen/season');
+};
+
+/**
+ * 强制结算封神台赛季（发奖 + 积分重置 + 赛季递增）
+ * POST /admin/fengshen/season/settle
+ */
+export const settleFengshenSeason = () => {
+  return apiClient.post<{
+    settled: boolean;
+    old_season?: number;
+    new_season?: number;
+    total_players?: number;
+    rewards?: Array<Record<string, unknown>>;
+    reason?: string;
+  }>('/admin/fengshen/season/settle');
 };

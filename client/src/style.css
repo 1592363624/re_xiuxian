@@ -110,6 +110,8 @@
     background-color: transparent !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    /* 短表单贴顶展示，不再在坞里垂直居中或被拉出大空白 */
+    align-items: flex-start !important;
   }
 
   .panel-backdrop {
@@ -120,10 +122,16 @@
     width: 100% !important;
     /* 超宽屏上不让表格型面板被拉散，与右坞卡片视图同一档上限 */
     max-width: var(--dock-width-cap) !important;
-    height: 100% !important;
-    max-height: none !important;
+    /* 默认内容有多高就多高，消除「正文—底栏」之间的空白；fill 面板再撑满 */
+    height: auto !important;
+    max-height: 100% !important;
     border-radius: 0 !important;
     box-shadow: none !important;
+  }
+
+  .panel-body--fill {
+    height: 100% !important;
+    max-height: none !important;
   }
 }
 

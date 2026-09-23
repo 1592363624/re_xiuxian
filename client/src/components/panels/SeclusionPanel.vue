@@ -17,7 +17,68 @@
     size="md"
     @close="emit('close')"
   >
-    <div class="space-y-4">
+    <!-- 闭关进行中：总览进度条在面板打开时被坞面盖住，这里必须给出进度与出口，
+         而不是继续展示「选模式再开始」—— 玩家点进来是为了看进度/出关。 -->
+    <div v-if="store.player?.is_secluded" class="space-y-4">
+      <PanelCard :padded="true">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-12 h-12 rounded-full border flex items-center justify-center"
+              :class="isDeepActive
+                ? 'bg-purple-950/40 border-purple-700/50'
+                : 'bg-cyan-950/40 border-cyan-700/50'"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                :class="isDeepActive ? 'text-purple-400' : 'text-cyan-400'">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <div>
+              <div class="text-base font-bold tracking-wider" :class="isDeepActive ? 'text-purple-300' : 'text-cyan-300'">
+                {{ isDeepActive ? '深度闭关中' : '闭关修炼中' }}
+              </div>
+              <div class="text-xs text-fg-faint">{{ isDeepActive ? '长线挂机，收益翻倍' : '日常修炼，随时可停' }}</div>
+            </div>
+          </div>
+          <Badge :tone="isDeepActive ? 'arcane' : 'success'">进行中</Badge>
+        </div>
+
+        <StatBar
+          :value="activeProgress"
+          :max="100"
+          :label="isDeepActive ? '深度闭关进度' : '闭关进度'"
+          :text="`${activeProgress}%`"
+          :tone="isDeepActive ? 'arcane' : 'jade'"
+          height="h-2"
+        />
+
+        <div class="grid grid-cols-3 gap-3 mt-4 text-center">
+          <div>
+            <div class="text-[10px] text-fg-faint mb-1">已闭关</div>
+            <div class="text-sm font-num text-fg-primary">{{ formatDuration(activeDuration) }}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-fg-faint mb-1">剩余</div>
+            <div class="text-sm font-num" :class="isDeepActive ? 'text-purple-300' : 'text-cyan-300'">
+              {{ activeRemaining > 0 ? formatDuration(activeRemaining) : '可随时出关' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] text-fg-faint mb-1">已获修为</div>
+            <div class="text-sm font-num font-bold text-emerald-400">+{{ formatNumber(activeExpGained) }}</div>
+          </div>
+        </div>
+      </PanelCard>
+
+      <PanelCard v-if="isDeepActive && !activeReachedMin" tone="gold" :padded="false" class="px-3 py-2.5 text-xs text-gold-400">
+        未达最短时长 {{ formatDuration(deepConfig.min_duration) }} 提前结束将按强行出关处理，损失 {{ Math.round(deepConfig.forced_penalty * 100) }}% 收益。
+      </PanelCard>
+    </div>
+
+    <div v-else class="space-y-4">
       <!-- 今日次数总览（醒目展示，避免玩家点了开始才发现次数用尽） -->
       <PanelCard :padded="true">
         <div class="grid grid-cols-2 gap-3">
@@ -281,9 +342,21 @@
       <template v-if="store.player?.is_secluded">
         <AppButton variant="outline" @click="emit('close')">返回</AppButton>
         <button
-          @click="handleEndFromPanel"
+          v-if="isDeepActive && !activeReachedMin"
+          @click="handleForceFromPanel"
           :disabled="ending"
           class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none bg-amber-950/40 border border-amber-700 text-amber-300 hover:bg-amber-900/40 hover:border-amber-500"
+        >
+          <span v-if="ending">结算中...</span>
+          <span v-else>强行出关（损失{{ forcedPenaltyPercent }}）</span>
+        </button>
+        <button
+          @click="handleEndFromPanel"
+          :disabled="ending"
+          class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          :class="isDeepActive && !activeReachedMin
+            ? 'bg-surface-raised border border-line text-rose-400 hover:border-rose-500/50'
+            : 'bg-amber-950/40 border border-amber-700 text-amber-300 hover:bg-amber-900/40 hover:border-amber-500'"
         >
           <span v-if="ending">结算中...</span>
           <span v-else>{{ store.player.seclusion_mode === 'deep' ? '结束深度闭关' : '结束闭关' }}</span>
@@ -291,24 +364,17 @@
       </template>
       <template v-else>
       <AppButton variant="outline" @click="emit('close')">取消</AppButton>
-      <button
+      <AppButton
+        class="flex-1"
+        :variant="selectedMode === 'deep' ? 'purple' : 'cyan'"
+        block
+        :hint="startDisabledHint"
+        :disabled="!canStart"
         @click="handleStart"
-        :disabled="loading || !statusLoaded || (selectedMode === 'deep' ? (!canDeep || deepRemaining <= 0 || isDeepCooldown) : (normalRemaining <= 0 || isNormalCooldown))"
-        class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
-        :class="selectedMode === 'deep'
-          ? 'bg-purple-950/40 border border-purple-700 text-purple-300 hover:bg-purple-900/40 hover:border-purple-500'
-          : 'bg-cyan-950/40 border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-500'"
       >
-        <span v-if="loading">正在进入...</span>
-        <!-- 状态加载中：避免 canDeep 默认 false 导致误显示"境界不足" -->
-        <span v-else-if="!statusLoaded">加载闭关状态中...</span>
-        <span v-else-if="selectedMode === 'deep' && !canDeep">境界不足·需{{ deepConfig.min_realm }}</span>
-        <span v-else-if="selectedMode === 'deep' && deepRemaining <= 0">今日深度闭关已用尽·明日0点重置</span>
-        <span v-else-if="selectedMode === 'normal' && normalRemaining <= 0">今日常规闭关已用尽·明日0点重置</span>
-        <span v-else-if="selectedMode === 'deep' && isDeepCooldown">深度闭关冷却中·还需{{ formatDuration(deepCooldownRemaining) }}</span>
-        <span v-else-if="selectedMode === 'normal' && isNormalCooldown">常规闭关冷却中·还需{{ formatDuration(normalCooldownRemaining) }}</span>
+        <span v-if="loading">正在进入…</span>
         <span v-else>开始{{ selectedMode === 'deep' ? '深度' : '常规' }}闭关</span>
-      </button>
+      </AppButton>
       </template>
     </template>
   </PanelShell>
@@ -322,6 +388,8 @@ import PanelShell from '../ui/PanelShell.vue'
 import PanelCard from '../ui/PanelCard.vue'
 import Badge from '../ui/Badge.vue'
 import AppButton from '../ui/AppButton.vue'
+import StatBar from '../ui/StatBar.vue'
+import { formatNumber } from '../../utils/format'
 // 结束闭关的结算与日志实现，与总览进度条共用一份（见 composables 里的说明）
 import { useSeclusionSettle } from '../../composables/useSeclusionSettle'
 
@@ -337,13 +405,40 @@ const uiStore = useUIStore()
  * 不在这里抄第二份（那份要照顾 exp_gain=0 不回退到总修为、强行出关扣益、HP/MP 恢复值）。
  * 结束后再拉一次状态，让"今日剩余次数 / 冷却"立刻跟着变。
  */
-const { ending, endNow } = useSeclusionSettle()
+const { ending, endNow, forceEndNow, forcedPenaltyPercent } = useSeclusionSettle()
 const handleEndFromPanel = async () => {
   const r = await endNow()
   if (!r?.skipped && !r?.error) {
     try { await store.fetchSeclusionStatus() } catch { /* 状态刷新失败不影响已完成的结算 */ }
   }
 }
+const handleForceFromPanel = async () => {
+  const r = await forceEndNow()
+  if (!r?.skipped && !r?.error) {
+    try { await store.fetchSeclusionStatus() } catch { /* 状态刷新失败不影响已完成的结算 */ }
+  }
+}
+
+/* ── 进行中状态的展示数据（与 SeclusionOverlay 同源，后端权威字段） ── */
+const isDeepActive = computed(() => store.player?.seclusion_mode === 'deep')
+const activeProgress = computed(() => store.systemConfig?.seclusion?.progress ?? 0)
+const activeExpGained = computed(() => store.systemConfig?.seclusion?.exp_gained ?? 0)
+const activeDuration = computed(() => {
+  const start = store.player?.seclusion_start_time
+  if (!start) return 0
+  return Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000))
+})
+const activeRemaining = computed(() => {
+  const end = store.player?.seclusion_end_time
+  if (!end) return 0
+  return Math.max(0, Math.floor((new Date(end).getTime() - Date.now()) / 1000))
+})
+const activeReachedMin = computed(() => {
+  if (!isDeepActive.value) return true
+  const minDuration = deepConfig.value.min_duration || 0
+  if (!minDuration) return true
+  return activeDuration.value >= minDuration
+})
 
 const loading = ref(false)
 // 闭关状态加载标记：避免首次打开面板时 canDeep 默认 false 导致按钮误显示"境界不足"
@@ -460,6 +555,29 @@ const cooldownRemainingText = computed(() => {
  */
 const canDeep = computed(() => {
   return store.systemConfig?.seclusion?.can_deep ?? false
+})
+
+/**
+ * 主操作是否可点 / 禁用原因。
+ * 按钮文案只保留「开始××闭关」，原因写在下方 hint —— 长句塞进 CTA 会把底栏撑爆。
+ */
+const canStart = computed(() => {
+  if (loading.value || !statusLoaded.value) return false
+  if (selectedMode.value === 'deep') return canDeep.value && deepRemaining.value > 0 && !isDeepCooldown.value
+  return normalRemaining.value > 0 && !isNormalCooldown.value
+})
+const startDisabledHint = computed(() => {
+  if (loading.value) return '正在进入…'
+  if (!statusLoaded.value) return '正在加载闭关状态…'
+  if (selectedMode.value === 'deep') {
+    if (!canDeep.value) return `境界不足，需 ${deepConfig.value.min_realm}`
+    if (deepRemaining.value <= 0) return '今日深度闭关已用尽，明日 0 点重置'
+    if (isDeepCooldown.value) return `深度闭关冷却中，还需 ${formatDuration(deepCooldownRemaining.value)}`
+    return ''
+  }
+  if (normalRemaining.value <= 0) return '今日常规闭关已用尽，明日 0 点重置'
+  if (isNormalCooldown.value) return `常规闭关冷却中，还需 ${formatDuration(normalCooldownRemaining.value)}`
+  return '随时可停，按实际时长结算修为'
 })
 
 /**

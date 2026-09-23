@@ -31,6 +31,7 @@ export const ACTIONS = {
   dungeon: { name: '副本', desc: '秘境副本 三星扫荡', icon: svg('text-amber-400', '<path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/><path d="M9 11h6"/>') },
   multi_dungeon: { name: '多人副本', desc: '掩月抢亲 端午镇蛟', icon: svg('text-amber-300', '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/>') },
   beast_abyss: { name: '灵兽探渊', desc: '异步多人 PVE+PVP 探索', icon: svg('text-teal-400', '<path d="M12 2a4 4 0 0 0-4 4v3H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><path d="M12 10v8"/><path d="M9 14h6"/><path d="M3 12a9 9 0 0 1 18 0"/>') },
+  gathering: { name: '采集', desc: '地图资源 熟练成长', icon: svg('text-lime-400', '<path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/>') },
 
   /* ── 征伐 ── */
   arena: { name: '斗法', desc: '挑战同修 争夺段位', icon: svg('text-red-400', '<path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/>') },
@@ -39,6 +40,7 @@ export const ACTIONS = {
   bounty: { name: '悬赏', desc: '悬赏追杀 缉拿目标', icon: svg('text-amber-400', '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>') },
   world_boss: { name: '世界BOSS', desc: '全服讨伐 伤害排行', icon: svg('text-red-500', '<path d="M5 3v4l3 3"/><path d="M19 3v4l-3 3"/><path d="M3 5h4l3 3"/><path d="M21 5h-4l-3 3"/><path d="M12 12v9"/><path d="M8 17h8"/><circle cx="12" cy="9" r="3"/>') },
   sect_war: { name: '宗门战', desc: '领地争夺 赛季结算', icon: svg('text-amber-500', '<path d="M4 22V4l4-2 4 2 4-2 4 2v18"/><path d="M4 14h16"/><path d="M9 9h2"/><path d="M13 9h2"/><path d="M9 17h2"/><path d="M13 17h2"/>') },
+  beast_invasion: { name: '兽潮', desc: '锁灵大阵 全服讨伐', icon: svg('text-orange-500', '<path d="M12 3c-1.5 4-5 6-5 10a5 5 0 0 0 10 0c0-4-3.5-6-5-10z"/><path d="M8 14c-2 1-3 3-3 5"/><path d="M16 14c2 1 3 3 3 5"/>') },
 
   /* ── 经营 ── */
   inventory: { name: '储物袋', desc: '查看物品 整理行囊', icon: svg('text-amber-400', '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>') },
@@ -56,6 +58,7 @@ export const ACTIONS = {
   formation: { name: '阵法', desc: '布阵加持 五行相克', icon: svg('text-purple-400', '<circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M2 12h20"/><circle cx="12" cy="12" r="4"/>') },
   puppet: { name: '傀儡工坊', desc: '制造出战 淬炼维修', icon: svg('text-amber-400', '<circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/>') },
   spirit_beast: { name: '灵兽', desc: '图鉴捕获 喂养出战', icon: svg('text-emerald-300', '<path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7-2.97 7 .41 1.04 1 2.02 1.56 2.85 2.53 3.8-1.41 6.35-4.5 4.73l-3.23-1.68a19 19 0 0 0-2.57 0l-3.23 1.68c-3.09 1.62-7.03-.93-4.5-4.73.56-.83 1.15-1.81 1.56-2.85-2.55 0-4.37-6.42-2.97-7C4.62 2.25 7.87 3.09 9.65 5.09 10.3 4.92 11.33 5 12 5z"/>') },
+  blood_sword: { name: '血魔剑', desc: '残契血祭 魔染镇契', icon: svg('text-rose-500', '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="M5 14c1.5 2 2 4 2 6"/>') },
 
   /* ── 境界 ── */
   nascent_soul: { name: '元婴出窍', desc: '出窍问道 法相天地', icon: svg('text-purple-400', '<path d="M12 2a3 3 0 0 0-3 3c0 1.6.8 3 2 4-1.2 1-2 2.4-2 4a3 3 0 0 0 6 0c0-1.6-.8-3-2-4 1.2-1 2-2.4 2-4a3 3 0 0 0-3-3z"/><path d="M5 22h14"/><path d="M12 16v6"/>') },
@@ -66,6 +69,8 @@ export const ACTIONS = {
   /* ── 宗门 ── */
   sect: { name: '宗门', desc: '宗门任务 兑换贡献', icon: svg('text-violet-400', '<path d="M3 21h18"/><path d="M5 21V7l8-4 8 4v14"/><path d="M17 21v-8H7v8"/>') },
   taoism_gate: { name: '太一门', desc: '五行道途 多人共鸣', icon: svg('text-indigo-300', '<path d="M12 2 4 7v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V7l-8-5z"/><path d="M12 8a4 4 0 0 1 4 4"/><path d="M12 16a4 4 0 0 1-4-4"/><path d="M12 2v20"/><path d="M4 12h16"/>') },
+  sect_diplomacy: { name: '宗门外交', desc: '天下大势 结盟敌对', icon: svg('text-violet-300', '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>') },
+  dingmai: { name: '灵树定脉', desc: '落云宗 云梦灵眼定脉', icon: svg('text-emerald-400', '<path d="M12 22v-8"/><path d="M8 14c0-4 2-8 4-10 2 2 4 6 4 10"/><path d="M7 18h10"/>') },
 
   /* ── 红尘 ── */
   companion: { name: '道侣', desc: '道侣面板 心契心劫', icon: svg('text-rose-300', '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>') },
@@ -76,6 +81,9 @@ export const ACTIONS = {
   /* ── 闲趣 ── */
   fishing: { name: '灵溪垂钓', desc: '钓竿鱼饵 剖鱼排行', icon: svg('text-cyan-400', '<path d="M12 2v14"/><path d="M12 16a4 4 0 0 1-4-4"/><circle cx="12" cy="20" r="2"/><path d="M6 20q3 2 6 0t6 0"/>') },
   gambling_stone: { name: '赌石', desc: '线索博弈 切石机缘', icon: svg('text-purple-400', '<path d="M12 2 4 7v10l8 5 8-5V7l-8-5z"/><path d="M12 22V12"/><path d="M4 7l8 5 8-5"/><path d="M9 9l3-2 3 2"/>') },
+  pagoda: { name: '琉璃古塔', desc: '九重闯塔 琉璃塔榜', icon: svg('text-amber-300', '<path d="M12 2 4 7v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V7l-8-5z"/><path d="M8 22h8"/><path d="M9 18h6"/><path d="M10 14h4"/>') },
+  sword_art: { name: '剑诀', desc: '合成参悟 炼剑布阵', icon: svg('text-sky-300', '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/>') },
+  fated_event: { name: '奇遇', desc: '天机事件 抉择定缘', icon: svg('text-emerald-300', '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>') },
 
   /* ── 自身 ── */
   character: { name: '角色', desc: '属性资质 装备总览', icon: svg('text-stone-300', '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>') },
@@ -88,11 +96,11 @@ export const ACTIONS = {
  */
 export const DOCK_TABS = [
   { key: 'practice', label: '修行', ids: ['cultivate', 'technique', 'meditation', 'dayan'] },
-  { key: 'adventure', label: '历练', ids: ['explore', 'map', 'dungeon', 'multi_dungeon', 'beast_abyss'] },
-  { key: 'battle', label: '征伐', ids: ['arena', 'fengshen', 'divine_sense_duel', 'bounty', 'world_boss', 'sect_war'] },
+  { key: 'adventure', label: '历练', ids: ['explore', 'map', 'gathering', 'dungeon', 'multi_dungeon', 'beast_abyss', 'pagoda', 'fated_event'] },
+  { key: 'battle', label: '征伐', ids: ['arena', 'fengshen', 'divine_sense_duel', 'bounty', 'world_boss', 'sect_war', 'beast_invasion'] },
   { key: 'economy', label: '经营', ids: ['inventory', 'market', 'pawnshop', 'stock', 'auction', 'crafting', 'lottery'] },
-  { key: 'nurture', label: '养成', ids: ['cave', 'treasure', 'artifact_spirit', 'formation', 'puppet', 'spirit_beast'] },
-  { key: 'sect', label: '宗门', ids: ['sect', 'taoism_gate'] },
+  { key: 'nurture', label: '养成', ids: ['cave', 'treasure', 'blood_sword', 'artifact_spirit', 'formation', 'puppet', 'spirit_beast', 'sword_art'] },
+  { key: 'sect', label: '宗门', ids: ['sect', 'taoism_gate', 'sect_diplomacy', 'dingmai'] },
   { key: 'worldly', label: '红尘', ids: ['companion', 'dao_companion', 'concubine', 'cave_social'] },
   { key: 'realm', label: '境界', ids: ['nascent_soul', 'second_soul', 'small_world', 'ascension'] },
   { key: 'leisure', label: '闲趣', ids: ['fishing', 'gambling_stone'] },

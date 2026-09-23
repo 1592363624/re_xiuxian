@@ -1,0 +1,671 @@
+{
+  "_comment": "大地图格子化总配置。规则参数集中在此，禁止在代码里写魔法数字。设计文档：docs/大地图格子化设计方案.md §7/§15。资源/怪物 id 只引用 resource_data.json 与 map_data.json 已有键。",
+  "_version": "1.0.0",
+  "_updated": "2026-09-23",
+
+  "grid": {
+    "cell_size": 10,
+    "default_cell_px": 40,
+    "cache_enabled": true,
+    "cache_max_entries": 5000
+  },
+
+  "interaction": {
+    "_comment": "全局交互前提原则（§4.2.1）。require_same_cell 为已定案核心规则，不建议关闭。",
+    "require_same_cell": true,
+    "require_visible": true,
+    "require_state_free": true,
+    "exclusive_states": ["cultivating", "in_battle", "moving", "banned"]
+  },
+
+  "vision": {
+    "_comment": "视野半径 = f(sense 神识属性)，被动生效不扣池。显影/探查走 sensePool，见 grid_poi_data.hidden 与 API /reveal。",
+    "base_radius": 3,
+    "distance_metric": "chebyshev",
+    "sense_tiers": [
+      { "sense_min": 0, "radius": 3, "_note": "炼气" },
+      { "sense_min": 30, "radius": 4, "_note": "筑基初" },
+      { "sense_min": 200, "radius": 5, "_note": "筑基后" },
+      { "sense_min": 1000, "radius": 6, "_note": "金丹 · 12×12 新手区到顶" },
+      { "sense_min": 3000, "radius": 8, "_note": "元婴" },
+      { "sense_min": 8000, "radius": 10, "_note": "化神+" }
+    ],
+    "snapshot_enabled": true,
+    "snapshot_on_visible_only": true,
+    "known_cell_retention_days": 90,
+    "known_cell_archive_not_delete": true
+  },
+
+  "movement": {
+    "_comment": "统一移动：耗时(秒) = 距离(格) × cell_seconds。时间本身就是速率限制器，废除 MAX_STEP。",
+    "cell_seconds": 1,
+    "terrain_multiplier_enabled": false,
+    "terrain_multiplier": {
+      "plains": 1, "forest": 1, "mountain": 1,
+      "ocean": 1, "cave": 1, "ruin": 1, "celestial": 1
+    },
+    "instant_move_max_cells": 3,
+    "max_cells_per_move": 200,
+    "move_interval_ms": 1000,
+    "path_preview_enabled": true,
+    "path_adjacency": 8,
+    "path_unknown_as_passable": true,
+    "path_avoid_types": ["barrier"],
+    "path_mark_types": ["monster_nest", "barrier"],
+    "wasteland": {
+      "traversable": true,
+      "no_interaction": true,
+      "no_exploration_progress": true,
+      "max_cross_seconds": 600
+    },
+    "travel_flavor": {
+      "_comment": "§13.2 行旅薄内容。长事件间隔 5–8 格。",
+      "enchant_min_cells": 10,
+      "enchant_interval_cells": [5, 8],
+      "trail_bonus": {
+        "enabled": false,
+        "edge_walk_threshold": 30,
+        "speed_multiplier": 0.5,
+        "min_cell_seconds": 0.5
+      }
+    }
+  },
+
+  "empty_cell": {
+    "_comment": "空格随机事件：定位是路过的安全感，不是值得刷的点。",
+    "event_rate": 0.08,
+    "preferred_types": ["peaceful", "discovery"]
+  },
+
+  "build": {
+    "allowed_terrain": ["mountain", "cave", "forest"],
+    "unique_per_cell": true,
+    "abandon_days_threshold": 30,
+    "legacy_auto_open": true,
+    "shrink_refund_rate": 0.5,
+    "cost_spirit_stones": 1000,
+    "visit_policy_default": "need_approval",
+    "settlement": {
+      "_comment": "§13.7 聚落：半径内他人洞府计数，上限 3 级。",
+      "radius": 2,
+      "max_level": 3,
+      "level_thresholds": [1, 3, 5],
+      "names_pool_key": "settlement_names"
+    }
+  },
+
+  "reveal": {
+    "_comment": "§13.3 显影/探查：扣神识池，不扣属性。属性只影响成功率。",
+    "reveal_window_seconds": 12,
+    "reveal_radius_bonus": 2,
+    "reveal_sense_cost": 30,
+    "probe_sense_cost": 20,
+    "probe_seconds": 5,
+    "probe_cooldown_seconds": 60,
+    "probe_success_base": 0.45,
+    "probe_success_per_sense": 0.00005,
+    "probe_success_cap": 0.9
+  },
+
+  "gazetteer": {
+    "_comment": "§13.8/Q16：单条只给残卷收集物；集齐一区给称号 + sense_bonus。",
+    "set_bonus_sense": {
+      "yueguo": 20,
+      "luanxing_sea": 40,
+      "dayan_hall": 60,
+      "mortal_realm": 80,
+      "spirit_realm": 100,
+      "celestial_realm": 150
+    },
+    "detail_ref": "grid_poi_data.json"
+  },
+
+  "settlement_names": {
+    "yueguo": ["落霞坡", "杏花坳", "青石巷", "三叠泉畔"],
+    "luanxing_sea": ["海门里", "潮音坞", "珠帘巷", "断桅滩"],
+    "dayan_hall": ["铜环巷", "灯炉口", "百工坊后"],
+    "mortal_realm": ["边营里", "黄龙里", "断魂坡"],
+    "spirit_realm": ["云脚里", "摘星巷"],
+    "celestial_realm": ["墟市后街", "无名里"]
+  },
+
+  "monster_defaults": {
+    "_comment": "据点冷却后视作 empty，按地形池刷新。",
+    "respawn_minutes": {
+      "plains": 25,
+      "forest": 35,
+      "mountain": 45,
+      "cave": 50,
+      "ocean": 60,
+      "ruin": 45,
+      "celestial": 90
+    },
+    "pool_by_terrain": {
+      "plains": [
+        { "id": "rabbit", "weight": 50 },
+        { "id": "wolf", "weight": 30 },
+        { "id": "cultivator", "weight": 20 }
+      ],
+      "forest": [
+        { "id": "snake", "weight": 40 },
+        { "id": "wolf", "weight": 35 },
+        { "id": "bear", "weight": 25 }
+      ],
+      "mountain": [
+        { "id": "bear", "weight": 35 },
+        { "id": "cultivator", "weight": 35 },
+        { "id": "wolf", "weight": 30 }
+      ],
+      "cave": [
+        { "id": "demon", "weight": 40 },
+        { "id": "d傀儡", "weight": 30 },
+        { "id": "tiger", "weight": 30 }
+      ],
+      "ocean": [
+        { "id": "fish", "weight": 40 },
+        { "id": "crab", "weight": 35 },
+        { "id": "shark", "weight": 20 },
+        { "id": "bandit", "weight": 5 }
+      ],
+      "ruin": [
+        { "id": "d傀儡", "weight": 45 },
+        { "id": "demon", "weight": 35 },
+        { "id": "tiger", "weight": 20 }
+      ],
+      "celestial": [
+        { "id": "demon", "weight": 30 },
+        { "id": "tiger", "weight": 30 },
+        { "id": "demon_king", "weight": 40 }
+      ]
+    }
+  },
+
+  "regions": [
+    {
+      "id": "yueguo",
+      "name": "越国·天南",
+      "kind": "region",
+      "size": [12, 12],
+      "anchor": [0, 0],
+      "parent_id": null,
+      "seed": 20240901,
+      "required_realm": "凡人",
+      "lod_kernel": "mortal",
+      "spawn_cells": [[0, 7], [1, 7], [0, 6]],
+      "default_map_id": 1,
+
+      "terrain_zones": [
+        { "rect": [0, 0, 4, 11], "terrain": "plains", "zone_id": "yue_plain", "name": "越国平原", "danger": 1, "required_realm": "凡人" },
+        { "rect": [5, 0, 8, 5], "terrain": "mountain", "zone_id": "qixuan_mtn", "name": "七玄山径", "danger": 2, "required_realm": "凡人" },
+        { "rect": [5, 6, 11, 11], "terrain": "mountain", "zone_id": "caixia", "name": "彩霞山", "danger": 3, "required_realm": "炼气3层" },
+        { "rect": [6, 8, 8, 10], "terrain": "forest", "zone_id": "wolf_valley", "name": "狼谷", "danger": 4, "required_realm": "炼气1层" }
+      ],
+      "terrain_fill": { "plains": 0.55, "forest": 0.25, "mountain": 0.15, "cave": 0.05 },
+
+      "poi_cells": [
+        { "x": 3, "y": 4, "cell_type": "town", "poi": "yueguo_market" },
+        { "x": 6, "y": 3, "cell_type": "sect", "poi": "qixuanmen" },
+        { "x": 5, "y": 2, "cell_type": "ruin_small", "poi": "caixia_trail" },
+        { "x": 8, "y": 6, "cell_type": "ruin_small", "poi": "abandoned_mine" },
+        { "x": 6, "y": 9, "cell_type": "monster_nest", "poi": "wolf_nest", "monster_id": "wolf" },
+        { "x": 3, "y": 10, "cell_type": "ruin_large", "poi": "cangkun_gate", "sub_region_id": "cangkun_ruin_inner" },
+        { "x": 4, "y": 8, "cell_type": "resource", "poi": "herb_slope", "resource": { "id": "wild_herb", "amount": 4, "respawn_minutes": 25 } },
+        { "x": 9, "y": 1, "cell_type": "resource", "resource": { "id": "condensing_flower", "amount": 3, "respawn_minutes": 30 } },
+        { "x": 10, "y": 8, "cell_type": "barrier" },
+        { "x": 10, "y": 9, "cell_type": "barrier" },
+        { "x": 11, "y": 5, "cell_type": "portal", "poi": "to_luanxing", "portal_id": "yueguo_to_luanxing" }
+      ],
+
+      "hidden_cells": [
+        { "x": 9, "y": 3, "hidden": "hidden_vein" },
+        { "x": 2, "y": 11, "hidden": "hidden_cave" }
+      ],
+
+      "resource_rules": [
+        { "terrain": "plains", "pool": ["wild_herb", "condensing_flower", "firewood"], "weights": [0.40, 0.35, 0.25], "density": 0.20, "respawn_minutes": 25 },
+        { "terrain": "forest", "pool": ["wild_herb", "blood_grass", "firewood"], "weights": [0.45, 0.25, 0.30], "density": 0.22, "respawn_minutes": 35 },
+        { "terrain": "mountain", "pool": ["blood_grass", "golden_ore", "condensing_flower"], "weights": [0.40, 0.35, 0.25], "density": 0.24, "respawn_minutes": 45 },
+        { "terrain": "cave", "pool": ["golden_ore"], "weights": [1.0], "density": 0.18, "respawn_minutes": 50 }
+      ],
+
+      "monster_density": 0.14,
+      "cell_type_weights": {
+        "empty": 72,
+        "resource": 0,
+        "monster_nest": 14,
+        "ruin_small": 8,
+        "barrier": 6
+      },
+
+      "overrides": [
+        { "x": 9, "y": 3, "forbid_build": true },
+        { "x": 2, "y": 11, "forbid_build": true }
+      ]
+    },
+
+    {
+      "id": "cangkun_ruin_inner",
+      "name": "苍坤旧禁",
+      "kind": "dungeon",
+      "size": [8, 8],
+      "anchor": [0, 0],
+      "parent_id": "yueguo",
+      "entry_cell": { "region": "yueguo", "x": 3, "y": 10 },
+      "seed": 20240902,
+      "required_realm": "筑基期",
+      "lod_kernel": "ruin",
+      "content_density_target": 0.5,
+
+      "terrain_fill": { "ruin": 0.6, "cave": 0.4 },
+      "poi_cells": [
+        { "x": 0, "y": 0, "cell_type": "portal", "poi": "cangkun_exit", "_comment": "返回入口" },
+        { "x": 4, "y": 4, "cell_type": "ruin_small", "poi": "cangkun_altar_gate", "hidden": "hidden_altar" },
+        { "x": 2, "y": 2, "cell_type": "barrier" },
+        { "x": 3, "y": 2, "cell_type": "barrier" },
+        { "x": 4, "y": 2, "cell_type": "barrier" },
+        { "x": 5, "y": 5, "cell_type": "barrier" },
+        { "x": 5, "y": 6, "cell_type": "barrier" },
+        { "x": 1, "y": 5, "cell_type": "monster_nest", "monster_id": "d傀儡" },
+        { "x": 6, "y": 3, "cell_type": "monster_nest", "monster_id": "demon" },
+        { "x": 3, "y": 6, "cell_type": "resource", "resource": { "id": "golden_ore", "amount": 2, "respawn_minutes": 60 } }
+      ],
+      "resource_rules": [
+        { "terrain": "ruin", "pool": ["golden_ore", "spirit_root"], "weights": [0.7, 0.3], "density": 0.18, "respawn_minutes": 60 },
+        { "terrain": "cave", "pool": ["golden_ore"], "weights": [1.0], "density": 0.15, "respawn_minutes": 50 }
+      ],
+      "monster_density": 0.35,
+      "cell_type_weights": {
+        "empty": 40,
+        "resource": 0,
+        "monster_nest": 28,
+        "ruin_small": 12,
+        "barrier": 20
+      }
+    },
+
+    {
+      "id": "luanxing_sea",
+      "name": "乱星海",
+      "kind": "region",
+      "size": [20, 20],
+      "anchor": [20, 0],
+      "parent_id": null,
+      "seed": 20240903,
+      "required_realm": "筑基期",
+      "lod_kernel": "ocean",
+      "default_map_id": 4,
+
+      "terrain_zones": [
+        { "rect": [0, 0, 6, 6], "terrain": "plains", "zone_id": "hai_gang", "name": "海港", "danger": 3, "required_realm": "筑基期" },
+        { "rect": [7, 0, 19, 19], "terrain": "ocean", "zone_id": "xing_hai", "name": "星海腹地", "danger": 6, "required_realm": "筑基期" },
+        { "rect": [12, 12, 19, 19], "terrain": "ocean", "zone_id": "an_jiao", "name": "暗礁带", "danger": 8, "required_realm": "筑基后期" }
+      ],
+      "terrain_fill": { "ocean": 0.7, "plains": 0.15, "mountain": 0.1, "cave": 0.05 },
+
+      "poi_cells": [
+        { "x": 0, "y": 5, "cell_type": "portal", "poi": "to_yueguo", "portal_id": "yueguo_to_luanxing" },
+        { "x": 2, "y": 3, "cell_type": "town", "poi": "haigang" },
+        { "x": 14, "y": 8, "cell_type": "ruin_large", "poi": "xinghai_altar" },
+        { "x": 16, "y": 16, "cell_type": "ruin_large", "poi": "anxiao_gate" },
+        { "x": 10, "y": 10, "cell_type": "monster_nest", "monster_id": "shark", "hidden": "hidden_robber" },
+        { "x": 5, "y": 12, "cell_type": "resource", "resource": { "id": "pearl", "amount": 2, "respawn_minutes": 60 } },
+        { "x": 18, "y": 4, "cell_type": "portal", "poi": "to_dayan", "portal_id": "luanxing_to_dayan", "require_realm": "金丹期" }
+      ],
+
+      "resource_rules": [
+        { "terrain": "ocean", "pool": ["seaweed", "pearl", "coral"], "weights": [0.55, 0.30, 0.15], "density": 0.18, "respawn_minutes": 60 },
+        { "terrain": "plains", "pool": ["wild_herb", "condensing_flower"], "weights": [0.6, 0.4], "density": 0.15, "respawn_minutes": 30 },
+        { "terrain": "mountain", "pool": ["golden_ore", "blood_grass"], "weights": [0.5, 0.5], "density": 0.16, "respawn_minutes": 45 }
+      ],
+      "monster_density": 0.18,
+      "cell_type_weights": {
+        "empty": 68,
+        "resource": 0,
+        "monster_nest": 18,
+        "ruin_small": 7,
+        "barrier": 7
+      }
+    },
+
+    {
+      "id": "dayan_hall",
+      "name": "大衍神域",
+      "kind": "region",
+      "size": [12, 12],
+      "anchor": [48, 0],
+      "parent_id": null,
+      "seed": 20240904,
+      "required_realm": "金丹期",
+      "lod_kernel": "cave",
+      "default_map_id": 5,
+
+      "terrain_zones": [
+        { "rect": [0, 0, 5, 5], "terrain": "cave", "zone_id": "yan_cheng", "name": "衍城", "danger": 6, "required_realm": "金丹期" },
+        { "rect": [6, 0, 11, 11], "terrain": "cave", "zone_id": "kui_lei_yuan", "name": "傀儡原", "danger": 8, "required_realm": "金丹期" }
+      ],
+      "terrain_fill": { "cave": 0.7, "ruin": 0.2, "mountain": 0.1 },
+
+      "poi_cells": [
+        { "x": 0, "y": 3, "cell_type": "portal", "poi": "to_luanxing", "portal_id": "luanxing_to_dayan" },
+        { "x": 3, "y": 3, "cell_type": "ruin_large", "poi": "dayan_gate" },
+        { "x": 8, "y": 4, "cell_type": "town", "poi": "kuilei_forge" },
+        { "x": 10, "y": 10, "cell_type": "monster_nest", "monster_id": "d傀儡" },
+        { "x": 4, "y": 9, "cell_type": "resource", "resource": { "id": "golden_ore", "amount": 3, "respawn_minutes": 60 } },
+        { "x": 0, "y": 11, "cell_type": "portal", "poi": "to_mortal", "portal_id": "dayan_to_mortal", "require_realm": "元婴期" }
+      ],
+      "resource_rules": [
+        { "terrain": "cave", "pool": ["golden_ore", "spirit_root"], "weights": [0.65, 0.35], "density": 0.22, "respawn_minutes": 55 },
+        { "terrain": "ruin", "pool": ["spirit_root", "golden_ore"], "weights": [0.5, 0.5], "density": 0.18, "respawn_minutes": 60 }
+      ],
+      "monster_density": 0.22,
+      "cell_type_weights": {
+        "empty": 58,
+        "resource": 0,
+        "monster_nest": 22,
+        "ruin_small": 12,
+        "barrier": 8
+      }
+    },
+
+    {
+      "id": "mortal_realm",
+      "name": "人界",
+      "kind": "region",
+      "size": [20, 20],
+      "anchor": [0, 20],
+      "parent_id": null,
+      "seed": 20240905,
+      "required_realm": "元婴期",
+      "lod_kernel": "mortal",
+      "default_map_id": 6,
+
+      "terrain_zones": [
+        { "rect": [0, 0, 9, 9], "terrain": "plains", "zone_id": "tian_nan", "name": "天南", "danger": 8, "required_realm": "元婴期" },
+        { "rect": [10, 0, 19, 9], "terrain": "mountain", "zone_id": "mu_lan", "name": "慕兰边", "danger": 12, "required_realm": "元婴期" },
+        { "rect": [0, 10, 19, 19], "terrain": "cave", "zone_id": "luan_ying", "name": "乱灵渊", "danger": 14, "required_realm": "元婴后期" }
+      ],
+      "terrain_fill": { "plains": 0.35, "forest": 0.2, "mountain": 0.2, "cave": 0.15, "ruin": 0.1 },
+
+      "poi_cells": [
+        { "x": 0, "y": 0, "cell_type": "portal", "poi": "to_dayan", "portal_id": "dayan_to_mortal" },
+        { "x": 5, "y": 5, "cell_type": "ruin_large", "poi": "xutian_gate", "sub_region_id": "xutian_palace" },
+        { "x": 15, "y": 4, "cell_type": "ruin_large", "poi": "kunwu_gate", "sub_region_id": "kunwu_tower" },
+        { "x": 18, "y": 2, "cell_type": "town", "poi": "mulan_camp" },
+        { "x": 12, "y": 12, "cell_type": "ruin_large", "poi": "huanglong_gate", "sub_region_id": "huanglong_camp" },
+        { "x": 8, "y": 2, "cell_type": "resource", "resource": { "id": "spirit_root", "amount": 2, "respawn_minutes": 90 } },
+        { "x": 19, "y": 8, "cell_type": "portal", "poi": "to_spirit", "portal_id": "mortal_to_spirit", "require_realm": "化神期" }
+      ],
+      "resource_rules": [
+        { "terrain": "plains", "pool": ["wild_herb", "blood_grass", "condensing_flower"], "weights": [0.4, 0.35, 0.25], "density": 0.16, "respawn_minutes": 35 },
+        { "terrain": "forest", "pool": ["blood_grass", "wild_herb"], "weights": [0.55, 0.45], "density": 0.18, "respawn_minutes": 40 },
+        { "terrain": "mountain", "pool": ["golden_ore", "spirit_root", "blood_grass"], "weights": [0.4, 0.3, 0.3], "density": 0.2, "respawn_minutes": 50 },
+        { "terrain": "cave", "pool": ["spirit_root", "golden_ore"], "weights": [0.55, 0.45], "density": 0.2, "respawn_minutes": 60 },
+        { "terrain": "ruin", "pool": ["spirit_root"], "weights": [1.0], "density": 0.12, "respawn_minutes": 70 }
+      ],
+      "monster_density": 0.2,
+      "cell_type_weights": {
+        "empty": 62,
+        "resource": 0,
+        "monster_nest": 20,
+        "ruin_small": 10,
+        "barrier": 8
+      }
+    },
+
+    {
+      "id": "xutian_palace",
+      "name": "虚天殿",
+      "kind": "dungeon",
+      "size": [10, 10],
+      "anchor": [0, 0],
+      "parent_id": "mortal_realm",
+      "entry_cell": { "region": "mortal_realm", "x": 5, "y": 5 },
+      "seed": 20240906,
+      "required_realm": "金丹期",
+      "lod_kernel": "ruin",
+      "content_density_target": 0.5,
+      "terrain_fill": { "ruin": 0.5, "cave": 0.3, "celestial": 0.2 },
+      "poi_cells": [
+        { "x": 0, "y": 0, "cell_type": "portal", "poi": "xutian_exit" },
+        { "x": 8, "y": 8, "cell_type": "ruin_small", "poi": "xutian_core" },
+        { "x": 4, "y": 4, "cell_type": "monster_nest", "monster_id": "demon" },
+        { "x": 6, "y": 3, "cell_type": "resource", "resource": { "id": "golden_ore", "amount": 3, "respawn_minutes": 60 } }
+      ],
+      "resource_rules": [
+        { "terrain": "ruin", "pool": ["golden_ore", "spirit_root"], "weights": [0.5, 0.5], "density": 0.2, "respawn_minutes": 60 },
+        { "terrain": "celestial", "pool": ["jade_core"], "weights": [1.0], "density": 0.1, "respawn_minutes": 90 }
+      ],
+      "monster_density": 0.32,
+      "cell_type_weights": { "empty": 42, "resource": 0, "monster_nest": 28, "ruin_small": 12, "barrier": 18 }
+    },
+
+    {
+      "id": "kunwu_tower",
+      "name": "昆吾封魔塔",
+      "kind": "dungeon",
+      "size": [8, 8],
+      "anchor": [0, 0],
+      "parent_id": "mortal_realm",
+      "entry_cell": { "region": "mortal_realm", "x": 15, "y": 4 },
+      "seed": 20240907,
+      "required_realm": "元婴期",
+      "lod_kernel": "ruin",
+      "content_density_target": 0.55,
+      "terrain_fill": { "ruin": 0.55, "cave": 0.45 },
+      "poi_cells": [
+        { "x": 0, "y": 7, "cell_type": "portal", "poi": "kunwu_exit" },
+        { "x": 4, "y": 4, "cell_type": "ruin_small", "poi": "kunwu_heart" },
+        { "x": 2, "y": 5, "cell_type": "monster_nest", "monster_id": "demon" },
+        { "x": 5, "y": 2, "cell_type": "monster_nest", "monster_id": "d傀儡" },
+        { "x": 6, "y": 6, "cell_type": "resource", "resource": { "id": "spirit_root", "amount": 2, "respawn_minutes": 80 } }
+      ],
+      "resource_rules": [
+        { "terrain": "ruin", "pool": ["spirit_root", "golden_ore"], "weights": [0.6, 0.4], "density": 0.18, "respawn_minutes": 70 }
+      ],
+      "monster_density": 0.36,
+      "cell_type_weights": { "empty": 38, "resource": 0, "monster_nest": 32, "ruin_small": 12, "barrier": 18 }
+    },
+
+    {
+      "id": "huanglong_camp",
+      "name": "黄龙山营地",
+      "kind": "dungeon",
+      "size": [8, 8],
+      "anchor": [0, 0],
+      "parent_id": "mortal_realm",
+      "entry_cell": { "region": "mortal_realm", "x": 12, "y": 12 },
+      "seed": 20240908,
+      "required_realm": "筑基期",
+      "lod_kernel": "ruin",
+      "content_density_target": 0.45,
+      "require_same_sect": true,
+      "terrain_fill": { "mountain": 0.5, "plains": 0.3, "ruin": 0.2 },
+      "poi_cells": [
+        { "x": 0, "y": 0, "cell_type": "portal", "poi": "huanglong_exit" },
+        { "x": 2, "y": 2, "cell_type": "ruin_small", "poi": "huanglong_eye_1" },
+        { "x": 6, "y": 2, "cell_type": "ruin_small", "poi": "huanglong_eye_2" },
+        { "x": 2, "y": 6, "cell_type": "ruin_small", "poi": "huanglong_eye_3" },
+        { "x": 6, "y": 6, "cell_type": "ruin_small", "poi": "huanglong_eye_4" },
+        { "x": 4, "y": 4, "cell_type": "ruin_small", "poi": "huanglong_eye_5" },
+        { "x": 4, "y": 1, "cell_type": "monster_nest", "monster_id": "tiger" }
+      ],
+      "resource_rules": [
+        { "terrain": "mountain", "pool": ["golden_ore", "blood_grass"], "weights": [0.5, 0.5], "density": 0.16, "respawn_minutes": 50 },
+        { "terrain": "plains", "pool": ["condensing_flower"], "weights": [1.0], "density": 0.12, "respawn_minutes": 35 }
+      ],
+      "monster_density": 0.2,
+      "cell_type_weights": { "empty": 55, "resource": 0, "monster_nest": 18, "ruin_small": 12, "barrier": 15 }
+    },
+
+    {
+      "id": "spirit_realm",
+      "name": "灵界",
+      "kind": "region",
+      "size": [20, 20],
+      "anchor": [28, 20],
+      "parent_id": null,
+      "seed": 20240909,
+      "required_realm": "化神期",
+      "lod_kernel": "celestial",
+      "default_map_id": 7,
+
+      "terrain_zones": [
+        { "rect": [0, 0, 7, 7], "terrain": "celestial", "zone_id": "yun_xiao", "name": "云霄城", "danger": 15, "required_realm": "化神期" },
+        { "rect": [8, 0, 19, 19], "terrain": "celestial", "zone_id": "xu_ling", "name": "虚灵荒", "danger": 18, "required_realm": "化神期" }
+      ],
+      "terrain_fill": { "celestial": 0.7, "cave": 0.15, "ruin": 0.15 },
+
+      "poi_cells": [
+        { "x": 0, "y": 0, "cell_type": "portal", "poi": "to_mortal", "portal_id": "mortal_to_spirit" },
+        { "x": 3, "y": 3, "cell_type": "town", "poi": "yuncheng" },
+        { "x": 12, "y": 8, "cell_type": "sect", "poi": "xianyuan_sect" },
+        { "x": 16, "y": 15, "cell_type": "resource", "resource": { "id": "infant_fruit", "amount": 1, "respawn_minutes": 120 } },
+        { "x": 19, "y": 19, "cell_type": "portal", "poi": "to_celestial", "portal_id": "spirit_to_celestial", "require_realm": "炼虚期" }
+      ],
+      "resource_rules": [
+        { "terrain": "celestial", "pool": ["infant_fruit", "jade_core"], "weights": [0.5, 0.5], "density": 0.14, "respawn_minutes": 120 },
+        { "terrain": "cave", "pool": ["jade_core", "spirit_root"], "weights": [0.6, 0.4], "density": 0.14, "respawn_minutes": 90 },
+        { "terrain": "ruin", "pool": ["jade_core"], "weights": [1.0], "density": 0.1, "respawn_minutes": 100 }
+      ],
+      "monster_density": 0.2,
+      "cell_type_weights": {
+        "empty": 64,
+        "resource": 0,
+        "monster_nest": 20,
+        "ruin_small": 8,
+        "barrier": 8
+      }
+    },
+
+    {
+      "id": "celestial_realm",
+      "name": "仙界",
+      "kind": "region",
+      "size": [24, 24],
+      "anchor": [56, 20],
+      "parent_id": null,
+      "seed": 20240910,
+      "required_realm": "炼虚期",
+      "lod_kernel": "celestial",
+      "default_map_id": 8,
+
+      "terrain_zones": [
+        { "rect": [0, 0, 9, 9], "terrain": "celestial", "zone_id": "xian_ting", "name": "仙庭", "danger": 20, "required_realm": "炼虚期" },
+        { "rect": [10, 0, 23, 23], "terrain": "celestial", "zone_id": "hun_dun", "name": "混沌边荒", "danger": 25, "required_realm": "炼虚后期" }
+      ],
+      "terrain_fill": { "celestial": 0.75, "ruin": 0.15, "cave": 0.1 },
+
+      "poi_cells": [
+        { "x": 0, "y": 0, "cell_type": "portal", "poi": "to_spirit", "portal_id": "spirit_to_celestial" },
+        { "x": 4, "y": 4, "cell_type": "town", "poi": "xianting" },
+        { "x": 18, "y": 18, "cell_type": "ruin_large", "poi": "hundun_fissure" },
+        { "x": 12, "y": 6, "cell_type": "resource", "resource": { "id": "infant_fruit", "amount": 2, "respawn_minutes": 150 } },
+        { "x": 20, "y": 10, "cell_type": "resource", "resource": { "id": "jade_core", "amount": 2, "respawn_minutes": 150 } }
+      ],
+      "resource_rules": [
+        { "terrain": "celestial", "pool": ["infant_fruit", "jade_core"], "weights": [0.5, 0.5], "density": 0.12, "respawn_minutes": 150 },
+        { "terrain": "ruin", "pool": ["jade_core", "infant_fruit"], "weights": [0.5, 0.5], "density": 0.1, "respawn_minutes": 140 }
+      ],
+      "monster_density": 0.18,
+      "cell_type_weights": {
+        "empty": 68,
+        "resource": 0,
+        "monster_nest": 18,
+        "ruin_small": 6,
+        "barrier": 8
+      }
+    }
+  ],
+
+  "portals": [
+    {
+      "id": "yueguo_to_luanxing",
+      "from": { "region": "yueguo", "x": 11, "y": 5 },
+      "to": { "region": "luanxing_sea", "x": 0, "y": 5 },
+      "bidirectional": true,
+      "require_realm": "筑基期",
+      "status": "open",
+      "source_event_id": null,
+      "expires_at": null
+    },
+    {
+      "id": "luanxing_to_dayan",
+      "from": { "region": "luanxing_sea", "x": 18, "y": 4 },
+      "to": { "region": "dayan_hall", "x": 0, "y": 3 },
+      "bidirectional": true,
+      "require_realm": "金丹期",
+      "status": "open",
+      "source_event_id": null,
+      "expires_at": null
+    },
+    {
+      "id": "dayan_to_mortal",
+      "from": { "region": "dayan_hall", "x": 0, "y": 11 },
+      "to": { "region": "mortal_realm", "x": 0, "y": 0 },
+      "bidirectional": true,
+      "require_realm": "元婴期",
+      "status": "open",
+      "source_event_id": null,
+      "expires_at": null
+    },
+    {
+      "id": "mortal_to_spirit",
+      "from": { "region": "mortal_realm", "x": 19, "y": 8 },
+      "to": { "region": "spirit_realm", "x": 0, "y": 0 },
+      "bidirectional": true,
+      "require_realm": "化神期",
+      "status": "open",
+      "source_event_id": null,
+      "expires_at": null
+    },
+    {
+      "id": "spirit_to_celestial",
+      "from": { "region": "spirit_realm", "x": 19, "y": 19 },
+      "to": { "region": "celestial_realm", "x": 0, "y": 0 },
+      "bidirectional": true,
+      "require_realm": "炼虚期",
+      "status": "open",
+      "source_event_id": null,
+      "expires_at": null
+    }
+  ],
+
+  "world_events": {
+    "_comment": "§13.4/§15.7 世界事件模板。运行时写 size/portal/cell override，不改代码。",
+    "beast_tide": {
+      "rewrite": "monster_nest_ring",
+      "radius": 2,
+      "duration_hours": [4, 8],
+      "keep_ratio_after": 0.3,
+      "broadcast": "妖气自北而来，山道上全是绿眼睛。"
+    },
+    "tribulation": {
+      "rewrite": "shrink_or_barrier",
+      "duration_hours": 24,
+      "shrink_refund_rate": 0.5,
+      "broadcast": "雷落处地脉改道，旧路断了。"
+    },
+    "ruin_emerge": {
+      "rewrite": "spawn_ruin_large",
+      "duration_hours": 72,
+      "broadcast": "地动了一下。有座石门从土里长出来。"
+    },
+    "trade_route": {
+      "rewrite": "temp_portal",
+      "duration_hours": [24, 72],
+      "broadcast": "有人在荒里踩出了一条商道。"
+    }
+  },
+
+  "legacy_map_mapping": {
+    "_comment": "旧 map_data.json 节点 → 新 region，迁移与兼容读用。",
+    "1": "yueguo",
+    "2": "yueguo",
+    "3": "yueguo",
+    "4": "luanxing_sea",
+    "5": "dayan_hall",
+    "6": "mortal_realm",
+    "7": "spirit_realm",
+    "8": "celestial_realm"
+  }
+}

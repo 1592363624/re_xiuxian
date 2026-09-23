@@ -25,7 +25,56 @@
     size="md"
     @close="emit('close')"
   >
-    <div class="space-y-4">
+    <!-- 悟道进行中：与闭关面板同理，开着面板时看不到总览进度条，这里给出进度与出口 -->
+    <div v-if="isMeditating" class="space-y-4">
+      <PanelCard :padded="true">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full border border-gold-700/40 bg-amber-950/30 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-gold-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+            </div>
+            <div>
+              <div class="text-base font-bold text-gold-300 tracking-wider">{{ activeModeLabel }}中</div>
+              <div class="text-xs text-fg-faint">摒除杂念，参悟天地至理</div>
+            </div>
+          </div>
+          <Badge tone="gold">进行中</Badge>
+        </div>
+
+        <StatBar
+          :value="activeProgressPercent"
+          :max="100"
+          label="悟道进度"
+          :text="`${activeProgressPercent}%`"
+          :tone="isDeepMeditating ? 'arcane' : 'gold'"
+          height="h-2"
+        />
+
+        <div class="grid grid-cols-3 gap-3 mt-4 text-center">
+          <div>
+            <div class="text-[10px] text-fg-faint mb-1">已悟道</div>
+            <div class="text-sm font-num text-fg-primary">{{ formatTime(activeElapsed) }}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-fg-faint mb-1">剩余</div>
+            <div class="text-sm font-num text-gold-300">{{ activeRemaining > 0 ? formatTime(activeRemaining) : '即将圆满' }}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-fg-faint mb-1">当前感悟</div>
+            <div class="text-sm font-num font-bold text-amber-400">{{ activeInsight }}</div>
+          </div>
+        </div>
+      </PanelCard>
+
+      <PanelCard tone="gold" :padded="false" class="px-3 py-2.5 text-xs text-gold-400">
+        中断悟道将损失 {{ interruptPenaltyPercent }} 感悟值，仅按完成度比例发放。
+      </PanelCard>
+    </div>
+
+    <div v-else class="space-y-4">
       <!-- 瓶颈状态展示（仅在处于瓶颈期时显示） -->
       <PanelCard v-if="bottleneckActive" tone="danger" :padded="false" class="px-3.5 py-3">
         <div class="flex items-center justify-between mb-2">
@@ -152,17 +201,32 @@
 
     <!-- 底部操作栏 -->
     <template #footer>
+      <template v-if="isMeditating">
+        <AppButton variant="outline" @click="emit('close')">返回</AppButton>
+        <AppButton
+          variant="danger"
+          class="flex-1"
+          :disabled="loading"
+          @click="handleInterrupt"
+        >
+          <span v-if="loading">结算中...</span>
+          <span v-else>中断悟道（损失{{ interruptPenaltyPercent }}）</span>
+        </AppButton>
+      </template>
+      <template v-else>
       <AppButton variant="outline" @click="emit('close')">取消</AppButton>
-      <button
+      <AppButton
+        class="flex-1"
+        variant="primary"
+        block
+        :hint="startDisabledHint"
+        :disabled="!canStart"
         @click="handleStart"
-        :disabled="loading || !selectedType || !isTypeAvailable(selectedType)"
-        class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none bg-amber-950/40 border border-gold-700 text-gold-300 hover:bg-gold-900/40 hover:border-gold-500"
       >
-        <span v-if="loading">正在进入...</span>
-        <span v-else-if="!selectedType">请选择时长类型</span>
-        <span v-else-if="!isTypeAvailable(selectedType)">{{ getTypeLockReason(selectedType) }}</span>
+        <span v-if="loading">正在进入…</span>
         <span v-else>开始悟道</span>
-      </button>
+      </AppButton>
+      </template>
     </template>
   </PanelShell>
 </template>
@@ -170,6 +234,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
+import { usePlayerStore } from '../../stores/player'
 import { formatTime } from '../../utils/format'
 import PanelShell from '../ui/PanelShell.vue'
 import PanelCard from '../ui/PanelCard.vue'
@@ -179,11 +244,13 @@ import StatBar from '../ui/StatBar.vue'
 import {
   getStatus,
   getConfig,
-  startMeditation
+  startMeditation,
+  interruptMeditation
 } from '../../api/meditation'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
+const playerStore = usePlayerStore()
 
 const loading = ref(false)
 const selectedType = ref('')
@@ -315,6 +382,70 @@ const selectType = (typeKey) => {
 const formatDuration = (seconds) => {
   return formatTime(seconds || 0)
 }
+
+/* ── 悟道进行中的展示数据 ── */
+const isMeditating = computed(() => !!(status.value?.is_meditating || playerStore.player?.is_meditating))
+const isDeepMeditating = computed(() => status.value?.meditation_mode === 'deep')
+const activeModeLabel = computed(() => {
+  const mode = status.value?.meditation_mode
+  if (mode === 'deep') return '深度悟道'
+  if (mode === 'long') return '闭关参悟'
+  if (mode === 'medium') return '凝神悟道'
+  if (mode === 'short') return '静思一刻'
+  return '悟道'
+})
+const activeElapsed = computed(() => {
+  const start = status.value?.meditation_start_time
+  if (!start) return 0
+  return Math.max(0, Math.floor((now.value - new Date(start).getTime()) / 1000))
+})
+const activeRemaining = computed(() => {
+  const end = status.value?.meditation_end_time
+  if (!end) return 0
+  return Math.max(0, Math.floor((new Date(end).getTime() - now.value) / 1000))
+})
+const activeProgressPercent = computed(() => {
+  const total = activeElapsed.value + activeRemaining.value
+  if (total <= 0) return 0
+  return Math.min(100, Math.floor((activeElapsed.value / total) * 100))
+})
+const activeInsight = computed(() => status.value?.meditation_insight || 0)
+const interruptPenaltyPercent = computed(() => `${Math.round((isDeepMeditating.value ? 0.5 : 0.3) * 100)}%`)
+
+/**
+ * 中断悟道（带惩罚）。与 MeditationOverlay 同一接口，文案按完成度发放规则提示。
+ */
+const handleInterrupt = async () => {
+  if (loading.value) return
+  loading.value = true
+  try {
+    const res = await interruptMeditation()
+    const data = res.data?.data || res.data
+    uiStore.showToast(data?.message || '已中断悟道', 'success')
+    uiStore.addLog({
+      content: `中断悟道，完成度 ${Math.floor((data?.completion_rate || 0) * 100)}%，获得感悟 ${data?.insight_gain || 0} 点。`,
+      type: 'warning',
+      actorId: 'self'
+    })
+    await fetchStatus()
+    try { await playerStore.fetchPlayer() } catch { /* 玩家状态刷新失败不影响已完成的结算 */ }
+    emit('close')
+  } catch (error) {
+    console.error('中断悟道失败:', error)
+    uiStore.showApiError(error, '中断悟道失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+/** 主操作可点性 + 禁用原因（写在按钮下方，不塞进 CTA 文案） */
+const canStart = computed(() => !!(selectedType.value && isTypeAvailable(selectedType.value)) && !loading.value)
+const startDisabledHint = computed(() => {
+  if (loading.value) return '正在进入…'
+  if (!selectedType.value) return '请先选择一种时长'
+  if (!isTypeAvailable(selectedType.value)) return getTypeLockReason(selectedType.value) || '当前不可用'
+  return '积累感悟，冲击瓶颈'
+})
 
 /**
  * 开始悟道

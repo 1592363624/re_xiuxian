@@ -1,0 +1,244 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "事件奇遇配置 - 隐藏/事件式命令（玩法文档第22节）",
+    "design_doc": "xiuxian_game_guide.md 第22节·隐藏/事件式命令",
+    "created": "2026-09-23",
+    "changelog": [
+      "2026-09-23 v1.0.0 初版：7 类事件（魂魄试炼/答题/法则献祭/南宫侯交易/换取/赎罪/卜筮）"
+    ]
+  },
+  "global": {
+    "name": "奇遇",
+    "description": "修仙路上偶有天机垂青。事件出现后按提示抉择，错过则机缘自散。",
+    "min_realm_rank": 5,
+    "trigger_cooldown_sec": 600,
+    "event_expire_sec": 1800,
+    "daily_event_limit": 8,
+    "auto_trigger_on_explore_rate": 0.35
+  },
+  "events": [
+    {
+      "id": "soul_trial",
+      "name": "魂魄试炼",
+      "command_hints": ["献上魂魄", "收敛气息"],
+      "trigger_weight": 15,
+      "min_realm_rank": 10,
+      "description": "古禁深处传来低语：「献上一缕魂魄，或收敛气息悄然离开。」",
+      "choices": [
+        {
+          "id": "offer_soul",
+          "label": "献上魂魄",
+          "description": "以魂魄为祭，搏一线机缘。",
+          "success_rate": 0.55,
+          "cost": { "exp": 200 },
+          "success_rewards": { "exp": 800, "spirit_stones": 300, "items": [{ "item_key": "gu_jian_jue_can_pian", "quantity": 1 }] },
+          "fail_penalty": { "exp": 150, "message": "魂魄被禁制反噬，道基微损。" },
+          "success_message": "魂魄入禁，古禁开启一线，你抓到一卷残篇！",
+          "fail_message": "禁制反噬，神魂刺痛，你连忙收敛气息。"
+        },
+        {
+          "id": "restrain",
+          "label": "收敛气息",
+          "description": "不涉险地，静观其变。",
+          "success_rate": 1.0,
+          "cost": {},
+          "success_rewards": { "exp": 80 },
+          "fail_penalty": {},
+          "success_message": "你敛息而立，古禁低语渐远。略有感悟。",
+          "fail_message": ""
+        }
+      ]
+    },
+    {
+      "id": "quiz_heart",
+      "name": "问心答题",
+      "command_hints": ["作答", "答"],
+      "trigger_weight": 20,
+      "min_realm_rank": 5,
+      "description": "虚空浮现一道问心题：「修仙第一要义为何？」",
+      "quiz": {
+        "question": "修仙第一要义为何？",
+        "options": [
+          { "id": "A", "label": "长生久视", "correct": true },
+          { "id": "B", "label": "快意恩仇", "correct": false },
+          { "id": "C", "label": "搜刮灵石", "correct": false },
+          { "id": "D", "label": "独尊于世", "correct": false }
+        ],
+        "correct_rewards": { "exp": 400, "spirit_stones": 150 },
+        "wrong_rewards": { "exp": 50, "message": "答非所问，问心台轻轻一颤。" }
+      }
+    },
+    {
+      "id": "law_sacrifice",
+      "name": "法则献祭",
+      "command_hints": ["献祭法则"],
+      "trigger_weight": 8,
+      "min_realm_rank": 20,
+      "description": "天道裂隙微张：「可愿献祭一缕法则，换取飞升线索？」",
+      "choices": [
+        {
+          "id": "sacrifice_law",
+          "label": "献祭法则",
+          "description": "消耗 50 法则点，换取空间节点线索。",
+          "success_rate": 0.7,
+          "cost": { "law_points": 50 },
+          "success_rewards": { "exp": 5000, "items": [{ "item_key": "space_law_fragment", "quantity": 1 }] },
+          "fail_penalty": { "message": "天道无感，法则白耗。" },
+          "success_message": "法则没入裂隙，一缕空间明悟落入识海！",
+          "fail_message": "裂隙闭合，法则消散于无形。"
+        },
+        {
+          "id": "refuse",
+          "label": "拒绝献祭",
+          "description": "法则来之不易。",
+          "success_rate": 1.0,
+          "cost": {},
+          "success_rewards": {},
+          "fail_penalty": {},
+          "success_message": "你按住识海，裂隙缓缓闭合。",
+          "fail_message": ""
+        }
+      ]
+    },
+    {
+      "id": "nangong_trade",
+      "name": "南宫侯交易",
+      "command_hints": ["交换 法宝", "交换 功法", "拒绝交易"],
+      "trigger_weight": 12,
+      "min_realm_rank": 12,
+      "description": "南宫侯拦路：「道友，换件法宝还是功法？不换也罢。」",
+      "choices": [
+        {
+          "id": "trade_artifact",
+          "label": "交换 法宝",
+          "description": "以 500 灵石换一件随机法宝图谱材料。",
+          "success_rate": 0.8,
+          "cost": { "spirit_stones": 500 },
+          "success_rewards": { "items": [{ "item_key": "gu_jian_jue_can_pian", "quantity": 2 }] },
+          "fail_penalty": { "message": "南宫侯摇头：「你这灵石成色不足。」" },
+          "success_message": "成交！南宫侯抛来两卷残篇。",
+          "fail_message": "交易告吹。"
+        },
+        {
+          "id": "trade_technique",
+          "label": "交换 功法",
+          "description": "以 300 修为换一缕剑意感悟。",
+          "success_rate": 0.75,
+          "cost": { "exp": 300 },
+          "success_rewards": { "exp": 500, "spirit_stones": 200 },
+          "fail_penalty": { "exp": 100, "message": "功法口诀晦涩，白白耗去修为。" },
+          "success_message": "南宫侯低诵口诀，你心头一亮。",
+          "fail_message": "口诀残缺，你只记了个半吊子。"
+        },
+        {
+          "id": "refuse_trade",
+          "label": "拒绝交易",
+          "description": "各行其道。",
+          "success_rate": 1.0,
+          "cost": {},
+          "success_rewards": {},
+          "fail_penalty": {},
+          "success_message": "南宫侯拱手而去。",
+          "fail_message": ""
+        }
+      ]
+    },
+    {
+      "id": "exchange_boon",
+      "name": "机缘换取",
+      "command_hints": ["换取"],
+      "trigger_weight": 15,
+      "min_realm_rank": 5,
+      "description": "卜筮余韵未散：「可愿以灵石换取一缕机缘？」",
+      "choices": [
+        {
+          "id": "exchange",
+          "label": "换取",
+          "description": "支付 200 灵石，换取随机机缘。",
+          "success_rate": 0.75,
+          "cost": { "spirit_stones": 200 },
+          "success_rewards": { "exp": 350, "spirit_stones": 50 },
+          "fail_penalty": { "message": "机缘擦肩而过。" },
+          "success_message": "灵石化作流光，一缕感悟落入识海。",
+          "fail_message": "流光散去，什么也没留下。"
+        },
+        {
+          "id": "pass",
+          "label": "婉拒",
+          "description": "不强求。",
+          "success_rate": 1.0,
+          "cost": {},
+          "success_rewards": {},
+          "fail_penalty": {},
+          "success_message": "你摇头离去。",
+          "fail_message": ""
+        }
+      ]
+    },
+    {
+      "id": "atonement",
+      "name": "赎罪",
+      "command_hints": ["赎罪"],
+      "trigger_weight": 10,
+      "min_realm_rank": 8,
+      "description": "业火缠身：「可愿以灵石赎罪，洗去一分杀孽？」",
+      "choices": [
+        {
+          "id": "repent",
+          "label": "赎罪",
+          "description": "支付 400 灵石，洗去业力。",
+          "success_rate": 1.0,
+          "cost": { "spirit_stones": 400 },
+          "success_rewards": { "exp": 100, "message": "业火稍敛，心头一轻。" },
+          "fail_penalty": {},
+          "success_message": "你掷出灵石，业火低伏三分。",
+          "fail_message": ""
+        },
+        {
+          "id": "endure",
+          "label": "硬抗业火",
+          "description": "不花灵石，忍受灼烧。",
+          "success_rate": 0.5,
+          "cost": {},
+          "success_rewards": { "exp": 250, "message": "业火炼心，道心反更坚定。" },
+          "fail_penalty": { "exp": 120, "message": "业火灼心，道基微损。" },
+          "success_message": "你咬牙硬抗，业火竟被意志压下。",
+          "fail_message": "业火反噬，你闷哼一声。"
+        }
+      ]
+    },
+    {
+      "id": "divination",
+      "name": "卜筮问天",
+      "command_hints": ["卜筮问天", "roll"],
+      "trigger_weight": 20,
+      "min_realm_rank": 5,
+      "description": "虚空掷出一道卦签：「问天一卜，吉凶自知。」",
+      "choices": [
+        {
+          "id": "cast_lot",
+          "label": "卜筮问天",
+          "description": "消耗 50 灵石求一卦。",
+          "success_rate": 0.9,
+          "cost": { "spirit_stones": 50 },
+          "success_rewards": { "exp": 120, "spirit_stones": 30 },
+          "fail_penalty": { "message": "卦象混沌，毫无所得。" },
+          "success_message": "卦签落地，小吉。心头微暖。",
+          "fail_message": "卦签碎裂。"
+        },
+        {
+          "id": "ignore",
+          "label": "拂袖而去",
+          "description": "不信天命。",
+          "success_rate": 1.0,
+          "cost": {},
+          "success_rewards": {},
+          "fail_penalty": {},
+          "success_message": "你收袖而立，卦签自散。",
+          "fail_message": ""
+        }
+      ]
+    }
+  ]
+}

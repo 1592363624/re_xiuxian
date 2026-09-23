@@ -46,6 +46,7 @@ const totalCount = ref(0)
 // 当前激活的分类 tab
 const activeCategory = ref('all')
 // 当前展开操作菜单的物品 item_key
+/** 操作完成后清一次，避免残留高亮状态（按钮已常驻，无需展开） */
 const expandedItemKey = ref(null)
 
 // ====== 装备栏相关状态 ======
@@ -166,30 +167,9 @@ const fetchInventory = async () => {
 }
 
 /**
- * 切换物品操作菜单展开状态
- * @param item - 物品对象
+ * 操作按钮已常驻卡底，不再需要「点开展开」。
+ * expandedItemKey 仅在操作完成后收起残留状态时清一下。
  */
-const toggleItemMenu = (item) => {
-  if (expandedItemKey.value === item.item_key) {
-    expandedItemKey.value = null
-  } else {
-    expandedItemKey.value = item.item_key
-  }
-}
-
-/**
- * 这张卡点开会给出哪些操作 —— 与下面操作菜单里三个按钮的 v-if 条件严格一致。
- * 判定只写在这一处，卡面提示和真按钮不会各说一套。
- * @param {Object} item
- * @returns {string[]}
- */
-const itemActionLabels = (item) => {
-  const labels = []
-  if (item.usable) labels.push('使用')
-  if (item.type === 'equipment') labels.push('穿戴')
-  labels.push('丢弃')
-  return labels
-}
 
 /**
  * 打开数量选择弹窗（使用物品）
@@ -662,24 +642,12 @@ onMounted(() => {
             :class="[
               getQualityStyle(item.quality).border,
               getQualityStyle(item.quality).glow,
-              expandedItemKey === item.item_key ? 'ring-1 ring-gold-700/60' : ''
             ]"
           >
-            <!-- 物品卡片头部：点击展开操作菜单。
-                 原来是一个只写了 cursor-pointer 的 div —— 面板副标题明明写着
-                 "装备 · 使用 · 丢弃"，卡面上却没有任何一处说这行字从哪儿来，
-                 玩家只能靠猜；而 div 拿不到焦点，纯键盘玩家根本用不了物品。
-                 现在补 role/tabindex/回车空格 + 一行写明"点开会得到哪些操作"。 -->
-            <div
-              class="p-3 cursor-pointer focus-ring rounded-t"
-              role="button"
-              tabindex="0"
-              :aria-expanded="expandedItemKey === item.item_key ? 'true' : 'false'"
-              :aria-label="`${item.name}，展开操作`"
-              @click="toggleItemMenu(item)"
-              @keydown.enter.prevent="toggleItemMenu(item)"
-              @keydown.space.prevent="toggleItemMenu(item)"
-            >
+            <!-- 物品卡片：操作按钮常驻卡底。
+                 原先要点一下才展开「使用 · 丢弃」，高频操作藏一层，
+                 玩家每用一瓶药都要多一次点击；现在主操作直接露出来。 -->
+            <div class="p-3">
               <div class="flex justify-between items-start mb-2">
                 <div class="flex-1 min-w-0">
                   <h4 class="text-sm font-bold truncate" :class="getQualityStyle(item.quality).text">
@@ -694,52 +662,37 @@ onMounted(() => {
                 </div>
                 <div class="text-right ml-2">
                   <div class="text-lg font-bold text-gold-400 num">x{{ item.quantity }}</div>
-                  <div class="text-[10px] text-fg-faint num" :title="item.price">{{ formatCompact(item.price) }} 灵石</div>
+                  <div class="text-[10px] text-fg-faint num cursor-help" :title="`${item.price} 灵石`">{{ formatCompact(item.price) }} 灵石</div>
                 </div>
               </div>
-              <!-- 物品描述 -->
               <p class="text-xs text-fg-muted line-clamp-2 leading-relaxed">{{ item.description }}</p>
-              <!-- 物品效果 -->
               <p v-if="formatEffectText(item.effect)" class="text-[11px] text-sky-300 mt-1.5">
                 {{ formatEffectText(item.effect) }}
               </p>
-              <!-- 展开提示：把"点开会看到哪些操作"直接写在卡面上 -->
-              <div class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-line-subtle/60">
-                <span class="text-[10px] text-fg-faint">{{ itemActionLabels(item).join(' · ') }}</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                     class="shrink-0 text-fg-faint transition-transform duration-200"
-                     :class="expandedItemKey === item.item_key ? 'rotate-180' : ''" aria-hidden="true">
-                  <path d="m6 9 6 6 6-6"/>
-                </svg>
-              </div>
             </div>
 
-            <!-- 操作菜单（点击展开） -->
-            <div
-              v-if="expandedItemKey === item.item_key"
-              class="px-3 py-2 border-t border-line-subtle bg-surface-canvas flex gap-2 animate-fade-in"
-            >
+            <!-- 操作按钮常驻：使用 / 穿戴 / 丢弃 -->
+            <div class="px-3 py-2 border-t border-line-subtle bg-surface-canvas flex gap-2">
               <button
                 v-if="item.usable"
                 @click.stop="openUseModal(item)"
                 :disabled="operating"
-                class="flex-1 px-3 py-1.5 rounded-control text-xs bg-emerald-900/30 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 hover:text-emerald-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex-1 px-3 py-1.5 rounded-control text-xs font-bold bg-emerald-900/30 border border-emerald-800 text-emerald-300 hover:bg-emerald-800/50 hover:text-emerald-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 使用
               </button>
-              <!-- 装备物品显示"穿戴"按钮（替代"使用"） -->
               <button
                 v-if="item.type === 'equipment'"
                 @click.stop="openEquipConfirmModal(item)"
                 :disabled="operating"
-                class="flex-1 px-3 py-1.5 rounded-control text-xs bg-gold-900/30 border border-gold-700 text-gold-400 hover:bg-gold-800/50 hover:text-gold-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex-1 px-3 py-1.5 rounded-control text-xs font-bold bg-gold-900/30 border border-gold-700 text-gold-400 hover:bg-gold-800/50 hover:text-gold-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 穿戴
               </button>
               <button
                 @click.stop="openDiscardModal(item)"
                 :disabled="operating"
-                class="flex-1 px-3 py-1.5 rounded-control text-xs bg-rose-900/30 border border-rose-800 text-rose-300 hover:bg-rose-800/50 hover:text-rose-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex-1 px-3 py-1.5 rounded-control text-xs font-bold bg-rose-900/30 border border-rose-800 text-rose-300 hover:bg-rose-800/50 hover:text-rose-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 丢弃
               </button>

@@ -21,10 +21,11 @@
               type="button"
               v-if="showClose"
               @click="close"
-              class="focus-ring rounded-control text-fg-muted hover:text-fg-primary transition-colors"
+              class="focus-ring grid place-items-center w-7 h-7 rounded-control text-fg-muted hover:text-fg-primary hover:bg-surface-hover transition-colors"
               aria-label="关闭对话框"
+              title="关闭（Esc）"
             >
-              ✕
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </button>
           </div>
           
@@ -34,7 +35,7 @@
           </div>
           
           <!-- Footer -->
-          <div v-if="$slots.footer" class="px-6 py-4 border-t border-line-subtle bg-surface-base/50 rounded-b-panel flex justify-end gap-3">
+          <div v-if="$slots.footer" class="px-6 py-4 border-t border-line-subtle bg-surface-base/50 rounded-b-panel flex justify-end gap-3 flex-wrap">
             <slot name="footer"></slot>
           </div>
         </div>
@@ -44,7 +45,9 @@
 </template>
 
 <script setup>
-defineProps({
+import { onMounted, onUnmounted } from 'vue'
+
+const props = defineProps({
   isOpen: {
     type: Boolean,
     required: true
@@ -74,9 +77,19 @@ const close = () => {
 }
 
 const handleBackdropClick = () => {
-  // We can pass a prop to disable backdrop click
+  if (!props.closeOnBackdrop) return
   close()
 }
+
+const onKey = (e) => {
+  if (e.key === 'Escape' && props.isOpen) {
+    e.preventDefault()
+    close()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKey))
+onUnmounted(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <style scoped>

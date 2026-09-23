@@ -37,6 +37,12 @@ const props = defineProps({
   emptyHint: { type: String, default: '' },
   /** 内容自带滚动容器（含 Tab 切换的面板）时置 true，外壳不再包一层滚动 */
   scopedScroll: { type: Boolean, default: false },
+  /**
+   * 撑满停靠高度。列表/背包等工作台面板需要内部 flex 各占一截时打开；
+   * 表单型短面板保持默认（内容有多高面板就多高），避免正文和底栏之间空出一大块。
+   * scopedScroll 面板内部通常写死 h-full，默认自动 fill。
+   */
+  fill: { type: Boolean, default: false },
   bodyClass: { type: String, default: '' },
   closable: { type: Boolean, default: true },
   showClose: { type: Boolean, default: true },
@@ -55,6 +61,7 @@ const SIZE_CLASS = {
 }
 
 const bodySize = computed(() => SIZE_CLASS[props.size])
+const isFill = computed(() => props.fill || props.scopedScroll)
 const showPlaceholder = computed(() => props.loading || !!props.error || props.empty)
 const bodyEl = ref(null)
 
@@ -94,10 +101,13 @@ onUnmounted(() => {
 
     <section
       ref="bodyEl"
-      class="panel-body relative flex flex-col w-full h-[88vh] max-h-[88vh] overflow-hidden
+      class="panel-body relative flex flex-col w-full overflow-hidden
              bg-surface-base border border-line rounded-panel shadow-2xl shadow-black/60
              outline-none"
-      :class="bodySize"
+      :class="[
+        bodySize,
+        isFill ? 'panel-body--fill h-[88vh] max-h-[88vh]' : 'max-h-[88vh] h-auto',
+      ]"
       role="dialog"
       aria-modal="true"
       :aria-label="title"
@@ -116,7 +126,7 @@ onUnmounted(() => {
             v-if="showClose && closable"
             type="button"
             @click="emit('close')"
-            class="focus-ring grid place-items-center w-7 h-7 -mr-1 rounded text-fg-muted hover:text-fg-primary hover:bg-surface-hover transition-colors"
+            class="focus-ring grid place-items-center w-8 h-8 -mr-1 rounded text-fg-muted hover:text-fg-primary hover:bg-surface-hover transition-colors"
             aria-label="关闭面板"
             title="关闭（Esc）"
           >
@@ -148,7 +158,7 @@ onUnmounted(() => {
 
       <footer
         v-if="$slots.footer"
-        class="shrink-0 flex items-center gap-2 px-4 h-12 border-t border-line-subtle bg-surface-raised"
+        class="shrink-0 flex items-center gap-2 px-4 py-2 min-h-12 border-t border-line-subtle bg-surface-raised"
       >
         <slot name="footer" />
       </footer>

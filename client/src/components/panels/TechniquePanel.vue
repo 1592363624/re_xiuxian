@@ -84,24 +84,27 @@
           </div>
         </div>
 
-        <!-- 操作按钮 -->
+        <!-- 操作按钮：禁用时 title 说明原因，避免只能看见灰按钮 -->
         <div class="mt-3 flex flex-wrap gap-2">
           <button
             class="px-3 py-1 text-xs rounded bg-amber-800/50 hover:bg-amber-700/60 border border-amber-700/50"
             :disabled="!canPractice(item)"
             :class="canPractice(item) ? '' : 'opacity-40 cursor-not-allowed'"
+            :title="canPractice(item) ? '消耗灵石与灵力提升熟练度' : practiceLockReason(item)"
             @click="confirmPractice(item)"
           >修炼</button>
           <button
             class="px-3 py-1 text-xs rounded bg-rose-900/50 hover:bg-rose-800/60 border border-rose-700/50"
             :disabled="!canBreakthrough(item)"
             :class="canBreakthrough(item) ? '' : 'opacity-40 cursor-not-allowed'"
+            :title="canBreakthrough(item) ? '突破到下一层' : breakthroughLockReason(item)"
             @click="confirmBreakthrough(item)"
           >突破</button>
           <button
             class="px-3 py-1 text-xs rounded bg-purple-900/50 hover:bg-purple-800/60 border border-purple-700/50"
             :disabled="!canComprehend(item)"
             :class="canComprehend(item) ? '' : 'opacity-40 cursor-not-allowed'"
+            :title="canComprehend(item) ? '领悟附属神通' : comprehendLockReason(item)"
             @click="confirmComprehend(item)"
           >领悟神通</button>
           <template v-if="item.equip_slot">
@@ -344,6 +347,27 @@ const canComprehend = (item) =>
   Array.isArray(item.comprehended_skills) &&
   item.comprehended_skills.length < (item.skillSlotsTotal || 1) &&
   enoughSS(item.comprehend_cost)
+
+/** 禁用原因（给按钮 title），避免灰按钮只能靠猜 */
+const practiceLockReason = (item) => {
+  if (item.proficiency >= item.required_proficiency) return '熟练度已满，可尝试突破'
+  if (item.daily_practice_count >= item.daily_practice_limit) return '今日修炼次数已满'
+  if (!enoughSS(item.practice_cost)) return `灵石不足（需 ${item.practice_cost}）`
+  if (!enoughMP(item.mp_cost)) return `灵力不足（需 ${item.mp_cost}）`
+  return '当前不可修炼'
+}
+const breakthroughLockReason = (item) => {
+  if (item.is_max_layer) return '已达最高层'
+  if (item.proficiency < item.required_proficiency) return '熟练度未满，先修炼'
+  if (!enoughSS(item.breakthrough_cost)) return `灵石不足（需 ${item.breakthrough_cost}）`
+  return '当前不可突破'
+}
+const comprehendLockReason = (item) => {
+  const used = Array.isArray(item.comprehended_skills) ? item.comprehended_skills.length : 0
+  if (used >= (item.skillSlotsTotal || 1)) return '神通槽位已满'
+  if (!enoughSS(item.comprehend_cost)) return `灵石不足（需 ${item.comprehend_cost}）`
+  return '当前不可领悟'
+}
 
 /**
  * 是否可研习：境界达标 + 代价凑得齐。

@@ -6,6 +6,10 @@
       <div class="flex space-x-2">
         <button @click="fetchList(playerPagination.page)" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded-control text-fg-primary text-sm">刷新列表</button>
         <button @click="fetchMetrics" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded-control text-fg-primary text-sm">更新指标</button>
+        <button
+          class="px-3 py-1 bg-amber-700 hover:bg-amber-600 rounded-control text-fg-primary text-sm"
+          @click="openFengshenSettle"
+        >封神台结算</button>
       </div>
     </div>
 
@@ -397,6 +401,28 @@
         </AppButton>
       </template>
     </Modal>
+
+    <!-- 封神台赛季结算确认 -->
+    <Modal :isOpen="confirmFengshenSettle" title="封神台赛季结算" width="480px" @close="confirmFengshenSettle = false">
+      <div class="text-sm space-y-2">
+        <p class="text-fg-secondary">将按当前排名发放奖励，重置全员积分，并递增赛季编号。</p>
+        <div v-if="fengshenSeasonInfo?.season" class="text-xs text-fg-muted">
+          当前赛季：{{ fengshenSeasonInfo.season.season ?? fengshenSeasonInfo.season.current_season ?? '—' }}
+        </div>
+        <div v-if="fengshenSeasonInfo?.settle_config" class="text-xs text-fg-muted">
+          排名奖励档：{{ fengshenSeasonInfo.settle_config.top_ranks?.join(' / ') || '1/2/3' }}
+          · 荣誉 {{ fengshenSeasonInfo.settle_config.rank_reward_honor?.join('/') || '—' }}
+          · 灵石 {{ fengshenSeasonInfo.settle_config.rank_reward_stones?.join('/') || '—' }}
+        </div>
+        <p class="text-amber-500 text-xs">⚠️ 此操作会真实发奖并重置积分，仅在赛季结束或紧急干预时使用。</p>
+      </div>
+      <template #footer>
+        <AppButton variant="default" @click="confirmFengshenSettle = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="operating" @click="submitFengshenSettle">
+          {{ operating ? '结算中...' : '确认结算' }}
+        </AppButton>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -427,7 +453,9 @@ import {
   getPlayerDetail,
   updateScore,
   resetScore,
-  cancelBattle
+  cancelBattle,
+  getFengshenSeason,
+  settleFengshenSeason
 } from '../../../api/admin_pvp'
 
 const uiStore = useUIStore()
@@ -474,6 +502,10 @@ const battleSearchParams = reactive({
 
 // 详情弹窗
 const detailPlayer = ref(null)
+
+// 封神台赛季结算（此前 settleSeason 无入口，赛季永远停在 1）
+const confirmFengshenSettle = ref(false)
+const fengshenSeasonInfo = ref(null)
 
 // 调整积分弹窗
 const scoreEditing = ref(null)
@@ -759,6 +791,50 @@ const submitCancelBattle = async () => {
   }
 }
 
+/**
+ * 预拉封神台赛季摘要（供结算确认框展示）
+ */
+const loadFengshenSeasonInfo = async () => {
+  try {
+    const res = await getFengshenSeason()
+    fengshenSeasonInfo.value = res.data?.data || res.data || null
+  } catch {
+    fengshenSeasonInfo.value = null
+  }
+}
+
+/**
+ * 打开封神台结算确认前拉取赛季摘要
+ */
+const openFengshenSettle = async () => {
+  await loadFengshenSeasonInfo()
+  confirmFengshenSettle.value = true
+}
+
+/**
+ * 强制结算封神台赛季
+ */
+const submitFengshenSettle = async () => {
+  operating.value = true
+  try {
+    const res = await settleFengshenSeason()
+    const data = res.data?.data || res.data
+    if (data?.settled === false) {
+      uiStore.showToast(data?.reason || '本轮结算放弃，稍后可重试', 'warning')
+    } else {
+      uiStore.showToast(
+        `封神台赛季 ${data?.old_season ?? '?'} → ${data?.new_season ?? '?'} 结算完成`,
+        'success'
+      )
+    }
+    confirmFengshenSettle.value = false
+  } catch (err) {
+    uiStore.showApiError(err, '结算失败')
+  } finally {
+    operating.value = false
+  }
+}
+
 // ====== 工具函数 ======
 
 /**
@@ -816,6 +892,7 @@ const formatDate = (dateStr) => {
 onMounted(() => {
   fetchMetrics()
   fetchList(1)
+  loadFengshenSeasonInfo()
 })
 </script>
 

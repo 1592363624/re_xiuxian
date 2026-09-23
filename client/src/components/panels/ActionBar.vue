@@ -12,7 +12,7 @@
         class="group relative flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-lg bg-surface-raised border transition-all duration-200 active:scale-95"
         :class="action.id === 'cultivate' && isBreakthroughReady
           ? 'border-purple-500/60 ring-1 ring-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.4)]'
-          : 'border-line-subtle'"
+          : 'border-line-subtle hover:border-line'"
       >
         <span
           class="transition-transform duration-200 group-hover:scale-110"

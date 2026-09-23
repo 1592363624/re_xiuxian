@@ -1,0 +1,69 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "宗门外交配置 - 天下大势/示好/结盟/敌对（玩法文档第33节·宗门与宗门战）",
+    "design_doc": "xiuxian_game_guide.md 第33节",
+    "created": "2026-09-23",
+    "changelog": [
+      "2026-09-23 v1.0.0 初版：6 大宗门外交关系网 + 声望/结盟/敌对/解除"
+    ]
+  },
+  "global": {
+    "name": "宗门外交",
+    "description": "天下大势，分合有时。宗门之间可示好、结盟、敌对，影响全宗气运。",
+    "min_realm_rank": 11,
+    "diplomacy_actions": {
+      "goodwill": {
+        "name": "示好",
+        "description": "赠送灵石改善关系",
+        "cost_spirit_stones": 500,
+        "relation_change": 10,
+        "daily_limit": 3,
+        "min_relation_for_action": -50
+      },
+      "ally": {
+        "name": "结盟",
+        "description": "关系达到 60 后可提议结盟",
+        "min_relation": 60,
+        "cost_spirit_stones": 2000,
+        "relation_change": 15,
+        "requires_role": ["leader", "elder"],
+        "daily_limit": 1
+      },
+      "hostile": {
+        "name": "敌对",
+        "description": "关系低于 -20 可宣布敌对",
+        "max_relation": -20,
+        "cost_spirit_stones": 0,
+        "relation_change": -25,
+        "requires_role": ["leader", "elder"],
+        "daily_limit": 1
+      },
+      "break_relation": {
+        "name": "解除",
+        "description": "解除结盟/敌对/友好关系",
+        "cost_spirit_stones": 1000,
+        "relation_change": -5,
+        "requires_role": ["leader", "elder"],
+        "daily_limit": 1
+      }
+    },
+    "relation_bands": [
+      { "min": 80, "max": 100, "id": "sworn", "name": "生死之交", "color": "emerald" },
+      { "min": 60, "max": 79, "id": "ally", "name": "同盟", "color": "sky" },
+      { "min": 20, "max": 59, "id": "friendly", "name": "友好", "color": "teal" },
+      { "min": -19, "max": 19, "id": "neutral", "name": "中立", "color": "stone" },
+      { "min": -59, "max": -20, "id": "cool", "name": "冷淡", "color": "amber" },
+      { "min": -100, "max": -60, "id": "hostile", "name": "敌对", "color": "rose" }
+    ],
+    "initial_relation": 0
+  },
+  "sects": [
+    { "id": "luoyun", "name": "落云宗", "description": "天南大宗，灵眼之树闻名" },
+    { "id": "xinggong", "name": "星宫", "description": "观星望气，侍妾成群" },
+    { "id": "tianxing", "name": "天星宗", "description": "命盘推演，天机莫测" },
+    { "id": "lingxiao", "name": "凌霄宫", "description": "登天阶而上，问心台上磨道心" },
+    { "id": "yinluo", "name": "阴罗宗", "description": "魔道阴罗，幡中囚魂" },
+    { "id": "hehuan", "name": "合欢宗", "description": "合欢炉鼎，红尘炼心" }
+  ]
+}

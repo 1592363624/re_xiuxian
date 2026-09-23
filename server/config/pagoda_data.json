@@ -1,0 +1,114 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "琉璃古塔配置 - 闯塔试炼与琉璃塔榜（玩法文档第30节·排行、古塔、剑诀与试炼）",
+    "design_doc": "xiuxian_game_guide.md 第30节",
+    "created": "2026-09-23",
+    "changelog": [
+      "2026-09-23 v1.0.0 初版：9 层古塔 + 闯塔/继续/退出/重置 + 琉璃塔榜"
+    ]
+  },
+  "global": {
+    "name": "琉璃古塔",
+    "description": "上古遗塔九重，每层皆有守关灵影。闯得越高，塔榜名次越前；败退可重整旗鼓再来。",
+    "min_realm_rank": 8,
+    "min_realm_name": "炼气八层",
+    "daily_limit": 5,
+    "daily_attempts": 5,
+    "cooldown_sec": 180,
+    "max_rounds": 20,
+    "hp_loss_on_defeat_ratio": 0.08,
+    "hp_loss_on_defeat_min": 20,
+    "hp_loss_on_defeat_max": 800,
+    "reset_cost_spirit_stones": 500,
+    "reset_daily_limit": 1,
+    "ranking_top_n": 20,
+    "score_floor_weight": 1000,
+    "score_round_bonus": 80,
+    "score_hp_ratio_bonus": 400,
+    "score_flawless_bonus": 800
+  },
+  "floors": [
+    {
+      "floor": 1,
+      "name": "凡尘阶",
+      "description": "塔基凡尘，灵影迟缓，适合初入塔者试手。",
+      "min_realm_rank": 8,
+      "stats": { "max_hp": 600, "atk": 55, "def": 22, "speed": 48 },
+      "rewards": { "exp_win": 150, "spirit_stones_win": 80 },
+      "first_clear_bonus": { "exp": 400, "spirit_stones": 150 }
+    },
+    {
+      "floor": 2,
+      "name": "青石阶",
+      "description": "青石铺就，守关灵影招式方正。",
+      "min_realm_rank": 10,
+      "stats": { "max_hp": 1400, "atk": 110, "def": 50, "speed": 70 },
+      "rewards": { "exp_win": 320, "spirit_stones_win": 160 },
+      "first_clear_bonus": { "exp": 800, "spirit_stones": 300 }
+    },
+    {
+      "floor": 3,
+      "name": "筑基阶",
+      "description": "灵气成旋，筑基修士方能稳住心神。",
+      "min_realm_rank": 11,
+      "stats": { "max_hp": 2800, "atk": 190, "def": 90, "speed": 100 },
+      "rewards": { "exp_win": 700, "spirit_stones_win": 320 },
+      "first_clear_bonus": { "exp": 1600, "spirit_stones": 600 }
+    },
+    {
+      "floor": 4,
+      "name": "结丹阶",
+      "description": "金光内蕴，守关灵影凝丹如铁。",
+      "min_realm_rank": 14,
+      "stats": { "max_hp": 5500, "atk": 340, "def": 160, "speed": 130 },
+      "rewards": { "exp_win": 1600, "spirit_stones_win": 700 },
+      "first_clear_bonus": { "exp": 3200, "spirit_stones": 1200 }
+    },
+    {
+      "floor": 5,
+      "name": "元婴阶",
+      "description": "塔影化婴，神念交锋最为凶险。",
+      "min_realm_rank": 17,
+      "stats": { "max_hp": 11000, "atk": 620, "def": 300, "speed": 160 },
+      "rewards": { "exp_win": 3600, "spirit_stones_win": 1500 },
+      "first_clear_bonus": { "exp": 7000, "spirit_stones": 2500 }
+    },
+    {
+      "floor": 6,
+      "name": "化神阶",
+      "description": "神意如渊，稍有不慎便被塔意反噬。",
+      "min_realm_rank": 21,
+      "stats": { "max_hp": 22000, "atk": 1100, "def": 520, "speed": 200 },
+      "rewards": { "exp_win": 8000, "spirit_stones_win": 3200 },
+      "first_clear_bonus": { "exp": 15000, "spirit_stones": 5000 }
+    },
+    {
+      "floor": 7,
+      "name": "炼虚阶",
+      "description": "虚空微裂，塔灵已近真形。",
+      "min_realm_rank": 25,
+      "stats": { "max_hp": 42000, "atk": 2000, "def": 950, "speed": 240 },
+      "rewards": { "exp_win": 18000, "spirit_stones_win": 7000 },
+      "first_clear_bonus": { "exp": 30000, "spirit_stones": 10000 }
+    },
+    {
+      "floor": 8,
+      "name": "合体阶",
+      "description": "天地人三才共鸣，塔顶金光隐现。",
+      "min_realm_rank": 28,
+      "stats": { "max_hp": 80000, "atk": 3600, "def": 1700, "speed": 280 },
+      "rewards": { "exp_win": 38000, "spirit_stones_win": 14000 },
+      "first_clear_bonus": { "exp": 60000, "spirit_stones": 20000 }
+    },
+    {
+      "floor": 9,
+      "name": "登仙阶",
+      "description": "塔顶近天，唯大能者可立。",
+      "min_realm_rank": 32,
+      "stats": { "max_hp": 150000, "atk": 6500, "def": 3000, "speed": 320 },
+      "rewards": { "exp_win": 80000, "spirit_stones_win": 30000 },
+      "first_clear_bonus": { "exp": 120000, "spirit_stones": 50000, "title_id": "pagoda_immortal" }
+    }
+  ]
+}

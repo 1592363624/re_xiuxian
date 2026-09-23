@@ -711,6 +711,8 @@ const startServer = async () => {
     app.use('/api/duel', require('./routes/duel'));
     app.use('/api/bounty', require('./routes/bounty'));
     app.use('/api/fengshen', require('./routes/fengshen'));
+    // 封神台管理（GM 后台）：赛季结算入口（此前 settleSeason 无路由/调度器）
+    app.use('/api/admin/fengshen', require('./routes/admin_fengshen'));
     // 洞府社交系统（拜访/留言/访客/景观/商人）
     app.use('/api/cave-social', require('./routes/cave_social'));
     // 宗门专属玩法系统（灵眼之树/观星台/命盘/天阶/魔道/炉鼎）
@@ -848,6 +850,21 @@ const startServer = async () => {
     // 多人互动：未切开原石上架拍卖行流转 + 稀有掉落全服广播 + 诅咒PVP劫掠 + LDC全服保底
     // 联动系统：大衍诀层数（神识切权限）、LDC（钓鱼系统钓竿购买）、法则碎片·雷/天雷竹（傀儡工坊升级）
     app.use('/api/gambling-stone', require('./routes/gambling_stone'));
+
+    // 批次6 琉璃古塔（玩法文档第30节·古塔流程：闯塔/继续/退出/重置 + 琉璃塔榜）
+    app.use('/api/pagoda', require('./routes/pagoda'));
+
+    // 批次6 剑诀线（玩法文档第30节：合成剑诀/参悟/炼剑/参悟剑阵/布下剑阵）
+    app.use('/api/sword-art', require('./routes/sword_art'));
+
+    // 批次6 事件奇遇（玩法文档第22节·隐藏/事件式命令）
+    app.use('/api/fated-event', require('./routes/fated_event'));
+
+    // 批次6 宗门外交（玩法文档第33节：天下大势/示好/结盟/敌对/解除）
+    app.use('/api/sect-diplomacy', require('./routes/sect_diplomacy'));
+
+    // 批次6 落云宗定脉（玩法文档第25节·云梦灵眼定脉）
+    app.use('/api/dingmai', require('./routes/dingmai'));
 
     // 健康检查接口（供部署脚本验证服务是否启动成功）
     // 设计目的：deploy.ps1 部署完成后 curl 此接口，确认服务真的起来了

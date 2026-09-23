@@ -1,0 +1,589 @@
+{
+  "_comment": "大地图格子化 · POI 与地方志内容。设计：docs/大地图格子化设计方案.md §13.8/§15.4。gazetteer 仅覆盖 ruin_large/town/sect；单条首启给残卷收集物，集齐一区给称号 + sense_bonus（奖励额度见 grid_config.gazetteer）。",
+  "_version": "1.0.0",
+  "_updated": "2026-09-23",
+
+  "collection_item_key": "gazetteer_scrap",
+  "set_title_prefix": "风物志·",
+
+  "pois": [
+    {
+      "id": "yueguo_market",
+      "name": "越国坊市",
+      "type": "town",
+      "region_id": "yueguo",
+      "x": 3,
+      "y": 4,
+      "panel": "market",
+      "gazetteer_id": "gz_yueguo_market"
+    },
+    {
+      "id": "qixuanmen",
+      "name": "七玄门",
+      "type": "sect",
+      "region_id": "yueguo",
+      "x": 6,
+      "y": 3,
+      "panel": "sect",
+      "sect_id": "qixuan",
+      "gazetteer_id": "gz_qixuanmen"
+    },
+    {
+      "id": "caixia_trail",
+      "name": "彩霞山径",
+      "type": "ruin_small",
+      "region_id": "yueguo",
+      "x": 5,
+      "y": 2,
+      "gazetteer_id": "gz_caixia_trail"
+    },
+    {
+      "id": "abandoned_mine",
+      "name": "废弃矿洞",
+      "type": "ruin_small",
+      "region_id": "yueguo",
+      "x": 8,
+      "y": 6,
+      "gazetteer_id": "gz_abandoned_mine"
+    },
+    {
+      "id": "wolf_nest",
+      "name": "狼谷",
+      "type": "monster_nest",
+      "region_id": "yueguo",
+      "x": 6,
+      "y": 9,
+      "monster_id": "wolf",
+      "gazetteer_id": "gz_wolf_nest"
+    },
+    {
+      "id": "cangkun_gate",
+      "name": "苍坤旧禁",
+      "type": "ruin_large",
+      "region_id": "yueguo",
+      "x": 3,
+      "y": 10,
+      "sub_region_id": "cangkun_ruin_inner",
+      "gazetteer_id": "gz_cangkun_gate",
+      "dungeon_ref": "cangkun"
+    },
+    {
+      "id": "herb_slope",
+      "name": "灵草坡",
+      "type": "resource",
+      "region_id": "yueguo",
+      "x": 4,
+      "y": 8,
+      "resource_id": "wild_herb"
+    },
+    {
+      "id": "to_luanxing",
+      "name": "渡口",
+      "type": "portal",
+      "region_id": "yueguo",
+      "x": 11,
+      "y": 5,
+      "portal_id": "yueguo_to_luanxing",
+      "gazetteer_id": "gz_to_luanxing"
+    },
+    {
+      "id": "haigang",
+      "name": "海港坊市",
+      "type": "town",
+      "region_id": "luanxing_sea",
+      "x": 2,
+      "y": 3,
+      "panel": "market",
+      "gazetteer_id": "gz_haigang"
+    },
+    {
+      "id": "xinghai_altar",
+      "name": "星祭坛",
+      "type": "ruin_large",
+      "region_id": "luanxing_sea",
+      "x": 14,
+      "y": 8,
+      "gazetteer_id": "gz_xinghai_altar"
+    },
+    {
+      "id": "anxiao_gate",
+      "name": "暗礁禁门",
+      "type": "ruin_large",
+      "region_id": "luanxing_sea",
+      "x": 16,
+      "y": 16,
+      "gazetteer_id": "gz_anxiao_gate"
+    },
+    {
+      "id": "dayan_gate",
+      "name": "大衍神殿",
+      "type": "ruin_large",
+      "region_id": "dayan_hall",
+      "x": 3,
+      "y": 3,
+      "gazetteer_id": "gz_dayan_gate"
+    },
+    {
+      "id": "kuilei_forge",
+      "name": "傀儡坊",
+      "type": "town",
+      "region_id": "dayan_hall",
+      "x": 8,
+      "y": 4,
+      "panel": "market",
+      "gazetteer_id": "gz_kuilei_forge"
+    },
+    {
+      "id": "xutian_gate",
+      "name": "虚天殿门",
+      "type": "ruin_large",
+      "region_id": "mortal_realm",
+      "x": 5,
+      "y": 5,
+      "sub_region_id": "xutian_palace",
+      "gazetteer_id": "gz_xutian_gate",
+      "dungeon_ref": "xutian"
+    },
+    {
+      "id": "kunwu_gate",
+      "name": "昆吾封魔塔",
+      "type": "ruin_large",
+      "region_id": "mortal_realm",
+      "x": 15,
+      "y": 4,
+      "sub_region_id": "kunwu_tower",
+      "gazetteer_id": "gz_kunwu_gate",
+      "dungeon_ref": "kunwu"
+    },
+    {
+      "id": "mulan_camp",
+      "name": "慕兰边营",
+      "type": "town",
+      "region_id": "mortal_realm",
+      "x": 18,
+      "y": 2,
+      "panel": "market",
+      "gazetteer_id": "gz_mulan_camp"
+    },
+    {
+      "id": "huanglong_gate",
+      "name": "黄龙山口",
+      "type": "ruin_large",
+      "region_id": "mortal_realm",
+      "x": 12,
+      "y": 12,
+      "sub_region_id": "huanglong_camp",
+      "gazetteer_id": "gz_huanglong_gate",
+      "dungeon_ref": "huanglong"
+    },
+    {
+      "id": "yuncheng",
+      "name": "云霄城",
+      "type": "town",
+      "region_id": "spirit_realm",
+      "x": 3,
+      "y": 3,
+      "panel": "market",
+      "gazetteer_id": "gz_yuncheng"
+    },
+    {
+      "id": "xianyuan_sect",
+      "name": "仙缘宫",
+      "type": "sect",
+      "region_id": "spirit_realm",
+      "x": 12,
+      "y": 8,
+      "panel": "sect",
+      "gazetteer_id": "gz_xianyuan_sect"
+    },
+    {
+      "id": "xianting",
+      "name": "仙庭墟市",
+      "type": "town",
+      "region_id": "celestial_realm",
+      "x": 4,
+      "y": 4,
+      "panel": "market",
+      "gazetteer_id": "gz_xianting"
+    },
+    {
+      "id": "hundun_fissure",
+      "name": "混沌裂隙",
+      "type": "ruin_large",
+      "region_id": "celestial_realm",
+      "x": 18,
+      "y": 18,
+      "gazetteer_id": "gz_hundun_fissure"
+    },
+
+    {
+      "id": "cangkun_exit",
+      "name": "旧禁出口",
+      "type": "portal",
+      "region_id": "cangkun_ruin_inner",
+      "x": 0,
+      "y": 0,
+      "exit_to": { "region": "yueguo", "x": 3, "y": 10 }
+    },
+    {
+      "id": "cangkun_altar_gate",
+      "name": "深层祭坛",
+      "type": "ruin_small",
+      "region_id": "cangkun_ruin_inner",
+      "x": 4,
+      "y": 4,
+      "hidden_id": "hidden_altar"
+    },
+    {
+      "id": "xutian_exit",
+      "name": "虚天殿出口",
+      "type": "portal",
+      "region_id": "xutian_palace",
+      "x": 0,
+      "y": 0,
+      "exit_to": { "region": "mortal_realm", "x": 5, "y": 5 }
+    },
+    {
+      "id": "xutian_core",
+      "name": "虚天鼎残影",
+      "type": "ruin_small",
+      "region_id": "xutian_palace",
+      "x": 8,
+      "y": 8
+    },
+    {
+      "id": "kunwu_exit",
+      "name": "封魔塔门",
+      "type": "portal",
+      "region_id": "kunwu_tower",
+      "x": 0,
+      "y": 7,
+      "exit_to": { "region": "mortal_realm", "x": 15, "y": 4 }
+    },
+    {
+      "id": "kunwu_heart",
+      "name": "塔心封印",
+      "type": "ruin_small",
+      "region_id": "kunwu_tower",
+      "x": 4,
+      "y": 4
+    },
+    {
+      "id": "huanglong_exit",
+      "name": "山口回路",
+      "type": "portal",
+      "region_id": "huanglong_camp",
+      "x": 0,
+      "y": 0,
+      "exit_to": { "region": "mortal_realm", "x": 12, "y": 12 }
+    },
+    {
+      "id": "huanglong_eye_1",
+      "name": "青龙阵眼",
+      "type": "ruin_small",
+      "region_id": "huanglong_camp",
+      "x": 2,
+      "y": 2
+    },
+    {
+      "id": "huanglong_eye_2",
+      "name": "白虎阵眼",
+      "type": "ruin_small",
+      "region_id": "huanglong_camp",
+      "x": 6,
+      "y": 2
+    },
+    {
+      "id": "huanglong_eye_3",
+      "name": "朱雀阵眼",
+      "type": "ruin_small",
+      "region_id": "huanglong_camp",
+      "x": 2,
+      "y": 6
+    },
+    {
+      "id": "huanglong_eye_4",
+      "name": "玄武阵眼",
+      "type": "ruin_small",
+      "region_id": "huanglong_camp",
+      "x": 6,
+      "y": 6
+    },
+    {
+      "id": "huanglong_eye_5",
+      "name": "黄龙阵眼",
+      "type": "ruin_small",
+      "region_id": "huanglong_camp",
+      "x": 4,
+      "y": 4
+    }
+  ],
+
+  "gazetteer": [
+    {
+      "id": "gz_yueguo_market",
+      "poi_id": "yueguo_market",
+      "region_id": "yueguo",
+      "title": "越国坊市",
+      "text": "凡人也做修士的生意，只是摊上摆的是干柴与草药。清晨的雾从河面爬上来，裹住秤杆与讨价还价的声音。偶有修士驻足，买一壶浊酒，问一句山路是否好走。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "凡人与修士的交界"
+    },
+    {
+      "id": "gz_qixuanmen",
+      "poi_id": "qixuanmen",
+      "region_id": "yueguo",
+      "title": "七玄门",
+      "text": "山门不大，石阶却磨得发亮——来来去去都是想摸到仙缘的人。殿前的老松歪着身子，像听了太多誓言。夜里偶有剑鸣，不知是风，还是谁在试招。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "小门派的仙缘入口"
+    },
+    {
+      "id": "gz_caixia_trail",
+      "poi_id": "caixia_trail",
+      "region_id": "yueguo",
+      "title": "彩霞山径",
+      "text": "霞光落在山脊上像一层薄金。采药人说那是地脉在呼吸；修士说那是灵气在换气。山径窄处只容一人，走快了会踢落石子，惊起一整坡的鸟。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "地脉与霞光"
+    },
+    {
+      "id": "gz_abandoned_mine",
+      "poi_id": "abandoned_mine",
+      "region_id": "yueguo",
+      "title": "废弃矿洞",
+      "text": "矿脉早空了，洞口的木架还在，风一过就吱呀作响。有人在壁上刻了又擦的记号，像在找什么，又像在藏什么。深处偶有金石轻响，不知是落石，还是别的什么在敲。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "被掏空的矿脉"
+    },
+    {
+      "id": "gz_wolf_nest",
+      "poi_id": "wolf_nest",
+      "region_id": "yueguo",
+      "title": "狼谷",
+      "text": "夜里能听见狼嚎顺着谷口滚下来。牧人绕着走，猎人也绕着走。只有修士会踩进去——为了兽核，也为了证明自己已经不是会被狼群追着跑的人。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "野兽与修行者"
+    },
+    {
+      "id": "gz_cangkun_gate",
+      "poi_id": "cangkun_gate",
+      "region_id": "yueguo",
+      "title": "苍坤旧禁",
+      "text": "禁制残纹像干涸的河床。进去的人说，里面的墙会自己改路；出来的人说，最好别记路，记了也对不上。石门上的名字被风雨磨平，只余一个「禁」字仍锋利。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "会改路的旧禁",
+      "related_dungeon": "cangkun"
+    },
+    {
+      "id": "gz_to_luanxing",
+      "poi_id": "to_luanxing",
+      "region_id": "yueguo",
+      "title": "渡口",
+      "text": "船家不问来历，只问你带没带够灵石。跳板湿滑，缆绳勒进木桩。对岸的雾比这边厚，据说雾里有岛，岛上有祭坛，祭坛下压着谁都不肯说的东西。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "通往乱星海"
+    },
+    {
+      "id": "gz_haigang",
+      "poi_id": "haigang",
+      "region_id": "luanxing_sea",
+      "title": "海港坊市",
+      "text": "盐雾里混着丹香。这里的价格随潮水涨落：潮起时稀货多，潮落时人心急。码头上堆着未卸完的海藻箱，箱角压着半张不知谁丢的残图。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "潮汐与价格"
+    },
+    {
+      "id": "gz_xinghai_altar",
+      "poi_id": "xinghai_altar",
+      "region_id": "luanxing_sea",
+      "title": "星祭坛",
+      "text": "潮退时露出的石阶直指海底。祭坛上的凹槽像曾经放过什么东西——也许是灯，也许是鼎，也许是某个人的名姓。夜里仰头，星子落进浪里，分不清是谁在祭谁。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "海底祭坛"
+    },
+    {
+      "id": "gz_anxiao_gate",
+      "poi_id": "anxiao_gate",
+      "region_id": "luanxing_sea",
+      "title": "暗礁禁门",
+      "text": "船队绕着这片礁走。绕不过去的，就再也没回来。礁缝里偶尔浮出半截断桅，桅杆上的结还在，系船的人不见了。禁门之后是否另有天地，只有胆子最大的探海人敢猜。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "回不来的船"
+    },
+    {
+      "id": "gz_dayan_gate",
+      "poi_id": "dayan_gate",
+      "region_id": "dayan_hall",
+      "title": "大衍神殿",
+      "text": "殿中无像，只有无数转不停的铜环——像一门还在演算的功法。环影落在墙上，层层叠叠。有人在此枯坐数年，出关时只说了一句：算不尽。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "仍在演算的传承"
+    },
+    {
+      "id": "gz_kuilei_forge",
+      "poi_id": "kuilei_forge",
+      "region_id": "dayan_hall",
+      "title": "傀儡坊",
+      "text": "炉火不灭。卖的不是傀儡，是「再走一程」的底气。匠人不多话，只在交货时提醒一句：它替你挡的，终归要有人还。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "以傀代身"
+    },
+    {
+      "id": "gz_xutian_gate",
+      "poi_id": "xutian_gate",
+      "region_id": "mortal_realm",
+      "title": "虚天殿门",
+      "text": "殿门半开，寒气与火光在门缝里互相撕咬。门槛上的霜化了又结，像有人反复进出，又像殿本身在呼吸。进去的人分两条道：一条冷得发蓝，一条热得发白。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "冰火双道",
+      "related_dungeon": "xutian"
+    },
+    {
+      "id": "gz_kunwu_gate",
+      "poi_id": "kunwu_gate",
+      "region_id": "mortal_realm",
+      "title": "昆吾封魔塔",
+      "text": "塔影压过半座山。塔门上的封纹，白天看是暗的，夜里会亮——亮得很有节奏，像在数层数。守塔人早已不在，只余一句口口相传的话：上得去，未必下得来。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "会发亮的封纹",
+      "related_dungeon": "kunwu"
+    },
+    {
+      "id": "gz_mulan_camp",
+      "poi_id": "mulan_camp",
+      "region_id": "mortal_realm",
+      "title": "慕兰边营",
+      "text": "战线拉长了，补给却总是慢一步。营门的木栅上钉着各色符纸，有的是求平安，有的是记军功。夜里有人擦枪，有人写信，有人只是看着北边的黑。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "战线与补给"
+    },
+    {
+      "id": "gz_huanglong_gate",
+      "poi_id": "huanglong_gate",
+      "region_id": "mortal_realm",
+      "title": "黄龙山口",
+      "text": "只有同门能结阵入山——外人看着是雾，自己人看着是路。山风过时，五处阵眼同时轻响，像有人在远处点名。山口的石碑只刻了两个字：同心。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "同门结阵",
+      "related_dungeon": "huanglong"
+    },
+    {
+      "id": "gz_yuncheng",
+      "poi_id": "yuncheng",
+      "region_id": "spirit_realm",
+      "title": "云霄城",
+      "text": "城在云上，阶在脚下。讨价还价的声音比雷还密。有人卖飞剑残片，有人卖一则不知真假的飞升旧闻。城主从不露面，只在每月十五把最高那盏灯点上。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "云上的生意"
+    },
+    {
+      "id": "gz_xianyuan_sect",
+      "poi_id": "xianyuan_sect",
+      "region_id": "spirit_realm",
+      "title": "仙缘宫",
+      "text": "宫门常年闭着。开门的不是人，是时机。阶前的石兽被摸得发亮，都是求缘之人留下的手泽。宫内偶传钟声，一声在天，一声在心。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "时机开门"
+    },
+    {
+      "id": "gz_xianting",
+      "poi_id": "xianting",
+      "region_id": "celestial_realm",
+      "title": "仙庭墟市",
+      "text": "仙人也赶集。只是摊上卖的，多半是因果。有人以一段记忆换一粒丹，有人以一句承诺换一条路。秤是准的，人心未必。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "因果集市"
+    },
+    {
+      "id": "gz_hundun_fissure",
+      "poi_id": "hundun_fissure",
+      "region_id": "celestial_realm",
+      "title": "混沌裂隙",
+      "text": "裂隙边缘的石头在往里滚。没有人问它们去了哪。靠得太近时，神识会被拉成细丝——有人在此悟道，也有人在此丢了名字。",
+      "first_discover_item_key": "gazetteer_scrap",
+      "lore_hook": "被吞没的名字"
+    }
+  ],
+
+  "hidden_contents": [
+    {
+      "id": "hidden_vein",
+      "region_id": "yueguo",
+      "x": 9,
+      "y": 3,
+      "reveal_text": "泥土下有极淡的灵光在游。",
+      "revealed_as": {
+        "cell_type": "resource",
+        "resource": { "id": "golden_ore", "amount": 5, "respawn_minutes": 90 }
+      },
+      "probe_hint": "此处灵气走向古怪，像是被什么东西吸着。"
+    },
+    {
+      "id": "hidden_cave",
+      "region_id": "yueguo",
+      "x": 2,
+      "y": 11,
+      "reveal_text": "藤蔓后面是空的。",
+      "revealed_as": {
+        "cell_type": "ruin_small",
+        "event": "minor_cache"
+      },
+      "probe_hint": "藤蔓长得不太自然。"
+    },
+    {
+      "id": "hidden_robber",
+      "region_id": "luanxing_sea",
+      "x": 10,
+      "y": 10,
+      "reveal_text": "那艘渔船没有渔网。",
+      "revealed_as": {
+        "cell_type": "monster_nest",
+        "monster_id": "bandit"
+      },
+      "probe_hint": "船上的人站得太直，不像渔夫。"
+    },
+    {
+      "id": "hidden_altar",
+      "region_id": "cangkun_ruin_inner",
+      "x": 4,
+      "y": 4,
+      "reveal_text": "墙壁上的禁纹在你注视下改了一笔。",
+      "revealed_as": {
+        "cell_type": "ruin_small",
+        "poi": "cangkun_altar_gate",
+        "sub_region_id": "cangkun_altar",
+        "_comment": "cangkun_altar 为预留三层子区，P4 再配 size"
+      },
+      "probe_hint": "禁纹的笔顺……好像错了。"
+    }
+  ],
+
+  "journey_triggers": [
+    {
+      "id": "jr_first_poi",
+      "event": "first_discover_poi",
+      "journal_title": "天南风物志",
+      "text_template": "今日初见{name}。"
+    },
+    {
+      "id": "jr_first_subregion",
+      "event": "first_enter_subregion",
+      "journal_title": "天南风物志",
+      "text_template": "踏入{name}，内外仿佛不是同一片天地。"
+    },
+    {
+      "id": "jr_first_legacy",
+      "event": "first_find_legacy",
+      "journal_title": "天南风物志",
+      "text_template": "有人在此坐化。门前的草，比别处深。"
+    }
+  ],
+
+  "waymark_tags": [
+    { "id": "road", "label": "路标", "icon": "⚑" },
+    { "id": "danger", "label": "危险", "icon": "!" },
+    { "id": "rich", "label": "富矿", "icon": "◆" },
+    { "id": "avoid", "label": "勿近", "icon": "✕" }
+  ]
+}

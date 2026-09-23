@@ -1,5 +1,33 @@
 <template>
   <PanelShell title="历练探索" hint="按时长结算 · 提前结束有惩罚" size="md" @close="$emit('close')">
+    <template #footer>
+      <template v-if="!isExploring">
+        <AppButton variant="outline" @click="$emit('close')">取消</AppButton>
+        <AppButton
+          class="flex-1"
+          variant="primary"
+          block
+          :loading="isLoading"
+          :hint="`时长越长奖励越高，受伤风险也越大`"
+          @click="startExploreAction"
+        >
+          开始{{ durationTypeLabel }}
+        </AppButton>
+      </template>
+      <template v-else>
+        <AppButton variant="outline" @click="$emit('close')">返回</AppButton>
+        <AppButton
+          class="flex-1"
+          variant="danger"
+          block
+          :hint="`提前结束会按比例扣收益，不设保底`"
+          :disabled="isLoading"
+          @click="completeExploreAction"
+        >
+          结束历练
+        </AppButton>
+      </template>
+    </template>
     <div class="space-y-4">
       <!-- 当前地图信息 -->
       <div v-if="currentMap" class="bg-surface-hover rounded-panel p-4 border border-line">
@@ -83,17 +111,7 @@
           </div>
         </div>
 
-        <!-- 开始历练按钮 -->
-        <button
-          @click="startExploreAction"
-          :disabled="isLoading"
-          class="w-full py-4 px-6 bg-gradient-to-r from-emerald-900/80 to-emerald-900 hover:from-emerald-800/80 hover:to-emerald-700 border border-emerald-700 hover:border-emerald-500 text-emerald-400 hover:text-emerald-300 rounded-control transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
-            <path d="M12 2 2.5 9.5l1 10.5L12 22l8.5-2L22 10l-10-7.5z"/>
-          </svg>
-          <span class="font-bold text-lg">开始{{ durationTypeLabel }}</span>
-        </button>
+        <!-- 主操作移到底栏，与闭关/悟道一致：选完时长一眼就能看到「开始」 -->
         <p class="text-xs text-fg-faint text-center">历练过程中会遭遇各种随机事件，可能获得修为、物品或触发战斗</p>
       </div>
 
@@ -135,7 +153,7 @@
           </div>
         </div>
 
-        <AppButton @click="completeExploreAction">结束历练</AppButton>
+        <!-- 结束历练已收进底栏 -->
       </div>
 
       <!-- AI 状态 -->

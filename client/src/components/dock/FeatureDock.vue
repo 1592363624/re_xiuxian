@@ -1,5 +1,5 @@
 <template>
-  <!-- 三栏在 1280px 以下放不下（角色 288 + 日志 560 + 坞 400），
+  <!-- 宽屏四栏（脚下 260 + 地图 ≤640 + 日志 280 + 坞 400），
        因此 xl 起才启用右坞，更窄的屏退回底部操作条 + 全屏 modal。 -->
   <aside class="hidden xl:flex flex-col flex-1 min-w-[400px] border-l border-line-subtle bg-surface-canvas shrink-0">
     <!-- 功能搜索：48 个入口分 10 类，光靠翻分类页签找不到东西 -->
@@ -133,6 +133,12 @@ onUnmounted(() => {
   observer?.disconnect()
   window.removeEventListener('resize', publishSurfaceRect)
 })
-watch(() => props.openPanelId, publishSurfaceRect)
+watch(() => props.openPanelId, (id) => {
+  publishSurfaceRect()
+  // 从搜索/快捷入口打开面板时同步分类高亮，关闭后落在正确的卡片页而不是「自身」
+  if (!id) return
+  const tab = DOCK_TABS.find(t => t.ids.includes(id))
+  if (tab) activeTab.value = tab.key
+})
 </script>
 

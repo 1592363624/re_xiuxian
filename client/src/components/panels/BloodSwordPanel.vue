@@ -19,6 +19,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { formatBeijing } from '../../utils/time'
 import Modal from '../common/Modal.vue'
+import PanelShell from '../ui/PanelShell.vue'
 import {
   getBloodSwordStatus,
   sacrificeBlood,
@@ -211,13 +212,13 @@ const canSheath = computed(() => {
  * 魔染等级颜色
  */
 const corruptionLevelColor = computed(() => {
-  if (!heldStatus.value) return 'text-gray-300'
+  if (!heldStatus.value) return 'text-fg-secondary'
   const level = heldStatus.value.corruption_level
   if (level === '正常') return 'text-green-300'
   if (level === '轻微反噬') return 'text-yellow-300'
   if (level === '中度反噬') return 'text-orange-300'
   if (level === '严重反噬') return 'text-red-400'
-  return 'text-gray-300'
+  return 'text-fg-secondary'
 })
 
 /**
@@ -384,7 +385,7 @@ function deepLineBonusText(b: DeepLineBonus): string {
 }
 
 function deepLineBonusClass(b: DeepLineBonus): string {
-  if (!b.applied) return 'text-gray-400';
+  if (!b.applied) return 'text-fg-muted';
   return b.tone === 'cost' ? 'text-red-400' : 'text-green-300';
 }
 
@@ -421,38 +422,22 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- 全屏遮罩 -->
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-    @click.self="emit('close')"
+  <PanelShell
+    title="血魔剑残契"
+    hint="法宝深线 · 第一条"
+    size="xl"
+    :loading="loading"
+    @close="emit('close')"
   >
-    <!-- 主面板 -->
-    <div class="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-      <!-- 头部 -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-        <div class="flex items-center gap-3">
-          <h2 class="text-xl font-bold text-red-300">血魔剑残契</h2>
-          <span class="text-xs px-2 py-0.5 rounded bg-red-900/60 text-red-200 border border-red-700">
-            法宝深线 · 第一条
-          </span>
-        </div>
-        <button
-          class="text-gray-400 hover:text-white text-2xl leading-none"
-          @click="emit('close')"
-          aria-label="关闭"
-        >×</button>
-      </div>
-
-      <!-- 内容区 -->
-      <div class="flex-1 overflow-y-auto p-6">
+      <div class="space-y-5">
         <!-- 加载中 -->
-        <div v-if="loading" class="text-center text-gray-400 py-12">加载中...</div>
+        <div v-if="loading" class="text-center text-fg-muted py-12">加载中...</div>
 
         <!-- 未持有血魔剑 -->
         <div v-else-if="!hasBloodSword || !heldStatus" class="text-center py-12 space-y-4">
           <div class="text-5xl">🗡️</div>
-          <div class="text-lg text-gray-300">尚未持有血魔剑</div>
-          <div class="text-sm text-gray-400 max-w-md mx-auto leading-relaxed">
+          <div class="text-lg text-fg-secondary">尚未持有血魔剑</div>
+          <div class="text-sm text-fg-muted max-w-md mx-auto leading-relaxed">
             {{ (status as any)?.source_hint || '血魔剑来自掩月抢亲副本成功后的成品法宝掉落（掉率 0.1%）' }}
           </div>
           <div
@@ -474,7 +459,7 @@ onUnmounted(() => {
               <div>
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="text-lg font-bold text-red-200">{{ heldStatus.item_name }}</span>
-                  <span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
+                  <span class="text-xs px-2 py-0.5 rounded bg-surface-hover text-fg-secondary">
                     {{ heldStatus.slot }}
                   </span>
                   <span
@@ -490,24 +475,24 @@ onUnmounted(() => {
                     class="text-xs px-2 py-0.5 rounded bg-purple-700 text-purple-100"
                   >封鞘中</span>
                 </div>
-                <div class="text-xs text-gray-400 mt-2 flex gap-4 flex-wrap">
+                <div class="text-xs text-fg-muted mt-2 flex gap-4 flex-wrap">
                   <span>耐久：{{ heldStatus.durability }} / {{ heldStatus.max_durability }}</span>
                   <span>祭炼：+{{ heldStatus.refine_level }}</span>
                 </div>
               </div>
               <div class="text-right">
-                <div class="text-xs text-gray-400">血契阶数</div>
+                <div class="text-xs text-fg-muted">血契阶数</div>
                 <div class="text-lg font-bold text-red-300">
                   {{ bloodPactStageName(heldStatus.blood_pact_stage, heldStatus.blood_pact_stage_name) }}
                 </div>
-                <div class="text-xs text-gray-500 mt-1">
+                <div class="text-xs text-fg-faint mt-1">
                   周进度：{{ heldStatus.blood_pact_weekly_progress }} / {{ heldStatus.blood_pact_weekly_limit }}
                 </div>
               </div>
             </div>
             <div
               v-if="heldStatus.blood_pact_stage_description"
-              class="text-xs text-gray-400 mt-2 italic"
+              class="text-xs text-fg-muted mt-2 italic"
             >
               {{ heldStatus.blood_pact_stage_description }}
             </div>
@@ -523,14 +508,14 @@ onUnmounted(() => {
                   {{ heldStatus.corruption_level }}
                 </span>
               </div>
-              <div class="relative h-4 bg-gray-800 rounded overflow-hidden border border-gray-700">
+              <div class="relative h-4 bg-surface-sunken rounded overflow-hidden border border-line">
                 <div
                   class="absolute inset-y-0 left-0 transition-all duration-300"
                   :class="corruptionBarColor"
                   :style="{ width: `${(heldStatus.corruption / heldStatus.corruption_max) * 100}%` }"
                 ></div>
               </div>
-              <div class="flex justify-between text-xs text-gray-400 mt-1">
+              <div class="flex justify-between text-xs text-fg-muted mt-1">
                 <span>{{ heldStatus.corruption }} / {{ heldStatus.corruption_max }}</span>
                 <span
                   v-if="heldStatus.corruption_extra_backlash_rate > 0"
@@ -556,34 +541,34 @@ onUnmounted(() => {
                   class="text-xs text-cyan-300"
                 >高镇契·反噬减半</span>
               </div>
-              <div class="relative h-4 bg-gray-800 rounded overflow-hidden border border-gray-700">
+              <div class="relative h-4 bg-surface-sunken rounded overflow-hidden border border-line">
                 <div
                   class="absolute inset-y-0 left-0 transition-all duration-300"
                   :class="suppressionBarColor"
                   :style="{ width: `${(heldStatus.suppression / heldStatus.suppression_max) * 100}%` }"
                 ></div>
               </div>
-              <div class="flex justify-between text-xs text-gray-400 mt-1">
+              <div class="flex justify-between text-xs text-fg-muted mt-1">
                 <span>{{ heldStatus.suppression }} / {{ heldStatus.suppression_max }}</span>
               </div>
             </div>
           </div>
 
           <!-- 铭印状态 -->
-          <div class="border border-gray-700 rounded-lg p-4 bg-gray-800/40">
+          <div class="border border-line rounded-lg p-4 bg-surface-sunken/40">
             <div class="flex items-center justify-between flex-wrap gap-2">
               <div>
-                <span class="text-sm text-gray-400">铭印路线：</span>
+                <span class="text-sm text-fg-muted">铭印路线：</span>
                 <span
                   class="text-sm font-bold ml-1"
                   :class="{
-                    'text-gray-400': heldStatus.imprint_type === 'none',
+                    'text-fg-muted': heldStatus.imprint_type === 'none',
                     'text-red-300': heldStatus.imprint_type === 'blood',
                     'text-blue-300': heldStatus.imprint_type === 'suppress'
                   }"
                 >{{ heldStatus.imprint_name }}</span>
               </div>
-              <div class="text-xs text-gray-400">
+              <div class="text-xs text-fg-muted">
                 上次铭印：{{ heldStatus.last_imprint_at ? formatBeijing(heldStatus.last_imprint_at, { seconds: false }) : '从未铭印' }}
               </div>
             </div>
@@ -597,11 +582,11 @@ onUnmounted(() => {
             </div>
             <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
               <div v-for="b in (heldStatus.combat_bonus_display || [])" :key="b.key" :title="b.reason">
-                <span class="text-gray-400">{{ b.label }}：</span>
+                <span class="text-fg-muted">{{ b.label }}：</span>
                 <span :class="deepLineBonusClass(b)">{{ deepLineBonusText(b) }}</span>
-                <span v-if="!b.applied" class="text-gray-500">（未生效）</span>
+                <span v-if="!b.applied" class="text-fg-faint">（未生效）</span>
               </div>
-              <div v-if="!(heldStatus.combat_bonus_display || []).length" class="text-gray-500">
+              <div v-if="!(heldStatus.combat_bonus_display || []).length" class="text-fg-faint">
                 这条线当前没有可显示的加成数值
               </div>
             </div>
@@ -616,7 +601,7 @@ onUnmounted(() => {
           </div>
 
           <!-- 冷却总览 -->
-          <div class="border border-gray-700 rounded-lg p-3 bg-gray-800/30 text-xs text-gray-400 grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div class="border border-line rounded-lg p-3 bg-surface-sunken/30 text-xs text-fg-muted grid grid-cols-1 md:grid-cols-3 gap-2">
             <div>
               祭血冷却：
               <span :class="sacrificeRemaining > 0 ? 'text-yellow-300' : 'text-green-300'">
@@ -638,14 +623,14 @@ onUnmounted(() => {
           </div>
 
           <!-- 操作按钮区 -->
-          <div class="border border-gray-700 rounded-lg p-4 bg-gray-800/40 space-y-3">
-            <div class="text-sm font-bold text-gray-300">操作</div>
+          <div class="border border-line rounded-lg p-4 bg-surface-sunken/40 space-y-3">
+            <div class="text-sm font-bold text-fg-secondary">操作</div>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
               <button
                 class="px-3 py-2 rounded text-sm border transition-colors"
                 :class="canSacrifice
                   ? 'border-red-600 bg-red-900/40 text-red-200 hover:bg-red-900/60'
-                  : 'border-gray-700 bg-gray-800 text-gray-500 cursor-not-allowed'"
+                  : 'border-line bg-surface-sunken text-fg-faint cursor-not-allowed'"
                 :disabled="!canSacrifice"
                 @click="openConfirm('sacrifice')"
               >祭血</button>
@@ -653,7 +638,7 @@ onUnmounted(() => {
                 class="px-3 py-2 rounded text-sm border transition-colors"
                 :class="canSuppress
                   ? 'border-blue-600 bg-blue-900/40 text-blue-200 hover:bg-blue-900/60'
-                  : 'border-gray-700 bg-gray-800 text-gray-500 cursor-not-allowed'"
+                  : 'border-line bg-surface-sunken text-fg-faint cursor-not-allowed'"
                 :disabled="!canSuppress"
                 @click="openConfirm('suppress')"
               >镇契</button>
@@ -661,7 +646,7 @@ onUnmounted(() => {
                 class="px-3 py-2 rounded text-sm border transition-colors"
                 :class="canThunderTianlei
                   ? 'border-yellow-600 bg-yellow-900/40 text-yellow-200 hover:bg-yellow-900/60'
-                  : 'border-gray-700 bg-gray-800 text-gray-500 cursor-not-allowed'"
+                  : 'border-line bg-surface-sunken text-fg-faint cursor-not-allowed'"
                 :disabled="!canThunderTianlei"
                 @click="openConfirm('thunder_tianlei')"
               >雷洗·天雷竹</button>
@@ -669,7 +654,7 @@ onUnmounted(() => {
                 class="px-3 py-2 rounded text-sm border transition-colors"
                 :class="canThunderJinlei
                   ? 'border-amber-600 bg-amber-900/40 text-amber-200 hover:bg-amber-900/60'
-                  : 'border-gray-700 bg-gray-800 text-gray-500 cursor-not-allowed'"
+                  : 'border-line bg-surface-sunken text-fg-faint cursor-not-allowed'"
                 :disabled="!canThunderJinlei"
                 @click="openConfirm('thunder_jinlei')"
               >雷洗·金雷竹</button>
@@ -677,7 +662,7 @@ onUnmounted(() => {
                 class="px-3 py-2 rounded text-sm border transition-colors"
                 :class="canImprintBlood
                   ? 'border-red-600 bg-red-900/40 text-red-200 hover:bg-red-900/60'
-                  : 'border-gray-700 bg-gray-800 text-gray-500 cursor-not-allowed'"
+                  : 'border-line bg-surface-sunken text-fg-faint cursor-not-allowed'"
                 :disabled="!canImprintBlood"
                 @click="openConfirm('imprint_blood')"
               >铭印·血契</button>
@@ -685,7 +670,7 @@ onUnmounted(() => {
                 class="px-3 py-2 rounded text-sm border transition-colors"
                 :class="canImprintSuppress
                   ? 'border-blue-600 bg-blue-900/40 text-blue-200 hover:bg-blue-900/60'
-                  : 'border-gray-700 bg-gray-800 text-gray-500 cursor-not-allowed'"
+                  : 'border-line bg-surface-sunken text-fg-faint cursor-not-allowed'"
                 :disabled="!canImprintSuppress"
                 @click="openConfirm('imprint_suppress')"
               >铭印·镇契</button>
@@ -693,28 +678,19 @@ onUnmounted(() => {
                 class="px-3 py-2 rounded text-sm border transition-colors col-span-2 md:col-span-1"
                 :class="canSheath
                   ? 'border-purple-600 bg-purple-900/40 text-purple-200 hover:bg-purple-900/60'
-                  : 'border-gray-700 bg-gray-800 text-gray-500 cursor-not-allowed'"
+                  : 'border-line bg-surface-sunken text-fg-faint cursor-not-allowed'"
                 :disabled="!canSheath"
                 @click="openConfirm('sheath')"
               >封鞘</button>
             </div>
-            <div class="text-xs text-gray-500 mt-1">
+            <div class="text-xs text-fg-faint mt-1">
               <span v-if="operating">操作中...</span>
               <span v-else>提示：祭血需消耗材料 + 18h 冷却 + 周进度上限 36；镇契无冷却但魔染为 0 时不可用；雷洗 24h 冷却；铭印 7 天冷却；封鞘 24h 期间无法操作其他。</span>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- 底部 -->
-      <div class="px-6 py-3 border-t border-gray-700 flex justify-end">
-        <button
-          class="px-4 py-1.5 text-sm rounded border border-gray-600 text-gray-300 hover:bg-gray-800"
-          @click="emit('close')"
-        >关闭</button>
-      </div>
-    </div>
-  </div>
+  </PanelShell>
 
   <!-- 确认弹窗 -->
   <Modal
@@ -722,10 +698,10 @@ onUnmounted(() => {
     :title="confirmTitle"
     @close="confirmModal.show = false"
   >
-    <div class="text-sm text-gray-300 leading-relaxed">{{ confirmMessage }}</div>
+    <div class="text-sm text-fg-secondary leading-relaxed">{{ confirmMessage }}</div>
     <template #footer>
       <button
-        class="px-4 py-1.5 text-sm rounded border border-gray-600 text-gray-300 hover:bg-gray-800"
+        class="px-4 py-1.5 text-sm rounded border border-line-strong text-fg-secondary hover:bg-surface-sunken"
         @click="confirmModal.show = false"
       >取消</button>
       <button

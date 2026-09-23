@@ -240,6 +240,12 @@ const contentEnums = []
         // 2026-09-23：这条豁免已经按它自己写的"到期条件"过期并删掉了 —— 灵兽稀有度现在由内容下发
         // （GET /config/content/keys/spirit_beast_data?collection=rarity_config + 行数据带 rarity_name/rarity_color），
         // GM 后台那个下拉不再抄档位名，也不再按键名硬编颜色。
+        // 2026-09-23 定脉面板的五行下拉：id 是 metal/wood/water/fire/earth 这类元素标识（展示名写死在旁边），
+        // 与 technique_data / spirit_beast_data / role_init 里同名的五行键撞名 —— 不是抄内容主键清单。
+        // 到期条件：若该面板改为从服务端拉「可选元素列表」，这三条要删。
+        ['components/panels/DingmaiPanel.vue|technique_data', '定脉表单的五行选项 id（金属木水火土），不是功法内容主键'],
+        ['components/panels/DingmaiPanel.vue|spirit_beast_data', '同上，元素标识与灵兽数据集五行键撞名'],
+        ['components/panels/DingmaiPanel.vue|role_init', '同上，元素标识与灵根/角色初始化五行键撞名'],
     ])
     const matchedExemptions = new Set()
     const literalList = /\[\s*(?:'[^'\n]+'|"[^"\n]+")(?:\s*,\s*(?:'[^'\n]+'|"[^"\n]+")){2,}\s*\]/g
@@ -360,8 +366,7 @@ const loaderFiles = new Set([...docked.values()].map(p => path.basename(p).repla
  */
 const REACHABILITY_EXEMPTIONS = new Map([
   ['panel-not-in-catalog:combat', '战斗面板不是坞内入口，由战斗流程 goPanel(\'combat\') 直接打开（GameLayout.vue:308/340）'],
-  ['dead-panel-file:BloodSwordPanel', '2026-09-21 量到的存量缺陷：血魔剑深线的完整面板 + /api/artifact-deep-line 全部端点都在，但没有任何入口，玩家打不开（任务 #14 等业主选出口：挂进"养成"分类还是删）'],
-  ['dead-panel-file:GatheringPanel', '采集玩法已有别的落点，这份是重构前的残本，零引用；等业主确认后删（见 [[project-ui-refactor-open-items-2026-09-19]]）'],
+  // 2026-09-23：BloodSwordPanel / GatheringPanel 已挂进 actionCatalog + registry，死面板豁免按纪律删掉
 ])
 
 const reachabilityFailures = []

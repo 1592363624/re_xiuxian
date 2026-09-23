@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "剑诀线配置 - 合成剑诀/参悟/炼剑/剑阵（玩法文档第30节·剑诀线）",
+    "design_doc": "xiuxian_game_guide.md 第30节 + 第33节",
+    "created": "2026-09-23",
+    "changelog": [
+      "2026-09-23 v1.0.0 初版：3 部剑诀 + 炼剑 5 阶 + 2 套剑阵；残卷来源挂古剑诀残篇"
+    ]
+  },
+  "global": {
+    "name": "剑诀",
+    "description": "以残卷合成剑诀，参悟剑意，炼剑成阵。剑修一脉的核心长线。",
+    "compose_fragment_item": "gu_jian_jue_can_pian",
+    "compose_fragment_name": "古剑诀残篇",
+    "compose_fragment_need": 3,
+    "compose_cost_spirit_stones": 200,
+    "comprehend_daily_limit": 5,
+    "comprehend_cooldown_sec": 60,
+    "comprehend_exp_cost_base": 200,
+    "refine_daily_limit": 3,
+    "refine_cooldown_sec": 300,
+    "insight_daily_limit": 2,
+    "form_daily_limit": 1,
+    "form_duration_hours": 4
+  },
+  "manuals": [
+    {
+      "id": "qingyuan_sword_intent",
+      "name": "青元剑意诀",
+      "grade": "yellow",
+      "grade_name": "黄阶",
+      "description": "青元门基础剑意，剑走轻灵，意在招先。",
+      "element": "metal",
+      "max_insight": 10,
+      "insight_per_comprehend": 2,
+      "comprehend_success_rate": 0.85,
+      "refine_stages": [
+        { "stage": 1, "name": "淬锋", "cost_spirit_stones": 300, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 1, "success_rate": 0.95, "sword_atk_bonus": 20 },
+        { "stage": 2, "name": "开刃", "cost_spirit_stones": 800, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 2, "success_rate": 0.85, "sword_atk_bonus": 50 },
+        { "stage": 3, "name": "蕴灵", "cost_spirit_stones": 2000, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 3, "success_rate": 0.7, "sword_atk_bonus": 120 },
+        { "stage": 4, "name": "通灵", "cost_spirit_stones": 5000, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 5, "success_rate": 0.5, "sword_atk_bonus": 260 },
+        { "stage": 5, "name": "剑心", "cost_spirit_stones": 12000, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 8, "success_rate": 0.3, "sword_atk_bonus": 520 }
+      ],
+      "display_bonus_only": true
+    },
+    {
+      "id": "hunyuan_sword_intent",
+      "name": "混元剑意诀",
+      "grade": "earth",
+      "grade_name": "地阶",
+      "description": "不修剑招只养剑意，意至则剑至。出自凡人修士残卷。",
+      "element": "none",
+      "max_insight": 15,
+      "insight_per_comprehend": 2,
+      "comprehend_success_rate": 0.7,
+      "refine_stages": [
+        { "stage": 1, "name": "凝意", "cost_spirit_stones": 500, "cost_item": "fanren_dao_can", "cost_item_qty": 1, "success_rate": 0.9, "sword_atk_bonus": 40 },
+        { "stage": 2, "name": "化意", "cost_spirit_stones": 1500, "cost_item": "fanren_dao_can", "cost_item_qty": 1, "success_rate": 0.75, "sword_atk_bonus": 100 },
+        { "stage": 3, "name": "御意", "cost_spirit_stones": 4000, "cost_item": "fanren_dao_can", "cost_item_qty": 2, "success_rate": 0.55, "sword_atk_bonus": 240 },
+        { "stage": 4, "name": "剑意通神", "cost_spirit_stones": 10000, "cost_item": "fanren_dao_can", "cost_item_qty": 3, "success_rate": 0.4, "sword_atk_bonus": 500 },
+        { "stage": 5, "name": "万剑归心", "cost_spirit_stones": 25000, "cost_item": "fanren_dao_can", "cost_item_qty": 5, "success_rate": 0.22, "sword_atk_bonus": 1000 }
+      ],
+      "display_bonus_only": true
+    },
+    {
+      "id": "xuangu_sword_intent",
+      "name": "玄骨剑魔诀",
+      "grade": "mystery",
+      "grade_name": "玄阶",
+      "description": "以骨养剑、以魔淬锋的偏门剑诀，进境快而心魔重。",
+      "element": "fire",
+      "max_insight": 12,
+      "insight_per_comprehend": 3,
+      "comprehend_success_rate": 0.6,
+      "refine_stages": [
+        { "stage": 1, "name": "骨淬", "cost_spirit_stones": 800, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 2, "success_rate": 0.85, "sword_atk_bonus": 60 },
+        { "stage": 2, "name": "魔染", "cost_spirit_stones": 2000, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 3, "success_rate": 0.7, "sword_atk_bonus": 140 },
+        { "stage": 3, "name": "血饲", "cost_spirit_stones": 5000, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 5, "success_rate": 0.5, "sword_atk_bonus": 320 },
+        { "stage": 4, "name": "魔剑合一", "cost_spirit_stones": 12000, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 8, "success_rate": 0.35, "sword_atk_bonus": 680 },
+        { "stage": 5, "name": "玄骨剑魔", "cost_spirit_stones": 30000, "cost_item": "gu_jian_jue_can_pian", "cost_item_qty": 12, "success_rate": 0.18, "sword_atk_bonus": 1400 }
+      ],
+      "display_bonus_only": true,
+      "risk_note": "高阶炼剑失败会损耗剑意（insight -1）"
+    }
+  ],
+  "formations": [
+    {
+      "id": "five_star_sword_array",
+      "name": "五星剑阵",
+      "required_manual": "qingyuan_sword_intent",
+      "required_insight": 6,
+      "required_sword_stage": 3,
+      "description": "五星连珠，剑气纵横。布下后当日历练/闯塔可获剑意指引（展示向 buff，不改战斗公式）。",
+      "cost_spirit_stones": 1000,
+      "buff_note": "布阵期间展示「剑阵护持」状态；本批纯玩法，不接战斗数值链路。"
+    },
+    {
+      "id": "myriad_sword_array",
+      "name": "万剑归一阵",
+      "required_manual": "hunyuan_sword_intent",
+      "required_insight": 12,
+      "required_sword_stage": 5,
+      "description": "万剑归一，唯余剑心。大成剑修方能布下。",
+      "cost_spirit_stones": 5000,
+      "buff_note": "布阵期间展示「万剑归一」状态；本批纯玩法，不接战斗数值链路。"
+    }
+  ]
+}

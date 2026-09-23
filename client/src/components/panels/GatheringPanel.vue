@@ -1,8 +1,16 @@
 <script setup>
+/**
+ * 资源采集面板
+ *
+ * 展示当前地图可采集资源、熟练度进度与冷却倒计时。
+ * 原先挂在地图格子动作里，但没有独立功能入口 —— 补进 actionCatalog/registry 后
+ * 玩家可从右坞「采集」直接打开（ui:check 停靠契约要求 PanelShell）。
+ */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import apiClient from '../../api'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import PanelShell from '../ui/PanelShell.vue'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
@@ -195,21 +203,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 panel-shell">
-    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm panel-backdrop" @click="emit('close')"></div>
-    
-    <div class="relative bg-surface-base border border-line rounded-lg w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in panel-body">
-      <div class="flex items-center justify-between p-4 border-b border-line-subtle bg-surface-raised">
-        <h2 class="text-xl font-bold text-gold-500 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></svg>
-          资源采集
-        </h2>
-        <button @click="emit('close')" class="text-fg-faint hover:text-fg-secondary transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-
-      <div class="flex-1 overflow-hidden flex">
+  <PanelShell
+    title="资源采集"
+    hint="当前地图 · 灵植矿脉"
+    size="xl"
+    :loading="loading"
+    fill
+    scoped-scroll
+    @close="emit('close')"
+  >
+      <div class="h-full overflow-hidden flex">
         <div class="w-2/3 overflow-y-auto p-6">
           <div v-if="loading" class="flex justify-center items-center h-64">
             <svg class="animate-spin h-10 w-10 text-gold-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -351,16 +354,5 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-    </div>
-  </div>
+  </PanelShell>
 </template>
-
-<style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-</style>
