@@ -144,8 +144,8 @@
                 · 消耗 <span class="text-sky-300 num">50 神识</span> 获得道途经验<br/>
                 · 每日上限 <span class="text-gold-300">{{ cultivateLimit }}</span> 次（今日已修 <span class="text-gold-300">{{ cultivateCountToday }}</span> 次）
               </div>
-              <AppButton variant="primary" size="sm" block :disabled="loading.action || !canCultivate" @click="handleCultivate">
-                {{ canCultivate ? '引道修炼' : '不可修炼' }}
+              <AppButton variant="primary" size="sm" block :disabled="loading.action || !canCultivate" :title="cultivateBlockReason || '消耗 50 神识获得道途经验'" @click="handleCultivate">
+                {{ canCultivate ? '引道修炼' : (cultivateBlockReason || '不可修炼') }}
               </AppButton>
             </div>
 
@@ -531,13 +531,17 @@ const skillTargetPlayerId = ref<number | null>(null);  // 技能目标玩家
 const skillTargetBeastId = ref<number | null>(null);   // 技能目标灵兽
 
 /**
- * 本会话内已修炼次数（前端本地计数）
- * 注：后端 profile 接口未暴露当日已修炼次数，故前端按本会话操作累计
- * 仅用于按钮可用性参考，最终以服务端校验为准
+ * 今日已修炼次数 / 上限：权威值来自 profile 的 stats.daily_cultivate_*。
+ * 旧实现用浏览器会话本地计数（sessionCultivateCount），刷新就归零，
+ * 于是「今日已修 0 次」和数据库里的 5 次对不上。会话计数仅作回包前的乐观占位。
  */
 const sessionCultivateCount = ref(0);
-/** 每日修炼上限（来自后端配置：taoism_gate_data.json daily_cultivate_limit=5） */
-const cultivateLimit = 5;
+const dailyCultivateCount = computed(() =>
+  profileData.value?.stats?.daily_cultivate_count ?? sessionCultivateCount.value
+);
+const cultivateLimit = computed(() =>
+  profileData.value?.stats?.daily_cultivate_limit ?? 5
+);
 
 /** 通用二次确认弹窗 */
 const confirmModal = reactive({
@@ -549,25 +553,27 @@ const confirmModal = reactive({
 
 /**
  * 计算属性：今日是否还可修炼
- * 综合：未满级 + 神识足够 + 本会话未达上限
+ * 综合：未满级 + 神识足够 + 当日未达上限（读后端权威值）
  */
-const canCultivate = computed(() => {
-  if (!profileData.value) return false;
+const canCultivate = computed(() => !cultivateBlockReason.value);
+
+/** 不可修炼的原因（null = 可以修炼）。灰按钮必须能自解释。 */
+const cultivateBlockReason = computed(() => {
+  if (!profileData.value) return '加载中…';
   const gate = profileData.value.gate;
   const divine = profileData.value.divine_sense;
-  // 已满级不可修炼
-  if (gate.dao_level >= 10) return false;
-  // 神识不足不可修炼
-  if (divine.current < 50) return false;
-  // 本会话已达上限（仅作参考，最终以后端校验为准）
-  if (sessionCultivateCount.value >= cultivateLimit) return false;
-  return true;
+  if (gate.dao_level >= 10) return '道途已满级，无需继续修炼';
+  if (divine.current < 50) return `神识不足（需 50，当前 ${divine.current}）`;
+  if (dailyCultivateCount.value >= cultivateLimit.value) {
+    return `今日修炼次数已用完（${dailyCultivateCount.value}/${cultivateLimit.value}），明日重置`;
+  }
+  return null;
 });
 
 /**
- * 计算属性：本会话今日已修炼次数（用于展示）
+ * 计算属性：今日已修炼次数（用于展示，读后端权威值）
  */
-const cultivateCountToday = computed(() => sessionCultivateCount.value);
+const cultivateCountToday = computed(() => dailyCultivateCount.value);
 
 /**
  * 组件挂载时加载首个 Tab 数据
@@ -770,8 +776,8 @@ async function handleCultivate() {
     const resp = await taoismGateCultivate();
     if (resp.data?.code === 200 && resp.data.data) {
       const result = resp.data.data;
-      // 本会话计数+1
-      sessionCultivateCount.value += 1;
+      // 乐观占位；真正权威值由下面 loadProfile() 从 stats.daily_cultivate_count 刷回
+      sessionCultivateCount.value = result.daily_cultivate_count ?? (sessionCultivateCount.value + 1);
       const levelMsg = result.leveled_up ? `\n道途升级至 ${result.new_level} 级！` : '';
       uiStore.showToast(
         `${resp.data.message || '修炼成功'}\n获得经验：${result.exp_gained}${levelMsg}`,

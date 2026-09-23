@@ -615,7 +615,182 @@ class SectService {
     }
 
     /**
-     * 获取宗门任务列表（标记今日是否已完成/已接取）
+     * 任务玩法类型：
+     *   labor_mp     —— 劳作：接取即耗灵力（可选灵石/气血），完成只拿贡献
+     *   submit_items —— 上交：完成时必须交出指定物资，只拿贡献
+     *   patrol       —— 巡守：完成时掷随机事件（战斗/发现/机缘/负伤）
+     *   trial        —— 试炼：完成时掷成败（大成/小成/勉强/失败），失败会损气血
+     * 默认 labor_mp，资料片写错 type 时不至于整条任务变成白拿。
+     */
+    _questType(quest) {
+        const allowed = new Set(['labor_mp', 'submit_items', 'patrol', 'trial']);
+        return allowed.has(quest.type) ? quest.type : 'labor_mp';
+    }
+
+    /**
+     * 任务耗时：优先任务自带 duration_minutes，否则退回全局 quest_accept_min_wait_minutes
+     */
+    _questDurationMinutes(quest) {
+        const balanceCfg = this.getBalanceConfig();
+        return Number(quest.duration_minutes) > 0
+            ? Number(quest.duration_minutes)
+            : (balanceCfg.quest_accept_min_wait_minutes || 5);
+    }
+
+    /**
+     * BIGINT 列安全读取（exp / hp_current / mp_current 从库里出来是字符串）
+     */
+    _safeBigInt(value) {
+        try {
+            return BigInt(value ?? 0);
+        } catch {
+            return 0n;
+        }
+    }
+
+    /**
+     * 任务代价的展示摘要（列表页/接取确认都用这一份，不把结构体原样甩给 UI 猜）
+     */
+    /**
+     * 本地日历日键（与 quests_reset_at 的「次日 0 点」同一口径）
+     */
+    _dateKey(date = new Date()) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    /**
+     * 稳定种子（同宗门同日 → 同一份轮值，全服弟子看到同一组差事）
+     */
+    _hashSeed(text) {
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < text.length; i++) {
+            h ^= text.charCodeAt(i);
+            h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h >>> 0;
+    }
+
+    /**
+     * 可复现 PRNG（mulberry32）：轮值/事件抽检都要「同日可复现、跨日会变」
+     */
+    _mulberry32(seed) {
+        let a = seed >>> 0;
+        return function next() {
+            a |= 0;
+            a = (a + 0x6D2B79F5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    _shuffled(list, rng) {
+        const arr = list.slice();
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    /**
+     * 从差事池抽取「今日轮值」——每天 5 件（可配置），不是把池子原样摊开让人一眼做完。
+     *
+     * 规则（合理化，避免抽到全是新人做不了、或全是同一种玩法）：
+     *   1. 四类玩法各保底 1 件（池子里有才保）
+     *   2. 至少 2 件入门差事（min_contribution 低）
+     *   3. 余下名额从剩池打乱补齐
+     * 同一宗门同一日结果稳定，避免有人刷新刷出更好一组。
+     *
+     * @param {Array} pool - sect.quests 全量
+     * @param {string} sectId
+     * @param {Date} [date]
+     * @returns {Array} 今日可接差事（保持配置原顺序，方便界面稳定）
+     */
+    _pickDailySlate(pool, sectId, date = new Date()) {
+        const all = pool || [];
+        if (!all.length) return [];
+        const balance = this.getBalanceConfig();
+        const size = Math.max(1, Number(balance.quest_daily_offer_count) || 5);
+        const entryMax = Number(balance.quest_pool_entry_max_contribution) || 30;
+
+        if (all.length <= size) return all.slice();
+
+        const rng = this._mulberry32(this._hashSeed(`${sectId}|${this._dateKey(date)}`));
+        const byType = { labor_mp: [], submit_items: [], patrol: [], trial: [] };
+        const entry = [];
+        for (const q of all) {
+            const t = this._questType(q);
+            (byType[t] || byType.labor_mp).push(q);
+            if ((Number(q.min_contribution) || 0) <= entryMax) entry.push(q);
+        }
+
+        const picked = new Set();
+        const take = (q) => { if (q && !picked.has(q.id)) picked.add(q.id); };
+
+        // 1) 四类各保底 1 件
+        for (const t of Object.keys(byType)) {
+            const list = this._shuffled(byType[t], rng);
+            if (list[0]) take(list[0]);
+        }
+
+        // 2) 入门差事保底 2 件
+        const entryShuffled = this._shuffled(entry, rng);
+        for (const q of entryShuffled) {
+            if (picked.size >= size) break;
+            const entryCount = all.filter(x => picked.has(x.id) && (Number(x.min_contribution) || 0) <= entryMax).length;
+            if (entryCount >= 2) break;
+            take(q);
+        }
+
+        // 3) 从剩池补齐
+        for (const q of this._shuffled(all, rng)) {
+            if (picked.size >= size) break;
+            take(q);
+        }
+
+        return all.filter(q => picked.has(q.id));
+    }
+
+    /**
+     * 今日轮值集合（id 列表）——接取/提交都要过这道闸，不在今日名单上就不算差事
+     */
+    _todaySlateIds(pool, sectId, date = new Date()) {
+        return new Set(this._pickDailySlate(pool, sectId, date).map(q => q.id));
+    }
+
+    _costSummary(quest) {
+        const cost = quest.cost || {};
+        const parts = [];
+        if (cost.mp > 0) parts.push(`灵力 -${cost.mp}`);
+        if (cost.hp > 0) parts.push(`气血 -${cost.hp}`);
+        if (cost.spirit_stones > 0) parts.push(`灵石 -${cost.spirit_stones}`);
+        const items = cost.items || [];
+        for (const it of items) {
+            const name = this._itemName(it.item_key);
+            parts.push(`上交 ${name}×${it.quantity || 1}`);
+        }
+        return parts;
+    }
+
+    /**
+     * 物品展示名：走 InventoryService 的同一份物品配置，配置缺失时回退 item_key
+     */
+    _itemName(itemKey) {
+        try {
+            const cfg = this.configLoader?.getConfig('item_data')?.items || [];
+            const hit = cfg.find(i => i.id === itemKey);
+            return hit?.name || itemKey;
+        } catch {
+            return itemKey;
+        }
+    }
+
+    /**
+     * 获取宗门任务列表（标记今日是否已完成/已接取，并带上代价与进行中剩余时间）
      * @param {number} playerId - 玩家ID
      * @returns {Promise<Object>} 任务列表
      */
@@ -636,35 +811,70 @@ class SectService {
         // 详见 _resetDailyQuestsForRead 的注释。
         const shown = await this._resetDailyQuestsForRead(playerSect);
 
-        // 标记今日是否已完成、是否已接取
         const completedIds = shown.daily_quests_completed || [];
         const acceptedIds = shown.quests_accepted || [];
-        const quests = (sect.quests || []).map(q => ({
-            id: q.id,
-            name: q.name,
-            description: q.description,
-            contribution: q.contribution,
-            exp_reward: q.exp_reward,
-            daily: q.daily,
-            min_contribution: q.min_contribution || 0,
-            completed: completedIds.includes(q.id),
-            accepted: acceptedIds.includes(q.id)
-        }));
+        const acceptedAtMap = shown.quests_accepted_at || {};
+        const nowMs = Date.now();
+
+        // 今日轮值：从差事池抽固定件数，不是把整池原样摊开
+        const pool = sect.quests || [];
+        const slateIds = this._todaySlateIds(pool, sect.id);
+        const quests = pool.filter(q => slateIds.has(q.id)).map(q => {
+            const type = this._questType(q);
+            const durationMinutes = this._questDurationMinutes(q);
+            const completed = completedIds.includes(q.id);
+            const accepted = acceptedIds.includes(q.id);
+            let remaining_ms = 0;
+            let ready = false;
+            const acceptedAt = acceptedAtMap[q.id] || null;
+            if (accepted && !completed) {
+                const elapsed = acceptedAt ? (nowMs - new Date(acceptedAt).getTime()) / 60000 : durationMinutes;
+                const remainMin = Math.max(0, durationMinutes - elapsed);
+                remaining_ms = Math.ceil(remainMin * 60000);
+                ready = remainMin <= 0;
+            }
+            return {
+                id: q.id,
+                name: q.name,
+                description: q.description,
+                type,
+                contribution: q.contribution || 0,
+                daily: q.daily,
+                min_contribution: q.min_contribution || 0,
+                duration_minutes: durationMinutes,
+                cost: q.cost || {},
+                cost_summary: this._costSummary(q),
+                has_random_event: type === 'patrol' || type === 'trial' || !!(q.events?.pool?.length),
+                completed,
+                accepted,
+                accepted_at: acceptedAt,
+                ready,
+                remaining_ms
+            };
+        });
 
         return {
             sect_id: sect.id,
             sect_name: sect.name,
             quests: quests,
+            pool_size: pool.length,
+            offer_count: Math.min(pool.length, Number(this.getBalanceConfig().quest_daily_offer_count) || 5),
             quests_reset_at: shown.quests_reset_at
         };
     }
 
     /**
      * 提交宗门任务
-     * 校验：是否已接取 → 是否已完成 → 贡献度门槛 → 等待时间是否足够
+     *
+     * 按玩法类型结算，绝不是"等够时间就发贡献+修为"：
+     *   - 全类型：完成时才给贡献（修为默认 0）
+     *   - submit_items：先扣上交物资，不够则拒绝提交
+     *   - patrol：掷事件，可能损气血 / 得物品 / 加减贡献 / 偶得顿悟
+     *   - trial：掷成败，失败损气血且贡献打折甚至为 0
+     *
      * @param {number} playerId - 玩家ID
      * @param {string} questId - 任务ID
-     * @returns {Promise<Object>} 提交结果
+     * @returns {Promise<Object>} 提交结果（含代价、事件/试炼结果、奖励）
      */
     async submitQuest(playerId, questId) {
         const t = await sequelize.transaction();
@@ -688,22 +898,23 @@ class SectService {
                 throw new AppError('宗门配置已失效', 500, ErrorCodes.CONFIG_ERROR);
             }
 
-            // 查找任务配置
             const quest = (sect.quests || []).find(q => q.id === questId);
             if (!quest) {
                 throw new AppError('宗门任务不存在', 404, ErrorCodes.NOT_FOUND);
             }
+            const type = this._questType(quest);
 
-            // 提交前先检查并重置每日任务（跨天则清零已完成列表和已接取列表）
             this._checkAndResetDailyQuests(playerSect);
 
-            // 校验是否已完成（每日任务仅可领取一次）
+            if (!this._todaySlateIds(sect.quests || [], sect.id).has(questId)) {
+                throw new AppError('该差事今日未轮值，请查看今日宗门差事', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
             const completedIds = playerSect.daily_quests_completed || [];
             if (completedIds.includes(questId)) {
                 throw new AppError('今日已完成该任务，请明日再来', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 校验任务最低贡献度要求（玩家需先通过点卯/其他任务积累贡献度，才能接取更高阶任务）
             const minContribution = quest.min_contribution || 0;
             if (playerSect.contribution < minContribution) {
                 throw new AppError(
@@ -713,7 +924,6 @@ class SectService {
                 );
             }
 
-            // 校验是否已接取任务（必须先接取才能提交，防止无操作直接领奖）
             const acceptedIds = playerSect.quests_accepted || [];
             if (!acceptedIds.includes(questId)) {
                 throw new AppError(
@@ -723,17 +933,15 @@ class SectService {
                 );
             }
 
-            // 校验接取后等待时间（防止接取后立即提交，模拟"做任务"的时间消耗）
-            const balanceCfg = this.getBalanceConfig();
-            const minWaitMinutes = balanceCfg.quest_accept_min_wait_minutes || 5;
+            const durationMinutes = this._questDurationMinutes(quest);
             const acceptedAtMap = playerSect.quests_accepted_at || {};
             const acceptedAt = acceptedAtMap[questId];
             if (acceptedAt) {
                 const acceptedTime = new Date(acceptedAt).getTime();
                 const nowTime = Date.now();
                 const elapsedMinutes = (nowTime - acceptedTime) / 60000;
-                if (elapsedMinutes < minWaitMinutes) {
-                    const remainingMinutes = Math.ceil(minWaitMinutes - elapsedMinutes);
+                if (elapsedMinutes < durationMinutes) {
+                    const remainingMinutes = Math.ceil(durationMinutes - elapsedMinutes);
                     throw new AppError(
                         `任务【${quest.name}】正在进行中，还需等待约 ${remainingMinutes} 分钟才能提交`,
                         400,
@@ -742,11 +950,112 @@ class SectService {
                 }
             }
 
-            // 发放奖励：贡献度 + 修为
-            playerSect.contribution += (quest.contribution || 0);
-            player.exp = BigInt(player.exp || 0) + BigInt(quest.exp_reward || 0);
+            // ===== 上交类：提交时真正扣背包 =====
+            const cost = quest.cost || {};
+            const submittedItems = [];
+            if (type === 'submit_items') {
+                const items = cost.items || [];
+                if (!items.length) {
+                    throw new AppError('任务配置缺少上交物资', 500, ErrorCodes.CONFIG_ERROR);
+                }
+                for (const it of items) {
+                    const need = Number(it.quantity) || 1;
+                    const has = await InventoryService.hasItem(playerId, it.item_key, need, t);
+                    if (!has) {
+                        const owned = await InventoryService.getItemQuantity(playerId, it.item_key);
+                        throw new AppError(
+                            `上交物资不足：【${this._itemName(it.item_key)}】需要 ${need}，当前 ${owned}`,
+                            400,
+                            ErrorCodes.INSUFFICIENT_RESOURCES
+                        );
+                    }
+                }
+                for (const it of items) {
+                    const need = Number(it.quantity) || 1;
+                    const removed = await InventoryService.removeItem(playerId, it.item_key, need, t);
+                    if (!removed) {
+                        // hasItem 与 removeItem 之间理论上只会被并发抢走；回滚整笔，避免半扣
+                        throw new AppError(
+                            `上交【${this._itemName(it.item_key)}】失败，请稍后再试`,
+                            409,
+                            ErrorCodes.BUSINESS_LOGIC_ERROR
+                        );
+                    }
+                    submittedItems.push({ item_key: it.item_key, item_name: this._itemName(it.item_key), quantity: need });
+                }
+            }
 
-            // 记录已完成任务
+            // ===== 奖励与事件结算 =====
+            let contributionGain = Number(quest.contribution) || 0;
+            let expGain = 0;
+            let stoneGain = 0;
+            let hpLoss = 0;
+            const gainedItems = [];
+            let outcome = null;   // trial
+            let event = null;     // patrol
+
+            if (type === 'patrol') {
+                event = this._rollPatrolEvent(quest);
+                if (event) {
+                    hpLoss += Number(event.hp_loss) || 0;
+                    expGain += Number(event.exp) || 0;
+                    stoneGain += Number(event.spirit_stones) || 0;
+                    if (event.contribution_bonus) contributionGain += Number(event.contribution_bonus);
+                    if (event.contribution_penalty_ratio) {
+                        contributionGain = Math.floor(contributionGain * (1 - Number(event.contribution_penalty_ratio)));
+                    }
+                    for (const it of (event.items || [])) {
+                        const qty = Number(it.quantity) || 1;
+                        await InventoryService.addItem(playerId, it.item_key, qty, t);
+                        gainedItems.push({ item_key: it.item_key, item_name: this._itemName(it.item_key), quantity: qty });
+                    }
+                }
+            } else if (type === 'trial') {
+                outcome = this._rollTrialOutcome(quest);
+                const conf = outcome.config || {};
+                contributionGain = Math.floor(contributionGain * (Number(conf.contribution_mult) || 0));
+                expGain += Number(conf.exp) || 0;
+                hpLoss += Number(conf.hp_loss) || 0;
+            } else if (type === 'labor_mp') {
+                // 劳作偶得：配了 events 就按池抽，没配则极低概率顺手采到灵草
+                const laborEvent = this._rollPatrolEvent(quest);
+                if (laborEvent) {
+                    event = laborEvent;
+                    hpLoss += Number(laborEvent.hp_loss) || 0;
+                    expGain += Number(laborEvent.exp) || 0;
+                    stoneGain += Number(laborEvent.spirit_stones) || 0;
+                    if (laborEvent.contribution_bonus) contributionGain += Number(laborEvent.contribution_bonus);
+                    if (laborEvent.contribution_penalty_ratio) {
+                        contributionGain = Math.floor(contributionGain * (1 - Number(laborEvent.contribution_penalty_ratio)));
+                    }
+                    for (const it of (laborEvent.items || [])) {
+                        const qty = Number(it.quantity) || 1;
+                        await InventoryService.addItem(playerId, it.item_key, qty, t);
+                        gainedItems.push({ item_key: it.item_key, item_name: this._itemName(it.item_key), quantity: qty });
+                    }
+                } else if (!(quest.events?.pool?.length) && Math.random() < 0.08) {
+                    await InventoryService.addItem(playerId, 'spirit_herb', 1, t);
+                    gainedItems.push({ item_key: 'spirit_herb', item_name: this._itemName('spirit_herb'), quantity: 1 });
+                }
+            }
+
+            contributionGain = Math.max(0, contributionGain);
+
+            // 落库：贡献 + 顿悟修为 + 灵石 + 气血损耗
+            playerSect.contribution += contributionGain;
+
+            if (expGain > 0) {
+                player.exp = this._safeBigInt(player.exp) + BigInt(expGain);
+            }
+            if (stoneGain > 0) {
+                player.spirit_stones = this._safeBigInt(player.spirit_stones) + BigInt(stoneGain);
+            }
+            if (hpLoss > 0) {
+                const hp = this._safeBigInt(player.hp_current);
+                // 气血最低留 1，任务失败不至于直接躺尸
+                player.hp_current = (hp > BigInt(hpLoss) ? hp - BigInt(hpLoss) : 1n).toString();
+            }
+
             completedIds.push(questId);
             playerSect.daily_quests_completed = completedIds;
 
@@ -754,15 +1063,47 @@ class SectService {
             await player.save({ transaction: t });
             await t.commit();
 
+            // 消息按类型拼，让战斗/机缘/试炼结果读起来像真的干了点事
+            let message = `任务【${quest.name}】完成，贡献 +${contributionGain}`;
+            if (type === 'submit_items' && submittedItems.length) {
+                message += `，上交 ${submittedItems.map(i => `${i.item_name}×${i.quantity}`).join('、')}`;
+            }
+            if (event) {
+                message += `。途中：${event.name} — ${event.description}`;
+            }
+            if (outcome) {
+                message += `。试炼结果：${outcome.label}`;
+            }
+            if (hpLoss > 0) message += `（气血 -${hpLoss}）`;
+            if (expGain > 0) message += `，顿悟修为 +${expGain}`;
+            if (gainedItems.length) {
+                message += `，获得 ${gainedItems.map(i => `${i.item_name}×${i.quantity}`).join('、')}`;
+            }
+            if (stoneGain > 0) message += `，灵石 +${stoneGain}`;
+
             return {
                 success: true,
-                message: `任务【${quest.name}】完成`,
-                rewards: {
-                    contribution: quest.contribution || 0,
-                    exp: quest.exp_reward || 0
+                message,
+                type,
+                costs: {
+                    items: submittedItems
                 },
+                rewards: {
+                    contribution: contributionGain,
+                    exp: expGain,
+                    spirit_stones: stoneGain,
+                    items: gainedItems
+                },
+                penalties: {
+                    hp_loss: hpLoss
+                },
+                event,
+                outcome,
                 contribution: playerSect.contribution,
-                exp: player.exp.toString()
+                exp: player.exp.toString(),
+                spirit_stones: player.spirit_stones.toString(),
+                hp_current: player.hp_current.toString(),
+                mp_current: player.mp_current.toString()
             };
         } catch (error) {
             if (t && !t.finished) await t.rollback();
@@ -771,8 +1112,52 @@ class SectService {
     }
 
     /**
+     * 巡守随机事件池抽取（按权重；trigger_chance 未触发则平安交差）
+     */
+    _rollPatrolEvent(quest) {
+        const cfg = quest.events || {};
+        const pool = cfg.pool || [];
+        if (!pool.length) return null;
+        const chance = Number(cfg.trigger_chance);
+        if (Number.isFinite(chance) && Math.random() > chance) return null;
+
+        const total = pool.reduce((s, e) => s + (Number(e.weight) || 0), 0);
+        if (total <= 0) return pool[Math.floor(Math.random() * pool.length)] || null;
+        let roll = Math.random() * total;
+        for (const e of pool) {
+            roll -= (Number(e.weight) || 0);
+            if (roll <= 0) return e;
+        }
+        return pool[pool.length - 1] || null;
+    }
+
+    /**
+     * 试炼成败抽取：大成 / 小成 / 勉强 / 失败（剩余概率归失败）
+     */
+    _rollTrialOutcome(quest) {
+        const cfg = quest.trial || {};
+        const great = Number(cfg.great_success_chance) || 0;
+        const success = Number(cfg.success_chance) || 0.5;
+        const partial = Number(cfg.partial_chance) || 0.2;
+        const r = Math.random();
+        if (r < great) {
+            return { id: 'great_success', label: cfg.great_success?.label || '大成', config: cfg.great_success || {} };
+        }
+        if (r < great + success) {
+            return { id: 'success', label: cfg.success?.label || '小成', config: cfg.success || {} };
+        }
+        if (r < great + success + partial) {
+            return { id: 'partial', label: cfg.partial?.label || '勉强', config: cfg.partial || {} };
+        }
+        return { id: 'fail', label: cfg.fail?.label || '失败', config: cfg.fail || {} };
+    }
+
+    /**
      * 接取宗门任务
-     * 校验贡献度门槛，记录接取状态与时间戳
+     *
+     * 有启动代价的任务（灵力/灵石/气血）在这里就扣，不是"点一下等时间白拿"。
+     * 上交类（submit_items）不在接取时扣物资 —— 那是完成后交差时才交的货。
+     *
      * @param {number} playerId - 玩家ID
      * @param {string} questId - 任务ID
      * @returns {Promise<Object>} 接取结果
@@ -780,6 +1165,11 @@ class SectService {
     async acceptQuest(playerId, questId) {
         const t = await sequelize.transaction();
         try {
+            const player = await Player.findByPk(playerId, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
             const playerSect = await PlayerSect.findOne({
                 where: { player_id: playerId },
                 transaction: t,
@@ -798,23 +1188,24 @@ class SectService {
             if (!quest) {
                 throw new AppError('宗门任务不存在', 404, ErrorCodes.NOT_FOUND);
             }
+            const type = this._questType(quest);
 
-            // 跨天重置
             this._checkAndResetDailyQuests(playerSect);
 
-            // 校验是否已完成
+            if (!this._todaySlateIds(sect.quests || [], sect.id).has(questId)) {
+                throw new AppError('该差事今日未轮值，请查看今日宗门差事', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            }
+
             const completedIds = playerSect.daily_quests_completed || [];
             if (completedIds.includes(questId)) {
                 throw new AppError('今日已完成该任务，请明日再来', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 校验是否已接取
             const acceptedIds = playerSect.quests_accepted || [];
             if (acceptedIds.includes(questId)) {
                 throw new AppError('已接取该任务，请等待完成后提交', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            // 校验贡献度门槛
             const minContribution = quest.min_contribution || 0;
             if (playerSect.contribution < minContribution) {
                 throw new AppError(
@@ -822,6 +1213,53 @@ class SectService {
                     400,
                     ErrorCodes.BUSINESS_LOGIC_ERROR
                 );
+            }
+
+            // ===== 启动代价：灵力 / 灵石 / 气血（上交物资留到提交时扣） =====
+            const cost = quest.cost || {};
+            const costMp = Number(cost.mp) || 0;
+            const costHp = Number(cost.hp) || 0;
+            const costStones = Number(cost.spirit_stones) || 0;
+            const paid = { mp: 0, hp: 0, spirit_stones: 0 };
+
+            const mpCur = this._safeBigInt(player.mp_current);
+            if (costMp > 0) {
+                if (mpCur < BigInt(costMp)) {
+                    throw new AppError(
+                        `灵力不足，接取【${quest.name}】需要 ${costMp} 灵力，当前 ${mpCur}`,
+                        400,
+                        ErrorCodes.INSUFFICIENT_RESOURCES
+                    );
+                }
+                player.mp_current = (mpCur - BigInt(costMp)).toString();
+                paid.mp = costMp;
+            }
+
+            const hpCur = this._safeBigInt(player.hp_current);
+            if (costHp > 0) {
+                // 留 1 点气血，避免接取任务直接把自己耗死
+                if (hpCur <= BigInt(costHp)) {
+                    throw new AppError(
+                        `气血不足，接取【${quest.name}】需要 ${costHp} 气血，当前 ${hpCur}`,
+                        400,
+                        ErrorCodes.INSUFFICIENT_RESOURCES
+                    );
+                }
+                player.hp_current = (hpCur - BigInt(costHp)).toString();
+                paid.hp = costHp;
+            }
+
+            if (costStones > 0) {
+                const stoneCur = this._safeBigInt(player.spirit_stones);
+                if (stoneCur < BigInt(costStones)) {
+                    throw new AppError(
+                        `灵石不足，接取【${quest.name}】需要 ${costStones} 灵石，当前 ${stoneCur}`,
+                        400,
+                        ErrorCodes.INSUFFICIENT_RESOURCES
+                    );
+                }
+                player.spirit_stones = (stoneCur - BigInt(costStones)).toString();
+                paid.spirit_stones = costStones;
             }
 
             // 记录接取状态
@@ -833,16 +1271,30 @@ class SectService {
             playerSect.quests_accepted_at = acceptedAtMap;
 
             await playerSect.save({ transaction: t });
+            await player.save({ transaction: t });
             await t.commit();
 
-            const balanceCfg = this.getBalanceConfig();
-            const minWaitMinutes = balanceCfg.quest_accept_min_wait_minutes || 5;
+            const durationMinutes = this._questDurationMinutes(quest);
+            const costParts = this._costSummary(quest);
+            let message = `已接取任务【${quest.name}】，预计需要 ${durationMinutes} 分钟`;
+            if (costParts.length) message += `，已付：${costParts.filter(p => !p.startsWith('上交')).join('、') || '无'}`;
+            if (type === 'submit_items') {
+                const items = (cost.items || []).map(i => `${this._itemName(i.item_key)}×${i.quantity || 1}`).join('、');
+                message += `；完成时需上交 ${items}`;
+            }
+            if (type === 'patrol') message += '；途中或有战斗与机缘';
+            if (type === 'trial') message += '；结果有成有败，失败会伤身';
 
             return {
                 success: true,
-                message: `已接取任务【${quest.name}】，预计需要 ${minWaitMinutes} 分钟完成`,
+                message,
                 quest_id: questId,
-                min_wait_minutes: minWaitMinutes
+                type,
+                min_wait_minutes: durationMinutes,
+                costs_paid: paid,
+                mp_current: player.mp_current.toString(),
+                hp_current: player.hp_current.toString(),
+                spirit_stones: player.spirit_stones.toString()
             };
         } catch (error) {
             if (t && !t.finished) await t.rollback();

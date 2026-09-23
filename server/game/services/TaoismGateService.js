@@ -143,7 +143,11 @@ class TaoismGateService {
                 stats: {
                     total_cultivate_count: gate.total_cultivate_count,
                     total_skill_use_count: gate.total_skill_use_count,
-                    total_resonance_count: gate.total_resonance_count
+                    total_resonance_count: gate.total_resonance_count,
+                    // 当日次数：跨日归零后的有效值（前端「今日已修」必须读这份，
+                    // 不能用浏览器会话本地计数 —— 刷新就归零，和数据库对不上）
+                    daily_cultivate_count: this._effectiveDailyCultivateCount(gate),
+                    daily_cultivate_limit: Number(this.config.taoism_gate.daily_cultivate_limit) || 5
                 }
             }
         };
@@ -397,7 +401,10 @@ class TaoismGateService {
                     dao_level: gate.dao_level,
                     leveled_up: levelUpResult.leveledUp,
                     new_level: levelUpResult.newLevel,
-                    divine_sense_left: divineSense.divine_sense_current
+                    divine_sense_left: divineSense.divine_sense_current,
+                    // 当日次数一并回传，前端不必再自己 +1 猜
+                    daily_cultivate_count: gate.daily_cultivate_count,
+                    daily_cultivate_limit: Number(this.config.taoism_gate.daily_cultivate_limit) || 5
                 }
             };
         } catch (err) {
@@ -761,6 +768,16 @@ class TaoismGateService {
             defaults: { player_id: playerId }
         });
         return gate;
+    }
+
+    /**
+     * 当日已修炼次数的有效值（跨日归零）。
+     * last_cultivate_date 不是今天时 daily_cultivate_count 在库里还是昨天的残留，
+     * 直接透出会让「今日已修」显示昨天的次数。只读场景用这个，不写库。
+     */
+    _effectiveDailyCultivateCount(gate) {
+        const todayDateStr = new Date().toISOString().slice(0, 10);
+        return gate.last_cultivate_date === todayDateStr ? Number(gate.daily_cultivate_count || 0) : 0;
     }
 
     /**

@@ -3,10 +3,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import apiClient from '../../api'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { usePlayerResources } from '../../composables/usePlayerResources'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const { patchFromResponse } = usePlayerResources()
 
 const loading = ref(true)
 const gathering = ref(false)
@@ -110,10 +112,8 @@ const handleGather = async (resource) => {
       actorId: 'self'
     })
 
-    // 使用后端返回的剩余灵力更新
-    if (result.mp_remaining !== undefined) {
-      playerStore.player.mp_current = result.mp_remaining
-    }
+    // 使用后端返回的剩余灵力更新（走统一契约，mp_remaining → mp_current）
+    patchFromResponse(result)
 
     // 采集成功后清除本地倒计时标记，由后端刷新的 can_gather 权威值接管
     countdownEnded.value.delete(resource.resource_id)

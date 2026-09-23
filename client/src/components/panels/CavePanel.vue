@@ -42,10 +42,12 @@ import {
 } from '../../api/garden'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { usePlayerResources } from '../../composables/usePlayerResources'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const { patchFromResponse } = usePlayerResources()
 
 // ====== 响应式状态 ======
 const loading = ref(true)                        // 整体加载状态
@@ -208,7 +210,11 @@ const handleOpenCave = () => {
  * @param info - 设施信息
  */
 const handleUpgrade = (facility: FacilityType, info: FacilityInfo) => {
-  if (operating.value || !info.can_upgrade) return
+  if (operating.value) return
+  if (!info.can_upgrade) {
+    uiStore.showToast(`【${info.name}】已达最高等级`, 'warning')
+    return
+  }
   confirmModal.value = { show: true, type: 'upgrade', payload: { facility, info } }
 }
 
@@ -277,27 +283,36 @@ const closeConfirmModal = () => {
 
 /**
  * 确认弹窗回调：根据 type 执行对应后端操作
+ *
+ * 必须先快照 payload 再关弹窗：closeConfirmModal 会把 payload 清成 null，
+ * 而 confirmUpgrade/confirmPlant/confirmHarvest 都是从 payload 派生的。
+ * 原先「先关再读」导致升级/播种/采收的分支永远进不去——点确认后弹窗消失、
+ * 请求不发、也没有任何 toast，玩家分不清是没功能还是静默失败。
  */
 const handleConfirm = async () => {
   const type = confirmModal.value.type
-  // 先关闭弹窗，再执行操作（避免操作期间弹窗被多次点击）
+  const upgrade = confirmUpgrade.value
+  const plant = confirmPlant.value
+  const harvest = confirmHarvest.value
   closeConfirmModal()
 
   if (type === 'open') {
     await doOpenCave()
-  } else if (type === 'upgrade' && confirmUpgrade.value) {
-    // 使用已类型收窄的 payload，避免运行时/模板内联 as 断言
-    await doUpgrade(confirmUpgrade.value.facility, confirmUpgrade.value.info)
+  } else if (type === 'upgrade' && upgrade) {
+    await doUpgrade(upgrade.facility, upgrade.info)
   } else if (type === 'collect') {
     await doCollect()
   } else if (type === 'unlock') {
     await doUnlockPlot()
-  } else if (type === 'plant' && confirmPlant.value) {
-    await doPlant(confirmPlant.value.plotIndex, confirmPlant.value.seed)
-  } else if (type === 'harvest' && confirmHarvest.value) {
-    await doHarvest(confirmHarvest.value)
+  } else if (type === 'plant' && plant) {
+    await doPlant(plant.plotIndex, plant.seed)
+  } else if (type === 'harvest' && harvest) {
+    await doHarvest(harvest)
   } else if (type === 'harvestAll') {
     await doHarvestAll()
+  } else {
+    // 兜底：任何未处理分支都必须出声，禁止再出现「点了没反应」
+    uiStore.showToast('操作未执行：缺少必要参数，请重试', 'error')
   }
 }
 
@@ -324,8 +339,7 @@ const doOpenCave = async () => {
       actorId: 'self'
     })
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '开辟洞府失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '开辟洞府失败')
   } finally {
     operating.value = false
   }
@@ -352,8 +366,7 @@ const doUpgrade = async (facility: FacilityType, info: FacilityInfo) => {
       actorId: 'self'
     })
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '升级失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, `【${info.name}】升级失败`)
   } finally {
     operating.value = false
   }
@@ -380,8 +393,7 @@ const doCollect = async () => {
       actorId: 'self'
     })
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '领取失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '领取失败')
   } finally {
     operating.value = false
   }
@@ -406,8 +418,7 @@ const doUnlockPlot = async () => {
       actorId: 'self'
     })
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '解锁失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '解锁失败')
   } finally {
     operating.value = false
   }
@@ -434,8 +445,7 @@ const doPlant = async (plotIndex: number, seed: AvailableSeed) => {
       actorId: 'self'
     })
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '播种失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '播种失败')
   } finally {
     operating.value = false
   }
@@ -465,8 +475,7 @@ const doHarvest = async (plot: PlotInfo) => {
       actorId: 'self'
     })
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '采收失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '采收失败')
   } finally {
     operating.value = false
   }
@@ -491,8 +500,7 @@ const doHarvestAll = async () => {
       actorId: 'self'
     })
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.response?.data?.error || '一键采收失败'
-    uiStore.showToast(msg, 'error')
+    uiStore.showApiError(error, '一键采收失败')
   } finally {
     operating.value = false
   }
@@ -505,11 +513,8 @@ const doHarvestAll = async () => {
  * @param result - API 响应体
  */
 const syncPlayerStones = (result: any) => {
-  if (!playerStore.player) return
-  const spiritStones = result?.spirit_stones ?? result?.data?.spirit_stones
-  if (spiritStones !== undefined) {
-    playerStore.player.spirit_stones = spiritStones
-  }
+  patchFromResponse(result)
+  if (result?.data) patchFromResponse(result.data)
 }
 
 /**

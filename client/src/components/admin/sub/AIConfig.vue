@@ -151,9 +151,25 @@
           </div>
         </div>
 
-        <!-- 操作按钮 -->
+        <!-- 测试连接结果（详细原因直接展示在弹窗内，不再只有一句笼统报错） -->
+        <div v-if="modalTestResult" class="mt-4 rounded border p-3 text-sm"
+          :class="modalTestResult.status === 'success'
+            ? 'border-green-700/50 bg-green-900/20 text-green-300'
+            : 'border-red-700/50 bg-red-900/20 text-red-300'">
+          <div class="font-bold">{{ modalTestResult.status === 'success' ? '✓ 连接成功' : '✗ 连接失败' }}</div>
+          <div class="mt-1">{{ modalTestResult.message }}</div>
+          <!-- detail：后端给出的排查线索（常见原因、响应片段等），失败时才展示 -->
+          <div v-if="modalTestResult.status === 'failed' && modalTestResult.detail" class="mt-1 text-xs opacity-80 wrap-cjk">
+            {{ modalTestResult.detail }}
+          </div>
+        </div>
+
+        <!-- 操作按钮：保存前即可测试连接，测通了再保存 -->
         <div class="flex justify-end space-x-2 mt-6">
           <AppButton variant="default" @click="closeModal">取消</AppButton>
+          <AppButton variant="outline" :disabled="modalTesting || saving" @click="handleModalTest">
+            {{ modalTesting ? '测试中...' : '测试连接' }}
+          </AppButton>
           <AppButton variant="primary" :disabled="saving" @click="handleSave">
             {{ saving ? '保存中...' : '保存' }}
           </AppButton>
@@ -187,7 +203,7 @@ import { useUIStore } from '../../../stores/ui'
 import {
   getAiConfigs, getAiProviders,
   createAiConfig, updateAiConfig, deleteAiConfig,
-  activateAiConfig, testAiConfig
+  activateAiConfig, testAiConfig, testAiConfigPayload
 } from '../../../api/admin_ai'
 import AppButton from '../../ui/AppButton.vue'
 
@@ -200,6 +216,9 @@ const availableModels = ref([])
 const loading = ref(false)
 const testingId = ref(null)
 const saving = ref(false)
+// 弹窗内"测试连接"状态与结果（保存前即可验证表单配置）
+const modalTesting = ref(false)
+const modalTestResult = ref(null)
 
 // 弹窗状态
 const showModal = ref(false)
@@ -307,6 +326,49 @@ const openEditModal = (cfg) => {
 const closeModal = () => {
   showModal.value = false
   editingConfig.value = null
+  // 顺带清掉上一次的测试结果，避免下次打开残留
+  modalTestResult.value = null
+}
+
+/**
+ * 弹窗内测试连接：用当前表单值直接测试，不需要先保存
+ * 编辑已有配置且未重新输入 Key 时，后端自动复用该配置已保存的 Key
+ */
+const handleModalTest = async () => {
+  // 与保存相同的必填校验，缺项时直接提示，不发请求
+  if (!form.base_url || !form.model) {
+    uiStore.showToast('请先填写 Base URL 与模型名称', 'error')
+    return
+  }
+  // 编辑模式下未填 Key 也没有已存 Key 时，测了也必然失败，提前拦下
+  if (editMode.value && !form.api_key && !editingConfig.value?.has_api_key) {
+    uiStore.showToast('请先填写 API Key', 'error')
+    return
+  }
+  if (!editMode.value && !form.api_key) {
+    uiStore.showToast('请先填写 API Key', 'error')
+    return
+  }
+
+  modalTesting.value = true
+  modalTestResult.value = null
+  try {
+    const res = await testAiConfigPayload({
+      base_url: form.base_url,
+      model: form.model,
+      // Key 留空时后端用 config_id 复用已保存的 Key
+      api_key: form.api_key || undefined,
+      config_id: editMode.value ? editingConfig.value.id : undefined,
+      timeout: form.timeout
+    })
+    // 该接口永不返回 5xx：失败也以 200 + status='failed' + 详细原因返回
+    modalTestResult.value = res.data?.data || res.data
+  } catch (err) {
+    // 真·HTTP 错误（鉴权失败等）走统一错误提示
+    uiStore.showApiError(err, '测试请求失败')
+  } finally {
+    modalTesting.value = false
+  }
 }
 
 /**

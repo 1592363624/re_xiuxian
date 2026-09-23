@@ -67,6 +67,9 @@ const filteredLogs = computed(() =>
 const styleOf = (type) => resolveLogKind(type)
 const labelled = (type) => LOG_LABELLED.has(type)
 
+/** 他人世界动态：暗淡 + 「道友」前缀；自己的动作保持类型高亮 */
+const isOther = (log) => log.source === 'world'
+
 onMounted(() => {
   if (uiStore.logs.length === 0) {
     uiStore.addLog({
@@ -95,25 +98,44 @@ onMounted(() => {
           <div
             v-for="log in filteredLogs"
             :key="log.id"
-            class="group flex items-start gap-2 px-2 py-1 rounded-control border-l-2 wrap-cjk transition-colors hover:bg-surface-base"
-            :class="styleOf(log.type).accent"
+            class="group flex items-start gap-2 px-2 py-1 rounded-control border-l-2 wrap-cjk transition-colors"
+            :class="[
+              isOther(log) ? 'border-l-stone-700/50 hover:bg-surface-base/40' : [styleOf(log.type).accent, 'hover:bg-surface-base'],
+              isOther(log) ? 'opacity-70' : ''
+            ]"
           >
             <span class="text-fg-faint text-[10px] mt-[3px] num shrink-0 opacity-70 group-hover:opacity-100">{{ log.time }}</span>
 
-            <!-- 只在关键类型前行首打标签，普通叙述满屏徽标反而读不动 -->
+            <!-- 他人动态固定「道友」前缀，一眼和自己的亮色日志分开 -->
             <span
-              v-if="labelled(log.type)"
+              v-if="isOther(log)"
+              class="shrink-0 mt-[1px] px-1 rounded text-[10px] leading-[16px] border border-stone-700/60 text-stone-400 bg-stone-900/40"
+            >道友</span>
+
+            <!-- 只在关键类型前行首打标签，普通叙述满屏徽标反而读不动；他人动态已用「道友」占位，不再叠类型徽标 -->
+            <span
+              v-if="labelled(log.type) && !isOther(log)"
               class="shrink-0 mt-[1px] px-1 rounded text-[10px] leading-[16px] border"
               :class="[styleOf(log.type).text, styleOf(log.type).accent]"
             >{{ styleOf(log.type).label }}</span>
 
+            <!-- 他人：道号 + 正文整体压暗；自己：类型色全亮 -->
             <span
+              v-if="isOther(log)"
+              class="text-[13px] leading-[1.7] min-w-0 text-stone-400/90"
+              :class="log.isImportant ? 'font-medium' : ''"
+            >
+              <span class="text-stone-300/80">{{ log.actorName || '某位道友' }}</span>
+              <span class="text-stone-500/80 mx-0.5">·</span>
+              <span>{{ log.content }}</span>
+            </span>
+            <span
+              v-else
               class="text-[13px] leading-[1.7] min-w-0"
               :class="[
                 styleOf(log.type).text,
                 log.isImportant ? 'font-bold' : '',
-                log.divider ? 'text-fg-faint italic text-[11px]' : '',
-                log.source === 'world' ? 'opacity-90' : ''
+                log.divider ? 'text-fg-faint italic text-[11px]' : ''
               ]"
             >{{ log.content }}</span>
           </div>

@@ -125,7 +125,8 @@ class AIService {
      */
     generateCacheKey(prompt, context = {}) {
         const crypto = require('crypto');
-        const content = JSON.stringify({ prompt, context, config: { model: this.config.model } });
+        // playerId 参与键计算：个人配置与公共配置的调用互不串缓存
+        const content = JSON.stringify({ prompt, context, playerId: context.playerId || null, config: { model: this.config.model } });
         return crypto.createHash('md5').update(content).digest('hex');
     }
 
@@ -168,29 +169,37 @@ class AIService {
      * 调用 AI API
      * @param {string} prompt - 提示词
      * @param {Object} options - 选项
+     * @param {number} [options.playerId] - 触发调用的玩家 ID；传入后若该玩家配置了
+     *        个人 AI（user_ai_configs，启用且有 Key），则优先走玩家自己的接口与额度
      * @returns {Object} AI 响应
      */
     async callAPI(prompt, options = {}) {
-        const cacheKey = this.generateCacheKey(prompt, options.context || {});
+        // 解析玩家个人配置覆盖：options.playerId 或 context.playerId（内部 generate* 调用走后者）
+        const playerId = options.playerId ?? options.context?.playerId ?? null;
+        const override = playerId ? await AIService.getUserOverride(playerId) : null;
+        // 生效配置 = 玩家个人配置（若有）> 实例全局配置
+        const effectiveConfig = override || this.config;
+
+        const cacheKey = this.generateCacheKey(prompt, { ...(options.context || {}), playerId });
         const cached = this.getFromCache(cacheKey);
         if (cached) return cached;
 
-        if (!this.config.apiKey) {
+        if (!effectiveConfig.apiKey) {
             console.log('[AI Service] 无 API Key，跳过 AI 调用');
             return { content: null, fromCache: false, error: 'No API Key configured' };
         }
 
-        const messages = this.buildMessages(prompt, options);
-        const requestBody = this.buildRequestBody(messages, options);
+        const messages = this.buildMessages(prompt, options, effectiveConfig);
+        const requestBody = this.buildRequestBody(messages, options, effectiveConfig);
 
         try {
-            const response = await this.executeRequest(requestBody);
+            const response = await this.executeRequest(requestBody, effectiveConfig);
             const result = this.parseResponse(response);
-            
+
             if (result.content) {
                 this.saveToCache(cacheKey, result);
             }
-            
+
             return { ...result, fromCache: false };
         } catch (error) {
             console.error('[AI Service] API 调用失败:', error.message);
@@ -247,38 +256,58 @@ class AIService {
      * 构建请求体（OpenAI 兼容协议）
      * @param {Array} messages - 消息数组
      * @param {Object} options - 选项
+     * @param {Object} [config] - 生效配置（默认实例全局配置；玩家个人配置调用时传入个人配置）
      * @returns {Object} 请求体
      */
-    buildRequestBody(messages, options = {}) {
+    buildRequestBody(messages, options = {}, config = this.config) {
         return {
-            model: this.config.model,
+            model: config.model,
             messages,
-            temperature: options.temperature || this.config.temperature,
-            max_tokens: options.maxTokens || this.config.maxTokens
+            temperature: options.temperature || config.temperature,
+            max_tokens: options.maxTokens || config.maxTokens
         };
     }
 
     /**
      * 执行请求
      * @param {Object} requestBody - 请求体
+     * @param {Object} [config] - 生效配置（默认实例全局配置；玩家个人配置调用时传入个人配置）
      * @returns {Object} 响应
      */
-    async executeRequest(requestBody) {
-        const headers = this.getHeaders();
-        const url = this.getEndpoint();
-        
+    async executeRequest(requestBody, config = this.config) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+        };
+        const url = this.buildEndpoint(config.baseUrl);
+
         console.log('[AI Service] 发起请求:', {
             url: url.substring(0, 50) + '...',
-            model: this.config.model,
-            provider: this.config.provider
+            model: config.model,
+            // 个人配置调用时打上标记，便于日志里区分额度走的是谁的接口
+            source: config === this.config ? 'global' : 'user-custom'
         });
-        
+
         const response = await axios.post(url, requestBody, {
             headers,
-            timeout: Math.max(this.config.timeout, 60000)
+            timeout: Math.max(config.timeout, 60000)
         });
-        
+
         return response;
+    }
+
+    /**
+     * 拼接 API 端点（OpenAI 兼容协议）
+     * baseUrl 应包含版本号路径（如 /v1）；若已含 /chat/completions 则直接使用，避免重复拼接
+     * @param {string} baseUrl - API 基础地址
+     * @returns {string} 端点 URL
+     */
+    buildEndpoint(baseUrl) {
+        const normalized = String(baseUrl || '').replace(/\/$/, '');
+        if (normalized.endsWith('/chat/completions')) {
+            return normalized;
+        }
+        return `${normalized}/chat/completions`;
     }
 
     /**
@@ -294,15 +323,10 @@ class AIService {
 
     /**
      * 获取 API 端点（OpenAI 兼容协议）
-     * baseUrl 应包含版本号路径（如 /v1）；若已含 /chat/completions 则直接使用，避免重复拼接
      * @returns {string} 端点 URL
      */
     getEndpoint() {
-        const baseUrl = this.config.baseUrl.replace(/\/$/, '');
-        if (baseUrl.endsWith('/chat/completions')) {
-            return baseUrl;
-        }
-        return `${baseUrl}/chat/completions`;
+        return this.buildEndpoint(this.config.baseUrl);
     }
 
     /**
@@ -752,6 +776,100 @@ AIService.setActiveInstance = function(instance) {
  */
 AIService.getActiveInstance = function() {
     return activeInstance;
+};
+
+// ===== 玩家个人 AI 配置覆盖（user_ai_configs）=====
+// 缓存结构：Map<playerId, { override, loadedAt }>，避免每次 AI 调用都查库 + 解密
+const userOverrideCache = new Map();
+// 缓存 TTL 与功能开关从 ai_config.json 的 userCustom 节点读取（可热调，不给代码写死）
+function getUserCustomSettings() {
+    try {
+        const { infrastructure } = require('../../modules');
+        const conf = infrastructure.ConfigLoader.getConfig('ai_config')?.userCustom || {};
+        return {
+            enabled: conf.enabled !== false,
+            cacheTtlMs: conf.overrideCacheTtlMs || 60000
+        };
+    } catch (e) {
+        return { enabled: true, cacheTtlMs: 60000 };
+    }
+}
+
+/**
+ * 获取玩家的个人 AI 配置覆盖（静态方法，供 callAPI 使用）
+ *
+ * 逻辑：
+ *   1. 功能总开关关闭（ai_config.json userCustom.enabled=false）时返回 null，全部走公共配置
+ *   2. 查 user_ai_configs：未配置 / 未启用 / 缺 Key / 缺 URL 均返回 null（回落公共配置）
+ *   3. 命中结果按 TTL 缓存，玩家保存配置后最多 TTL 秒内生效（可通过清缓存接口/重启立即生效）
+ *
+ * @param {number} playerId - 玩家 ID
+ * @returns {Promise<Object|null>} 个人配置覆盖 { provider, apiKey, baseUrl, model, temperature, maxTokens, timeout, protocol } 或 null
+ */
+AIService.getUserOverride = async function(playerId) {
+    const settings = getUserCustomSettings();
+    if (!settings.enabled || !playerId) return null;
+
+    // 命中未过期缓存直接返回，避免高频 AI 调用反复查库解密
+    const cached = userOverrideCache.get(playerId);
+    if (cached && Date.now() - cached.loadedAt < settings.cacheTtlMs) {
+        return cached.override;
+    }
+
+    try {
+        const UserAiConfig = require('../../models/user_ai_config');
+        const cryptoHelper = require('../../utils/cryptoHelper');
+        const record = await UserAiConfig.findOne({ where: { player_id: playerId } });
+
+        // 未配置 / 主动关闭 / 关键字段缺失：都不算有效覆盖
+        if (!record || !record.enabled || !record.encrypted_api_key || !record.base_url || !record.model) {
+            userOverrideCache.set(playerId, { override: null, loadedAt: Date.now() });
+            return null;
+        }
+
+        // 解密 Key：失败视为无覆盖并清除缓存项，让玩家重存后立即可用
+        let apiKey = '';
+        try {
+            apiKey = cryptoHelper.decrypt(record.encrypted_api_key);
+        } catch (e) {
+            console.warn(`[AI Service] 玩家 ${playerId} 的个人 API Key 解密失败，回落公共配置:`, e.message);
+            userOverrideCache.delete(playerId);
+            return null;
+        }
+
+        const override = {
+            provider: 'user-custom',
+            apiKey,
+            baseUrl: record.base_url,
+            model: record.model,
+            // 玩家未填的采样参数沿用实例全局配置，保证行为可预期
+            temperature: record.temperature !== null ? parseFloat(record.temperature) : this.getActiveInstance()?.config?.temperature ?? 0.7,
+            maxTokens: record.max_tokens || this.getActiveInstance()?.config?.maxTokens || 1000,
+            timeout: record.timeout || this.getActiveInstance()?.config?.timeout || 30000,
+            enableCache: false,          // 个人配置不进公共缓存，避免公共额度/内容互相污染
+            fallbackToTemplate: true,
+            protocol: 'openai'
+        };
+
+        userOverrideCache.set(playerId, { override, loadedAt: Date.now() });
+        return override;
+    } catch (e) {
+        // 查库失败等异常一律回落公共配置，绝不让个人配置问题拖垮正常 AI 调用
+        console.warn('[AI Service] 读取玩家个人 AI 配置失败，回落公共配置:', e.message);
+        return null;
+    }
+};
+
+/**
+ * 清除玩家个人 AI 配置缓存（玩家保存/删除配置后调用，让新配置立即生效）
+ * @param {number} [playerId] - 玩家 ID；不传则清空全部
+ */
+AIService.clearUserOverrideCache = function(playerId) {
+    if (playerId === undefined) {
+        userOverrideCache.clear();
+    } else {
+        userOverrideCache.delete(playerId);
+    }
 };
 
 /**

@@ -530,20 +530,24 @@
     <!-- ====== Tab4: 排行 ====== -->
     <div v-else-if="activeTab === 'ranking'" class="space-y-4">
       <div class="flex items-center justify-between">
-        <div class="text-sm text-fg-muted font-display">赛季宗门积分榜</div>
+        <div class="text-sm text-fg-muted font-display">
+          赛季宗门积分榜
+          <!-- 明确当前榜单单据来自哪个赛季，避免玩家把「空榜」误读成「读取失败」 -->
+          <span v-if="season" class="text-gold-300 num ml-1">· {{ season.season_name }}</span>
+        </div>
         <AppButton size="xs" variant="ghost" :disabled="rankingLoading" @click="fetchRanking">
           {{ rankingLoading ? '刷新中…' : '刷新排行' }}
         </AppButton>
       </div>
 
       <div v-if="ranking.length === 0" class="text-center text-fg-faint py-12 text-sm">
-        暂无排行数据
+        {{ season ? '暂无排行数据' : '当前没有进行中的赛季，暂无排行' }}
       </div>
 
       <ul v-else class="space-y-2">
         <li
           v-for="(r, idx) in ranking"
-          :key="r.sect_id || idx"
+          :key="r?.sect_id || idx"
           class="flex items-center gap-3 px-3 py-2 rounded-panel border transition-colors"
           :class="idx < 3
             ? 'bg-surface-tint-gold border-gold-700/50'
@@ -1053,12 +1057,14 @@ const fetchWarDetail = async (warId: number) => {
 
 /**
  * 获取赛季宗门排行
+ * 响应统一经 normalizeRankingPayload 归一化：无论后端返回数组、{ list } 还是
+ * { ranking } 包装，落到 ranking 的一定是「干净的对象数组」，杜绝渲染期崩面板。
  */
 const fetchRanking = async () => {
   rankingLoading.value = true
   try {
     const res = await getSeasonRanking(season.value?.id, 100)
-    ranking.value = res.data?.data?.list ?? res.data?.data ?? []
+    ranking.value = normalizeRankingPayload(res.data?.data)
   } catch (error) {
     console.error('获取排行失败:', error)
     ranking.value = []
@@ -1368,6 +1374,28 @@ const closeWarDetail = () => {
 }
 
 // ====== 辅助方法 ======
+
+/**
+ * 归一化排行接口响应 → 可安全遍历的对象数组
+ *
+ * 为什么需要：模板 `v-for="(r, idx) in ranking"` 只接受「数组」。
+ * 一旦拿到的是对象（例如后端无赛季时曾降级返回 { ranking: [], season: null }），
+ * Vue 会把对象的属性值当条目遍历，其中 null 值读 r.sect_id 直接抛
+ * TypeError 被 PanelBoundary 捕获，整个宗门战面板变成「该面板加载失败」。
+ * 所以这里做三件事：拆包装、强制数组、剔除 null / 非对象项。
+ *
+ * @param payload 后端 data 字段（正常为数组，兼容 { list } / { ranking } 包装）
+ * @returns 排行条目数组，任何异常形态一律返回 []
+ */
+const normalizeRankingPayload = (payload: unknown): any[] => {
+  let raw: unknown = payload
+  if (raw && !Array.isArray(raw) && typeof raw === 'object') {
+    const wrapped = raw as Record<string, unknown>
+    raw = wrapped.list ?? wrapped.ranking ?? wrapped.data ?? []
+  }
+  if (!Array.isArray(raw)) return []
+  return raw.filter((item): item is Record<string, any> => !!item && typeof item === 'object')
+}
 
 /**
  * 资源点类型 → 中文名

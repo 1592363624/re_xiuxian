@@ -613,6 +613,8 @@ const startServer = async () => {
     // 支持尾部快照、关键词/级别过滤与 offset 增量跟随；可读范围由 config/system_log_viewer.json 白名单决定
     app.use('/api/admin/system-logs', require('./routes/admin_system_logs'));
     app.use('/api/admin/ai-config', require('./routes/admin_ai'));
+    // 玩家个人 AI 配置（游戏设置里填写自己的 OpenAI 兼容接口，AI 调用优先走自己的额度）
+    app.use('/api/user/ai-config', require('./routes/user_ai_config'));
     app.use('/api/admin/sect', require('./routes/admin_sect'));
     // 洞府管理（GM 后台）：玩家洞府列表查询、设施等级调整、洞府重置、药园地块数调整
     app.use('/api/admin/cave', require('./routes/admin_cave'));

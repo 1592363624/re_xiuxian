@@ -1,0 +1,50 @@
+﻿client/src\stores\player.js:453:          this.player.exp = res.data.data?.player?.exp || this.player.exp
+client/src\stores\player.js:477:          this.player.exp = res.data.data?.player?.exp || this.player.exp
+client/src\composables\useSeclusionSettle.js:39:   * exp_gain 必须用 ?? 0，禁止回退到 player.exp —— 那是总修为的 BigInt 字符串，
+client/src\components\layout\GameLayout.vue:37:                <div>灵石: <span class="text-fg-secondary num">{{ formatCompact(player.spirit_stones) }}</span></div>
+client/src\components\admin\sub\EquipmentManagement.vue:393:            <div class="text-xs text-fg-muted num">境界：{{ detailData.player.realm }} | 灵石：{{ detailData.player.spirit_stones }}</div>
+client/src\api\auction.ts:279: * 冻结金额是直接从 player.spirit_stones 扣的、没有单独的冻结台账；
+client/src\components\panels\CavePanel.vue:517:    playerStore.player.spirit_stones = spiritStones
+client/src\components\admin\sub\PawnshopManagement.vue:297:              <div class="text-amber-300">{{ detailData.player.spirit_stones }}</div>
+client/src\components\panels\CombatPanel.vue:219:        currentBattle.value.player.mp = result.player_mp
+client/src\components\panels\CombatPanel.vue:383:                :value="currentBattle.player.hp"
+client/src\components\panels\CombatPanel.vue:388:                :value="currentBattle.player.mp"
+client/src\components\panels\CombatPanel.vue:402:                :disabled="combatLoading || currentBattle.player.mp < skillMpCost"
+client/src\components\panels\FullMapList.vue:143:  if (Number(playerStore.player.mp_current) < moveInfo.cost) {
+client/src\components\panels\FullMapList.vue:321:                :disabled="moving || Number(playerStore.player.mp_current) < getMoveCost(map).cost"
+client/src\components\panels\GatheringPanel.vue:95:  if (playerStore.player.mp_current < resource.mp_cost) {
+client/src\components\panels\GatheringPanel.vue:115:      playerStore.player.mp_current = result.mp_remaining
+client/src\components\panels\GatheringPanel.vue:284:                  :disabled="gathering || !isResourceGatherable(resource) || playerStore.player.mp_current < resource.mp_cost"
+client/src\components\panels\GatheringPanel.vue:289:                  <span v-else-if="playerStore.player.mp_current < resource.mp_cost">灵力不足</span>
+client/src\components\panels\InventoryPanel.vue:298:      if (result.player.hp_current !== undefined) {
+client/src\components\panels\InventoryPanel.vue:299:        playerStore.player.hp_current = result.player.hp_current
+client/src\components\panels\InventoryPanel.vue:301:      if (result.player.mp_current !== undefined) {
+client/src\components\panels\InventoryPanel.vue:302:        playerStore.player.mp_current = result.player.mp_current
+client/src\components\panels\InventoryPanel.vue:304:      if (result.player.spirit_stones !== undefined) {
+client/src\components\panels\InventoryPanel.vue:305:        playerStore.player.spirit_stones = result.player.spirit_stones
+client/src\components\panels\MapPanel.vue:96:  if (targetMap.move_cost && Number(playerStore.player.mp_current) < targetMap.move_cost) {
+client/src\components\panels\PlayerStatus.vue:42:// 修复 4-3-P1-2：player.exp 是 BigInt 字符串（如 "99999999999"），
+client/src\components\panels\PlayerStatus.vue:43:// 直接用 Number(player.exp) 在超过 Number.MAX_SAFE_INTEGER (2^53-1 ≈ 9e15) 时会精度丢失
+client/src\components\panels\PlayerStatus.vue:47:    const exp = BigInt(props.player.exp || 0)
+client/src\components\panels\PlayerStatus.vue:54:    return Math.min((Number(props.player.exp) / (Number(props.player.exp_next) || 1)) * 100, 100) + '%'
+client/src\components\panels\PlayerStatus.vue:109:watch(() => props.player.exp, (newVal, oldVal) => {
+client/src\components\panels\PlayerStatus.vue:212:    shown: formatCompact(player.spirit_stones || 0),
+client/src\components\panels\PlayerStatus.vue:213:    exact: formatNumber(player.spirit_stones || 0)
+client/src\components\panels\PlayerStatus.vue:298:          <span class="num whitespace-nowrap" :title="`${player.hp_current || 0} / ${player.hp_max || 0}`">{{ formatCompact(player.hp_current || 0) }} / {{ formatCompact(player.hp_max || 0) }}</span>
+client/src\components\panels\PlayerStatus.vue:301:          <div class="h-full bg-rose-700 progress-flow transition-all duration-300" :style="{ width: player.hp_max ? Math.min((player.hp_current / player.hp_max) * 100, 100) + '%' : '0%' }"></div>
+client/src\components\panels\PlayerStatus.vue:309:          <span class="num whitespace-nowrap" :title="`${player.mp_current || 0} / ${player.mp_max || 0}`">{{ formatCompact(player.mp_current || 0) }} / {{ formatCompact(player.mp_max || 0) }}</span>
+client/src\components\panels\PlayerStatus.vue:312:          <div class="h-full bg-sky-600 progress-flow transition-all duration-300" :style="{ width: player.mp_max ? Math.min((player.mp_current / player.mp_max) * 100, 100) + '%' : '0%' }"></div>
+client/src\components\panels\PlayerStatus.vue:321:          <span class="num whitespace-nowrap" :title="`${formatNumber(player.exp || 0)} / ${formatNumber(player.exp_next || 0)}`">{{ formatCompact(player.exp || 0) }} / {{ formatCompact(player.exp_next || 0) }}</span>
+client/src\components\panels\SecondSoulPanel.vue:37:        <div class="text-gold-300 font-bold num" :title="String(profile.player.spirit_stones)">{{ formatCompact(profile.player.spirit_stones) }}</div>
+client/src\components\panels\SectPanel.vue:287:      playerStore.player.spirit_stones = result.spirit_stones
+client/src\components\panels\SectPanel.vue:348:      playerStore.player.exp = result.exp
+client/src\components\panels\SectPanel.vue:380:      if (result.exp !== undefined) playerStore.player.exp = result.exp
+client/src\components\panels\SectPanel.vue:381:      if (result.spirit_stones !== undefined) playerStore.player.spirit_stones = result.spirit_stones
+client/src\components\panels\SectPanel.vue:405:  if (result.exp !== undefined) playerStore.player.exp = result.exp
+client/src\components\panels\SectPanel.vue:406:  if (result.spirit_stones !== undefined) playerStore.player.spirit_stones = result.spirit_stones
+client/src\components\panels\SectPanel.vue:407:  if (result.hp_current !== undefined) playerStore.player.hp_current = result.hp_current
+client/src\components\panels\SectPanel.vue:408:  if (result.mp_current !== undefined) playerStore.player.mp_current = result.mp_current
+client/src\components\panels\TechniquePanel.vue:29:        <span class="text-amber-300">灵石 <b class="text-amber-200 num">{{ playerStore.player ? formatCompact(playerStore.player.spirit_stones) : '—' }}</b></span>
+client/src\components\panels\TechniquePanel.vue:30:        <span class="text-sky-300">灵力 <b class="text-sky-200 num">{{ playerStore.player ? formatCompact(playerStore.player.mp_current) : '—' }}<span v-if="playerStore.player?.mp_max"> / {{ formatCompact(playerStore.player.mp_max) }}</span></b></span>
+client/src\components\panels\TechniquePanel.vue:31:        <span class="text-emerald-300">修为 <b class="text-emerald-200 num">{{ playerStore.player ? formatCompact(playerStore.player.exp) : '—' }}</b></span>
+client/src\components\panels\TechniquePanel.vue:306: * 注意灵力字段是 mp_current（BIGINT 序列化为字符串），不是 mp —— 旧写法读 player.mp 恒为 undefined→0，

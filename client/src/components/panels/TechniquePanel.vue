@@ -26,9 +26,9 @@
     <!-- 玩家资源联动展示：修炼/突破/研习消耗实时抵扣，操作后会自动刷新 -->
     <div class="flex items-center justify-between gap-3 mb-3 text-xs rounded-control border border-line-subtle bg-surface-raised px-3 py-2">
       <div class="flex flex-wrap gap-3">
-        <span class="text-amber-300">灵石 <b class="text-amber-200 num">{{ playerStore.player ? formatCompact(playerStore.player.spirit_stones) : '—' }}</b></span>
-        <span class="text-sky-300">灵力 <b class="text-sky-200 num">{{ playerStore.player ? formatCompact(playerStore.player.mp) : '—' }}<span v-if="playerStore.player?.mp_max"> / {{ formatCompact(playerStore.player.mp_max) }}</span></b></span>
-        <span class="text-emerald-300">修为 <b class="text-emerald-200 num">{{ playerStore.player ? formatCompact(playerStore.player.exp) : '—' }}</b></span>
+        <span class="text-amber-300">灵石 <b class="text-amber-200 num">{{ formatCompact(playerSS) }}</b></span>
+        <span class="text-sky-300">灵力 <b class="text-sky-200 num">{{ formatCompact(playerMP) }}<span v-if="playerStore.player?.mp_max"> / {{ formatCompact(playerStore.player.mp_max) }}</span></b></span>
+        <span class="text-emerald-300">修为 <b class="text-emerald-200 num">{{ formatCompact(playerStore.player?.exp) }}</b></span>
       </div>
       <AppButton size="xs" variant="ghost" @click="fetchList">刷新</AppButton>
     </div>
@@ -82,6 +82,10 @@
             <span :class="enoughSS(item.breakthrough_cost) ? 'text-rose-300/90' : 'text-rose-400'">突破 灵石{{ item.breakthrough_cost }}</span>
             <span :class="enoughSS(item.comprehend_cost) ? 'text-purple-300/90' : 'text-rose-400'">领悟 灵石{{ item.comprehend_cost }}</span>
           </div>
+          <!-- 灰按钮旁的常驻理由：hover title 在触屏上等于没有，必须有一行可见文案 -->
+          <div v-if="practiceBlockReason(item)" class="text-rose-400/90">
+            修炼不可用：{{ practiceBlockReason(item) }}
+          </div>
         </div>
 
         <!-- 操作按钮 -->
@@ -90,18 +94,21 @@
             class="px-3 py-1 text-xs rounded bg-amber-800/50 hover:bg-amber-700/60 border border-amber-700/50"
             :disabled="!canPractice(item)"
             :class="canPractice(item) ? '' : 'opacity-40 cursor-not-allowed'"
+            :title="practiceBlockReason(item) || '消耗灵石与灵力，提升熟练度'"
             @click="confirmPractice(item)"
           >修炼</button>
           <button
             class="px-3 py-1 text-xs rounded bg-rose-900/50 hover:bg-rose-800/60 border border-rose-700/50"
             :disabled="!canBreakthrough(item)"
             :class="canBreakthrough(item) ? '' : 'opacity-40 cursor-not-allowed'"
+            :title="breakthroughBlockReason(item) || '熟练度满后突破，提升功法层数'"
             @click="confirmBreakthrough(item)"
           >突破</button>
           <button
             class="px-3 py-1 text-xs rounded bg-purple-900/50 hover:bg-purple-800/60 border border-purple-700/50"
             :disabled="!canComprehend(item)"
             :class="canComprehend(item) ? '' : 'opacity-40 cursor-not-allowed'"
+            :title="comprehendBlockReason(item) || '消耗灵石，随机领悟一个神通'"
             @click="confirmComprehend(item)"
           >领悟神通</button>
           <template v-if="item.equip_slot">
@@ -260,8 +267,11 @@ import {
   equipTechnique
 } from '../../api/technique'
 
+import { usePlayerResources } from '../../composables/usePlayerResources'
+
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const { spiritStones: playerSS, mp: playerMP, enoughSpirit, enoughMp, patchFromResponse } = usePlayerResources()
 const emit = defineEmits(['close'])
 
 /** 标签页定义（key/label 契约见 ui/Tabs.vue） */
@@ -294,14 +304,14 @@ const available = computed(() => payload.value?.available || [])
 const settings = computed(() => payload.value?.settings || {})
 const wisdom = computed(() => payload.value?.wisdom ?? 0)
 
-/** 玩家实时余额（与顶部资源条同源，操作后可被 socket/主动刷新更新） */
-const playerSS = computed(() => Number(playerStore.player?.spirit_stones ?? 0))
-const playerMP = computed(() => Number(playerStore.player?.mp ?? 0))
-
+/**
+ * 玩家实时余额：走 usePlayerResources 统一契约（规范字段 mp_current/spirit_stones）。
+ * 旧写法各面板自己猜字段名（曾读不存在的 player.mp → 恒 0），是「左侧 10 万、面板 0」的根因。
+ */
 /** 灵石是否足够 */
-const enoughSS = (cost) => playerSS.value >= Number(cost || 0)
+const enoughSS = (cost) => enoughSpirit(cost)
 /** 灵力是否足够 */
-const enoughMP = (cost) => playerMP.value >= Number(cost || 0)
+const enoughMP = (cost) => enoughMp(cost)
 
 /** 切换标签页 */
 
@@ -335,29 +345,48 @@ const profPercent = (item) => {
   return Math.min(100, Math.round((item.proficiency / req) * 100))
 }
 
-/** 是否可修炼：熟练度未满 + 今日未超限 + 灵石/灵力余额足够 */
-const canPractice = (item) => {
-  const notMax = item.proficiency < item.required_proficiency
-  const notDailyFull = item.daily_practice_count < item.daily_practice_limit
-  return notMax && notDailyFull && enoughSS(item.practice_cost) && enoughMP(item.mp_cost)
+/**
+ * 按钮禁用理由：灰按钮必须能自解释，否则玩家只会看到「点不了」——
+ * 上一轮就是因为灵力 0 / 修炼要 4.5 万灵力，按钮灰着却没有任何提示。
+ * 返回 null 表示可以点。
+ */
+const practiceBlockReason = (item) => {
+  if (item.proficiency >= item.required_proficiency) return '熟练度已满，可尝试突破'
+  if (item.daily_practice_count >= item.daily_practice_limit) return '今日修炼次数已用完'
+  if (!enoughSS(item.practice_cost)) return `灵石不足（需 ${item.practice_cost}）`
+  if (!enoughMP(item.mp_cost)) return `灵力不足（需 ${item.mp_cost}，当前 ${playerMP.value}），可闭关回满灵力后再修`
+  return null
+}
+const breakthroughBlockReason = (item) => {
+  if (item.is_max_layer) return '已至满层'
+  if (item.proficiency < item.required_proficiency) return `熟练度不足（${item.proficiency}/${item.required_proficiency}）`
+  if (!enoughSS(item.breakthrough_cost)) return `灵石不足（需 ${item.breakthrough_cost}）`
+  return null
+}
+const comprehendBlockReason = (item) => {
+  const used = item.skill_slots_used ?? item.comprehended_skills?.length ?? 0
+  const total = item.skill_slots_total ?? 0
+  if (used >= total) {
+    return item.next_skill_unlock_layer
+      ? `神通槽位已满，功法修至第 ${item.next_skill_unlock_layer} 层再解锁`
+      : '神通槽位已满'
+  }
+  if (!enoughSS(item.comprehend_cost)) return `灵石不足（需 ${item.comprehend_cost}）`
+  return null
 }
 
+/** 是否可修炼：熟练度未满 + 今日未超限 + 灵石/灵力余额足够 */
+const canPractice = (item) => !practiceBlockReason(item)
+
 /** 是否可突破：未达满层 + 熟练度达标 + 灵石余额足够 */
-const canBreakthrough = (item) =>
-  !item.is_max_layer &&
-  item.proficiency >= item.required_proficiency &&
-  enoughSS(item.breakthrough_cost)
+const canBreakthrough = (item) => !breakthroughBlockReason(item)
 
 /**
  * 是否可领悟神通：有空余槽位 + 灵石余额足够。
  * 槽位上限以前读 skillSlotsTotal（后端从未下发，恒 undefined → 兜底 1），
  * 于是功法 1 层（0 槽）按钮仍可点，点下去才被服务端拒。改读后端 skill_slots_total。
  */
-const canComprehend = (item) => {
-  const used = item.skill_slots_used ?? (Array.isArray(item.comprehended_skills) ? item.comprehended_skills.length : 0)
-  const total = item.skill_slots_total ?? 0
-  return used < total && enoughSS(item.comprehend_cost)
-}
+const canComprehend = (item) => !comprehendBlockReason(item)
 
 /**
  * 是否可研习：境界达标 + 代价凑得齐。

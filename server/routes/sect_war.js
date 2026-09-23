@@ -56,7 +56,11 @@ router.get('/season/ranking', auth, async (req, res, next) => {
         if (!targetSeasonId) {
             const current = await SectWarService.getCurrentSeason();
             if (!current) {
-                return res.json({ code: 200, data: { ranking: [], season: null } });
+                // 无赛季时必须与正常分支保持同一结构：data 一律是数组。
+                // 早期这里降级返回 { ranking: [], season: null }，前端排行视图直接 v-for data，
+                // 对象会被当数组遍历其属性值（含 null），读 null.sect_id 抛渲染异常，
+                // 整个宗门战面板被错误边界接管（「该面板加载失败」）。
+                return res.json({ code: 200, data: [] });
             }
             targetSeasonId = current.season_id || current.id;
         }

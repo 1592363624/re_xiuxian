@@ -57,6 +57,95 @@
           </div>
         </section>
 
+        <!-- AI 配置（玩家自定义接口，走自己的额度） -->
+        <section v-if="aiFeatureEnabled">
+          <h3 class="flex items-center gap-2 text-fg-primary font-bold mb-3 text-lg font-display">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+            AI 配置
+          </h3>
+          <div class="bg-surface-raised rounded border border-line-subtle p-4">
+            <p class="text-fg-faint text-xs mb-3">填写你自己的 AI 接口后，剧情/事件描述将使用你的接口与额度，不消耗服务器公共额度。支持任意 OpenAI 兼容服务（DeepSeek、Kimi、硅基流动、中转站等）。</p>
+
+            <!-- 启用开关（已保存配置才显示） -->
+            <div v-if="aiSaved" class="flex items-center justify-between mb-3">
+              <span class="text-fg-secondary text-sm">使用我的 AI 接口</span>
+              <button
+                @click="toggleAiEnabled"
+                :disabled="aiSaving"
+                class="relative w-11 h-6 rounded-full transition-colors focus-ring"
+                :class="aiForm.enabled ? 'bg-gold-600' : 'bg-surface-active border border-line'"
+                role="switch" :aria-checked="aiForm.enabled" aria-label="启用个人 AI 配置"
+              >
+                <span class="absolute top-0.5 w-5 h-5 bg-surface-base rounded-full shadow transition-all" :class="aiForm.enabled ? 'left-[22px]' : 'left-0.5'"></span>
+              </button>
+            </div>
+
+            <div class="space-y-3">
+              <!-- Base URL -->
+              <div>
+                <label class="block text-xs text-fg-muted mb-1">Base URL（含版本路径）</label>
+                <input v-model="aiForm.base_url" type="text"
+                  class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-sm text-fg-secondary focus-ring focus:border-gold-600"
+                  placeholder="https://api.deepseek.com/v1">
+              </div>
+              <!-- 模型名称 -->
+              <div>
+                <label class="block text-xs text-fg-muted mb-1">模型名称</label>
+                <input v-model="aiForm.model" type="text"
+                  class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-sm text-fg-secondary focus-ring focus:border-gold-600"
+                  placeholder="如 deepseek-chat">
+              </div>
+              <!-- API Key -->
+              <div>
+                <label class="block text-xs text-fg-muted mb-1">API Key</label>
+                <input v-model="aiForm.api_key" type="password"
+                  class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-sm text-fg-secondary focus-ring focus:border-gold-600"
+                  :placeholder="aiSaved && aiSavedConfig?.has_api_key ? `已配置（${aiSavedConfig.api_key_masked}），留空则不修改` : '输入你的 API Key'">
+                <p class="mt-1 text-xs text-fg-faint">加密存储，任何人（包括后台）都无法再查看完整 Key</p>
+              </div>
+            </div>
+
+            <!-- 测试连接结果（详细原因展示） -->
+            <div v-if="aiTestResult" class="mt-3 rounded border p-2.5 text-xs"
+              :class="aiTestResult.status === 'success'
+                ? 'border-green-700/50 bg-green-900/20 text-green-300'
+                : 'border-red-700/50 bg-red-900/20 text-red-300'">
+              <div class="font-bold">{{ aiTestResult.status === 'success' ? '✓ 连接成功' : '✗ 连接失败' }}</div>
+              <div class="mt-1">{{ aiTestResult.message }}</div>
+              <div v-if="aiTestResult.status === 'failed' && aiTestResult.detail" class="mt-1 opacity-80 wrap-cjk">
+                {{ aiTestResult.detail }}
+              </div>
+            </div>
+
+            <!-- 操作按钮：先测再存 -->
+            <div class="flex gap-2 mt-4">
+              <button
+                @click="handleAiTest"
+                :disabled="aiTesting || aiSaving"
+                class="flex-1 py-2 bg-surface-active hover:bg-line-strong text-fg-secondary rounded border border-line transition-colors disabled:opacity-50 text-sm"
+              >
+                {{ aiTesting ? '测试中...' : '测试连接' }}
+              </button>
+              <button
+                @click="handleAiSave"
+                :disabled="aiSaving || aiTesting"
+                class="flex-1 py-2 bg-gold-600 hover:bg-gold-500 text-surface-sunken font-bold rounded transition-colors disabled:opacity-50 text-sm"
+              >
+                {{ aiSaving ? '保存中...' : '保存' }}
+              </button>
+            </div>
+            <!-- 清除配置 -->
+            <button
+              v-if="aiSaved"
+              @click="showAiDeleteConfirm = true"
+              :disabled="aiSaving"
+              class="w-full mt-2 py-1.5 text-xs text-fg-faint hover:text-red-400 transition-colors disabled:opacity-50"
+            >
+              清除 AI 配置（回到服务器公共接口）
+            </button>
+          </div>
+        </section>
+
         <!-- Game Management -->
         <section>
           <h3 class="flex items-center gap-2 text-fg-primary font-bold mb-3 text-lg font-display">
@@ -176,6 +265,27 @@
           </div>
         </div>
       </transition>
+
+      <!-- 清除 AI 配置确认弹窗 -->
+      <transition name="modal">
+        <div v-if="showAiDeleteConfirm" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="showAiDeleteConfirm = false"></div>
+          <div class="relative w-full max-w-sm bg-surface-base border border-line rounded-panel shadow-2xl p-6 animate-fade-in" role="dialog" aria-label="确认清除 AI 配置">
+            <h3 class="text-lg font-bold text-gold-500 mb-3 font-display">确认清除 AI 配置</h3>
+            <p class="text-fg-secondary text-sm mb-6">清除后将回到使用服务器公共 AI 接口的状态，你的 API Key 会被立即删除且不可恢复。</p>
+            <div class="flex justify-end gap-3">
+              <button
+                @click="showAiDeleteConfirm = false"
+                class="px-4 py-2 bg-surface-active hover:bg-line-strong text-fg-secondary rounded transition-colors"
+              >取消</button>
+              <button
+                @click="doDeleteAiConfig"
+                class="px-4 py-2 bg-red-700 hover:bg-red-600 text-red-100 rounded font-bold transition-colors"
+              >确认清除</button>
+            </div>
+          </div>
+        </div>
+      </transition>
     </Teleport>
   </div>
 </template>
@@ -185,10 +295,11 @@
  * 设置弹窗组件
  * 提供账号绑定、游戏设置、快捷键说明、关于信息等功能
  */
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import { getQQAuthorizeUrl, getQQBinding, unbindQQ } from '../../api/auth'
+import { getUserAiConfig, saveUserAiConfig, deleteUserAiConfig, testUserAiConfig } from '../../api/user_ai'
 // 引入版本号，保证设置面板与更新日志版本一致（单一数据源）
 import { currentVersion } from '../../data/changelog'
 import AppButton from '../ui/AppButton.vue'
@@ -272,7 +383,159 @@ const formatBoundAt = (iso) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-onMounted(loadQQBinding)
+// ===== 个人 AI 配置 =====
+// 服务器是否开放了自定义 AI 功能（关闭时整个区块隐藏）
+const aiFeatureEnabled = ref(false)
+// 已保存的配置（用于回填表单与判断"首次保存必须填 Key"）
+const aiSavedConfig = ref(null)
+const aiSaved = ref(false)
+const aiSaving = ref(false)
+const aiTesting = ref(false)
+const aiTestResult = ref(null)
+const showAiDeleteConfirm = ref(false)
+
+// 表单数据；api_key 不回填（后端只存密文），留空表示不修改
+const aiForm = reactive({
+  base_url: '',
+  model: '',
+  api_key: '',
+  enabled: true
+})
+
+/**
+ * 拉取当前玩家的个人 AI 配置并回填表单
+ * 读不到时保持区块隐藏，避免玩家点了没反应
+ */
+const loadAiConfig = async () => {
+  try {
+    const res = await getUserAiConfig()
+    const data = res.data?.data || res.data
+    aiFeatureEnabled.value = !!data?.feature_enabled
+    aiSavedConfig.value = data?.config || null
+    aiSaved.value = !!data?.config
+    if (data?.config) {
+      aiForm.base_url = data.config.base_url || ''
+      aiForm.model = data.config.model || ''
+      aiForm.enabled = data.config.enabled !== false
+    }
+  } catch (error) {
+    aiFeatureEnabled.value = false
+  }
+}
+
+/**
+ * 切换"使用我的 AI 接口"开关：直接保存 enabled 状态（表单其余字段不变）
+ */
+const toggleAiEnabled = async () => {
+  aiSaving.value = true
+  try {
+    const target = !aiForm.enabled
+    await saveUserAiConfig({
+      base_url: aiForm.base_url,
+      model: aiForm.model,
+      // 未重新输入 Key 时不传 api_key，后端保留旧 Key
+      enabled: target
+    })
+    aiForm.enabled = target
+    uiStore.showToast(target ? '已启用个人 AI 接口' : '已停用，回到服务器公共接口', 'success')
+  } catch (error) {
+    uiStore.showApiError(error, '切换失败')
+  } finally {
+    aiSaving.value = false
+  }
+}
+
+/**
+ * 测试连接：把当前表单值发给后端验证（不需要先保存）
+ * 后端会把表单里没填的字段用已保存的值补齐（如未重输 Key 时复用旧 Key）
+ */
+const handleAiTest = async () => {
+  if (!aiForm.base_url && !aiSaved) {
+    uiStore.showToast('请先填写 Base URL', 'error')
+    return
+  }
+  if (!aiForm.model && !aiSaved) {
+    uiStore.showToast('请先填写模型名称', 'error')
+    return
+  }
+  aiTesting.value = true
+  aiTestResult.value = null
+  try {
+    const res = await testUserAiConfig({
+      base_url: aiForm.base_url || undefined,
+      model: aiForm.model || undefined,
+      api_key: aiForm.api_key || undefined,
+      timeout: aiSavedConfig.value?.timeout || undefined
+    })
+    // 接口永不返回 5xx：失败也以 200 + status='failed' + 详细原因返回
+    aiTestResult.value = res.data?.data || res.data
+  } catch (error) {
+    uiStore.showApiError(error, '测试请求失败')
+  } finally {
+    aiTesting.value = false
+  }
+}
+
+/**
+ * 保存个人 AI 配置（首次保存必须填写 Key）
+ */
+const handleAiSave = async () => {
+  if (!aiForm.base_url.trim() || !aiForm.model.trim()) {
+    uiStore.showToast('请填写 Base URL 与模型名称', 'error')
+    return
+  }
+  // 首次保存必须有 Key；编辑时留空表示沿用旧 Key
+  if (!aiSaved && !aiForm.api_key) {
+    uiStore.showToast('首次配置请填写 API Key', 'error')
+    return
+  }
+  aiSaving.value = true
+  try {
+    await saveUserAiConfig({
+      base_url: aiForm.base_url.trim(),
+      model: aiForm.model.trim(),
+      api_key: aiForm.api_key || undefined,
+      enabled: aiForm.enabled
+    })
+    uiStore.showToast('AI 配置已保存', 'success')
+    aiForm.api_key = ''
+    // 重新拉取以刷新脱敏 Key 展示
+    await loadAiConfig()
+  } catch (error) {
+    uiStore.showApiError(error, '保存失败')
+  } finally {
+    aiSaving.value = false
+  }
+}
+
+/**
+ * 清除个人 AI 配置：删除后 AI 调用回到服务器公共配置
+ */
+const doDeleteAiConfig = async () => {
+  showAiDeleteConfirm.value = false
+  aiSaving.value = true
+  try {
+    await deleteUserAiConfig()
+    uiStore.showToast('已清除个人 AI 配置', 'success')
+    // 重置表单与状态
+    aiSaved.value = false
+    aiSavedConfig.value = null
+    aiForm.base_url = ''
+    aiForm.model = ''
+    aiForm.api_key = ''
+    aiForm.enabled = true
+    aiTestResult.value = null
+  } catch (error) {
+    uiStore.showApiError(error, '清除失败')
+  } finally {
+    aiSaving.value = false
+  }
+}
+
+onMounted(() => {
+  loadQQBinding()
+  loadAiConfig()
+})
 </script>
 
 <style scoped>

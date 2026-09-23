@@ -137,7 +137,9 @@ class PlayerStateMachine {
             if (typeof handler.canTransitionTo === 'function') {
                 const transition = handler.canTransitionTo(newStateEnum, activeStates);
                 if (!transition.allowed) {
-                    const reason = transition.reason || `${active.displayName}中无法开始此操作`;
+                    const reason = await this._enrichBlockReason(
+                        playerId, handler, transition.reason || `${active.displayName}中无法开始此操作`
+                    );
                     this._logBlockedTransition(playerId, logCtx, activeStates, newStateEnum, active.stateType, reason);
                     return {
                         allowed: false,
@@ -148,7 +150,9 @@ class PlayerStateMachine {
             } else {
                 // 默认规则：exclusive 状态之间互斥
                 if (handler.metadata?.exclusive !== false) {
-                    const reason = `${active.displayName}中，无法开始此操作`;
+                    const reason = await this._enrichBlockReason(
+                        playerId, handler, `${active.displayName}中，无法开始此操作`
+                    );
                     this._logBlockedTransition(playerId, logCtx, activeStates, newStateEnum, active.stateType, reason);
                     return {
                         allowed: false,
@@ -160,6 +164,39 @@ class PlayerStateMachine {
         }
 
         return { allowed: true, reason: '', conflict: null };
+    }
+
+    /**
+     * 给拦截文案补上「还剩多久」——玩家只看到「悟道中无法开始」却不知道要等多久，
+     * 只能反复点。状态 handler 若实现了 getSnapshot 且带 remaining_seconds，就拼进 reason。
+     * @private
+     */
+    static async _enrichBlockReason(playerId, handler, reason) {
+        if (typeof handler.getSnapshot !== 'function') return reason;
+        try {
+            const snap = await handler.getSnapshot(playerId);
+            const remain = Number(snap?.remaining_seconds);
+            if (Number.isFinite(remain) && remain > 0) {
+                return `${reason}（还剩 ${this._formatRemaining(remain)}）`;
+            }
+        } catch { /* 快照失败不影响拦截本身 */ }
+        return reason;
+    }
+
+    /**
+     * 剩余秒数 → 人类可读时长（与前端 formatTime 口径一致）
+     * @private
+     */
+    static _formatRemaining(seconds) {
+        const s = Math.max(0, Math.floor(seconds));
+        if (s < 60) return `${s}秒`;
+        const mins = Math.floor(s / 60);
+        if (mins < 60) return `${mins}分钟`;
+        const hours = Math.floor(mins / 60);
+        const remMins = mins % 60;
+        if (hours < 24) return remMins ? `${hours}小时${remMins}分钟` : `${hours}小时`;
+        const days = Math.floor(hours / 24);
+        return `${days}天${hours % 24}小时`;
     }
 
     /**

@@ -107,6 +107,9 @@
       <!-- 赶路移动浮动状态条（header 下方，不遮挡内容） -->
       <MovingOverlay :show="movingState.isMoving" @complete="handleMoveComplete" />
 
+      <!-- 进行中计时操作倒计时条：闭关/悟道/历练，面板打开时也始终可见 -->
+      <TimedActivityBar v-if="isStateSynced" @action="handleAction" />
+
       <!-- 中部三栏：【日志窄栏】+【右坞：分类导航 / 功能面板停靠】
            xl 以下放不下三栏，日志独占宽度、导航退回底部操作条 -->
       <div class="flex-1 flex flex-col xl:flex-row overflow-hidden relative min-h-0">
@@ -221,6 +224,7 @@ import SeclusionOverlay from '../panels/SeclusionOverlay.vue';
 import ExploreOverlay from '../panels/ExploreOverlay.vue';
 import MeditationOverlay from '../panels/MeditationOverlay.vue';
 import MovingOverlay from '../overlays/MovingOverlay.vue';
+import TimedActivityBar from '../overlays/TimedActivityBar.vue';
 import DeathOverlay from '../overlays/DeathOverlay.vue';
 import SystemAlert from '../widgets/SystemAlert.vue';
 import AppButton from '../ui/AppButton.vue';

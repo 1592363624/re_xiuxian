@@ -7,6 +7,7 @@
  *   - 顶部 Tab 切换：宗门列表 / 我的宗门（已加入宗门时默认显示"我的宗门"）
  *   - 宗门列表视图：展示 6 大宗门卡片，支持拜入（自定义 Modal 二次确认）
  *   - 我的宗门视图：宗门信息、每日点卯/传功（带冷却倒计时）、宗门任务、宝库兑换、叛出宗门
+ *   - 宗门任务按玩法类型结算：劳作耗灵力、上交扣物资、巡守掷事件、试炼定成败；主产出是贡献点
  *   - 所有业务逻辑通过 sect API 调用后端，前端只做展示与交互
  *   - 操作成功后刷新数据并同步玩家状态（修为/灵石变更影响其他 UI）
  *   - 禁用浏览器原生 alert/confirm，统一使用自定义 Modal 组件
@@ -42,12 +43,14 @@ import {
 import { useUIStore } from '../../stores/ui'
 import { useAsyncTask } from '../../composables/useAsyncTask'
 import { usePlayerStore } from '../../stores/player'
+import { usePlayerResources } from '../../composables/usePlayerResources'
 // 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
 import { formatNumber, formatCompact } from '../../utils/format'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const { patchFromResponse } = usePlayerResources()
 
 // ====== 响应式状态 ======
 const { loading, error, run } = useAsyncTask({ fallback: '加载宗门数据失败' })
@@ -58,7 +61,8 @@ const mySect = ref<MySect | null>(null)   // 我的宗门信息
 /** 宗门加成的展示元数据（中文名 + 换算方式），来自后端 bonus_meta，内容是 sect_data.global.bonus_labels */
 const bonusMeta = ref<Record<string, SectBonusMeta>>({})
 
-const quests = ref<SectQuest[]>([])       // 我的宗门任务列表
+const quests = ref<SectQuest[]>([])       // 今日轮值差事
+const questMeta = ref<{ pool_size?: number; offer_count?: number }>({})  // 差事池规模
 const treasury = ref<TreasuryItem[]>([])  // 我的宗门宝库物品
 // 当前时间戳，每秒更新一次用于驱动冷却倒计时
 const currentTime = ref(Date.now())
@@ -184,6 +188,7 @@ const fetchQuests = async () => {
     const res = await getQuests()
     const data = res.data?.data
     quests.value = data?.quests || []
+    questMeta.value = { pool_size: data?.pool_size, offer_count: data?.offer_count }
   } catch (error) {
     console.error('获取宗门任务失败:', error)
     quests.value = []
@@ -282,9 +287,7 @@ const doJoin = async (sect: Sect) => {
     uiStore.showToast(result.message || `成功拜入【${sect.name}】`, 'success')
 
     // 同步玩家灵石（拜入消耗灵石）
-    if (result.spirit_stones !== undefined && playerStore.player) {
-      playerStore.player.spirit_stones = result.spirit_stones
-    }
+    patchFromResponse(result)
 
     // 刷新宗门信息并切换到"我的宗门"Tab
     await fetchMySect()
@@ -343,9 +346,7 @@ const handleCheckIn = async () => {
     uiStore.showToast(result.message || '点卯成功', 'success')
 
     // 同步玩家修为（点卯奖励修为）
-    if (result.exp !== undefined && playerStore.player) {
-      playerStore.player.exp = result.exp
-    }
+    patchFromResponse(result)
 
     // 刷新宗门信息（更新 last_check_in 与贡献度）
     await fetchMySect()
@@ -375,10 +376,7 @@ const handleTransfer = async () => {
     uiStore.showToast(result.message || '传功完成', 'success')
 
     // 同步玩家修为与灵石（传功消耗灵石、增加修为）
-    if (playerStore.player) {
-      if (result.exp !== undefined) playerStore.player.exp = result.exp
-      if (result.spirit_stones !== undefined) playerStore.player.spirit_stones = result.spirit_stones
-    }
+    patchFromResponse(result)
 
     // 刷新宗门信息（更新 last_transfer）
     await fetchMySect()
@@ -397,7 +395,53 @@ const handleTransfer = async () => {
 }
 
 /**
- * 提交宗门任务
+ * 同步服务端回写的玩家资源（气血/灵力/灵石/修为）
+ */
+const syncPlayerResources = (result: any) => {
+  patchFromResponse(result)
+}
+
+/** 任务玩法类型中文名 */
+const questTypeLabel = (type?: string) => {
+  switch (type) {
+    case 'labor_mp': return '劳作'
+    case 'submit_items': return '上交'
+    case 'patrol': return '巡守'
+    case 'trial': return '试炼'
+    default: return '杂务'
+  }
+}
+
+/** 任务玩法类型角标色调 */
+const questTypeTone = (type?: string): 'info' | 'gold' | 'danger' | 'arcane' | 'neutral' => {
+  switch (type) {
+    case 'labor_mp': return 'info'
+    case 'submit_items': return 'gold'
+    case 'patrol': return 'danger'
+    case 'trial': return 'arcane'
+    default: return 'neutral'
+  }
+}
+
+/**
+ * 任务进行中剩余毫秒：以后端 accepted_at + duration_minutes 为准，本地 currentTime 递减
+ * 避免提交按钮在 5 分钟后还灰着、或一开始就能点
+ */
+const questRemainingMs = (quest: SectQuest): number => {
+  if (quest.completed || !quest.accepted) return 0
+  const durationMs = (quest.duration_minutes || 5) * 60_000
+  if (!quest.accepted_at) return 0
+  const elapsed = currentTime.value - new Date(quest.accepted_at).getTime()
+  return Math.max(0, durationMs - elapsed)
+}
+
+const questReady = (quest: SectQuest): boolean => {
+  if (quest.completed || !quest.accepted) return false
+  return questRemainingMs(quest) <= 0
+}
+
+/**
+ * 提交宗门任务（按玩法类型结算：上交扣物资 / 巡守掷事件 / 试炼定成败）
  * @param quest - 任务对象
  */
 const handleSubmitQuest = async (quest: SectQuest) => {
@@ -407,18 +451,15 @@ const handleSubmitQuest = async (quest: SectQuest) => {
     const res = await submitQuest(quest.id)
     const result = res.data
     uiStore.showToast(result.message || '任务完成', 'success')
-
-    // 同步玩家修为
-    if (result.exp !== undefined && playerStore.player) {
-      playerStore.player.exp = result.exp
-    }
+    syncPlayerResources(result)
 
     // 刷新任务列表与宗门信息（贡献度变化）
     await Promise.all([fetchQuests(), fetchMySect()])
 
+    // 结果日志直接用服务端拼好的完整叙事（含事件/试炼/上交/损耗）
     uiStore.addLog({
-      content: `你完成了宗门任务【${quest.name}】，获得贡献 +${result.rewards?.contribution || 0}，修为 +${formatNumber(result.rewards?.exp || 0)}。`,
-      type: 'success',
+      content: result.message || `你完成了宗门任务【${quest.name}】。`,
+      type: (result.penalties?.hp_loss || 0) > 0 || result.outcome?.id === 'fail' ? 'warning' : 'success',
       actorId: 'self'
     })
   } catch (error: any) {
@@ -430,7 +471,7 @@ const handleSubmitQuest = async (quest: SectQuest) => {
 }
 
 /**
- * 接取宗门任务
+ * 接取宗门任务（有启动代价的任务会立刻扣灵力/灵石/气血）
  * @param quest - 任务对象
  */
 const handleAcceptQuest = async (quest: SectQuest) => {
@@ -440,12 +481,13 @@ const handleAcceptQuest = async (quest: SectQuest) => {
     const res = await acceptQuest(quest.id)
     const result = res.data
     uiStore.showToast(result.message || '任务接取成功', 'success')
+    syncPlayerResources(result)
 
     // 刷新任务列表（更新接取状态）
     await fetchQuests()
 
     uiStore.addLog({
-      content: `你接取了宗门任务【${quest.name}】，预计需要 ${result.min_wait_minutes || 5} 分钟完成。`,
+      content: result.message || `你接取了宗门任务【${quest.name}】。`,
       type: 'info',
       actorId: 'self'
     })
@@ -825,7 +867,9 @@ onUnmounted(() => {
               <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
             </svg>
             宗门任务
-            <span class="text-xs text-fg-faint font-normal">（每日刷新）</span>
+            <span class="text-xs text-fg-faint font-normal">
+              （今日轮值<span v-if="questMeta.pool_size">：自 {{ questMeta.pool_size }} 件差事中抽 {{ questMeta.offer_count || quests.length }} 件</span>）
+            </span>
           </h4>
 
           <div v-if="quests.length === 0" class="text-center text-fg-faint text-sm py-4">
@@ -842,15 +886,27 @@ onUnmounted(() => {
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1">
                   <span class="text-sm font-bold text-fg-secondary">{{ quest.name }}</span>
+                  <Badge :tone="questTypeTone(quest.type)">{{ questTypeLabel(quest.type) }}</Badge>
                   <Badge v-if="quest.daily" tone="neutral">日常</Badge>
                   <Badge v-if="quest.completed" tone="success">已完成</Badge>
-                  <Badge v-else-if="quest.accepted" tone="info">进行中</Badge>
+                  <Badge v-else-if="quest.accepted && questReady(quest)" tone="info">可提交</Badge>
+                  <Badge v-else-if="quest.accepted" tone="gold">进行中</Badge>
+                  <Badge v-if="quest.has_random_event" tone="danger">有风险</Badge>
                 </div>
                 <p class="text-xs text-fg-faint mb-1">{{ quest.description }}</p>
-                <div class="text-xs flex gap-3 num">
+                <div class="text-xs flex flex-wrap gap-x-3 gap-y-1 num">
                   <span class="text-gold-400" :title="String(quest.contribution)">贡献 +{{ formatCompact(quest.contribution) }}</span>
-                  <span class="text-cyan-400" :title="String(quest.exp_reward)">修为 +{{ formatCompact(quest.exp_reward) }}</span>
+                  <span v-if="quest.cost_summary?.length" class="text-orange-300/90">
+                    代价：{{ quest.cost_summary.join('、') }}
+                  </span>
+                  <span class="text-fg-faint">耗时约 {{ quest.duration_minutes || 5 }} 分</span>
                   <span v-if="(quest.min_contribution || 0) > 0" class="text-fg-faint">需要贡献 ≥{{ formatCompact(quest.min_contribution) }}</span>
+                  <span
+                    v-if="quest.accepted && !quest.completed && questRemainingMs(quest) > 0"
+                    class="text-cyan-300/80"
+                  >
+                    还需 {{ formatCountdown(questRemainingMs(quest)) }}
+                  </span>
                 </div>
               </div>
               <!-- 按钮区：未接取显示"接取"，已接取未完成显示"提交"，已完成显示"已完成" -->
@@ -868,10 +924,13 @@ onUnmounted(() => {
               <button
                 v-else-if="quest.accepted && !quest.completed"
                 @click="handleSubmitQuest(quest)"
-                :disabled="operating"
-                class="ml-3 px-3 py-1.5 rounded-control border text-xs whitespace-nowrap transition-colors bg-emerald-900/30 border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="operating || !questReady(quest)"
+                class="ml-3 px-3 py-1.5 rounded-control border text-xs whitespace-nowrap transition-colors"
+                :class="questReady(quest)
+                  ? 'bg-emerald-900/30 border-emerald-700/50 text-emerald-400 hover:bg-emerald-800/50 hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'bg-surface-raised border-line text-fg-faint cursor-not-allowed'"
               >
-                提交
+                {{ questReady(quest) ? '提交' : '未完成' }}
               </button>
               <button
                 v-else

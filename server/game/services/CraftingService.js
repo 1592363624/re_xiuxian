@@ -306,31 +306,42 @@ class CraftingService {
 
     /**
      * 确保玩家已学习默认配方（首次访问时自动学习 learn_source=default 的配方）
+     *
+     * 性能：默认配方有三十来张，原先逐条 findOne(+create)，打开炼制阁一次
+     * 就先串行打掉三十多次 DB。改成「一次查已学 id → bulkCreate 补缺」——
+     * 稳态只剩一趟只读查询，新号/新装资料片也只多一趟写入。
+     *
      * @param {number} playerId - 玩家ID
      * @param {Object} transaction - 事务实例
      */
     async _ensureDefaultRecipes(playerId, transaction = null) {
         const defaultRecipes = this.getAllRecipes().filter(r => r.learn_source === 'default');
-        for (const recipe of defaultRecipes) {
-            // 检查是否已学
-            const existing = await PlayerRecipe.findOne({
-                where: { player_id: playerId, recipe_id: recipe.id },
-                transaction,
-                lock: transaction ? transaction.LOCK.UPDATE : undefined
-            });
-            if (!existing) {
-                // 自动学习默认配方
-                await PlayerRecipe.create({
-                    player_id: playerId,
-                    recipe_id: recipe.id,
-                    craft_type: recipe.type,
-                    craft_count: 0,
-                    skill_exp: 0,
-                    skill_level: 1,
-                    last_craft_at: null
-                }, { transaction });
-            }
-        }
+        if (defaultRecipes.length === 0) return;
+
+        const defaultIds = defaultRecipes.map(r => r.id);
+        const existing = await PlayerRecipe.findAll({
+            where: { player_id: playerId, recipe_id: defaultIds },
+            attributes: ['recipe_id'],
+            transaction,
+            lock: transaction ? transaction.LOCK.UPDATE : undefined
+        });
+        const existingIds = new Set(existing.map(r => r.recipe_id));
+        const missing = defaultRecipes.filter(r => !existingIds.has(r.id));
+        if (missing.length === 0) return;
+
+        // ignoreDuplicates：并发双开面板时唯一索引 uk_player_recipe 兜住重复插入
+        await PlayerRecipe.bulkCreate(
+            missing.map(recipe => ({
+                player_id: playerId,
+                recipe_id: recipe.id,
+                craft_type: recipe.type,
+                craft_count: 0,
+                skill_exp: 0,
+                skill_level: 1,
+                last_craft_at: null
+            })),
+            { transaction, ignoreDuplicates: true }
+        );
     }
 
     /**
@@ -355,6 +366,19 @@ class CraftingService {
             skill_info: this._buildSkillInfo(playerRecipes)
         };
 
+        // 材料持有量一次查齐：原先每种材料 hasItem+getItemQuantity 两条串行查询，
+        // 配方一多就串行打成百次 DB —— 这是打开炼制阁转圈的主要来源。
+        // hasItem 的返回值其实从未被用到（sufficient 直接由 owned 比较），一并去掉。
+        const materialKeys = new Set();
+        for (const record of playerRecipes) {
+            const recipeConfig = this.findRecipe(record.recipe_id);
+            if (!recipeConfig) continue;
+            for (const mat of recipeConfig.materials || []) {
+                if (mat.item_key) materialKeys.add(mat.item_key);
+            }
+        }
+        const ownedMap = await InventoryService.getItemQuantities(playerId, [...materialKeys]);
+
         const now = new Date();
         for (const record of playerRecipes) {
             const recipeConfig = this.findRecipe(record.recipe_id);
@@ -375,14 +399,13 @@ class CraftingService {
             const materials = [];
             for (const mat of recipeConfig.materials) {
                 const itemConfig = this.getItemConfig(mat.item_key);
-                const hasItem = await InventoryService.hasItem(playerId, mat.item_key, 1);
-                const owned = await InventoryService.getItemQuantity(playerId, mat.item_key);
+                const owned = ownedMap.get(String(mat.item_key)) || 0;
                 materials.push({
                     item_key: mat.item_key,
                     name: itemConfig?.name || '未知材料',
                     required: mat.quantity,
-                    owned: owned || 0,
-                    sufficient: (owned || 0) >= mat.quantity
+                    owned,
+                    sufficient: owned >= mat.quantity
                 });
             }
 

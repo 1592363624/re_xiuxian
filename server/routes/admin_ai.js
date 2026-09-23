@@ -7,8 +7,10 @@
  *   3. PUT    /api/admin/ai-config/:id    - 更新 AI 配置（支持部分更新）
  *   4. DELETE /api/admin/ai-config/:id    - 删除 AI 配置
  *   5. POST   /api/admin/ai-config/:id/activate - 激活指定配置（其他自动停用）
- *   6. POST   /api/admin/ai-config/:id/test     - 测试连接性（不下发 Key 到前端）
+ *   6. POST   /api/admin/ai-config/:id/test     - 测试已保存配置的连接性（不下发 Key 到前端）
  *   7. GET    /api/admin/ai-config/providers    - 获取可选接口列表（现仅含单一 OpenAI 兼容接口）
+ *   8. POST   /api/admin/ai-config/test         - 测试"未保存"的表单配置（编辑弹窗保存前即可测试；
+ *                                               api_key 留空时可用 config_id 复用已存 Key）
  *
  * 安全设计：
  *   - 所有接口需要 JWT 认证 + admin 权限
@@ -20,7 +22,6 @@
 
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
 
 // 数据模型与中间件
 const AiConfig = require('../models/ai_config');
@@ -31,6 +32,8 @@ const { infrastructure } = require('../modules');
 
 // 工具：API Key 加解密与脱敏
 const cryptoHelper = require('../utils/cryptoHelper');
+// 工具：AI 连接测试（与玩家个人配置路由共用，保证行为与错误信息一致）
+const { runAiConnectivityTest } = require('../utils/aiConnectivityTester');
 
 // ConfigLoader：用于读取 ai_config.json 中的 providers 列表
 const configLoader = infrastructure.ConfigLoader;
@@ -348,13 +351,17 @@ router.post('/:id/activate', auth, adminCheck, async (req, res, next) => {
 
 /**
  * POST /api/admin/ai-config/:id/test
- * 测试 AI 配置的连接性
+ * 测试"已保存"AI 配置的连接性
  *
  * 实现逻辑：
  *   1. 从数据库读取配置并解密 API Key（后端组装请求，不下发前端）
- *   2. 向目标 API 发送一个简短的测试请求（"你好"）
+ *   2. 调用共享测试工具向目标 API 发送一条最小请求（详见 utils/aiConnectivityTester.js）
  *   3. 记录测试结果到 last_test_status / last_test_message
- *   4. 返回测试结果（不包含完整响应内容，避免泄露）
+ *   4. 返回测试结果与详细失败原因（不包含完整响应内容，避免泄露）
+ *
+ * 注意：本接口永不返回 5xx —— 连接失败属于正常业务结果，
+ * 以 code=200 + status='failed' + 详细原因返回，前端能直接展示排查线索；
+ * 只有 Key 解密失败这类环境问题会抛 AppError（带明确 message，不会变成"服务器错误"）。
  */
 router.post('/:id/test', auth, adminCheck, async (req, res, next) => {
     try {
@@ -364,90 +371,84 @@ router.post('/:id/test', auth, adminCheck, async (req, res, next) => {
             throw new AppError('AI 配置不存在', 404, ErrorCodes.NOT_FOUND);
         }
 
-        // 解密 API Key
+        // 解密 API Key：解密失败（密钥变更等）单独给出明确原因，不笼统报错
         if (!config.encrypted_api_key) {
             throw new AppError('该配置未设置 API Key，无法测试', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
         }
-        const apiKey = cryptoHelper.decrypt(config.encrypted_api_key);
-
-        // 构造测试请求（统一走 OpenAI 兼容协议，最小 token 消耗）
-        const baseUrl = config.base_url.replace(/\/$/, '');
-        const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
-        const headers = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-        };
-
-        const requestBody = {
-            model: config.model,
-            messages: [{ role: 'user', content: '你好' }],
-            max_tokens: 32,    // 不宜过小：推理型模型在 token 预算过小时会把正文挤没，导致误判失败
-            temperature: 0
-        };
-
-        // 记录测试时间
-        const testedAt = new Date();
-        let testStatus, testMessage;
-
+        let apiKey;
         try {
-            const response = await axios.post(endpoint, requestBody, {
-                headers,
-                // 下限 10s 保证慢接口不被误杀，上限 90s 保证后端一定先于前端（120s）返回，
-                // 这样失败时前端总能拿到后端给出的具体原因，而不是干等一条"请求超时"
-                timeout: Math.min(Math.max(config.timeout, 10000), 90000)
-            });
-
-            // 判定成功只看"是否返回了 OpenAI 兼容的 choices 结构"。
-            // 不再要求正文非空：推理型模型在 max_tokens 很小时 content 可能为空，
-            // 但此时连接与鉴权都已通过，旧判据会把它误报成"响应结构不符合预期"。
-            const choices = response.data?.choices;
-            if (response.status === 200 && Array.isArray(choices) && choices.length > 0) {
-                testStatus = 'success';
-                const text = choices[0]?.message?.content;
-                testMessage = text
-                    ? `连接成功，模型响应正常（HTTP ${response.status}）`
-                    : `连接成功（HTTP ${response.status}，本次正文为空，通常是 max_tokens 偏小）`;
-            } else {
-                testStatus = 'failed';
-                testMessage = `响应异常：HTTP ${response.status}，未返回 OpenAI 兼容的 choices 结构`;
-            }
-        } catch (err) {
-            testStatus = 'failed';
-            // 提取关键错误信息，不暴露完整 URL（含潜在 query 参数）
-            if (err.response) {
-                const apiErr = err.response.data?.error?.message || err.response.data?.message || JSON.stringify(err.response.data).substring(0, 200);
-                testMessage = `API 返回错误：HTTP ${err.response.status} - ${apiErr}`;
-            } else if (err.code === 'ECONNABORTED') {
-                testMessage = `连接超时（超过 ${config.timeout}ms）`;
-            } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
-                testMessage = `无法连接到服务器：${err.code}（请检查 base_url 是否正确）`;
-            } else {
-                testMessage = `请求失败：${err.message}`;
-            }
+            apiKey = cryptoHelper.decrypt(config.encrypted_api_key);
+        } catch (e) {
+            throw new AppError(`API Key 解密失败：${e.message}（请重新保存 Key）`, 400, ErrorCodes.CONFIG_ERROR);
         }
 
-        // 更新测试结果到数据库
+        // 调用共享测试工具（永不抛异常，失败时返回详细原因）
+        const result = await runAiConnectivityTest({
+            baseUrl: config.base_url,
+            model: config.model,
+            apiKey,
+            timeout: config.timeout
+        });
+
+        // 更新测试结果到数据库（仅存单行摘要，详细信息实时返回给前端）
         await config.update({
-            last_tested_at: testedAt,
-            last_test_status: testStatus,
-            last_test_message: testMessage
+            last_tested_at: result.tested_at,
+            last_test_status: result.status,
+            last_test_message: result.message
         });
 
         await logAdminAction({
             adminId: req.player.id,
             action: 'ai_config_test',
             targetId: id,
-            detail: `测试 AI 配置: ${config.display_name}, 结果: ${testStatus}`
+            detail: `测试 AI 配置: ${config.display_name}, 结果: ${result.status}${result.status === 'failed' ? ` (${result.message})` : ''}`
         });
 
         res.json({
             code: 200,
-            message: testMessage,
-            data: {
-                status: testStatus,
-                message: testMessage,
-                tested_at: testedAt
+            message: result.message,
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/admin/ai-config/test
+ * 测试"未保存"的表单配置（新增/编辑弹窗里点"测试连接"用，保存前即可验证）
+ *
+ * 请求体：{ base_url, model, api_key?, timeout?, config_id? }
+ *   - api_key 留空且传了 config_id：复用该条已保存配置的 Key（编辑时不想重输 Key 的场景）
+ *   - 不写库、不记 AdminLog（尚未落库的草稿没有可审计的对象）
+ * 与 /:id/test 一样永不返回 5xx，失败时返回详细原因
+ */
+router.post('/test', auth, adminCheck, async (req, res, next) => {
+    try {
+        const { base_url, model, api_key, timeout, config_id } = req.body;
+
+        // 表单未填 Key 且指定了已保存配置 → 复用该配置的 Key（仅在内存中解密，不回传）
+        let apiKey = api_key || '';
+        if (!apiKey && config_id) {
+            const saved = await AiConfig.findByPk(config_id);
+            if (!saved) {
+                throw new AppError('config_id 对应的 AI 配置不存在', 404, ErrorCodes.NOT_FOUND);
             }
+            if (saved.encrypted_api_key) {
+                try {
+                    apiKey = cryptoHelper.decrypt(saved.encrypted_api_key);
+                } catch (e) {
+                    throw new AppError(`已保存的 API Key 解密失败：${e.message}（请直接输入新 Key 测试）`, 400, ErrorCodes.CONFIG_ERROR);
+                }
+            }
+        }
+
+        const result = await runAiConnectivityTest({ baseUrl: base_url, model, apiKey, timeout });
+
+        res.json({
+            code: 200,
+            message: result.message,
+            data: result
         });
     } catch (error) {
         next(error);

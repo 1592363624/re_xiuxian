@@ -542,13 +542,34 @@ const sectWarPaths = {
         get: {
             tags: ['宗门战'],
             summary: '获取赛季宗门排行',
+            description: '按赛季总积分降序返回宗门排行；season_id 缺省时取当前赛季，当前无赛季（无 active/pending）时 data 返回空数组',
             security: securityBearer,
             parameters: [
                 { name: 'season_id', in: 'query', schema: { type: 'integer' }, description: '赛季ID（缺省取当前赛季）' },
                 { name: 'limit', in: 'query', schema: { type: 'integer', default: 100, maximum: 500 } }
             ],
             responses: {
-                200: successResponse({ type: 'object', description: '赛季宗门排行' }),
+                // data 必须是数组：早期无赛季降级成 { ranking, season } 对象，前端 v-for 遍历对象值读到 null 会崩面板
+                200: successResponse({
+                    type: 'array',
+                    description: '赛季宗门排行列表（无当前赛季时为空数组，不会返回对象包装）',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            rank: { type: 'integer', description: '名次（按返回顺序从 1 开始，前端展示用）', example: 1 },
+                            sect_id: { type: 'string', description: '宗门ID', example: 'sect_001' },
+                            sect_name: { type: 'string', description: '宗门名称', example: '青云宗' },
+                            total_score: { type: 'integer', description: '赛季总积分', example: 1200 },
+                            war_wins: { type: 'integer', description: '赛季胜场', example: 5 },
+                            war_losses: { type: 'integer', description: '赛季败场', example: 1 },
+                            war_draws: { type: 'integer', description: '赛季平局场次', example: 0 },
+                            territories_held: { type: 'integer', description: '当前占领资源点数', example: 3 },
+                            total_kills: { type: 'integer', description: '赛季总击杀数', example: 88 },
+                            total_participants: { type: 'integer', description: '赛季累计参战人次', example: 42 },
+                            final_rank: { type: 'integer', nullable: true, description: '赛季结算时的最终名次（未结算为 null）', example: null }
+                        }
+                    }
+                }),
                 401: errorResponses[401]
             }
         }

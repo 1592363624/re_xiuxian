@@ -55,7 +55,9 @@ const ITEM_GRANT_PATHS = [
     // （同一事务，装不下整笔回滚）。在那之前这两条形同虚设 —— 所以这张表什么时候能加一条，
     // 取决于代码那边有没有真的读它，而不是内容里有没有写。
     { re: /^achievement_data\.achievements\[\]\.reward\.items\[\]\.item_key$/, why: '成就奖励（对象形，带 quantity）' },
-    { re: /^achievement_data\.achievements\[\]\.reward\.items\[\]$/, why: '成就奖励（裸 id 数组形，按一件算）' }
+    { re: /^achievement_data\.achievements\[\]\.reward\.items\[\]$/, why: '成就奖励（裸 id 数组形，按一件算）' },
+    // 宗门巡守事件可能顺手采到/捡到东西（SectService.submitQuest 按 events.pool[].items 入包）
+    { re: /^sect_data\.sects\[\]\.quests\[\]\.events\.pool\[\]\.items\[\]\.item_key$/, why: '宗门巡守任务随机事件掉落' }
 ];
 
 /** 刻意**不算**来源的形状：它们是"玩家交出去"或"学习前置"，写在这里是为了下次别再当来源算 */
@@ -65,7 +67,9 @@ const ITEM_SINK_PATHS = [
     { re: /^artifact_deep_lines\.settings\.\w+\.blood_pact\.stages\[\]\.materials\[\]\.item_key$/, why: '血祭阶段材料 = 去路' },
     { re: /^dayan_data\.levels\[\]\.fragment_required$/, why: '大衍层级要的残片 = 去路' },
     { re: /^beast_invasion_data\.beasts\[\]\.donation_items\[\]\.item_key$/, why: '兽潮捐献 = 去路' },
-    { re: /^technique_data\.techniques\.\w+\.acquire\.item_id$/, why: '功法要的那张卷：这张卷从哪儿掉是 drop 表的事，这一条本身是消耗' }
+    { re: /^technique_data\.techniques\.\w+\.acquire\.item_id$/, why: '功法要的那张卷：这张卷从哪儿掉是 drop 表的事，这一条本身是消耗' },
+    // 宗门上交类任务（submit_items）完成时真正扣背包（SectService.submitQuest）
+    { re: /^sect_data\.sects\[\]\.quests\[\]\.cost\.items\[\]\.item_key$/, why: '宗门上交任务的物资 = 去路' }
 ];
 
 /**

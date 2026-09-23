@@ -25,7 +25,87 @@
     size="md"
     @close="emit('close')"
   >
-    <div class="space-y-4">
+    <!-- 悟道进行中：与 SeclusionPanel 同构，倒计时/进度直接钉在面板里 -->
+    <div v-if="isMeditating" class="space-y-4">
+      <PanelCard :tone="isDeepMode ? 'gold' : 'plain'" class="overflow-hidden">
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <div class="flex items-center gap-3 min-w-0">
+            <div
+              class="w-11 h-11 rounded-full border flex items-center justify-center shrink-0"
+              :class="isDeepMode
+                ? 'bg-purple-950/40 border-purple-700/40'
+                : 'bg-amber-950/30 border-gold-700/30'"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" :class="isDeepMode ? 'text-purple-400' : 'text-gold-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-base font-bold" :class="isDeepMode ? 'text-purple-300' : 'text-gold-300'">
+                {{ activeModeLabel }}中
+              </div>
+              <div class="text-xs text-fg-faint">摒除杂念，参悟天地至理</div>
+            </div>
+          </div>
+          <Badge :tone="isDeepMode ? 'arcane' : 'gold'" solid>进行中</Badge>
+        </div>
+
+        <div class="mb-4">
+          <StatBar
+            :value="meditationElapsed"
+            :max="Math.max(meditationTotal, 1)"
+            label="悟道进度"
+            :text="meditationProgressText"
+            :tone="isDeepMode ? 'arcane' : 'gold'"
+            height="h-2"
+          />
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="rounded-control border border-line-subtle bg-surface-canvas px-2 py-2.5">
+            <div class="text-[10px] text-fg-faint mb-0.5">已悟道</div>
+            <div class="text-sm font-num text-fg-secondary">{{ formatTime(meditationElapsed) }}</div>
+          </div>
+          <div class="rounded-control border border-line-subtle bg-surface-canvas px-2 py-2.5">
+            <div class="text-[10px] text-fg-faint mb-0.5">剩余时间</div>
+            <div class="text-sm font-num font-bold" :class="meditationRemaining <= 30 ? 'text-rose-400' : 'text-gold-400'">
+              {{ formatCountdown(meditationRemaining) }}
+            </div>
+          </div>
+          <div class="rounded-control border border-line-subtle bg-surface-canvas px-2 py-2.5">
+            <div class="text-[10px] text-fg-faint mb-0.5">当前感悟</div>
+            <div class="text-sm font-num font-bold text-amber-400">{{ currentInsight }}</div>
+          </div>
+        </div>
+      </PanelCard>
+
+      <PanelCard v-if="bottleneckActive" tone="danger" :padded="false" class="px-3.5 py-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-rose-300 font-bold text-sm">瓶颈进度</span>
+          <Badge tone="danger">{{ bottleneckInsight }} / {{ bottleneckThreshold }}</Badge>
+        </div>
+        <StatBar :value="bottleneckInsight" :max="bottleneckThreshold" tone="blood" :show-value="false" height="h-2" />
+      </PanelCard>
+
+      <PanelCard tone="gold" :padded="false" class="px-3 py-2.5 text-xs text-gold-400">
+        中断悟道将损失 {{ interruptPenaltyLabel }} 感悟值，仅按完成度比例发放
+      </PanelCard>
+
+      <AppButton
+        block
+        size="lg"
+        variant="danger"
+        :disabled="loading"
+        :loading="loading"
+        @click="handleInterrupt"
+      >
+        {{ loading ? '结算中…' : '中断悟道' }}
+      </AppButton>
+    </div>
+
+    <!-- 空闲态：时长类型选择 -->
+    <div v-else class="space-y-4">
       <!-- 瓶颈状态展示（仅在处于瓶颈期时显示） -->
       <PanelCard v-if="bottleneckActive" tone="danger" :padded="false" class="px-3.5 py-3">
         <div class="flex items-center justify-between mb-2">
@@ -112,7 +192,7 @@
                   :class="key === 'deep' ? 'text-purple-300' : 'text-gold-300'">
                   {{ item.label }}
                 </div>
-                <div class="text-[10px] text-fg-faint">{{ formatDuration(item.duration) }}</div>
+                <div class="text-[10px] text-fg-faint">{{ formatTime(item.duration) }}</div>
               </div>
             </div>
             <div v-if="selectedType === key" class="w-5 h-5 rounded-full bg-gold-600 flex items-center justify-center">
@@ -150,8 +230,8 @@
       </div>
     </div>
 
-    <!-- 底部操作栏 -->
-    <template #footer>
+    <!-- 底部操作栏：进行中时主操作已在内容流里 -->
+    <template v-if="!isMeditating" #footer>
       <AppButton variant="ghost" @click="emit('close')">取消</AppButton>
       <button
         @click="handleStart"
@@ -170,7 +250,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '../../stores/ui'
-import { formatTime } from '../../utils/format'
+import { usePlayerStore } from '../../stores/player'
+import { formatTime, formatCountdown } from '../../utils/format'
 import PanelShell from '../ui/PanelShell.vue'
 import PanelCard from '../ui/PanelCard.vue'
 import Badge from '../ui/Badge.vue'
@@ -179,19 +260,73 @@ import StatBar from '../ui/StatBar.vue'
 import {
   getStatus,
   getConfig,
-  startMeditation
+  startMeditation,
+  interruptMeditation
 } from '../../api/meditation'
 
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
+const playerStore = usePlayerStore()
 
 const loading = ref(false)
 const selectedType = ref('')
 const status = ref(null)
 const config = ref(null)
-// 当前时间 tick（每秒更新一次，用于驱动冷却倒计时显示）
+// 当前时间 tick（每秒更新一次，用于驱动冷却/进行中倒计时显示）
 const now = ref(Date.now())
 let tickTimer = null
+
+/** 是否悟道中（后端 status 优先，store 兜底，避免刚开炉时 status 未回） */
+const isMeditating = computed(() => {
+  return status.value?.is_meditating === true || playerStore.player?.is_meditating === true
+})
+
+const isDeepMode = computed(() => {
+  const mode = status.value?.meditation_mode || playerStore.player?.meditation_mode
+  return mode === 'deep'
+})
+
+const activeModeLabel = computed(() => {
+  const mode = status.value?.meditation_mode || playerStore.player?.meditation_mode
+  if (mode === 'deep') return '深度悟道'
+  if (mode === 'long') return '闭关参悟'
+  if (mode === 'medium') return '凝神悟道'
+  if (mode === 'short') return '静思一刻'
+  return '静思悟道'
+})
+
+const meditationStartMs = computed(() => {
+  const t = status.value?.meditation_start_time || playerStore.player?.meditation_start_time
+  return t ? new Date(t).getTime() : now.value
+})
+
+const meditationEndMs = computed(() => {
+  const t = status.value?.meditation_end_time || playerStore.player?.meditation_end_time
+  return t ? new Date(t).getTime() : 0
+})
+
+const meditationTotal = computed(() => {
+  if (!meditationEndMs.value) return Number(status.value?.meditation_duration) || Number(playerStore.player?.meditation_duration) || 1
+  return Math.max(1, Math.floor((meditationEndMs.value - meditationStartMs.value) / 1000))
+})
+
+const meditationElapsed = computed(() => Math.max(0, Math.floor((now.value - meditationStartMs.value) / 1000)))
+
+const meditationRemaining = computed(() => {
+  if (!meditationEndMs.value) return 0
+  return Math.max(0, Math.floor((meditationEndMs.value - now.value) / 1000))
+})
+
+const meditationProgressText = computed(() => {
+  return `${formatTime(meditationElapsed.value)} / ${formatTime(meditationTotal.value)}`
+})
+
+const currentInsight = computed(() => status.value?.meditation_insight || playerStore.player?.meditation_insight || 0)
+
+const interruptPenaltyLabel = computed(() => {
+  const rate = isDeepMode.value ? 0.5 : 0.3
+  return `${Math.round(rate * 100)}%`
+})
 
 /**
  * 时长类型列表（按 short/medium/long/deep 顺序展示）
@@ -310,17 +445,20 @@ const selectType = (typeKey) => {
 }
 
 /**
- * 格式化时长（秒 → 中文）
- */
-const formatDuration = (seconds) => {
-  return formatTime(seconds || 0)
-}
-
-/**
  * 开始悟道
+ * 成功后立刻把进行中状态写进 player store，
+ * 顶部计时条 / 总览状态卡 / 本面板的进行中视图才能同帧亮起。
  */
 const handleStart = async () => {
   if (loading.value) return
+  if (isMeditating.value) {
+    const remain = meditationRemaining.value
+    uiStore.showToast(
+      remain > 0 ? `静思悟道中，还剩 ${formatCountdown(remain)}` : '静思悟道中，无法开始此操作',
+      'warning'
+    )
+    return
+  }
   if (!selectedType.value || !isTypeAvailable(selectedType.value)) {
     uiStore.showToast('请选择可用的时长类型', 'warning')
     return
@@ -329,16 +467,58 @@ const handleStart = async () => {
   try {
     const res = await startMeditation(selectedType.value)
     const data = res.data?.data || res.data
+    // 同步 store：TimedActivityBar / MeditationOverlay 都读这里的 is_meditating
+    if (playerStore.player) {
+      playerStore.player.is_meditating = true
+      playerStore.player.meditation_mode = data?.mode || selectedType.value
+      playerStore.player.meditation_start_time = data?.start_time || new Date().toISOString()
+      playerStore.player.meditation_end_time = data?.end_time || null
+      playerStore.player.meditation_duration = data?.duration || null
+      playerStore.player.meditation_insight = data?.insight || 0
+      localStorage.setItem('player', JSON.stringify(playerStore.player))
+    }
     uiStore.showToast(data?.message || '已进入静思悟道状态', 'success')
     uiStore.addLog({
       content: `开始静思悟道（${durationTypeList.value[selectedType.value]?.label || selectedType.value}），摒除杂念，参悟天地至理。`,
       type: 'info',
       actorId: 'self'
     })
-    emit('close')
+    // 刷新本地 status，面板切到进行中视图（倒计时立刻可见）
+    await fetchStatus()
   } catch (error) {
     console.error('开始悟道失败:', error)
     uiStore.showApiError(error, '开始悟道失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+/**
+ * 中断悟道（带惩罚）
+ */
+const handleInterrupt = async () => {
+  if (loading.value) return
+  loading.value = true
+  try {
+    const res = await interruptMeditation()
+    const data = res.data?.data || res.data
+    if (playerStore.player) {
+      playerStore.player.is_meditating = false
+      playerStore.player.meditation_mode = 'normal'
+      playerStore.player.meditation_start_time = null
+      playerStore.player.meditation_end_time = null
+      localStorage.setItem('player', JSON.stringify(playerStore.player))
+    }
+    uiStore.showToast(data?.message || '悟道已中断', 'warning')
+    uiStore.addLog({
+      content: `中断悟道，完成度 ${Math.floor((data?.completion_rate || 0) * 100)}%，获得感悟 ${data?.insight_gain || 0} 点。`,
+      type: 'warning',
+      actorId: 'self'
+    })
+    await fetchStatus()
+  } catch (error) {
+    console.error('中断悟道失败:', error)
+    uiStore.showApiError(error, '中断悟道失败')
   } finally {
     loading.value = false
   }
@@ -370,11 +550,10 @@ const fetchConfig = async () => {
 
 onMounted(async () => {
   await Promise.all([fetchStatus(), fetchConfig()])
-  // 默认选择 medium
-  if (isTypeAvailable('medium')) {
-    selectedType.value = 'medium'
-  } else if (isTypeAvailable('short')) {
-    selectedType.value = 'short'
+  // 已在悟道中：不预选时长，直接停在进行中视图
+  if (!isMeditating.value) {
+    if (isTypeAvailable('medium')) selectedType.value = 'medium'
+    else if (isTypeAvailable('short')) selectedType.value = 'short'
   }
   // 启动每秒 tick
   tickTimer = setInterval(() => {

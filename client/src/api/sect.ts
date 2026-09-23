@@ -77,7 +77,22 @@ export interface TreasuryItem {
 }
 
 /**
+ * 宗门任务玩法类型
+ * labor_mp：耗灵力劳作；submit_items：上交物资；patrol：巡守随机事件；trial：试炼成败
+ */
+export type SectQuestType = 'labor_mp' | 'submit_items' | 'patrol' | 'trial';
+
+/** 任务代价（启动扣灵力/灵石/气血；上交物资在提交时扣） */
+export interface SectQuestCost {
+  mp?: number;
+  hp?: number;
+  spirit_stones?: number;
+  items?: Array<{ item_key: string; quantity: number }>;
+}
+
+/**
  * 宗门任务配置（静态）
+ * 日常任务主产出是贡献点；修为只可能来自试炼大成 / 巡守机缘，不再白送
  */
 export interface SectQuestConfig {
   /** 任务ID */
@@ -86,14 +101,22 @@ export interface SectQuestConfig {
   name: string;
   /** 任务描述 */
   description: string;
-  /** 贡献度奖励 */
+  /** 玩法类型 */
+  type?: SectQuestType;
+  /** 贡献度奖励（试炼/事件可能打折或加成） */
   contribution: number;
-  /** 修为奖励 */
-  exp_reward: number;
   /** 是否每日任务 */
   daily: boolean;
   /** 提交所需最低贡献度（0 表示无门槛，可直接提交） */
   min_contribution?: number;
+  /** 任务耗时（分钟） */
+  duration_minutes?: number;
+  /** 任务代价 */
+  cost?: SectQuestCost;
+  /** 代价的中文摘要（服务端拼好） */
+  cost_summary?: string[];
+  /** 是否有随机事件/试炼结果 */
+  has_random_event?: boolean;
 }
 
 /**
@@ -154,6 +177,12 @@ export interface SectQuest extends SectQuestConfig {
   completed: boolean;
   /** 今日是否已接取 */
   accepted: boolean;
+  /** 已接取且等待结束，可提交 */
+  ready?: boolean;
+  /** 已接取时间（ISO），供前端本地递减倒计时 */
+  accepted_at?: string | null;
+  /** 已接取时距可提交的剩余毫秒 */
+  remaining_ms?: number;
 }
 
 /**
@@ -164,8 +193,12 @@ export interface SectQuestsResponse {
   sect_id: string;
   /** 宗门名称 */
   sect_name: string;
-  /** 任务列表 */
+  /** 任务列表（今日轮值） */
   quests: SectQuest[];
+  /** 差事池总件数 */
+  pool_size?: number;
+  /** 今日轮值件数 */
+  offer_count?: number;
   /** 任务重置时间 */
   quests_reset_at: string;
 }

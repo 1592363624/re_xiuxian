@@ -350,6 +350,34 @@ class InventoryService {
     }
 
     /**
+     * 批量查询多个物品的持有数量
+     *
+     * 配方列表这类「一页材料」场景不要在循环里逐条 getItemQuantity：
+     * 每种材料两次查询，配方一多就串行打成百次 DB。一次 IN 查回后建 map。
+     * 同一 item_key 若存在多行（带 metadata 的装备实例），数量求和——
+     * 持有量语义是「背包里一共有几件」，不是「第一行有几件」。
+     *
+     * @param {number} playerId - 玩家 ID
+     * @param {string[]} itemKeys - 物品键名列表
+     * @returns {Promise<Map<string, number>>} item_key -> 持有数量（缺失键不在 map 中）
+     */
+    async getItemQuantities(playerId, itemKeys) {
+        const map = new Map();
+        const keys = [...new Set((itemKeys || []).filter(Boolean))];
+        if (keys.length === 0) return map;
+
+        const records = await Item.findAll({
+            where: { player_id: playerId, item_key: keys },
+            attributes: ['item_key', 'quantity']
+        });
+        for (const record of records) {
+            const key = String(record.item_key);
+            map.set(key, (map.get(key) || 0) + (Number(record.quantity) || 0));
+        }
+        return map;
+    }
+
+    /**
      * 扣减玩家物品（内部使用，不加事务）
      * @param {number} playerId - 玩家 ID
      * @param {string} itemKey - 物品键名

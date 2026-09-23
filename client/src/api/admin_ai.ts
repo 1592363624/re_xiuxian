@@ -118,3 +118,20 @@ export const activateAiConfig = (id: number) => {
 export const testAiConfig = (id: number) => {
   return apiClient.post(`/admin/ai-config/${id}/test`, null, { timeout: 120000 });
 };
+
+/**
+ * 测试"未保存"的表单配置（编辑/新增弹窗保存前即可验证连接）
+ *
+ * 与 testAiConfig 一样放宽到 120s；api_key 留空且传 config_id 时，
+ * 后端会复用该条已保存配置的 Key（编辑时不想重输 Key 的场景）
+ */
+export const testAiConfigPayload = (data: {
+  base_url: string;
+  model: string;
+  api_key?: string;
+  timeout?: number;
+  /** 编辑已有配置时传入，api_key 留空则复用该配置已保存的 Key */
+  config_id?: number;
+}) => {
+  return apiClient.post('/admin/ai-config/test', data, { timeout: 120000 });
+};

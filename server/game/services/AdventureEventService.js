@@ -191,6 +191,8 @@ class AdventureEventService {
             };
 
             const eventContext = {
+                // playerId 透传给 AI 调用链：玩家配了个人 AI 时历练事件走自己的接口与额度
+                playerId,
                 playerRealm: player.realm,
                 mapName: currentMap.name,
                 mapEnvironment: currentMap.environment,

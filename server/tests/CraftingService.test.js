@@ -28,6 +28,7 @@ jest.mock('../models/playerRecipe', () => ({
     findOne: jest.fn(),
     findAll: jest.fn(),
     create: jest.fn(),
+    bulkCreate: jest.fn(),
     update: jest.fn()
 }));
 jest.mock('../models/player', () => ({
@@ -35,6 +36,8 @@ jest.mock('../models/player', () => ({
 }));
 jest.mock('../game/services/InventoryService', () => ({
     hasItem: jest.fn(),
+    getItemQuantity: jest.fn(),
+    getItemQuantities: jest.fn(),
     removeItem: jest.fn(),
     addItem: jest.fn()
 }));
@@ -479,6 +482,86 @@ describe('craft 参数边界', () => {
         await expect(CraftingService.craft(1, testRecipe.id, 999)).rejects.toThrow('炼制次数');
         await expect(CraftingService.craft(1, testRecipe.id, 1.5)).rejects.toThrow('炼制次数');
         await expect(CraftingService.craft(1, testRecipe.id, NaN)).rejects.toThrow('炼制次数');
+    });
+});
+
+// ============ 打开炼制阁的查询次数（曾经一次打开串行 150+ 次 DB） ============
+
+describe('getLearnedRecipes 查询批量化', () => {
+    beforeEach(() => {
+        // 两条默认配方都已学过
+        PlayerRecipe.findAll.mockImplementation(async (opts) => {
+            const where = opts?.where || {};
+            if (Array.isArray(where.recipe_id)) {
+                // _ensureDefaultRecipes：返回已学集合
+                return where.recipe_id.map(id => ({ recipe_id: id }));
+            }
+            // getLearnedRecipes：返回玩家配方记录
+            return [
+                {
+                    id: 1,
+                    recipe_id: testRecipe.id,
+                    craft_type: 'alchemy',
+                    craft_count: 2,
+                    skill_exp: 30,
+                    skill_level: 1,
+                    last_craft_at: null
+                },
+                {
+                    id: 2,
+                    recipe_id: refiningTestRecipe.id,
+                    craft_type: 'refining',
+                    craft_count: 0,
+                    skill_exp: 0,
+                    skill_level: 1,
+                    last_craft_at: null
+                }
+            ];
+        });
+        InventoryService.getItemQuantities.mockResolvedValue(new Map([
+            ['herb_a', 10],
+            ['ore_a', 2]
+        ]));
+    });
+
+    test('材料持有量只批量查一次，不再逐材料 hasItem/getItemQuantity', async () => {
+        const data = await CraftingService.getLearnedRecipes(1);
+        expect(InventoryService.getItemQuantities).toHaveBeenCalledTimes(1);
+        expect(InventoryService.hasItem).not.toHaveBeenCalled();
+        expect(InventoryService.getItemQuantity).not.toHaveBeenCalled();
+
+        const herb = data.alchemy[0].materials.find(m => m.item_key === 'herb_a');
+        expect(herb.owned).toBe(10);
+        expect(herb.sufficient).toBe(true);
+        // 精钢剑要 3 块矿，背包只有 2
+        const ore = data.refining[0].materials.find(m => m.item_key === 'ore_a');
+        expect(ore.owned).toBe(2);
+        expect(ore.sufficient).toBe(false);
+        expect(data.refining[0].can_craft).toBe(false);
+    });
+
+    test('默认配方已学全时不写库（稳态只读）', async () => {
+        await CraftingService.getLearnedRecipes(1);
+        expect(PlayerRecipe.bulkCreate).not.toHaveBeenCalled();
+        expect(PlayerRecipe.create).not.toHaveBeenCalled();
+    });
+
+    test('缺默认配方时 bulkCreate 一次补齐，不逐条 create', async () => {
+        PlayerRecipe.findAll.mockImplementation(async (opts) => {
+            const where = opts?.where || {};
+            if (Array.isArray(where.recipe_id)) {
+                return []; // 一张都没学
+            }
+            return [];
+        });
+        await CraftingService._ensureDefaultRecipes(1);
+        expect(PlayerRecipe.bulkCreate).toHaveBeenCalledTimes(1);
+        expect(PlayerRecipe.create).not.toHaveBeenCalled();
+        const rows = PlayerRecipe.bulkCreate.mock.calls[0][0];
+        expect(rows.length).toBe(2);
+        expect(rows.map(r => r.recipe_id).sort()).toEqual(
+            [testRecipe.id, refiningTestRecipe.id].sort()
+        );
     });
 });
 

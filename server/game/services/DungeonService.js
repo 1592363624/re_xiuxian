@@ -1107,6 +1107,8 @@ class DungeonService {
                     if (aiService) {
                         const aiResult = await aiService.callAPI(node.ai_prompt, {
                             context: {
+                                // 透传玩家 ID：玩家配了个人 AI 时副本剧情走自己的接口与额度
+                                playerId: player.id,
                                 chapter_name: chapter.name,
                                 node_title: node.title,
                                 player_realm: player.realm,

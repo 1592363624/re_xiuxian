@@ -39,8 +39,13 @@ import { useItemQualities } from '../../composables/useItemQualities'
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 
+// 模块级缓存：面板每次打开都会整块重挂（GameLayout :key），没有缓存就得干等接口。
+// 这里记住上次配方快照，重开时先铺上再后台刷新（stale-while-revalidate），转圈只留给首次。
+let recipesSnapshot: LearnedRecipesData | null = null
+
 // ====== 响应式状态 ======
-const loading = ref(true)                          // 整体加载状态
+const loading = ref(true)                          // 仅首次无缓存时整屏转圈
+const refreshing = ref(false)                      // 有缓存时的后台静默刷新
 const crafting = ref(false)                        // 炼制操作中状态锁，防止重复提交
 const activeTab = ref<'alchemy' | 'refining'>('alchemy')  // 当前激活的 Tab
 const alchemyRecipes = ref<LearnedRecipe[]>([])    // 炼丹配方列表
@@ -110,26 +115,42 @@ const isMaxLevel = computed(() => {
 // ====== 数据加载 ======
 
 /**
+ * 把配方快照铺进响应式状态
+ */
+const applyRecipes = (data: LearnedRecipesData) => {
+  alchemyRecipes.value = data.alchemy || []
+  refiningRecipes.value = data.refining || []
+  skillInfo.value = data.skill_info || null
+  // 记录拉取时间，用于本地冷却递减
+  lastFetchTime.value = Date.now()
+  // 初始化未设置的炼制次数为 1
+  initCraftQuantities(data.alchemy)
+  initCraftQuantities(data.refining)
+}
+
+/**
  * 拉取已学配方列表（含材料持有量、冷却状态、实际成功率）
  * 组件挂载时与每次炼制后调用，保证数据与后端一致
+ * @param opts.silent - 已有缓存时后台刷新，不闪整屏转圈
  */
-const fetchRecipes = async () => {
-  loading.value = true
+const fetchRecipes = async (opts: { silent?: boolean } = {}) => {
+  const silent = opts.silent === true && !!recipesSnapshot
+  if (silent) {
+    refreshing.value = true
+  } else {
+    loading.value = true
+  }
   try {
     const data: LearnedRecipesData = await getLearnedRecipes()
-    alchemyRecipes.value = data.alchemy || []
-    refiningRecipes.value = data.refining || []
-    skillInfo.value = data.skill_info || null
-    // 记录拉取时间，用于本地冷却递减
-    lastFetchTime.value = Date.now()
-    // 初始化未设置的炼制次数为 1
-    initCraftQuantities(data.alchemy)
-    initCraftQuantities(data.refining)
+    recipesSnapshot = data
+    applyRecipes(data)
   } catch (error: any) {
     console.error('获取炼制配方失败:', error)
-    uiStore.showToast('获取炼制配方失败', 'error')
+    // 静默刷新失败时保留旧快照，只在没有可展示数据时才报错
+    if (!silent) uiStore.showToast('获取炼制配方失败', 'error')
   } finally {
     loading.value = false
+    refreshing.value = false
   }
 }
 
@@ -362,7 +383,14 @@ const getDisableReason = (recipe: LearnedRecipe): string => {
 
 // ====== 生命周期 ======
 onMounted(() => {
-  fetchRecipes()
+  if (recipesSnapshot) {
+    // 有缓存：立刻铺开，后台静默对齐冷却/材料
+    applyRecipes(recipesSnapshot)
+    loading.value = false
+    fetchRecipes({ silent: true })
+  } else {
+    fetchRecipes()
+  }
   // 每秒更新当前时间，驱动冷却倒计时刷新
   timer = window.setInterval(() => {
     currentTime.value = Date.now()
@@ -419,8 +447,14 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Tab 切换栏：配方数走 Tabs 的 badge -->
-      <Tabs v-model="activeTab" :items="tabItems" class="shrink-0" />
+      <!-- Tab 切换栏：配方数走 Tabs 的 badge；后台刷新时角落轻提示，不再闪整屏 -->
+      <div class="shrink-0 relative">
+        <Tabs v-model="activeTab" :items="tabItems" />
+        <span
+          v-if="refreshing"
+          class="absolute top-2 right-3 text-[11px] text-fg-faint animate-pulse"
+        >同步中…</span>
+      </div>
 
       <!-- 内容区域 -->
       <div class="flex-1 min-h-0 overflow-y-auto p-4">

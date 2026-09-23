@@ -172,9 +172,11 @@ export const usePlayerStore = defineStore('player', {
         const myId = this.player?.id
         if (myId != null && data.actorId != null && Number(data.actorId) === Number(myId)) return
         const uiStore = useUIStore()
-        const name = data.actorName || '某位道友'
+        // actorName 单独存，由 GameLog 渲染「道友」前缀 + 暗淡色；
+        // 不要把名字拼进 content，否则样式和文案缠在一起拆不开
         uiStore.addLog({
-          content: `【${name}】${data.content}`,
+          content: data.content,
+          actorName: data.actorName || '某位道友',
           type: data.logType || 'info',
           actorId: data.actorId ?? 'other',
           source: 'world',

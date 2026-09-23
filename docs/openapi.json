@@ -300,21 +300,51 @@
         "type": "object",
         "description": "玩家档案编辑器里的一个可编辑字段声明（来自 server/config/admin_player_editor.json）",
         "properties": {
-          "key": { "type": "string", "description": "字段名（标量列写列名，整块列写 blob 内键名）" },
-          "label": { "type": "string", "description": "显示名" },
-          "type": { "type": "string", "enum": ["string", "number", "boolean", "enum"], "description": "控件类型" },
-          "min": { "type": "number", "description": "number 类型的最小值" },
-          "max": { "type": "number", "description": "number 类型的最大值" },
-          "max_length": { "type": "integer", "description": "string 类型的最大长度" },
+          "key": {
+            "type": "string",
+            "description": "字段名（标量列写列名，整块列写 blob 内键名）"
+          },
+          "label": {
+            "type": "string",
+            "description": "显示名"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "enum"
+            ],
+            "description": "控件类型"
+          },
+          "min": {
+            "type": "number",
+            "description": "number 类型的最小值"
+          },
+          "max": {
+            "type": "number",
+            "description": "number 类型的最大值"
+          },
+          "max_length": {
+            "type": "integer",
+            "description": "string 类型的最大长度"
+          },
           "options": {
             "type": "array",
             "description": "enum 的可选项；string 类型若带 options 则渲染为可检索下拉（如境界、灵根）",
             "items": {
               "type": "object",
               "properties": {
-                "value": { "type": "string" },
-                "label": { "type": "string" },
-                "meta": { "type": "string" }
+                "value": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "meta": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -324,16 +354,44 @@
         "type": "object",
         "description": "玩家背包物品（player_items 记录 + 静态配置名称）",
         "properties": {
-          "id": { "type": "integer", "description": "记录ID" },
-          "player_id": { "type": "integer" },
-          "item_key": { "type": "string", "description": "物品配置键名" },
-          "quantity": { "type": "integer" },
-          "metadata": { "type": "object", "nullable": true, "description": "物品动态元数据（如炼制品质倍率）" },
-          "item_name": { "type": "string", "description": "静态配置中的物品名（后台补全）" },
-          "item_type": { "type": "string", "description": "物品类型（consumable/equipment/material…）" },
-          "item_quality": { "type": "string" },
-          "config_missing": { "type": "boolean", "description": "true 表示该物品已不在 item_data 配置中" },
-          "created_at": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "integer",
+            "description": "记录ID"
+          },
+          "player_id": {
+            "type": "integer"
+          },
+          "item_key": {
+            "type": "string",
+            "description": "物品配置键名"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "description": "物品动态元数据（如炼制品质倍率）"
+          },
+          "item_name": {
+            "type": "string",
+            "description": "静态配置中的物品名（后台补全）"
+          },
+          "item_type": {
+            "type": "string",
+            "description": "物品类型（consumable/equipment/material…）"
+          },
+          "item_quality": {
+            "type": "string"
+          },
+          "config_missing": {
+            "type": "boolean",
+            "description": "true 表示该物品已不在 item_data 配置中"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "OwnedTechnique": {
@@ -11276,11 +11334,17 @@
                           "items": {
                             "type": "object",
                             "properties": {
-                              "id": { "type": "string" },
-                              "name": { "type": "string" },
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
                               "fields": {
                                 "type": "array",
-                                "items": { "$ref": "#/components/schemas/PlayerEditorField" }
+                                "items": {
+                                  "$ref": "#/components/schemas/PlayerEditorField"
+                                }
                               }
                             }
                           }
@@ -11290,23 +11354,42 @@
                           "items": {
                             "type": "object",
                             "properties": {
-                              "id": { "type": "string" },
-                              "name": { "type": "string" },
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
                               "column": {
                                 "type": "string",
-                                "enum": ["attributes", "stats", "spirit_roots", "time_system_data"]
+                                "enum": [
+                                  "attributes",
+                                  "stats",
+                                  "spirit_roots",
+                                  "time_system_data"
+                                ]
                               },
                               "fields": {
                                 "type": "array",
-                                "items": { "$ref": "#/components/schemas/PlayerEditorField" }
+                                "items": {
+                                  "$ref": "#/components/schemas/PlayerEditorField"
+                                }
                               }
                             }
                           }
                         },
-                        "inventory": { "type": "object" },
-                        "equipment": { "type": "object" },
-                        "techniques": { "type": "object" },
-                        "dictionaries": { "type": "object" }
+                        "inventory": {
+                          "type": "object"
+                        },
+                        "equipment": {
+                          "type": "object"
+                        },
+                        "techniques": {
+                          "type": "object"
+                        },
+                        "dictionaries": {
+                          "type": "object"
+                        }
                       }
                     }
                   }
@@ -11334,9 +11417,30 @@
           }
         ],
         "parameters": [
-          { "name": "keyword", "in": "query", "schema": { "type": "string" }, "description": "匹配物品 ID / 名称 / 类型" },
-          { "name": "type", "in": "query", "schema": { "type": "string" }, "description": "物品类型，如 consumable / equipment / material" },
-          { "name": "limit", "in": "query", "schema": { "type": "integer" }, "description": "返回条数，上限由配置决定" }
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "匹配物品 ID / 名称 / 类型"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "物品类型，如 consumable / equipment / material"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "返回条数，上限由配置决定"
+          }
         ],
         "responses": {
           "200": {
@@ -11346,7 +11450,10 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": { "type": "integer", "example": 200 },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
@@ -11355,14 +11462,24 @@
                           "items": {
                             "type": "object",
                             "properties": {
-                              "value": { "type": "string" },
-                              "label": { "type": "string" },
-                              "meta": { "type": "string" },
-                              "group": { "type": "string" }
+                              "value": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "meta": {
+                                "type": "string"
+                              },
+                              "group": {
+                                "type": "string"
+                              }
                             }
                           }
                         },
-                        "total": { "type": "integer" }
+                        "total": {
+                          "type": "integer"
+                        }
                       }
                     }
                   }
@@ -11387,8 +11504,20 @@
           }
         ],
         "parameters": [
-          { "name": "keyword", "in": "query", "schema": { "type": "string" } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -11398,7 +11527,10 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": { "type": "integer", "example": 200 },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
@@ -11407,14 +11539,24 @@
                           "items": {
                             "type": "object",
                             "properties": {
-                              "value": { "type": "string" },
-                              "label": { "type": "string" },
-                              "meta": { "type": "string" },
-                              "group": { "type": "string" }
+                              "value": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "meta": {
+                                "type": "string"
+                              },
+                              "group": {
+                                "type": "string"
+                              }
                             }
                           }
                         },
-                        "total": { "type": "integer" }
+                        "total": {
+                          "type": "integer"
+                        }
                       }
                     }
                   }
@@ -11439,7 +11581,15 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "玩家ID" }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
         ],
         "responses": {
           "200": {
@@ -11449,23 +11599,51 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": { "type": "integer", "example": 200 },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "player": { "type": "object" },
+                        "player": {
+                          "type": "object"
+                        },
                         "inventory": {
                           "type": "object",
                           "properties": {
-                            "items": { "type": "array", "items": { "$ref": "#/components/schemas/PlayerInventoryItem" } },
-                            "total_kinds": { "type": "integer" },
-                            "total_quantity": { "type": "integer" },
-                            "capacity": { "type": "integer" },
-                            "max_quantity": { "type": "integer" }
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PlayerInventoryItem"
+                              }
+                            },
+                            "total_kinds": {
+                              "type": "integer"
+                            },
+                            "total_quantity": {
+                              "type": "integer"
+                            },
+                            "capacity": {
+                              "type": "integer"
+                            },
+                            "max_quantity": {
+                              "type": "integer"
+                            }
                           }
                         },
-                        "equipment": { "type": "array", "items": { "type": "object" } },
-                        "techniques": { "type": "array", "items": { "type": "object" } }
+                        "equipment": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "techniques": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
                       }
                     }
                   }
@@ -11473,7 +11651,9 @@
               }
             }
           },
-          "404": { "description": "玩家不存在" }
+          "404": {
+            "description": "玩家不存在"
+          }
         }
       },
       "patch": {
@@ -11489,7 +11669,15 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "玩家ID" }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "玩家ID"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -11501,12 +11689,24 @@
                   "columns": {
                     "type": "object",
                     "description": "players 标量列绝对值",
-                    "example": { "exp": 100000, "spirit_stones": 50000, "realm": "筑基期" }
+                    "example": {
+                      "exp": 100000,
+                      "spirit_stones": 50000,
+                      "realm": "筑基期"
+                    }
                   },
                   "blobs": {
                     "type": "object",
                     "description": "整块 JSON 列的键级补丁",
-                    "example": { "attributes": { "atk": 500, "def": 300 }, "stats": { "kill_count": 10 } }
+                    "example": {
+                      "attributes": {
+                        "atk": 500,
+                        "def": 300
+                      },
+                      "stats": {
+                        "kill_count": 10
+                      }
+                    }
                   }
                 }
               }
@@ -11521,13 +11721,26 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": { "type": "integer", "example": 200 },
-                    "message": { "type": "string", "example": "已更新 3 个字段" },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "已更新 3 个字段"
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "changed": { "type": "array", "items": { "type": "string" } },
-                        "player": { "type": "object" }
+                        "changed": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "player": {
+                          "type": "object"
+                        }
                       }
                     }
                   }
@@ -11535,8 +11748,12 @@
               }
             }
           },
-          "400": { "description": "字段不允许编辑或取值越界" },
-          "404": { "description": "玩家不存在" }
+          "400": {
+            "description": "字段不允许编辑或取值越界"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
         }
       }
     },
@@ -11554,11 +11771,45 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
-          { "name": "keyword", "in": "query", "schema": { "type": "string" }, "description": "匹配物品 ID 或物品名" },
-          { "name": "type", "in": "query", "schema": { "type": "string" }, "description": "按物品类型筛选（consumable / equipment / material / title / currency / recipe_scroll / blueprint / tool）" },
-          { "name": "quality", "in": "query", "schema": { "type": "string" }, "description": "按品质筛选（common / uncommon / rare / epic / legendary / mythic）" },
-          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "匹配物品 ID 或物品名"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "按物品类型筛选（consumable / equipment / material / title / currency / recipe_scroll / blueprint / tool）"
+          },
+          {
+            "name": "quality",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "按品质筛选（common / uncommon / rare / epic / legendary / mythic）"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -11568,15 +11819,31 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": { "type": "integer", "example": 200 },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "items": { "type": "array", "items": { "$ref": "#/components/schemas/PlayerInventoryItem" } },
-                        "total_kinds": { "type": "integer" },
-                        "total_quantity": { "type": "integer" },
-                        "capacity": { "type": "integer" },
-                        "max_quantity": { "type": "integer" }
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PlayerInventoryItem"
+                          }
+                        },
+                        "total_kinds": {
+                          "type": "integer"
+                        },
+                        "total_quantity": {
+                          "type": "integer"
+                        },
+                        "capacity": {
+                          "type": "integer"
+                        },
+                        "max_quantity": {
+                          "type": "integer"
+                        }
                       }
                     }
                   }
@@ -11599,7 +11866,14 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -11607,22 +11881,52 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["item_key"],
+                "required": [
+                  "item_key"
+                ],
                 "properties": {
-                  "item_key": { "type": "string", "example": "ju_yuan_dan" },
-                  "quantity": { "type": "integer", "example": 10 },
-                  "mode": { "type": "string", "enum": ["add", "set"], "default": "add" },
-                  "ignore_capacity": { "type": "boolean", "default": true },
-                  "metadata": { "type": "object", "nullable": true, "example": { "effect_multiplier": 1.5 } }
+                  "item_key": {
+                    "type": "string",
+                    "example": "ju_yuan_dan"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "example": 10
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "set"
+                    ],
+                    "default": "add"
+                  },
+                  "ignore_capacity": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "nullable": true,
+                    "example": {
+                      "effect_multiplier": 1.5
+                    }
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "背包物品已更新" },
-          "400": { "description": "参数不合法或物品不在配置中" },
-          "404": { "description": "玩家不存在" }
+          "200": {
+            "description": "背包物品已更新"
+          },
+          "400": {
+            "description": "参数不合法或物品不在配置中"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
         }
       }
     },
@@ -11640,7 +11944,14 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -11648,24 +11959,54 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["items"],
+                "required": [
+                  "items"
+                ],
                 "properties": {
                   "items": {
                     "type": "array",
                     "maxItems": 50,
                     "items": {
                       "type": "object",
-                      "required": ["item_key"],
+                      "required": [
+                        "item_key"
+                      ],
                       "properties": {
-                        "item_key": { "type": "string", "example": "ju_yuan_dan" },
-                        "quantity": { "type": "integer", "example": 10 },
-                        "mode": { "type": "string", "enum": ["add", "set"] },
-                        "metadata": { "type": "object", "nullable": true }
+                        "item_key": {
+                          "type": "string",
+                          "example": "ju_yuan_dan"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "add",
+                            "set"
+                          ]
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "nullable": true
+                        }
                       }
                     }
                   },
-                  "mode": { "type": "string", "enum": ["add", "set"], "default": "add", "description": "未逐条指定 mode 时的默认方式" },
-                  "ignore_capacity": { "type": "boolean", "default": true }
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "set"
+                    ],
+                    "default": "add",
+                    "description": "未逐条指定 mode 时的默认方式"
+                  },
+                  "ignore_capacity": {
+                    "type": "boolean",
+                    "default": true
+                  }
                 }
               }
             }
@@ -11679,24 +12020,47 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": { "type": "integer", "example": 200 },
-                    "message": { "type": "string", "example": "批量发放完成：成功 19 条，失败 1 条" },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "批量发放完成：成功 19 条，失败 1 条"
+                    },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "succeeded": { "type": "integer" },
-                        "failed": { "type": "integer" },
+                        "succeeded": {
+                          "type": "integer"
+                        },
+                        "failed": {
+                          "type": "integer"
+                        },
                         "results": {
                           "type": "array",
                           "items": {
                             "type": "object",
                             "properties": {
-                              "ok": { "type": "boolean" },
-                              "item_key": { "type": "string" },
-                              "item_name": { "type": "string" },
-                              "mode": { "type": "string" },
-                              "quantity": { "type": "integer" },
-                              "message": { "type": "string", "description": "失败原因，仅 ok=false 时存在" }
+                              "ok": {
+                                "type": "boolean"
+                              },
+                              "item_key": {
+                                "type": "string"
+                              },
+                              "item_name": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string"
+                              },
+                              "quantity": {
+                                "type": "integer"
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "失败原因，仅 ok=false 时存在"
+                              }
                             }
                           }
                         }
@@ -11707,8 +12071,12 @@
               }
             }
           },
-          "400": { "description": "清单为空或超过单次条数上限" },
-          "404": { "description": "玩家不存在" }
+          "400": {
+            "description": "清单为空或超过单次条数上限"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
         }
       }
     },
@@ -11726,8 +12094,23 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
-          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "player_items 记录ID" }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "player_items 记录ID"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -11736,17 +12119,29 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "quantity": { "type": "integer", "example": 99 },
-                  "metadata": { "type": "object", "nullable": true }
+                  "quantity": {
+                    "type": "integer",
+                    "example": 99
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "nullable": true
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "背包物品已更新" },
-          "400": { "description": "参数不合法" },
-          "404": { "description": "背包中没有这条物品记录" }
+          "200": {
+            "description": "背包物品已更新"
+          },
+          "400": {
+            "description": "参数不合法"
+          },
+          "404": {
+            "description": "背包中没有这条物品记录"
+          }
         }
       },
       "delete": {
@@ -11761,12 +12156,30 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
-          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "物品已删除" },
-          "404": { "description": "背包中没有这条物品记录" }
+          "200": {
+            "description": "物品已删除"
+          },
+          "404": {
+            "description": "背包中没有这条物品记录"
+          }
         }
       }
     },
@@ -11783,11 +12196,22 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "已清空背包，返回 removed_kinds" },
-          "404": { "description": "玩家不存在" }
+          "200": {
+            "description": "已清空背包，返回 removed_kinds"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
         }
       }
     },
@@ -11805,7 +12229,14 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -11813,22 +12244,49 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["slot", "item_key"],
+                "required": [
+                  "slot",
+                  "item_key"
+                ],
                 "properties": {
-                  "slot": { "type": "string", "enum": ["weapon", "armor", "accessory", "boots", "dharma"] },
-                  "item_key": { "type": "string", "example": "skyfire_sword" },
-                  "refine_level": { "type": "integer" },
-                  "durability": { "type": "integer" },
-                  "max_durability": { "type": "integer" }
+                  "slot": {
+                    "type": "string",
+                    "enum": [
+                      "weapon",
+                      "armor",
+                      "accessory",
+                      "boots",
+                      "dharma"
+                    ]
+                  },
+                  "item_key": {
+                    "type": "string",
+                    "example": "skyfire_sword"
+                  },
+                  "refine_level": {
+                    "type": "integer"
+                  },
+                  "durability": {
+                    "type": "integer"
+                  },
+                  "max_durability": {
+                    "type": "integer"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "装备已穿戴" },
-          "400": { "description": "槽位或物品不合法" },
-          "404": { "description": "玩家不存在" }
+          "200": {
+            "description": "装备已穿戴"
+          },
+          "400": {
+            "description": "槽位或物品不合法"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
         }
       }
     },
@@ -11846,8 +12304,22 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
-          { "name": "equipmentId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "equipmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -11856,25 +12328,52 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "item_key": { "type": "string" },
-                  "slot": { "type": "string" },
-                  "durability": { "type": "integer" },
-                  "max_durability": { "type": "integer" },
-                  "refine_level": { "type": "integer" },
-                  "spirit_power": { "type": "integer" },
-                  "attr_multiplier": { "type": "number" },
-                  "is_benming": { "type": "boolean" },
-                  "is_summoned": { "type": "boolean" },
-                  "deep_line_state": { "type": "object", "nullable": true }
+                  "item_key": {
+                    "type": "string"
+                  },
+                  "slot": {
+                    "type": "string"
+                  },
+                  "durability": {
+                    "type": "integer"
+                  },
+                  "max_durability": {
+                    "type": "integer"
+                  },
+                  "refine_level": {
+                    "type": "integer"
+                  },
+                  "spirit_power": {
+                    "type": "integer"
+                  },
+                  "attr_multiplier": {
+                    "type": "number"
+                  },
+                  "is_benming": {
+                    "type": "boolean"
+                  },
+                  "is_summoned": {
+                    "type": "boolean"
+                  },
+                  "deep_line_state": {
+                    "type": "object",
+                    "nullable": true
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "装备已更新" },
-          "400": { "description": "字段不允许编辑或取值越界" },
-          "404": { "description": "装备记录不存在" }
+          "200": {
+            "description": "装备已更新"
+          },
+          "400": {
+            "description": "字段不允许编辑或取值越界"
+          },
+          "404": {
+            "description": "装备记录不存在"
+          }
         }
       },
       "delete": {
@@ -11889,12 +12388,30 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
-          { "name": "equipmentId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "equipmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "装备已卸下" },
-          "404": { "description": "装备记录不存在" }
+          "200": {
+            "description": "装备已卸下"
+          },
+          "404": {
+            "description": "装备记录不存在"
+          }
         }
       }
     },
@@ -11912,7 +12429,14 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -11920,21 +12444,45 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["technique_id"],
+                "required": [
+                  "technique_id"
+                ],
                 "properties": {
-                  "technique_id": { "type": "string", "example": "qing_yun_jue" },
-                  "layer": { "type": "integer", "example": 3 },
-                  "proficiency": { "type": "integer", "example": 100 },
-                  "equip_slot": { "type": "string", "enum": ["main", "auxiliary"], "nullable": true }
+                  "technique_id": {
+                    "type": "string",
+                    "example": "qing_yun_jue"
+                  },
+                  "layer": {
+                    "type": "integer",
+                    "example": 3
+                  },
+                  "proficiency": {
+                    "type": "integer",
+                    "example": 100
+                  },
+                  "equip_slot": {
+                    "type": "string",
+                    "enum": [
+                      "main",
+                      "auxiliary"
+                    ],
+                    "nullable": true
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "功法已授予" },
-          "400": { "description": "功法不合法" },
-          "404": { "description": "玩家不存在" }
+          "200": {
+            "description": "功法已授予"
+          },
+          "400": {
+            "description": "功法不合法"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
         }
       }
     },
@@ -11952,8 +12500,23 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
-          { "name": "techniqueId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "player_techniques 记录ID" }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "techniqueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "player_techniques 记录ID"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -11962,22 +12525,50 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "layer": { "type": "integer" },
-                  "proficiency": { "type": "integer" },
-                  "equip_slot": { "type": "string", "enum": ["main", "auxiliary"], "nullable": true },
-                  "fail_streak": { "type": "integer" },
-                  "practice_count": { "type": "integer" },
-                  "daily_practice_count": { "type": "integer" },
-                  "comprehended_skills": { "type": "array", "items": { "type": "string" } }
+                  "layer": {
+                    "type": "integer"
+                  },
+                  "proficiency": {
+                    "type": "integer"
+                  },
+                  "equip_slot": {
+                    "type": "string",
+                    "enum": [
+                      "main",
+                      "auxiliary"
+                    ],
+                    "nullable": true
+                  },
+                  "fail_streak": {
+                    "type": "integer"
+                  },
+                  "practice_count": {
+                    "type": "integer"
+                  },
+                  "daily_practice_count": {
+                    "type": "integer"
+                  },
+                  "comprehended_skills": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "功法已更新" },
-          "400": { "description": "字段不允许编辑或取值越界" },
-          "404": { "description": "功法记录不存在" }
+          "200": {
+            "description": "功法已更新"
+          },
+          "400": {
+            "description": "字段不允许编辑或取值越界"
+          },
+          "404": {
+            "description": "功法记录不存在"
+          }
         }
       },
       "delete": {
@@ -11992,12 +12583,30 @@
           }
         ],
         "parameters": [
-          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
-          { "name": "techniqueId", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "techniqueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "功法已删除" },
-          "404": { "description": "功法记录不存在" }
+          "200": {
+            "description": "功法已删除"
+          },
+          "404": {
+            "description": "功法记录不存在"
+          }
         }
       }
     },
@@ -42980,6 +43589,7 @@
           "宗门战"
         ],
         "summary": "获取赛季宗门排行",
+        "description": "按赛季总积分降序返回宗门排行；season_id 缺省时取当前赛季，当前无赛季（无 active/pending）时 data 返回空数组",
         "security": [
           {
             "bearerAuth": []
@@ -43017,8 +43627,69 @@
                       "example": 200
                     },
                     "data": {
-                      "type": "object",
-                      "description": "赛季宗门排行"
+                      "type": "array",
+                      "description": "赛季宗门排行列表（无当前赛季时为空数组，不会返回对象包装）",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rank": {
+                            "type": "integer",
+                            "description": "名次（按返回顺序从 1 开始，前端展示用）",
+                            "example": 1
+                          },
+                          "sect_id": {
+                            "type": "string",
+                            "description": "宗门ID",
+                            "example": "sect_001"
+                          },
+                          "sect_name": {
+                            "type": "string",
+                            "description": "宗门名称",
+                            "example": "青云宗"
+                          },
+                          "total_score": {
+                            "type": "integer",
+                            "description": "赛季总积分",
+                            "example": 1200
+                          },
+                          "war_wins": {
+                            "type": "integer",
+                            "description": "赛季胜场",
+                            "example": 5
+                          },
+                          "war_losses": {
+                            "type": "integer",
+                            "description": "赛季败场",
+                            "example": 1
+                          },
+                          "war_draws": {
+                            "type": "integer",
+                            "description": "赛季平局场次",
+                            "example": 0
+                          },
+                          "territories_held": {
+                            "type": "integer",
+                            "description": "当前占领资源点数",
+                            "example": 3
+                          },
+                          "total_kills": {
+                            "type": "integer",
+                            "description": "赛季总击杀数",
+                            "example": 88
+                          },
+                          "total_participants": {
+                            "type": "integer",
+                            "description": "赛季累计参战人次",
+                            "example": 42
+                          },
+                          "final_rank": {
+                            "type": "integer",
+                            "nullable": true,
+                            "description": "赛季结算时的最终名次（未结算为 null）",
+                            "example": null
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -81838,6 +82509,386 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/admin/ai-config/test": {
+      "post": {
+        "summary": "测试未保存的 AI 配置（保存前验证）",
+        "description": "用表单当前值直接测试连接，不需要先保存。api_key 留空且传 config_id 时复用该条已保存配置的 Key。永不返回 5xx：连接失败以 200 + status=failed + 详细原因返回。需要管理员权限。",
+        "tags": [
+          "AI",
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "base_url",
+                  "model"
+                ],
+                "properties": {
+                  "base_url": {
+                    "type": "string",
+                    "example": "https://api.deepseek.com/v1"
+                  },
+                  "model": {
+                    "type": "string",
+                    "example": "deepseek-chat"
+                  },
+                  "api_key": {
+                    "type": "string",
+                    "description": "留空且传 config_id 时复用已保存 Key"
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "description": "超时毫秒，可省略"
+                  },
+                  "config_id": {
+                    "type": "integer",
+                    "description": "编辑已有配置时传入其 id"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "测试结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "success",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "单行结果摘要（失败时含 HTTP 状态码与第三方错误正文片段）"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "description": "详细排查线索：常见原因、响应片段等"
+                        },
+                        "http_status": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "tested_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "缺少参数 / Key 解密失败等业务错误"
+          },
+          "404": {
+            "description": "config_id 对应配置不存在"
+          }
+        }
+      }
+    },
+    "/api/user/ai-config": {
+      "get": {
+        "summary": "获取我的个人 AI 配置",
+        "description": "返回当前玩家的个人 AI 配置（API Key 脱敏）与功能开关状态；未配置时 config 为 null。需要登录。",
+        "tags": [
+          "AI",
+          "Player"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "feature_enabled": {
+                          "type": "boolean",
+                          "description": "服务器是否开放自定义 AI 功能"
+                        },
+                        "config": {
+                          "type": "object",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "保存/更新我的个人 AI 配置",
+        "description": "一人一条配置。首次保存必须提供 api_key；更新时 api_key 留空表示保留旧 Key。保存后 AI 调用（若 enabled）优先走玩家自己的接口与额度。需要登录。",
+        "tags": [
+          "AI",
+          "Player"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "base_url",
+                  "model"
+                ],
+                "properties": {
+                  "base_url": {
+                    "type": "string",
+                    "example": "https://api.deepseek.com/v1"
+                  },
+                  "model": {
+                    "type": "string",
+                    "example": "deepseek-chat"
+                  },
+                  "api_key": {
+                    "type": "string",
+                    "description": "更新时留空表示保留旧 Key"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "玩家个人 AI 配置（Key 脱敏）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "base_url": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "api_key_masked": {
+                          "type": "string",
+                          "example": "****l8aa"
+                        },
+                        "has_api_key": {
+                          "type": "boolean"
+                        },
+                        "temperature": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "max_tokens": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "timeout": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数校验失败（缺 Base URL/模型、首次未填 Key、区间越界等）"
+          },
+          "403": {
+            "description": "服务器已关闭自定义 AI 功能（FEATURE_DISABLED）"
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除我的个人 AI 配置",
+        "description": "清除后 AI 调用立即回落到服务器公共配置，API Key 同步删除。需要登录。",
+        "tags": [
+          "AI",
+          "Player"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除结果"
+          }
+        }
+      }
+    },
+    "/api/user/ai-config/test": {
+      "post": {
+        "summary": "测试我的 AI 配置连接（保存前可测）",
+        "description": "表单里没填的字段自动用已保存的值补齐（如未重输 Key 时复用旧 Key）。永不返回 5xx：连接失败以 200 + status=failed + 详细原因（HTTP 状态码、第三方错误正文片段、排查建议）返回。需要登录。",
+        "tags": [
+          "AI",
+          "Player"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "base_url": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "api_key": {
+                    "type": "string"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "测试结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "success",
+                            "failed"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "单行结果摘要（失败时含 HTTP 状态码与第三方错误正文片段）"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "description": "详细排查线索：常见原因、响应片段等"
+                        },
+                        "http_status": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "tested_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "服务器已关闭自定义 AI 功能"
           }
         }
       }

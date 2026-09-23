@@ -77,29 +77,146 @@
         {
           "id": "luoyun_q1",
           "name": "灵树灌溉",
-          "description": "为灵眼之树灌注灵力",
-          "contribution": 20,
-          "exp_reward": 100,
+          "description": "为灵眼之树灌注灵力滋养根脉（耗灵力，换贡献，不产出修为）",
+          "type": "labor_mp",
+          "contribution": 28,
           "daily": true,
-          "min_contribution": 0
+          "min_contribution": 0,
+          "duration_minutes": 6,
+          "cost": { "mp": 40 }
         },
         {
           "id": "luoyun_q2",
           "name": "守山巡逻",
-          "description": "巡视宗门山门",
-          "contribution": 30,
-          "exp_reward": 150,
+          "description": "巡视宗门山门要道，途中或遇妖兽，或得机缘",
+          "type": "patrol",
+          "contribution": 38,
           "daily": true,
-          "min_contribution": 30
+          "min_contribution": 30,
+          "duration_minutes": 12,
+          "cost": { "mp": 15 },
+          "events": {
+            "trigger_chance": 0.88,
+            "pool": [
+              { "id": "beast_ambush", "name": "妖兽夜袭", "description": "击退偷入山门的妖兽，负伤亦有苦劳", "weight": 18, "kind": "combat", "hp_loss": 15, "contribution_bonus": 20 },
+              { "id": "find_herb", "name": "崖边灵草", "description": "巡至崖边顺手采得几株灵草", "weight": 14, "kind": "find", "items": [{ "item_key": "spirit_herb", "quantity": 2 }] },
+              { "id": "stray_cultivator", "name": "落单散修", "description": "盘问并劝离一名窥探山门的散修", "weight": 12, "kind": "calm", "contribution_bonus": 8 },
+              { "id": "spirit_spring", "name": "山泉灵机", "description": "泉眼涌出一缕灵机，略有所悟", "weight": 10, "kind": "fortune", "exp": 40, "spirit_stones": 20 },
+              { "id": "sprain", "name": "山路崴脚", "description": "夜巡崴了脚，无功而返", "weight": 8, "kind": "injury", "hp_loss": 8, "contribution_penalty_ratio": 0.3 },
+              { "id": "thief", "name": "偷药小贼", "description": "拿住一名偷挖药苗的小贼，追回损失", "weight": 12, "kind": "combat", "hp_loss": 5, "contribution_bonus": 12 },
+              { "id": "lost_disciple", "name": "迷路外门", "description": "领回一名在山中迷路的外门弟子", "weight": 10, "kind": "calm", "contribution_bonus": 6 },
+              { "id": "rain_fog", "name": "山雨大雾", "description": "突降山雨，护住了一处灵田", "weight": 8, "kind": "calm", "contribution_bonus": 10 },
+              { "id": "old_camp", "name": "前人营地", "description": "林间旧营址里翻出一点前人遗物", "weight": 5, "kind": "find", "spirit_stones": 35 },
+              { "id": "night_blooms", "name": "夜绽奇花", "description": "撞见灵花夜绽，心神为之一清", "weight": 3, "kind": "fortune", "exp": 55, "contribution_bonus": 5 }
+            ]
+          }
         },
         {
           "id": "luoyun_q3",
           "name": "采摘灵果",
-          "description": "采摘成熟灵果上交宗门",
-          "contribution": 50,
-          "exp_reward": 200,
+          "description": "将自采灵药上交宗门药库（需先备好灵草）",
+          "type": "submit_items",
+          "contribution": 55,
           "daily": true,
-          "min_contribution": 80
+          "min_contribution": 80,
+          "duration_minutes": 10,
+          "cost": {
+            "items": [{ "item_key": "spirit_herb", "quantity": 3 }]
+          }
+        },
+        {
+          "id": "luoyun_q4",
+          "name": "药园除草",
+          "description": "拔除药园杂草，琐碎却省不得人手（耗少量灵力）",
+          "type": "labor_mp",
+          "contribution": 20,
+          "daily": true,
+          "min_contribution": 0,
+          "duration_minutes": 5,
+          "cost": { "mp": 22 }
+        },
+        {
+          "id": "luoyun_q5",
+          "name": "培育新苗",
+          "description": "为药园补种新苗（需上交灵草）",
+          "type": "submit_items",
+          "contribution": 48,
+          "daily": true,
+          "min_contribution": 40,
+          "duration_minutes": 12,
+          "cost": {
+            "items": [{ "item_key": "spirit_herb", "quantity": 5 }]
+          }
+        },
+        {
+          "id": "luoyun_q6",
+          "name": "夜巡药谷",
+          "description": "深入药谷夜巡，妖兽与机缘都更凶些",
+          "type": "patrol",
+          "contribution": 50,
+          "daily": true,
+          "min_contribution": 60,
+          "duration_minutes": 15,
+          "cost": { "mp": 25 },
+          "events": {
+            "trigger_chance": 0.92,
+            "pool": [
+              { "id": "valley_beast", "name": "谷中妖兽", "description": "与盘踞药谷的妖兽恶战一场", "weight": 22, "kind": "combat", "hp_loss": 22, "contribution_bonus": 26 },
+              { "id": "herb_vein", "name": "药脉露头", "description": "寻得一小截药脉，采得灵草", "weight": 16, "kind": "find", "items": [{ "item_key": "spirit_herb", "quantity": 4 }] },
+              { "id": "poison_fog", "name": "瘴气侵体", "description": "谷中瘴气入体，勉强撑完巡逻", "weight": 12, "kind": "injury", "hp_loss": 14, "contribution_penalty_ratio": 0.25 },
+              { "id": "seed_cache", "name": "苗圃暗格", "description": "发现前人藏下的种子暗格", "weight": 10, "kind": "find", "items": [{ "item_key": "spirit_seed", "quantity": 1 }] },
+              { "id": "star_fruit", "name": "月华灵果", "description": "月华下灵果成熟，尝了一口", "weight": 8, "kind": "fortune", "exp": 45, "contribution_bonus": 8 },
+              { "id": "bandit_scout", "name": "盗药斥候", "description": "截住盗药斥候，讯问出同伙去向", "weight": 14, "kind": "combat", "hp_loss": 10, "contribution_bonus": 18 },
+              { "id": "clear_sky", "name": "一夜无事", "description": "平安一夜，记档交差", "weight": 12, "kind": "calm" },
+              { "id": "dryad", "name": "木灵指路", "description": "木灵指点捷径，提前完巡", "weight": 4, "kind": "fortune", "contribution_bonus": 12, "exp": 30 },
+              { "id": "mudslide", "name": "山泥小塌", "description": "夜雨引发小塌方，狼狈而归", "weight": 6, "kind": "injury", "hp_loss": 12, "contribution_penalty_ratio": 0.4 },
+              { "id": "fireflies", "name": "灵萤引路", "description": "灵萤引路，巡遍了平时少走的几条道", "weight": 6, "kind": "calm", "contribution_bonus": 10 }
+            ]
+          }
+        },
+        {
+          "id": "luoyun_q7",
+          "name": "运送灵肥",
+          "description": "将妖核炼作灵肥送往药田（需上交妖核）",
+          "type": "submit_items",
+          "contribution": 42,
+          "daily": true,
+          "min_contribution": 20,
+          "duration_minutes": 9,
+          "cost": {
+            "items": [{ "item_key": "monster_core_low", "quantity": 2 }]
+          }
+        },
+        {
+          "id": "luoyun_q8",
+          "name": "指点外门",
+          "description": "向外门讲解灵植常识，讲砸了面上无光",
+          "type": "trial",
+          "contribution": 34,
+          "daily": true,
+          "min_contribution": 0,
+          "duration_minutes": 11,
+          "cost": { "mp": 20 },
+          "trial": {
+            "great_success_chance": 0.18,
+            "success_chance": 0.55,
+            "partial_chance": 0.18,
+            "great_success": { "contribution_mult": 1.5, "exp": 45, "label": "深入浅出" },
+            "success": { "contribution_mult": 1.0, "label": "讲解清楚" },
+            "partial": { "contribution_mult": 0.5, "hp_loss": 3, "label": "磕磕绊绊" },
+            "fail": { "contribution_mult": 0, "hp_loss": 8, "label": "讲砸了" }
+          }
+        },
+        {
+          "id": "luoyun_q9",
+          "name": "清点丹房",
+          "description": "协助丹房清点入库，需奉灵石以核账目",
+          "type": "labor_mp",
+          "contribution": 40,
+          "daily": true,
+          "min_contribution": 50,
+          "duration_minutes": 8,
+          "cost": { "mp": 15, "spirit_stones": 50 }
         }
       ]
     },
@@ -165,29 +282,146 @@
         {
           "id": "xinggong_q1",
           "name": "观星值守",
-          "description": "观星台值守一夜",
-          "contribution": 25,
-          "exp_reward": 120,
+          "description": "在观星台彻夜值守，记录星象流转（耗灵力）",
+          "type": "labor_mp",
+          "contribution": 28,
           "daily": true,
-          "min_contribution": 0
+          "min_contribution": 0,
+          "duration_minutes": 8,
+          "cost": { "mp": 35 },
+          "events": {
+            "trigger_chance": 0.35,
+            "pool": [
+              { "id": "meteor", "name": "流星划过", "description": "记录到一颗流星，职守有功", "weight": 40, "kind": "calm", "contribution_bonus": 6 },
+              { "id": "cold_night", "name": "星台寒露", "description": "夜寒露重，值守伤了风", "weight": 25, "kind": "injury", "hp_loss": 5 },
+              { "id": "stray_light", "name": "星屑入袖", "description": "一点星屑落入袖中", "weight": 20, "kind": "find", "spirit_stones": 15 },
+              { "id": "clear_mind", "name": "星辉清神", "description": "星辉照体，心神一清", "weight": 15, "kind": "fortune", "exp": 25 }
+            ]
+          }
         },
         {
           "id": "xinggong_q2",
           "name": "牵引星辰",
-          "description": "协助牵引星辰入盘",
-          "contribution": 35,
-          "exp_reward": 180,
+          "description": "协助牵引星辰之力入盘，星力反噬则心神受损",
+          "type": "trial",
+          "contribution": 42,
           "daily": true,
-          "min_contribution": 35
+          "min_contribution": 35,
+          "duration_minutes": 15,
+          "cost": { "mp": 45 },
+          "trial": {
+            "great_success_chance": 0.15,
+            "success_chance": 0.55,
+            "partial_chance": 0.2,
+            "great_success": { "contribution_mult": 1.5, "exp": 60, "label": "星辰入命" },
+            "success": { "contribution_mult": 1.0, "label": "星盘稳固" },
+            "partial": { "contribution_mult": 0.5, "hp_loss": 6, "label": "星力微滞" },
+            "fail": { "contribution_mult": 0, "hp_loss": 18, "label": "星力反噬" }
+          }
         },
         {
           "id": "xinggong_q3",
           "name": "维护星阵",
-          "description": "维护周天星斗大阵",
-          "contribution": 50,
-          "exp_reward": 220,
+          "description": "为周天星斗大阵补给阵材（需上交妖核）",
+          "type": "submit_items",
+          "contribution": 60,
           "daily": true,
-          "min_contribution": 90
+          "min_contribution": 90,
+          "duration_minutes": 10,
+          "cost": {
+            "items": [{ "item_key": "monster_core_low", "quantity": 2 }]
+          }
+        },
+        {
+          "id": "xinggong_q4",
+          "name": "记录星象",
+          "description": "抄录一夜星象变迁，案牍劳形",
+          "type": "labor_mp",
+          "contribution": 22,
+          "daily": true,
+          "min_contribution": 0,
+          "duration_minutes": 6,
+          "cost": { "mp": 18 }
+        },
+        {
+          "id": "xinggong_q5",
+          "name": "校准星盘",
+          "description": "校准偏移的星盘刻度，差之毫厘则星力乱窜",
+          "type": "trial",
+          "contribution": 44,
+          "daily": true,
+          "min_contribution": 50,
+          "duration_minutes": 14,
+          "cost": { "mp": 35 },
+          "trial": {
+            "great_success_chance": 0.14,
+            "success_chance": 0.5,
+            "partial_chance": 0.22,
+            "great_success": { "contribution_mult": 1.5, "exp": 55, "label": "分毫不差" },
+            "success": { "contribution_mult": 1.0, "label": "大致归正" },
+            "partial": { "contribution_mult": 0.45, "hp_loss": 8, "label": "略有偏差" },
+            "fail": { "contribution_mult": 0, "hp_loss": 16, "label": "星力乱窜" }
+          }
+        },
+        {
+          "id": "xinggong_q6",
+          "name": "夜观天象",
+          "description": "夜行观星，途中或遇盗星贼，或见天象异彩",
+          "type": "patrol",
+          "contribution": 46,
+          "daily": true,
+          "min_contribution": 30,
+          "duration_minutes": 13,
+          "cost": { "mp": 20 },
+          "events": {
+            "trigger_chance": 0.86,
+            "pool": [
+              { "id": "star_thief", "name": "盗星贼人", "description": "击退来偷星屑的贼人", "weight": 18, "kind": "combat", "hp_loss": 12, "contribution_bonus": 18 },
+              { "id": "aurora", "name": "天现异彩", "description": "记录到罕见天象，上报星宫", "weight": 14, "kind": "calm", "contribution_bonus": 14 },
+              { "id": "stardust", "name": "星屑洒落", "description": "草野间拾得一撮星屑", "weight": 14, "kind": "find", "items": [{ "item_key": "star_sand", "quantity": 1 }] },
+              { "id": "lost_path", "name": "迷于星野", "description": "仰望星空失足滚下山坡", "weight": 10, "kind": "injury", "hp_loss": 9, "contribution_penalty_ratio": 0.3 },
+              { "id": "constellation", "name": "星图补全", "description": "补全一块残缺星图", "weight": 12, "kind": "calm", "contribution_bonus": 10 },
+              { "id": "omen_good", "name": "吉星高照", "description": "见吉星，心有所悟", "weight": 10, "kind": "fortune", "exp": 40 },
+              { "id": "wolf_pack", "name": "野狼围猎", "description": "驱散围猎的野狼", "weight": 12, "kind": "combat", "hp_loss": 14, "contribution_bonus": 16 },
+              { "id": "stone_fall", "name": "陨铁一角", "description": "拾得一小块陨铁，可换灵石", "weight": 6, "kind": "fortune", "spirit_stones": 55 },
+              { "id": "quiet", "name": "一夜无事", "description": "星野宁静，记档而归", "weight": 4, "kind": "calm" }
+            ]
+          }
+        },
+        {
+          "id": "xinggong_q7",
+          "name": "布置小阵",
+          "description": "为偏殿布置聚灵小阵，需奉灵石购阵旗",
+          "type": "labor_mp",
+          "contribution": 45,
+          "daily": true,
+          "min_contribution": 60,
+          "duration_minutes": 10,
+          "cost": { "mp": 25, "spirit_stones": 60 }
+        },
+        {
+          "id": "xinggong_q8",
+          "name": "上交星材",
+          "description": "将炼阵所余星材归库（需上交星屑或妖核）",
+          "type": "submit_items",
+          "contribution": 58,
+          "daily": true,
+          "min_contribution": 40,
+          "duration_minutes": 10,
+          "cost": {
+            "items": [{ "item_key": "star_sand", "quantity": 1 }]
+          }
+        },
+        {
+          "id": "xinggong_q9",
+          "name": "接引星光",
+          "description": "以灵力接引星光灌注阵眼，耗损不小",
+          "type": "labor_mp",
+          "contribution": 36,
+          "daily": true,
+          "min_contribution": 20,
+          "duration_minutes": 9,
+          "cost": { "mp": 40 }
         }
       ]
     },
@@ -253,29 +487,152 @@
         {
           "id": "tianxing_q1",
           "name": "观命推演",
-          "description": "推演自身命格",
-          "contribution": 25,
-          "exp_reward": 120,
+          "description": "推演同门命格走向，推演过耗则心神受损",
+          "type": "trial",
+          "contribution": 32,
           "daily": true,
-          "min_contribution": 0
+          "min_contribution": 0,
+          "duration_minutes": 14,
+          "cost": { "mp": 35 },
+          "trial": {
+            "great_success_chance": 0.18,
+            "success_chance": 0.52,
+            "partial_chance": 0.2,
+            "great_success": { "contribution_mult": 1.6, "exp": 70, "label": "窥见天机" },
+            "success": { "contribution_mult": 1.0, "label": "命盘清晰" },
+            "partial": { "contribution_mult": 0.5, "hp_loss": 5, "label": "天机混沌" },
+            "fail": { "contribution_mult": 0, "hp_loss": 16, "label": "反噬元神" }
+          }
         },
         {
           "id": "tianxing_q2",
           "name": "消劫护法",
-          "description": "协助同门化解逆命劫",
+          "description": "护持同门化解逆命劫，途中或有变故",
+          "type": "patrol",
           "contribution": 40,
-          "exp_reward": 200,
           "daily": true,
-          "min_contribution": 40
+          "min_contribution": 40,
+          "duration_minutes": 14,
+          "cost": { "mp": 20 },
+          "events": {
+            "trigger_chance": 0.9,
+            "pool": [
+              { "id": "karma_backlash", "name": "业力反扑", "description": "劫力反噬，硬受一记仍护住了同门", "weight": 16, "kind": "combat", "hp_loss": 14, "contribution_bonus": 18 },
+              { "id": "fate_thread", "name": "命线纠缠", "description": "理顺一缕命线，获赠谢礼", "weight": 12, "kind": "find", "items": [{ "item_key": "heart_stone", "quantity": 1 }] },
+              { "id": "omen", "name": "凶兆示警", "description": "提前示警，免了同门一场灾劫", "weight": 14, "kind": "calm", "contribution_bonus": 12 },
+              { "id": "star_fall", "name": "流星坠野", "description": "拾得星屑，略有所悟", "weight": 10, "kind": "fortune", "exp": 50, "spirit_stones": 30 },
+              { "id": "mind_fog", "name": "心神恍惚", "description": "推演过耗，护法时心神恍惚", "weight": 8, "kind": "injury", "hp_loss": 6, "contribution_penalty_ratio": 0.35 },
+              { "id": "demon_whisper", "name": "魔念低语", "description": "斩却趁虚而入的魔念", "weight": 12, "kind": "combat", "hp_loss": 10, "contribution_bonus": 15 },
+              { "id": "grateful", "name": "同门致谢", "description": "受助同门送来谢礼", "weight": 12, "kind": "find", "spirit_stones": 25 },
+              { "id": "broken_ward", "name": "禁制破损", "description": "顺手补了一处破损禁制", "weight": 8, "kind": "calm", "contribution_bonus": 10 },
+              { "id": "dream_sign", "name": "梦中示兆", "description": "护法小憩得一奇梦，若有所悟", "weight": 5, "kind": "fortune", "exp": 35 },
+              { "id": "chase", "name": "追逐劫煞", "description": "追截遁走劫煞，跑伤了腿", "weight": 3, "kind": "injury", "hp_loss": 11, "contribution_penalty_ratio": 0.2 }
+            ]
+          }
         },
         {
           "id": "tianxing_q3",
           "name": "定命修习",
-          "description": "修习定命之法",
+          "description": "供奉灵石于天机盘，稳固宗门气运（耗灵力与灵石）",
+          "type": "labor_mp",
           "contribution": 50,
-          "exp_reward": 220,
           "daily": true,
-          "min_contribution": 100
+          "min_contribution": 100,
+          "duration_minutes": 12,
+          "cost": { "mp": 25, "spirit_stones": 80 }
+        },
+        {
+          "id": "tianxing_q4",
+          "name": "抄录命册",
+          "description": "抄录外门命册入库，案牍之劳",
+          "type": "labor_mp",
+          "contribution": 20,
+          "daily": true,
+          "min_contribution": 0,
+          "duration_minutes": 5,
+          "cost": { "mp": 15 }
+        },
+        {
+          "id": "tianxing_q5",
+          "name": "供奉天机",
+          "description": "上交心神之石供奉天机盘",
+          "type": "submit_items",
+          "contribution": 52,
+          "daily": true,
+          "min_contribution": 30,
+          "duration_minutes": 10,
+          "cost": {
+            "items": [{ "item_key": "heart_stone", "quantity": 1 }]
+          }
+        },
+        {
+          "id": "tianxing_q6",
+          "name": "追查逆命",
+          "description": "外出追查逆命之人，牵扯凡尘因果",
+          "type": "patrol",
+          "contribution": 48,
+          "daily": true,
+          "min_contribution": 60,
+          "duration_minutes": 15,
+          "cost": { "mp": 25 },
+          "events": {
+            "trigger_chance": 0.9,
+            "pool": [
+              { "id": "assassin", "name": "因果刺客", "description": "遭因果牵来的刺客袭击", "weight": 18, "kind": "combat", "hp_loss": 18, "contribution_bonus": 22 },
+              { "id": "lost_scroll", "name": "残卷线索", "description": "寻到一页残缺命卷", "weight": 12, "kind": "find", "items": [{ "item_key": "heart_stone", "quantity": 1 }] },
+              { "id": "wrong_person", "name": "找错对象", "description": "追错了人，白跑一趟还闪了腰", "weight": 12, "kind": "injury", "hp_loss": 7, "contribution_penalty_ratio": 0.35 },
+              { "id": "villager_tip", "name": "乡民指路", "description": "乡民指路，顺利摸到线索", "weight": 14, "kind": "calm", "contribution_bonus": 12 },
+              { "id": "karmic_debt", "name": "旧债缠身", "description": "被旧日因果缠上，疲于应付", "weight": 8, "kind": "injury", "hp_loss": 5, "contribution_penalty_ratio": 0.15 },
+              { "id": "good_deed", "name": "顺手行善", "description": "途中顺手化解一桩小灾", "weight": 12, "kind": "calm", "contribution_bonus": 9 },
+              { "id": "mirror_lake", "name": "镜湖倒影", "description": "镜湖中窥见自身命影，若有所悟", "weight": 8, "kind": "fortune", "exp": 48 },
+              { "id": "mob", "name": "愚民围攻", "description": "被愚民误当妖人围攻", "weight": 10, "kind": "combat", "hp_loss": 12, "contribution_bonus": 14 },
+              { "id": "quiet_town", "name": "风平浪静", "description": "此行风平浪静", "weight": 6, "kind": "calm" }
+            ]
+          }
+        },
+        {
+          "id": "tianxing_q7",
+          "name": "演算吉凶",
+          "description": "为宗门演算一季吉凶，算错了有损颜面",
+          "type": "trial",
+          "contribution": 40,
+          "daily": true,
+          "min_contribution": 20,
+          "duration_minutes": 13,
+          "cost": { "mp": 30 },
+          "trial": {
+            "great_success_chance": 0.16,
+            "success_chance": 0.5,
+            "partial_chance": 0.22,
+            "great_success": { "contribution_mult": 1.5, "exp": 50, "label": "算无遗策" },
+            "success": { "contribution_mult": 1.0, "label": "吉凶分明" },
+            "partial": { "contribution_mult": 0.5, "hp_loss": 4, "label": "含糊其辞" },
+            "fail": { "contribution_mult": 0, "hp_loss": 12, "label": "算得离谱" }
+          }
+        },
+        {
+          "id": "tianxing_q8",
+          "name": "整理卦签",
+          "description": "整理灵验卦签，杂务一桩",
+          "type": "labor_mp",
+          "contribution": 18,
+          "daily": true,
+          "min_contribution": 0,
+          "duration_minutes": 4,
+          "cost": { "mp": 10 }
+        },
+        {
+          "id": "tianxing_q9",
+          "name": "上交妖核",
+          "description": "将驱邪所得妖核归库炼煞",
+          "type": "submit_items",
+          "contribution": 44,
+          "daily": true,
+          "min_contribution": 15,
+          "duration_minutes": 9,
+          "cost": {
+            "items": [{ "item_key": "monster_core_low", "quantity": 2 }]
+          }
         }
       ]
     },
@@ -341,29 +698,145 @@
         {
           "id": "lingxiao_q1",
           "name": "登天阶",
-          "description": "攀登天阶磨砺道心",
-          "contribution": 30,
-          "exp_reward": 150,
+          "description": "攀登天阶磨砺道心，或有感悟，或有跌伤",
+          "type": "trial",
+          "contribution": 32,
           "daily": true,
-          "min_contribution": 0
+          "min_contribution": 0,
+          "duration_minutes": 12,
+          "cost": { "mp": 25 },
+          "trial": {
+            "great_success_chance": 0.16,
+            "success_chance": 0.54,
+            "partial_chance": 0.2,
+            "great_success": { "contribution_mult": 1.5, "exp": 55, "label": "一步登云" },
+            "success": { "contribution_mult": 1.0, "label": "稳步登阶" },
+            "partial": { "contribution_mult": 0.5, "hp_loss": 8, "label": "半途而返" },
+            "fail": { "contribution_mult": 0, "hp_loss": 20, "label": "跌落天阶" }
+          }
         },
         {
           "id": "lingxiao_q2",
           "name": "问心台试炼",
-          "description": "在问心台接受心性考验",
-          "contribution": 40,
-          "exp_reward": 200,
+          "description": "在问心台接受心性考验，心魔丛生则道心受损",
+          "type": "trial",
+          "contribution": 45,
           "daily": true,
-          "min_contribution": 40
+          "min_contribution": 40,
+          "duration_minutes": 16,
+          "cost": { "mp": 40 },
+          "trial": {
+            "great_success_chance": 0.12,
+            "success_chance": 0.48,
+            "partial_chance": 0.25,
+            "great_success": { "contribution_mult": 1.6, "exp": 80, "label": "道心通明" },
+            "success": { "contribution_mult": 1.0, "label": "守心如一" },
+            "partial": { "contribution_mult": 0.45, "hp_loss": 10, "label": "心魔缠身" },
+            "fail": { "contribution_mult": 0, "hp_loss": 25, "label": "道心受挫" }
+          }
         },
         {
           "id": "lingxiao_q3",
           "name": "护法诵经",
-          "description": "护持同门诵经修炼",
-          "contribution": 50,
-          "exp_reward": 220,
+          "description": "护持同门诵经修炼，以灵力镇守法坛",
+          "type": "labor_mp",
+          "contribution": 48,
           "daily": true,
-          "min_contribution": 100
+          "min_contribution": 100,
+          "duration_minutes": 14,
+          "cost": { "mp": 50 }
+        },
+        {
+          "id": "lingxiao_q4",
+          "name": "洒扫丹墀",
+          "description": "洒扫宫前丹墀，入门杂务",
+          "type": "labor_mp",
+          "contribution": 18,
+          "daily": true,
+          "min_contribution": 0,
+          "duration_minutes": 4,
+          "cost": { "mp": 12 }
+        },
+        {
+          "id": "lingxiao_q5",
+          "name": "奉剑侍立",
+          "description": "为长辈奉剑侍立，耗神耗力",
+          "type": "labor_mp",
+          "contribution": 30,
+          "daily": true,
+          "min_contribution": 15,
+          "duration_minutes": 8,
+          "cost": { "mp": 28 }
+        },
+        {
+          "id": "lingxiao_q6",
+          "name": "巡视天阶",
+          "description": "巡视天阶栈道，或遇挑战者，或见云海奇观",
+          "type": "patrol",
+          "contribution": 44,
+          "daily": true,
+          "min_contribution": 30,
+          "duration_minutes": 13,
+          "cost": { "mp": 18 },
+          "events": {
+            "trigger_chance": 0.87,
+            "pool": [
+              { "id": "challenger", "name": "山门挑战者", "description": "击退上门挑战的野修", "weight": 18, "kind": "combat", "hp_loss": 14, "contribution_bonus": 20 },
+              { "id": "cloud_sea", "name": "云海翻涌", "description": "云海之上心胸为之一阔", "weight": 12, "kind": "fortune", "exp": 35 },
+              { "id": "broken_rail", "name": "栈道松动", "description": "抢修松动栈道，手上磨出血泡", "weight": 12, "kind": "injury", "hp_loss": 6, "contribution_bonus": 8 },
+              { "id": "lost_guest", "name": "迷路香客", "description": "护送迷路香客下山", "weight": 12, "kind": "calm", "contribution_bonus": 7 },
+              { "id": "falcon", "name": "灵隼袭人", "description": "赶走袭人的灵隼", "weight": 12, "kind": "combat", "hp_loss": 9, "contribution_bonus": 12 },
+              { "id": "herb_cliff", "name": "崖缝灵草", "description": "崖缝采得几株灵草", "weight": 10, "kind": "find", "items": [{ "item_key": "spirit_herb", "quantity": 2 }] },
+              { "id": "echo", "name": "天阶回响", "description": "听天阶回响，道心微动", "weight": 8, "kind": "fortune", "exp": 25, "contribution_bonus": 4 },
+              { "id": "slip", "name": "石阶湿滑", "description": "石阶湿滑摔了一跤", "weight": 10, "kind": "injury", "hp_loss": 10, "contribution_penalty_ratio": 0.25 },
+              { "id": "stone_carving", "name": "前人石刻", "description": "拓下前人石刻一角上交", "weight": 6, "kind": "find", "spirit_stones": 20 },
+              { "id": "quiet_dawn", "name": "平安到晓", "description": "一夜平安，交班下值", "weight": 6, "kind": "calm" }
+            ]
+          }
+        },
+        {
+          "id": "lingxiao_q7",
+          "name": "守护心灯",
+          "description": "以灵力守护心灯不灭，灯灭则心神受创",
+          "type": "labor_mp",
+          "contribution": 38,
+          "daily": true,
+          "min_contribution": 25,
+          "duration_minutes": 10,
+          "cost": { "mp": 35 }
+        },
+        {
+          "id": "lingxiao_q8",
+          "name": "赠药同门",
+          "description": "为伤损同门上交疗伤心石",
+          "type": "submit_items",
+          "contribution": 50,
+          "daily": true,
+          "min_contribution": 50,
+          "duration_minutes": 10,
+          "cost": {
+            "items": [{ "item_key": "heart_stone", "quantity": 1 }]
+          }
+        },
+        {
+          "id": "lingxiao_q9",
+          "name": "淬炼道心",
+          "description": "于寒潭淬炼道心，极耗心神",
+          "type": "trial",
+          "contribution": 42,
+          "daily": true,
+          "min_contribution": 70,
+          "duration_minutes": 15,
+          "cost": { "mp": 32 },
+          "trial": {
+            "great_success_chance": 0.13,
+            "success_chance": 0.5,
+            "partial_chance": 0.22,
+            "great_success": { "contribution_mult": 1.6, "exp": 65, "label": "寒潭映心" },
+            "success": { "contribution_mult": 1.0, "label": "心如止水" },
+            "partial": { "contribution_mult": 0.45, "hp_loss": 12, "label": "寒气侵体" },
+            "fail": { "contribution_mult": 0, "hp_loss": 22, "label": "心防溃散" }
+          }
         }
       ]
     },
@@ -429,29 +902,155 @@
         {
           "id": "yinluo_q1",
           "name": "收取魂魄",
-          "description": "收集魂魄供奉阴罗幡",
-          "contribution": 30,
-          "exp_reward": 150,
+          "description": "将炼魂所得上交供奉阴罗幡（需魂魄材料）",
+          "type": "submit_items",
+          "contribution": 50,
           "daily": true,
-          "min_contribution": 0
+          "min_contribution": 0,
+          "duration_minutes": 10,
+          "cost": {
+            "items": [{ "item_key": "soul_stone", "quantity": 1 }]
+          }
         },
         {
           "id": "yinluo_q2",
           "name": "安抚幡灵",
-          "description": "安抚躁动的幡灵",
-          "contribution": 40,
-          "exp_reward": 200,
+          "description": "以自身灵力安抚躁动的幡灵（耗灵力）",
+          "type": "labor_mp",
+          "contribution": 35,
           "daily": true,
-          "min_contribution": 40
+          "min_contribution": 40,
+          "duration_minutes": 8,
+          "cost": { "mp": 45 }
         },
         {
           "id": "yinluo_q3",
           "name": "血洗山林",
-          "description": "血洗山林获取煞气",
-          "contribution": 60,
-          "exp_reward": 250,
+          "description": "血洗山林收取煞气，杀伐之中风险与收获并存",
+          "type": "patrol",
+          "contribution": 55,
           "daily": true,
-          "min_contribution": 100
+          "min_contribution": 100,
+          "duration_minutes": 15,
+          "cost": { "mp": 25 },
+          "events": {
+            "trigger_chance": 0.92,
+            "pool": [
+              { "id": "beast_slaughter", "name": "屠戮妖兽", "description": "斩杀林中妖兽，煞气大盛", "weight": 20, "kind": "combat", "hp_loss": 22, "contribution_bonus": 28 },
+              { "id": "soul_harvest", "name": "残魂游荡", "description": "收得游荡残魂", "weight": 14, "kind": "find", "items": [{ "item_key": "soul_stone", "quantity": 1 }] },
+              { "id": "blood_mist", "name": "血雾弥漫", "description": "借血雾掩杀，全身而退", "weight": 12, "kind": "calm", "contribution_bonus": 15 },
+              { "id": "demonic_treasure", "name": "魔窟遗宝", "description": "林中魔修遗物，略有斩获", "weight": 10, "kind": "fortune", "spirit_stones": 60, "exp": 30 },
+              { "id": "ambush_wound", "name": "遭伏负伤", "description": "中了林中伏击，煞气未足先负伤", "weight": 10, "kind": "injury", "hp_loss": 18, "contribution_penalty_ratio": 0.4 },
+              { "id": "righteous_hunters", "name": "正道猎魔", "description": "与正道猎魔人短兵相接", "weight": 14, "kind": "combat", "hp_loss": 20, "contribution_bonus": 24 },
+              { "id": "corpse_pill", "name": "尸丹出土", "description": "自腐尸中炼出一枚妖核", "weight": 8, "kind": "find", "items": [{ "item_key": "monster_core_low", "quantity": 2 }] },
+              { "id": "howl", "name": "夜枭惊魂", "description": "夜枭惊魂，虚惊一场", "weight": 8, "kind": "calm", "contribution_bonus": 5 },
+              { "id": "blood_rain", "name": "血雨渗衣", "description": "血雨渗衣，煞气入体", "weight": 6, "kind": "injury", "hp_loss": 10, "contribution_penalty_ratio": 0.2 },
+              { "id": "old_grave", "name": "荒坟遗物", "description": "荒坟刨出一点前人遗物", "weight": 8, "kind": "fortune", "spirit_stones": 40 }
+            ]
+          }
+        },
+        {
+          "id": "yinluo_q4",
+          "name": "炼魂入门",
+          "description": "为幡中新魂诵咒安抚，耗损灵力",
+          "type": "labor_mp",
+          "contribution": 24,
+          "daily": true,
+          "min_contribution": 0,
+          "duration_minutes": 6,
+          "cost": { "mp": 30 }
+        },
+        {
+          "id": "yinluo_q5",
+          "name": "收集煞气",
+          "description": "上交妖核供阴罗幡炼煞",
+          "type": "submit_items",
+          "contribution": 46,
+          "daily": true,
+          "min_contribution": 25,
+          "duration_minutes": 10,
+          "cost": {
+            "items": [{ "item_key": "monster_core_low", "quantity": 3 }]
+          }
+        },
+        {
+          "id": "yinluo_q6",
+          "name": "夜袭乱葬",
+          "description": "夜袭乱葬岗收取残魂，凶险异常",
+          "type": "patrol",
+          "contribution": 52,
+          "daily": true,
+          "min_contribution": 55,
+          "duration_minutes": 14,
+          "cost": { "mp": 20 },
+          "events": {
+            "trigger_chance": 0.93,
+            "pool": [
+              { "id": "hungry_ghosts", "name": "饿鬼扑击", "description": "与扑来的饿鬼恶斗", "weight": 18, "kind": "combat", "hp_loss": 16, "contribution_bonus": 22 },
+              { "id": "soul_cluster", "name": "残魂成簇", "description": "收得一簇残魂", "weight": 14, "kind": "find", "items": [{ "item_key": "soul_stone", "quantity": 2 }] },
+              { "id": "grave_trap", "name": "墓中机关", "description": "踩中前人墓中机关", "weight": 10, "kind": "injury", "hp_loss": 15, "contribution_penalty_ratio": 0.3 },
+              { "id": "corpse_fire", "name": "磷火引路", "description": "磷火引路，搜得颇丰", "weight": 12, "kind": "fortune", "spirit_stones": 35, "contribution_bonus": 8 },
+              { "id": "yinluo_sect_enemy", "name": "仇家寻仇", "description": "仇家寻上门来，血战一场", "weight": 12, "kind": "combat", "hp_loss": 20, "contribution_bonus": 25 },
+              { "id": "quiet_grave", "name": "空坟一座", "description": "只翻到空坟一座", "weight": 10, "kind": "calm", "contribution_penalty_ratio": 0.1 },
+              { "id": "bone_amulet", "name": "骨符护身", "description": "拾得一枚护身骨符", "weight": 8, "kind": "find", "spirit_stones": 25 },
+              { "id": "earth_pulse", "name": "阴脉涌动", "description": "阴脉涌动，幡灵躁动难安", "weight": 8, "kind": "injury", "hp_loss": 8, "contribution_bonus": 6 },
+              { "id": "moon_cold", "name": "月冷如刀", "description": "月冷如刀，无功而返", "weight": 8, "kind": "calm" }
+            ]
+          }
+        },
+        {
+          "id": "yinluo_q7",
+          "name": "供奉阴罗",
+          "description": "奉灵石于阴罗坛前，换长老垂青",
+          "type": "labor_mp",
+          "contribution": 42,
+          "daily": true,
+          "min_contribution": 35,
+          "duration_minutes": 9,
+          "cost": { "mp": 15, "spirit_stones": 70 }
+        },
+        {
+          "id": "yinluo_q8",
+          "name": "拷问魂魄",
+          "description": "拷问新收魂魄榨取情报，稍有不慎反伤神魂",
+          "type": "trial",
+          "contribution": 48,
+          "daily": true,
+          "min_contribution": 20,
+          "duration_minutes": 13,
+          "cost": { "mp": 35 },
+          "trial": {
+            "great_success_chance": 0.14,
+            "success_chance": 0.5,
+            "partial_chance": 0.22,
+            "great_success": { "contribution_mult": 1.6, "exp": 55, "label": "榨出重料" },
+            "success": { "contribution_mult": 1.0, "label": "问出情报" },
+            "partial": { "contribution_mult": 0.4, "hp_loss": 10, "label": "魂碎一半" },
+            "fail": { "contribution_mult": 0, "hp_loss": 20, "label": "反伤神魂" }
+          }
+        },
+        {
+          "id": "yinluo_q9",
+          "name": "巡查阴脉",
+          "description": "巡查宗门地下阴脉，偶有阴兽",
+          "type": "patrol",
+          "contribution": 36,
+          "daily": true,
+          "min_contribution": 10,
+          "duration_minutes": 11,
+          "cost": { "mp": 18 },
+          "events": {
+            "trigger_chance": 0.85,
+            "pool": [
+              { "id": "yin_beast", "name": "阴脉阴兽", "description": "斩杀阴脉中爬出的阴兽", "weight": 20, "kind": "combat", "hp_loss": 12, "contribution_bonus": 16 },
+              { "id": "yin_stone", "name": "阴石结晶", "description": "阴脉旁采得结晶", "weight": 14, "kind": "find", "spirit_stones": 30 },
+              { "id": "crack", "name": "阴脉裂缝", "description": "跌入裂缝扭伤", "weight": 10, "kind": "injury", "hp_loss": 11, "contribution_penalty_ratio": 0.3 },
+              { "id": "seal_check", "name": "禁制松动", "description": "发现并补牢一处禁制", "weight": 14, "kind": "calm", "contribution_bonus": 10 },
+              { "id": "cold_air", "name": "阴寒入骨", "description": "阴寒入骨，腿脚发麻", "weight": 12, "kind": "injury", "hp_loss": 7 },
+              { "id": "echo_whisper", "name": "阴风低语", "description": "阴风低语，若有所悟", "weight": 10, "kind": "fortune", "exp": 30 },
+              { "id": "patrol_done", "name": "例行无事", "description": "例行巡查，无事发生", "weight": 20, "kind": "calm" }
+            ]
+          }
         }
       ]
     },
@@ -517,29 +1116,152 @@
         {
           "id": "hehuan_q1",
           "name": "魔音灌脑",
-          "description": "修炼魔音之术",
-          "contribution": 30,
-          "exp_reward": 150,
+          "description": "修炼魔音之术磨砺神魂，走火则神魂受创",
+          "type": "trial",
+          "contribution": 35,
           "daily": true,
-          "min_contribution": 0
+          "min_contribution": 0,
+          "duration_minutes": 12,
+          "cost": { "mp": 35 },
+          "trial": {
+            "great_success_chance": 0.14,
+            "success_chance": 0.51,
+            "partial_chance": 0.22,
+            "great_success": { "contribution_mult": 1.5, "exp": 55, "label": "魔音大成" },
+            "success": { "contribution_mult": 1.0, "label": "音律圆融" },
+            "partial": { "contribution_mult": 0.5, "hp_loss": 8, "label": "音波反冲" },
+            "fail": { "contribution_mult": 0, "hp_loss": 20, "label": "走火入魔" }
+          }
         },
         {
           "id": "hehuan_q2",
           "name": "红尘历练",
-          "description": "入红尘历练心境",
+          "description": "入红尘历练心境，市井之间有机缘也有麻烦",
+          "type": "patrol",
           "contribution": 40,
-          "exp_reward": 200,
           "daily": true,
-          "min_contribution": 40
+          "min_contribution": 40,
+          "duration_minutes": 14,
+          "cost": { "mp": 15 },
+          "events": {
+            "trigger_chance": 0.88,
+            "pool": [
+              { "id": "street_brawl", "name": "市井斗法", "description": "街头与人斗法，虽胜犹伤", "weight": 14, "kind": "combat", "hp_loss": 12, "contribution_bonus": 16 },
+              { "id": "love_token", "name": "定情信物", "description": "得了一件不入流的定情信物", "weight": 12, "kind": "find", "items": [{ "item_key": "heart_seal_stone", "quantity": 1 }] },
+              { "id": "gossip_intel", "name": "坊间传闻", "description": "打探到一桩有用的消息，上报宗门", "weight": 14, "kind": "calm", "contribution_bonus": 14 },
+              { "id": "wealthy_patron", "name": "贵人打赏", "description": "一曲魔音换来贵人打赏", "weight": 12, "kind": "fortune", "spirit_stones": 50, "exp": 25 },
+              { "id": "jealousy", "name": "醋海生波", "description": "卷入争风吃醋，平白挨了一顿", "weight": 10, "kind": "injury", "hp_loss": 10, "contribution_penalty_ratio": 0.3 },
+              { "id": "jealous_husband", "name": "妒夫寻衅", "description": "被妒夫带着家丁围殴", "weight": 10, "kind": "combat", "hp_loss": 14, "contribution_bonus": 12 },
+              { "id": "brothel_tip", "name": "勾栏情报", "description": "自勾栏听来一桩机密", "weight": 12, "kind": "calm", "contribution_bonus": 16 },
+              { "id": "stolen_purse", "name": "荷包失窃", "description": "荷包被小绺摸去", "weight": 8, "kind": "injury", "contribution_penalty_ratio": 0.15 },
+              { "id": "moonlight_flute", "name": "月下笛声", "description": "月下闻笛，魅术精进", "weight": 6, "kind": "fortune", "exp": 40 },
+              { "id": "market_noise", "name": "市井如常", "description": "市井如常，无所获", "weight": 2, "kind": "calm" }
+            ]
+          }
         },
         {
           "id": "hehuan_q3",
           "name": "采补修炼",
-          "description": "采补天地灵气",
-          "contribution": 60,
-          "exp_reward": 250,
+          "description": "采补天地灵气上交宗门（耗灵力与气血，伤身）",
+          "type": "labor_mp",
+          "contribution": 55,
           "daily": true,
-          "min_contribution": 100
+          "min_contribution": 100,
+          "duration_minutes": 12,
+          "cost": { "mp": 40, "hp": 15 }
+        },
+        {
+          "id": "hehuan_q4",
+          "name": "练习魅术",
+          "description": "对着铜镜练习魅惑心印，反噬则容颜受损",
+          "type": "trial",
+          "contribution": 32,
+          "daily": true,
+          "min_contribution": 0,
+          "duration_minutes": 11,
+          "cost": { "mp": 28 },
+          "trial": {
+            "great_success_chance": 0.15,
+            "success_chance": 0.52,
+            "partial_chance": 0.22,
+            "great_success": { "contribution_mult": 1.5, "exp": 45, "label": "倾倒众生" },
+            "success": { "contribution_mult": 1.0, "label": "媚态天成" },
+            "partial": { "contribution_mult": 0.5, "hp_loss": 5, "label": "媚眼抛僵" },
+            "fail": { "contribution_mult": 0, "hp_loss": 14, "label": "反噬破相" }
+          }
+        },
+        {
+          "id": "hehuan_q5",
+          "name": "采集花露",
+          "description": "上交灵草以炼合欢花露",
+          "type": "submit_items",
+          "contribution": 42,
+          "daily": true,
+          "min_contribution": 15,
+          "duration_minutes": 9,
+          "cost": {
+            "items": [{ "item_key": "spirit_herb", "quantity": 4 }]
+          }
+        },
+        {
+          "id": "hehuan_q6",
+          "name": "坊市周旋",
+          "description": "在坊市与各方势力周旋套话",
+          "type": "patrol",
+          "contribution": 38,
+          "daily": true,
+          "min_contribution": 20,
+          "duration_minutes": 12,
+          "cost": { "mp": 12 },
+          "events": {
+            "trigger_chance": 0.84,
+            "pool": [
+              { "id": "scam", "name": "骗局一场", "description": "识破骗局，反敲一笔", "weight": 14, "kind": "fortune", "spirit_stones": 30, "contribution_bonus": 6 },
+              { "id": "rival_spy", "name": "他宗眼线", "description": "揪出他宗眼线，扭打一场", "weight": 14, "kind": "combat", "hp_loss": 10, "contribution_bonus": 18 },
+              { "id": "silk_gift", "name": "绸缎谢礼", "description": "得了一匣绸缎谢礼", "weight": 12, "kind": "find", "spirit_stones": 20 },
+              { "id": "rumor", "name": "有用传闻", "description": "套出一桩有用传闻", "weight": 14, "kind": "calm", "contribution_bonus": 12 },
+              { "id": "pickpocket", "name": "当街被偷", "description": "当街被偷了灵石", "weight": 10, "kind": "injury", "contribution_penalty_ratio": 0.2 },
+              { "id": "tea_house", "name": "茶楼听书", "description": "茶楼听书，打发了时光", "weight": 12, "kind": "calm", "contribution_bonus": 4 },
+              { "id": "love_letter", "name": "情书一纸", "description": "拾得情书一纸，转卖换钱", "weight": 10, "kind": "fortune", "spirit_stones": 15 },
+              { "id": "brawl_drunk", "name": "醉汉撒泼", "description": "被醉汉缠上，推搡中擦伤", "weight": 10, "kind": "injury", "hp_loss": 8 },
+              { "id": "quiet_stall", "name": "生意冷清", "description": "坊市冷清，无甚收获", "weight": 4, "kind": "calm" }
+            ]
+          }
+        },
+        {
+          "id": "hehuan_q7",
+          "name": "炉鼎温养",
+          "description": "以气血温养宗门炉鼎，伤身换贡献",
+          "type": "labor_mp",
+          "contribution": 40,
+          "daily": true,
+          "min_contribution": 30,
+          "duration_minutes": 9,
+          "cost": { "mp": 25, "hp": 10 }
+        },
+        {
+          "id": "hehuan_q8",
+          "name": "交换信物",
+          "description": "上交心印之石以结同门之缘",
+          "type": "submit_items",
+          "contribution": 55,
+          "daily": true,
+          "min_contribution": 60,
+          "duration_minutes": 10,
+          "cost": {
+            "items": [{ "item_key": "heart_seal_stone", "quantity": 1 }]
+          }
+        },
+        {
+          "id": "hehuan_q9",
+          "name": "宴饮交际",
+          "description": "设宴款待他宗弟子，奉灵石以充场面",
+          "type": "labor_mp",
+          "contribution": 44,
+          "daily": true,
+          "min_contribution": 50,
+          "duration_minutes": 10,
+          "cost": { "mp": 15, "spirit_stones": 60 }
         }
       ]
     }

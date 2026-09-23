@@ -30,6 +30,23 @@ export function formatDuration(ms) {
 }
 
 /**
+ * 紧凑倒计时（mm:ss / h:mm:ss），给顶部计时条、冷却角标用。
+ * 与 formatTime 的「5分钟」不同：这里每秒跳动，要固定宽度才不抖。
+ * @param {number} seconds - 剩余秒数
+ * @returns {string} 如 "0:45" / "12:03" / "1:05:00"
+ */
+export function formatCountdown(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0))
+  const hours = Math.floor(s / 3600)
+  const mins = Math.floor((s % 3600) / 60)
+  const secs = s % 60
+  const mm = String(mins).padStart(2, '0')
+  const ss = String(secs).padStart(2, '0')
+  if (hours > 0) return `${hours}:${mm}:${ss}`
+  return `${mins}:${ss}`
+}
+
+/**
  * 格式化数字（千分位分隔）
  *
  * 修复 B11（2026-07-19）：

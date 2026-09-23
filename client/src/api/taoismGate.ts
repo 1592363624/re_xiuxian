@@ -189,6 +189,10 @@ export interface TaoismStatsInfo {
   total_skill_use_count: number;
   /** 累计共鸣次数 */
   total_resonance_count: number;
+  /** 今日已修炼次数（跨日归零，权威值来自后端） */
+  daily_cultivate_count: number;
+  /** 每日修炼上限 */
+  daily_cultivate_limit: number;
 }
 
 /** 道途面板核心信息（GET /profile 中 gate） */
@@ -279,6 +283,10 @@ export interface TaoismCultivateResult {
   new_level: number;
   /** 剩余神识值 */
   divine_sense_left: number;
+  /** 今日已修炼次数（回传权威值，前端不要再本地 +1） */
+  daily_cultivate_count?: number;
+  /** 每日修炼上限 */
+  daily_cultivate_limit?: number;
 }
 
 /** POST /skill 响应数据 */

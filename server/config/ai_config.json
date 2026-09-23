@@ -71,6 +71,24 @@
             "description": "唯一保留的通用接口：填入 Base URL（含版本路径如 /v1）、模型名与 API Key 即可接入任意 OpenAI 兼容服务（OpenAI / DeepSeek / 通义千问 / 智谱 / Kimi / 硅基流动 / 中转站等）。"
         }
     },
+    "connectivityTest": {
+        "testPrompt": "你好",
+        "maxTokens": 32,
+        "minTimeoutMs": 10000,
+        "maxTimeoutMs": 90000,
+        "maxDetailLength": 300
+    },
+    "userCustom": {
+        "enabled": true,
+        "overrideCacheTtlMs": 60000,
+        "temperatureMin": 0,
+        "temperatureMax": 2,
+        "maxTokensMin": 16,
+        "maxTokensMax": 8192,
+        "timeoutMinMs": 5000,
+        "timeoutMaxMs": 120000,
+        "defaultTimeoutMs": 30000
+    },
     "rateLimit": {
         "maxRequestsPerMinute": 60,
         "maxTokensPerMinute": 100000

@@ -25,6 +25,7 @@ import LoadingBlock from '../ui/LoadingBlock.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import { useUIStore } from '../../stores/ui'
 import { usePlayerStore } from '../../stores/player'
+import { usePlayerResources } from '../../composables/usePlayerResources'
 import { useStatSchema } from '../../composables/useStatSchema'
 import { useItemQualities } from '../../composables/useItemQualities'
 import { formatCompact } from '../../utils/format'
@@ -35,6 +36,7 @@ import { getGameBalancePublic } from '../../api/config'
 const emit = defineEmits(['close'])
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()
+const { patchFromResponse } = usePlayerResources()
 const { formatBonus } = useStatSchema()
 
 // ====== 响应式状态 ======
@@ -293,18 +295,8 @@ const handleUse = async (item, quantity) => {
     const result = res.data || {}
     uiStore.showToast(result.message || `使用了 ${item.name} x${quantity}`, 'success')
 
-    // 同步更新玩家状态（气血/灵力/灵石）
-    if (result.player) {
-      if (result.player.hp_current !== undefined) {
-        playerStore.player.hp_current = result.player.hp_current
-      }
-      if (result.player.mp_current !== undefined) {
-        playerStore.player.mp_current = result.player.mp_current
-      }
-      if (result.player.spirit_stones !== undefined) {
-        playerStore.player.spirit_stones = result.player.spirit_stones
-      }
-    }
+    // 同步更新玩家状态（气血/灵力/灵石）——走统一契约，别名由 patchFromResponse 归一
+    patchFromResponse(result)
 
     // 写入游戏日志
     uiStore.addLog({
