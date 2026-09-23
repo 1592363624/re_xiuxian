@@ -206,3 +206,18 @@ export const challengeRank = (target_rank: number) => {
 export const getSeasonInfo = () => {
   return apiClient.get<SeasonInfo>('/fengshen/season');
 };
+
+/**
+ * 手动触发赛季结算（GM）
+ * POST /fengshen/gm/settle-season
+ */
+export const settleSeason = () => {
+  return apiClient.post<{
+    settled: boolean;
+    old_season?: number;
+    new_season?: number;
+    total_players?: number;
+    rewards?: unknown[];
+    reason?: string;
+  }>('/fengshen/gm/settle-season');
+};

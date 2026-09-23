@@ -8,6 +8,7 @@
  * 4. GET  /api/fengshen/defense  ：获取我的防守阵容
  * 5. POST /api/fengshen/challenge：挑战指定排名（body: target_rank）
  * 6. GET  /api/fengshen/season   ：获取赛季信息
+ * 7. POST /api/fengshen/gm/settle-season：[GM] 手动触发赛季结算（发奖+积分重置+赛季递增）
  *
  * 设计原则：路由层仅做参数校验与调用 Service，业务逻辑在 FengshenService 中
  * 统一响应格式：{ code: 200, message, data }
@@ -21,6 +22,19 @@ const auth = require('../middleware/auth');
 const FengshenService = require('../game/services/FengshenService');
 const WebSocketNotificationService = require('../game/services/WebSocketNotificationService');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
+
+/** GM 专用：与 auction.js 同一形状（req.player 来自 auth，role='admin' 判定） */
+const adminCheck = (req, res, next) => {
+    if (req.player && req.player.role === 'admin') {
+        next();
+    } else {
+        return res.status(403).json({
+            code: 403,
+            error_code: ErrorCodes.BUSINESS_LOGIC_ERROR,
+            message: '权限不足：需要管理员权限'
+        });
+    }
+};
 
 /**
  * GET /api/fengshen/ranking
@@ -224,6 +238,45 @@ router.get('/season', auth, async (req, res, next) => {
 
         res.json({
             code: 200,
+            data: result
+        });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({
+                code: err.statusCode,
+                error_code: err.errorCode,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+});
+
+/**
+ * POST /api/fengshen/gm/settle-season
+ * 手动触发赛季结算（GM）。2026-09-23 接线：settleSeason() 写完后一直无 routes/调度器，
+ * 赛季永远停在 1。这里给 GM 一个可审计的入口；发奖 + 积分重置 + 赛季递增在同一事务。
+ */
+router.post('/gm/settle-season', auth, adminCheck, async (req, res, next) => {
+    try {
+        const result = await FengshenService.settleSeason();
+
+        try {
+            WebSocketNotificationService.broadcast?.('announcement', {
+                type: 'fengshen_season_settled',
+                message: result.settled
+                    ? `封神台第 ${result.old_season} 赛季已结算，第 ${result.new_season} 赛季开启！`
+                    : `封神台赛季结算未完成：${result.reason || '未知原因'}`
+            });
+        } catch (e) {
+            console.warn('[封神台] 推送赛季结算公告失败:', e.message);
+        }
+
+        res.json({
+            code: 200,
+            message: result.settled
+                ? `赛季 ${result.old_season} 已结算，新赛季 ${result.new_season} 开启`
+                : (result.reason || '赛季结算未执行'),
             data: result
         });
     } catch (err) {
