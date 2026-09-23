@@ -85,15 +85,15 @@ describe('品质词表自洽（档名 / 色令牌 / 排序），且内容用的�
         for (const k of keys) expect(['neutral', 'jade', 'azure', 'violet', 'gold', 'crimson']).toContain(table[k].tone);
     });
 
-    test('真实视图过得了闸（闸不是只会抛），且缺 quality 的物品只响一条汇总提示', () => {
+    test('真实视图过得了闸（闸不是只会抛），且每件物品都有 quality（2026-09-23 定档后硬拦）', () => {
         const content = new ContentRegistry({ configPath: CONFIG_DIR, packDir: REAL_PACK_DIR, statRegistry });
         content.load();
         const items = content.dataset('item_data').items;
         const { errors, warnings } = qualityGateErrors(content.dataset('game_balance'), { items });
         expect(errors).toEqual([]);
         const noQuality = items.filter(i => i.quality === undefined || i.quality === null || i.quality === '');
-        expect(noQuality.length).toBeGreaterThan(0);
-        expect(warnings.filter(w => /没有 quality 字段/.test(w))).toHaveLength(1);
+        expect(noQuality).toEqual([]);
+        expect(warnings.filter(w => /没有 quality 字段/.test(w))).toHaveLength(0);
     });
 
     test.each([
@@ -283,12 +283,11 @@ describe('客户端不许再抄品质字典（档名与颜色只有一处来源�
         expect(inventory).toMatch(/export type ItemQuality = string/);
     });
 
-    test('缺 quality 的物品数只许变小（棘轮；数字来自本轮实测）', () => {
+    test('每件物品必须有 quality（2026-09-23 定档后从棘轮升成硬拦）', () => {
         const content = new ContentRegistry({ configPath: CONFIG_DIR, packDir: REAL_PACK_DIR, statRegistry });
         content.load();
         const noQuality = content.dataset('item_data').items.filter(i => !i.quality);
-        expect(noQuality.length).toBeLessThanOrEqual(33);
-        expect(noQuality.length).toBeGreaterThan(0);   // 真降到 0 就该改成硬拦
+        expect(noQuality.map(i => i.id || i.__pk)).toEqual([]);
     });
 });
 

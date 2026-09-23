@@ -27,7 +27,8 @@
       "type": "material",
       "subtype": "seed",
       "description": "可在洞府药园种植，成熟后产出紫云参。种它要有二阶以上的灵脉，不然云气聚不起来。",
-      "price": 150
+      "price": 150,
+      "quality": "common"
     },
     {
       "id": "qi_ye_qing_seed",
@@ -35,7 +36,8 @@
       "type": "material",
       "subtype": "seed",
       "description": "可在洞府药园种植，成熟后产出七叶青。耐阴耐瘠，新开府的弟子多半先撒这一味。",
-      "price": 60
+      "price": 60,
+      "quality": "common"
     },
     {
       "id": "ju_yuan_dan",
@@ -44,7 +46,9 @@
       "subtype": "knowledge",
       "quality": "uncommon",
       "description": "紫云参为君、七叶青为使，慢煨三时辰成一炉。服后一口气行开，修为涨得比打坐半日来得实在。",
-      "effect": { "exp": 900 },
+      "effect": {
+        "exp": 900
+      },
       "price": 560
     }
   ]

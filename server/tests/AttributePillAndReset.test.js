@@ -190,9 +190,19 @@ describe('背包使用物品链路（InventoryService）', () => {
         expect(detox.applied.toxicity_reduce).toBe(15);
     });
 
-    test('突破加成这类没落账的效果不进补丁也不进回执（回执里不许有没发生的数）', () => {
+    test('突破加成写入一次性待突破池（pending_breakthrough_bonus），不进永久 breakthrough_bonus', () => {
         const { columns, amounts, blobPatch, applied } = plan(makeFresh(), { breakthrough_bonus: 15 });
-        expect({ columns, amounts, blobPatch, applied }).toEqual({ columns: {}, amounts: {}, blobPatch: {}, applied: {} });
+        expect(blobPatch).toEqual({ pending_breakthrough_bonus: { $add: 15, $max: 80, $min: 0 } });
+        expect(applied).toEqual({ breakthrough_bonus: 15 });
+        expect(columns).toEqual({});
+        expect(amounts).toEqual({});
+        expect(blobPatch.breakthrough_bonus).toBeUndefined();
+    });
+
+    test('化龙脉石 0.1 按 0.1 点原样入池（与筑基丹 15 同一单位，不换算成 10%）', () => {
+        const { blobPatch, applied } = plan(makeFresh(), { breakthrough_bonus: 0.1 });
+        expect(blobPatch.pending_breakthrough_bonus.$add).toBeCloseTo(0.1, 10);
+        expect(applied.breakthrough_bonus).toBeCloseTo(0.1, 10);
     });
 
     test('永久属性丹拒绝批量使用（校验发生在查库之前）', async () => {

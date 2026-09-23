@@ -662,7 +662,8 @@
       "uncommon": 0.55,
       "rare": 0.5,
       "epic": 0.4,
-      "legendary": 0.3
+      "legendary": 0.3,
+      "mythic": 0.2
     },
     "non_pawnable_categories": ["quest_item", "badge", "bound", "artifact_with_spirit", "sect_contribution", "cultivation_xp", "stock"],
     "overdue_check_interval_ms": 3600000

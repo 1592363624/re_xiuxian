@@ -414,8 +414,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 在线人数统计 -->
-    <div class="mt-4 pt-4 border-t border-line-subtle">
+    <!-- 在线人数统计：沉到侧栏最底部，与 slogan 一起收尾，不再夹在灵根和空白之间 -->
+    <div class="mt-auto pt-4 border-t border-line-subtle">
       <div class="bg-surface-raised rounded-lg p-3 border border-line-subtle relative overflow-hidden group">
         <!-- 背景装饰 -->
         <div class="absolute -right-4 -top-4 w-16 h-16 bg-emerald-500/5 rounded-full blur-xl group-hover:bg-emerald-500/10 transition-colors duration-500"></div>
@@ -462,7 +462,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="mt-auto pt-4 text-xs text-fg-faint text-center font-display">
+    <div class="pt-3 pb-1 text-xs text-fg-faint text-center font-display">
       道法自然，乐在其中
     </div>
   </div>

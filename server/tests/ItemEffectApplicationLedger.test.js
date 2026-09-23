@@ -2,15 +2,12 @@
  * 「物品效果的键合法 ≠ 有人把它落到玩家身上」（2026-09-23，使用物品那条链改键级写入时量出来的）
  *
  * `ContentRegistry._validateItemEffects` 早就在管"effect 键必须是注册属性或效果词表里的键"，
- * 但那是**词表**层面的合法：`breakthrough_bonus` 是一个真属性，规则放行了它，
- * 可是"使用物品"这条链从来没往玩家身上写过这个键 —— 于是 16 件物品（整条突破丹药线，
- * 筑基丹 +15 一直到补天丹 +60）吃下去什么也不会多，而回执里还带着一个 `breakthrough_bonus` 的数。
- * 这是"配了、回执报了、玩家没拿到"那一族的又一个成员：
- * 前几例是成就奖励键、称号、灵兽战力权重，这一例是**物品效果**。
+ * 但那是**词表**层面的合法：`breakthrough_bonus` 曾经是真属性却没人落账 —— 16 件突破丹吃下去
+ * 什么也不会多。2026-09-23 业主拍板后已接上（一次性 pending_breakthrough_bonus）。
  *
- * 本轮没有替业主定语义（永久 / 本次一次性 / 上限 30 点要不要抬 —— 现网 11 件配的值超过上限，
- * 还有一件写 0.1，同一个键两种单位），只做了两件事：
- *   ① 回执不再报一个没发生的数；② 名单 + 硬拦资料片新增 + 例外带理由且过期会红。
+ * 本文件继续钉住两件事：
+ *   ① 台账里若还有未落账键，必须真有物品在用、理由够厚、资料片新增即拦；
+ *   ② 突破加成走一次性池，回执报的数与补丁一致，不写永久 breakthrough_bonus。
  */
 'use strict';
 
@@ -40,11 +37,13 @@ function loadWithFixture(files, mutate) {
     try { content.load(); return content; } finally { if (undo) undo(); }
 }
 
-const pillUsingDeadKey = extra => ({
+// 效果词表里的键（过 _validateItemEffects），再塞进 UNAPPLIED 才能测到死账闸本身
+const DEAD_KEY = 'alchemy_bonus';
+const pillUsingDeadKey = (effectKey = DEAD_KEY) => ({
     into: 'items',
     add: [{
         id: 'zz_probe_pill', name: '探针丹', type: 'consumable', quality: 'rare',
-        description: '夹具', price: 10, effect: { breakthrough_bonus: 5, ...extra }
+        description: '夹具', price: 10, effect: { [effectKey]: 5 }
     }]
 });
 
@@ -56,8 +55,14 @@ describe('台账本身是真的（判据不是空转）', () => {
         for (const key of Object.keys(UNAPPLIED_ITEM_EFFECTS)) {
             const users = items.filter(i => i.effect && key in i.effect);
             if (!users.length) throw new Error(`${key} 已没有任何物品在用，该从名单删掉`);
-            if (key === 'breakthrough_bonus') expect(users.length).toBe(16);
         }
+    });
+
+    test('breakthrough_bonus 已不在死账名单里（2026-09-23 接上一次性池）', () => {
+        expect(UNAPPLIED_ITEM_EFFECTS.breakthrough_bonus).toBeUndefined();
+        expect(UNAPPLIED_ITEM_EFFECT_EXCEPTIONS).toEqual([]);
+        const users = items.filter(i => i.effect && 'breakthrough_bonus' in i.effect);
+        expect(users.length).toBe(16);
     });
 
     test('理由必须说得出"读它的是谁、缺的那一步是什么、为什么要业主定"（薄结论不算结论）', () => {
@@ -77,33 +82,26 @@ describe('台账本身是真的（判据不是空转）', () => {
         }
     });
 
-    test('启动报告里点名这份死账（数量与"等业主定出口"一起出现）', () => {
+    test('启动报告不再点名 breakthrough_bonus 死账', () => {
         const line = content.report.warnings.find(w => w.includes('breakthrough_bonus') && w.includes('没有任何一处'));
-        expect(line).toBeTruthy();
-        expect(line).toContain('16 件');
+        expect(line).toBeFalsy();
     });
 
     test('名单过期这一半不进启动 errors（本文件第一条才是它的家）', () => {
-        // "名单里这条还有物品在用吗"是对**仓库内容**的结论，而启动闸跑在任何一份内容集上：
-        // ContentRegistry.test.js / ContentHotReload.test.js / BorderContentGate.test.js 的夹具各带两三件物品，
-        // 把它们钉在这里等于让每一份夹具都得抄一遍真实物品表（第一版就是这么炸了 34 项的）。
-        // 所以启动期只 warn + 进报告，硬拦留在本文件上面那条（它加载真实内容，过期就抛）。
         const raw = fs.readFileSync(path.join(serverRoot, 'game/content/ContentRegistry.js'), 'utf8');
         const src = raw.replace(/\r\n/g, String.fromCharCode(10)).split(String.fromCharCode(10))
             .filter(line => !/^\s*(?:\/\/|\/\*|\*)/.test(line)).join(String.fromCharCode(10));
         const gate = src.slice(src.indexOf('_validateItemEffectApplication()'), src.indexOf('_validatePuppetBlueprints()'));
         expect(gate).toMatch(/this\.report\.warnings\.push\(\`\$\{stale\}/);
         expect(gate).not.toMatch(/errors\.push\(.?`UNAPPLIED_ITEM_EFFECTS/);
-        // 反过来：资料片新增死键那一半必须留在启动期（它在任何内容集上都成立，夹具也拦得住）
         expect(gate).toMatch(/errors\.push\(.?`资料片新增的/);
     });
 });
 
 describe('资料片新增一件用死键的物品 → 拦；登记例外 → 放行并点名', () => {
     test('没登记例外时启动就抛，并把"玩家什么也不会多"说清楚', () => {
-        const exceptions = UNAPPLIED_ITEM_EFFECT_EXCEPTIONS;
-        const saved = exceptions.slice();
-        exceptions.length = 0;
+        // 先往名单塞一条合成死键：真实名单已清空，闸本身仍要能拦
+        UNAPPLIED_ITEM_EFFECTS[DEAD_KEY] = '合成死账：没有任何结算代码读它（本条只活在测试里，用来证明闸不是空转）—— 缺的那一步是使用物品那条链从不写 attributes';
         try {
             let message = '';
             try { loadWithFixture({ 'item_data__items.json': pillUsingDeadKey() }); }
@@ -111,39 +109,49 @@ describe('资料片新增一件用死键的物品 → 拦；登记例外 → 放
             expect(message).toContain('zz_probe_pill');
             expect(message).toContain('没有任何落账逻辑');
         } finally {
-            exceptions.push(...saved);
+            delete UNAPPLIED_ITEM_EFFECTS[DEAD_KEY];
         }
-        // 还原之后（wuzhen_dan 在例外表里），基础内容照样能装配
         expect(() => loadRealContent()).not.toThrow();
     });
 
-    test('例外表只豁免它点名的那一件：新物品用同一个键仍然抛', () => {
-        expect(() => loadWithFixture({ 'item_data__items.json': pillUsingDeadKey() })).toThrow(/zz_probe_pill/);
+    test('突破加成如今有人落账：资料片再发同款丹药不应被死账闸拦下', () => {
+        expect(() => loadWithFixture({
+            'item_data__items.json': {
+                into: 'items',
+                add: [{
+                    id: 'zz_bt_pill', name: '夹具突破丹', type: 'consumable', quality: 'rare',
+                    description: '夹具', price: 10, effect: { breakthrough_bonus: 5 }
+                }]
+            }
+        })).not.toThrow();
     });
 
-    test('控制跑：把这条结论从名单里删掉，同一支夹具就装得过来（说明抛它的就是这条闸）', () => {
-        const keys = Object.keys(UNAPPLIED_ITEM_EFFECTS);
-        expect(keys).toContain('breakthrough_bonus');
-        const saved = UNAPPLIED_ITEM_EFFECTS.breakthrough_bonus;
-        delete UNAPPLIED_ITEM_EFFECTS.breakthrough_bonus;
+    test('控制跑：把合成结论从名单里删掉，同一支夹具就装得过来（说明抛它的就是这条闸）', () => {
+        UNAPPLIED_ITEM_EFFECTS[DEAD_KEY] = '合成死账：没有任何结算代码读它（本条只活在测试里，用来证明闸不是空转）—— 缺的那一步是使用物品那条链从不写 attributes';
         try {
+            expect(() => loadWithFixture({ 'item_data__items.json': pillUsingDeadKey() })).toThrow(/zz_probe_pill/);
+            delete UNAPPLIED_ITEM_EFFECTS[DEAD_KEY];
             expect(() => loadWithFixture({ 'item_data__items.json': pillUsingDeadKey() })).not.toThrow();
         } finally {
-            UNAPPLIED_ITEM_EFFECTS.breakthrough_bonus = saved;
+            delete UNAPPLIED_ITEM_EFFECTS[DEAD_KEY];
         }
-        expect(() => loadWithFixture({ 'item_data__items.json': pillUsingDeadKey() })).toThrow(/zz_probe_pill/);
     });
 });
 
-describe('回执不再报没发生的数；使用物品不再整块写回 attributes', () => {
+describe('突破加成走一次性池；使用物品不再整块写回 attributes', () => {
     const rawSrc = fs.readFileSync(path.join(serverRoot, 'game/services/InventoryService.js'), 'utf8');
-    // 判据只读代码：解释性注释里出现的 player.save() / 整块赋值形状不算命中
-    // （这一条是被 §51 那个自坑教出来的：在注释里写了一遍被判据匹配的写法，就会把一张本该变短的表钉住）
     const src = rawSrc.replace(/\r\n/g, String.fromCharCode(10)).split(String.fromCharCode(10))
         .filter(line => !/^\s*(?:\/\/|\/\*|\*)/.test(line)).join(String.fromCharCode(10));
 
-    test('_applyItemEffect 不再把 breakthrough_bonus 塞进回执', () => {
-        expect(src).not.toMatch(/applied\.breakthrough_bonus\s*=/);
+    test('写入 pending_breakthrough_bonus，不写永久 breakthrough_bonus', () => {
+        expect(src).toMatch(/blobPatch\.pending_breakthrough_bonus = \{ \$add: gain/);
+        expect(src).not.toMatch(/blobPatch\.breakthrough_bonus\s*=/);
+    });
+
+    test('RealmService 突破概率叠加 pending，尝试后清零', () => {
+        const realm = fs.readFileSync(path.join(serverRoot, 'game/core/RealmService.js'), 'utf8');
+        expect(realm).toMatch(/pending_breakthrough_bonus/);
+        expect(realm).toMatch(/clearPendingBreakthroughBonus/);
     });
 
     test('属性丹走 $add 键级补丁，标量走列上原子加减，函数里没有实例级整块赋值', () => {
@@ -153,7 +161,6 @@ describe('回执不再报没发生的数；使用物品不再整块写回 attrib
         expect(src).toMatch(/amounts\.toxicity = -reduce/);
         expect(src).toMatch(/PlayerStateStore\.patchPlayerState\(/);
         expect(src).toMatch(/mirrorPatchedBlob\(player, updated\)/);
-        // 整块写回的形状（把 player 那份 attributes 赋回去 / 使用完再 save 整行）不许回潮
         expect(src).not.toMatch(/player\.attributes\s*=(?!=)/);
         const useItem = src.slice(src.indexOf('async useItem('), src.indexOf('async discardItem('));
         expect(useItem).not.toMatch(/player\.save\(/);

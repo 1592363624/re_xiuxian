@@ -233,11 +233,17 @@ describe('「配了却没人扣」的残魂消耗：出参不再宣传，新增�
         expect(JSON.stringify(projected)).not.toContain('内部批注');
     });
 
-    test('现网三档都写了 cost → 只告警（存量等业主选出口），理由表里没有这一格', () => {
+    test('2026-09-23 业主拍板删键后现网不再告警；资料片再写 cost 仍会被拦', () => {
         const content = loadFixture({});
         const warns = content.report.warnings.filter(w => w.includes('remnant_soul_cost'));
-        expect(warns).toHaveLength(3);          // steady 5 / ruthless 15 / deceive 0，三档都配了
-        expect(warns[0]).toContain('残魂消耗');
+        expect(warns).toHaveLength(0);
+
+        expectThrow({
+            'companion_data__heart_tribulation__options.json': {
+                dataset: 'companion_data', into: 'heart_tribulation.options',
+                add: [{ id: 'zz_costly', name: '夹具', success_rate: 0.4, intimacy_gain: 5, remnant_soul_cost: 8 }]
+            }
+        }, '资料片新增的选项 "zz_costly"');
     });
 
     test('这两个服务只以静态方式使用：一个方法漏写 static 就等于那条接口 500', () => {

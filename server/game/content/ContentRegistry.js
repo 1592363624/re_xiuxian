@@ -648,26 +648,17 @@ function contentRange(value, fallback = null) {
  * 「物品 effect 里没有任何一处落账」的键（存量台账，每条必须带理由，理由过期会反过来红）。
  * 判"有没有人落账"没法机械做（要看整条链），所以这张表是**人写的结论**：
  * 名单外的键由 `_validateItemEffects`（必须是注册属性或效果词表）+ 资料片新增即拦兜住。
+ *
+ * 2026-09-23：breakthrough_bonus 已接上（InventoryService 写 pending_breakthrough_bonus，
+ * RealmService 本次突破叠加并在尝试后清零），故从本表移除。
  */
-const UNAPPLIED_ITEM_EFFECTS = {
-    breakthrough_bonus: '突破流程读的是 attributes.breakthrough_bonus（RealmService.resolveBreakthroughBonus 走属性解析层，'
-        + 'LawService 那一支就是这么写进去的），而"使用物品"这条链从来没往那个键写过东西 —— '
-        + '现网 16 件物品拿它当唯一或主要效果（筑基丹 15 … 补天丹 60）。要接只要一行 $add，'
-        + '但先要业主定三件事：永久还是本次突破一次性、注册表 30 点上限要不要抬（现网 11 件配的值超过它）、'
-        + '以及 化龙脉石 写的 0.1 是 10% 还是 0.1 点（同一个键现网有两种单位）'
-};
+const UNAPPLIED_ITEM_EFFECTS = {};
 
 /**
  * 已知例外：某支资料片带来的物品用了没落账的效果键，但删掉它等于改别人的内容，所以带理由登记
  * （与 OPTIONAL_ITEM_REFS 同一套纪律：例外不再命中就 console.warn，防止例外和它想解释的烂内容一起烂掉）。
  */
-const UNAPPLIED_ITEM_EFFECT_EXCEPTIONS = [
-    {
-        key: 'breakthrough_bonus',
-        item: 'wuzhen_dan',
-        why: '悟真丹是本轮之前另一路改动加进乱星海片的（+3 突破加成），与本表那 16 件基础丹药同一条死账；业主定出口后一并接上，届时这条例外会因为不再命中而自动报红'
-    }
-];
+const UNAPPLIED_ITEM_EFFECT_EXCEPTIONS = [];
 
 /**
  * 「按品质档名取一个数」的伴生参数表清单（显式登记，不按键名猜）。

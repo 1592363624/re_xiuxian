@@ -74,7 +74,7 @@ const props = defineProps({
   player: { type: Object, default: null },
   openPanelId: { type: String, default: null }
 })
-defineEmits(['action'])
+const emit = defineEmits(['action', 'close-panel'])
 
 const tabs = [{ key: 'overview', label: '总览' }, ...DOCK_TABS]
 
@@ -97,7 +97,14 @@ watchEffect(() => {
 })
 
 const surfaceRef = ref(null)
-const selectTab = (key) => { activeTab.value = key }
+/**
+ * 切分类页签。面板停靠在 dock-surface 上时卡片视图被 v-show 藏着，
+ * 只改 activeTab 等于点了个寂寞 —— 必须一并收起面板，分类卡片才露得出来。
+ */
+const selectTab = (key) => {
+  activeTab.value = key
+  if (props.openPanelId) emit('close-panel')
+}
 
 /* ── 发布停靠面矩形给 .panel-shell ── */
 const publishSurfaceRect = () => {

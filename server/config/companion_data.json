@@ -23,10 +23,10 @@
   },
   "heart_tribulation": {
     "options": {
-      "_comment": "心动劫的选项词表（2026-09-23 登记成集合，资料片可自带新选项）：name 是下发给界面显示的中文名，键是 API 与库里存的 choice。以前「哪三个选项、各叫什么」在路由/服务/客户端各抄了一遍（routes/companion.js 与 CompanionService 各有一份字面清单，面板注释甚至写着「后端不下发名称」），于是资料片加第四个选项会被路由挡在门外。success_rate 是 0~1 的概率，intimacy_gain 是成功时加的亲密度，remnant_soul_cost 是这一次抉择要烧掉的残魂。",
-      "steady": { "name": "稳", "description": "以诚相待，成功率最高、收益最小", "success_rate": 0.7, "intimacy_gain": 10, "remnant_soul_cost": 5 },
-      "ruthless": { "name": "狠", "description": "斩断犹豫，成功率与收益居中，耗残魂较多", "success_rate": 0.5, "intimacy_gain": 20, "remnant_soul_cost": 15 },
-      "deceive": { "name": "骗", "description": "自欺欺人，成功率最低、收益最大，不耗残魂", "success_rate": 0.3, "intimacy_gain": 30, "remnant_soul_cost": 0 }
+      "_comment": "心动劫的选项词表（2026-09-23 登记成集合，资料片可自带新选项）：name 是下发给界面显示的中文名，键是 API 与库里存的 choice。success_rate 是 0~1 的概率，intimacy_gain 是成功时加的亲密度。（remnant_soul_cost 已删：结算从不扣残魂，面板那句「残魂消耗」是空头承诺 —— 2026-09-23 业主拍板去掉这颗键）",
+      "steady": { "name": "稳", "description": "以诚相待，成功率最高、收益最小", "success_rate": 0.7, "intimacy_gain": 10 },
+      "ruthless": { "name": "狠", "description": "斩断犹豫，成功率与收益居中", "success_rate": 0.5, "intimacy_gain": 20 },
+      "deceive": { "name": "骗", "description": "自欺欺人，成功率最低、收益最大", "success_rate": 0.3, "intimacy_gain": 30 }
     },
     "success_reward": { "heart_contract_exp": 100, "remnant_soul_recover": 10 },
     "failure_penalty": { "heart_contract_level_loss": 1, "remnant_soul_loss": 20, "weakness_hours": 24 },

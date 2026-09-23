@@ -80,23 +80,21 @@ describe('真内容与真服务', () => {
     const content = loadRealContent();
     const balance = content.datasets.get('game_balance');
 
-    test('现网事实仍然成立：词表六档、典表五档，所以报告要点名这一格', () => {
+    test('2026-09-23 业主拍板后现网典表已补齐 mythic=0.2，报告不再点名缺口', () => {
         expect(Object.keys(balance.item_qualities).filter(k => !k.startsWith('_'))).toHaveLength(6);
-        expect(balance.pawnshop.valuation_ratios.mythic).toBeUndefined();
+        expect(balance.pawnshop.valuation_ratios.mythic).toBe(0.2);
         const warning = content.report.warnings.find(w => w.includes('pawnshop.valuation_ratios'));
-        expect(warning).toBeTruthy();
-        expect(warning).toContain('没有 "mythic" 这一档的品质参数');
-        expect(warning).toContain('按档序继承 legendary');
+        expect(warning).toBeFalsy();
     });
 
-    test('典当估值走新规则，并随结果说明继承自哪一档', () => {
+    test('典当估值用 mythic 自己的 0.2（不再继承 legendary 的 0.3）', () => {
         const { initializeModules } = require('../modules');
         return initializeModules().then(() => {
             const PawnshopService = require('../game/services/PawnshopService');
             const mythic = PawnshopService._calculateValuation({ price: 50000, quality: 'mythic' }, 0);
-            expect(mythic.quality_ratio).toBeCloseTo(0.3, 10);
-            expect(mythic.quality_ratio_inherited_from).toBe('legendary');
-            expect(mythic.valuation).toBe(15000);
+            expect(mythic.quality_ratio).toBeCloseTo(0.2, 10);
+            expect(mythic.quality_ratio_inherited_from).toBeNull();
+            expect(mythic.valuation).toBe(10000);
             // 已有档不受影响
             const legendary = PawnshopService._calculateValuation({ price: 50000, quality: 'legendary' }, 0);
             expect(legendary.quality_ratio).toBeCloseTo(0.3, 10);

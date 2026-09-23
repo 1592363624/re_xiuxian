@@ -393,6 +393,8 @@ class RealmService {
                 player.weakness_end_time = null;
 
                 await player.save({ transaction: t });
+                // 一次性丹药加成只服务本次突破，成与败都清零
+                await this.clearPendingBreakthroughBonus(player, t);
                 await t.commit();
 
                 // 推送突破成功事件（事务提交后再推送，避免回滚后误推）
@@ -438,6 +440,7 @@ class RealmService {
                 } else {
                     await player.save({ transaction: t });
                 }
+                await this.clearPendingBreakthroughBonus(player, t);
 
                 await t.commit();
 
@@ -521,11 +524,28 @@ class RealmService {
             // 懒加载：CombatResolver → AttributeService → RealmService 会成环
             const CombatResolver = require('../combat/CombatResolver');
             const resolved = await CombatResolver.resolveCombatStats(player);
-            return Number(resolved.stats?.breakthrough_bonus) || 0;
+            const permanent = Number(resolved.stats?.breakthrough_bonus) || 0;
+            // 一次性丹药池（InventoryService 写入，突破尝试后清零）
+            const pending = Number((player.attributes || {}).pending_breakthrough_bonus) || 0;
+            return permanent + Math.max(0, pending);
         } catch (error) {
             console.warn(`[RealmService] 突破加成解析失败，按 0 处理: ${error.message}`);
             return 0;
         }
+    }
+
+    /** 突破尝试结束后清掉一次性丹药加成（成或败都清 —— 只服务「本次突破」） */
+    async clearPendingBreakthroughBonus(player, transaction = null) {
+        const pending = Number((player.attributes || {}).pending_breakthrough_bonus) || 0;
+        if (!pending) return 0;
+        const { patchPlayerState } = require('../persistence/PlayerStateStore');
+        await patchPlayerState(player.id, {
+            attributes: { pending_breakthrough_bonus: 0 }
+        }, transaction ? { transaction } : {});
+        if (player.attributes && typeof player.attributes === 'object') {
+            player.attributes.pending_breakthrough_bonus = 0;
+        }
+        return pending;
     }
 }
 

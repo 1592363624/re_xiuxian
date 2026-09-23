@@ -215,9 +215,12 @@ async function withRandom(value, run) {
         const optionsSnapshot = JSON.parse(JSON.stringify(
             configLoader.peekConfig('companion_data').heart_tribulation.options
         ));
-        if (!optionsSnapshot._comment || optionsSnapshot.steady.remnant_soul_cost === undefined) {
-            throw new Error('夹具前提不成立：内容里那份心劫选项没带 _comment / remnant_soul_cost，下面"没泄漏"的判据会是空的');
+        if (!optionsSnapshot._comment) {
+            throw new Error('夹具前提不成立：内容里那份心劫选项没带 _comment，下面"没泄漏"的判据会是空的');
         }
+        // 2026-09-23 业主拍板删掉了 remnant_soul_cost；这里故意种回一颗，钉住出参投影仍会滤掉它
+        // （库里旧行可能还带着这颗键）
+        optionsSnapshot.steady.remnant_soul_cost = 5;
         async function newEvent() {
             return await HeartTribulationEvent.create({
                 player_id: player.id, companion_id: companion.id, concubine_id: null,

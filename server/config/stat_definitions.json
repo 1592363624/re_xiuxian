@@ -317,7 +317,7 @@
       "agg": "flat_only",
       "base": { "attributeField": "breakthrough_bonus", "default": 0 },
       "min": 0,
-      "max": 30,
+      "max": 80,
       "floor": false,
       "allocatable": false,
       "bonusKey": "breakthrough_bonus",

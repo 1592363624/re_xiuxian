@@ -122,7 +122,7 @@
           <GameLog />
         </div>
 
-        <FeatureDock :player="playerStore.player" :open-panel-id="openPanel" @action="handleAction">
+        <FeatureDock :player="playerStore.player" :open-panel-id="openPanel" @action="handleAction" @close-panel="dismissPanel">
           <!-- 闭关 / 悟道 / 历练 进度条收进总览的状态卡，不再各占一条 header 下方的横条 -->
           <template #status>
             <SeclusionOverlay v-if="isStateSynced && playerStore.player?.is_secluded" />
@@ -272,6 +272,15 @@ const closePanel = () => {
   // 直接深链进来的（没有上一条）才 replace 回总览。
   if (router.options.history.state.back) router.back();
   else router.replace(panelRoute(null));
+};
+
+/**
+ * 切分类页签时收起面板。用 replace 而不是 back：
+ * 历史里可能堆着上一个面板（储物袋 → 角色），back 会退回那个面板而不是分类卡片。
+ */
+const dismissPanel = () => {
+  if (!openPanel.value) return;
+  router.replace(panelRoute(null));
 };
 
 // 地址里写了一个不认识的面板 id（旧书签、手改 hash）：提示后回总览，

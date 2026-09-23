@@ -442,15 +442,18 @@ class InventoryService {
             applied.exp = gain;
         }
 
-        // 「突破加成」这条效果** 目前没人落账**（16 件物品的唯一或主要效果就是它，含筑基→渡劫整条丹药线）。
-        // 原注释写的是"仅记录，实际使用在突破流程读取" —— 突破流程读的其实是 attributes.breakthrough_bonus
-        // （RealmService.resolveBreakthroughBonus 走属性解析层，LawService 那一支就是这么写进去的），
-        // 而这里从来没往那个键写过任何东西 —— 于是回执里有 breakthrough_bonus、玩家身上没有。
-        // 现在把它从回执里摘掉（不再对外报一个没发生的数），死账由
-        // ContentRegistry 的启动告警 + tests/ItemEffectApplicationLedger.test.js 钉住，
-        // 出口等业主定（永久 / 本次一次性 / 提高注册表 30 点上限 —— 现网有 11 件配的值超过上限、
-        // 还有一件 化龙脉石 写 0.1，同一个键两种单位，所以我不替它猜语义）。
-        // 要接的线已经很短：blobPatch.breakthrough_bonus = { $add: N } 一行，属性与突破两处都会自己跟着算。
+        // 「突破加成」→ 一次性待突破池（2026-09-23 业主拍板：一次性 / 上限 80 / 0.1 就是 0.1 点）。
+        // 不写永久 attributes.breakthrough_bonus（那是 LawService 法则点那一支的语义，可反复堆）；
+        // 写 pending_breakthrough_bonus，由 RealmService.resolveBreakthroughBonus 叠加进本次突破概率，
+        // 突破尝试结束（成或败）后清零。化龙脉石 0.1 与筑基丹 15 同一单位（百分点），不换算。
+        if (effect.breakthrough_bonus) {
+            const gain = Number(effect.breakthrough_bonus) * totalMultiplier;
+            if (Number.isFinite(gain) && gain !== 0) {
+                // 上限 80：注册表 breakthrough_bonus.max=80（原 30，现网 11 件配值超过 30）
+                blobPatch.pending_breakthrough_bonus = { $add: gain, $max: 80, $min: 0 };
+                applied.breakthrough_bonus = gain;
+            }
+        }
 
         // 增加寿元上限（延寿丹）：作用于玩家持久字段 lifespan_max，与 LifespanService 衰老/死亡判定同一字段
         if (effect.longevity_add) {
