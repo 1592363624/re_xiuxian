@@ -1,5 +1,7 @@
 # 重生之凡人修仙传 (Rebirth of Mortal Immortal Cultivation)
 
+# 体验官网:http://xx.52shell.ltd
+
 这是一个基于 Web 技术栈开发的文字版修仙游戏，致敬《凡人修仙传》。采用前后端分离架构，前端提供沉浸式的文字交互界面，后端处理复杂的修仙数值逻辑。
 
 ## 📁 项目架构
