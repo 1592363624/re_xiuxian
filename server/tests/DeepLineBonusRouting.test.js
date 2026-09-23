@@ -15,7 +15,7 @@
  *      现网量出来 6 个相位字段完全没有归宿、effects 整桶没有任何战斗读取方，
  *      这两笔是"面板承诺、战斗不给"的存量缺陷，等业主拍板是否接上（接上=改平衡）。
  *
- * 第 6 组顺手抓同类的**孤儿聚合器**：ArtifactSpiritService.getCombatBonus 注释写着"供 AttributeService 调用"，
+ * 第 6 组顺手抓同类的**孤儿聚合器**（2026-09-23 起器灵已接线为 artifact_spirit provider）：
  * 实际属性引擎的 provider 名单里没有它 —— 器灵的全部战斗加成从未生效。
  */
 'use strict';
@@ -394,37 +394,37 @@ describe('6. 同类形状：自称"供属性引擎调用"的聚合器必须真�
     const COMBAT_BONUS_AGGREGATORS = {
         'ArtifactDeepLineService.getAllArtifactDeepLineCombatBonuses': { provider: 'artifact_deep_line' },
         'ArtifactSpiritService.getCombatBonus': {
-            provider: null,
-            verdict: 'orphan_pending_owner_decision',
-            reason: '方法注释写"供 AttributeService 调用"，而 game/stats/providers.js 的 provider 名单里没有器灵这一档，'
-                + '全仓库也没有别的调用点（tests/e2e/test_artifact_spirit.js 只断言"方法存在"，绿灯掩盖了孤儿）。'
-                + '器灵的 atk/def/crit/dodge 百分比加成从未进过玩家属性。接上等于凭空给后期法宝一套加成，属于平衡改动；'
-                + '另注：它写的 percent.crit / percent.dodge 连属性键名都不是（注册表里是 crit_rate / dodge_rate），'
-                + '真要接必须先改键名口径'
+            provider: 'artifact_spirit',
+            reason: '2026-09-23 接线：providers.js artifact_spirit 来源。出参对齐注册表 —— '
+                + 'atk/def 走 percent 小数倍率，crit_rate/dodge_rate 走 absolute 百分点（flat_only）'
         }
     };
 
     test('控制跑：扫描器确实认识这两个聚合器的形状（空扫描就是假绿）', () => {
         const spirit = fs.readFileSync(path.join(serverRoot, 'game/services/ArtifactSpiritService.js'), 'utf8');
         expect(spirit).toMatch(/async\s+getCombatBonus\s*\(/);
-        expect(spirit).toMatch(/供 AttributeService 调用/);
-        expect(spirit).toMatch(/percent:\s*\{[^}]*crit:/);
-        expect(spirit).not.toMatch(/^\s*percent\.crit.*=>/);
+        expect(spirit).toMatch(/供 providers\.js 的 artifact_spirit 来源调用/);
+        // 键名必须对齐注册表，不能再写 percent.crit / percent.dodge
+        expect(spirit).toMatch(/absolute:\s*\{[^}]*crit_rate:/);
+        expect(spirit).toMatch(/percent:\s*\{[^}]*atk:/);
+        expect(spirit).not.toMatch(/percent:\s*\{[^}]*crit:/);
+        expect(spirit).not.toMatch(/percent:\s*\{[^}]*dodge:/);
         const deep = fs.readFileSync(path.join(serverRoot, 'game/services/ArtifactDeepLineService.js'), 'utf8');
         expect(deep).toMatch(/static\s+async\s+getAllArtifactDeepLineCombatBonuses\s*\(/);
     });
 
     test('每个聚合器的归宿都登记在案，登记的 provider 必须真在属性引擎里', () => {
         const ids = new Set(buildProviders(statRegistry, makeRealConfigLoader(content)).map(p => p.id));
-        expect(ids.size).toBeGreaterThanOrEqual(9);
+        expect(ids.size).toBeGreaterThanOrEqual(11);
         for (const [name, entry] of Object.entries(COMBAT_BONUS_AGGREGATORS)) {
             if (!entry.provider) {
                 expect(entry.verdict).toBe('orphan_pending_owner_decision');
                 expect(entry.reason.length).toBeGreaterThan(60);
-                expect(ids.has('artifact_spirit')).toBe(false);   // 孤儿这条结论今天仍然成立
                 continue;
             }
             expect(ids.has(entry.provider)).toBe(true);
+            const providersSrc = fs.readFileSync(path.join(serverRoot, 'game/stats/providers.js'), 'utf8');
+            expect(providersSrc).toContain(name.split('.')[1]);
         }
     });
 });

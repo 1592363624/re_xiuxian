@@ -101,6 +101,26 @@ const CASES = [
         // 夺舍继承：住在 attributes.reincarnation_bonus 里的一份独立账（不占玩家加点的 *_bonus 存储位）。
         id: 'reincarnation', group: 'reincarnation', stat: 'atk',
         player: basePlayer({ attributes: { reincarnation_bonus: { atk: 17 } } })
+    },
+    {
+        // 器灵：percent 走小数倍率（atk/def），absolute 走百分点（crit_rate/dodge_rate 注册表键名）
+        id: 'artifact_spirit', group: 'artifact_spirit', stat: 'atk',
+        player: basePlayer(),
+        overrides: {
+            artifact_spirit: {
+                is_active: true,
+                absolute: { crit_rate: 3, dodge_rate: 1 },
+                percent: { atk: 0.2, def: 0.1 },
+                effects: [],
+                breakdown: []
+            }
+        }
+    },
+    {
+        // 法相天地：每级 +N% 只给 point/flat_then_pct 属性
+        id: 'dharma_form', group: 'dharma_form', stat: 'atk',
+        player: basePlayer(),
+        overrides: { dharma_form: { pct: 0.15 } }
     }
 ];
 
@@ -111,7 +131,7 @@ describe('每个属性来源都必须真的产出加成', () => {
         // 现在直接数引擎真正装配出来的 provider，谁都别想悄悄少测一个。
         const built = buildProviders(statRegistry, makeRealConfigLoader(content));
         const realIds = built.map(p => p.id).sort();
-        expect(realIds.length).toBeGreaterThanOrEqual(10);       // 防空跑：装配不出来时别让断言退化成"两边都空"
+        expect(realIds.length).toBeGreaterThanOrEqual(12);       // 防空跑：装配不出来时别让断言退化成"两边都空"
         expect(CASES.map(c => c.id).sort()).toEqual(realIds);
         for (const p of built) {
             expect(typeof p.id).toBe('string');
@@ -142,10 +162,18 @@ describe('每个属性来源都必须真的产出加成', () => {
             // 这两个来源都从 attributes blob 里取数，基线要把整块 blob 清空，
             // 否则"基线"里还带着被测来源，差值永远是 0（这条测试就退化成空跑）。
             if (testCase.id === 'allocated' || testCase.id === 'reincarnation') baselinePlayer.attributes = {};
+            // 法相等级 0 = 无加成；器灵用 sourceOverrides 空值做基线
+            if (testCase.id === 'dharma_form') baselinePlayer.dharma_form_level = 0;
             if (testCase.id === 'talent') baselinePlayer.talent_id = null;
             if (testCase.id === 'title') baselinePlayer.equipped_title_id = null;
             // 基线必须把所有来源都置空，否则"基线"里也带着被测来源，差值永远是 0
-            const baseline = await resolve(baselinePlayer, {});
+            const baselineOverrides = (testCase.id === 'artifact_spirit' || testCase.id === 'dharma_form')
+                ? { [testCase.id]: testCase.id === 'artifact_spirit'
+                    ? { is_active: false, absolute: {}, percent: {}, effects: [], breakdown: [] }
+                    : { pct: 0 }
+                }
+                : {};
+            const baseline = await resolve(baselinePlayer, baselineOverrides);
 
             const group = withSource.breakdown[testCase.group];
             const contribution = testCase.read ? testCase.read(group) : group?.[testCase.stat];

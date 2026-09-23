@@ -8,12 +8,11 @@
  *   display_only —— 只发给人看（这种最危险：玩家以为自己有）
  * 前两处都没落地、又没登记成第三种结论的，就是"配了、印了、玩家没拿到"。
  *
- * 现网已经量到两例，都不擅自接（接上等于凭空给一批玩家加属性，是平衡决定）：
- *   - `ArtifactSpiritService.getCombatBonus` 注释写"供 AttributeService 调用"，provider 名单里没有它；
- *   - `NascentSoulService.getDharmaFormBonus`：法相天地按等级"每级 +5% 全属性"（满级 9 级 = +45%），
- *     服务端只把它当 `dharma_form_bonus` 系数发给人看（routes/breakthrough.js:398），
- *     `game/core` / `game/stats` / `game/combat` 三处对 dharma 零引用 —— 玩家花灵石与感悟升上来的
- *     属性加成从未进过属性。同一个系统的"每级 +2% 飞升成功率"倒是真的生效（AscensionService:379）。
+ * 2026-09-23 起两条历史孤儿已接线：
+ *   - `ArtifactSpiritService.getCombatBonus` → providers.js `artifact_spirit`
+ *     （crit/dodge 键名对齐注册表 crit_rate/dodge_rate，走 absolute 百分点）
+ *   - `NascentSoulService.getDharmaFormBonus` → providers.js `dharma_form`
+ *     （每级 +5% 只作用于 point/flat_then_pct，与 all_stats_bonus 同口径）
  *
  * 这条闸不判"该不该接"，只判"有没有人说清它去哪"。新增一个 getXxxBonus 而不写归宿 → 红。
  */
@@ -51,20 +50,16 @@ const DESTINATIONS = {
             + '所以它的归宿是 provider 的那一条，本条只是清单交接'
     },
     'ArtifactSpiritService.getCombatBonus': {
-        verdict: 'display_only',
-        pending: 'orphan_pending_owner_decision',
-        reason: '注释写"供 AttributeService 调用"，但 providers.js 的 9 个来源里没有器灵，全仓也没有第二个调用点；'
-            + '器灵的 atk/def/crit/dodge 百分比加成从未进过玩家属性。接上等于给后期法宝凭空一套加成（平衡改动），'
-            + '且它写的 percent.crit/dodge 不是注册表键名（应为 crit_rate/dodge_rate），接之前要先改键名口径'
+        verdict: 'provider',
+        provider: 'artifact_spirit',
+        reason: '2026-09-23 接线：providers.js 第 10 个来源。atk/def 走 percent 小数倍率，'
+            + 'crit_rate/dodge_rate 走 absolute 百分点（注册表 flat_only）'
     },
     'NascentSoulService.getDharmaFormBonus': {
-        verdict: 'display_only',
-        pending: 'attribute_promise_not_applied_pending_owner_decision',
-        reason: '法相天地每级 +5% 全属性（配置 dharma_form.attribute_bonus_per_level，满级 9 级 = +45%），'
-            + '服务端只在 routes/breakthrough.js:398 把它当 dharma_form_bonus 系数发给客户端展示；'
-            + 'game/core、game/stats、game/combat 对 dharma 零引用 → 玩家花钱与感悟升上来的"全属性加成"从未进属性。'
-            + '同系统的"每级 +2% 飞升成功率"倒是生效（AscensionService:379），所以这是半条链没接。'
-            + '接法很小（providers.js 加一档：对注册表每个属性给 pct=level×0.05），但会直接抬高化神以上玩家的战损口径，等签字'
+        verdict: 'provider',
+        provider: 'dharma_form',
+        reason: '2026-09-23 接线：providers.js 法相天地来源。每级 +N% 只作用于 unit=point 且 agg=flat_then_pct 的属性，'
+            + '与 all_stats_bonus 同口径，不碰 crit_rate 这类概率百分点'
     },
     'NascentSoulService.getAskDaoBreakthroughBonus': {
         verdict: 'consumer', reason: 'routes/breakthrough.js 突破概率里直接用（成功率类加成，本来就不进属性块）'
@@ -127,14 +122,15 @@ describe('加成聚合器的归宿台账', () => {
         }
     });
 
-    test('控制跑：扫描器真的认识这两个已知孤儿（否则本文件是空转）', () => {
+    test('控制跑：扫描器真的认识这两个曾是孤儿的聚合器（否则本文件是空转）', () => {
         expect(aggregators).toContain('ArtifactSpiritService.getCombatBonus');
         expect(aggregators).toContain('NascentSoulService.getDharmaFormBonus');
         expect(aggregators.length).toBeGreaterThanOrEqual(10);
-        // 台账不能把两条已知缺陷偷偷写成 provider
-        expect(DESTINATIONS['ArtifactSpiritService.getCombatBonus'].verdict).toBe('display_only');
-        expect(DESTINATIONS['NascentSoulService.getDharmaFormBonus'].verdict).toBe('display_only');
-        expect(providerIdsOfEngine()).not.toContain('artifact_spirit');
+        // 2026-09-23 已接线：两条都必须是 provider 且真的挂在引擎上
+        expect(DESTINATIONS['ArtifactSpiritService.getCombatBonus'].verdict).toBe('provider');
+        expect(DESTINATIONS['NascentSoulService.getDharmaFormBonus'].verdict).toBe('provider');
+        expect(providerIdsOfEngine()).toContain('artifact_spirit');
+        expect(providerIdsOfEngine()).toContain('dharma_form');
     });
 
     test('属性引擎里每个来源都在台账里说得出名字（防止新增 provider 不登记）', () => {

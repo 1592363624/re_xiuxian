@@ -204,7 +204,69 @@ function buildProviders(registry, configLoader) {
         info: (_raw, ctx) => ctx.puppetInfo || null
     });
 
-    // 10. 夺舍继承：住在 attributes.reincarnation_bonus 里的一份独立加成。
+    // 10. 器灵：已唤醒器灵按类型+等级给攻防百分比与暴击/闪避百分点；
+    //     percent 键名对齐注册表（crit_rate/dodge_rate 走 absolute 百分点，因其 flat_only）。
+    providers.push({
+        id: 'artifact_spirit',
+        label: '器灵',
+        order: 95,
+        requiresIo: true,
+        collect: (ctx) => suppliedOr(ctx, 'artifact_spirit', async () => {
+            const ArtifactSpiritService = require('../services/ArtifactSpiritService');
+            return ArtifactSpiritService.getCombatBonus(ctx.player.id);
+        }).then(raw => {
+            if (!raw || raw.is_active !== true) return {};
+            ctx.artifactSpirit = raw;
+            const mods = {};
+            for (const [key, value] of Object.entries(pickNumeric(raw.absolute))) mods[key] = { flat: value };
+            for (const [key, value] of Object.entries(pickNumeric(raw.percent))) {
+                mods[key] = { ...(mods[key] || {}), pct: value };
+            }
+            return mods;
+        }).catch((error) => {
+            logOnce('stats.provider.artifact_spirit',
+                `器灵加成读取失败，本轮属性面板按"无加成"兜底: ${error.message}`);
+            return {};
+        }),
+        info: (_raw, ctx) => (ctx.artifactSpirit && ctx.artifactSpirit.is_active
+            ? { effects: ctx.artifactSpirit.effects || {}, sources: ctx.artifactSpirit.breakdown || {} }
+            : null)
+    });
+
+    // 11. 法相天地：每级 +N% 全属性（只作用于点数型 flat_then_pct，不碰概率百分点）。
+    //     与 all_stats_bonus 同一口径 —— 否则满级会把 5% 暴击抬成 7.25%。
+    providers.push({
+        id: 'dharma_form',
+        label: '法相天地',
+        order: 105,
+        collect: (ctx) => suppliedOr(ctx, 'dharma_form', async () => {
+            try {
+                const NascentSoulService = require('../services/NascentSoulService');
+                const multiplier = Number(NascentSoulService.getDharmaFormBonus(ctx.player));
+                return { pct: Number.isFinite(multiplier) ? multiplier - 1 : 0 };
+            } catch (error) {
+                // 配置未加载/服务异常时按"无法相"兜底，不能拖垮整条属性管线
+                logOnce('stats.provider.dharma_form',
+                    `法相天地加成读取失败，本轮按无加成兜底: ${error.message}`);
+                return { pct: 0 };
+            }
+        }).then(raw => {
+            const pct = Number(raw?.pct) || 0;
+            if (!pct) return {};
+            const mods = {};
+            for (const def of registry.all()) {
+                if (def.unit !== 'point' || def.agg !== 'flat_then_pct') continue;
+                mods[def.key] = { pct };
+            }
+            ctx.dharmaFormPct = pct;
+            return mods;
+        }),
+        info: (_raw, ctx) => (ctx.dharmaFormPct
+            ? { attribute_bonus: ctx.dharmaFormPct, source: 'dharma_form' }
+            : null)
+    });
+
+    // 12. 夺舍继承：住在 attributes.reincarnation_bonus 里的一份独立加成。
     //     为什么不复用 *_bonus（atk_bonus 那一族）：那些键是**玩家加点与丹药**的存储位，
     //     夺舍去覆盖会把玩家自己点的点清掉，去累加则每夺一次舍就永久叠一层（可刷分）。
     //     单独一个来源还有两个好处：面板能指名"这部分来自夺舍"，撤档/回滚时能整块清掉。

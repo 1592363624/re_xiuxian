@@ -218,16 +218,18 @@ class ArtifactSpiritService {
     }
 
     /**
-     * 计算器灵战斗加成（供 AttributeService 调用）
-     * 返回归一化结构，与法宝深线加成保持一致
+     * 计算器灵战斗加成（供 providers.js 的 artifact_spirit 来源调用）
+     * 返回归一化结构，与法宝深线加成保持一致：
+     *   - percent  = 小数倍率，只给 flat_then_pct 的属性（atk/def…）
+     *   - absolute = 百分点/点数，给 flat_only 的属性（crit_rate/dodge_rate 注册表键名）
      * @param {number} playerId - 玩家ID
      * @returns {Promise<Object>} { is_active, absolute, percent, effects, breakdown }
      */
     async getCombatBonus(playerId) {
         const result = {
             is_active: false,
-            absolute: { atk: 0, def: 0, hp_max: 0, mp_max: 0, speed: 0 },
-            percent: { atk: 0, def: 0, crit: 0, dodge: 0 },
+            absolute: { crit_rate: 0, dodge_rate: 0 },
+            percent: { atk: 0, def: 0 },
             effects: [],
             breakdown: []
         };
@@ -252,16 +254,17 @@ class ArtifactSpiritService {
                 const levelBonus = typeConfig.level_bonus_per_level || {};
                 const level = spirit.spirit_level || 1;
 
-                // 计算各属性百分比加成（基础 + 等级*每级加成）
+                // 内容表沿用 atk_percent/crit_percent 命名；出参对齐注册表：
+                // 攻防走小数倍率 percent，暴击/闪避走百分点 absolute（crit_rate/dodge_rate 是 flat_only）
                 const atkPercent = (baseBonus.atk_percent || 0) + (levelBonus.atk_percent || 0) * level;
                 const defPercent = (baseBonus.def_percent || 0) + (levelBonus.def_percent || 0) * level;
-                const critPercent = (baseBonus.crit_percent || 0) + (levelBonus.crit_percent || 0) * level;
-                const dodgePercent = (baseBonus.dodge_percent || 0) + (levelBonus.dodge_percent || 0) * level;
+                const critPoints = ((baseBonus.crit_percent || 0) + (levelBonus.crit_percent || 0) * level) * 100;
+                const dodgePoints = ((baseBonus.dodge_percent || 0) + (levelBonus.dodge_percent || 0) * level) * 100;
 
                 result.percent.atk += atkPercent;
                 result.percent.def += defPercent;
-                result.percent.crit += critPercent;
-                result.percent.dodge += dodgePercent;
+                result.absolute.crit_rate += critPoints;
+                result.absolute.dodge_rate += dodgePoints;
 
                 // 催发状态：额外倍率加成
                 if (spirit.activate_active_until && new Date(spirit.activate_active_until) > new Date()) {
@@ -295,8 +298,8 @@ class ArtifactSpiritService {
                     spirit_level: level,
                     atk_percent: atkPercent,
                     def_percent: defPercent,
-                    crit_percent: critPercent,
-                    dodge_percent: dodgePercent
+                    crit_rate_points: critPoints,
+                    dodge_rate_points: dodgePoints
                 });
             }
         } catch (e) {

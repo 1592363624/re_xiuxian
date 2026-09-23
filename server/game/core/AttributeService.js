@@ -55,7 +55,10 @@ const LEGACY_BREAKDOWN_GROUPS = [
     ['puppet', 'puppet'],
     // 夺舍继承同理：少这一行 = 它照样进 final、照样打得出伤害，但按来源分组的明细里查无此账，
     // 玩家与策划都无从知道这部分属性从哪来（tests/StatProviderCoverage.test.js 会红）。
-    ['reincarnation', 'reincarnation']
+    ['reincarnation', 'reincarnation'],
+    // 器灵与法相天地（2026-09-23 接线）同样必须进 legacy breakdown，否则面板"加成来自哪里"漏账
+    ['artifact_spirit', 'artifact_spirit'],
+    ['dharma_form', 'dharma_form']
 ];
 
 class AttributeService {

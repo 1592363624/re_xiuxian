@@ -51,6 +51,8 @@ function emptySources(extra = {}) {
     return {
         equipment: {}, spirit_beast: {}, technique: {}, puppet: null,
         artifact_deep_line: { is_active: false, absolute: {}, percent: {}, effects: {}, breakdown: {} },
+        artifact_spirit: { is_active: false, absolute: {}, percent: {}, effects: [], breakdown: [] },
+        dharma_form: { pct: 0 },
         ...extra
     };
 }
