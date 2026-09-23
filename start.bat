@@ -70,8 +70,12 @@ rem 本脚本所有 start 行必须保持纯 ASCII：中文会让 cmd 的引号�
 rem 引号内的连接符会泄漏成命令分隔符，start 就不弹窗而是内联阻塞主脚本
 start "Backend" cmd /k "%~dp0scripts\run-server.bat"
 
-rem 等待服务器启动
-timeout /t 3 /nobreak >nul
+rem 等后端 /api/health 就绪再起前端，避免 Vite 代理打出 ECONNREFUSED 红字
+echo [信息] 正在等待后端就绪...
+node "%~dp0scripts\wait-until-backend-ready.js"
+if errorlevel 1 (
+    echo [警告] 后端超时未就绪，仍启动前端（页面请求会自动重试）
+)
 
 echo [信息] 正在启动前端客户端（新窗口）...
 echo.

@@ -37,7 +37,10 @@ function getRateLimitConfig() {
     try {
         configured = infrastructure.ConfigLoader?.getConfig('game_balance')?.rate_limit || {};
     } catch (e) {
-        console.warn('[限流] 配置尚未加载，先用兜底阈值建限流器（配置就绪后会由 initializeRateLimiters 重建）:', e.message);
+        // 模块加载期配置必然未就绪，用兜底阈值即可；真正异常才在 initializeRateLimiters 后可见
+        if (process.env.RATE_LIMIT_DEBUG) {
+            console.log('[限流] 配置尚未加载，先用兜底阈值建限流器:', e.message);
+        }
     }
 
     const merge = (fallback, override = {}) => ({

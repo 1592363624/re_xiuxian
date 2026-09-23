@@ -18,9 +18,11 @@ export default defineConfig(({ mode }) => {
           target: apiUrl,
           changeOrigin: true,
           configure: (proxy) => {
+            // 后端尚未就绪时的连接错误是启动竞态，不是故障：只记一行提示，不走 stderr。
+            // Vite 自己的 http proxy error 红字仍会出，所以 start.bat 会先等后端 /api/health。
             proxy.on('error', (err) => {
-              if (err.code === 'ECONNREFUSED') {
-                console.warn('[前端] 后端服务暂未就绪，请求将自动重试...')
+              if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
+                console.log('[前端] 后端服务暂未就绪，请求将自动重试...')
               }
             })
           }

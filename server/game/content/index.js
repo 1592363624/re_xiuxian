@@ -51,7 +51,15 @@ function initializeContentLayer(configLoader, options = {}) {
         (packs.length ? `（${packs.map(p => `${p.id}@${p.version}`).join(', ')}）` : '') +
         `，${content.mergedDatasets().size} 个数据集，${statRegistry.count} 个属性`
     );
-    for (const warning of report.warnings) console.warn(`[ContentRegistry] ${warning}`);
+    // 体检提示默认不刷屏到控制台（console.warn 走 stderr，启动窗口会整片发红）。
+    // 明细在 report.warnings，用 npm run content:report 或设 CONTENT_VERBOSE=1 查看。
+    if (report.warnings.length) {
+        if (process.env.CONTENT_VERBOSE) {
+            for (const warning of report.warnings) console.log(`[ContentRegistry] ${warning}`);
+        } else {
+            console.log(`[ContentRegistry] 内容体检提示 ${report.warnings.length} 条（明细: npm run content:report）`);
+        }
+    }
 
     return { content, report };
 }

@@ -17,7 +17,7 @@ const CHECK_INTERVAL = 1000; // 每秒检查一次
  */
 function checkBackendReady() {
   return new Promise((resolve) => {
-    const req = http.get(`http://localhost:${BACKEND_PORT}/api/status`, (res) => {
+    const req = http.get(`http://localhost:${BACKEND_PORT}/api/health`, (res) => {
       resolve(true);
     });
     req.on('error', () => {
@@ -45,7 +45,7 @@ async function waitForBackend() {
     await new Promise(r => setTimeout(r, CHECK_INTERVAL));
   }
 
-  console.warn('[启动脚本] 等待后端超时，前端可能无法正常加载');
+  console.log('[启动脚本] 等待后端超时，前端可能无法正常加载');
   return false;
 }
 

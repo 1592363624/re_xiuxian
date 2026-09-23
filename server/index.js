@@ -209,8 +209,8 @@ async function initializeConfigLoader() {
         const { initializeModules } = require('./modules');
         const result = await initializeModules();
         // 修复：configLoader 已在文件顶部声明（let configLoader = null），此处赋值即可
+        // 成功日志已在 initializeModules 里打过，这里不再重复刷一整页配置名
         configLoader = result.configLoader || require('./modules').infrastructure.ConfigLoader;
-        console.log('配置加载器初始化成功，已加载配置:', configLoader.getLoadedConfigNames());
         return true;
     } catch (error) {
         console.error('配置加载器初始化失败:', error.message);

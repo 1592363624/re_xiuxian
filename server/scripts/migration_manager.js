@@ -293,18 +293,32 @@ function auditMigrations(executedRows, files, dir = MIGRATION_DIR) {
  * 而漂移/孤儿/重复号是历史事实，硬拦会让现网升不上去（本轮实测漂移就有 37 条）。
  */
 function logMigrationAudit(audit) {
+    // 对账结果默认只打一行汇总（console.warn 走 stderr，启动窗口整片发红）。
+    // 明细用 MIGRATION_AUDIT_VERBOSE=1 或跑 node scripts/migration_manager.js status。
+    const parts = [];
+    if (audit.orphans.length) parts.push(`孤儿记录 ${audit.orphans.length}`);
+    if (audit.drift.length) parts.push(`校验和漂移 ${audit.drift.length}`);
+    if (audit.duplicated.length) parts.push(`版本号重复 ${audit.duplicated.length}`);
+    if (!parts.length) return;
+
+    const summary = `[Migration] 迁移对账提示：${parts.join('，')}（明细: MIGRATION_AUDIT_VERBOSE=1 或 node scripts/migration_manager.js status）`;
+    if (!process.env.MIGRATION_AUDIT_VERBOSE) {
+        console.log(summary);
+        return;
+    }
+    console.log(summary);
     if (audit.orphans.length) {
-        console.warn(`[Migration] 库里有 ${audit.orphans.length} 条记录在仓库里找不到文件：${audit.orphans.join(', ')}`
+        console.log(`[Migration] 库里有 ${audit.orphans.length} 条记录在仓库里找不到文件：${audit.orphans.join(', ')}`
             + ' —— 线上库的结构已经不全靠这个仓库重放得出来了，请补回文件或确认这条迁移确实该退役（退役也要留文件）');
     }
     if (audit.drift.length) {
-        console.warn(`[Migration] ${audit.drift.length} 个迁移在记录之后被改过（改动不会在已跑过的库上重放）：`
+        console.log(`[Migration] ${audit.drift.length} 个迁移在记录之后被改过（改动不会在已跑过的库上重放）：`
             + `${audit.drift.slice(0, 5).join(', ')}${audit.drift.length > 5 ? ` …另有 ${audit.drift.length - 5} 条` : ''}`);
-        console.warn('           确认这些改动确实只影响"还没跑过的新库"，或改用一条新的迁移把它们补上；'
+        console.log('           确认这些改动确实只影响"还没跑过的新库"，或改用一条新的迁移把它们补上；'
             + '愿意接受现状就执行 `node scripts/migration_manager.js restack-checksums --apply` 以当前文件为重算基线');
     }
     for (const dup of audit.duplicated) {
-        console.warn(`[Migration] 版本号 ${dup.version} 被 ${dup.files.join(' / ')} 同时占用：`
+        console.log(`[Migration] 版本号 ${dup.version} 被 ${dup.files.join(' / ')} 同时占用：`
             + '按版本号定位（--to-version、rollback）时它不再唯一，新的迁移请取未用过的号');
     }
 }

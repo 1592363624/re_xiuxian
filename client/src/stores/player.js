@@ -174,20 +174,24 @@ export const usePlayerStore = defineStore('player', {
     async applyStateSnapshot(snapshot) {
       if (!snapshot || !this.player) return
 
+      // 后端标准形状是 states.*，同时兼容历史扁平字段（PlayerStateService 也会展开一份）
+      const states = snapshot.states || snapshot
+
       let needFetchPlayer = false
 
       // 1. 闭关状态恢复
-      const secluded = snapshot.seclusion?.is_secluded === true
+      const seclusion = states.seclusion || snapshot.seclusion
+      const secluded = seclusion?.is_secluded === true
       if (this.player.is_secluded !== secluded) {
         // 闭关状态不一致：可能是后端自动结算了过期闭关，需要刷新玩家数据获取最新 exp
         needFetchPlayer = true
       }
       if (secluded && this.player) {
         this.player.is_secluded = true
-        this.player.seclusion_mode = snapshot.seclusion.mode || 'normal'
-        this.player.seclusion_start_time = snapshot.seclusion.start_time
-        this.player.seclusion_end_time = snapshot.seclusion.end_time
-        this.player.seclusion_duration = snapshot.seclusion.duration || 0
+        this.player.seclusion_mode = seclusion.mode || 'normal'
+        this.player.seclusion_start_time = seclusion.start_time
+        this.player.seclusion_end_time = seclusion.end_time
+        this.player.seclusion_duration = seclusion.duration || 0
         localStorage.setItem('player', JSON.stringify(this.player))
       } else if (this.player) {
         this.player.is_secluded = false
@@ -198,38 +202,40 @@ export const usePlayerStore = defineStore('player', {
       }
 
       // 2. 移动状态恢复
-      const moving = snapshot.moving?.is_moving === true
+      const movingSnap = states.moving || snapshot.moving
+      const moving = movingSnap?.is_moving === true
       if (moving) {
         // 直接设置 movingState，MovingOverlay 会据此渲染
         this.movingState = {
           isMoving: true,
-          fromMapId: snapshot.moving.from_map_id,
-          toMapId: snapshot.moving.to_map_id,
+          fromMapId: movingSnap.from_map_id,
+          toMapId: movingSnap.to_map_id,
           fromMapName: '',
           toMapName: '',
-          startTime: snapshot.moving.move_start_time,
-          endTime: snapshot.moving.move_end_time,
+          startTime: movingSnap.move_start_time,
+          endTime: movingSnap.move_end_time,
           totalSeconds: 0,
-          remainingSeconds: snapshot.moving.remaining_seconds || 0
+          remainingSeconds: movingSnap.remaining_seconds || 0
         }
       } else {
         this.clearMovingState()
       }
 
       // 3. 历练状态恢复
-      const adventuring = snapshot.adventure?.is_adventuring === true
+      const adventureSnap = states.adventure || snapshot.adventure
+      const adventuring = adventureSnap?.is_adventuring === true
       if (adventuring) {
         this.adventureStatus = {
           is_adventuring: true,
           adventure: {
-            id: snapshot.adventure.adventure_id,
-            event_type: snapshot.adventure.event_type,
-            map_id: snapshot.adventure.map_id,
-            map_name: snapshot.adventure.map_name
+            id: adventureSnap.adventure_id,
+            event_type: adventureSnap.event_type,
+            map_id: adventureSnap.map_id,
+            map_name: adventureSnap.map_name
           },
-          remaining_seconds: snapshot.adventure.remaining_seconds || 0,
+          remaining_seconds: adventureSnap.remaining_seconds || 0,
           total_seconds: 0,
-          is_expired: snapshot.adventure.is_expired || false,
+          is_expired: adventureSnap.is_expired || false,
           server_time: Date.now()
         }
       } else {

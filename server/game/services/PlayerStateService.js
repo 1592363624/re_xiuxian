@@ -66,6 +66,14 @@ class PlayerStateService {
             }
         }
 
+        // 兼容展开：前端 applyStateSnapshot 与部分日志按扁平结构读（snapshot.seclusion），
+        // HTTP 文档是 states.seclusion。两个形状同时给出，避免只改一边就静默丢状态恢复。
+        for (const [stateType, value] of Object.entries(snapshot.states)) {
+            if (!(stateType in snapshot) && value && typeof value === 'object') {
+                snapshot[stateType] = value;
+            }
+        }
+
         return snapshot;
     }
 

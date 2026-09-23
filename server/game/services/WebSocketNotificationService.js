@@ -80,9 +80,11 @@ class WebSocketNotificationService {
                     snapshot,
                     timestamp: new Date().toISOString()
                 });
+                // 快照真实形状是 states.seclusion；历史扁平字段由 PlayerStateService 兼容展开
+                const s = snapshot.states || snapshot;
                 console.log(`[WebSocket] 已推送状态快照给玩家 ${playerId} ` +
-                    `(闭关:${snapshot.seclusion.is_secluded} 移动:${snapshot.moving.is_moving} ` +
-                    `战斗:${snapshot.battle.in_battle} 历练:${snapshot.adventure.is_adventuring})`);
+                    `(闭关:${s.seclusion?.is_secluded} 移动:${s.moving?.is_moving} ` +
+                    `战斗:${s.battle?.in_battle} 历练:${s.adventure?.is_adventuring})`);
             } catch (err) {
                 console.warn(`[WebSocket] 推送状态快照失败 玩家 ${playerId}:`, err.message);
             }
