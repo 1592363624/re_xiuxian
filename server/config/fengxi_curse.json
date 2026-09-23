@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "dataset": "fengxi_curse",
+    "version": 1,
+    "comment": "乱星海秘闻·风希的诅咒：持有风雷翅可能被分神追猎；逃/战二选一；冷却期风元紊乱；战胜得风之祝福。"
+  },
+  "fengxi_curse": {
+    "enabled": true,
+    "trigger_chance_per_hour": 0.04,
+    "hunt_window_minutes": 30,
+    "escape_base_chance": 0.4,
+    "escape_rank_bonus_per_rank": 0.02,
+    "escape_fail_exp_loss_rate": 0.08,
+    "fight_win_chance_base": 0.05,
+    "fight_lose_exp_loss_rate": 0.2,
+    "fight_win_exp_gain": 50000,
+    "cooldown_hours_after": 4,
+    "wind_blessing_hours": 12,
+    "wind_blessing_escape_bonus": 0.2,
+    "required_item_keys": ["fenglei_wings", "wind_thunder_wings", "风雷翅"]
+  }
+}

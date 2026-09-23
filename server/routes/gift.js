@@ -15,7 +15,15 @@ const auth = require('../middleware/auth');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const GiftTaxService = require('../game/services/GiftTaxService');
 const InventoryService = require('../game/services/InventoryService');
-const { safeBigInt } = require('../utils/bigint');
+
+/** BigInt 安全转数（spirit_stones 列是 BIGINT） */
+function safeBigInt(value) {
+    try {
+        return BigInt(value ?? 0);
+    } catch (_) {
+        return 0n;
+    }
+}
 
 async function loadPlayersForGift(senderId, targetId) {
     const t = await sequelize.transaction();
