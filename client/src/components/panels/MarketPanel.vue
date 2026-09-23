@@ -455,6 +455,7 @@ onMounted(() => {
     hint="挂单 · 换物 · 货摊"
     size="xl"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <div class="h-full flex flex-col min-h-0">

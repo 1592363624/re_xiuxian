@@ -1,7 +1,7 @@
 {
-  "description": "闭关修炼系统配置（重构版：区分常规闭关与深度闭关）",
-  "version": "2.0.0",
-  "lastUpdated": "2026-07-03T06:39:24.328Z",
+  "description": "闭关修炼系统配置（常规闭关多轮判定：成功/失败/走火入魔 + 随机冷却 + 奇遇；深度闭关为长线挂机）",
+  "version": "3.0.0",
+  "lastUpdated": "2026-07-23T00:00:00.000Z",
   "settings": {
     "seclusion_exp_rate": {
       "value": 1,
@@ -12,7 +12,7 @@
     "cultivate_interval": {
       "value": "60",
       "unit": "秒",
-      "description": "修炼结算时间间隔（保留字段，向后兼容）",
+      "description": "常规闭关单轮结算间隔（每 60 秒判定一次成功/失败/走火入魔）",
       "defaultValue": 60,
       "displayName": "修炼结算间隔"
     },
@@ -20,10 +20,62 @@
       "value": {
         "max_duration": 1800,
         "daily_limit": 3,
-        "cooldown": 360,
-        "exp_rate": 1
+        "cooldown": 600,
+        "cooldown_min": 600,
+        "cooldown_max": 900,
+        "exp_rate": 1,
+        "round_interval": 60,
+        "outcomes": {
+          "success_rate": 0.65,
+          "fail_rate": 0.25,
+          "deviation_rate": 0.1,
+          "fail_exp_ratio": 0.3,
+          "deviation_exp_penalty_ratio": 0.1,
+          "deviation_hp_loss_ratio": 0.15,
+          "guard_damage_reduction": 0.3
+        },
+        "encounter": {
+          "enabled": true,
+          "trigger_chance": 0.05,
+          "session_limit": 2,
+          "pool": [
+            {
+              "id": "insight",
+              "name": "灵光乍现",
+              "weight": 30,
+              "type": "exp_bonus",
+              "exp_bonus_ratio": 0.5,
+              "description": "冥冥中捕捉到一丝道韵，本轮修为大进"
+            },
+            {
+              "id": "herb",
+              "name": "偶得灵草",
+              "weight": 25,
+              "type": "item",
+              "item_id": "low_healing_pill",
+              "item_count": 1,
+              "description": "石缝中发现一株灵草，炼成丹药收入囊中"
+            },
+            {
+              "id": "stone",
+              "name": "拾得灵石",
+              "weight": 25,
+              "type": "spirit_stone",
+              "amount": 80,
+              "description": "洞中偶得些许灵石"
+            },
+            {
+              "id": "heart_demon",
+              "name": "心魔微扰",
+              "weight": 20,
+              "type": "exp_penalty",
+              "exp_penalty_ratio": 0.05,
+              "description": "心神微荡，少许修为溃散"
+            }
+          ]
+        }
       },
-      "description": "常规闭关配置：短时挂机，每日3次，冷却6分钟（360秒），单次最长30分钟",
+      "description": "常规闭关：每 60 秒一轮，成功全额/失败30%/走火入魔倒扣并损气血；结束后随机冷却 10-15 分钟；闭关中有几率奇遇",
       "displayName": "常规闭关配置"
     },
     "deep_seclusion": {
@@ -54,10 +106,10 @@
       "displayName": "深度闭关最短时长（兼容）"
     },
     "seclusion_cooldown": {
-      "value": "300",
+      "value": "600",
       "unit": "秒",
-      "description": "常规闭关冷却时间（向后兼容字段，实际以 normal_seclusion.cooldown 为准）",
-      "defaultValue": 300,
+      "description": "常规闭关冷却兜底值（实际使用 cooldown_min~cooldown_max 随机）",
+      "defaultValue": 600,
       "displayName": "常规闭关冷却时间（兼容）"
     }
   }

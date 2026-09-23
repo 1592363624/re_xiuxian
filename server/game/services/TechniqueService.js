@@ -330,6 +330,10 @@ class TechniqueService {
                 ),
                 // 领悟神通灵石消耗（前端消耗预览用）
                 comprehend_cost: Number(this.getConfig().comprehension?.spirit_stone_cost) || 0,
+                // 神通槽位：已用 / 上限 / 下一槽解锁的功法层数（null 表示已到最大槽位或无解锁配置）
+                skill_slots_used: (row.comprehended_skills || []).length,
+                skill_slots_total: this._getSkillSlots(row.layer),
+                next_skill_unlock_layer: (this.getConfig().comprehension?.unlock_layers || []).find(l => l > row.layer) ?? null,
                 // 已满层时突破率无意义，返回 null 让前端隐藏
                 breakthrough_rate: isMaxLayer ? null : this.calcBreakthroughRate(cfg.grade, row.layer, wisdom),
                 is_max_layer: isMaxLayer,
@@ -954,8 +958,8 @@ class TechniqueService {
                 const nextLayer = (c.unlock_layers || []).find(l => l > record.layer);
                 throw new AppError(
                     nextLayer
-                        ? `神通槽位已满，需修至第 ${nextLayer} 层方可再悟`
-                        : '神通槽位已满',
+                        ? `神通槽位已满（${owned.length}/${slots}），需将功法修至第 ${nextLayer} 层方可再悟`
+                        : `神通槽位已满（${owned.length}/${slots}）`,
                     400,
                     ErrorCodes.LIMIT_EXCEEDED
                 );

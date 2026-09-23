@@ -191,10 +191,14 @@ describe('players.attributes 里的旧输出键不许再被读写', () => {
         expect(PlayerService.initialAttributeBlob({ some_playfield_flag: 1 })).toEqual({ some_playfield_flag: 1 });
     });
 
-    test('建号与重置两处都用同一个过滤口径（不许有人再直接赋整份 initialAttributes）', () => {
-        const created = fs.readFileSync(path.join(SERVER_ROOT, 'game/core/PlayerService.js'), 'utf8');
+    test('建号与清档重开共用同一个过滤口径（不许有人再直接赋整份 initialAttributes）', () => {
+        const playerService = fs.readFileSync(path.join(SERVER_ROOT, 'game/core/PlayerService.js'), 'utf8');
+        // 注册与 account_mode=keep 都从 buildFreshPlayerState 走 initialAttributeBlob
+        expect(playerService).toMatch(/attributes: this\.initialAttributeBlob\(initialAttributes\)/);
+        expect(playerService).toMatch(/buildFreshPlayerState/);
+        // GM 重置不再手写 attributes 赋值，改走 AccountDeletionService
         const reset = fs.readFileSync(path.join(SERVER_ROOT, 'routes/admin.js'), 'utf8');
-        expect(created).toMatch(/attributes: this\.initialAttributeBlob\(initialAttributes\)/);
-        expect(reset).toMatch(/player\.attributes = PlayerService\.initialAttributeBlob\(initialAttrs\)/);
+        expect(reset).toMatch(/AccountDeletionService\.execute/);
+        expect(reset).not.toMatch(/player\.attributes\s*=/);
     });
 });

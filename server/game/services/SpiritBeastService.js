@@ -288,7 +288,7 @@ class SpiritBeastService {
             }
 
             // 境界校验：min_realm_rank 直接与 player.realm_rank 比较
-            const playerRank = Number(player.realm_rank) || 0;
+            const playerRank = require('../core/RealmService').getPlayerRank(player);
             const requiredRank = Number(beastType.min_realm_rank) || 1;
             if (playerRank < requiredRank) {
                 await t.rollback();

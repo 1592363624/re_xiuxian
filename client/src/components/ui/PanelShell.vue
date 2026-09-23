@@ -8,6 +8,12 @@
  *   2. 关闭交互 —— Esc、点击遮罩（窄屏）、右上角按钮，窄屏时锁 body 滚动。
  *   3. 三种数据态 —— loading / error / empty，避免每个面板各自发明一套「加载中…」。
  *
+ * 高度策略（现代化信息面板的关键）：
+ *   - 默认「内容贴合」：面板高度随内容伸缩，页脚操作栏贴在内容下方，
+ *     不再出现「上面一小块、下面一大片空白、按钮沉在最底下」的怪异布局。
+ *   - fill：给储物袋 / 地图这类需要整块工作区的面板，强制撑满停靠面。
+ *   - 内容过长时自然顶到 max-h 并滚动，页脚始终作为操作条固定在外壳底部。
+ *
  * 面板只需要：
  *   <PanelShell title="坊市" :loading="loading" @close="$emit('close')">
  *     ...内容...
@@ -37,6 +43,11 @@ const props = defineProps({
   emptyHint: { type: String, default: '' },
   /** 内容自带滚动容器（含 Tab 切换的面板）时置 true，外壳不再包一层滚动 */
   scopedScroll: { type: Boolean, default: false },
+  /**
+   * 撑满停靠面高度。给需要整块工作区的面板（储物袋网格、地图、长表单）。
+   * 短内容面板请保持默认的内容贴合，避免下半屏空白。
+   */
+  fill: { type: Boolean, default: false },
   bodyClass: { type: String, default: '' },
   closable: { type: Boolean, default: true },
   showClose: { type: Boolean, default: true },
@@ -57,6 +68,12 @@ const SIZE_CLASS = {
 const bodySize = computed(() => SIZE_CLASS[props.size])
 const showPlaceholder = computed(() => props.loading || !!props.error || props.empty)
 const bodyEl = ref(null)
+
+const bodyClassList = computed(() => [
+  bodySize.value,
+  props.fill ? 'panel-body--fill h-[88vh] max-h-[88vh]' : 'max-h-[88vh]',
+  props.bodyClass,
+])
 
 const onKey = (e) => {
   if (e.key === 'Escape' && props.closable) emit('close')
@@ -94,10 +111,10 @@ onUnmounted(() => {
 
     <section
       ref="bodyEl"
-      class="panel-body relative flex flex-col w-full h-[88vh] max-h-[88vh] overflow-hidden
+      class="panel-body relative flex flex-col w-full overflow-hidden
              bg-surface-base border border-line rounded-panel shadow-2xl shadow-black/60
              outline-none"
-      :class="bodySize"
+      :class="bodyClassList"
       role="dialog"
       aria-modal="true"
       :aria-label="title"
@@ -106,10 +123,12 @@ onUnmounted(() => {
       <header
         class="shrink-0 flex items-center gap-3 px-4 h-12 border-b border-line-subtle bg-surface-raised"
       >
-        <h2 class="font-display text-[15px] font-bold text-gold-500 tracking-[0.08em] truncate">
-          {{ title }}
-        </h2>
-        <span v-if="hint" class="hidden sm:block text-[11px] text-fg-faint truncate">{{ hint }}</span>
+        <div class="min-w-0 flex items-baseline gap-2.5">
+          <h2 class="font-display text-[15px] font-bold text-gold-500 tracking-[0.08em] truncate">
+            {{ title }}
+          </h2>
+          <span v-if="hint" class="hidden sm:block text-[11px] text-fg-faint truncate">{{ hint }}</span>
+        </div>
         <div class="ms-auto flex items-center gap-2 shrink-0">
           <slot name="header-actions" />
           <button
@@ -138,6 +157,15 @@ onUnmounted(() => {
         </EmptyState>
       </div>
 
+      <!-- 默认内容贴合：不强制拉高，页脚跟着内容走 -->
+      <div
+        v-else-if="!fill && !scopedScroll"
+        class="shrink-0 overflow-y-auto p-4"
+      >
+        <slot />
+      </div>
+
+      <!-- fill / scopedScroll：内容区吃掉剩余高度，内部列表自行滚动 -->
       <div
         v-else
         class="flex-1 min-h-0"
@@ -146,11 +174,19 @@ onUnmounted(() => {
         <slot />
       </div>
 
+      <!-- 操作栏：贴在内容下方；长内容时作为固定操作条 -->
       <footer
-        v-if="$slots.footer"
-        class="shrink-0 flex items-center gap-2 px-4 h-12 border-t border-line-subtle bg-surface-raised"
+        v-if="$slots.footer || $slots.footerStart"
+        class="shrink-0 border-t border-line-subtle bg-surface-raised/95 backdrop-blur-sm px-3 sm:px-4 py-2.5"
       >
-        <slot name="footer" />
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 min-w-0 shrink-0">
+            <slot name="footer-start" />
+          </div>
+          <div class="flex items-center gap-2 flex-1 min-w-0 justify-end">
+            <slot name="footer" />
+          </div>
+        </div>
       </footer>
     </section>
   </div>

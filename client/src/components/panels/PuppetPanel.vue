@@ -11,6 +11,7 @@
     hint="大衍诀·控傀 · 制造出战护法 · 淬炼维修回收"
     size="xl"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <template #header-actions>

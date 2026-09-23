@@ -13,11 +13,88 @@
 <template>
   <PanelShell
     title="闭关修炼"
-    hint="常规闭关 · 深度闭关 · 每日次数与冷却"
+    hint="多轮判定 · 成功/失败/走火入魔 · 随机冷却 · 奇遇"
     size="md"
     @close="emit('close')"
   >
-    <div class="space-y-4">
+    <!-- 闭关进行中：完整状态视图，操作贴在内容流里，不再只把按钮沉底 -->
+    <div v-if="store.player?.is_secluded" class="space-y-4">
+      <PanelCard :tone="isDeepSeclusion ? 'gold' : 'plain'" class="overflow-hidden">
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <div class="flex items-center gap-3 min-w-0">
+            <div
+              class="w-11 h-11 rounded-full border flex items-center justify-center shrink-0"
+              :class="isDeepSeclusion
+                ? 'bg-purple-950/40 border-purple-700/40'
+                : 'bg-cyan-950/40 border-cyan-700/40'"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" :class="isDeepSeclusion ? 'text-purple-400' : 'text-cyan-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-base font-bold" :class="isDeepSeclusion ? 'text-purple-300' : 'text-cyan-300'">
+                {{ isDeepSeclusion ? '深度闭关中' : '常规闭关中' }}
+              </div>
+              <div class="text-xs text-fg-faint">摒除杂念，灵气自行周天运转</div>
+            </div>
+          </div>
+          <Badge :tone="isDeepSeclusion ? 'arcane' : 'info'" solid>进行中</Badge>
+        </div>
+
+        <div class="mb-4">
+          <StatBar
+            :value="seclusionElapsed"
+            :max="Math.max(seclusionTotal, 1)"
+            :label="isDeepSeclusion ? '深度闭关进度' : '闭关进度'"
+            :text="seclusionProgressText"
+            :tone="isDeepSeclusion ? 'arcane' : 'azure'"
+            height="h-2"
+          />
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="rounded-control border border-line-subtle bg-surface-canvas px-2 py-2.5">
+            <div class="text-[10px] text-fg-faint mb-0.5">已闭关</div>
+            <div class="text-sm font-num text-fg-secondary">{{ formatDuration(seclusionElapsed) }}</div>
+          </div>
+          <div class="rounded-control border border-line-subtle bg-surface-canvas px-2 py-2.5">
+            <div class="text-[10px] text-fg-faint mb-0.5">预计剩余</div>
+            <div class="text-sm font-num text-gold-400">{{ formatDuration(seclusionRemaining) }}</div>
+          </div>
+          <div class="rounded-control border border-line-subtle bg-surface-canvas px-2 py-2.5">
+            <div class="text-[10px] text-fg-faint mb-0.5">预计获得</div>
+            <div class="text-sm font-num font-bold" :class="isDeepSeclusion ? 'text-purple-400' : 'text-cyan-400'">+{{ activeEstimatedExp }}</div>
+          </div>
+        </div>
+      </PanelCard>
+
+      <PanelCard v-if="isDeepSeclusion" tone="gold" :padded="false" class="px-3 py-2.5 text-xs text-gold-400">
+        <svg xmlns="http://www.w3.org/2000/svg" class="inline w-4 h-4 mr-1 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        未达最短时长 {{ formatDuration(deepConfig.min_duration) }} 提前结束，将按强行出关处理，损失 {{ Math.round(deepConfig.forced_penalty * 100) }}% 收益。
+      </PanelCard>
+
+      <!-- 主操作直接跟在状态卡下方，不再孤立沉在面板最底 -->
+      <AppButton
+        block
+        size="lg"
+        variant="danger"
+        :disabled="ending"
+        :loading="ending"
+        @click="handleEndFromPanel"
+      >
+        {{ ending ? '结算中…' : (isDeepSeclusion ? '结束深度闭关' : '结束闭关') }}
+      </AppButton>
+    </div>
+
+    <!-- 空闲态：模式选择 -->
+    <div v-else class="space-y-4">
       <!-- 今日次数总览（醒目展示，避免玩家点了开始才发现次数用尽） -->
       <PanelCard :padded="true">
         <div class="grid grid-cols-2 gap-3">
@@ -52,14 +129,14 @@
       </PanelCard>
 
       <!-- 模式选择卡片 -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <!-- 常规闭关卡片 -->
         <button
           @click="selectMode('normal')"
           :disabled="loading || !statusLoaded || normalRemaining <= 0 || isNormalCooldown"
-          class="text-left bg-surface-hover hover:bg-surface-active border rounded-panel p-5 transition-all duration-300 group relative disabled:opacity-60 disabled:cursor-not-allowed"
+          class="text-left bg-surface-hover hover:bg-surface-active border rounded-panel p-4 transition-all duration-200 group relative disabled:opacity-60 disabled:cursor-not-allowed flex flex-col"
           :class="selectedMode === 'normal'
-            ? 'border-cyan-600 ring-1 ring-cyan-600/30'
+            ? 'border-cyan-600 ring-1 ring-cyan-600/30 shadow-lg shadow-cyan-950/30'
             : 'border-line hover:border-cyan-700'"
         >
           <!-- 加载中锁标：与深度闭关保持一致 -->
@@ -78,7 +155,7 @@
               </div>
               <div>
                 <div class="text-base font-bold text-cyan-300">常规闭关</div>
-                <div class="text-xs text-fg-faint">日常修炼，随时可停</div>
+                <div class="text-xs text-fg-faint">多轮判定 · 成功/失败/走火入魔</div>
               </div>
             </div>
             <!-- 选中标识 -->
@@ -102,7 +179,15 @@
             </li>
             <li class="flex items-center gap-2">
               <span class="text-fg-faint">冷却时间：</span>
-              <span class="text-fg-primary">{{ formatDuration(normalConfig.cooldown) }}</span>
+              <span class="text-fg-primary">{{ normalCooldownLabel }}</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">单轮判定：</span>
+              <span class="text-fg-primary">成功 / 失败 / 走火入魔</span>
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="text-fg-faint">闭关奇遇：</span>
+              <span class="text-fg-primary">有几率触发</span>
             </li>
             <li class="flex items-center gap-2">
               <span class="text-fg-faint">收益倍率：</span>
@@ -110,7 +195,7 @@
             </li>
           </ul>
           <!-- 时长滑块（常规闭关） -->
-          <div v-if="selectedMode === 'normal'" class="mt-3 pt-3 border-t border-line">
+          <div v-if="selectedMode === 'normal'" class="mt-auto pt-3 border-t border-line">
             <label class="text-xs text-fg-muted flex justify-between mb-1.5">
               <span>闭关时长</span>
               <span class="text-cyan-300 font-mono">{{ formatDuration(normalDuration) }}</span>
@@ -134,9 +219,9 @@
         <button
           @click="selectMode('deep')"
           :disabled="loading || !statusLoaded || !canDeep || deepRemaining <= 0 || isDeepCooldown"
-          class="text-left bg-surface-hover hover:bg-surface-active border rounded-panel p-5 transition-all duration-300 group relative disabled:opacity-60 disabled:cursor-not-allowed"
+          class="text-left bg-surface-hover hover:bg-surface-active border rounded-panel p-4 transition-all duration-200 group relative disabled:opacity-60 disabled:cursor-not-allowed flex flex-col"
           :class="selectedMode === 'deep'
-            ? 'border-purple-600 ring-1 ring-purple-600/30'
+            ? 'border-purple-600 ring-1 ring-purple-600/30 shadow-lg shadow-purple-950/30'
             : 'border-line hover:border-purple-700'"
         >
           <!-- 加载中锁标：避免首次打开时误显示"境界不足" -->
@@ -198,7 +283,7 @@
             </li>
           </ul>
           <!-- 时长滑块（深度闭关） -->
-          <div v-if="selectedMode === 'deep'" class="mt-3 pt-3 border-t border-line">
+          <div v-if="selectedMode === 'deep'" class="mt-auto pt-3 border-t border-line">
             <label class="text-xs text-fg-muted flex justify-between mb-1.5">
               <span>闭关时长</span>
               <span class="text-purple-300 font-mono">{{ formatDuration(deepDuration) }}</span>
@@ -271,30 +356,13 @@
       </PanelCard>
     </div>
 
-    <!-- 底部操作栏 -->
-    <template #footer>
-      <!-- 闭关进行中：这里必须给出出口。
-           "结束修炼"原来只长在总览那条进度条上，而开着任何面板都看不到总览
-           （FeatureDock 的 v-show="!openPanelId"）—— 玩家刚在「修炼」面板里点了开始，
-           回头这个面板上已经没有"结束"了，实测找不到任何出关按钮。
-           是否算强行出关由后端 forced_end 决定，这里不另算一遍最短时长。 -->
-      <template v-if="store.player?.is_secluded">
-        <AppButton variant="outline" @click="emit('close')">返回</AppButton>
-        <button
-          @click="handleEndFromPanel"
-          :disabled="ending"
-          class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none bg-amber-950/40 border border-amber-700 text-amber-300 hover:bg-amber-900/40 hover:border-amber-500"
-        >
-          <span v-if="ending">结算中...</span>
-          <span v-else>{{ store.player.seclusion_mode === 'deep' ? '结束深度闭关' : '结束闭关' }}</span>
-        </button>
-      </template>
-      <template v-else>
-      <AppButton variant="outline" @click="emit('close')">取消</AppButton>
+    <!-- 底部操作栏：仅空闲态需要「取消 / 开始」；进行中态主操作已在内容流里 -->
+    <template v-if="!store.player?.is_secluded" #footer>
+      <AppButton variant="ghost" @click="emit('close')">取消</AppButton>
       <button
         @click="handleStart"
         :disabled="loading || !statusLoaded || (selectedMode === 'deep' ? (!canDeep || deepRemaining <= 0 || isDeepCooldown) : (normalRemaining <= 0 || isNormalCooldown))"
-        class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
+        class="flex-1 min-w-0 min-h-10 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
         :class="selectedMode === 'deep'
           ? 'bg-purple-950/40 border border-purple-700 text-purple-300 hover:bg-purple-900/40 hover:border-purple-500'
           : 'bg-cyan-950/40 border border-cyan-700 text-cyan-300 hover:bg-cyan-900/40 hover:border-cyan-500'"
@@ -309,7 +377,6 @@
         <span v-else-if="selectedMode === 'normal' && isNormalCooldown">常规闭关冷却中·还需{{ formatDuration(normalCooldownRemaining) }}</span>
         <span v-else>开始{{ selectedMode === 'deep' ? '深度' : '常规' }}闭关</span>
       </button>
-      </template>
     </template>
   </PanelShell>
 </template>
@@ -322,6 +389,7 @@ import PanelShell from '../ui/PanelShell.vue'
 import PanelCard from '../ui/PanelCard.vue'
 import Badge from '../ui/Badge.vue'
 import AppButton from '../ui/AppButton.vue'
+import StatBar from '../ui/StatBar.vue'
 // 结束闭关的结算与日志实现，与总览进度条共用一份（见 composables 里的说明）
 import { useSeclusionSettle } from '../../composables/useSeclusionSettle'
 
@@ -363,9 +431,20 @@ const normalConfig = computed(() => {
   return store.systemConfig?.seclusion?.normal || {
     max_duration: 1800,
     daily_limit: 3,
-    cooldown: 360,  // 修复：与 seclusion.json normal_seclusion.cooldown=360 一致
-    exp_rate: 1
+    cooldown: 600,
+    cooldown_min: 600,
+    cooldown_max: 900,
+    exp_rate: 1,
+    round_interval: 60
   }
+})
+
+/** 常规闭关冷却文案：随机 10~15 分钟（配置驱动） */
+const normalCooldownLabel = computed(() => {
+  const min = Number(normalConfig.value.cooldown_min ?? normalConfig.value.cooldown ?? 600)
+  const max = Number(normalConfig.value.cooldown_max ?? Math.max(min, 900))
+  if (min === max) return formatDuration(min)
+  return `随机 ${formatDuration(min)} ~ ${formatDuration(max)}`
 })
 const deepConfig = computed(() => {
   return store.systemConfig?.seclusion?.deep || {
@@ -471,6 +550,38 @@ const canDeep = computed(() => {
 const estimatedExp = computed(() => {
   const duration = selectedMode.value === 'deep' ? deepDuration.value : normalDuration.value
   const modeRate = selectedMode.value === 'deep' ? deepConfig.value.exp_rate : normalConfig.value.exp_rate
+  return Math.floor(duration * baseExpRate.value * modeRate * realmMultiplier.value)
+})
+
+/* ── 闭关进行中状态视图 ── */
+const isDeepSeclusion = computed(() => store.player?.seclusion_mode === 'deep')
+
+const seclusionTotal = computed(() => {
+  const dur = Number(store.player?.seclusion_duration) || 0
+  if (dur > 0) return dur
+  const start = store.player?.seclusion_start_time ? new Date(store.player.seclusion_start_time).getTime() : 0
+  const end = store.player?.seclusion_end_time ? new Date(store.player.seclusion_end_time).getTime() : 0
+  return start && end && end > start ? Math.floor((end - start) / 1000) : 0
+})
+
+const seclusionElapsed = computed(() => {
+  const start = store.player?.seclusion_start_time ? new Date(store.player.seclusion_start_time).getTime() : 0
+  if (!start) return 0
+  return Math.max(0, Math.floor((now.value - start) / 1000))
+})
+
+const seclusionRemaining = computed(() => {
+  return Math.max(0, seclusionTotal.value - seclusionElapsed.value)
+})
+
+const seclusionProgressText = computed(() => {
+  return `${formatDuration(seclusionElapsed.value)} / ${formatDuration(seclusionTotal.value)}`
+})
+
+/** 进行中的预估收益：按已配置总时长估算，与选择态公式一致 */
+const activeEstimatedExp = computed(() => {
+  const modeRate = isDeepSeclusion.value ? deepConfig.value.exp_rate : normalConfig.value.exp_rate
+  const duration = seclusionTotal.value || 0
   return Math.floor(duration * baseExpRate.value * modeRate * realmMultiplier.value)
 })
 

@@ -1,0 +1,92 @@
+{
+  "description": "世界动态日志：把其他玩家的关键操作结果广播进「修仙日志 · 全部」流，减轻单机感。阈值/文案/开关一律在此调整。",
+  "version": "1.0.0",
+  "enabled": true,
+  "rate_limit": {
+    "comment": "非重要动态按人冷却，避免刷屏；重要动态（突破/陨落/飞升等）可穿透",
+    "per_actor_ms": 10000,
+    "global_per_minute": 60,
+    "important_bypass": true
+  },
+  "events": {
+    "player_breakthrough_success": {
+      "type": "breakthrough",
+      "isImportant": true,
+      "content": "突破成功，踏入{new_realm}！"
+    },
+    "player_breakthrough_failed": {
+      "type": "warning",
+      "content": "冲击{attempted_realm}未能功成，修为受损。"
+    },
+    "player_death": {
+      "type": "death",
+      "isImportant": true,
+      "content": "{reason}，已身死道消。"
+    },
+    "player_reincarnate": {
+      "type": "levelup",
+      "isImportant": true,
+      "content": "轮回重生，再踏仙途！"
+    },
+    "reincarnation_success": {
+      "type": "levelup",
+      "isImportant": true,
+      "content": "夺舍重生成功，道躯已换！"
+    },
+    "ascension_success": {
+      "type": "breakthrough",
+      "isImportant": true,
+      "content": "飞升成功，超脱凡尘！"
+    },
+    "seclusion_start": {
+      "type": "info",
+      "content": "进入闭关，潜心修炼。"
+    },
+    "seclusion_end": {
+      "type": "success",
+      "content": "闭关圆满出关，修为有所精进。"
+    },
+    "adventure_start": {
+      "type": "movement",
+      "content": "外出历练，游历红尘。"
+    },
+    "adventure_complete": {
+      "type": "lucky",
+      "content": "历练归来，有所斩获。"
+    },
+    "beast_caught": {
+      "type": "lucky",
+      "isImportant": true,
+      "content": "机缘深厚，捕获灵兽！"
+    },
+    "companion_accepted": {
+      "type": "lucky",
+      "isImportant": true,
+      "content": "喜结道侣，共参大道！"
+    },
+    "companion_vow": {
+      "type": "lucky",
+      "isImportant": true,
+      "content": "与道侣立下心契，情定三生。"
+    },
+    "sect_war_capture_success": {
+      "type": "combat",
+      "isImportant": true,
+      "content": "攻占资源点，扬威一方！"
+    },
+    "world_boss_attack": {
+      "type": "combat",
+      "content": "正在讨伐世界 BOSS。"
+    },
+    "dharma_form_success": {
+      "type": "breakthrough",
+      "isImportant": true,
+      "content": "法相天地功成，威压四方！"
+    },
+    "second_soul_condensed": {
+      "type": "technique",
+      "isImportant": true,
+      "content": "凝练第二元神，神识大进！"
+    }
+  }
+}

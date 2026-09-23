@@ -114,7 +114,7 @@ class DivineDuelService {
         const minRealmName = config.min_realm_name || '化神期';
         if (!_realmService) {
             // 兜底：直接用 realm_rank 数值比较
-            const playerRank = Number(player.realm_rank) || 0;
+            const playerRank = require('../core/RealmService').getPlayerRank(player);
             const requiredRank = Number(config.min_realm_rank) || 23;
             if (playerRank < requiredRank) {
                 return { met: false, reason: `境界不足，需达到 ${minRealmName}（rank ${requiredRank}）` };

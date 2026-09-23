@@ -590,6 +590,7 @@ onUnmounted(() => {
     hint="全服竞价 · 防秒杀"
     size="xl"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <div class="h-full flex flex-col min-h-0">

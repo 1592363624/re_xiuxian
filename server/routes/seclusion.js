@@ -26,6 +26,8 @@ const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const RealmService = require('../game/core/RealmService');
 // 洞府服务：读取静室提供的闭关收益加成（修复配置断链，此前 getCaveBonus.seclusion_bonus 无调用者）
 const CaveService = require('../game/services/CaveService');
+// 常规闭关多轮判定结算（成功/失败/走火入魔 + 奇遇 + 随机冷却）
+const SeclusionSettleService = require('../game/services/SeclusionSettleService');
 
 /**
  * 读取常规闭关配置
@@ -40,7 +42,15 @@ function getNormalSeclusionConfig() {
         console.warn('读取常规闭关配置失败:', e.message);
     }
     // 默认值兜底，避免配置缺失导致服务不可用
-    return { max_duration: 1800, daily_limit: 3, cooldown: 300, exp_rate: 1 };
+    return {
+        max_duration: 1800,
+        daily_limit: 3,
+        cooldown: 600,
+        cooldown_min: 600,
+        cooldown_max: 900,
+        exp_rate: 1,
+        round_interval: 60
+    };
 }
 
 /**
@@ -208,14 +218,16 @@ router.post('/start', authenticateToken, async (req, res, next) => {
             );
         }
 
-        // 冷却时间检查
-        if (player.last_seclusion_time) {
-            const cooldown = config.cooldown;
-            const now = new Date();
-            const lastEnd = new Date(player.last_seclusion_time);
-            const diffSeconds = Math.floor((now - lastEnd) / 1000);
-            if (diffSeconds < cooldown) {
-                const remainingSec = cooldown - diffSeconds;
+        // 冷却时间检查（常规闭关优先读随机冷却截止点）
+        {
+            const remainingSec = isDeep
+                ? (() => {
+                    if (!player.last_seclusion_time) return 0;
+                    const diff = Math.floor((Date.now() - new Date(player.last_seclusion_time)) / 1000);
+                    return Math.max(0, (config.cooldown || 0) - diff);
+                })()
+                : SeclusionSettleService.getNormalCooldownRemaining(player, config);
+            if (remainingSec > 0) {
                 const remainingMin = Math.ceil(remainingSec / 60);
                 throw new AppError(
                     `闭关冷却中，还需等待 ${remainingMin} 分钟`,
@@ -321,9 +333,6 @@ async function handleEndSeclusion(req, res, next) {
 
         const isDeep = player.seclusion_mode === 'deep';
         const config = isDeep ? getDeepSeclusionConfig() : getNormalSeclusionConfig();
-        const baseExpRate = getBaseExpRate();
-        const realmMultiplier = await getRealmMultiplier(player.realm);
-        const modeRate = config.exp_rate;
 
         // 判断是否属于强行出关（深度闭关未达最短时长）
         let forcedEnd = false;
@@ -334,17 +343,24 @@ async function handleEndSeclusion(req, res, next) {
             penaltyRate = 1 - config.forced_penalty;
         }
 
-        // 计算收益：基础收益 × 境界加成 × 模式倍率 × 惩罚系数 × 实际时长 × (1 + 洞府静室加成)
-        // 接通洞府 seclusion_bonus 断链：静室等级越高，闭关修为收益越高（受 cave_bonus.seclusion.max_bonus 钳制）
-        const caveSeclusionBonus = await CaveService.getCaveSeclusionBonus(player.id);
-        const expGain = Math.floor(actualDuration * baseExpRate * realmMultiplier * modeRate * penaltyRate * (1 + caveSeclusionBonus));
+        // 收益结算：
+        //   常规闭关 → SeclusionSettleService 多轮判定（成功/失败/走火入魔）+ 奇遇 + 随机冷却
+        //   深度闭关 → 时长线性收益（保持既有语义），未达最短时长按强行出关惩罚
+        let settle;
+        if (isDeep) {
+            settle = await SeclusionSettleService.settleDeepSeclusion(
+                player, actualDuration, config, forcedEnd, penaltyRate
+            );
+        } else {
+            settle = await SeclusionSettleService.settleNormalSeclusion(player, actualDuration, {
+                transaction: t
+            });
+        }
+        const expGain = settle.exp_gain;
+        const deviationHpLoss = settle.hp_loss || 0;
 
-        // 闭关结束后恢复满 HP/MP（修复 B16 bug）
-        // 修复（2026-07-20）：
-        //   原系统闭关结束后只增加 exp，不恢复 HP/MP，导致玩家 MP 耗尽后永远为 0。
-        //   修仙设定中，闭关是吐纳天地灵气、修复肉身的过程，结束后应该状态满满。
-        //   现在通过 AttributeMaxService 获取当前境界下的 HP/MP 上限，恢复到满值。
-        //   注意：强行出关也恢复满 HP/MP（惩罚已体现在 exp 损失上，不再叠加 HP 惩罚）。
+        // 闭关结束后恢复满 HP/MP（修复 B16 bug），再叠加走火入魔伤势
+        // 顺序：先吐纳归元到满，再扣走火入魔气血，保证惩罚可见、不被满恢复抹掉
         let hpRestored = 0;
         let mpRestored = 0;
         try {
@@ -355,9 +371,11 @@ async function handleEndSeclusion(req, res, next) {
             const maxMp = maxValues.mp_max || 0;
             const oldHp = Number(player.hp_current || 0n);
             const oldMp = Number(player.mp_current || 0n);
-            player.hp_current = BigInt(maxHp);
+            const finalHp = Math.max(0, maxHp - deviationHpLoss);
+            player.hp_current = BigInt(finalHp);
             player.mp_current = BigInt(maxMp);
-            hpRestored = maxHp - oldHp;
+            // 净恢复量 = 终值 - 初值（可能因走火入魔接近 0 或为负差）
+            hpRestored = finalHp - oldHp;
             mpRestored = maxMp - oldMp;
         } catch (attrErr) {
             // 属性恢复失败不阻塞闭关结算，仅打印警告
@@ -384,29 +402,69 @@ async function handleEndSeclusion(req, res, next) {
             last_seclusion_time: player.last_seclusion_time,
             forced_end: forcedEnd,
             hp_restored: hpRestored,
-            mp_restored: mpRestored
+            mp_restored: mpRestored,
+            success_count: settle.success_count || 0,
+            fail_count: settle.fail_count || 0,
+            deviation_count: settle.deviation_count || 0,
+            hp_loss: deviationHpLoss,
+            encounters: settle.encounters || [],
+            cooldown_seconds: settle.cooldown_seconds
         });
 
         // 记录状态转移日志（事务提交后异步记录）
         const PlayerStateMachine = require('../game/state/PlayerStateMachine');
         PlayerStateMachine.logExit(playerId, 'seclusion', PlayerStateMachine.PlayerState.SECLUDED, {
             source: 'route',
-            details: { mode: isDeep ? 'deep' : 'normal', exp_gain: expGain, forced_end: forcedEnd, duration: actualDuration, hp_restored: hpRestored, mp_restored: mpRestored }
+            details: {
+                mode: isDeep ? 'deep' : 'normal',
+                exp_gain: expGain,
+                forced_end: forcedEnd,
+                duration: actualDuration,
+                hp_restored: hpRestored,
+                mp_restored: mpRestored,
+                success_count: settle.success_count || 0,
+                fail_count: settle.fail_count || 0,
+                deviation_count: settle.deviation_count || 0,
+                hp_loss: deviationHpLoss,
+                encounters: settle.encounters || []
+            }
         }).catch(() => { /* 日志失败不阻断 */ });
 
-        // 拼装提示消息
-        let message = `${isDeep ? '深度' : '常规'}闭关结束，本次获得修为 ${expGain} 点`;
-        if (forcedEnd) {
-            message += `（强行出关，损失 ${Math.round(config.forced_penalty * 100)}% 收益）`;
+        // 拼装提示消息：常规闭关必须展示 成功/失败/走火入魔 次数
+        let message;
+        if (!isDeep) {
+            message = `常规闭关结束：成功 ${settle.success_count} 次，失败 ${settle.fail_count} 次，走火入魔 ${settle.deviation_count} 次，本次获得修为 ${expGain} 点`;
+            if (settle.rounds > 0) {
+                message += `（共 ${settle.rounds} 轮`;
+                if (settle.guarded && settle.deviation_count > 0) {
+                    message += '，护法已减免走火入魔伤害';
+                }
+                message += '）';
+            }
+        } else {
+            message = `深度闭关结束，本次获得修为 ${expGain} 点`;
+            if (forcedEnd) {
+                message += `（强行出关，损失 ${Math.round(config.forced_penalty * 100)}% 收益）`;
+            }
         }
-        // 附加 HP/MP 恢复提示（仅在确实有恢复时显示）
-        if (hpRestored > 0 || mpRestored > 0) {
-            const restoreParts = [];
-            if (hpRestored > 0) restoreParts.push(`气血 +${hpRestored}`);
-            if (mpRestored > 0) restoreParts.push(`灵力 +${mpRestored}`);
+        // 附加 HP/MP 提示
+        const restoreParts = [];
+        if (hpRestored > 0) restoreParts.push(`气血 +${hpRestored}`);
+        else if (hpRestored < 0) restoreParts.push(`气血 ${hpRestored}`);
+        if (mpRestored > 0) restoreParts.push(`灵力 +${mpRestored}`);
+        if (restoreParts.length > 0) {
             message += `，吐纳归元 ${restoreParts.join('、')}`;
         }
-        message += `。下次闭关需间隔 ${Math.floor(config.cooldown / 60)} 分钟。`;
+        if (deviationHpLoss > 0) {
+            message += `，走火入魔损气血 ${deviationHpLoss}`;
+        }
+        // 奇遇
+        if (settle.encounters && settle.encounters.length > 0) {
+            const encNames = settle.encounters.map(e => e.name).join('、');
+            message += `。奇遇：${encNames}`;
+        }
+        const cooldownSec = settle.cooldown_seconds ?? config.cooldown;
+        message += `。下次闭关需间隔 ${Math.ceil(cooldownSec / 60)} 分钟。`;
 
         res.json({
             code: 200,
@@ -417,9 +475,17 @@ async function handleEndSeclusion(req, res, next) {
                 seclusion_mode: isDeep ? 'deep' : 'normal',
                 forced_end: forcedEnd,
                 penalty_rate: penaltyRate,
-                cooldown_seconds: config.cooldown,
+                cooldown_seconds: cooldownSec,
                 hp_restored: hpRestored,
                 mp_restored: mpRestored,
+                hp_loss: deviationHpLoss,
+                // 多轮判定结果（常规闭关）
+                rounds: settle.rounds || 0,
+                success_count: settle.success_count || 0,
+                fail_count: settle.fail_count || 0,
+                deviation_count: settle.deviation_count || 0,
+                encounters: settle.encounters || [],
+                guarded: !!settle.guarded,
                 player: {
                     exp: player.exp,
                     is_secluded: false,
@@ -507,9 +573,9 @@ router.get('/status', authenticateToken, async (req, res, next) => {
         }
 
         // 计算两种模式的冷却剩余秒数（由后端权威计算，避免前端时钟漂移误差）
-        // 公式：cooldown - (now - last_seclusion_time) / 1000，下限 0
+        // 常规闭关优先读本次结算写入的随机冷却截止点（10~15 分钟）
         const nowForCooldown = new Date();
-        const computeCooldownRemaining = (cfg) => {
+        const computeFixedCooldownRemaining = (cfg) => {
             const cooldownSec = cfg?.cooldown || 0;
             if (cooldownSec <= 0) return 0;
             if (!player.last_seclusion_time) return 0;
@@ -518,8 +584,8 @@ router.get('/status', authenticateToken, async (req, res, next) => {
             const elapsedSec = Math.floor((nowForCooldown.getTime() - lastTs) / 1000);
             return Math.max(0, cooldownSec - elapsedSec);
         };
-        const normalCooldownRemaining = computeCooldownRemaining(normalConfig);
-        const deepCooldownRemaining = computeCooldownRemaining(deepConfig);
+        const normalCooldownRemaining = SeclusionSettleService.getNormalCooldownRemaining(player, normalConfig);
+        const deepCooldownRemaining = computeFixedCooldownRemaining(deepConfig);
 
         // 后端权威判断当前玩家是否达到深度闭关境界要求
         // 与 /start 接口的校验逻辑保持一致，避免前端重复实现境界判断
@@ -574,6 +640,16 @@ router.get('/status', authenticateToken, async (req, res, next) => {
                 // 冷却剩余秒数（由后端权威计算，前端直接展示，避免时钟漂移误差）
                 normal_cooldown_remaining: normalCooldownRemaining,
                 deep_cooldown_remaining: deepCooldownRemaining,
+                // 常规闭关多轮判定与奇遇配置（供前端展示规则）
+                normal_outcomes: normalConfig.outcomes || null,
+                normal_encounter: normalConfig.encounter
+                    ? {
+                        enabled: normalConfig.encounter.enabled !== false,
+                        trigger_chance: normalConfig.encounter.trigger_chance,
+                        session_limit: normalConfig.encounter.session_limit
+                    }
+                    : null,
+                round_interval: normalConfig.round_interval || 60,
                 // 是否可进行深度闭关（后端权威判断境界要求，前端直接据此渲染）
                 can_deep: canDeep,
                 // 配置信息（供前端展示）

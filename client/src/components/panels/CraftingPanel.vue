@@ -383,6 +383,7 @@ onUnmounted(() => {
     hint="炼丹 · 炼器 · 控火"
     size="xl"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <div class="h-full flex flex-col min-h-0">

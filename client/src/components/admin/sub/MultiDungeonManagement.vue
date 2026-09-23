@@ -5,7 +5,7 @@
     功能模块（1 个 Tab，4 个操作模块）：
       1. 强制解散副本（输入 instance_id）
       2. 调整副本变量（输入 instance_id + variable 下拉 + value 数值）
-      3. 发放副本奖励（输入 player_id + dungeon_key 下拉 + reward_key 文本）
+      3. 发放副本奖励（输入 player_id + 副本/奖励均为可检索选择）
       4. 重置玩家冷却（输入 player_id + dungeon_key 下拉）
 
     设计原则：
@@ -53,13 +53,15 @@
         </div>
         <div>
           <label class="block text-xs text-fg-muted mb-1">变量名</label>
-          <select v-model="adjustVariableForm.variable"
-            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-            <option value="">请选择变量</option>
-            <option v-for="opt in variableOptions" :key="opt.value" :value="opt.value">
-              {{ opt.value }}（{{ opt.label }}）
-            </option>
-          </select>
+          <SearchableSelect
+            v-model="adjustVariableForm.variable"
+            :options="variableSelectOptions"
+            title="选择副本变量"
+            placeholder="选择变量"
+            search-placeholder="搜索变量名 / 中文名…"
+            :allow-empty="false"
+            :clearable="false"
+          />
         </div>
         <div>
           <label class="block text-xs text-fg-muted mb-1">新值</label>
@@ -79,7 +81,7 @@
       <div class="text-sm font-bold text-amber-300 mb-2">发放副本奖励</div>
       <div class="text-xs text-fg-faint mb-3">
         · 直接为指定玩家发放副本奖励（绕过副本完成流程）<br>
-        · 奖励 key 来自副本奖励池配置，请先确认对应 key 存在
+        · 奖励从当前副本奖励池中选择，无需手输 key
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
         <div>
@@ -88,19 +90,29 @@
             class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-fg-muted mb-1">副本 key</label>
-          <select v-model="grantRewardForm.dungeonKey"
-            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-            <option value="">请选择副本</option>
-            <option v-for="opt in dungeonKeyOptions" :key="opt.value" :value="opt.value">
-              {{ opt.label }}（{{ opt.value }}）
-            </option>
-          </select>
+          <label class="block text-xs text-fg-muted mb-1">副本</label>
+          <SearchableSelect
+            v-model="grantRewardForm.dungeonKey"
+            :options="dungeonSelectOptions"
+            title="选择副本"
+            placeholder="选择副本"
+            search-placeholder="搜索副本名 / key…"
+            :allow-empty="false"
+            :clearable="false"
+          />
         </div>
         <div>
-          <label class="block text-xs text-fg-muted mb-1">奖励 key</label>
-          <input v-model="grantRewardForm.rewardKey" type="text" placeholder="例如：spirit_stone_small"
-            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
+          <label class="block text-xs text-fg-muted mb-1">奖励</label>
+          <SearchableSelect
+            v-model="grantRewardForm.rewardKey"
+            :options="rewardSelectOptions"
+            :loading="rewardLoading"
+            title="选择奖励"
+            placeholder="先选副本，再选奖励"
+            search-placeholder="搜索奖励名 / item_key…"
+            :allow-empty="false"
+            :clearable="false"
+          />
         </div>
       </div>
       <AppButton variant="primary" size="sm" :disabled="actionLoading || !grantRewardForm.playerId || !grantRewardForm.dungeonKey || !grantRewardForm.rewardKey" @click="submitGrantReward">
@@ -114,7 +126,7 @@
       <div class="text-xs text-fg-faint mb-3">
         · 重置指定玩家对应副本的冷却状态<br>
         · 重置后玩家可立即再次开启/加入该副本<br>
-        · 选择「全部副本」可一次性重置所有4个副本的冷却
+        · 选择「全部副本」可一次性重置所有副本的冷却
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <div>
@@ -123,15 +135,16 @@
             class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
         </div>
         <div>
-          <label class="block text-xs text-fg-muted mb-1">副本 key</label>
-          <select v-model="resetCooldownForm.dungeonKey"
-            class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-            <option value="">请选择副本</option>
-            <option v-for="opt in dungeonKeyOptions" :key="opt.value" :value="opt.value">
-              {{ opt.label }}（{{ opt.value }}）
-            </option>
-            <option value="all">全部副本（all）</option>
-          </select>
+          <label class="block text-xs text-fg-muted mb-1">副本</label>
+          <SearchableSelect
+            v-model="resetCooldownForm.dungeonKey"
+            :options="resetDungeonSelectOptions"
+            title="选择副本"
+            placeholder="选择副本"
+            search-placeholder="搜索副本名 / key…"
+            :allow-empty="false"
+            :clearable="false"
+          />
         </div>
       </div>
       <AppButton variant="primary" size="sm" :disabled="actionLoading || !resetCooldownForm.playerId || !resetCooldownForm.dungeonKey" @click="submitResetCooldown">
@@ -146,11 +159,13 @@
  * 多人副本系统 GM 管理组件脚本
  * 4 个操作模块共享 emit showConfirm 委托二次确认
  */
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useUIStore } from '../../../stores/ui';
 import AppButton from '../../ui/AppButton.vue'
+import SearchableSelect from '../../ui/SearchableSelect.vue'
 import {
   multiDungeonGetHelp,
+  multiDungeonGetRewards,
   adminForceDissolve,
   adminAdjustVariable,
   adminGrantReward,
@@ -203,6 +218,9 @@ const helpData = ref<MDungeonHelpPayload | null>(null);
 const variableOptions = computed<Array<{ value: DungeonVariable; label: string }>>(() =>
   Object.entries(helpData.value?.variable_meta || {}).map(([value, meta]) => ({ value, label: meta?.label || value }))
 );
+const variableSelectOptions = computed(() =>
+  variableOptions.value.map(o => ({ value: o.value, label: o.label, meta: o.value, group: '变量' }))
+);
 
 /** GET /multi-dungeon/help → data（GM 面板只用得到这两块） */
 interface MDungeonHelpPayload {
@@ -214,6 +232,56 @@ interface MDungeonHelpPayload {
 const dungeonKeyOptions = computed<Array<{ value: DungeonKey; label: string }>>(() =>
   Object.entries(helpData.value?.dungeons || {}).map(([value, dgn]) => ({ value, label: dgn?.name || value }))
 );
+
+/** SearchableSelect 用的副本选项 */
+const dungeonSelectOptions = computed(() =>
+  dungeonKeyOptions.value.map(o => ({ value: o.value, label: o.label, meta: o.value, group: '副本' }))
+);
+
+/** 重置冷却：副本 + 「全部」 */
+const resetDungeonSelectOptions = computed(() => [
+  ...dungeonSelectOptions.value,
+  { value: 'all', label: '全部副本', meta: 'all', group: '副本' },
+]);
+
+/** 当前副本奖励选项（从 /multi-dungeon/rewards 拉取，禁止手输 reward_key） */
+const rewardSelectOptions = ref<Array<{ value: string; label: string; meta?: string; group?: string }>>([]);
+const rewardLoading = ref(false);
+
+/** 按选中的副本加载可发放奖励清单 */
+async function loadRewardOptions(dungeonKey: string) {
+  rewardSelectOptions.value = [];
+  if (!dungeonKey) return;
+  rewardLoading.value = true;
+  try {
+    const resp = await multiDungeonGetRewards(dungeonKey);
+    const data = resp.data?.data;
+    if (!data) {
+      uiStore.showToast(resp.data?.message || '获取奖励清单失败', 'error');
+      return;
+    }
+    const mapOpt = (r: any, group: string) => ({
+      value: String(r.reward_key),
+      label: r.name || String(r.reward_key),
+      meta: `${r.reward_key}${r.type ? ` · ${r.type}` : ''}${r.amount != null ? ` ×${r.amount}` : ''}`,
+      group,
+    });
+    rewardSelectOptions.value = [
+      ...(data.normal_rewards || []).map((r: any) => mapOpt(r, '普通掉落')),
+      ...(data.first_clear_rewards || []).map((r: any) => mapOpt(r, '首通')),
+      ...(data.rare_rewards || []).map((r: any) => mapOpt(r, '稀有')),
+    ];
+  } catch (e: any) {
+    uiStore.showToast(e?.message || '获取奖励清单失败', 'error');
+  } finally {
+    rewardLoading.value = false;
+  }
+}
+
+watch(() => grantRewardForm.dungeonKey, (key) => {
+  grantRewardForm.rewardKey = '';
+  loadRewardOptions(String(key || ''));
+});
 
 /** 进面板就拉一次清单；拉不到要让 GM 看见，而不是留一个空下拉 */
 onMounted(async () => {

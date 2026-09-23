@@ -33,9 +33,14 @@
             <slot></slot>
           </div>
           
-          <!-- Footer -->
-          <div v-if="$slots.footer" class="px-6 py-4 border-t border-line-subtle bg-surface-base/50 rounded-b-panel flex justify-end gap-3">
-            <slot name="footer"></slot>
+          <!-- Footer：主操作贴内容，次操作左对齐 -->
+          <div v-if="$slots.footer" class="px-4 sm:px-6 py-3 border-t border-line-subtle bg-surface-raised/95 rounded-b-panel flex items-center gap-2">
+            <div class="flex items-center gap-2 min-w-0 shrink-0">
+              <slot name="footer-start"></slot>
+            </div>
+            <div class="flex items-center gap-2 flex-1 justify-end min-w-0">
+              <slot name="footer"></slot>
+            </div>
           </div>
         </div>
       </div>

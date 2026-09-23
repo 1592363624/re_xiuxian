@@ -241,12 +241,16 @@
     <Modal :isOpen="spawnModalShow" title="手动刷新BOSS" width="500px" @close="spawnModalShow = false">
       <div class="space-y-4 text-sm">
         <div>
-          <label class="block text-fg-muted mb-1">BOSS key <span class="text-rose-400">*</span></label>
-          <select v-model="spawnForm.boss_key"
-            class="w-full px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-            <option value="" disabled>请选择BOSS</option>
-            <option v-for="b in bossCatalog" :key="b.boss_key" :value="b.boss_key">{{ b.boss_name }}（{{ b.boss_key }}）</option>
-          </select>
+          <label class="block text-fg-muted mb-1">BOSS <span class="text-rose-400">*</span></label>
+          <SearchableSelect
+            v-model="spawnForm.boss_key"
+            :options="bossSelectOptions"
+            title="选择世界 BOSS"
+            placeholder="选择 BOSS"
+            search-placeholder="搜索 BOSS 名 / key…"
+            :allow-empty="false"
+            :clearable="false"
+          />
           <p class="mt-1 text-xs text-fg-faint">共 {{ bossCatalog.length }} 只，清单取自内容 world_boss_data.json</p>
         </div>
         <div>
@@ -315,6 +319,7 @@ import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
 import AppButton from '../../ui/AppButton.vue'
+import SearchableSelect from '../../ui/SearchableSelect.vue'
 import {
   getMetrics,
   getBossList,
@@ -370,6 +375,14 @@ const metrics = ref(null)
  * 资料片加一只 BOSS，后台"手动刷新BOSS"的下拉里就没有它（服务端 spawn 一直是按内容认的，本来刷得出来）。
  */
 const bossCatalog = computed(() => metrics.value?.bosses || [])
+const bossSelectOptions = computed(() =>
+  bossCatalog.value.map(b => ({
+    value: b.boss_key,
+    label: b.boss_name || b.boss_key,
+    meta: b.boss_key,
+    group: '世界BOSS',
+  }))
+)
 
 /** 子 Tab 配置 */
 const subTabs = [

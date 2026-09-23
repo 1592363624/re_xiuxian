@@ -296,6 +296,46 @@
   ],
   "components": {
     "schemas": {
+      "PlayerEditorField": {
+        "type": "object",
+        "description": "玩家档案编辑器里的一个可编辑字段声明（来自 server/config/admin_player_editor.json）",
+        "properties": {
+          "key": { "type": "string", "description": "字段名（标量列写列名，整块列写 blob 内键名）" },
+          "label": { "type": "string", "description": "显示名" },
+          "type": { "type": "string", "enum": ["string", "number", "boolean", "enum"], "description": "控件类型" },
+          "min": { "type": "number", "description": "number 类型的最小值" },
+          "max": { "type": "number", "description": "number 类型的最大值" },
+          "max_length": { "type": "integer", "description": "string 类型的最大长度" },
+          "options": {
+            "type": "array",
+            "description": "enum 的可选项；string 类型若带 options 则渲染为可检索下拉（如境界、灵根）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": { "type": "string" },
+                "label": { "type": "string" },
+                "meta": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "PlayerInventoryItem": {
+        "type": "object",
+        "description": "玩家背包物品（player_items 记录 + 静态配置名称）",
+        "properties": {
+          "id": { "type": "integer", "description": "记录ID" },
+          "player_id": { "type": "integer" },
+          "item_key": { "type": "string", "description": "物品配置键名" },
+          "quantity": { "type": "integer" },
+          "metadata": { "type": "object", "nullable": true, "description": "物品动态元数据（如炼制品质倍率）" },
+          "item_name": { "type": "string", "description": "静态配置中的物品名（后台补全）" },
+          "item_type": { "type": "string", "description": "物品类型（consumable/equipment/material…）" },
+          "item_quality": { "type": "string" },
+          "config_missing": { "type": "boolean", "description": "true 表示该物品已不在 item_data 配置中" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
       "OwnedTechnique": {
         "type": "object",
         "description": "玩家已习得的功法（静态配置 + 动态进度 + 实时计算值）",
@@ -11203,6 +11243,764 @@
     }
   },
   "paths": {
+    "/api/admin/player-editor/schema": {
+      "get": {
+        "summary": "获取玩家档案编辑器的可编辑字段配置 (GM)",
+        "description": "返回 players 标量列与整块 JSON 列（attributes/stats/spirit_roots）的可编辑字段清单、取值校验范围，以及背包/装备/功法的编辑限制。配置源为 server/config/admin_player_editor.json，新增可编辑字段只需改配置，无需改动前后端代码。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "player_field_groups": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "string" },
+                              "name": { "type": "string" },
+                              "fields": {
+                                "type": "array",
+                                "items": { "$ref": "#/components/schemas/PlayerEditorField" }
+                              }
+                            }
+                          }
+                        },
+                        "blob_field_groups": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "string" },
+                              "name": { "type": "string" },
+                              "column": {
+                                "type": "string",
+                                "enum": ["attributes", "stats", "spirit_roots", "time_system_data"]
+                              },
+                              "fields": {
+                                "type": "array",
+                                "items": { "$ref": "#/components/schemas/PlayerEditorField" }
+                              }
+                            }
+                          }
+                        },
+                        "inventory": { "type": "object" },
+                        "equipment": { "type": "object" },
+                        "techniques": { "type": "object" },
+                        "dictionaries": { "type": "object" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足（非管理员）"
+          }
+        }
+      }
+    },
+    "/api/admin/player-editor/item-options": {
+      "get": {
+        "summary": "物品字典检索 (GM)",
+        "description": "按关键词/类型检索 item_data 里的物品，供背包新增时下拉选择，避免 GM 手输物品 ID 出错。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "keyword", "in": "query", "schema": { "type": "string" }, "description": "匹配物品 ID / 名称 / 类型" },
+          { "name": "type", "in": "query", "schema": { "type": "string" }, "description": "物品类型，如 consumable / equipment / material" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" }, "description": "返回条数，上限由配置决定" }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "value": { "type": "string" },
+                              "label": { "type": "string" },
+                              "meta": { "type": "string" },
+                              "group": { "type": "string" }
+                            }
+                          }
+                        },
+                        "total": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/player-editor/technique-options": {
+      "get": {
+        "summary": "功法字典检索 (GM)",
+        "description": "按关键词检索 technique_data 里的功法，供授予功法时下拉选择。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "keyword", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "techniques": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "value": { "type": "string" },
+                              "label": { "type": "string" },
+                              "meta": { "type": "string" },
+                              "group": { "type": "string" }
+                            }
+                          }
+                        },
+                        "total": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}": {
+      "get": {
+        "summary": "获取玩家完整档案 (GM)",
+        "description": "一次性返回玩家全部字段（不含密码）以及背包物品、已穿戴装备、已习得功法，物品/功法附带静态配置名称。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "玩家ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "player": { "type": "object" },
+                        "inventory": {
+                          "type": "object",
+                          "properties": {
+                            "items": { "type": "array", "items": { "$ref": "#/components/schemas/PlayerInventoryItem" } },
+                            "total_kinds": { "type": "integer" },
+                            "total_quantity": { "type": "integer" },
+                            "capacity": { "type": "integer" },
+                            "max_quantity": { "type": "integer" }
+                          }
+                        },
+                        "equipment": { "type": "array", "items": { "type": "object" } },
+                        "techniques": { "type": "array", "items": { "type": "object" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "玩家不存在" }
+        }
+      },
+      "patch": {
+        "summary": "局部更新玩家档案 (GM)",
+        "description": "按字段白名单更新玩家属性。标量列走绝对值、整块 JSON 列（attributes/stats/spirit_roots）走键级补丁，服务端在行锁内读最新一份再写回（PlayerStateStore.patchPlayerState），不会与玩家在线行为互相覆盖。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "玩家ID" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "columns": {
+                    "type": "object",
+                    "description": "players 标量列绝对值",
+                    "example": { "exp": 100000, "spirit_stones": 50000, "realm": "筑基期" }
+                  },
+                  "blobs": {
+                    "type": "object",
+                    "description": "整块 JSON 列的键级补丁",
+                    "example": { "attributes": { "atk": 500, "def": 300 }, "stats": { "kill_count": 10 } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "message": { "type": "string", "example": "已更新 3 个字段" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "changed": { "type": "array", "items": { "type": "string" } },
+                        "player": { "type": "object" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "字段不允许编辑或取值越界" },
+          "404": { "description": "玩家不存在" }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}/inventory": {
+      "get": {
+        "summary": "获取玩家背包 (GM)",
+        "description": "按玩家 ID 列出背包物品（player_items），附带物品静态名称/类型/品质，支持按物品名或 ID 搜索。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string" }, "description": "匹配物品 ID 或物品名" },
+          { "name": "type", "in": "query", "schema": { "type": "string" }, "description": "按物品类型筛选（consumable / equipment / material / title / currency / recipe_scroll / blueprint / tool）" },
+          { "name": "quality", "in": "query", "schema": { "type": "string" }, "description": "按品质筛选（common / uncommon / rare / epic / legendary / mythic）" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": { "type": "array", "items": { "$ref": "#/components/schemas/PlayerInventoryItem" } },
+                        "total_kinds": { "type": "integer" },
+                        "total_quantity": { "type": "integer" },
+                        "capacity": { "type": "integer" },
+                        "max_quantity": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "新增/追加背包物品 (GM)",
+        "description": "mode=add 时累加数量，mode=set 时直接把数量设为指定值。默认绕过储物袋容量限制（GM 补发不该被普通容量挡住），可用 ignore_capacity=false 走正规发放通道。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["item_key"],
+                "properties": {
+                  "item_key": { "type": "string", "example": "ju_yuan_dan" },
+                  "quantity": { "type": "integer", "example": 10 },
+                  "mode": { "type": "string", "enum": ["add", "set"], "default": "add" },
+                  "ignore_capacity": { "type": "boolean", "default": true },
+                  "metadata": { "type": "object", "nullable": true, "example": { "effect_multiplier": 1.5 } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "背包物品已更新" },
+          "400": { "description": "参数不合法或物品不在配置中" },
+          "404": { "description": "玩家不存在" }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}/inventory/batch": {
+      "post": {
+        "summary": "批量发放/调整背包物品 (GM)",
+        "description": "一次发放多件物品。服务端逐条处理：某一条失败（物品 ID 不存在、数量越界）不影响其余条目，响应里带回每一条的 ok/失败原因与最终数量，避免整批回滚导致的\"错一件就全部发不出\"。单次条数上限由配置 inventory.batch_max_items 决定。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["items"],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "required": ["item_key"],
+                      "properties": {
+                        "item_key": { "type": "string", "example": "ju_yuan_dan" },
+                        "quantity": { "type": "integer", "example": 10 },
+                        "mode": { "type": "string", "enum": ["add", "set"] },
+                        "metadata": { "type": "object", "nullable": true }
+                      }
+                    }
+                  },
+                  "mode": { "type": "string", "enum": ["add", "set"], "default": "add", "description": "未逐条指定 mode 时的默认方式" },
+                  "ignore_capacity": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "批量处理完成（可能部分失败，逐条结果在 data.results）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "message": { "type": "string", "example": "批量发放完成：成功 19 条，失败 1 条" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "succeeded": { "type": "integer" },
+                        "failed": { "type": "integer" },
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "ok": { "type": "boolean" },
+                              "item_key": { "type": "string" },
+                              "item_name": { "type": "string" },
+                              "mode": { "type": "string" },
+                              "quantity": { "type": "integer" },
+                              "message": { "type": "string", "description": "失败原因，仅 ok=false 时存在" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "清单为空或超过单次条数上限" },
+          "404": { "description": "玩家不存在" }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}/inventory/{itemId}": {
+      "put": {
+        "summary": "修改背包物品 (GM)",
+        "description": "修改数量与元数据；数量传 0 表示回收该物品（删除记录，避免留下数量为 0 的幽灵数据）。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "player_items 记录ID" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quantity": { "type": "integer", "example": 99 },
+                  "metadata": { "type": "object", "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "背包物品已更新" },
+          "400": { "description": "参数不合法" },
+          "404": { "description": "背包中没有这条物品记录" }
+        }
+      },
+      "delete": {
+        "summary": "删除背包物品 (GM)",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "itemId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "物品已删除" },
+          "404": { "description": "背包中没有这条物品记录" }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}/inventory/clear": {
+      "post": {
+        "summary": "清空玩家背包 (GM)",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "已清空背包，返回 removed_kinds" },
+          "404": { "description": "玩家不存在" }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}/equipment": {
+      "post": {
+        "summary": "强制穿戴装备 (GM)",
+        "description": "给玩家穿戴指定装备；同槽位已有装备时先移除再穿戴（受 uk_player_slot 唯一索引约束）。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["slot", "item_key"],
+                "properties": {
+                  "slot": { "type": "string", "enum": ["weapon", "armor", "accessory", "boots", "dharma"] },
+                  "item_key": { "type": "string", "example": "skyfire_sword" },
+                  "refine_level": { "type": "integer" },
+                  "durability": { "type": "integer" },
+                  "max_durability": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "装备已穿戴" },
+          "400": { "description": "槽位或物品不合法" },
+          "404": { "description": "玩家不存在" }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}/equipment/{equipmentId}": {
+      "put": {
+        "summary": "修改装备记录 (GM)",
+        "description": "改耐久、祭炼等级、本命标记、属性倍率等；可编辑字段与取值区间由 admin_player_editor.json 的 equipment 段决定。deep_line_state 为**键级补丁**：四条法宝深线（blood_sword / xutian_cauldron / sky_bottle / five_element_wheel）共用一个 JSON 列，整块覆盖会抹掉其它线，所以只接受 { 线: { 字段: 值 } } 形状的补丁，字段名必须落在 equipment.deep_lines 声明范围内；把某条线传 null 表示清空该线。日期时间字段支持 null（清空）与 ISO 字符串。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "equipmentId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "item_key": { "type": "string" },
+                  "slot": { "type": "string" },
+                  "durability": { "type": "integer" },
+                  "max_durability": { "type": "integer" },
+                  "refine_level": { "type": "integer" },
+                  "spirit_power": { "type": "integer" },
+                  "attr_multiplier": { "type": "number" },
+                  "is_benming": { "type": "boolean" },
+                  "is_summoned": { "type": "boolean" },
+                  "deep_line_state": { "type": "object", "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "装备已更新" },
+          "400": { "description": "字段不允许编辑或取值越界" },
+          "404": { "description": "装备记录不存在" }
+        }
+      },
+      "delete": {
+        "summary": "强制卸下装备 (GM)",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "equipmentId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "装备已卸下" },
+          "404": { "description": "装备记录不存在" }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}/techniques": {
+      "post": {
+        "summary": "授予功法 (GM)",
+        "description": "授予玩家一门功法；已习得同一门功法时改为更新其层数/熟练度（受 uk_player_technique 唯一索引约束）。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["technique_id"],
+                "properties": {
+                  "technique_id": { "type": "string", "example": "qing_yun_jue" },
+                  "layer": { "type": "integer", "example": 3 },
+                  "proficiency": { "type": "integer", "example": 100 },
+                  "equip_slot": { "type": "string", "enum": ["main", "auxiliary"], "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "功法已授予" },
+          "400": { "description": "功法不合法" },
+          "404": { "description": "玩家不存在" }
+        }
+      }
+    },
+    "/api/admin/player-editor/{playerId}/techniques/{techniqueId}": {
+      "put": {
+        "summary": "修改功法进度 (GM)",
+        "description": "改层数、熟练度、装备槽、连败次数、修炼次数与已领悟神通；可编辑字段与取值区间由 admin_player_editor.json 的 techniques 段决定。",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "techniqueId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "player_techniques 记录ID" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "layer": { "type": "integer" },
+                  "proficiency": { "type": "integer" },
+                  "equip_slot": { "type": "string", "enum": ["main", "auxiliary"], "nullable": true },
+                  "fail_streak": { "type": "integer" },
+                  "practice_count": { "type": "integer" },
+                  "daily_practice_count": { "type": "integer" },
+                  "comprehended_skills": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "功法已更新" },
+          "400": { "description": "字段不允许编辑或取值越界" },
+          "404": { "description": "功法记录不存在" }
+        }
+      },
+      "delete": {
+        "summary": "删除（遗忘）功法 (GM)",
+        "tags": [
+          "Admin",
+          "GM"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          { "name": "playerId", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "techniqueId", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "功法已删除" },
+          "404": { "description": "功法记录不存在" }
+        }
+      }
+    },
     "/api/technique/list": {
       "get": {
         "summary": "获取功法总览",

@@ -199,17 +199,9 @@ class DaoCompanionService {
                 return { success: false, message: '玩家不存在' };
             }
 
-            // 境界校验：
-            //   优先读 player.realm_rank（突破时同步更新，迁移脚本 0038 已修复存量数据）
-            //   兜底通过 RealmService.getRealmByName(player.realm).rank 获取
-            //   双重保险，避免 realm_rank 字段未同步导致境界判断错误
-            let playerRank = Number(player.realm_rank || 0);
-            if (!playerRank && player.realm) {
-                const realmData = RealmService.getRealmByName(player.realm);
-                if (realmData?.rank) {
-                    playerRank = realmData.rank;
-                }
-            }
+            // 境界校验：统一走 RealmService.getPlayerRank（名称与 realm_rank 取较高者）
+            // 避免「界面显示炼虚初期、字段仍是旧 rank」时被误拦（与装备穿戴同一口径）
+            const playerRank = RealmService.getPlayerRank(player);
             const minRank = cfg.min_realm_rank || 15;
             if (playerRank < minRank) {
                 await t.rollback();

@@ -167,7 +167,52 @@ class WebSocketNotificationService {
 
         this.io.to(`player:${playerId}`).emit('player:updated', payload);
         console.log(`[WebSocket] 玩家 ${playerId} 收到数据更新通知: ${updateType}`);
+
+        // 世界动态：关键结果顺手播给其他人（白名单在 world_activity.json）
+        // 懒加载，避免与 WorldActivityService 循环 require
+        try {
+            const WorldActivityService = require('./WorldActivityService');
+            WorldActivityService.fromPlayerUpdate(playerId, updateType, changes).catch(() => {});
+        } catch {
+            // 动态广播失败不影响本人推送
+        }
         return true;
+    }
+
+    /**
+     * 广播世界动态到「修仙日志 · 全部」流（不推给操作者本人）
+     * @param {Object} activity - { playerId, actorId, actorName, content, type, isImportant }
+     */
+    broadcastActivity(activity) {
+        if (!this.io) {
+            console.warn('[WebSocket] io 实例未初始化，无法广播世界动态');
+            return false;
+        }
+
+        const actorId = activity?.playerId ?? activity?.actorId;
+        const payload = {
+            type: 'world_activity',
+            actorId: actorId ?? null,
+            actorName: activity?.actorName || '某位道友',
+            content: activity?.content || '',
+            logType: activity?.type || 'info',
+            isImportant: !!activity?.isImportant,
+            timestamp: activity?.timestamp || new Date().toISOString()
+        };
+
+        try {
+            if (actorId !== null && actorId !== undefined) {
+                // 除操作者外全服可见：自己的动作前端已写过 actorId='self'，避免重复
+                this.io.except(`player:${actorId}`).emit('world:activity', payload);
+            } else {
+                this.io.emit('world:activity', payload);
+            }
+            console.log(`[WebSocket] 世界动态已广播: ${payload.actorName} ${payload.content}`);
+            return true;
+        } catch (error) {
+            console.error('[WebSocket] 世界动态广播失败:', error);
+            return false;
+        }
     }
 
     /**

@@ -40,7 +40,10 @@ const GAME_BALANCE_CONFIG_FILE = path.join(__dirname, '../config/game_balance.js
 const BACKUP_DIR = path.join(__dirname, '../config/backup');
 
 // 字段白名单与数值范围定义
-const NORMAL_SECLUSION_FIELDS = ['max_duration', 'daily_limit', 'cooldown', 'exp_rate'];
+const NORMAL_SECLUSION_FIELDS = [
+    'max_duration', 'daily_limit', 'cooldown', 'exp_rate',
+    'cooldown_min', 'cooldown_max', 'round_interval', 'outcomes', 'encounter'
+];
 const DEEP_SECLUSION_FIELDS = ['min_duration', 'max_duration', 'daily_limit', 'cooldown', 'exp_rate', 'min_realm', 'forced_penalty'];
 const DURATION_TYPE_FIELDS = ['duration', 'reward_multiplier', 'injury_chance', 'injury_hp_loss_rate', 'label'];
 const VALID_DURATION_TYPES = ['short', 'medium', 'long'];
@@ -135,6 +138,44 @@ function validateNormalSeclusion(normal) {
     }
     if (!validateNumber(normal.exp_rate, { min: 0.1, max: 100 })) {
         throw new AppError('常规闭关收益倍率必须在 0.1-100 之间', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+    // 多轮判定与随机冷却（可选字段，缺省用服务默认值）
+    if (normal.cooldown_min !== undefined && !validateNumber(normal.cooldown_min, { min: 0, max: 86400, type: 'integer' })) {
+        throw new AppError('常规闭关最短冷却必须在 0-86400 秒之间', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (normal.cooldown_max !== undefined && !validateNumber(normal.cooldown_max, { min: 0, max: 86400, type: 'integer' })) {
+        throw new AppError('常规闭关最长冷却必须在 0-86400 秒之间', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (
+        normal.cooldown_min !== undefined &&
+        normal.cooldown_max !== undefined &&
+        Number(normal.cooldown_min) > Number(normal.cooldown_max)
+    ) {
+        throw new AppError('常规闭关最短冷却不能大于最长冷却', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (normal.round_interval !== undefined && !validateNumber(normal.round_interval, { min: 1, max: 3600, type: 'integer' })) {
+        throw new AppError('常规闭关单轮间隔必须在 1-3600 秒之间', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+    if (normal.outcomes !== undefined) {
+        if (!normal.outcomes || typeof normal.outcomes !== 'object') {
+            throw new AppError('常规闭关三结果配置格式错误', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        for (const key of ['success_rate', 'fail_rate', 'deviation_rate', 'fail_exp_ratio', 'deviation_exp_penalty_ratio', 'deviation_hp_loss_ratio', 'guard_damage_reduction']) {
+            if (normal.outcomes[key] !== undefined && !validateNumber(normal.outcomes[key], { min: 0, max: 1 })) {
+                throw new AppError(`常规闭关 outcomes.${key} 必须在 0-1 之间`, 400, ErrorCodes.VALIDATION_ERROR);
+            }
+        }
+    }
+    if (normal.encounter !== undefined) {
+        if (!normal.encounter || typeof normal.encounter !== 'object') {
+            throw new AppError('常规闭关奇遇配置格式错误', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        if (normal.encounter.trigger_chance !== undefined && !validateNumber(normal.encounter.trigger_chance, { min: 0, max: 1 })) {
+            throw new AppError('奇遇触发概率必须在 0-1 之间', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        if (normal.encounter.session_limit !== undefined && !validateNumber(normal.encounter.session_limit, { min: 0, max: 20, type: 'integer' })) {
+            throw new AppError('单次闭关奇遇上限必须在 0-20 之间', 400, ErrorCodes.VALIDATION_ERROR);
+        }
     }
 }
 
@@ -233,7 +274,8 @@ router.get('/config', auth, adminCheck, async (req, res, next) => {
         // 整理闭关配置（合并兼容字段，统一返回结构）
         const seclusionSettings = seclusionConfig?.settings || {};
         const normalSeclusion = seclusionSettings.normal_seclusion?.value || {
-            max_duration: 1800, daily_limit: 3, cooldown: 300, exp_rate: 1
+            max_duration: 1800, daily_limit: 3, cooldown: 600, cooldown_min: 600, cooldown_max: 900,
+            exp_rate: 1, round_interval: 60
         };
         const deepSeclusion = seclusionSettings.deep_seclusion?.value || {
             min_duration: 14400, max_duration: 28800, daily_limit: 1, cooldown: 3600,

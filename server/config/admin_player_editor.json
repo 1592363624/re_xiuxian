@@ -1,0 +1,237 @@
+{
+  "_comment": "GM 后台「玩家档案」编辑器配置。可编辑字段清单、取值校验范围、背包/装备/功法的编辑开关全部集中在这里，新增一个可编辑字段只需在对应分组追加一项，前后端都不用改代码。",
+  "player_field_groups": [
+    {
+      "id": "basic",
+      "name": "基础信息",
+      "fields": [
+        { "key": "nickname", "label": "昵称", "type": "string", "max_length": 32 },
+        { "key": "realm", "label": "境界", "type": "string", "max_length": 32, "options_from": "realms" },
+        { "key": "realm_rank", "label": "境界阶数", "type": "number", "min": 0, "max": 9999 },
+        { "key": "role", "label": "角色权限", "type": "enum", "options": [
+          { "value": "user", "label": "普通用户" },
+          { "value": "admin", "label": "管理员" },
+          { "value": "banned", "label": "已封禁" }
+        ]},
+        { "key": "is_dead", "label": "已死亡", "type": "boolean" },
+        { "key": "is_banned", "label": "已封禁", "type": "boolean" },
+        { "key": "ban_reason", "label": "封禁原因", "type": "string", "max_length": 255 }
+      ]
+    },
+    {
+      "id": "cultivation",
+      "name": "修为与资源",
+      "fields": [
+        { "key": "exp", "label": "修为", "type": "number", "min": 0, "max": 999999999999 },
+        { "key": "spirit_stones", "label": "灵石", "type": "number", "min": 0, "max": 999999999999 },
+        { "key": "attribute_points", "label": "未分配属性点", "type": "number", "min": 0, "max": 9999999 },
+        { "key": "toxicity", "label": "丹毒", "type": "number", "min": 0, "max": 9999999 }
+      ]
+    },
+    {
+      "id": "vitals",
+      "name": "气血灵力与寿元",
+      "fields": [
+        { "key": "hp_current", "label": "当前气血", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "mp_current", "label": "当前灵力", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "lifespan_current", "label": "当前寿元", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "lifespan_max", "label": "寿元上限", "type": "number", "min": 0, "max": 99999999 }
+      ]
+    },
+    {
+      "id": "state",
+      "name": "状态标记",
+      "fields": [
+        { "key": "is_secluded", "label": "闭关中", "type": "boolean" },
+        { "key": "is_meditating", "label": "悟道中", "type": "boolean" },
+        { "key": "in_dungeon", "label": "副本中", "type": "boolean" },
+        { "key": "bottleneck_state", "label": "瓶颈状态", "type": "enum", "options": [
+          { "value": "none", "label": "无" },
+          { "value": "active", "label": "瓶颈中" },
+          { "value": "broken", "label": "已突破" },
+          { "value": "failed", "label": "已失败" }
+        ]},
+        { "key": "pvp_mode", "label": "斗法模式", "type": "enum", "options": [
+          { "value": "active", "label": "入世" },
+          { "value": "recluse", "label": "隐世" }
+        ]}
+      ]
+    },
+    {
+      "id": "economy",
+      "name": "经济与声望",
+      "fields": [
+        { "key": "pvp_score", "label": "斗法积分", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "honor", "label": "荣誉", "type": "number", "min": -99999999, "max": 99999999 },
+        { "key": "karma", "label": "业力", "type": "number", "min": -99999999, "max": 99999999 },
+        { "key": "pawnshop_credit", "label": "当铺信用", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "ldc", "label": "灵石丹珠(LDC)", "type": "number", "min": 0, "max": 999999999999 },
+        { "key": "stock_account_balance", "label": "股市账户余额", "type": "number", "min": -999999999999, "max": 999999999999 }
+      ]
+    },
+    {
+      "id": "advanced",
+      "name": "高阶属性",
+      "fields": [
+        { "key": "reincarnation_count", "label": "夺舍重生次数", "type": "number", "min": 0, "max": 9999 },
+        { "key": "ascension_eligible", "label": "可飞升", "type": "boolean" },
+        { "key": "second_soul_count", "label": "第二元神数", "type": "number", "min": 0, "max": 9999 },
+        { "key": "concubine_count", "label": "侍妾数", "type": "number", "min": 0, "max": 9999 },
+        { "key": "dharma_form_level", "label": "法相等级", "type": "number", "min": 0, "max": 9999 },
+        { "key": "ask_dao_insight", "label": "问道感悟", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "incense_balance", "label": "香火值", "type": "number", "min": 0, "max": 999999999999 },
+        { "key": "divine_sense_balance", "label": "神识余额", "type": "number", "min": 0, "max": 999999999999 },
+        { "key": "law_points", "label": "法则点", "type": "number", "min": 0, "max": 999999999999 }
+      ]
+    }
+  ],
+  "blob_field_groups": [
+    {
+      "id": "attributes",
+      "column": "attributes",
+      "name": "战斗属性（attributes）",
+      "fields": [
+        { "key": "atk", "label": "攻击", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "def", "label": "防御", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "speed", "label": "速度", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "sense", "label": "神识", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "hp_max", "label": "气血上限", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "mp_max", "label": "灵力上限", "type": "number", "min": 0, "max": 99999999 }
+      ]
+    },
+    {
+      "id": "stats",
+      "column": "stats",
+      "name": "统计计数（stats）",
+      "fields": [
+        { "key": "meditation_count", "label": "悟道次数", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "breakthrough_count", "label": "突破次数", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "kill_count", "label": "击杀数", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "death_count", "label": "死亡数", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "exploration_count", "label": "历练次数", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "alchemy_count", "label": "炼丹次数", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "refining_count", "label": "炼器次数", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "items_collected", "label": "收集物品数", "type": "number", "min": 0, "max": 99999999 },
+        { "key": "achievements_completed", "label": "完成成就数", "type": "number", "min": 0, "max": 99999999 }
+      ]
+    },
+    {
+      "id": "spirit_roots",
+      "column": "spirit_roots",
+      "name": "灵根资质（spirit_roots）",
+      "fields": [
+        { "key": "type", "label": "灵根类型", "type": "string", "max_length": 32, "options_from": "spirit_roots" },
+        { "key": "value", "label": "灵根强度", "type": "number", "min": 0, "max": 999999 }
+      ]
+    }
+  ],
+  "inventory": {
+    "_comment": "背包（player_items）编辑限制。GM 直接改数据属于补发/回收，默认绕过储物袋容量，避免被普通容量上限挡住。",
+    "max_quantity": 999999,
+    "max_add_quantity": 99999,
+    "default_ignore_capacity": true,
+    "allow_unknown_item": true,
+    "page_size_default": 100,
+    "page_size_max": 500,
+    "editable_fields": ["quantity", "metadata"],
+    "batch_max_items": 50
+  },
+  "equipment": {
+    "_comment": "装备（player_equipment）编辑限制。",
+    "editable_fields": ["item_key", "slot", "durability", "max_durability", "refine_level", "is_benming", "benming_slot", "spirit_power", "sort_order", "attr_multiplier", "is_summoned"],
+    "slots": ["weapon", "armor", "accessory", "boots", "dharma"],
+    "refine_level_range": [0, 15],
+    "durability_range": [0, 999999],
+    "attr_multiplier_range": [0.0001, 99.9999],
+    "spirit_power_range": [0, 9999999],
+    "deep_lines": [
+      {
+        "key": "blood_sword",
+        "label": "血魔剑线",
+        "fields": [
+          { "key": "blood_pact_stage", "label": "血契阶数", "type": "number", "min": 0, "max": 5 },
+          { "key": "blood_pact_weekly_progress", "label": "本周血契进度", "type": "number", "min": 0, "max": 9999 },
+          { "key": "blood_pact_week_reset_at", "label": "周重置日期", "type": "date" },
+          { "key": "last_sacrifice_at", "label": "上次祭血时间", "type": "datetime" },
+          { "key": "last_thunder_wash_at", "label": "上次雷洗时间", "type": "datetime" },
+          { "key": "corruption", "label": "魔染值", "type": "number", "min": 0, "max": 100 },
+          { "key": "suppression", "label": "镇契值", "type": "number", "min": 0, "max": 100 },
+          { "key": "imprint_type", "label": "铭印类型", "type": "enum", "options": [
+            { "value": "none", "label": "无" },
+            { "value": "blood", "label": "血契" },
+            { "value": "suppress", "label": "镇契" }
+          ]},
+          { "key": "last_imprint_at", "label": "上次铭印时间", "type": "datetime" },
+          { "key": "sheath_until", "label": "封鞘截止时间", "type": "datetime" }
+        ]
+      },
+      {
+        "key": "xutian_cauldron",
+        "label": "虚天鼎线",
+        "fields": [
+          { "key": "cauldron_stage", "label": "本体阶数", "type": "number", "min": 0, "max": 10 },
+          { "key": "flame_extracted", "label": "已抽离乾蓝冰焰", "type": "boolean" },
+          { "key": "flame_stage", "label": "灵焰阶数", "type": "number", "min": 0, "max": 10 },
+          { "key": "flame_polarity", "label": "灵焰化极", "type": "enum", "options": [
+            { "value": "none", "label": "未化极" },
+            { "value": "qianlan_bingyan", "label": "乾蓝冰焰" },
+            { "value": "ziluo_jihuo", "label": "紫罗极火" }
+          ]},
+          { "key": "last_advance_cauldron_at", "label": "上次通宝时间", "type": "datetime" },
+          { "key": "last_refine_flame_at", "label": "上次炼焰时间", "type": "datetime" },
+          { "key": "last_polarize_at", "label": "上次化极时间", "type": "datetime" }
+        ]
+      },
+      {
+        "key": "sky_bottle",
+        "label": "掌天瓶线",
+        "fields": [
+          { "key": "green_liquid", "label": "绿液量", "type": "number", "min": 0, "max": 1000 },
+          { "key": "last_condense_at", "label": "上次凝液时间", "type": "datetime" },
+          { "key": "last_alchemy_at", "label": "上次炼丹时间", "type": "datetime" },
+          { "key": "last_garden_at", "label": "上次药园施术", "type": "datetime" },
+          { "key": "last_star_platform_at", "label": "上次星台施术", "type": "datetime" },
+          { "key": "bamboo_growth", "label": "天雷竹成长度", "type": "number", "min": 0, "max": 100 },
+          { "key": "last_nurture_bamboo_at", "label": "上次养竹时间", "type": "datetime" },
+          { "key": "last_transform_bamboo_at", "label": "上次化竹时间", "type": "datetime" },
+          { "key": "soul_wood_growth", "label": "养魂木成长度", "type": "number", "min": 0, "max": 100 },
+          { "key": "last_nurture_wood_at", "label": "上次养木时间", "type": "datetime" },
+          { "key": "spirit_tree_growth", "label": "灵眼树成长度", "type": "number", "min": 0, "max": 100 },
+          { "key": "last_nurture_tree_at", "label": "上次养树时间", "type": "datetime" }
+        ]
+      },
+      {
+        "key": "five_element_wheel",
+        "label": "幻世轮线",
+        "fields": [
+          { "key": "insight_stage", "label": "感悟阶数", "type": "number", "min": 0, "max": 999 },
+          { "key": "insight_exp", "label": "当前感悟经验", "type": "number", "min": 0, "max": 99999999 },
+          { "key": "daily_insight_gained", "label": "今日已获感悟", "type": "number", "min": 0, "max": 99999999 },
+          { "key": "daily_insight_reset_at", "label": "每日重置日期", "type": "date" },
+          { "key": "current_phase", "label": "当前相位", "type": "enum", "options_from": "wheel_phases" },
+          { "key": "last_set_phase_at", "label": "上次切换相位", "type": "datetime" },
+          { "key": "wheel_spin_enabled", "label": "已解锁轮转", "type": "boolean" },
+          { "key": "total_battles", "label": "累计参战次数", "type": "number", "min": 0, "max": 99999999 },
+          { "key": "total_insight_gained", "label": "累计感悟", "type": "number", "min": 0, "max": 999999999 }
+        ]
+      }
+    ]
+  },
+  "techniques": {
+    "_comment": "功法（player_techniques）编辑限制。",
+    "editable_fields": ["layer", "proficiency", "equip_slot", "fail_streak", "practice_count", "daily_practice_count", "comprehended_skills"],
+    "equip_slots": ["main", "auxiliary"],
+    "layer_range": [1, 999],
+    "proficiency_range": [0, 9999999],
+    "fail_streak_range": [0, 9999],
+    "practice_count_range": [0, 99999999],
+    "allow_unknown_technique": true
+  },
+  "dictionaries": {
+    "_comment": "物品/功法字典检索条数上限，防止一次把整个 item_data 拉到前端。",
+    "item_option_limit_default": 50,
+    "item_option_limit_max": 500,
+    "technique_option_limit_default": 50,
+    "technique_option_limit_max": 500
+  }
+}

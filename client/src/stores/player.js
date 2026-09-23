@@ -164,6 +164,23 @@ export const usePlayerStore = defineStore('player', {
         if (!data?.snapshot) return
         await this.applyStateSnapshot(data.snapshot)
       })
+
+      // 世界动态：其他玩家的关键操作写进修仙日志「全部」流（「我的」仍只看自己）
+      // 服务端已 except 本人，这里再兜一层，避免多端登录时自己看到自己
+      socketService.on('world:activity', (data) => {
+        if (!data?.content) return
+        const myId = this.player?.id
+        if (myId != null && data.actorId != null && Number(data.actorId) === Number(myId)) return
+        const uiStore = useUIStore()
+        const name = data.actorName || '某位道友'
+        uiStore.addLog({
+          content: `【${name}】${data.content}`,
+          type: data.logType || 'info',
+          actorId: data.actorId ?? 'other',
+          source: 'world',
+          isImportant: !!data.isImportant
+        })
+      })
     },
 
     /**

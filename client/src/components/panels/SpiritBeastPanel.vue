@@ -18,6 +18,7 @@
     title="灵兽 · 寻觅养成"
     size="xl"
     scoped-scroll
+    fill
     @close="$emit('close')"
   >
     <div class="h-full flex flex-col">

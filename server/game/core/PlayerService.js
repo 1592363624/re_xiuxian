@@ -63,20 +63,17 @@ class PlayerService {
     }
 
     /**
-     * 初始化玩家数据（实例方法）
-     * 统一的玩家创建逻辑，供 auth 路由调用，避免业务逻辑散落到路由层
-     * 说明：本模块导出的是 PlayerService 实例（module.exports = new PlayerService()），
-     *       故此处必须为实例方法（非 static），否则 auth 路由调用时会报
-     *       "PlayerService.initializePlayer is not a function"。
-     * @param {string} username - 账号
-     * @param {string} hashedPassword - 已加密的密码（bcrypt 哈希）
-     * @param {string} nickname - 道号
-     * @param {Object} [extra] - 可选附加字段（IP、设备信息等）
-     * @returns {Promise<Object>} 创建的玩家对象
+     * 新号 / 清档重开（account_mode=keep）共用的玩法字段初值。
+     *
+     * 为什么抽出来：注册与「清空数据留账号」必须是同一份初值，否则 GM 清档后的号
+     * 和真正的新号会在灵根、属性 blob、寿元上各说各话（admin reset-player 那套半截重置就是反例）。
+     * 不含 username/password/id/role/token_version —— 那些是账号身份，由调用方决定留或不留。
+     *
+     * @param {string} nickname - 道号（keep 模式可换新道号）
+     * @returns {Object} 可直接赋给 players 行的字段集
      */
-    async initializePlayer(username, hashedPassword, nickname, extra = {}) {
+    buildFreshPlayerState(nickname) {
         const roleInitConfig = configLoader.getConfig('role_init');
-        const gameBalanceConfig = configLoader.getConfig('game_balance');
 
         const initialAttributes = roleInitConfig?.initialAttributes || {
             hp_max: 100,
@@ -107,14 +104,11 @@ class PlayerService {
             console.warn('[PlayerService] role_init 里没有可抽的灵根，本号暂时无灵根（检查 spirit_roots 声明与概率表）');
         }
 
-        const player = await Player.create({
-            username,
-            password: hashedPassword,
+        return {
             nickname,
             realm: '凡人',
             exp: 0,
-            cultivation: 0,
-            spirit_stones: 0,
+            spirit_stones: (roleInitConfig?.initialSpiritStones ?? 0),
             hp_current: initialAttributes.hp_max,
             mp_current: 0,
             toxicity: 0,
@@ -122,9 +116,167 @@ class PlayerService {
             lifespan_max: roleInitConfig?.initialLifespan || 60,
             attributes: this.initialAttributeBlob(initialAttributes),
             spirit_roots: spiritRoots,
-            role: 'user',
-            ip_address: extra.ip || null,
-            device_info: extra.userAgent || null
+            titles: JSON.stringify(['newbie']),
+            equipped_title_id: null,
+            stats: JSON.stringify({
+                meditation_count: 0,
+                breakthrough_count: 0,
+                kill_count: 0,
+                death_count: 0,
+                exploration_count: 0,
+                alchemy_count: 0,
+                refining_count: 0,
+                items_collected: 0,
+                achievements_completed: 0
+            }),
+            time_system_data: JSON.stringify({
+                mortal_time_records: [],
+                pending_activities: [],
+                world_event_participation: {},
+                next_breakthrough_window: null
+            }),
+            // 隐私字段：清档时抹掉，不留注册 IP / 设备
+            ip_address: null,
+            device_info: null,
+            // 状态机复位（闭关/悟道/瓶颈/出窍/副本/阵法/死亡/交易锁…）
+            is_dead: false,
+            death_reason: null,
+            death_time: null,
+            is_secluded: false,
+            seclusion_start_time: null,
+            seclusion_end_time: null,
+            seclusion_mode: 'normal',
+            seclusion_duration: 0,
+            daily_seclusion_count: 0,
+            daily_deep_seclusion_count: 0,
+            last_seclusion_date: null,
+            last_seclusion_time: null,
+            is_meditating: false,
+            meditation_start_time: null,
+            meditation_end_time: null,
+            meditation_duration: 0,
+            meditation_mode: 'normal',
+            meditation_insight: 0,
+            daily_meditation_count: 0,
+            daily_deep_meditation_count: 0,
+            last_meditation_date: null,
+            last_meditation_time: null,
+            bottleneck_state: 'none',
+            bottleneck_realm_rank: null,
+            bottleneck_insight: 0,
+            bottleneck_threshold: 100,
+            bottleneck_started_at: null,
+            breakthrough_failure_count: 0,
+            pvp_score: 0,
+            pvp_rank: '散修',
+            honor: 0,
+            karma: 0,
+            weakness_end_time: null,
+            pvp_mode: 'active',
+            pawnshop_credit: 0,
+            ldc: 0,
+            stock_account_balance: 0,
+            stock_margin_debt: 0,
+            is_stock_trading_locked: false,
+            soul_state: 'none',
+            soul_out_start_time: null,
+            soul_out_end_time: null,
+            soul_out_duration: 0,
+            soul_out_target: 'explore',
+            daily_soul_out_count: 0,
+            last_soul_out_date: null,
+            last_soul_out_time: null,
+            ask_dao_insight: 0,
+            daily_ask_dao_count: 0,
+            last_ask_dao_date: null,
+            dharma_form_level: 0,
+            daily_fracture_explore_count: 0,
+            last_fracture_explore_time: null,
+            remnant_soul: 100,
+            last_reincarnation_time: null,
+            in_dungeon: false,
+            dungeon_chapter_id: null,
+            dungeon_node_id: null,
+            dungeon_difficulty: null,
+            dungeon_start_time: null,
+            daily_dungeon_count: 0,
+            last_dungeon_date: null,
+            last_dungeon_time: null,
+            active_formation_id: null,
+            formation_activated_at: null,
+            last_formation_deactivate_time: null,
+            honor_value: 0,
+            war_kills_total: 0,
+            war_deaths_total: 0,
+            boss_kill_count_total: 0,
+            boss_first_kill_count: 0,
+            reincarnation_count: 0,
+            ascension_eligible: 0,
+            second_soul_count: 0,
+            small_world_id: null,
+            dao_companion_id: null,
+            concubine_count: 0,
+            incense_balance: 0,
+            divine_sense_balance: 0,
+            law_points: 0,
+            border_military_merit_total: 0,
+            border_military_merit_available: 0,
+            border_last_support_date: null,
+            border_today_support_route: null,
+            border_intel_collected_date: null,
+            border_intel_public_done: false,
+            border_beast_patrol_date: null,
+            border_remnant_explore_date: null,
+            border_imprint_date: null,
+            divine_duel_challenge_date: null,
+            divine_duel_accept_date: null,
+            daily_tianji_revert_count: 0,
+            last_tianji_revert_date: null,
+            last_tianji_revert_time: null,
+            current_map_id: 1,
+            is_moving: false,
+            moving_from_map_id: null,
+            moving_to_map_id: null,
+            move_start_time: null,
+            move_end_time: null,
+            last_map_move_time: null,
+            total_online_time: 0,
+            attribute_points: 0,
+            heavenly_age: 0,
+            mortal_age: 0,
+            last_heavenly_update: null,
+            last_online: null,
+            is_banned: false,
+            ban_reason: null,
+            ban_expire_time: null,
+            realm_rank: null,
+            realm_max_lifespan: null
+        };
+    }
+
+    /**
+     * 初始化玩家数据（实例方法）
+     * 统一的玩家创建逻辑，供 auth 路由调用，避免业务逻辑散落到路由层
+     * 说明：本模块导出的是 PlayerService 实例（module.exports = new PlayerService()），
+     *       故此处必须为实例方法（非 static），否则 auth 路由调用时会报
+     *       "PlayerService.initializePlayer is not a function"。
+     * @param {string} username - 账号
+     * @param {string} hashedPassword - 已加密的密码（bcrypt 哈希）
+     * @param {string} nickname - 道号
+     * @param {Object} [extra] - 可选附加字段（IP、设备信息等）
+     * @returns {Promise<Object>} 创建的玩家对象
+     */
+    async initializePlayer(username, hashedPassword, nickname, extra = {}) {
+        const fresh = this.buildFreshPlayerState(nickname);
+        // 注册场景仍要记 IP/设备（合规与风控）；清档 keep 会把它们抹成 null
+        fresh.ip_address = extra.ip || null;
+        fresh.device_info = extra.userAgent || null;
+
+        const player = await Player.create({
+            username,
+            password: hashedPassword,
+            ...fresh,
+            role: 'user'
         });
 
         return player;

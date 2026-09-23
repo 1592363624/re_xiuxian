@@ -105,9 +105,17 @@
             </div>
             <div>
               <label class="block text-xs text-fg-muted mb-1">境界要求</label>
-              <input v-model="form.seclusion.deep.min_realm" type="text"
-                class="w-full px-2 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600" />
-              <p class="text-[10px] text-fg-faint mt-0.5">如：筑基期、金丹期、元婴期等</p>
+              <SearchableSelect
+                v-model="form.seclusion.deep.min_realm"
+                :options="realmThresholdOptions"
+                :loading="realmLoading"
+                title="选择境界门槛"
+                placeholder="选择境界门槛"
+                search-placeholder="搜索大境界或子境界…"
+                :allow-empty="false"
+                :clearable="false"
+              />
+              <p class="text-[10px] text-fg-faint mt-0.5">大境界（筑基期）或子境界（筑基初期）均可</p>
             </div>
             <div>
               <label class="block text-xs text-fg-muted mb-1">强行出关损失比例（0-1）</label>
@@ -312,6 +320,8 @@ import { reactive, ref, onMounted } from 'vue'
 import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
 import AppButton from '../../ui/AppButton.vue'
+import SearchableSelect from '../../ui/SearchableSelect.vue'
+import { useRealmThresholdOptions } from '../../../composables/useContentOptions'
 import {
   getCultivationConfig,
   updateSeclusionConfig,
@@ -321,6 +331,9 @@ import {
 } from '../../../api/admin_cultivation'
 
 const uiStore = useUIStore()
+
+// 境界门槛选项：大境界 + 子境界，从内容层拉取
+const { options: realmThresholdOptions, loading: realmLoading, load: loadRealmThresholds } = useRealmThresholdOptions()
 
 const loading = ref(false)
 const savingSeclusion = ref(false)
@@ -585,5 +598,6 @@ onMounted(() => {
   fetchConfig()
   // 同时加载历史版本列表
   fetchBackups()
+  loadRealmThresholds().catch(err => uiStore.showToast('境界清单加载失败: ' + (err?.message || err), 'error'))
 })
 </script>

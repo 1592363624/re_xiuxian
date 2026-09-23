@@ -175,8 +175,8 @@ class CaveService {
                 throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             }
 
-            // 校验境界（优先使用 player.realm_rank 字段，避免 Realm 表数据不完整的问题）
-            const playerRank = player.realm_rank || 0;
+            // 校验境界（与装备穿戴同一有效 rank 口径：名称与 realm_rank 取较高者）
+            const playerRank = require('../core/RealmService').getPlayerRank(player);
             if (playerRank < requirement.min_realm_rank) {
                 throw new AppError(`开辟洞府需达到炼气1层及以上境界`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }

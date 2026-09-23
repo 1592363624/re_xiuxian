@@ -603,6 +603,8 @@ const startServer = async () => {
     app.use('/api/auth/qq', require('./routes/auth_qq'));
     app.use('/api/auth', require('./routes/auth'));
     app.use('/api/player', require('./routes/player'));
+    // 账号数据删除 / 清档（玩家自助：preview + delete，两档 account_mode）
+    app.use('/api/account', require('./routes/account'));
     app.use('/api/chat', require('./routes/chat'));
     // GM 后台统一限流（所有 /api/admin/* 挂载点均以此为前缀，一次覆盖）
     app.use('/api/admin', adminLimiter);
@@ -618,6 +620,8 @@ const startServer = async () => {
     app.use('/api/admin/announcement', require('./routes/admin_announcement'));
     // 装备管理（GM 后台）：装备列表查询、记录修改、重置、强制卸下、GM 一键修理
     app.use('/api/admin/equipment', require('./routes/admin_equipment'));
+    // 玩家档案编辑器（GM 后台）：玩家属性/背包/装备/功法全量编辑，可编辑字段由 config/admin_player_editor.json 声明
+    app.use('/api/admin/player-editor', require('./routes/admin_player_editor'));
     app.use('/api/admin/meditation', require('./routes/admin_meditation'));
     // 修炼配置管理（闭关 + 历练，支持热加载）
     app.use('/api/admin/cultivation', require('./routes/admin_cultivation'));

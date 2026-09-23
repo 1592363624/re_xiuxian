@@ -133,5 +133,7 @@ export const SOCKET_EVENTS = [
   'stock:halt',
   'stock:margin_call',
   // 大世界地图事件（World Map MVP：同图玩家位置实时同步）
-  'world:player-moved'
+  'world:player-moved',
+  // 世界动态：其他玩家关键操作结果写入修仙日志「全部」流
+  'world:activity'
 ]

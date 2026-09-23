@@ -48,25 +48,50 @@ function captureErrors() {
 describe('PlayerCascadePurge：两档口径（归属删、引用留）', () => {
     const entries = (list) => list.map(([table, column]) => ({ table, column }));
 
-    test('列名分档：归属进 purge、引用进 references、复数列进 uncovered（等值匹配不了就点名，不假装清了）', () => {
-        const { purge, references, uncovered } = PlayerCascadePurge.classify(entries([
+    test('列名分档：归属/关系进将删、引用进 references、复数列进 uncovered（等值匹配不了就点名，不假装清了）', () => {
+        const { purge, relation, references, uncovered } = PlayerCascadePurge.classify(entries([
             ['player_items', 'player_id'],
             ['cave_legacies', 'owner_player_id'],
+            ['chat_red_packets', 'sender_id'],
+            ['auctions', 'seller_id'],
+            ['cave_messages', 'cave_owner_id'],
+            ['dao_companions', 'player_a_id'],
+            ['dao_companions', 'player_b_id'],
             ['world_bosses', 'killer_player_id'],
             ['garden_steal_logs', 'attacker_player_id'],
             ['garden_steal_logs', 'target_player_id'],
             ['multi_dungeon_instance', 'leader_player_id'],
             ['spirit_beast_pvp_matches', 'winner_player_id'],
+            ['pvp_battle_records', 'attacker_id'],
+            ['pvp_battle_records', 'winner_id'],
             ['sect_war_territories', 'defender_player_ids'],
             ['admin_logs', 'admin_id'],
             ['players', 'id']
         ]));
-        expect(purge.map(e => `${e.table}.${e.column}`).sort()).toEqual(['cave_legacies.owner_player_id', 'player_items.player_id']);
-        expect(references.map(e => e.column).sort()).toEqual(
-            ['attacker_player_id', 'killer_player_id', 'leader_player_id', 'target_player_id', 'winner_player_id']);
-        // 复数列与审计列：既不该被删，也不该被当成"已覆盖"
+        expect(purge.map(e => `${e.table}.${e.column}`).sort()).toEqual([
+            'auctions.seller_id',
+            'cave_legacies.owner_player_id',
+            'cave_messages.cave_owner_id',
+            'chat_red_packets.sender_id',
+            'player_items.player_id'
+        ]);
+        expect(relation.map(e => `${e.table}.${e.column}`).sort()).toEqual([
+            'dao_companions.player_a_id',
+            'dao_companions.player_b_id'
+        ]);
+        expect(references.map(e => `${e.table}.${e.column}`).sort()).toEqual([
+            'admin_logs.admin_id',
+            'garden_steal_logs.attacker_player_id',
+            'garden_steal_logs.target_player_id',
+            'multi_dungeon_instance.leader_player_id',
+            'pvp_battle_records.attacker_id',
+            'pvp_battle_records.winner_id',
+            'spirit_beast_pvp_matches.winner_player_id',
+            'world_bosses.killer_player_id'
+        ]);
+        // 复数列：既不该被删，也不该被当成"已覆盖"
         expect(uncovered.map(e => `${e.table}.${e.column}`).sort())
-            .toEqual(['admin_logs.admin_id', 'sect_war_territories.defender_player_ids']);
+            .toEqual(['sect_war_territories.defender_player_ids']);
     });
 
     test('可扩展性：资料片/新玩法加一张带 player_id 的表，不改这个文件就会被清；加一列 *_victim_player_id 就不会被删', () => {
@@ -78,6 +103,15 @@ describe('PlayerCascadePurge：两档口径（归属删、引用留）', () => {
         const ref = PlayerCascadePurge.classify(entries([['duel_records', 'victim_player_id'], ['duel_records', 'player_id']]));
         expect(ref.purge.map(e => e.column)).toEqual(['player_id']);
         expect(ref.references.map(e => e.column)).toEqual(['victim_player_id']);
+
+        // 短名引用列（attacker_id 这种）也必须进引用档 —— 2026-09 扩档前它们掉进 uncovered 被漏掉
+        const shortRef = PlayerCascadePurge.classify(entries([
+            ['pvp_battle_records', 'attacker_id'],
+            ['auctions', 'winner_id'],
+            ['market_listings', 'buyer_id']
+        ]));
+        expect(shortRef.purge).toEqual([]);
+        expect(shortRef.references.map(e => e.column).sort()).toEqual(['attacker_id', 'buyer_id', 'winner_id']);
     });
 
     test('players 表自己不进清单（删它由调用方负责，级联不该自己删主行）', () => {
@@ -85,12 +119,18 @@ describe('PlayerCascadePurge：两档口径（归属删、引用留）', () => {
         expect(purge).toEqual([]);
     });
 
-    test('归属档的豁免表：空是正常状态，出现条目就必须带理由', () => {
+    test('归属档的豁免表：空是正常状态，出现条目就必须带理由；列名清单是扩展过的完整口径', () => {
         for (const [table, reason] of PlayerCascadePurge.OWNERSHIP_DENY) {
             expect(typeof table).toBe('string');
             expect(reason.length).toBeGreaterThan(10);
         }
-        expect(PlayerCascadePurge.OWNERSHIP_COLUMNS).toEqual(['player_id', 'owner_player_id']);
+        expect(PlayerCascadePurge.OWNERSHIP_COLUMNS).toEqual([
+            'player_id', 'owner_player_id', 'owner_id', 'user_id',
+            'sender_id', 'receiver_id', 'seller_id', 'bidder_id', 'cave_owner_id'
+        ]);
+        expect(PlayerCascadePurge.RELATION_COLUMNS).toEqual(['player_a_id', 'player_b_id']);
+        // keep 账号时跳过的登录身份表必须点名存在，否则 AccountDeletionService 的 skip 会空转
+        expect(PlayerCascadePurge.ACCOUNT_IDENTITY_TABLES).toContain('player_oauth_bindings');
     });
 });
 
@@ -270,23 +310,32 @@ describe('删号路由真的接上了级联（静态闸 + 控制跑）', () => {
         return text.slice(start, nextRoute < 0 ? text.length : nextRoute);
     }
 
+    // 删号只有一扇门：AccountDeletionService.execute（内部才有 purge + 删 players + 事务）
     const required = [
-        /PlayerCascadePurge\.purge\(\s*\w+\s*,\s*\{\s*transaction/,
-        /Player\.destroy\(\s*\{[^)]*transaction/,
-        /await t\.commit\(\)/,
-        /await t\.rollback\(\)/
+        /AccountDeletionService\.execute\(/,
+        /purged_total/,
+        /kept_references/
     ];
 
-    test('派生行清理与 players 行在同一个事务里，且失败回滚', () => {
+    test('GM 删号走 AccountDeletionService，且回执带清了多少/留了哪些引用', () => {
         const handler = deletePlayerHandler(read('routes/admin.js'));
         expect(handler).not.toBeNull();
         for (const re of required) expect(handler).toMatch(re);
-        // 不再手写"清两张表"那种半吊子清理
+        // 不再手写"清两张表"那种半吊子清理，也不在路由里直接 destroy players
         expect(handler).not.toMatch(/Item\.destroy/);
         expect(handler).not.toMatch(/await player\.destroy\(\)/);
-        // 报告要回给 GM：清了多少、还留着谁的引用
-        expect(handler).toMatch(/purged_total/);
-        expect(handler).toMatch(/kept_references/);
+        expect(handler).not.toMatch(/Player\.destroy/);
+    });
+
+    test('AccountDeletionService 内部才是那笔同生同死的事务（purge + 删/重写 players + commit/rollback）', () => {
+        const svc = read('game/services/AccountDeletionService.js');
+        expect(svc).toMatch(/PlayerCascadePurge\.purge\(/);
+        expect(svc).toMatch(/transaction/);
+        expect(svc).toMatch(/await t\.commit\(\)/);
+        expect(svc).toMatch(/await t\.rollback\(\)/);
+        // keep 重写 / delete 删行，两条路径都在服务里
+        expect(svc).toMatch(/DELETE FROM players/);
+        expect(svc).toMatch(/UPDATE players SET/);
     });
 
     test('控制跑：把 handler 退回旧写法，上面那些判据必须逐条红', () => {
@@ -297,7 +346,7 @@ describe('删号路由真的接上了级联（静态闸 + 控制跑）', () => {
     await player.destroy();
 });`;
         const hits = required.map(re => re.test(old));
-        expect(hits).toEqual([false, false, false, false]);
+        expect(hits).toEqual([false, false, false]);
         expect(/Item\.destroy/.test(old)).toBe(true);
         expect(/await player\.destroy\(\)/.test(old)).toBe(true);
     });

@@ -72,6 +72,15 @@
           @banPlayer="showBanModal"
           @unbanPlayer="unbanPlayer"
           @givePlayer="showGiveModal"
+          @editAssets="openPlayerEditor"
+        />
+
+        <!-- 玩家档案编辑器（属性/背包/装备/功法全量编辑） -->
+        <PlayerEditor
+          v-if="currentTab === 'player_editor'"
+          ref="playerEditorRef"
+          :player-id="editorPlayerId"
+          @showConfirm="showConfirm"
         />
 
         <!-- 系统配置 -->
@@ -148,7 +157,7 @@
     </div>
 
     <!-- 编辑玩家弹窗 -->
-    <Modal :isOpen="!!editingPlayer" title="编辑玩家" @close="editingPlayer = null">
+    <Modal :isOpen="!!editingPlayer" title="编辑玩家" width="640px" @close="editingPlayer = null">
       <div v-if="editingPlayer" class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
@@ -169,7 +178,16 @@
           </div>
           <div>
             <label class="block text-sm text-fg-muted mb-1">境界</label>
-            <input v-model="editingPlayer.realm" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600">
+            <SearchableSelect
+              v-model="editingPlayer.realm"
+              :options="realmOptions"
+              :loading="realmLoading"
+              title="选择境界"
+              placeholder="选择境界"
+              search-placeholder="搜索境界名，如：化神初期"
+              :allow-empty="false"
+              :clearable="false"
+            />
           </div>
           <div>
             <label class="block text-sm text-fg-muted mb-1">当前寿元</label>
@@ -214,7 +232,7 @@
     </Modal>
 
     <!-- 发放物品弹窗 -->
-    <Modal :isOpen="!!givingPlayer" title="发放物品" @close="givingPlayer = null">
+    <Modal :isOpen="!!givingPlayer" title="发放物品" width="520px" @close="givingPlayer = null">
       <div v-if="givingPlayer" class="space-y-4">
         <p class="text-fg-secondary">发放给: <span class="text-gold-500">{{ givingPlayer.nickname }}</span></p>
 
@@ -228,9 +246,19 @@
         </div>
 
         <div v-if="giveType === 'item'">
-          <label class="block text-sm text-fg-muted mb-1">物品ID</label>
-          <input v-model="giveItemId" class="w-full bg-surface-sunken border border-line rounded-control px-2 py-1 text-fg-secondary focus-ring focus:border-gold-600" placeholder="输入物品ID">
-          <p class="mt-1 text-xs text-fg-faint">提示: 可用物品ID见 item_data.json 配置</p>
+          <label class="block text-sm text-fg-muted mb-1">物品</label>
+          <SearchableSelect
+            v-model="giveItemId"
+            :options="itemOptions"
+            :loading="itemLoading"
+            title="选择物品"
+            placeholder="选择物品"
+            search-placeholder="搜索物品名 / ID / 类型…"
+            :allow-empty="false"
+            :clearable="false"
+            :list-height="320"
+          />
+          <p class="mt-1 text-xs text-fg-faint">支持按名称、ID、类型检索；也可切换「平铺」浏览全部</p>
         </div>
 
         <div v-if="giveType === 'item'">
@@ -289,13 +317,17 @@
  * GM 管理后台主组件
  * 负责 Tab 导航和弹窗管理，具体功能委托给子组件
  */
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import { UI_CONFIG } from '../../config'
 import Modal from '../common/Modal.vue'
 import AppButton from '../ui/AppButton.vue'
+import SearchableSelect from '../ui/SearchableSelect.vue'
+import { useRealmOptions, useItemOptions } from '../../composables/useContentOptions'
 import PlayerManagement from './sub/PlayerManagement.vue'
+// 玩家档案编辑器：属性 / 背包 / 装备 / 功法全量编辑（可编辑字段由后端配置下发）
+import PlayerEditor from './sub/PlayerEditor.vue'
 import SystemConfig from './sub/SystemConfig.vue'
 import NotificationManagement from './sub/NotificationManagement.vue'
 import ServerStats from './sub/ServerStats.vue'
@@ -353,6 +385,7 @@ const tabGroups = [
   // 玩家运营：玩家档案、公告推送等直接面向单玩家的操作
   { id: 'player', name: '玩家运营', tabs: [
     { id: 'players', name: '玩家数据' },
+    { id: 'player_editor', name: '玩家档案' },
     { id: 'notifications', name: '通知管理' }
   ]},
   // 系统配置：全局参数、修炼数值、AI 接入等平台级设置
@@ -455,6 +488,9 @@ const toggleGroup = (groupId) => {
 
 // 子组件引用
 const playerManagementRef = ref(null)
+// 玩家档案编辑器：从列表点「档案」进入时带上的玩家 ID
+const editorPlayerId = ref(null)
+const playerEditorRef = ref(null)
 const notificationManagementRef = ref(null)
 const serverStatsRef = ref(null)
 const operationLogsRef = ref(null)
@@ -487,6 +523,15 @@ const handleConfirm = () => {
   confirmDialog.show = false
 }
 
+// 游戏内容选项：境界 / 物品一律从内容层拉取，禁止手输主键
+const { options: realmOptions, loading: realmLoading, load: loadRealms } = useRealmOptions()
+const { options: itemOptions, loading: itemLoading, load: loadItems } = useItemOptions()
+
+onMounted(() => {
+  loadRealms().catch(err => uiStore.showToast('境界清单加载失败: ' + (err?.message || err), 'error'))
+  loadItems().catch(err => uiStore.showToast('物品清单加载失败: ' + (err?.message || err), 'error'))
+})
+
 // 编辑玩家
 const editingPlayer = ref(null)
 
@@ -511,6 +556,15 @@ const submitPlayerEdit = async () => {
   } catch (error) {
     uiStore.showToast('更新失败: ' + (error.response?.data?.message || error.message), 'error')
   }
+}
+
+/**
+ * 打开玩家档案编辑器（列表行「档案」按钮）
+ * 只切 Tab 并传 ID：编辑器挂载后会按 ID 拉档案，避免在这里重复请求
+ */
+const openPlayerEditor = (player) => {
+  editorPlayerId.value = player?.id ?? null
+  currentTab.value = 'player_editor'
 }
 
 // 封禁功能相关
@@ -583,7 +637,7 @@ const confirmGive = async () => {
   try {
     if (giveType.value === 'item') {
       if (!giveItemId.value) {
-        uiStore.showToast('请输入物品ID', 'warning')
+        uiStore.showToast('请选择要发放的物品', 'warning')
         return
       }
       await giveItem(givingPlayer.value.id, giveItemId.value, giveQuantity.value)

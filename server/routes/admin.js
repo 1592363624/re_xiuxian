@@ -9,6 +9,7 @@ const sequelize = require('../config/database');
 const Player = require('../models/player');
 const PlayerStateStore = require('../game/persistence/PlayerStateStore');
 const PlayerCascadePurge = require('../game/persistence/PlayerCascadePurge');
+const AccountDeletionService = require('../game/services/AccountDeletionService');
 const SystemConfig = require('../models/system_config');
 const AdminLog = require('../models/admin_log');
 const Item = require('../models/item');
@@ -262,9 +263,14 @@ router.put('/players/:id', auth, adminCheck, async (req, res) => {
         });
 
         const oldData = player.toJSON();
+        // 修复 B45：改 realm 时同步 realm_rank，否则境界名与数值对不上，
+        // meetsRealmRequirement 等按 rank 的门槛判断会错乱。
+        if (updates.realm !== undefined && updates.realm !== oldData.realm) {
+            updates.realm_rank = RealmService.getRealmRank(updates.realm);
+        }
         await player.update(updates);
-        
-        await logAdminAction(req.player.id, 'modify_player', { 
+
+        await logAdminAction(req.player.id, 'modify_player', {
             target_id: player.id, 
             changes: Object.keys(updates) 
         }, req);
@@ -535,73 +541,46 @@ router.post('/add-exp', auth, adminCheck, async (req, res) => {
 });
 
 /**
- * 重置玩家
+ * 重置玩家（deprecated 别名 → account_mode=keep）
  * POST /api/admin/reset-player
+ *
+ * 旧实现只重置 players 部分字段 + 可选清 items，80+ 子表原样留下（半截重置）。
+ * 现统一走 AccountDeletionService（清档留号）：玩法数据（含未来新表）全清 + 按 role_init 重开。
+ * keep_items 参数保留但忽略 —— 真正的"留东西"不属于清档语义。
  */
 router.post('/reset-player', auth, adminCheck, async (req, res) => {
     try {
-        const { playerId, keepItems = false } = req.body;
+        const { playerId, new_nickname } = req.body;
 
         const player = await Player.findByPk(playerId);
         if (!player) {
             return res.status(404).json({ code: 404, message: '玩家不存在' });
         }
 
-        if (!keepItems) {
-            await Item.destroy({ where: { player_id: playerId } });
-        }
-
-        // 修复 B23：所有初始数值从 role_init 配置读取，禁止硬编码
-        // 这样调整凡人初始属性/寿元/年龄只需改 config/role_init.json，无需改代码
-        const roleInitConfig = configLoader.getConfig('role_init') || {};
-        const initialAge = roleInitConfig.initialAge ?? 16;
-        const initialLifespan = roleInitConfig.initialLifespan ?? 60;
-        const initialSpiritStones = roleInitConfig.initialSpiritStones ?? 0;
-        const initialAttrs = roleInitConfig.initialAttributes || {
-            hp_max: 100, mp_max: 0, atk: 10, def: 5, speed: 10, sense: 10
-        };
-
-        player.realm = '凡人';
-        // 修复 B45：同步重置 realm_rank，避免 realm 与 realm_rank 数据不一致
-        // （否则 meetsRealmRequirement 会按 realm="凡人" 当低境界处理，
-        //  但 realm_rank 仍是高境界数值，导致业务判断错乱）
-        player.realm_rank = RealmService.getRealmRank('凡人');
-        player.exp = '0';
-        player.spirit_stones = String(initialSpiritStones);
-        player.hp_current = BigInt(initialAttrs.hp_max || 100);
-        player.mp_current = BigInt(initialAttrs.mp_max || 0);
-        player.lifespan_current = initialAge;
-        player.lifespan_max = initialLifespan;
-        player.toxicity = 0;
-        // 原先这里赋的是 JSON.stringify(initialAttrs)，而 attributes 的 setter 会再 stringify 一次，
-        // 于是库里存的是"字符串的 JSON"，getter 解出来是字符串而不是对象 —— 重置过的玩家属性全是 undefined。
-        // 2026-09-22：初值过一道 PlayerService.initialAttributeBlob（与新号同一口径），
-        // 因为 initialAttributes 里那五个旧管线输出键（atk/def/hp_max/mp_max/speed）没人读，
-        // 种进 blob 只是再埋一份会骗人的陈旧快照。
-        player.attributes = PlayerService.initialAttributeBlob(initialAttrs);
-        // 同步重置死亡相关字段（避免重置后仍处于死亡状态）
-        player.is_dead = false;
-        player.death_reason = null;
-        player.death_time = null;
-        player.is_secluded = false;
-        player.seclusion_start_time = null;
-        player.seclusion_end_time = null;
-        player.seclusion_mode = 'normal';
-        player.current_map_id = 1;
-        await player.save();
+        const result = await AccountDeletionService.execute(player.id, {
+            accountMode: 'keep',
+            newNickname: new_nickname,
+            actorId: req.player.id,
+            reason: 'gm_reset_player',
+            includeAdmin: true,
+            ip: req.ip || req.connection?.remoteAddress || null
+        });
 
         await logAdminAction(req.player.id, 'reset_player', {
-            target_id: playerId,
-            keep_items: keepItems
+            target_id: player.id,
+            purged_total: result.purged_total,
+            account_mode: 'keep'
         }, req);
 
-        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_reset', {
-            keepItems
+        webSocketNotificationService.notifyPlayerUpdate(player.id, 'gm_reset', {
+            keepItems: false
         });
 
         res.json({
             code: 200,
-            message: '玩家已重置为初始状态'
+            message: '玩家已重置为初始状态（玩法数据已全量清空）',
+            purged_total: result.purged_total,
+            kept_references: result.kept_references
         });
     } catch (error) {
         res.status(500).json({ code: 500, message: '重置失败', error: error.message });
@@ -833,8 +812,11 @@ router.get('/logs', auth, adminCheck, async (req, res) => {
 });
 
 /**
- * 删除玩家
+ * 删除玩家 / 清档
  * DELETE /api/admin/players/:id
+ * Body 可选：{ account_mode: 'delete'|'keep', allow_admin?: boolean, new_nickname?, reason? }
+ * 默认 account_mode=delete（兼容旧调用：只传 id 即整号删除）。
+ * 与玩家自助 POST /api/account/delete 走同一个 AccountDeletionService，口径不分叉。
  */
 router.delete('/players/:id', auth, adminCheck, async (req, res) => {
     try {
@@ -844,45 +826,39 @@ router.delete('/players/:id', auth, adminCheck, async (req, res) => {
             return res.status(404).json({ message: '玩家不存在' });
         }
 
-        if (player.role === 'admin') {
-            return res.status(400).json({ message: '无法删除管理员账号' });
+        const accountMode = (req.body && req.body.account_mode) || 'delete';
+        const allowAdmin = !!(req.body && req.body.allow_admin);
+        if (player.role === 'admin' && !allowAdmin) {
+            return res.status(400).json({ message: '无法删除管理员账号（确要操作请传 allow_admin）' });
         }
 
-        const playerId = player.id;
-        // 先量"这个号还被谁的记录点着名"（引用列一律保留，删它们等于替活人抹历史）。
-        // 放在事务外做：那十几条只读 SELECT 不该拉长写事务的持锁时间。
-        const references = await PlayerCascadePurge.countReferences(playerId);
-        // 派生行与 players 行同生同死：这个库一个外键都没声明（Sequelize sync() 不建 FK），
-        // 以前只清两张表就删号，实测在 25 张表上留下过 925 行孤儿（记账表、排行榜、冷却都算数）。
-        // 清单由 PlayerCascadePurge 从 information_schema 现查，新增带 player_id 的表不需要改这里。
-        const t = await sequelize.transaction();
-        let purged;
-        try {
-            purged = await PlayerCascadePurge.purge(playerId, { transaction: t });
-            await AdminLog.destroy({ where: { admin_id: playerId }, transaction: t });
-            await Player.destroy({ where: { id: playerId }, transaction: t });
-            await t.commit();
-        } catch (error) {
-            await t.rollback();
-            throw error;
-        }
+        const result = await AccountDeletionService.execute(player.id, {
+            accountMode,
+            newNickname: req.body && req.body.new_nickname,
+            actorId: req.player.id,
+            reason: (req.body && req.body.reason) || 'gm_delete',
+            includeAdmin: allowAdmin,
+            ip: req.ip || req.connection?.remoteAddress || null
+        });
 
-        webSocketNotificationService.notifyPlayerUpdate(playerId, 'gm_delete');
+        webSocketNotificationService.notifyPlayerUpdate(player.id, 'gm_delete');
 
-        await logAdminAction(req.player.id, 'delete_player', {
-            target_id: playerId,
-            purged_rows: purged.total,
-            purged_tables: purged.tables.length,
-            kept_references: references.map(r => `${r.table}.${r.column}=${r.rows}`)
+        await logAdminAction(req.player.id, accountMode === 'keep' ? 'account_wipe' : 'delete_player', {
+            target_id: player.id,
+            account_mode: accountMode,
+            purged_rows: result.purged_total,
+            purged_tables: result.purged_tables.length,
+            kept_references: result.kept_references.map(r => `${r.table}.${r.column}=${r.rows}`)
         }, req);
 
         res.json({
             code: 200,
-            message: '玩家删除成功',
-            purged: purged.tables,
-            purged_total: purged.total,
+            message: accountMode === 'keep' ? '玩家数据已清空（账号保留）' : '玩家删除成功',
+            purged: result.purged_tables,
+            purged_total: result.purged_total,
             // "别人记着这个号"的行一律保留（删它们等于替活人抹历史），点名让 GM 自己判断
-            kept_references: references
+            kept_references: result.kept_references,
+            account_mode: result.account_mode
         });
     } catch (error) {
         res.status(500).json({ message: '删除失败', error: error.message });

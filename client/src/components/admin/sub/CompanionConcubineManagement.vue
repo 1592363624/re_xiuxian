@@ -119,13 +119,15 @@
           </div>
           <div>
             <label class="block text-xs text-fg-muted mb-1">侍妾原型</label>
-            <select v-model="grantConcubineForm.concubineKey"
-              class="w-full px-3 py-1.5 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-              <option value="">请选择侍妾原型</option>
-              <option v-for="opt in concubineKeyOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}（{{ opt.value }}）
-              </option>
-            </select>
+            <SearchableSelect
+              v-model="grantConcubineForm.concubineKey"
+              :options="concubineSelectOptions"
+              title="选择侍妾原型"
+              placeholder="选择侍妾原型"
+              search-placeholder="搜索原型名 / key…"
+              :allow-empty="false"
+              :clearable="false"
+            />
           </div>
         </div>
         <button @click="submitGrantConcubine"
@@ -198,9 +200,10 @@
  * 道侣 / 侍妾系统 GM 管理组件脚本
  * 使用 Composition API，2 大子模块共享 emit showConfirm 委托二次确认
  */
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useUIStore } from '../../../stores/ui';
 import AppButton from '../../ui/AppButton.vue'
+import SearchableSelect from '../../ui/SearchableSelect.vue'
 import {
   adminBreakDaoCompanion,
   adminSetHeartContractLevel,
@@ -258,6 +261,9 @@ const finishVoyageForm = reactive({
  * 这里以前抄了 7 条并注释"与 concubine_key 严格对齐"—— 资料片加一位，下拉里就没有她。
  */
 const concubineKeyOptions = ref<Array<{ value: string; label: string }>>([])
+const concubineSelectOptions = computed(() =>
+  concubineKeyOptions.value.map(o => ({ value: o.value, label: o.label, meta: o.value, group: '侍妾' }))
+)
 
 /** 拉侍妾原型清单；拉不到要响，别留一个空下拉 */
 async function loadConcubineKeyOptions() {

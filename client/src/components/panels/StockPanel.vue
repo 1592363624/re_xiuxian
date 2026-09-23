@@ -839,6 +839,7 @@ onUnmounted(() => {
     hint="行情 · 持仓 · 融资"
     size="2xl"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <div class="h-full flex flex-col min-h-0">

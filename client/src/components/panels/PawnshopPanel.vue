@@ -596,6 +596,7 @@ onUnmounted(() => {
     hint="典当 · 赎回 · 信用"
     size="xl"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <!-- 当铺信用：原先挤在标题行，现收进外壳的 header-actions -->

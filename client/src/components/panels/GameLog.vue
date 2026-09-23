@@ -49,12 +49,15 @@ watch(() => uiStore.logs.length, () => {
   nextTick(jumpToLatest)
 })
 
-// 「我的」只看自己发起的动作（后端以 actorId='self' 标记）；
-// 「系统」同时收 system 与 notice，两者都是全服播报。
+// 「全部」= 我的动作 + 其他道友的世界动态 + 系统播报
+// 「我的」只看自己发起的动作（前端以 actorId='self' 标记）
+// 「系统」同时收 system 与 notice，两者都是全服播报
+// 他人动态（source='world'）只进「全部」，不靠 isImportant 闯进「我的」
 const filteredLogs = computed(() =>
   uiStore.logs.filter(log => {
-    if (log.isImportant) return true
     if (filterMode.value === 'all') return true
+    if (log.source === 'world') return false
+    if (log.isImportant) return true
     if (filterMode.value === 'self') return log.actorId === 'self'
     if (filterMode.value === 'system') return log.type === 'system' || log.type === 'notice'
     return true
@@ -106,7 +109,12 @@ onMounted(() => {
 
             <span
               class="text-[13px] leading-[1.7] min-w-0"
-              :class="[styleOf(log.type).text, log.isImportant ? 'font-bold' : '', log.divider ? 'text-fg-faint italic text-[11px]' : '']"
+              :class="[
+                styleOf(log.type).text,
+                log.isImportant ? 'font-bold' : '',
+                log.divider ? 'text-fg-faint italic text-[11px]' : '',
+                log.source === 'world' ? 'opacity-90' : ''
+              ]"
             >{{ log.content }}</span>
           </div>
         </TransitionGroup>

@@ -17,6 +17,8 @@ const { infrastructure } = require('../../../modules');
 // 修复：统一使用 RealmService 读取配置文件，避免数据库 Realm 表与配置不一致
 // （init_realms.js 与 realm_breakthrough.json 数据严重不一致，导致倍率计算错误）
 const RealmService = require('../../../game/core/RealmService');
+const SeclusionSettleService = require('../../services/SeclusionSettleService');
+const AttributeMaxService = require('../../../game/core/AttributeMaxService');
 
 const configLoader = infrastructure.ConfigLoader;
 
@@ -153,13 +155,41 @@ function registerSeclusionState() {
                     const actualDuration = Math.max(0, Math.floor((now - startTime) / 1000));
                     const isDeep = locked.seclusion_mode === 'deep';
                     const config = isDeep ? seclusionConfigs.deep : seclusionConfigs.normal;
-                    // 修复：getRealmMultiplier 已改为同步函数（直接读配置，不再查数据库）
-                    const realmMultiplier = getRealmMultiplier(locked.realm);
 
-                    // 深度闭关已过 end_time 视为正常出关（不触发强行出关惩罚）
-                    const expGain = Math.floor(
-                        actualDuration * seclusionConfigs.base_exp_rate * realmMultiplier * config.exp_rate
-                    );
+                    // 结算：
+                    //   常规 → 多轮判定（成功/失败/走火入魔）+ 奇遇 + 随机冷却
+                    //   深度 → 时长线性（到点自动结算视为正常出关，不加强行出关惩罚）
+                    let settle;
+                    if (isDeep) {
+                        settle = await SeclusionSettleService.settleDeepSeclusion(
+                            locked, actualDuration, config, false, 1.0
+                        );
+                    } else {
+                        settle = await SeclusionSettleService.settleNormalSeclusion(locked, actualDuration, {
+                            transaction: t
+                        });
+                    }
+                    const expGain = settle.exp_gain;
+                    const deviationHpLoss = settle.hp_loss || 0;
+
+                    // 吐纳归元 + 走火入魔伤势
+                    let hpRestored = 0;
+                    let mpRestored = 0;
+                    try {
+                        const realmConfig = RealmService.getRealmByName(locked.realm);
+                        const maxValues = AttributeMaxService.calculateAttributeMaxValues(locked, realmConfig);
+                        const maxHp = Number(maxValues.hp_max || 100);
+                        const maxMp = Number(maxValues.mp_max || 0);
+                        const oldHp = Number(locked.hp_current || 0n);
+                        const oldMp = Number(locked.mp_current || 0n);
+                        const finalHp = Math.max(0, maxHp - deviationHpLoss);
+                        locked.hp_current = BigInt(finalHp);
+                        locked.mp_current = BigInt(maxMp);
+                        hpRestored = finalHp - oldHp;
+                        mpRestored = maxMp - oldMp;
+                    } catch (attrErr) {
+                        console.warn('[Seclusion Cleaner] 恢复 HP/MP 失败:', attrErr.message);
+                    }
 
                     // 更新玩家状态：增加修为 + 清空闭关字段
                     locked.exp = BigInt(locked.exp || 0) + BigInt(expGain);
@@ -174,8 +204,19 @@ function registerSeclusionState() {
                     await t.commit();
                     stats.settled += 1;
 
+                    // 结算摘要（常规闭关必须带三结果次数）
+                    let summary;
+                    if (!isDeep) {
+                        summary = `成功 ${settle.success_count} 次，失败 ${settle.fail_count} 次，走火入魔 ${settle.deviation_count} 次，本次获得修为 ${expGain} 点`;
+                        if (settle.encounters && settle.encounters.length > 0) {
+                            summary += `；奇遇：${settle.encounters.map(e => e.name).join('、')}`;
+                        }
+                    } else {
+                        summary = `本次获得修为 ${expGain} 点`;
+                    }
+
                     if (ctx.logEach) {
-                        console.log(`[Seclusion Cleaner] 玩家 ${locked.id} 闭关自动结算，获修为 ${expGain}`);
+                        console.log(`[Seclusion Cleaner] 玩家 ${locked.id} 闭关自动结算，${summary}`);
                     }
 
                     // 记录自动清理日志（异步，不阻塞清理流程）
@@ -188,7 +229,16 @@ function registerSeclusionState() {
                             fromState: 'SECLUDED',
                             toState: 'IDLE',
                             source: 'cleaner',
-                            details: { mode: isDeep ? 'deep' : 'normal', exp_gain: expGain, duration: actualDuration }
+                            details: {
+                                mode: isDeep ? 'deep' : 'normal',
+                                exp_gain: expGain,
+                                duration: actualDuration,
+                                success_count: settle.success_count || 0,
+                                fail_count: settle.fail_count || 0,
+                                deviation_count: settle.deviation_count || 0,
+                                hp_loss: deviationHpLoss,
+                                encounters: settle.encounters || []
+                            }
                         }).catch(() => { /* 日志失败不影响清理 */ });
                     } catch (e) { /* StateLogService 加载失败静默 */ }
 
@@ -200,7 +250,12 @@ function registerSeclusionState() {
                                 exp_gain: expGain,
                                 exp: locked.exp.toString(),
                                 last_seclusion_time: locked.last_seclusion_time,
-                                auto_settled: true
+                                auto_settled: true,
+                                success_count: settle.success_count || 0,
+                                fail_count: settle.fail_count || 0,
+                                deviation_count: settle.deviation_count || 0,
+                                encounters: settle.encounters || [],
+                                cooldown_seconds: settle.cooldown_seconds
                             });
                         } catch (e) { /* 推送失败不影响清理 */ }
 
@@ -210,10 +265,17 @@ function registerSeclusionState() {
                             await new NotificationService().createNotification({
                                 type: 'seclusion_auto_settled',
                                 title: '闭关到期结算',
-                                content: `您的${isDeep ? '深度' : '常规'}闭关已到期自动结算，本次获得修为 ${expGain} 点。`,
+                                content: `您的${isDeep ? '深度' : '常规'}闭关已到期自动结算：${summary}。`,
                                 priority: 'normal',
                                 targetPlayerId: locked.id,
-                                metadata: { exp_gain: expGain, mode: isDeep ? 'deep' : 'normal' }
+                                metadata: {
+                                    exp_gain: expGain,
+                                    mode: isDeep ? 'deep' : 'normal',
+                                    success_count: settle.success_count || 0,
+                                    fail_count: settle.fail_count || 0,
+                                    deviation_count: settle.deviation_count || 0,
+                                    encounters: settle.encounters || []
+                                }
                             });
                         } catch (e) {
                             console.warn('[Seclusion Cleaner] 推送系统通知失败:', e.message);

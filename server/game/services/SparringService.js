@@ -220,7 +220,7 @@ class SparringService {
             }
 
             // 3. 校验境界要求
-            const playerRank = player.realm_rank || 0;
+            const playerRank = require('../core/RealmService').getPlayerRank(player);
             if (playerRank < config.global.min_realm_rank) {
                 throw new AppError(
                     `切磋木人需达到${config.global.min_realm_name}（rank≥${config.global.min_realm_rank}），当前境界rank=${playerRank}`,

@@ -159,6 +159,7 @@ onMounted(async () => {
     size="xl"
     :loading="loading"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <div class="h-full flex flex-col">

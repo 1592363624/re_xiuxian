@@ -10,7 +10,7 @@ import { computed } from 'vue'
 
 const props = defineProps({
   variant: { type: String, default: 'default', validator: v => ['default', 'primary', 'danger', 'ghost', 'outline'].includes(v) },
-  size: { type: String, default: 'md', validator: v => ['xs', 'sm', 'md'].includes(v) },
+  size: { type: String, default: 'md', validator: v => ['xs', 'sm', 'md', 'lg'].includes(v) },
   disabled: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   block: { type: Boolean, default: false },
@@ -22,6 +22,7 @@ const SIZE = {
   xs: 'px-2 py-1 text-[11px] gap-1',
   sm: 'px-2.5 py-1.5 text-xs gap-1.5',
   md: 'px-3.5 py-2 text-[13px] gap-2',
+  lg: 'px-5 py-2.5 text-sm gap-2',
 }
 
 const VARIANT = {

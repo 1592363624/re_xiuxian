@@ -122,9 +122,18 @@
           </template>
         </div>
 
-        <!-- 已悟神通 -->
-        <div v-if="item.comprehended_skills?.length" class="mt-2 text-xs text-purple-300">
-          神通：{{ item.comprehended_skills.length }} 项
+        <!-- 神通槽位：已用/上限常驻展示；槽位 0 时点明「功法第 N 层解锁」，避免玩家对着报错猜「第三层」是什么 -->
+        <div class="mt-2 text-xs text-purple-300">
+          神通 {{ item.skill_slots_used ?? item.comprehended_skills?.length ?? 0 }} / {{ item.skill_slots_total ?? 0 }} 槽
+          <span v-if="(item.skill_slots_total ?? 0) === 0 && item.next_skill_unlock_layer" class="text-fg-muted">
+            · 功法修至第 {{ item.next_skill_unlock_layer }} 层解锁槽位
+          </span>
+          <span v-else-if="(item.skill_slots_used ?? 0) >= (item.skill_slots_total ?? 0) && item.next_skill_unlock_layer" class="text-fg-muted">
+            · 已满，功法第 {{ item.next_skill_unlock_layer }} 层再解锁
+          </span>
+          <span v-if="item.comprehended_skills?.length" class="text-purple-200/80">
+            （{{ item.comprehended_skills.length }} 项已悟）
+          </span>
         </div>
       </div>
       <EmptyState
@@ -339,11 +348,16 @@ const canBreakthrough = (item) =>
   item.proficiency >= item.required_proficiency &&
   enoughSS(item.breakthrough_cost)
 
-/** 是否可领悟神通：存在未获得神通槽位 + 灵石余额足够 */
-const canComprehend = (item) =>
-  Array.isArray(item.comprehended_skills) &&
-  item.comprehended_skills.length < (item.skillSlotsTotal || 1) &&
-  enoughSS(item.comprehend_cost)
+/**
+ * 是否可领悟神通：有空余槽位 + 灵石余额足够。
+ * 槽位上限以前读 skillSlotsTotal（后端从未下发，恒 undefined → 兜底 1），
+ * 于是功法 1 层（0 槽）按钮仍可点，点下去才被服务端拒。改读后端 skill_slots_total。
+ */
+const canComprehend = (item) => {
+  const used = item.skill_slots_used ?? (Array.isArray(item.comprehended_skills) ? item.comprehended_skills.length : 0)
+  const total = item.skill_slots_total ?? 0
+  return used < total && enoughSS(item.comprehend_cost)
+}
 
 /**
  * 是否可研习：境界达标 + 代价凑得齐。
@@ -404,7 +418,7 @@ const refreshResources = async () => {
 const confirmPractice = (item) => {
   openConfirm({
     title: '运转功法',
-    message: `确认修炼《${item.name}》？\n消耗 灵石 ${item.practice_cost}（余额 ${playerSS}）、灵力 ${item.mp_cost}（余额 ${playerMP}）提升熟练度。`,
+    message: `确认修炼《${item.name}》？\n消耗 灵石 ${item.practice_cost}（余额 ${playerSS.value}）、灵力 ${item.mp_cost}（余额 ${playerMP.value}）提升熟练度。`,
     confirmText: '修炼',
     onConfirm: async () => { closeConfirm(); await doPractice(item.technique_id) }
   })
@@ -433,7 +447,7 @@ const confirmBreakthrough = (item) => {
   if (!canBreakthrough(item)) { uiStore.showToast('熟练度不足或已至圆满', 'warning'); return }
   openConfirm({
     title: '突破功法',
-    message: `确认突破《${item.name}》？\n消耗灵石 ${item.breakthrough_cost}（余额 ${playerSS}），当前突破成功率约 ${Math.round((item.breakthrough_rate || 0) * 100)}%。`,
+    message: `确认突破《${item.name}》？\n消耗灵石 ${item.breakthrough_cost}（余额 ${playerSS.value}），当前突破成功率约 ${Math.round((item.breakthrough_rate || 0) * 100)}%。`,
     confirmText: '突破',
     onConfirm: async () => { closeConfirm(); await doBreakthrough(item.technique_id) }
   })
@@ -459,9 +473,11 @@ const doBreakthrough = async (id) => {
 
 /** 领悟神通确认 */
 const confirmComprehend = (item) => {
+  const used = item.skill_slots_used ?? item.comprehended_skills?.length ?? 0
+  const total = item.skill_slots_total ?? 0
   openConfirm({
     title: '领悟神通',
-    message: `确认对《${item.name}》进行神通领悟？\n消耗灵石 ${item.comprehend_cost}（余额 ${playerSS}），成败凭机缘。`,
+    message: `确认对《${item.name}》进行神通领悟？\n消耗灵石 ${item.comprehend_cost}（余额 ${playerSS.value}），成败凭机缘。\n神通槽位 ${used}/${total}。`,
     confirmText: '领悟',
     type: 'purple',
     onConfirm: async () => { closeConfirm(); await doComprehend(item.technique_id) }
@@ -532,7 +548,7 @@ const confirmEquipMain = (item) => {
     const decayPct = Number(s.proficiency_decay_on_switch_pct) || 0
     const decay = Math.floor((Number(cur.proficiency) || 0) * decayPct / 100)
 
-    lines.push(`· 灵石代价：${costSS}（余额 ${playerSS}）`)
+    lines.push(`· 灵石代价：${costSS}（余额 ${playerSS.value}）`)
     lines.push(`· 原主修《${cur.name}》熟练度 -${decay}（${decayPct}%）`)
 
     // 冷却预览：以原主修 updated_at 为上次切换时间近似计算剩余小时
@@ -544,7 +560,7 @@ const confirmEquipMain = (item) => {
         ? `· 冷却中：${Math.ceil(remain)} 小时后方可改修`
         : '· 冷却已结束，可立即改修')
     }
-    if (costSS > playerSS) {
+    if (costSS > playerSS.value) {
       lines.push('⚠ 灵石不足，无法切换')
     }
   } else {

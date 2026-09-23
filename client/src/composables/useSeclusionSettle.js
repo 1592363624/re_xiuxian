@@ -29,9 +29,13 @@ export function useSeclusionSettle() {
   })
 
   /**
-   * 拼装闭关结算日志文案（修为 + HP/MP 恢复值）
+   * 拼装闭关结算日志文案
    *
-   * 后端 routes/seclusion.js 返回：exp_gain / forced_end / hp_restored / mp_restored。
+   * 常规闭关：必须展示 成功 / 失败 / 走火入魔 各多少次（多轮判定汇总）。
+   * 深度闭关：保持时长收益语义，强行出关时提示扣益。
+   *
+   * 后端 routes/seclusion.js 返回：exp_gain / forced_end / hp_restored / mp_restored
+   *   以及 success_count / fail_count / deviation_count / encounters / hp_loss。
    * exp_gain 必须用 ?? 0，禁止回退到 player.exp —— 那是总修为的 BigInt 字符串，
    * 立即结束（exp_gain=0）时会显示出"获得 99999999999 修为"。
    *
@@ -44,20 +48,49 @@ export function useSeclusionSettle() {
     const isForced = !!res?.data?.forced_end || forcedRequested
     const hpRestored = Number(res?.data?.hp_restored ?? 0)
     const mpRestored = Number(res?.data?.mp_restored ?? 0)
+    const hpLoss = Number(res?.data?.hp_loss ?? 0)
     const modeLabel = isDeep ? '深度闭关' : '闭关'
 
     let content
-    if (isForced) {
-      content = `强行出关！${modeLabel}未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${formatNumber(gain)} 点。`
+    if (isDeep) {
+      if (isForced) {
+        content = `强行出关！${modeLabel}未达最短时长，损失 ${forcedPenaltyPercent.value} 收益，本次获得修为 ${formatNumber(gain)} 点。`
+      } else {
+        content = `结束${modeLabel}，本次修炼共获得修为 ${formatNumber(gain)} 点。`
+      }
     } else {
-      content = `结束${modeLabel}，本次修炼共获得修为 ${formatNumber(gain)} 点。`
+      // 常规闭关：多轮判定结果次数必须出现在提示里
+      const successCount = Number(res?.data?.success_count ?? 0)
+      const failCount = Number(res?.data?.fail_count ?? 0)
+      const deviationCount = Number(res?.data?.deviation_count ?? 0)
+      const rounds = Number(res?.data?.rounds ?? 0)
+      content = `常规闭关结束：成功 ${successCount} 次，失败 ${failCount} 次，走火入魔 ${deviationCount} 次，本次获得修为 ${formatNumber(gain)} 点`
+      if (rounds > 0) {
+        content += `（共 ${rounds} 轮`
+        if (res?.data?.guarded && deviationCount > 0) {
+          content += '，护法已减免走火入魔伤害'
+        }
+        content += '）'
+      }
+      content += '。'
     }
-    // 只在确实有恢复时补，避免"+0"这种没信息量的尾巴
-    if (hpRestored > 0 || mpRestored > 0) {
-      const parts = []
-      if (hpRestored > 0) parts.push(`气血 +${formatNumber(hpRestored)}`)
-      if (mpRestored > 0) parts.push(`灵力 +${formatNumber(mpRestored)}`)
-      content += ` 吐纳归元 ${parts.join('、')}。`
+
+    // HP/MP：只在确实有变化时补，避免"+0"这种没信息量的尾巴
+    const restoreParts = []
+    if (hpRestored > 0) restoreParts.push(`气血 +${formatNumber(hpRestored)}`)
+    else if (hpRestored < 0) restoreParts.push(`气血 ${formatNumber(hpRestored)}`)
+    if (mpRestored > 0) restoreParts.push(`灵力 +${formatNumber(mpRestored)}`)
+    if (restoreParts.length > 0) {
+      content += ` 吐纳归元 ${restoreParts.join('、')}。`
+    }
+    if (hpLoss > 0) {
+      content += ` 走火入魔损气血 ${formatNumber(hpLoss)}。`
+    }
+
+    // 奇遇
+    const encounters = res?.data?.encounters
+    if (Array.isArray(encounters) && encounters.length > 0) {
+      content += ` 奇遇：${encounters.map(e => e.name || e.id).join('、')}。`
     }
     return content
   }
@@ -74,9 +107,11 @@ export function useSeclusionSettle() {
       const res = force
         ? await store.forceEndSeclusion()
         : await store.endSeclusion()
+      const hasDeviation = Number(res?.data?.deviation_count ?? 0) > 0
+      const isForced = !!(res?.data?.forced_end || force)
       uiStore.addLog({
         content: buildSettleLog(res, wasDeep, force),
-        type: (res?.data?.forced_end || force) ? 'warning' : 'success',
+        type: isForced || hasDeviation ? 'warning' : 'success',
         actorId: 'self',
       })
       return { res }

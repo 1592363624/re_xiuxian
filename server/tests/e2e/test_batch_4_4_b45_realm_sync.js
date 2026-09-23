@@ -69,13 +69,13 @@ function check(name, condition, detail = '') {
         playerRouteCode.includes("player.realm_rank = game.RealmService.getRealmRank('凡人')"),
         '缺失 realm_rank 同步代码');
 
-    // 5. RealmService.meetsRealmRequirement 应优先使用 realm_rank
+    // 5. RealmService 应提供 getPlayerRank：名称与 realm_rank 取较高者
     const realmServiceCode = fs.readFileSync(path.join(__dirname, '..', '..', 'game', 'core', 'RealmService.js'), 'utf-8');
-    check('RealmService.meetsRealmRequirement 应优先使用 player.realm_rank',
-        realmServiceCode.includes('playerOrRealm?.realm_rank && playerOrRealm.realm_rank > 0'),
-        '缺失 realm_rank 优先逻辑');
+    check('RealmService 应提供 getPlayerRank 统一解析有效 rank',
+        realmServiceCode.includes('getPlayerRank(') && realmServiceCode.includes('Math.max('),
+        '缺失 getPlayerRank / Math.max 解析逻辑');
 
-    // ===== 场景2：RealmService 单元测试 - 传入对象优先用 realm_rank =====
+    // ===== 场景2：RealmService 单元测试 - 有效 rank 取名称与字段较高者 =====
     console.log('\n[场景2] RealmService.meetsRealmRequirement 单元测试');
     // 初始化配置加载器（RealmService 依赖 realm_breakthrough 配置）
     const { infrastructure } = require('../../modules');
@@ -85,10 +85,10 @@ function check(name, condition, detail = '') {
     }
     const RealmService = require('../../game/core/RealmService');
 
-    // 模拟 realm="凡人" 但 realm_rank=23 的不一致玩家对象
+    // 模拟 realm="凡人" 但 realm_rank=23 的不一致玩家对象（B45：字段更高不得降权）
     const inconsistentPlayer = { realm: '凡人', realm_rank: 23 };
     const result = RealmService.meetsRealmRequirement(inconsistentPlayer, '筑基期');
-    check('realm="凡人" realm_rank=23 应满足筑基期要求（按 realm_rank 判断）',
+    check('realm="凡人" realm_rank=23 应满足筑基期要求（按较高 rank 判断）',
         result.met === true && result.playerRank === 23,
         `met=${result.met}, playerRank=${result.playerRank}, reason=${result.reason || ''}`);
 
@@ -98,6 +98,13 @@ function check(name, condition, detail = '') {
     check('realm="化神初期" realm_rank=23 应满足筑基期要求',
         result2.met === true && result2.playerRank === 23,
         `met=${result2.met}, playerRank=${result2.playerRank}`);
+
+    // 用户报告：界面炼虚初期（rank=27）但字段仍是 23，穿戴 required=27 不得被拦
+    const staleFieldPlayer = { realm: '炼虚初期', realm_rank: 23 };
+    const resultStale = RealmService.meetsRealmRequirement(staleFieldPlayer, '炼虚初期');
+    check('realm="炼虚初期" realm_rank=23 应满足炼虚初期要求（名称更高不得被过期字段卡住）',
+        resultStale.met === true && resultStale.playerRank === 27,
+        `met=${resultStale.met}, playerRank=${resultStale.playerRank}`);
 
     // 模拟 realm="凡人" realm_rank=1 的低境界玩家
     const lowPlayer = { realm: '凡人', realm_rank: 1 };

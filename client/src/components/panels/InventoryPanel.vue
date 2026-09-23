@@ -581,6 +581,7 @@ onMounted(() => {
     hint="装备 · 使用 · 丢弃"
     size="xl"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <!-- 容量：原先占在标题行，现收进外壳的 header-actions -->

@@ -15,6 +15,7 @@ const PlayerEquipment = require('../../models/playerEquipment');
 const Player = require('../../models/player');
 const Item = require('../../models/item');
 const InventoryService = require('./InventoryService');
+const RealmService = require('../core/RealmService');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 const { ensureStatRegistryLoaded } = require('../stats');
 // 退还/转交玩家本来就有的东西：内容下架或资料片关闭时也不能失败（见 InventoryService.addItem 的 allowUnknownItem 说明）
@@ -233,14 +234,23 @@ class EquipmentService {
             }
 
             // 校验境界要求
+            // 有效 rank 走 RealmService.getPlayerRank（名称与 realm_rank 取较高者）：
+            // 界面按 player.realm 显示境界，只读过期 realm_rank 会把「炼虚初期」误判成 rank 23
             const requiredRank = config.required_realm_rank || 0;
-            const playerRank = player.realm_rank || 0;
+            const playerRank = RealmService.getPlayerRank(player);
             if (requiredRank > playerRank) {
+                const requiredName = RealmService.getRealmByRank(requiredRank)?.name || `rank ${requiredRank}`;
+                const currentName = player.realm || `rank ${playerRank}`;
                 throw new AppError(
-                    `境界不足，穿戴 ${config.name} 需要境界排名 ${requiredRank}，当前 ${playerRank}`,
+                    `境界不足，穿戴 ${config.name} 需要 ${requiredName}（境界排名 ${requiredRank}），当前 ${currentName}（境界排名 ${playerRank}）`,
                     400,
                     ErrorCodes.BUSINESS_LOGIC_ERROR
                 );
+            }
+            // 顺手治愈漏同步的 realm_rank（事务内已加锁），避免后续只读该字段的逻辑再踩坑
+            if (Number(player.realm_rank || 0) !== playerRank && playerRank > 0) {
+                player.realm_rank = playerRank;
+                await player.save({ transaction: t, fields: ['realm_rank'] });
             }
 
             // 校验背包中拥有该物品
@@ -620,8 +630,8 @@ class EquipmentService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('已陨落，无法炼制本命', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            // 校验境界
-            const playerRank = player.realm_rank || 0;
+            // 校验境界（与穿戴同一有效 rank 口径，避免两处判断结果不一致）
+            const playerRank = RealmService.getPlayerRank(player);
             if (playerRank < minRealmRank) {
                 throw new AppError(`境界不足，炼制本命法器需境界排名 ${minRealmRank} 及以上`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }

@@ -330,7 +330,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <PanelShell title="战斗" :hint="currentMap?.name" size="xl" :loading="loading" scoped-scroll @close="emit('close')">
+  <PanelShell title="战斗" :hint="currentMap?.name" size="xl" :loading="loading" scoped-scroll fill @close="emit('close')">
     <div class="flex flex-col md:flex-row h-full min-h-0">
       <!-- 左：当前战斗。窄屏（面板是全屏 modal）先看战场，怪物列表往下排 -->
       <div class="w-full md:w-1/2 flex flex-col md:border-r border-line-subtle border-b md:border-b-0">

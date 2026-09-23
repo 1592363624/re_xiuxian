@@ -30,26 +30,26 @@
     <Tabs
       :model-value="activeTab"
       :items="tabItems"
-      class="mb-4"
+      class="mb-3"
       @update:model-value="switchTab"
     />
 
     <!-- ===== Tab 1: 排行榜 ===== -->
-    <div v-if="activeTab === 'ranking'">
-      <!-- 我的排名摘要 -->
-      <PanelCard tone="gold" class="mb-3">
-        <div class="flex items-center justify-between gap-3">
+    <div v-if="activeTab === 'ranking'" class="space-y-3">
+      <!-- 我的排名摘要：三列指标，短内容也不再拉出一长条空带 -->
+      <PanelCard tone="gold">
+        <div class="grid grid-cols-3 gap-2 text-center">
           <div>
-            <span class="text-xs text-fg-muted">我的排名</span>
-            <span class="text-lg font-bold text-state-arcane ml-2 num">{{ myInfo?.rank || '未上榜' }}</span>
+            <div class="text-[10px] text-fg-faint mb-0.5">我的排名</div>
+            <div class="text-lg font-bold text-state-arcane num">{{ myInfo?.rank > 0 ? myInfo.rank : '未上榜' }}</div>
           </div>
           <div>
-            <span class="text-xs text-fg-muted">封神积分</span>
-            <span class="text-lg font-bold text-gold-400 ml-2 num">{{ myInfo?.fengshen_score || 0 }}</span>
+            <div class="text-[10px] text-fg-faint mb-0.5">封神积分</div>
+            <div class="text-lg font-bold text-gold-400 num">{{ myInfo?.fengshen_score || 0 }}</div>
           </div>
           <div>
-            <span class="text-xs text-fg-muted">剩余挑战</span>
-            <span class="text-lg font-bold text-state-success ml-2 num">{{ myInfo?.daily_challenge_remaining ?? 5 }}</span>
+            <div class="text-[10px] text-fg-faint mb-0.5">剩余挑战</div>
+            <div class="text-lg font-bold text-state-success num">{{ myInfo?.daily_challenge_remaining ?? 5 }}</div>
           </div>
         </div>
       </PanelCard>
@@ -60,28 +60,29 @@
         v-else-if="rankingList.length === 0"
         text="暂无排名数据"
         hint="设置防守阵容即可上榜"
+        icon="擂台"
       />
       <div v-else class="space-y-2">
         <div
           v-for="entry in rankingList"
           :key="entry.player_id"
-          class="bg-surface-hover border rounded-panel p-3 flex items-center justify-between transition-colors"
-          :class="entry.rank === myInfo?.rank ? 'border-state-arcane/50' : 'border-line hover:border-state-arcane/30'"
+          class="bg-surface-hover border rounded-panel p-3 flex items-center justify-between gap-3 transition-colors"
+          :class="entry.rank === myInfo?.rank ? 'border-state-arcane/50 bg-surface-tint-arcane/40' : 'border-line hover:border-state-arcane/30'"
         >
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 min-w-0">
             <!-- 排名徽章 -->
             <div
-              class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold num"
+              class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold num shrink-0"
               :class="getRankBadgeClass(entry.rank)"
             >
               {{ entry.rank }}
             </div>
-            <div>
+            <div class="min-w-0">
               <div class="flex items-center gap-2">
-                <span class="text-sm font-bold text-fg-primary">{{ entry.nickname }}</span>
-                <span class="text-xs text-fg-muted">{{ entry.realm }}</span>
+                <span class="text-sm font-bold text-fg-primary truncate">{{ entry.nickname }}</span>
+                <span class="text-xs text-fg-muted shrink-0">{{ entry.realm }}</span>
               </div>
-              <div class="flex gap-3 text-xs text-fg-faint mt-0.5">
+              <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-faint mt-0.5">
                 <span>积分 <span class="text-gold-400 num">{{ entry.fengshen_score }}</span></span>
                 <span>胜率 <span class="text-state-success num">{{ entry.win_rate }}%</span></span>
                 <span class="num">{{ entry.total_wins }}胜 {{ entry.total_losses }}败</span>
@@ -91,7 +92,7 @@
           <!-- 挑战按钮 -->
           <AppButton
             v-if="canChallenge(entry.rank)"
-            size="xs"
+            size="sm"
             variant="primary"
             :disabled="actionLoading"
             class="shrink-0"
@@ -99,16 +100,16 @@
           >
             {{ actionLoading ? '挑战中…' : '挑战' }}
           </AppButton>
-          <span v-else-if="entry.rank === myInfo?.rank" class="text-xs text-state-arcane px-3 shrink-0">我</span>
-          <span v-else class="text-xs text-fg-faint px-3 shrink-0">超出范围</span>
+          <span v-else-if="entry.rank === myInfo?.rank" class="text-xs text-state-arcane px-2 shrink-0">我</span>
+          <span v-else class="text-xs text-fg-faint px-2 shrink-0">超出范围</span>
         </div>
       </div>
     </div>
 
     <!-- ===== Tab 2: 我的封神 ===== -->
-    <div v-else-if="activeTab === 'my'">
+    <div v-else-if="activeTab === 'my'" class="space-y-3">
       <!-- 个人信息卡 -->
-      <PanelCard class="mb-3">
+      <PanelCard>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
           <div>
             <div class="text-xs text-fg-faint">排名</div>

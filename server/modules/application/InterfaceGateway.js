@@ -51,7 +51,12 @@ const requireRole = (...roles) => {
         if (!req.user) {
             return res.status(401).json({ code: 401, message: '未登录或登录已过期' });
         }
-        if (!roles.includes(req.user.role)) {
+        // 角色以数据库（req.player.role）为准，与各 adminCheck 同一口径。
+        // JWT 载荷只有 { id, username, v }，不含 role；即便写入也会在
+        // 升/降管理员、封禁后过期。原先读 req.user.role 对所有合法 token
+        // 都拿到 undefined，导致公告配图上传等 requireRole 接口永远 403。
+        const role = req.player?.role ?? req.user.role;
+        if (!roles.includes(role)) {
             return res.status(403).json({ code: 403, message: '权限不足' });
         }
         next();

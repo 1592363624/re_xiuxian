@@ -27,6 +27,7 @@
     title="洞府社交"
     size="xl"
     scoped-scroll
+    fill
     @close="$emit('close')"
   >
     <div class="h-full flex flex-col">

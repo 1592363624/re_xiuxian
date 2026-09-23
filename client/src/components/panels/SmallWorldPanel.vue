@@ -23,6 +23,7 @@
     title="小世界 · 神域治理"
     size="xl"
     scoped-scroll
+    fill
     @close="$emit('close')"
   >
     <div class="h-full flex flex-col">

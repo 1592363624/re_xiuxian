@@ -95,8 +95,10 @@ describe('players JSON 大字段的写入卫生', () => {
         // 2026-09-20：Ascension / SecondSoul 的神识 helper、LawService 的转换、AttributeService 的加点
         // 改成 PlayerStateStore.mirrorPatchedBlob（只镜像内存、不标脏），四家已从此表退出 ——
         // 补丁落库后调用方那份实例不再参与整块写回，这张表因此又短了一截。
-        'game/services/SecondSoulService.js': '仅剩 soul.attributes（player_second_soul 行），不写 players 整块列',
-        'routes/admin.js': 'GM 重置整号，语义就是全量覆盖'
+        'game/services/SecondSoulService.js': '仅剩 soul.attributes（player_second_soul 行），不写 players 整块列'
+        // 2026-09-23：routes/admin.js 退出这张表 —— GM 重置改走 AccountDeletionService（account_mode=keep），
+        // 整行重开用裸 SQL UPDATE（有意全量覆盖，不走 instance.save / 整块 JSON 赋值），
+        // 路由里不再出现 player.attributes = 这种形状。判据：tests/AccountDeletion.test.js 的 keep UPDATE 断言。
         // 2026-09-23：routes/attribute.js 的 /reset 退出这张表 —— 它以前"锁内读出整行 → 摊平 attributes
         // 改三个键 → 赋回实例 → save 整行"。现在回收的那几个 *_bonus 按 $add 负增量（$min 在行锁内夹 0）、
         // 加点账本用 null 删键、冷却时点写一个键，扣费与退点走列上原子加减；一次重置只碰它该碰的那几个键。

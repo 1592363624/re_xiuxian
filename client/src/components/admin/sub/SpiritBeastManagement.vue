@@ -64,27 +64,30 @@
           </div>
           <div>
             <label class="block text-xs text-fg-muted mb-1">种类</label>
-            <select v-model="searchParams.beast_key"
-              class="w-full px-3 py-1 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-              <option value="">全部</option>
-              <option v-for="b in BEAST_KEY_LIST" :key="b.value" :value="b.value">{{ b.label }}</option>
-            </select>
+            <SearchableSelect
+              v-model="searchParams.beast_key"
+              :options="beastSelectOptions"
+              placeholder="全部"
+              search-placeholder="搜索灵兽种类…"
+            />
           </div>
           <div>
             <label class="block text-xs text-fg-muted mb-1">稀有度</label>
-            <select v-model="searchParams.rarity"
-              class="w-full px-3 py-1 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-              <option value="">全部</option>
-              <option v-for="r in RARITY_OPTIONS" :key="r.value" :value="r.value">{{ r.label }}</option>
-            </select>
+            <SearchableSelect
+              v-model="searchParams.rarity"
+              :options="raritySelectOptions"
+              placeholder="全部"
+              search-placeholder="搜索稀有度…"
+            />
           </div>
           <div>
             <label class="block text-xs text-fg-muted mb-1">元素</label>
-            <select v-model="searchParams.element"
-              class="w-full px-3 py-1 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-              <option value="">全部</option>
-              <option v-for="e in ELEMENT_OPTIONS" :key="e.value" :value="e.value">{{ e.label }}</option>
-            </select>
+            <SearchableSelect
+              v-model="searchParams.element"
+              :options="elementSelectOptions"
+              placeholder="全部"
+              search-placeholder="搜索元素…"
+            />
           </div>
           <div>
             <label class="block text-xs text-fg-muted mb-1">出战状态</label>
@@ -352,11 +355,15 @@
           </div>
           <div>
             <label class="block text-xs text-fg-muted mb-1">灵兽种类 *</label>
-            <select v-model="giveForm.beast_key"
-              class="w-full px-2 py-1 text-sm bg-surface-sunken border border-line rounded-control text-fg-secondary focus-ring focus:border-gold-600">
-              <option value="">请选择</option>
-              <option v-for="b in BEAST_KEY_LIST" :key="b.value" :value="b.value">{{ b.label }}</option>
-            </select>
+            <SearchableSelect
+              v-model="giveForm.beast_key"
+              :options="beastSelectOptions"
+              title="选择灵兽种类"
+              placeholder="选择灵兽种类"
+              search-placeholder="搜索种类名 / key…"
+              :allow-empty="false"
+              :clearable="false"
+            />
           </div>
           <div>
             <label class="block text-xs text-fg-muted mb-1">星级 (1-10)</label>
@@ -419,10 +426,11 @@
  *   - 接口调用均带 loading 状态，错误信息通过 uiStore.showToast 反馈
  *   - 接口路径与后端 admin_spirit_beast.js 严格对应
  */
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useUIStore } from '../../../stores/ui'
 import Modal from '../../common/Modal.vue'
 import AppButton from '../../ui/AppButton.vue'
+import SearchableSelect from '../../ui/SearchableSelect.vue'
 import {
   getStats,
   getBeastList,
@@ -478,6 +486,17 @@ async function loadElementOptions() {
  * 玩家面板却照内容渲染得出颜色，两边看同一只灵兽不像同一只。
  */
 const RARITY_OPTIONS = ref([])
+
+// SearchableSelect 选项映射（value/label/meta）
+const toSelectOpts = (list) => (list || []).map(o => ({
+  value: o.value,
+  label: o.label,
+  meta: o.value,
+  color: o.color || undefined,
+}))
+const beastSelectOptions = computed(() => toSelectOpts(BEAST_KEY_LIST.value))
+const raritySelectOptions = computed(() => toSelectOpts(RARITY_OPTIONS.value))
+const elementSelectOptions = computed(() => toSelectOpts(ELEMENT_OPTIONS.value))
 
 async function loadRarityOptions() {
   try {

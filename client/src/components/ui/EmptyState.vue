@@ -7,7 +7,7 @@ defineProps({
 </script>
 
 <template>
-  <div class="py-12 px-4 flex flex-col items-center justify-center gap-2 text-center">
+  <div class="py-10 sm:py-14 px-4 flex flex-col items-center justify-center gap-2.5 text-center">
     <svg
       v-if="!icon"
       xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"

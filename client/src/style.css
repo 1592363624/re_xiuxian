@@ -110,6 +110,9 @@
     background-color: transparent !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    /* 内容贴合的短面板靠上排列，不再被垂直居中甩到坞中央 */
+    align-items: flex-start !important;
+    justify-content: stretch !important;
   }
 
   .panel-backdrop {
@@ -120,9 +123,18 @@
     width: 100% !important;
     /* 超宽屏上不让表格型面板被拉散，与右坞卡片视图同一档上限 */
     max-width: var(--dock-width-cap) !important;
+    /* 默认内容贴合：高度随内容，禁止被拉成整坞空白 */
+    height: auto !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    /* 短面板像一张落在坞上的卡纸，底部轻阴影隔开下面的坞面 */
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  /* 储物袋 / 地图等工作区面板显式撑满 */
+  .panel-body.panel-body--fill {
     height: 100% !important;
     max-height: none !important;
-    border-radius: 0 !important;
     box-shadow: none !important;
   }
 }

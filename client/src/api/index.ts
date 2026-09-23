@@ -64,7 +64,7 @@ apiClient.interceptors.response.use(
         playerStore.logout();
         notify('登录已过期，请重新登录');
       } else if (status === 403) {
-        notify('没有权限执行此操作');
+        notify(serverMessage || '没有权限执行此操作');
       } else if (status === 404) {
         notify(`请求的资源不存在：${requestUrl}`);
       } else if (status === 500) {

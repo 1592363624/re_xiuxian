@@ -30,10 +30,15 @@ const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 class RealmService {
     /**
      * 获取所有境界配置
+     * 配置未就绪时返回空表：穿戴等路径会调 getPlayerRank，不能因配置加载顺序把请求打死
      */
     getAllRealms() {
-        const config = configLoader.getConfig('realm_breakthrough');
-        return config?.realms || [];
+        try {
+            const config = configLoader.getConfig('realm_breakthrough');
+            return config?.realms || [];
+        } catch {
+            return [];
+        }
     }
 
     /**
@@ -77,6 +82,32 @@ class RealmService {
     getRealmRank(realmName) {
         const realm = this.getRealmByName(realmName);
         return realm?.rank || 0;
+    }
+
+    /**
+     * 解析玩家的有效境界 rank（业务判断唯一入口）
+     *
+     * 为什么不能只读 player.realm_rank，也不能只读 player.realm：
+     *   历史写路径会漏同步——突破曾只改 realm、GM/脚本曾只改 rank、迁移 0038 修过存量。
+     *   界面按 player.realm 显示「炼虚初期」（配置 rank=27），穿戴/门槛却按过期的
+     *   realm_rank=23 判「境界不足」，玩家看到的就是「明明境界够却穿不上」。
+     *   B45 反向场景（realm 被误写成凡人、rank 仍是化神 23）同样踩过。
+     *
+     * 取「名称解析 rank」与「realm_rank 字段」的较高者：
+     *   - 名称更高：界面显示的境界说了算，不被过期小数值卡住（用户报告的穿戴 bug）
+     *   - 字段更高：名称被误写低时也不降权（B45）
+     *
+     * @param {Object|string|null} playerOrRealm - 玩家对象或境界名称
+     * @returns {number} 有效 rank；无法解析时为 0
+     */
+    getPlayerRank(playerOrRealm) {
+        if (playerOrRealm === null || playerOrRealm === undefined) return 0;
+        if (typeof playerOrRealm === 'string') {
+            return this.getRealmRank(playerOrRealm);
+        }
+        const fromField = Number(playerOrRealm.realm_rank) || 0;
+        const fromName = this.getRealmRank(playerOrRealm.realm);
+        return Math.max(fromField, fromName);
     }
 
     /**
@@ -150,8 +181,8 @@ class RealmService {
      * 统一封装"玩家境界 rank vs 配置要求 rank"的比较逻辑，
      * 避免 server 中各处再写一遍 getRealmRank + resolveMinRealmRank 的样板代码。
      *
-     * 修复 B45：优先使用 player.realm_rank（数值更可靠），fallback 到 getRealmRank(player.realm)
-     * 避免玩家 realm 字段被错误设置（如 admin 强制突破只改 realm 不改 realm_rank）时业务判断错乱
+     * 统一走 getPlayerRank：名称解析 rank 与 realm_rank 字段取较高者，
+     * 同时覆盖「名称新、字段旧」（穿戴误报境界不足）与「字段新、名称旧」（B45）两种漏同步。
      *
      * @param {Object|string} playerOrRealm - 玩家对象 或 玩家境界名称
      * @param {string} minRealmName - 配置中的境界要求（大境界名或具体境界名）
@@ -165,12 +196,8 @@ class RealmService {
             playerRealmName = playerOrRealm;
             playerRank = this.getRealmRank(playerRealmName);
         } else {
-            // 传入对象：优先用 realm_rank（数值更可靠），fallback 到 realm 字符串解析
-            // 修复 B45：避免 realm 与 realm_rank 不一致时业务判断错乱
             playerRealmName = playerOrRealm?.realm;
-            playerRank = (playerOrRealm?.realm_rank && playerOrRealm.realm_rank > 0)
-                ? playerOrRealm.realm_rank
-                : this.getRealmRank(playerRealmName);
+            playerRank = this.getPlayerRank(playerOrRealm);
         }
         const requiredRank = this.resolveMinRealmRank(minRealmName);
 

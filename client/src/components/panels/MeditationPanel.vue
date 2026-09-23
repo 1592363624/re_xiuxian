@@ -152,11 +152,11 @@
 
     <!-- 底部操作栏 -->
     <template #footer>
-      <AppButton variant="outline" @click="emit('close')">取消</AppButton>
+      <AppButton variant="ghost" @click="emit('close')">取消</AppButton>
       <button
         @click="handleStart"
         :disabled="loading || !selectedType || !isTypeAvailable(selectedType)"
-        class="flex-1 min-h-9 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none bg-amber-950/40 border border-gold-700 text-gold-300 hover:bg-gold-900/40 hover:border-gold-500"
+        class="flex-1 min-w-0 min-h-10 rounded-control font-bold tracking-widest text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none bg-amber-950/40 border border-gold-700 text-gold-300 hover:bg-gold-900/40 hover:border-gold-500"
       >
         <span v-if="loading">正在进入...</span>
         <span v-else-if="!selectedType">请选择时长类型</span>

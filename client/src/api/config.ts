@@ -144,3 +144,44 @@ export const getContentKeyOptions = (dataset: string, collection?: string) => {
     collection ? { params: { collection } } : undefined
   );
 };
+
+/** 境界条目（GET /config/data/realms） */
+export interface RealmEntry {
+  id: string;
+  name: string;
+  rank: number;
+  [key: string]: unknown;
+}
+
+/**
+ * 境界配置清单
+ * GET /api/config/data/realms
+ * GM 编辑玩家境界 / 配置境界门槛时用，禁止前端手写境界名。
+ */
+export const getRealmsConfig = () => {
+  return apiClient.get<{ code: number; data: { realms: RealmEntry[]; count: number } }>(
+    '/config/data/realms'
+  );
+};
+
+/** 物品条目（GET /config/data/items） */
+export interface ItemCatalogEntry {
+  id: string;
+  name: string;
+  type?: string;
+  subtype?: string;
+  quality?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * 物品配置清单
+ * GET /api/config/data/items?type=
+ * GM 发放物品时用完整物品表（含类型/品质），搜索更准。
+ */
+export const getItemsConfig = (type?: string) => {
+  return apiClient.get<{
+    code: number;
+    data: { items: ItemCatalogEntry[]; count: number; type_filter: string | null };
+  }>('/config/data/items', type ? { params: { type } } : undefined);
+};

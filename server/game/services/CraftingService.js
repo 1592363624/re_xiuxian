@@ -591,7 +591,7 @@ class CraftingService {
         }
 
         // 境界检查
-        const playerRealmRank = player.realm_rank || 0;
+        const playerRealmRank = require('../core/RealmService').getPlayerRank(player);
         if (playerRealmRank < recipeConfig.required_realm_rank) {
             throw new AppError(`境界不足，需要境界等级 ${recipeConfig.required_realm_rank} 以上`, 400, ErrorCodes.VALIDATION_ERROR);
         }
@@ -1086,7 +1086,7 @@ class CraftingService {
         if (!player) {
             throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
         }
-        if ((player.realm_rank || 0) < recipeConfig.required_realm_rank) {
+        if (require('../core/RealmService').getPlayerRank(player) < recipeConfig.required_realm_rank) {
             throw new AppError(`境界不足，需要境界等级 ${recipeConfig.required_realm_rank} 以上`, 400, ErrorCodes.VALIDATION_ERROR);
         }
         if (playerRecipe.skill_level < recipeConfig.required_skill_level) {

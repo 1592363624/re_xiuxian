@@ -135,7 +135,7 @@ class ArtifactSpiritService {
     _isUnlocked(player) {
         const config = this.getSpiritConfig();
         const requiredRank = config.unlock_realm_rank || 3;
-        return (player.realm_rank || 0) >= requiredRank;
+        return require('../core/RealmService').getPlayerRank(player) >= requiredRank;
     }
 
     /**

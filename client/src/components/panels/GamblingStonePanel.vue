@@ -12,6 +12,7 @@
     hint="博彩机缘 · 线索博弈 · 切石玄机 · 熟练度成长"
     size="lg"
     scoped-scroll
+    fill
     @close="emit('close')"
   >
     <div class="h-full flex flex-col min-h-0">

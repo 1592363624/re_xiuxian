@@ -80,6 +80,7 @@
             <td class="px-4 py-3 whitespace-nowrap">
               <div class="flex gap-1 flex-wrap">
                 <button type="button" @click="$emit('editPlayer', p)" class="focus-ring text-blue-400 hover:text-blue-300 text-xs px-1">编辑</button>
+                <button type="button" @click="$emit('editAssets', p)" class="focus-ring text-gold-400 hover:text-gold-300 text-xs px-1">档案</button>
                 <button v-if="p.role !== 'admin' && p.role !== 'banned'" type="button" @click="$emit('banPlayer', p)" class="focus-ring text-orange-400 hover:text-orange-300 text-xs px-1">封禁</button>
                 <button v-if="p.role === 'banned'" type="button" @click="$emit('unbanPlayer', p)" class="focus-ring text-green-400 hover:text-green-300 text-xs px-1">解封</button>
                 <button v-if="p.role !== 'admin'" type="button" @click="$emit('givePlayer', p)" class="focus-ring text-purple-400 hover:text-purple-300 text-xs px-1">发放</button>
@@ -120,7 +121,8 @@ import { useUIStore } from '../../../stores/ui'
 import { getPlayers } from '../../../api/admin'
 import AppButton from '../../ui/AppButton.vue'
 
-const emit = defineEmits(['editPlayer', 'banPlayer', 'unbanPlayer', 'givePlayer'])
+// editAssets：跳转到「玩家档案」页，编辑该玩家的属性 / 背包 / 装备 / 功法
+const emit = defineEmits(['editPlayer', 'editAssets', 'banPlayer', 'unbanPlayer', 'givePlayer'])
 const uiStore = useUIStore()
 
 // 搜索和筛选
