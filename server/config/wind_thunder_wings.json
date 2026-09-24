@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "dataset": "wind_thunder_wings",
+    "version": 1,
+    "comment": "风雷翅：冷却缩减、雷光遁影逃生/闪避、奇袭夺宝/破阵/瞬杀、神通反锁。"
+  },
+  "wind_thunder_wings": {
+    "item_keys": ["fenglei_wings", "wind_thunder_wings", "风雷翅"],
+    "cooldown_reduction": 0.3,
+    "cooldown_reduction_rift": 0.25,
+    "escape_bonus_vs_higher": 0.4,
+    "dodge_chance_per_round": 0.2,
+    "first_strike_chance": 0.3,
+    "first_strike_power_bonus": 0.15,
+    "raid": {
+      "cost_exp": 2500,
+      "cooldown_hours": 6,
+      "steal_base_chance": 0.4,
+      "steal_max_chance": 0.9,
+      "steal_compensation_per_1000": 0.05,
+      "break_formation_chance": 0.75,
+      "break_max_exp_damage": 5000,
+      "instant_kill_cost_total_exp_rate": 0.1,
+      "instant_kill_damage_multiplier": 5
+    }
+  }
+}
