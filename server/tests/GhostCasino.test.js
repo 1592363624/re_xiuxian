@@ -18,8 +18,17 @@ describe('鬼赌坊配置', () => {
         expect(c.six_paths_wheel.prizes.length).toBeGreaterThanOrEqual(3);
     });
 
-    test('玲珑骰有上下限', () => {
+    test('玲珑骰有上下限与抽水', () => {
         expect(c.linglong_dice.min_bet).toBeGreaterThan(0);
         expect(c.linglong_dice.max_bet).toBeGreaterThan(c.linglong_dice.min_bet);
+        expect(c.linglong_dice.house_edge).toBeGreaterThan(0);
+    });
+});
+
+const LinglongDiceService = require('../game/services/LinglongDiceService');
+
+describe('玲珑骰对赌', () => {
+    test('服务配置与鬼赌坊一致', () => {
+        expect(LinglongDiceService.config().min_bet).toBe(GhostCasinoService.config().linglong_dice.min_bet);
     });
 });

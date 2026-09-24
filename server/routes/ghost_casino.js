@@ -13,11 +13,56 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const GhostCasinoService = require('../game/services/GhostCasinoService');
+const LinglongDiceService = require('../game/services/LinglongDiceService');
 
 router.get('/status', auth, async (req, res, next) => {
     try {
         const data = await GhostCasinoService.getStatus(req.player.id);
+        data.linglong_pending = await LinglongDiceService.listPending(8).catch(() => []);
         res.json({ code: 200, data });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({ code: err.statusCode, error_code: err.errorCode, message: err.message });
+        }
+        next(err);
+    }
+});
+
+/** 玲珑骰：发起对赌 */
+router.post('/linglong/challenge', auth, async (req, res, next) => {
+    try {
+        const data = await LinglongDiceService.challenge(
+            req.player.id,
+            req.body.target_player_id,
+            req.body.bet
+        );
+        res.json({ code: 200, message: data.message, data });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({ code: err.statusCode, error_code: err.errorCode, message: err.message });
+        }
+        next(err);
+    }
+});
+
+/** 玲珑骰：应战开骰 */
+router.post('/linglong/:id/accept', auth, async (req, res, next) => {
+    try {
+        const data = await LinglongDiceService.accept(req.params.id, req.player.id);
+        res.json({ code: 200, message: data.message, data });
+    } catch (err) {
+        if (err instanceof AppError) {
+            return res.status(err.statusCode).json({ code: err.statusCode, error_code: err.errorCode, message: err.message });
+        }
+        next(err);
+    }
+});
+
+/** 玲珑骰：撤回 */
+router.post('/linglong/:id/cancel', auth, async (req, res, next) => {
+    try {
+        const data = await LinglongDiceService.cancel(req.params.id, req.player.id);
+        res.json({ code: 200, message: data.message, data });
     } catch (err) {
         if (err instanceof AppError) {
             return res.status(err.statusCode).json({ code: err.statusCode, error_code: err.errorCode, message: err.message });
@@ -52,7 +97,12 @@ router.post('/destiny-slip/cash', auth, async (req, res, next) => {
 
 router.post('/six-paths/buy', auth, async (req, res, next) => {
     try {
-        const data = await GhostCasinoService.buyWheelTicket(req.player.id, req.body.count);
+        // 钳制注数：禁止 NaN/负数/超大扫货
+        const count = Number(req.body.count);
+        if (!Number.isInteger(count) || count < 1 || count > 100) {
+            throw new AppError('购买注数必须是 1-100 的整数', 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        const data = await GhostCasinoService.buyWheelTicket(req.player.id, count);
         res.json({ code: 200, message: `购入 ${data.bought} 注`, data });
     } catch (err) {
         if (err instanceof AppError) {

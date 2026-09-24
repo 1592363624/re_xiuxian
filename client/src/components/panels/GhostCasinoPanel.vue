@@ -66,6 +66,53 @@ async function buyTicket(count = 1) {
   }
 }
 
+const diceTarget = ref('')
+const diceBet = ref(500)
+
+async function diceChallenge() {
+  loading.value = true
+  error.value = ''
+  try {
+    const res = await apiClient.post('/ghost-casino/linglong/challenge', {
+      target_player_id: Number(diceTarget.value),
+      bet: Number(diceBet.value)
+    })
+    message.value = res.message || '已发起对赌'
+    await load()
+  } catch (e) {
+    error.value = e.message || '发起失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function diceAccept(id) {
+  loading.value = true
+  error.value = ''
+  try {
+    const res = await apiClient.post(`/ghost-casino/linglong/${id}/accept`)
+    message.value = res.message || '开骰完成'
+    await load()
+  } catch (e) {
+    error.value = e.message || '应战失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function diceCancel(id) {
+  loading.value = true
+  try {
+    const res = await apiClient.post(`/ghost-casino/linglong/${id}/cancel`)
+    message.value = res.message || '已撤回'
+    await load()
+  } catch (e) {
+    error.value = e.message || '撤回失败'
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -93,6 +140,30 @@ onMounted(load)
             </AppButton>
           </div>
           <div class="text-xs text-fg-muted">失败则奖池归零，见好就收才是天机。</div>
+        </div>
+      </PanelCard>
+
+      <PanelCard v-if="status?.linglong_dice" title="玲珑骰 · PVP 对赌">
+        <div class="text-sm space-y-2">
+          <div class="text-xs text-fg-muted">
+            赌注 {{ status.linglong_dice.min_bet }}–{{ status.linglong_dice.max_bet }} 灵石 · 3 颗骰比点 · 庄家抽水 {{ Math.round((status.linglong_dice.house_edge || 0) * 100) }}%
+          </div>
+          <div class="flex gap-2 items-center flex-wrap">
+            <input v-model="diceTarget" type="number" placeholder="目标玩家ID"
+              class="w-28 px-2 py-1 rounded bg-surface border border-line text-sm" />
+            <input v-model="diceBet" type="number" placeholder="赌注"
+              class="w-24 px-2 py-1 rounded bg-surface border border-line text-sm" />
+            <AppButton size="sm" variant="primary" :disabled="loading || !diceTarget" @click="diceChallenge">发起对赌</AppButton>
+          </div>
+          <div v-if="status.linglong_pending?.length" class="text-xs text-fg-muted pt-2 border-t border-line/40">
+            <div v-for="m in status.linglong_pending" :key="m.id" class="flex justify-between py-1">
+              <span>#{{ m.id }} 发起 #{{ m.challenger_id }} → #{{ m.defender_id }} · {{ m.bet_amount }} 灵石</span>
+              <span class="flex gap-1">
+                <AppButton size="xs" @click="diceAccept(m.id)">应战</AppButton>
+                <AppButton size="xs" variant="ghost" @click="diceCancel(m.id)">撤回</AppButton>
+              </span>
+            </div>
+          </div>
         </div>
       </PanelCard>
 
