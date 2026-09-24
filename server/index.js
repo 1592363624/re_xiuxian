@@ -225,13 +225,19 @@ const corsOptions = {
 };
 
 // 强制 HTTPS / HSTS：
-//   FORCE_HTTPS=1 时非 https 请求 301 跳转（生产强烈建议，防抓包偷 JWT）；
+//   FORCE_HTTPS=1 时非 https 的**页面导航** 301 跳转（防抓包偷 JWT）；
 //   只要走了 https（含反代注入的 X-Forwarded-Proto）就下发 HSTS。
-//   /api/health 必须永远直出 200：deploy.ps1 用 http://127.0.0.1 探活，
-//   跟到 https 会因 Node 本身不讲 TLS 而「底层连接已关闭」，维护页永远关不掉。
+//   /api 与 /socket.io 绝不能 301：SPA 是同源 XHR/fetch，跟到 https 会在
+//   证书未配好（SEC_E_WRONG_PRINCIPAL）或明文 Node 口上整站「连接中断」；
+//   而 deploy 探活只打 /api/health 仍会显示成功。API 与页面同源，页面上了
+//   TLS 请求自然就是 https，不需要在这里再跳一次。
+const FORCE_HTTPS_SKIP_PREFIXES = ['/api', '/socket.io'];
 app.use((req, res, next) => {
   const pathOnly = (req.path || req.originalUrl || '').split('?')[0];
-  if (pathOnly === '/api/health' || pathOnly === '/api/health/') {
+  const skip = FORCE_HTTPS_SKIP_PREFIXES.some(
+    (p) => pathOnly === p || pathOnly.startsWith(`${p}/`)
+  );
+  if (skip) {
     return next();
   }
   const proto = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
@@ -263,7 +269,14 @@ app.use(express.json({
 }));
 
 // 限流：查询类接口按全局阈值约束，写操作接口另按更严阈值约束（防脚本刷奖励）
-app.use('/api', apiLimiter);
+app.use('/api', (req, res, next) => {
+  // 探活/恢复探测不限流：deploy 与前端遮罩靠它们判断存活
+  const p = (req.path || '').split('?')[0];
+  if (p === '/health' || p === '/health/' || p === '/system/maintenance' || p === '/system/maintenance/') {
+    return next();
+  }
+  return apiLimiter(req, res, next);
+});
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET' || req.method === 'OPTIONS') return next();
   return actionLimiter(req, res, next);

@@ -75,7 +75,13 @@ function rebuildLimiters() {
             limit: config[key].limit,
             standardHeaders: 'draft-7',
             legacyHeaders: false,
-            handler: (req, res) => res.status(429).json({ code: 429, message: LIMIT_MESSAGES[key] })
+            handler: (req, res) => res.status(429).json({ code: 429, message: LIMIT_MESSAGES[key] }),
+            // nginx 反代一定会带 X-Forwarded-For。express-rate-limit v7+ 在
+            // trust proxy===false 时会抛 ERR_ERL_UNEXPECTED_X_FORWARDED_FOR，
+            // 整条 /api 在玩家侧变成 500，而 deploy 探活直连 127.0.0.1 没有这个头 →
+            // 「部署成功但客户端连不上」。这里关掉该运行时校验；
+            // 真实客户端 IP 仍由 TRUST_PROXY_HOPS / trust proxy 决定。
+            validate: { xForwardedForHeader: false, trustProxy: false }
         });
     }
     limiterGeneration += 1;
