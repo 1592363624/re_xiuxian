@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "dataset": "legendary_weapons",
+    "version": 1,
+    "comment": "青竹蜂云剑三阶与三焰扇/七焰扇炼制链（配方、成功率、失败惩罚）。"
+  },
+  "legendary_weapons": {
+    "qingzhu_sword": {
+      "base_item_key": "qingzhu_bee_cloud_sword",
+      "thunder_item_key": "qingzhu_bee_cloud_sword_thunder",
+      "gold_item_key": "qingzhu_bee_cloud_sword_gold",
+      "base_materials": { "tianlei_bamboo": 12, "gold_essence": 10, "level2_dan": 5, "spirit_stones": 80 },
+      "thunder_materials": { "qingzhu_bee_cloud_sword": 72, "tianlei_bamboo": 12 },
+      "thunder_success_rate": 1.0,
+      "gold_materials": {
+        "qingzhu_bee_cloud_sword_thunder": 1,
+        "gengjin": 12,
+        "law_fragment_gold": 120,
+        "law_fragment_thunder": 120
+      },
+      "gold_success_rate": 0.5,
+      "gold_fail_destroy_materials": true,
+      "gold_fail_exp_loss_rate": 0.1,
+      "gold_fail_realm_fall_chance": 0.15,
+      "bonus_gold_root": 0.10,
+      "bonus_thunder_root": 0.10,
+      "bonus_metal_sense_buff": 0.15
+    },
+    "seven_flame_fan": {
+      "replica_item_key": "three_flame_fan",
+      "true_item_key": "seven_flame_fan",
+      "replica_success_rate": 0.10,
+      "replica_materials": {
+        "replica_scroll": 1,
+        "refined_gold_bone": 1,
+        "fire_phoenix_feather": 3,
+        "golden_crow_feather": 3,
+        "fire_crane_feather": 3,
+        "law_fragment_fire": 100,
+        "taixu_dew": 1,
+        "fire_law_source": 3
+      },
+      "replica_fail_exp_loss_rate": 0.10,
+      "true_success_rate": 0.05,
+      "true_materials": {
+        "true_scroll": 1,
+        "three_flame_fan": 1,
+        "ice_phoenix_feather": 3,
+        "thunder_roc_feather": 3,
+        "qingluan_feather": 3,
+        "kunpeng_feather": 3,
+        "fire_law_source": 20,
+        "hongmeng_purple": 1
+      },
+      "true_fail_destroy_replica": true,
+      "true_fail_exp_loss_rate": 0.20,
+      "bonus_fire_root": 0.20,
+      "bonus_fire_sense_buff": 0.15,
+      "bonus_yuanying_sect": 0.05
+    }
+  }
+}

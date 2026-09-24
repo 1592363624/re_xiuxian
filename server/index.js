@@ -707,6 +707,7 @@ app.use('/api/sect-diplomacy', require('./routes/sect_diplomacy'));
 app.use('/api/soul-risk', require('./routes/soul_risk'));
 app.use('/api/ghost-casino', require('./routes/ghost_casino'));
 app.use('/api/wind-wings', require('./routes/wind_wings'));
+app.use('/api/legendary-weapons', require('./routes/legendary_weapons'));
     // PVP 斗法系统（第四阶段新增：玩家对战、段位排名、荣誉值）
     app.use('/api/pvp', require('./routes/pvp'));
     // PVP 管理（GM 后台）：段位调整、强制取消战斗、战斗记录查询
