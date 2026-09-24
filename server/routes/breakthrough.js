@@ -254,6 +254,7 @@ router.post('/try', authenticateToken, async (req, res, next) => {
         // 突破成功一次进一格（成就 breakthrough_count 与洞府祖业的"总修行次数"都读这一格）。
         // 键名与含义声明在 config/player_metrics.json；以前这些计数全仓没有任何写入点，成就恒为 0。
         await PlayerStateStore.bumpStat(player, 'breakthrough_count', 1, { transaction: t });
+        try { require('../game/services/zhiguiHooks')(player.id, 'breakthrough_success'); } catch { /* 指归 */ }
 
         // 高阶境界系统：突破成功后清零问道感悟值（感悟已用于本次突破）
         if (player.ask_dao_insight && player.ask_dao_insight > 0) {

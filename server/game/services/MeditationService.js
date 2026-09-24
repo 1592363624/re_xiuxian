@@ -458,6 +458,7 @@ class MeditationService {
         // 键名与含义在 config/player_metrics.json 里声明，成就 seclusion_count 读的就是这一格。
         const PlayerStateStore = require('../persistence/PlayerStateStore');
         await PlayerStateStore.bumpStat(locked, 'meditation_count', 1, { transaction: t });
+        try { require('./zhiguiHooks')(locked.id, 'settle_cultivate'); } catch { /* 指归 */ }
 
         return {
             mode: isDeep ? 'deep' : 'normal',

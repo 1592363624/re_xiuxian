@@ -127,6 +127,7 @@ function registerMovingState() {
                     await player.save();
 
                     stats.arrived += 1;
+                    try { require('../../services/zhiguiHooks')(player.id, 'map_move'); } catch { /* 指归 */ }
 
                     if (ctx.logEach) {
                         console.log(`[Moving Cleaner] 玩家 ${player.id} 移动完成，到达 ${targetMap?.name || targetMapId}`);

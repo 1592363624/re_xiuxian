@@ -349,6 +349,7 @@ class DivineSenseService {
             await t.commit();
 
             // 事务外推送通知
+            try { require('./zhiguiHooks')(playerId, 'divine_sense_use'); } catch { /* 指归 */ }
             try {
                 WebSocketNotificationService.notifyPlayerUpdate(playerId, 'divine_sense_quenched', {
                     quench_amount: amount,

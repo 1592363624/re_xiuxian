@@ -434,6 +434,7 @@ class DivineDuelService {
                     entry_divine_sense_cost: entryCost
                 }
             };
+            try { require('./zhiguiHooks')(challengerLocked.id, 'divine_sense_duel'); } catch { /* 指归 */ }
         } catch (err) {
             if (t && !t.finished) await t.rollback();
             console.error('[DivineDuelService] challenge 异常:', err);

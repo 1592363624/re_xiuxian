@@ -188,6 +188,7 @@ class TrialTowerService {
             player.attributes = { ...(player.attributes || {}), trial_tower: p };
             await player.save({ transaction: t });
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'trial_tower'); } catch { /* 指归 */ }
 
             if (serverFirst) {
                 try {

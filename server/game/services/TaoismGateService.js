@@ -207,6 +207,7 @@ class TaoismGateService {
             await gate.save({ transaction: t });
 
             await t.commit();
+            try { require('./zhiguiHooks')(player.id, 'choose_taoism_gate'); } catch { /* 指归 */ }
             const pathConfig = this.config.dao_paths[pathKey];
             return {
                 message: `引道成功！已选择 ${pathConfig.name}`,

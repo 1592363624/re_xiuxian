@@ -603,6 +603,7 @@ class SpiritBeastService {
             const levelUpResult = this._checkLevelUp(beast, config);
             await beast.save({ transaction: t });
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'beast_interact'); } catch { /* 指归 */ }
 
             WebSocketNotificationService.notifyPlayerUpdate(playerId, 'beast_interacted', {
                 beast_id: beast.id,
@@ -668,6 +669,7 @@ class SpiritBeastService {
             beast.is_active = true;
             await beast.save({ transaction: t });
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'beast_deploy'); } catch { /* 指归 */ }
 
             WebSocketNotificationService.notifyPlayerUpdate(playerId, 'beast_set_active', {
                 beast_id: beast.id,

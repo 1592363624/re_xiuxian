@@ -622,6 +622,7 @@ class LawService {
                     // 空间法则碎片 +N（写入 PlayerLaw.law_fragments_space + PlayerAscension.law_fragments_count）
                     const oldSpace = Number(law.law_fragments_space || 0);
                     law.law_fragments_space = oldSpace + totalEffectAmount;
+                    try { require('./zhiguiHooks')(playerId, 'law_fragment_gain'); } catch { /* 指归 */ }
 
                     // 同步飞升表的 law_fragments_count（飞升前置条件）
                     let ascension = await PlayerAscension.findOne({

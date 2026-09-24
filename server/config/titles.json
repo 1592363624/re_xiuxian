@@ -447,5 +447,16 @@
     "description": "黄龙山的阵是活的，破它的人得比它更懂阵。",
     "condition": "阵法强度≥120 通关黄龙山，或首次通关的成员奖",
     "bonuses": {}
+  },
+  {
+    "id": "zhigui_returned",
+    "name": "已识归途",
+    "quality": "epic",
+    "description": "指归玉简碎作星屑时留下的四字。指路人已不在，路还在。",
+    "condition": "完成系统任务「尘缘指归」全链",
+    "bonuses": {
+      "hp_max": 80,
+      "atk": 10
+    }
   }
 ]

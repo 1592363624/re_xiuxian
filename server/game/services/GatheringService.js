@@ -211,6 +211,7 @@ class GatheringService {
             await PlayerStateStore.bumpStat(playerId, 'items_collected', quantity, { transaction: t });
 
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'gather_complete'); } catch { /* 指归 */ }
 
             return {
                 success: true,

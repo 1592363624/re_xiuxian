@@ -703,6 +703,7 @@ class NascentSoulService {
             const eventText = daoEvents[Math.floor(Math.random() * daoEvents.length)];
 
             // WebSocket 推送
+            try { require('./zhiguiHooks')(player.id, 'ask_dao'); } catch { /* 指归 */ }
             try {
                 WebSocketNotificationService.notifyPlayerUpdate(player.id, 'ask_dao', {
                     insight_gain: insightGain,

@@ -185,6 +185,7 @@ class InventoryService {
             // 玩家侧的写入已经在 _applyItemEffect 里由 PlayerStateStore 键级落库（含 state_version 自增），
             // 这里不再 player.save()：那一次整块写回正是"旧快照覆盖新快照"的入口
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'use_item'); } catch { /* 指归 */ }
 
             return {
                 success: true,

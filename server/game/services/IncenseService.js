@@ -141,6 +141,9 @@ class IncenseService {
             const oldIncense = Number(player.incense_balance || 0);
             const newIncense = oldIncense + incenseProduced;
             player.incense_balance = newIncense;
+            if (incenseProduced > 0) {
+                try { require('./zhiguiHooks')(playerId, 'incense_gain'); } catch { /* 指归 */ }
+            }
 
             // 更新收割时间
             world.last_incense_harvest_time = now;

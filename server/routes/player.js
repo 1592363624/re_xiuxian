@@ -16,6 +16,9 @@ const authMiddleware = require('../middleware/auth');
  */
 router.get('/me', authMiddleware, async (req, res) => {
     try {
+        require('../game/services/zhiguiHooks')(req.player.id, 'view_player_status');
+    } catch { /* 指归上报失败不影响查角色 */ }
+    try {
         const player = req.player;
         
         if (!player) {

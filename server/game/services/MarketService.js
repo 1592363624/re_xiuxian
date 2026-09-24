@@ -520,6 +520,7 @@ class MarketService {
             await listing.save({ transaction: t });
 
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'market_deal'); } catch { /* 指归 */ }
 
             return {
                 success: true,

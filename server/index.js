@@ -130,6 +130,8 @@ require('./models/playerSparring');
 
 // 第三方登录绑定模型（QQ 登录：QQ 身份与玩家账号一对一绑定）
 require('./models/playerOAuthBinding');
+// 系统任务「尘缘指归」进度（一条线性链，每人一行）
+require('./models/playerSystemQuest');
 
 const http = require('http');
 const socketIo = require('socket.io');
@@ -705,6 +707,8 @@ const startServer = async () => {
     app.use('/api/technique', require('./routes/technique'));
     // 成就系统（成就查询 / 奖励领取）
     app.use('/api/achievement', require('./routes/achievement'));
+    // 系统任务「尘缘指归」（自动发放 · 线性自动续环）
+    app.use('/api/system-quest', require('./routes/system_quest'));
     // 抽奖（寻仙机缘）系统（面板 / 抽奖）
     app.use('/api/lottery', require('./routes/lottery'));
     app.use('/api/time', require('./routes/time'));

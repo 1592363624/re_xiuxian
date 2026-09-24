@@ -858,6 +858,7 @@ class CombatService {
             // 计数键名与含义都声明在 config/player_metrics.json，事件点只说"发生了什么"。
             const PlayerStateStore = require('../persistence/PlayerStateStore');
             await PlayerStateStore.bumpStat(player, 'kill_count', 1, { transaction: t });
+            try { require('./zhiguiHooks')(player.id, 'pve_win'); } catch { /* 指归 */ }
             // 天道凶名：按累计击杀同步称号（血手人屠…天道宿敌），进属性/战力
             try {
                 const WorldEventsService = require('./WorldEventsService');

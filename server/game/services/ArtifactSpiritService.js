@@ -451,6 +451,7 @@ class ArtifactSpiritService {
 
             await player.save({ transaction: t });
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'awaken_spirit'); } catch { /* 指归 */ }
 
             this._notify(playerId, 'spirit_awakened', {
                 spirit_id: spirit.id,

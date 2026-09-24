@@ -82,6 +82,10 @@ async function initializeGameServices(configLoader) {
     TechniqueService.initialize(configLoader);
     // 成就系统服务初始化
     AchievementService.initialize(configLoader);
+    // 系统任务「尘缘指归」初始化 + 启动内容自检
+    const SystemQuestService = require('./services/SystemQuestService');
+    SystemQuestService.initialize(configLoader);
+    SystemQuestService.assertContent();
     // 抽奖（寻仙机缘）系统服务初始化
     LotteryService.initialize(configLoader);
 
@@ -124,6 +128,7 @@ module.exports = {
     TechniqueService,
     AchievementService,
     LotteryService,
+    SystemQuestService: require('./services/SystemQuestService'),
 
     // 基础设施
     ConfigLoader: infrastructure?.ConfigLoader,

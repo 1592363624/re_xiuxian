@@ -212,6 +212,7 @@ class CaveService {
 
             await player.save({ transaction: t });
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'open_cave'); } catch { /* 指归 */ }
 
             return {
                 success: true,

@@ -377,6 +377,7 @@ async function settleNormalSeclusion(player, actualDuration, options = {}) {
     const cooldownSeconds = rollCooldownSeconds(config);
     const cooldownUntil = new Date(Date.now() + cooldownSeconds * 1000);
     setCooldownUntil(player, cooldownUntil);
+    try { require('./zhiguiHooks')(player.id, 'settle_cultivate'); } catch { /* 指归 */ }
 
     return {
         mode: 'normal',
@@ -414,6 +415,7 @@ async function settleDeepSeclusion(player, actualDuration, config, forcedEnd, pe
     const expGain = Math.floor(
         actualDuration * baseExpRate * realmMultiplier * modeRate * penaltyRate * (1 + caveBonus)
     );
+    try { require('./zhiguiHooks')(player.id, 'settle_cultivate'); } catch { /* 指归 */ }
     return {
         mode: 'deep',
         rounds: 0,

@@ -258,6 +258,7 @@ class SectService {
             await player.save({ transaction: t });
             await t.commit();
 
+            try { require('./zhiguiHooks')(playerId, 'join_sect'); } catch { /* 指归 */ }
             return {
                 success: true,
                 message: `成功拜入【${sect.name}】`,
@@ -444,6 +445,7 @@ class SectService {
             await playerSect.save({ transaction: t });
             await player.save({ transaction: t });
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'sect_check_in'); } catch { /* 指归 */ }
 
             return {
                 success: true,
@@ -519,6 +521,7 @@ class SectService {
             await playerSect.save({ transaction: t });
             await player.save({ transaction: t });
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'sect_transfer'); } catch { /* 指归 */ }
 
             return {
                 success: true,
@@ -1074,6 +1077,7 @@ class SectService {
             await playerSect.save({ transaction: t });
             await player.save({ transaction: t });
             await t.commit();
+            try { require('./zhiguiHooks')(playerId, 'sect_quest_submit'); } catch { /* 指归 */ }
 
             // 消息按类型拼，让战斗/机缘/试炼结果读起来像真的干了点事
             let message = `任务【${quest.name}】完成，贡献 +${contributionGain}`;

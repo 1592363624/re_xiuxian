@@ -375,6 +375,7 @@ class AchievementService {
 
             // 领到奖才算"达成一项成就"（这一格同时进祖业的总指令数，与改造前那份手写求和口径一致）。
             await PlayerStateStore.bumpStat(playerId, 'achievements_completed', 1, { transaction: t });
+            try { require('./zhiguiHooks')(playerId, 'claim_achievement'); } catch { /* 指归 */ }
 
             // 推送资源变更，保持前端资源条同步
             try {

@@ -14,6 +14,7 @@ const WorldEventsService = require('../game/services/WorldEventsService');
 
 router.get('/status', auth, async (req, res, next) => {
     try {
+        require('../game/services/zhiguiHooks')(req.player.id, 'world_risk_open');
         const data = await WorldEventsService.getStatus(req.player.id);
         res.json({ code: 200, data });
     } catch (err) {
@@ -38,6 +39,7 @@ router.post('/trigger', auth, adminCheck, async (req, res, next) => {
 
 router.post('/kill', auth, async (req, res, next) => {
     try {
+        require('../game/services/zhiguiHooks')(req.player.id, 'world_event_touch');
         const data = await WorldEventsService.onKill(req.player.id);
         res.json({ code: 200, message: data.title ? `获得凶名【${data.title.name}】` : '杀戮 +1', data });
     } catch (err) {

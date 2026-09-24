@@ -1,0 +1,700 @@
+{
+  "_comment": "系统任务「尘缘指归」静态内容。一条独立线性链，三卷：识途（教程）/ 立心（入门主线）/ 破障（进阶机制）。完成当前环自动发奖并自动接到下一环；老号打开面板时按 state/metric 追认快进。环名与正文必须有修仙语汇与机制教学，禁止「再做 N 次」换皮。",
+  "chain": {
+    "id": "zhigui",
+    "name": "尘缘指归",
+    "short_name": "指归",
+    "intro": "识海微震，多了一枚无名玉简。页首只有一句——「尘缘未了，指归在此。」它不拜师承，只在你该走下一步时，浮出一行小字。",
+    "ending": "玉简无风自燃，碎作漫天星屑。页末最后一行小字慢慢浮起：「指路人到此为止。往后的路，你自己写。」",
+    "final_title_id": "zhigui_returned"
+  },
+  "acts": [
+    {
+      "id": 1,
+      "name": "识途",
+      "subtitle": "学会基本操作",
+      "epilogue": "玉简合上一页，墨迹未干：「你已不是站着挨打的凡人。」"
+    },
+    {
+      "id": 2,
+      "name": "立心",
+      "subtitle": "接到核心目标",
+      "epilogue": "「修仙主循环你已见过——修为、人事、资源、破关。去争长生。」"
+    },
+    {
+      "id": 3,
+      "name": "破障",
+      "subtitle": "引入新机制",
+      "epilogue": "「易被忽略的门，你都推开过一扇。再往后，看你的缘法。」"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "zhigui_s1_open_eyes",
+      "act": 1,
+      "order": 1,
+      "name": "睁眼观己",
+      "name_alt": null,
+      "tagline": "灵根既定，先认清自己。",
+      "body": "玉简微微发烫。页上墨字：修士睁眼第一件事，不是挥刀，是看清自己的气海还剩几口气、袖中还剩几块灵石。分清「现在有什么」和「以后要什么」，才不会把救命丹当糖豆。",
+      "hint": "点开「角色」，读一眼气血、修为与灵石。",
+      "teach": "角色面板与气血 / 修为 / 灵石三维资源",
+      "panel": "character",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "view_player_status",
+          "type": "action",
+          "actions": ["view_player_status"],
+          "count": 1,
+          "label": "查看一次角色状态"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 50,
+        "exp": 0,
+        "items": [{ "item_key": "low_healing_pill", "quantity": 2 }]
+      }
+    },
+    {
+      "id": "zhigui_s1_first_breath",
+      "act": 1,
+      "order": 2,
+      "name": "吐纳归息",
+      "name_alt": null,
+      "tagline": "气从鼻入，意在丹田——要把一次吐纳走完整。",
+      "body": "「修炼」二字听着玄，本作却是异步的：点开只是开始，结算是另一回事。玉简要你走完一轮静思或闭关，再回来。半途而废的，它不认。",
+      "hint": "去「悟道」或「修炼」完成一次结算（静思悟道 / 闭关修炼）。",
+      "teach": "异步修炼与结算",
+      "panel": "meditation",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "settle_cultivate",
+          "type": "action",
+          "actions": ["settle_cultivate"],
+          "count": 1,
+          "label": "完成一次修炼或悟道结算"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 30,
+        "exp": 30,
+        "items": []
+      }
+    },
+    {
+      "id": "zhigui_s1_pack_discipline",
+      "act": 1,
+      "order": 3,
+      "name": "行囊有度",
+      "name_alt": null,
+      "tagline": "品阶写在皮上，丹毒写在命里。",
+      "body": "打开储物袋。玉简在旁注：先看品阶再入口。低阶回血丹是救命的，不是零嘴；有些丹一口下去，丹毒就上了身。修士的行囊，理的不是物件，是条理。",
+      "hint": "打开「储物袋」，使用或服用一件消耗品。",
+      "teach": "物品品阶、服用与丹毒",
+      "panel": "inventory",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "use_item",
+          "type": "action",
+          "actions": ["use_item"],
+          "count": 1,
+          "label": "使用或服用一件物品"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 20,
+        "exp": 0,
+        "items": [{ "item_key": "low_healing_pill", "quantity": 1 }]
+      }
+    },
+    {
+      "id": "zhigui_s1_edge_of_blade",
+      "act": 1,
+      "order": 4,
+      "name": "试锋试胆",
+      "name_alt": null,
+      "tagline": "山下妖气未散——去会会它。",
+      "body": "不是要你屠尽山头。玉简只问一句：这条命，你护得住么？赢下一场野斗，它便承认你有资格继续往下走。若你半血以下仍敢亮剑——它会在页脚给你留一行小字。",
+      "hint": "去「征伐 · 战斗」赢下一场 PVE。",
+      "teach": "PVE 战斗与胜负结算",
+      "panel": "explore",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "pve_win",
+          "type": "action",
+          "actions": ["pve_win"],
+          "count": 1,
+          "label": "赢得一场野外战斗"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 40,
+        "exp": 10,
+        "items": [{ "item_key": "low_healing_pill", "quantity": 1 }]
+      }
+    },
+    {
+      "id": "zhigui_s1_read_the_road",
+      "act": 1,
+      "order": 5,
+      "name": "识途知返",
+      "name_alt": null,
+      "tagline": "路在脚下，也在图上。",
+      "body": "修士不是长在原地的树。玉简展开一卷草图：认区域、看相邻、懂得借快传省脚程。往后洞府、副本、逃命，都要用到这两条腿和这张图。",
+      "hint": "打开「地图」，移动到相邻区域一次。",
+      "teach": "地图、区域与移动",
+      "panel": "map",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "map_move",
+          "type": "action",
+          "actions": ["map_move"],
+          "count": 1,
+          "label": "在地图上移动一次"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 30,
+        "exp": 0,
+        "items": [{ "item_key": "spirit_grass", "quantity": 2 }]
+      }
+    },
+    {
+      "id": "zhigui_s2_choose_path",
+      "act": 2,
+      "order": 1,
+      "name": "择道栖心",
+      "name_alt": null,
+      "tagline": "五行道途，先择一心。",
+      "body": "玉简翻到卷二，字迹沉了些：长生路远，不能只靠蛮修。太一门开五行道途——择一条栖心，日课与共鸣都从这里长出来。选错了不可怕，可怕的是从未选过。",
+      "hint": "打开「太一门」，选择一条道途。",
+      "teach": "太一门道途与道途日常",
+      "panel": "taoism_gate",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "choose_taoism_gate",
+          "type": "action",
+          "actions": ["choose_taoism_gate"],
+          "count": 1,
+          "label": "选择一条道途"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 80,
+        "exp": 50,
+        "items": []
+      }
+    },
+    {
+      "id": "zhigui_s2_enter_sect",
+      "act": 2,
+      "order": 2,
+      "name": "拜入山门",
+      "name_alt": null,
+      "tagline": "独木难支，山门可依。",
+      "body": "「宗门」二字，在这世上不是背景板。点卯是日课，传功是机缘，悬赏是银钱与人脉。玉简淡淡道：拜进去，才知道什么叫「有人管」，也才知道什么叫「规矩」。",
+      "hint": "打开「宗门」，拜入一座山门。",
+      "teach": "宗门加入与贡献体系",
+      "panel": "sect",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "join_sect",
+          "type": "action",
+          "actions": ["join_sect"],
+          "count": 1,
+          "label": "拜入一个宗门"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 100,
+        "exp": 40,
+        "items": []
+      }
+    },
+    {
+      "id": "zhigui_s2_daily_vow",
+      "act": 2,
+      "order": 3,
+      "name": "日课不辍",
+      "name_alt": null,
+      "tagline": "点卯见人，传功见己。",
+      "body": "玉简列出日课两条：点卯与传功。前者告诉山门你还在，后者把山门的功法渡进你气海。只点卯不传功，是混日子；只传功不点卯，是白眼狼。两样都做，才叫「日课不辍」。",
+      "hint": "在宗门里完成「点卯」与「传功」各一次。",
+      "teach": "宗门日常节奏",
+      "panel": "sect",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "sect_check_in",
+          "type": "action",
+          "actions": ["sect_check_in"],
+          "count": 1,
+          "label": "宗门点卯一次"
+        },
+        {
+          "id": "sect_transfer",
+          "type": "action",
+          "actions": ["sect_transfer"],
+          "count": 1,
+          "label": "宗门传功一次"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 60,
+        "exp": 80,
+        "items": []
+      }
+    },
+    {
+      "id": "zhigui_s2_herb_or_fire",
+      "act": 2,
+      "order": 4,
+      "name": "百草入药",
+      "name_alt": {
+        "gather_complete": "百草入药",
+        "alchemy_success": "炉火初明"
+      },
+      "tagline": "你可以做采药郎，也可以做丹童。",
+      "body": "玉简不逼你选边。一条路走进山野，识百草、采灵株；另一条守着丹炉，看火候、闻药香。两条路都通往「资源从哪来」。走通任意一条，它都给你记上。",
+      "hint": "采集一次，或成功炼制一枚丹药。",
+      "teach": "采集与炼丹双路径",
+      "panel": "crafting",
+      "logic": "or",
+      "objectives": [
+        {
+          "id": "gather_complete",
+          "type": "action",
+          "actions": ["gather_complete"],
+          "count": 1,
+          "label": "完成一次采集"
+        },
+        {
+          "id": "alchemy_success",
+          "type": "action",
+          "actions": ["alchemy_success"],
+          "count": 1,
+          "label": "成功炼制一次丹药"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 50,
+        "exp": 40,
+        "items": [{ "item_key": "spirit_grass", "quantity": 3 }]
+      }
+    },
+    {
+      "id": "zhigui_s2_open_cave",
+      "act": 2,
+      "order": 5,
+      "name": "开辟洞天",
+      "name_alt": null,
+      "tagline": "一洞一世界，可耕可炼可藏身。",
+      "body": "玉简画出一块山壁：敲开，便是你的洞天。灵脉、静室、药园——不是一次性解锁，是往后数十年的长线经营。今日开府，明日种药，后日才有丹香。",
+      "hint": "打开「洞府」，开辟一座洞府。",
+      "teach": "洞府经营与药园",
+      "panel": "cave",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "open_cave",
+          "type": "or_group",
+          "label": "开辟一座洞府",
+          "children": [
+            {
+              "id": "open_cave_action",
+              "type": "action",
+              "actions": ["open_cave"],
+              "count": 1,
+              "label": "开辟一座洞府"
+            },
+            {
+              "id": "open_cave_state",
+              "type": "state",
+              "state": "has_cave",
+              "label": "已拥有洞府"
+            }
+          ]
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 120,
+        "exp": 50,
+        "items": [{ "item_key": "spirit_grass", "quantity": 2 }]
+      }
+    },
+    {
+      "id": "zhigui_s2_first_breach",
+      "act": 2,
+      "order": 6,
+      "name": "冲穴破关",
+      "name_alt": null,
+      "tagline": "关隘在前，丹药在囊，道心在胸。",
+      "body": "玉简笔锋一紧：破关之前，先看虚弱与心魔。半残之身硬冲，是把命押在运气上。关隘未过，它不责你——只淡淡写一句「再备丹药」。过了，它才肯翻页。",
+      "hint": "检查状态后，尝试突破并成功一次。",
+      "teach": "突破、失败代价与准备",
+      "panel": "cultivate",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "first_breach",
+          "type": "or_group",
+          "label": "成功突破一次",
+          "children": [
+            {
+              "id": "breakthrough_action",
+              "type": "action",
+              "actions": ["breakthrough_success"],
+              "count": 1,
+              "label": "成功突破一次"
+            },
+            {
+              "id": "breakthrough_metric",
+              "type": "metric",
+              "metric": "breakthrough_count",
+              "target": 1,
+              "label": "累计突破成功 1 次"
+            }
+          ]
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 100,
+        "exp": 80,
+        "items": [{ "item_key": "qi_condensing_pill", "quantity": 1 }]
+      }
+    },
+    {
+      "id": "zhigui_s2_market_oath",
+      "act": 2,
+      "order": 7,
+      "name": "市井一诺",
+      "name_alt": {
+        "market_deal": "市井一诺",
+        "sect_quest_submit": "山门践诺"
+      },
+      "tagline": "灵石要转起来，诺要践下去。",
+      "body": "卷二最后一环。玉简道：修仙不是闷头苦修。去坊市换一次有无，或替山门交一桩悬赏——灵石转起来，人脉织起来，这才叫「入世」。",
+      "hint": "在坊市完成一笔交易，或提交一次宗门悬赏。",
+      "teach": "经济流通与悬赏交付",
+      "panel": "market",
+      "logic": "or",
+      "objectives": [
+        {
+          "id": "market_deal",
+          "type": "action",
+          "actions": ["market_deal"],
+          "count": 1,
+          "label": "完成一次坊市交易"
+        },
+        {
+          "id": "sect_quest_submit",
+          "type": "action",
+          "actions": ["sect_quest_submit"],
+          "count": 1,
+          "label": "提交一次宗门悬赏"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 150,
+        "exp": 60,
+        "items": []
+      }
+    },
+    {
+      "id": "zhigui_s3_spirit_in_weapon",
+      "act": 3,
+      "order": 1,
+      "name": "器中有灵",
+      "name_alt": null,
+      "tagline": "刀剑无心，祭炼有灵。",
+      "body": "卷三的字，像刀刻的。法宝不只是属性罐子：祭炼见心意，本命须谨慎，器灵醒时，它会护主。玉简提醒——本命绑的是命数，绑之前想清楚。",
+      "hint": "打开「法宝」或「器灵」，祭炼一次法宝，或唤醒一只器灵。",
+      "teach": "法宝祭炼 / 本命 / 器灵",
+      "panel": "treasure",
+      "logic": "or",
+      "objectives": [
+        {
+          "id": "refine_artifact",
+          "type": "action",
+          "actions": ["refine_artifact"],
+          "count": 1,
+          "label": "祭炼一次法宝"
+        },
+        {
+          "id": "awaken_spirit",
+          "type": "action",
+          "actions": ["awaken_spirit"],
+          "count": 1,
+          "label": "唤醒或温养一次器灵"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 100,
+        "exp": 50,
+        "items": [{ "item_key": "low_spirit_stone", "quantity": 1 }]
+      }
+    },
+    {
+      "id": "zhigui_s3_beast_pact",
+      "act": 3,
+      "order": 2,
+      "name": "兽栏结契",
+      "name_alt": null,
+      "tagline": "抓一只容易，结契难。",
+      "body": "玉简画出一只低垂的兽瞳：灵兽不是工具。喂养是恩，互动是信，出战是命托于它。只锁在栏里不闻不问的，那叫赃物，不叫结契。",
+      "hint": "拥有灵兽后，与它互动或令其出战一次。",
+      "teach": "灵兽养成与出战",
+      "panel": "spirit_beast",
+      "logic": "and",
+      "objectives": [
+        {
+          "id": "has_beast",
+          "type": "state",
+          "state": "has_spirit_beast",
+          "label": "拥有一只灵兽"
+        },
+        {
+          "id": "beast_bond",
+          "type": "or_group",
+          "label": "与灵兽互动或令其出战",
+          "children": [
+            {
+              "id": "beast_interact",
+              "type": "action",
+              "actions": ["beast_interact"],
+              "count": 1,
+              "label": "与灵兽互动一次"
+            },
+            {
+              "id": "beast_deploy",
+              "type": "action",
+              "actions": ["beast_deploy"],
+              "count": 1,
+              "label": "令灵兽出战一次"
+            }
+          ]
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 80,
+        "exp": 60,
+        "items": [{ "item_key": "spirit_grass", "quantity": 5 }]
+      }
+    },
+    {
+      "id": "zhigui_s3_mind_sea",
+      "act": 3,
+      "order": 3,
+      "name": "识海生波",
+      "name_alt": null,
+      "tagline": "属性在外，识海在内。",
+      "body": "玉简沉入眉心一点凉意：神识是另一套本钱。探得远，是眼力；斗得稳，是心力。从今天起，别只盯着气血和攻击——识海起波时，天地才看得更清。",
+      "hint": "使用神识相关功能，或参与一次神识对决。",
+      "teach": "神识资源与神识对决",
+      "panel": "dayan",
+      "logic": "or",
+      "objectives": [
+        {
+          "id": "divine_sense_use",
+          "type": "action",
+          "actions": ["divine_sense_use"],
+          "count": 1,
+          "label": "使用一次神识"
+        },
+        {
+          "id": "divine_sense_duel",
+          "type": "action",
+          "actions": ["divine_sense_duel"],
+          "count": 1,
+          "label": "参与一次神识对决"
+        },
+        {
+          "id": "has_divine_sense",
+          "type": "state",
+          "state": "has_divine_sense",
+          "label": "已开启神识（老号追认）"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 120,
+        "exp": 80,
+        "items": [{ "item_key": "divine_sense_jade_slip", "quantity": 1 }]
+      }
+    },
+    {
+      "id": "zhigui_s3_dayan_peep",
+      "act": 3,
+      "order": 4,
+      "name": "大衍窥天",
+      "name_alt": null,
+      "tagline": "衍神不是装饰，是飞升的前门。",
+      "body": "玉简上显出层层衍纹。大衍诀、问道——听起来远，却是往后飞升夺舍那条长线的门槛。今日窥一眼天机，不是为了立刻成仙，是为了知道门在哪。",
+      "hint": "修炼一次大衍诀，或完成一次问道感悟。",
+      "teach": "大衍诀 / 问道与后期长线预告",
+      "panel": "dayan",
+      "logic": "or",
+      "objectives": [
+        {
+          "id": "dayan_practice",
+          "type": "action",
+          "actions": ["dayan_practice"],
+          "count": 1,
+          "label": "修炼一次大衍诀"
+        },
+        {
+          "id": "ask_dao",
+          "type": "action",
+          "actions": ["ask_dao"],
+          "count": 1,
+          "label": "完成一次问道"
+        },
+        {
+          "id": "has_dayan_or_ask_dao",
+          "type": "state",
+          "state": "has_dayan_or_ask_dao",
+          "label": "已接触大衍/问道（老号追认）"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 100,
+        "exp": 150,
+        "items": []
+      }
+    },
+    {
+      "id": "zhigui_s3_heaven_chance",
+      "act": 3,
+      "order": 5,
+      "name": "天机偶现",
+      "name_alt": null,
+      "tagline": "服务器是活的——天会变，塔会开，异闻会来。",
+      "body": "玉简忽然自己翻页。世界事件、试炼古塔、天道异闻——这些不是每日清单，是「偶现」。撞上是缘法，错过是常态。修士要会等，也要会在来时伸手。",
+      "hint": "参与一次世界事件 / 闯一层试炼古塔 / 打开天道异闻。",
+      "teach": "世界事件、试炼塔与异闻",
+      "panel": "trial_tower",
+      "logic": "or",
+      "objectives": [
+        {
+          "id": "world_event_touch",
+          "type": "action",
+          "actions": ["world_event_touch"],
+          "count": 1,
+          "label": "参与一次世界事件"
+        },
+        {
+          "id": "trial_tower",
+          "type": "action",
+          "actions": ["trial_tower"],
+          "count": 1,
+          "label": "闯一次试炼古塔"
+        },
+        {
+          "id": "world_risk_open",
+          "type": "action",
+          "actions": ["world_risk_open"],
+          "count": 1,
+          "label": "查看一次天道异闻"
+        },
+        {
+          "id": "has_world_touch",
+          "type": "state",
+          "state": "has_world_touch",
+          "label": "已接触世界事件/试炼塔（老号追认）"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 200,
+        "exp": 80,
+        "items": []
+      }
+    },
+    {
+      "id": "zhigui_s3_law_ember",
+      "act": 3,
+      "order": 6,
+      "name": "法则余烬",
+      "name_alt": null,
+      "tagline": "余烬尚温，可焙来日之火。",
+      "body": "玉简边缘焦了一角，浮出细碎的光：法则碎片、香火——都是后期大世界的薪柴。今日不必懂全部，只需知道：有些资源，比灵石更接近「道」。",
+      "hint": "获得一枚法则碎片，或收取一次香火。",
+      "teach": "法则碎片 / 香火后期资源",
+      "panel": "small_world",
+      "logic": "or",
+      "objectives": [
+        {
+          "id": "law_fragment_gain",
+          "type": "action",
+          "actions": ["law_fragment_gain"],
+          "count": 1,
+          "label": "获得一次法则碎片"
+        },
+        {
+          "id": "incense_gain",
+          "type": "action",
+          "actions": ["incense_gain"],
+          "count": 1,
+          "label": "收取一次香火"
+        },
+        {
+          "id": "has_law_fragment",
+          "type": "state",
+          "state": "has_law_fragment",
+          "label": "已持有法则碎片"
+        },
+        {
+          "id": "has_incense",
+          "type": "state",
+          "state": "has_incense",
+          "label": "已有香火（老号追认）"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 150,
+        "exp": 100,
+        "items": [{ "item_key": "cangkun_old_material", "quantity": 1 }]
+      }
+    },
+    {
+      "id": "zhigui_s3_dust_to_dust",
+      "act": 3,
+      "order": 7,
+      "name": "指归归尘",
+      "name_alt": null,
+      "tagline": "指路人到此为止。",
+      "body": "最后一环，玉简不再出题。它只静静问：你上路了么？若已筑基，或曾在成就里领过一次自己的名字——它便认你。然后碎作星屑，把「已识归途」四字留在你识海。",
+      "hint": "境界达到筑基，或领取任意一次成就奖励。",
+      "teach": "整合：你已能独立上路",
+      "panel": "achievement",
+      "logic": "or",
+      "objectives": [
+        {
+          "id": "realm_zhuji",
+          "type": "metric",
+          "metric": "realm_index",
+          "target": 11,
+          "label": "境界达到筑基（筑基初期 rank 11）"
+        },
+        {
+          "id": "claim_achievement",
+          "type": "action",
+          "actions": ["claim_achievement"],
+          "count": 1,
+          "label": "领取一次成就奖励"
+        }
+      ],
+      "rewards": {
+        "spirit_stones": 500,
+        "exp": 300,
+        "items": [{ "item_key": "foundation_pill", "quantity": 1 }],
+        "title_id": "zhigui_returned"
+      }
+    }
+  ]
+}

@@ -309,6 +309,7 @@ class DayanService {
                 console.warn('[DayanService] WebSocket 通知失败:', e.message);
             }
 
+            try { require('./zhiguiHooks')(playerId, 'dayan_practice'); } catch { /* 指归 */ }
             return {
                 success: true,
                 message: `参悟大衍诀成功，获得 ${expGain} 经验`,

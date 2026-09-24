@@ -727,8 +727,10 @@ class CraftingService {
             if (successCount > 0) {
                 if (recipeConfig.type === 'refining') {
                     await PlayerStateStore.bumpStat(playerId, 'refining_count', successCount, { transaction: t });
+                    try { require('./zhiguiHooks')(playerId, 'refine_artifact'); } catch { /* 指归 */ }
                 } else {
                     await PlayerStateStore.bumpStat(playerId, 'alchemy_count', successCount, { transaction: t });
+                    try { require('./zhiguiHooks')(playerId, 'alchemy_success'); } catch { /* 指归 */ }
                 }
             }
 
