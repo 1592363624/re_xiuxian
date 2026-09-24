@@ -145,10 +145,17 @@ class PvpService {
     static async _statsAndPower(player) {
         const CombatResolver = require('../combat/CombatResolver');
         const { stats } = await CombatResolver.resolveCombatStats(player);
-        return {
-            stats,
-            power: CombatResolver.computePower(stats, Number(player.realm_rank) || 0, configLoader.getConfig('game_balance'))
-        };
+        let power = CombatResolver.computePower(stats, Number(player.realm_rank) || 0, configLoader.getConfig('game_balance'));
+        // 神魂动荡：战力 -30%（10 分钟）
+        try {
+            const SoulRiskService = require('./SoulRiskService');
+            const soul = (player.attributes || {}).soul_risk || {};
+            if (soul.unstable_until && new Date(soul.unstable_until).getTime() > Date.now()) {
+                const penalty = Number(SoulRiskService.config().unstable_power_penalty) || 0.3;
+                power = Math.floor(power * (1 - penalty));
+            }
+        } catch (_) { /* 加成失败不挡战力 */ }
+        return { stats, power };
     }
 
     /**
@@ -633,8 +640,28 @@ class PvpService {
             // 计算双方战力（用于结算奖励），并留下同一份解析结果给先手判定用
             const attackerCombat = await this._statsAndPower(attacker);
             const defenderCombat = await this._statsAndPower(defender);
-            const attackerPower = attackerCombat.power;
-            const defenderPower = defenderCombat.power;
+            let attackerPower = attackerCombat.power;
+            let defenderPower = defenderCombat.power;
+
+            // 风雷翅「风雷之先」：同阶 30% 抢先手并 +15% 战力
+            // 仇敌「复仇之火」：对仇敌 +5% 战力
+            try {
+                const WindThunderWingsService = require('./WindThunderWingsService');
+                const SoulRiskService = require('./SoulRiskService');
+                const wingsAtk = WindThunderWingsService.combatModifiers({
+                    attackerHasWings: true,
+                    defenderHasWings: false,
+                    attackerRank: Number(attacker.realm_rank) || 0,
+                    defenderRank: Number(defender.realm_rank) || 0
+                });
+                if (wingsAtk.first_strike_power_bonus > 0 && Math.random() < wingsAtk.first_strike_chance) {
+                    attackerPower = Math.floor(attackerPower * (1 + wingsAtk.first_strike_power_bonus));
+                }
+                const revenge = SoulRiskService.revengePowerBonus(attacker, defender.id);
+                if (revenge > 0) attackerPower = Math.floor(attackerPower * (1 + revenge));
+            } catch (e) {
+                console.warn('[PvpService] 风雷翅/复仇加成失败（忽略）:', e.message);
+            }
 
             // 战力差距欺凌校验：若差距超过 power_gap_bullying_threshold，提示但允许
             // 此处不阻断，仅用于 karma 累加判断（在 _settleBattle 中处理）
@@ -1150,6 +1177,31 @@ class PvpService {
                         opponent_realm_rank: attacker.realm_rank
                     })
                 ]);
+                // 神魂动荡/陨落：落败方叠动荡，动荡中再败跌境清修为（独立事务）
+                try {
+                    if (!isDraw && winnerId != null) {
+                        const SoulRiskService = require('./SoulRiskService');
+                        const loserObj = Number(winnerId) === Number(attacker.id) ? defender : attacker;
+                        const winnerObj = Number(winnerId) === Number(attacker.id) ? attacker : defender;
+                        const loserAttrs = (loserObj.attributes || {}).soul_risk || {};
+                        const wasUnstable = !!(loserAttrs.unstable_until
+                            && new Date(loserAttrs.unstable_until).getTime() > Date.now());
+                        const risk = await SoulRiskService.onDuelResult(
+                            { id: loserObj.id, realm_rank: loserObj.realm_rank },
+                            { id: winnerObj.id, realm_rank: winnerObj.realm_rank },
+                            {
+                                loserWasUnstable: wasUnstable,
+                                winnerRank: winnerObj.realm_rank,
+                                loserRank: loserObj.realm_rank
+                            }
+                        );
+                        if (risk && risk.events && risk.events.length) {
+                            settleResult.soul_risk_events = risk.events;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[PvpService] 神魂风险结算失败（不影响斗法）:', e.message);
+                }
                 // 悬赏结算同步钩子：若为 bounty 类型战斗，战斗结束后立即结算悬赏
                 // 修复关键Bug：此前悬赏结算仅依赖异步扫描，导致 accepted 状态死锁
                 // 此处在 t.commit() 之后调用，避免嵌套事务（BountyService 内部会开启独立事务）
@@ -1469,20 +1521,47 @@ class PvpService {
             karmaChange = cfg.karma_penalty_per_bullying || 20;
         }
 
-        // 灵石奖励：胜方获得 win_stone_ratio × loser_power
+        // 宗门外交因果：友好掉率-5% / 敌对夺 15% 荣誉 / 结盟 +5% 战力（战力在 _statsAndPower）
+        let spiritStoneRewardScaleFriendly = 1;
+        try {
+            const SectDiplomacyService = require('./SectDiplomacyService');
+            const diplo = await SectDiplomacyService.resolvePvpModifiers(attacker, defender);
+            if (diplo && diplo.relation === 'hostile' && isAttackerWin && !isDraw) {
+                attackerHonorGain = Math.floor(attackerHonorGain * (1 + (diplo.exp_bonus || 0)));
+            }
+            if (diplo && diplo.relation === 'friendly') {
+                // 友好宗门出手：天道压制杀意，战利品掉率已在 spiritStoneReward 缩放里体现
+                spiritStoneRewardScaleFriendly = 1 - (diplo.loot_penalty || 0);
+            }
+        } catch (e) {
+            console.warn('[PvpService] 宗门外交加成结算失败（忽略）:', e.message);
+        }
+
+        // 灵石奖励：胜方获得 win_stone_ratio × loser_power，并做上下限与欺凌衰减
+        // 目标：单场收益贴近日常产出，避免 power 滚雪球；跨境界欺凌几乎无利可图
         let spiritStoneReward = 0;
+        let rewardScale = 1;
+        const powerGap = Math.abs(attackerPower - defenderPower) / Math.max(1, Math.max(attackerPower, defenderPower));
+        if (powerGap > (cfg.power_gap_bullying_threshold || 0.5)) {
+            rewardScale = cfg.bullying_reward_scale != null ? cfg.bullying_reward_scale : 0.2;
+        } else if (powerGap > (cfg.power_gap_normal_threshold || 0.3)) {
+            rewardScale = cfg.hard_gap_reward_scale != null ? cfg.hard_gap_reward_scale : 0.5;
+        }
         if (!isDraw) {
             const winnerPower = isAttackerWin ? attackerPower : defenderPower;
             const loserPower = isAttackerWin ? defenderPower : attackerPower;
-            spiritStoneReward = Math.floor((cfg.win_stone_ratio || 10) * loserPower);
+            spiritStoneReward = Math.floor((cfg.win_stone_ratio || 1.5) * loserPower * rewardScale * spiritStoneRewardScaleFriendly);
+            const stoneMax = cfg.win_stone_max != null ? cfg.win_stone_max : 2000;
+            const stoneMin = cfg.win_stone_min != null ? cfg.win_stone_min : 10;
+            spiritStoneReward = Math.max(stoneMin, Math.min(stoneMax, spiritStoneReward));
         }
 
-        // 经验奖励：胜方获得 win_exp_reward_ratio × avg_power × loser_exp
+        // 经验奖励：胜方获得 win_exp_reward_ratio × avg_power × loser_exp（同步吃欺凌衰减）
         let attackerExpGain = 0;
         let defenderExpGain = 0;
         if (!isDraw) {
             const avgPower = Math.floor((attackerPower + defenderPower) / 2);
-            const ratio = cfg.win_exp_reward_ratio || 0.05;
+            const ratio = (cfg.win_exp_reward_ratio || 0.02) * rewardScale;
             if (isAttackerWin) {
                 // 攻击方胜，按防守方修为计算
                 const loserExp = Number(defender.exp) || 0;

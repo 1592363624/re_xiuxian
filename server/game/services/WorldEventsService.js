@@ -98,6 +98,27 @@ class WorldEventsService {
         }
     }
 
+    /**
+     * 按已有 kill_count 同步凶名（供 CombatService 在 bumpStat 之后调用，避免双计）
+     * @param {Object} player - 已加锁/已持有的 Player 实例（会就地改 attributes）
+     * @param {number} killCount
+     * @param {Object} [opts]
+     */
+    static syncNotoriousTitle(player, killCount, { transaction = null } = {}) {
+        const attrs = player.attributes || {};
+        const we = attrs.world_events || {};
+        const title = this.evaluateTitle(killCount);
+        const prev = we.notorious_title || null;
+        const next = title
+            ? { id: title.title_id, name: title.name, power_bonus: title.power_bonus }
+            : prev;
+        player.attributes = {
+            ...attrs,
+            world_events: { ...we, kills: Number(killCount) || 0, notorious_title: next }
+        };
+        return { title: next, changed: !!title && (!prev || prev.id !== title.title_id) };
+    }
+
     static async getStatus(playerId) {
         const Player = require('../../models/player');
         const player = await Player.findByPk(playerId);

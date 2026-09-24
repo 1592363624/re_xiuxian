@@ -139,7 +139,7 @@ class SoulRiskService {
 
             if (loserWasUnstable) {
                 // 神魂陨落
-                const hasPill = await InventoryService.getItemCount?.(loserInst.id, c.immortal_pill_item_key, t)
+                const hasPill = await InventoryService.getItemQuantity?.(loserInst.id, c.immortal_pill_item_key)
                     || 0;
                 if (hasPill > 0) {
                     await InventoryService.removeItem(loserInst.id, c.immortal_pill_item_key, 1, t);
@@ -152,8 +152,8 @@ class SoulRiskService {
                     loserInst.exp = 0;
                     // 掉材料
                     try {
-                        const items = await InventoryService.listItems?.(loserInst.id, t) || [];
-                        const materials = items.filter(i => i.type === 'material' || i.item_type === 'material');
+                        const inv = await InventoryService.getInventory(loserInst.id);
+                        const materials = (inv.items || inv || []).filter(i => i.type === 'material' || i.item_type === 'material');
                         for (const m of materials) {
                             const drop = Math.floor((Number(m.quantity) || 0) * (c.death_drop_material_rate || 0.5));
                             if (drop > 0) await InventoryService.removeItem(loserInst.id, m.item_key, drop, t);

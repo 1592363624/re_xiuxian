@@ -737,6 +737,34 @@ class DuelService {
                     })
                 ]);
 
+                // 神魂动荡/陨落：落败方叠动荡或陨落（独立事务，不阻塞决斗回执）
+                try {
+                    if (!resolveResult.isDraw && resolveResult.winnerId != null) {
+                        const SoulRiskService = require('./SoulRiskService');
+                        const loserId = Number(resolveResult.winnerId) === Number(attacker.id)
+                            ? defender.id : attacker.id;
+                        const winnerObj = Number(resolveResult.winnerId) === Number(attacker.id) ? attacker : defender;
+                        const loserObj = Number(resolveResult.winnerId) === Number(attacker.id) ? defender : attacker;
+                        const loserAttrs = (loserObj.attributes || {}).soul_risk || {};
+                        const wasUnstable = !!(loserAttrs.unstable_until
+                            && new Date(loserAttrs.unstable_until).getTime() > Date.now());
+                        const risk = await SoulRiskService.onDuelResult(
+                            { id: loserObj.id, realm_rank: loserObj.realm_rank },
+                            { id: winnerObj.id, realm_rank: winnerObj.realm_rank },
+                            {
+                                loserWasUnstable: wasUnstable,
+                                winnerRank: winnerObj.realm_rank,
+                                loserRank: loserObj.realm_rank
+                            }
+                        );
+                        if (risk && risk.events && risk.events.length) {
+                            settleResult.soul_risk_events = risk.events;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[DuelService] 神魂风险结算失败（不影响决斗）:', e.message);
+                }
+
                 // 异步推送：通知双方决斗结果
                 try {
                     const WebSocketNotificationService = require('./WebSocketNotificationService');

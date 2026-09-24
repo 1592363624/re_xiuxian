@@ -706,6 +706,24 @@ class CombatService {
             // 计数键名与含义都声明在 config/player_metrics.json，事件点只说"发生了什么"。
             const PlayerStateStore = require('../persistence/PlayerStateStore');
             await PlayerStateStore.bumpStat(player, 'kill_count', 1, { transaction: t });
+            // 天道凶名：按累计击杀同步称号（血手人屠…天道宿敌），进属性/战力
+            try {
+                const WorldEventsService = require('./WorldEventsService');
+                const we = (player.attributes && player.attributes.world_events) || {};
+                const kills = (Number(we.kills) || 0) + 1;
+                const synced = WorldEventsService.syncNotoriousTitle(player, kills, { transaction: t });
+                if (synced.changed) {
+                    appendBattleLog(battle, {
+                        round: battle.round,
+                        attacker: 'system',
+                        action: 'notorious_title',
+                        title: synced.title && synced.title.name,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            } catch (e) {
+                console.warn('[CombatService] 凶名同步失败（不影响战斗结算）:', e.message);
+            }
 
             return {
                 in_battle: false,
