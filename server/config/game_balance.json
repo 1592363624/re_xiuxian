@@ -351,6 +351,7 @@
     "interrupt_penalty_rate": 0.3,
     "deep_interrupt_penalty_rate": 0.5,
     "exp_reward_rate": 0.01,
+    "base_exp_per_minute": 2,
     "max_exp_reward_per_session": 100000
   },
   "item_types": {

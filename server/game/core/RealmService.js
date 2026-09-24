@@ -189,22 +189,49 @@ class RealmService {
      * @returns {{ met: boolean, playerRank: number, requiredRank: number, reason?: string }}
      */
     meetsRealmRequirement(playerOrRealm, minRealmName) {
+        // 凡人 rank=0 是合法境界，不能把 <=0 一律当「未配置」——
+        // 否则新手（凡人）进 requiredRealm=凡人 的新手地图会被误拦，指归「识途知返」卡死。
         let playerRank;
         let playerRealmName;
+        let playerKnown = true;
+
         if (typeof playerOrRealm === 'string') {
-            // 传入字符串：按字符串解析
             playerRealmName = playerOrRealm;
-            playerRank = this.getRealmRank(playerRealmName);
+            const realm = this.getRealmByName(playerRealmName);
+            if (realm) {
+                playerRank = realm.rank;
+            } else {
+                playerKnown = false;
+                playerRank = 0;
+            }
         } else {
             playerRealmName = playerOrRealm?.realm;
-            playerRank = this.getPlayerRank(playerOrRealm);
+            const realm = playerRealmName ? this.getRealmByName(playerRealmName) : null;
+            const fieldRaw = playerOrRealm?.realm_rank;
+            const hasField = fieldRaw !== undefined && fieldRaw !== null && fieldRaw !== '';
+            if (realm || hasField) {
+                playerRank = this.getPlayerRank(playerOrRealm);
+            } else {
+                playerKnown = false;
+                playerRank = 0;
+            }
         }
-        const requiredRank = this.resolveMinRealmRank(minRealmName);
 
-        if (playerRank <= 0) {
+        const requiredRealm = this.getRealmByName(minRealmName);
+        let requiredRank;
+        let requiredKnown = true;
+        if (requiredRealm) {
+            requiredRank = requiredRealm.rank;
+        } else {
+            requiredRank = this.resolveMinRealmRank(minRealmName);
+            // resolveMinRealmRank 对无法解析的名字返回 0；凡人已在上支 exact 命中
+            requiredKnown = requiredRank > 0;
+        }
+
+        if (!playerKnown) {
             return { met: false, playerRank, requiredRank, reason: `玩家境界【${playerRealmName}】未在配置中找到` };
         }
-        if (requiredRank <= 0) {
+        if (!requiredKnown) {
             return { met: false, playerRank, requiredRank, reason: `境界要求【${minRealmName}】无法解析为 rank` };
         }
         if (playerRank < requiredRank) {

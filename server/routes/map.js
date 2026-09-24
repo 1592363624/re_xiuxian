@@ -274,25 +274,42 @@ router.post('/start-move', auth, async (req, res) => {
 
         const travelCostInfo = await MapService.calculateTravelCost(targetMapConfig, player, currentMapConfig);
 
-        if (player.mp_current < travelCostInfo.cost) {
-            return res.status(400).json({ 
+        // 付费口径（spec newbie-main-loop S2.1）：优先扣灵力；灵力不够时允许用灵石补足。
+        // 凡人 mp_max/mp_current=0，若只认灵力则新手永远走不动，指归「识途知返」卡死。
+        // BIGINT 列全程 BigInt 运算，避免 Number() 在 >2^53 时截断灵石。
+        const travelCost = BigInt(Math.max(0, Math.floor(Number(travelCostInfo.cost) || 0)));
+        const mpHave = BigInt(player.mp_current || 0);
+        const stonesHave = BigInt(player.spirit_stones || 0);
+        const payFromMp = mpHave < travelCost ? mpHave : travelCost;
+        const payFromStones = travelCost - payFromMp;
+        if (payFromStones > 0n && stonesHave < payFromStones) {
+            return res.status(400).json({
                 code: 400,
-                message: `灵力不足，需要 ${travelCostInfo.cost} 点灵力` 
+                message: `灵力/灵石不足，需要灵力 ${travelCost}（当前 ${mpHave}）或补灵石 ${payFromStones}（当前 ${stonesHave}）`
             });
         }
 
         const now = new Date();
         const endTime = new Date(now.getTime() + travelCostInfo.time * 1000);
 
+        // 数值列必须走 PlayerStateStore 原子增减 + 移动状态同事务补丁，
+        // 否则会触发 numericWriteGuard（与指归发奖等并发写灵石时整值写回会抹账）。
+        const { patchPlayerState } = require('../game/persistence/PlayerStateStore');
         const t = await sequelize.transaction();
         try {
-            player.mp_current = BigInt(player.mp_current) - BigInt(travelCostInfo.cost);
-            player.is_moving = true;
-            player.moving_from_map_id = currentMapId;
-            player.moving_to_map_id = targetMapId;
-            player.move_start_time = now;
-            player.move_end_time = endTime;
-            await player.save({ transaction: t });
+            const amounts = {};
+            if (payFromMp > 0n) amounts.mp_current = -payFromMp;
+            if (payFromStones > 0n) amounts.spirit_stones = -payFromStones;
+            await patchPlayerState(player.id, {
+                amounts,
+                columns: {
+                    is_moving: true,
+                    moving_from_map_id: currentMapId,
+                    moving_to_map_id: targetMapId,
+                    move_start_time: now,
+                    move_end_time: endTime
+                }
+            }, { transaction: t });
 
             await PlayerMovement.create({
                 player_id: player.id,
@@ -301,7 +318,8 @@ router.post('/start-move', auth, async (req, res) => {
                 to_map_id: targetMapId,
                 to_map_name: targetMapConfig.name,
                 distance: travelCostInfo.distance,
-                mp_consumed: travelCostInfo.cost,
+                // 审计字段名保留 mp_consumed；灵石代付时记实付灵力，避免账面虚高
+                mp_consumed: Number(payFromMp),
                 duration_seconds: travelCostInfo.time,
                 status: 'moving',
                 started_at: now

@@ -158,6 +158,9 @@ router.post('/try', authenticateToken, async (req, res, next) => {
             const ageIncrease = currentRealm.rank * FAILURE_AGE_MULTIPLIER;
             player.lifespan_current = (player.lifespan_current || 0) + ageIncrease;
 
+            // 一次性突破加成失败也清空，避免下次白吃加成
+            await game.RealmService.clearPendingBreakthroughBonus(player, t);
+
             // 瓶颈失败处理：累加失败次数，提供感悟补偿
             const failureResult = await MeditationService.handleBreakthroughFailure(player, t);
 
@@ -217,8 +220,12 @@ router.post('/try', authenticateToken, async (req, res, next) => {
         }
 
         // 突破成功：更新境界
+        // 修为进度模型（spec newbie-main-loop S2.2）：exp 是「本境界」已积累修为，
+        // 成功后必须清零，否则 exp >= 新境界 exp_cap 时会连破，且面板 exp/exp_cap 进度错位。
+        // 与 RealmService.breakthrough 同一口径。
         const oldRealm = player.realm;
         player.realm = nextRealm.name;
+        player.exp = 0n;
 
         // 修复（2026-07-20）：
         //   突破成功后必须同步更新 realm_rank 字段，否则会导致：
@@ -245,8 +252,23 @@ router.post('/try', authenticateToken, async (req, res, next) => {
         if (newLifespanMax) {
             player.lifespan_max = newLifespanMax;
         }
-        player.hp_current = nextRealm.base_hp || player.hp_current;
-        player.mp_current = nextRealm.base_mp || player.mp_current;
+        // HP/MP 与面板同一解析口径（AttributeService），不再直接写 base_hp/base_mp 列值
+        try {
+            const AttributeMaxService = require('../game/core/AttributeMaxService');
+            const maxValues = AttributeMaxService.calculateAttributeMaxValues(player, nextRealm);
+            // mp_max=0（凡人/无灵力）是合法值，不能 || 掉再落到 base_mp
+            const hpMax = maxValues.hp_max != null ? maxValues.hp_max : (nextRealm.base_hp || 0);
+            const mpMax = maxValues.mp_max != null ? maxValues.mp_max : (nextRealm.base_mp || 0);
+            player.hp_current = BigInt(hpMax);
+            player.mp_current = BigInt(mpMax);
+        } catch (attrErr) {
+            console.warn('[Breakthrough] 突破后重算 HP/MP 失败，回退境界列值:', attrErr.message);
+            player.hp_current = nextRealm.base_hp || player.hp_current;
+            player.mp_current = nextRealm.base_mp || player.mp_current;
+        }
+
+        // 一次性突破加成只服务本次，成与败都清零（与 RealmService 对齐）
+        await game.RealmService.clearPendingBreakthroughBonus(player, t);
 
         // 瓶颈成功处理：清理瓶颈状态
         await MeditationService.handleBreakthroughSuccess(player, t);

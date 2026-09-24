@@ -249,7 +249,8 @@ class PlayerService {
             is_banned: false,
             ban_reason: null,
             ban_expire_time: null,
-            realm_rank: null,
+            // 凡人 rank=0；null 会让 realm_rank 比较/瓶颈表命中异常（max(name,field) 虽能兜，但落库应是合法 rank）
+            realm_rank: 0,
             realm_max_lifespan: null
         };
     }

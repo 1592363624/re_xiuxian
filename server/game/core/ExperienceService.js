@@ -54,18 +54,20 @@ class ExperienceService {
     }
 
     /**
-     * 获取当前境界下一境界所需修为
+     * 获取下一境界的修为上限（突破后那一档要攒满多少修为）
+     * 必须读 realm_breakthrough 的 exp_cap，与 getExpCap / 设计表同一真源；
+     * 历史实现用 1000*rank³ 兜底公式，和配置表脱节，预览与面板会对不上。
      * @param {Object} player - 玩家对象
-     * @returns {BigInt} 下一境界所需修为
+     * @returns {BigInt} 下一境界所需修为；已是最高境界时为 0
      */
     getNextRealmExpCap(player) {
+        const config = this.configLoader?.getConfig('realm_breakthrough');
+        const realms = config?.realms || [];
         const realm = this.getRealmConfig(player.realm);
         if (!realm) return BigInt(0);
-        
-        const nextRank = realm.rank + 1;
-        const roleConfig = this.getRoleInitConfig();
-        const expGrowthRate = roleConfig.expGrowthRate || 3;
-        return BigInt(Math.floor(1000 * Math.pow(nextRank, expGrowthRate)));
+        const next = realms.find(r => r.rank === (realm.rank ?? 0) + 1);
+        if (!next || next.exp_cap == null) return BigInt(0);
+        return BigInt(next.exp_cap);
     }
 
     /**

@@ -406,10 +406,19 @@ class MeditationService {
             insightGain = Math.floor(insightGain * completionRatio);
         }
 
-        // 修为奖励
-        const expRate = actualDurationCfg.exp_reward_rate || 0.01;
-        const currentExp = Number(locked.exp || 0);
-        let expGain = Math.floor(currentExp * expRate * completionRatio);
+        // 修为奖励 = 基础速率（设计：约 2 点/现实分钟，0 修为也应涨）+ 现有修为比例加速
+        // 只按 currentExp * rate 时，新号 exp=0 结算恒为 0，指归「吐纳归息」与主循环卡死。
+        // 基础项用「实际已坐秒数」线性折算，**不再**乘 completion_ratio：
+        // completion_ratio = actual/planned，再乘一次会把中断场景压成平方衰减（50% 时长只给 25%）。
+        const expRate = actualDurationCfg.exp_reward_rate || cfg.exp_reward_rate || 0.01;
+        const basePerMinute = Number(cfg.base_exp_per_minute ?? 2);
+        const currentExp = BigInt(locked.exp || 0);
+        const baseExp = Math.floor(basePerMinute * (actualDuration / 60));
+        // 比例加速按完成度折（高修为加速尊重「坐满才多拿」）；BIGINT 避免大 exp 截断
+        const rateBp = BigInt(Math.max(0, Math.round(expRate * 10000)));
+        const completionMs = BigInt(Math.max(0, Math.min(1000, Math.round(completionRatio * 1000))));
+        const ratioExp = currentExp * rateBp / 10000n * completionMs / 1000n;
+        let expGain = baseExp + Number(ratioExp > 0n ? ratioExp : 0n);
         const maxExp = cfg.max_exp_reward_per_session || 100000;
         if (expGain > maxExp) expGain = maxExp;
 
