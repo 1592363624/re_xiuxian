@@ -66,7 +66,7 @@ class FengxiCurseService {
         if (Math.random() > (Number(c.trigger_chance_per_hour) || 0.04)) return null;
 
         const Player = require('../../models/player');
-        const { sequelize } = require('../../models');
+        const sequelize = require('../../config/database');
         const t = await sequelize.transaction();
         try {
             const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
@@ -111,7 +111,7 @@ class FengxiCurseService {
 
     static async _resolve(playerId, mode) {
         const Player = require('../../models/player');
-        const { sequelize } = require('../../models');
+        const sequelize = require('../../config/database');
         const c = cfg();
         const t = await sequelize.transaction();
         try {

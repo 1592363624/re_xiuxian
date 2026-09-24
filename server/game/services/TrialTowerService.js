@@ -100,11 +100,14 @@ class TrialTowerService {
      */
     static async challenge(playerId, playerPower) {
         const Player = require('../../models/player');
-        const { safeBigInt } = require('../../utils/bigint');
+        const sequelize = require('../../config/database');
+        function safeBigInt(value) {
+            try { return BigInt(value ?? 0); } catch (_) { return 0n; }
+        }
         const NotificationService = require('./NotificationService');
 
         const cfg = towerConfig();
-        const t = await (require('../../models').sequelize).transaction();
+        const t = await sequelize.transaction();
         try {
             const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);

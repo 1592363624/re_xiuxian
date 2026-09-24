@@ -9,7 +9,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { sequelize } = require('../models');
+const sequelize = require('../config/database');
 const Player = require('../models/player');
 const auth = require('../middleware/auth');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
