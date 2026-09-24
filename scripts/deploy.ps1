@@ -38,7 +38,10 @@ $projectDir = Split-Path -Parent (Split-Path -Parent $scriptPath)
 $branch = "main"
 $serverPort = 5000
 $pm2AppName = "xiuxian-server"
-$healthCheckUrl = "http://localhost:5000/api/health"
+# 用 127.0.0.1 而不是 localhost：Windows 上 localhost 可能先解析到 ::1，
+# 与 Node 监听族不一致时 Invoke-WebRequest 会报「底层连接已关闭」。
+# 也不要去 https：本进程只讲明文 HTTP，FORCE_HTTPS 的 301 已对 /api/health 豁免。
+$healthCheckUrl = "http://127.0.0.1:5000/api/health"
 # ==================
 
 # 打印用的短 hash。origin/main 首次 fetch 前不存在，rev-parse 返回空，
@@ -207,8 +210,9 @@ Enable-Maintenance
 # 稳定维护页：拷到 client/maintenance.html（在 dist 外）。
 # vite build 会 emptyOutDir 清掉 dist，nginx 若 rewrite 到 dist/maintenance.html
 # 会在那一瞬间 404；指向 client/maintenance.html 则全程可读。
-$srcMaint = Join-Path "$projectDir\client\public\maintenance.html"
-$stableMaint = Join-Path "$projectDir\client\maintenance.html"
+# Join-Path 必须两个参数（Parent + Child）；单参数会抛 MissingMandatoryParameter。
+$srcMaint = Join-Path $projectDir "client\public\maintenance.html"
+$stableMaint = Join-Path $projectDir "client\maintenance.html"
 if (Test-Path -LiteralPath $srcMaint) {
     Copy-Item -LiteralPath $srcMaint -Destination $stableMaint -Force
     Write-Host "[OK] Stable maintenance page: $stableMaint"
@@ -364,27 +368,40 @@ Write-Host ""
 Write-Host "[7/7] Health check, then disable maintenance..."
 Start-Sleep -Seconds 10
 
-try {
-    $res = Invoke-WebRequest -Uri $healthCheckUrl -UseBasicParsing -TimeoutSec 5
-    if ($res.StatusCode -eq 200) {
-        # 健康检查通过后关维护：玩家遮罩/维护页轮询到 200 会自动整页刷新进新版本
-        Disable-Maintenance
-        Write-Host ""
-        Write-Host "=================================================="
-        Write-Host "  Deploy SUCCESS"
-        Write-Host "  Version: $(git rev-parse --short HEAD)"
-        Write-Host "  Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-        Write-Host "  URL: http://localhost:$serverPort"
-        Write-Host "  Logs: pm2 logs $pm2AppName"
-        Write-Host "=================================================="
-    } else {
-        Write-Host "[FATAL] Health check failed: HTTP $($res.StatusCode)"
-        Write-Host "[INFO] Maintenance flag kept so players stay on the maintenance page"
-        pm2 logs $pm2AppName --lines 30 --nostream 2>&1 | Out-Host
-        exit 1
+# 多次重试 + 不跟随重定向：刚拉起的 Node 偶发慢一拍；
+# 跟 301 到 https 会在明文端口上炸出「底层连接已关闭」。
+$healthOk = $false
+$healthMsg = ''
+for ($i = 1; $i -le 6; $i++) {
+    try {
+        $res = Invoke-WebRequest -Uri $healthCheckUrl -UseBasicParsing -TimeoutSec 5 -MaximumRedirection 0
+        if ($res.StatusCode -eq 200) {
+            $healthOk = $true
+            $healthMsg = "HTTP 200 (try $i)"
+            break
+        }
+        $healthMsg = "HTTP $($res.StatusCode) (try $i)"
+    } catch {
+        # -MaximumRedirection 0 时 301 也会进 catch；301/302 视为探针打歪，继续重试
+        $healthMsg = "$($_.Exception.Message) (try $i)"
     }
-} catch {
-    Write-Host "[FATAL] Health check failed: $($_.Exception.Message)"
+    Start-Sleep -Seconds 2
+}
+
+if ($healthOk) {
+    # 健康检查通过后关维护：玩家遮罩/维护页轮询到 200 会自动整页刷新进新版本
+    Disable-Maintenance
+    Write-Host "[OK] Health check passed: $healthMsg"
+    Write-Host ""
+    Write-Host "=================================================="
+    Write-Host "  Deploy SUCCESS"
+    Write-Host "  Version: $(git rev-parse --short HEAD)"
+    Write-Host "  Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Write-Host "  URL: http://localhost:$serverPort"
+    Write-Host "  Logs: pm2 logs $pm2AppName"
+    Write-Host "=================================================="
+} else {
+    Write-Host "[FATAL] Health check failed: $healthMsg"
     Write-Host "[INFO] Maintenance flag kept so players stay on the maintenance page"
     Write-Host "[INFO] PM2 logs (last 30 lines):"
     pm2 logs $pm2AppName --lines 30 --nostream 2>&1 | Out-Host

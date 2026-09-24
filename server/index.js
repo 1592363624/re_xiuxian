@@ -227,7 +227,13 @@ const corsOptions = {
 // 强制 HTTPS / HSTS：
 //   FORCE_HTTPS=1 时非 https 请求 301 跳转（生产强烈建议，防抓包偷 JWT）；
 //   只要走了 https（含反代注入的 X-Forwarded-Proto）就下发 HSTS。
+//   /api/health 必须永远直出 200：deploy.ps1 用 http://127.0.0.1 探活，
+//   跟到 https 会因 Node 本身不讲 TLS 而「底层连接已关闭」，维护页永远关不掉。
 app.use((req, res, next) => {
+  const pathOnly = (req.path || req.originalUrl || '').split('?')[0];
+  if (pathOnly === '/api/health' || pathOnly === '/api/health/') {
+    return next();
+  }
   const proto = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
   const isSecure = req.secure || proto === 'https';
   if (isSecure) {
