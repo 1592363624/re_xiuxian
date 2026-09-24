@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "dataset": "sect_diplomacy",
+    "version": 1,
+    "comment": "宗门外交：每日自动选掌门（结丹后期+修为最高）；示好/敌对/结盟/解除；斗法因果加成。"
+  },
+  "sect_diplomacy": {
+    "leader_min_realm_rank": 15,
+    "relation_change_cooldown_hours": 24,
+    "alliance_invite_expire_minutes": 60,
+    "break_alliance_block_hours": 72,
+    "friendly_loot_penalty": 0.05,
+    "hostile_bonus_exp_rate": 0.15,
+    "hostile_bonus_contribution_rate": 0.15,
+    "alliance_power_bonus": 0.05,
+    "relations": ["neutral", "friendly", "hostile", "allied"]
+  }
+}

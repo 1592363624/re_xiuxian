@@ -703,6 +703,7 @@ const startServer = async () => {
 app.use('/api/gift', require('./routes/gift'));
 app.use('/api/trial-tower', require('./routes/trial_tower'));
 app.use('/api/fengxi', require('./routes/fengxi'));
+app.use('/api/sect-diplomacy', require('./routes/sect_diplomacy'));
     // PVP 斗法系统（第四阶段新增：玩家对战、段位排名、荣誉值）
     app.use('/api/pvp', require('./routes/pvp'));
     // PVP 管理（GM 后台）：段位调整、强制取消战斗、战斗记录查询
