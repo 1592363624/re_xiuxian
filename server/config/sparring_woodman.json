@@ -9,8 +9,8 @@
     ]
   },
   "global": {
-    "daily_limit": 5,
-    "cooldown_sec": 300,
+    "daily_limit": 8,
+    "cooldown_sec": 180,
     "min_realm_rank": 8,
     "min_realm_name": "炼气八层",
     "hp_loss_on_defeat_ratio": 0.05,

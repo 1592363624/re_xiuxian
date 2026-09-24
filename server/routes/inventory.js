@@ -28,6 +28,15 @@ router.get('/', auth, async (req, res, next) => {
  * POST /api/inventory/use
  * body: { item_key, quantity }
  */
+/** 路由层钳制数量：Service 再校验一次（双层），禁止 NaN/负数/超大值直达业务 */
+function parseQuantity(value) {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1 || n > 99) {
+        throw new AppError('数量必须是 1-99 的整数', 400, ErrorCodes.VALIDATION_ERROR);
+    }
+    return n;
+}
+
 router.post('/use', auth, async (req, res, next) => {
     try {
         const { item_key, quantity } = req.body;
@@ -36,8 +45,8 @@ router.post('/use', auth, async (req, res, next) => {
         }
         const result = await InventoryService.useItem(
             req.user.id,
-            item_key,
-            parseInt(quantity) || 1
+            String(item_key),
+            parseQuantity(quantity ?? 1)
         );
         res.json({ code: 200, ...result });
     } catch (error) {
@@ -58,8 +67,8 @@ router.post('/discard', auth, async (req, res, next) => {
         }
         const result = await InventoryService.discardItem(
             req.user.id,
-            item_key,
-            parseInt(quantity) || 1
+            String(item_key),
+            parseQuantity(quantity ?? 1)
         );
         res.json({ code: 200, ...result });
     } catch (error) {

@@ -210,8 +210,9 @@ class InventoryService {
      * @returns {Promise<Object>} 丢弃结果
      */
     async discardItem(playerId, itemKey, quantity = 1) {
-        if (quantity < 1) {
-            throw new AppError('丢弃数量必须大于 0', 400, ErrorCodes.VALIDATION_ERROR);
+        // 与 useItem 同口径：禁止 NaN/负数/超大值（路由层再钳一次）
+        if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+            throw new AppError('丢弃数量必须在 1-99 之间', 400, ErrorCodes.VALIDATION_ERROR);
         }
 
         const config = this.getItemConfig(itemKey);

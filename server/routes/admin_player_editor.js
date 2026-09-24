@@ -873,14 +873,18 @@ router.post('/:playerId/inventory/batch', auth, adminCheck, async (req, res) => 
  * 数量传 0 表示删除这条记录（回收物品比留一条 0 数量的脏数据干净）
  */
 router.put('/:playerId/inventory/:itemId', auth, adminCheck, async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         const playerId = parsePlayerId(req.params.playerId);
         const itemId = parsePlayerId(req.params.itemId);
         const cfg = readEditorConfig();
         const invCfg = cfg.inventory || FALLBACK_CONFIG.inventory;
 
-        const record = await Item.findOne({ where: { id: itemId, player_id: playerId } });
-        if (!record) return res.status(404).json({ code: 404, message: '背包中没有这条物品记录' });
+        const record = await Item.findOne({ where: { id: itemId, player_id: playerId }, lock: t.LOCK.UPDATE, transaction: t });
+        if (!record) {
+            await t.rollback();
+            return res.status(404).json({ code: 404, message: '背包中没有这条物品记录' });
+        }
 
         const dict = new Map(readItemDictionary().map(i => [String(i.id), i]));
         const changes = {};
@@ -902,7 +906,8 @@ router.put('/:playerId/inventory/:itemId', auth, adminCheck, async (req, res) =>
 
         // 数量归零等价于删除：留在库里会让"背包有这条但用不了"变成幽灵数据
         if (changes.quantity === 0) {
-            await record.destroy();
+            await record.destroy({ transaction: t });
+            await t.commit();
             await logAdminAction(req.player.id, 'edit_player_inventory', {
                 target_id: playerId, action: 'remove_item', item_key: record.item_key, item_id: itemId
             }, req);
@@ -911,7 +916,8 @@ router.put('/:playerId/inventory/:itemId', auth, adminCheck, async (req, res) =>
         }
 
         for (const [key, value] of Object.entries(changes)) record[key] = value;
-        await record.save();
+        await record.save({ transaction: t });
+        await t.commit();
 
         await logAdminAction(req.player.id, 'edit_player_inventory', {
             target_id: playerId, action: 'update_item', item_key: record.item_key, item_id: itemId, changes: Object.keys(changes)
@@ -920,6 +926,7 @@ router.put('/:playerId/inventory/:itemId', auth, adminCheck, async (req, res) =>
 
         res.json({ code: 200, message: '背包物品已更新', data: { item: decorateWithItemName(record, dict) } });
     } catch (error) {
+        if (t && !t.finished) await t.rollback();
         if (error instanceof ValidationError) return res.status(400).json({ code: 400, message: error.message });
         res.status(500).json({ code: 500, message: '更新背包物品失败', error: error.message });
     }
@@ -1037,14 +1044,18 @@ router.post('/:playerId/equipment', auth, adminCheck, async (req, res) => {
  * PUT /api/admin/player-editor/:playerId/equipment/:equipmentId
  */
 router.put('/:playerId/equipment/:equipmentId', auth, adminCheck, async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         const playerId = parsePlayerId(req.params.playerId);
         const equipmentId = parsePlayerId(req.params.equipmentId);
         const cfg = readEditorConfig();
         const eqCfg = cfg.equipment || FALLBACK_CONFIG.equipment;
 
-        const record = await PlayerEquipment.findOne({ where: { id: equipmentId, player_id: playerId } });
-        if (!record) return res.status(404).json({ code: 404, message: '装备记录不存在' });
+        const record = await PlayerEquipment.findOne({ where: { id: equipmentId, player_id: playerId }, lock: t.LOCK.UPDATE, transaction: t });
+        if (!record) {
+            await t.rollback();
+            return res.status(404).json({ code: 404, message: '装备记录不存在' });
+        }
 
         const allowed = eqCfg.editable_fields || [];
         const changes = {};
@@ -1103,7 +1114,8 @@ router.put('/:playerId/equipment/:equipmentId', auth, adminCheck, async (req, re
         // TEXT + JSON 存取器：换上的是新对象时 changed() 本就为真，这里显式标一次，
         // 免得"取出来改字段再赋回同一引用"那种写法静默丢写（ArtifactDeepLineService 也是这么标的）
         if (changes.deep_line_state) record.changed('deep_line_state', true);
-        await record.save();
+        await record.save({ transaction: t });
+        await t.commit();
 
         const dict = new Map(readItemDictionary().map(i => [String(i.id), i]));
         await logAdminAction(req.player.id, 'edit_player_equipment', {
@@ -1117,6 +1129,7 @@ router.put('/:playerId/equipment/:equipmentId', auth, adminCheck, async (req, re
 
         res.json({ code: 200, message: '装备已更新', data: { equipment: decorateWithItemName(record, dict) } });
     } catch (error) {
+        if (t && !t.finished) await t.rollback();
         if (error instanceof ValidationError) return res.status(400).json({ code: 400, message: error.message });
         res.status(500).json({ code: 500, message: '更新装备失败', error: error.message });
     }
@@ -1157,6 +1170,7 @@ router.delete('/:playerId/equipment/:equipmentId', auth, adminCheck, async (req,
  * POST /api/admin/player-editor/:playerId/techniques
  */
 router.post('/:playerId/techniques', auth, adminCheck, async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         const playerId = parsePlayerId(req.params.playerId);
         const cfg = readEditorConfig();
@@ -1165,10 +1179,13 @@ router.post('/:playerId/techniques', auth, adminCheck, async (req, res) => {
         const techniqueId = String(req.body.technique_id || '').trim();
         if (!techniqueId) throw new ValidationError('功法ID不能为空');
 
-        const player = await Player.findByPk(playerId);
-        if (!player) return res.status(404).json({ code: 404, message: '玩家不存在' });
+        const player = await Player.findByPk(playerId, { lock: t.LOCK.UPDATE, transaction: t });
+        if (!player) {
+            await t.rollback();
+            return res.status(404).json({ code: 404, message: '玩家不存在' });
+        }
 
-        const dict = new Map(readTechniqueDictionary().map(t => [String(t.id), t]));
+        const dict = new Map(readTechniqueDictionary().map(x => [String(x.id), x]));
         if (!dict.has(techniqueId) && !techCfg.allow_unknown_technique) {
             throw new ValidationError(`功法 ${techniqueId} 不在 technique_data 配置中`);
         }
@@ -1177,20 +1194,27 @@ router.post('/:playerId/techniques', auth, adminCheck, async (req, res) => {
         if (req.body.layer !== undefined) payload.layer = Number(req.body.layer) || 1;
         if (req.body.proficiency !== undefined) payload.proficiency = Number(req.body.proficiency) || 0;
         if (req.body.equip_slot !== undefined) payload.equip_slot = req.body.equip_slot || null;
-        if (Array.isArray(req.body.comprehended_skills)) payload.comprehended_skills = req.body.comprehended_skills;
+        if (Array.isArray(req.body.comprehended_skills)) {
+            payload['comprehended_skills'] = req.body.comprehended_skills;
+        }
 
-        const existing = await PlayerTechnique.findOne({ where: { player_id: playerId, technique_id: techniqueId } });
+        const existing = await PlayerTechnique.findOne({
+            where: { player_id: playerId, technique_id: techniqueId },
+            lock: t.LOCK.UPDATE,
+            transaction: t
+        });
         let record;
         if (existing) {
             for (const [key, value] of Object.entries(payload)) {
                 if (key === 'player_id' || key === 'technique_id') continue;
                 existing[key] = value;
             }
-            await existing.save();
+            await existing.save({ transaction: t });
             record = existing;
         } else {
-            record = await PlayerTechnique.create(payload);
+            record = await PlayerTechnique.create(payload, { transaction: t });
         }
+        await t.commit();
 
         await logAdminAction(req.player.id, 'edit_player_technique', {
             target_id: playerId, action: 'grant', technique_id: techniqueId, updated: !!existing
@@ -1199,6 +1223,7 @@ router.post('/:playerId/techniques', auth, adminCheck, async (req, res) => {
 
         res.json({ code: 200, message: '功法已授予', data: { technique: record.toJSON() } });
     } catch (error) {
+        if (t && !t.finished) await t.rollback();
         if (error instanceof ValidationError) return res.status(400).json({ code: 400, message: error.message });
         res.status(500).json({ code: 500, message: '授予功法失败', error: error.message });
     }
@@ -1209,14 +1234,18 @@ router.post('/:playerId/techniques', auth, adminCheck, async (req, res) => {
  * PUT /api/admin/player-editor/:playerId/techniques/:techniqueId
  */
 router.put('/:playerId/techniques/:techniqueId', auth, adminCheck, async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         const playerId = parsePlayerId(req.params.playerId);
         const techniqueId = parsePlayerId(req.params.techniqueId);
         const cfg = readEditorConfig();
         const techCfg = cfg.techniques || FALLBACK_CONFIG.techniques;
 
-        const record = await PlayerTechnique.findOne({ where: { id: techniqueId, player_id: playerId } });
-        if (!record) return res.status(404).json({ code: 404, message: '功法记录不存在' });
+        const record = await PlayerTechnique.findOne({ where: { id: techniqueId, player_id: playerId }, lock: t.LOCK.UPDATE, transaction: t });
+        if (!record) {
+            await t.rollback();
+            return res.status(404).json({ code: 404, message: '功法记录不存在' });
+        }
 
         const allowed = techCfg.editable_fields || [];
         const changes = {};
@@ -1254,7 +1283,8 @@ router.put('/:playerId/techniques/:techniqueId', auth, adminCheck, async (req, r
         if (!Object.keys(changes).length) throw new ValidationError('没有需要更新的字段');
 
         for (const [key, value] of Object.entries(changes)) record[key] = value;
-        await record.save();
+        await record.save({ transaction: t });
+        await t.commit();
 
         await logAdminAction(req.player.id, 'edit_player_technique', {
             target_id: playerId, action: 'update', technique_record_id: techniqueId, changes: Object.keys(changes)
@@ -1263,6 +1293,7 @@ router.put('/:playerId/techniques/:techniqueId', auth, adminCheck, async (req, r
 
         res.json({ code: 200, message: '功法已更新', data: { technique: record.toJSON() } });
     } catch (error) {
+        if (t && !t.finished) await t.rollback();
         if (error instanceof ValidationError) return res.status(400).json({ code: 400, message: error.message });
         res.status(500).json({ code: 500, message: '更新功法失败', error: error.message });
     }

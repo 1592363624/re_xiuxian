@@ -223,6 +223,7 @@
             "exp_cap": 300000,
             "lifespan_max": 240,
             "breakthrough_probability": 70,
+            "required_materials": [],
             "description": "筑基圆满，可冲击金丹"
         },
         {
@@ -238,7 +239,10 @@
             "exp_cap": 450000,
             "lifespan_max": 500,
             "breakthrough_probability": 40,
-            "description": "凝聚金丹"
+            "required_materials": [
+                { "item_key": "foundation_pill", "quantity": 1 }
+            ],
+            "description": "凝聚金丹（需筑基丹）"
         },
         {
             "id": "gold_mid",
@@ -283,7 +287,10 @@
             "exp_cap": 6000000,
             "lifespan_max": 570,
             "breakthrough_probability": 50,
-            "description": "金丹圆满，可冲击元婴"
+            "required_materials": [
+                { "item_key": "gold_pill", "quantity": 1 }
+            ],
+            "description": "金丹圆满，可冲击元婴（需结金丹）"
         },
         {
             "id": "nascent_early",
@@ -298,7 +305,10 @@
             "exp_cap": 8000000,
             "lifespan_max": 1000,
             "breakthrough_probability": 30,
-            "description": "元婴初成"
+            "required_materials": [
+                { "item_key": "nascent_pill", "quantity": 1 }
+            ],
+            "description": "元婴初成（需化婴丹）"
         },
         {
             "id": "nascent_mid",
@@ -343,7 +353,10 @@
             "exp_cap": 120000000,
             "lifespan_max": 1100,
             "breakthrough_probability": 40,
-            "description": "元婴圆满，可冲击化神"
+            "required_materials": [
+                { "item_key": "nascent_soul_pill", "quantity": 1 }
+            ],
+            "description": "元婴圆满，可冲击化神（需圆满化婴丹）"
         },
         {
             "id": "spirit_transformation_early",
@@ -358,7 +371,10 @@
             "exp_cap": 300000000,
             "lifespan_max": 2000,
             "breakthrough_probability": 30,
-            "description": "化神初成，元婴化为元神，可出窍探查天地"
+            "required_materials": [
+                { "item_key": "xuanji_pill", "quantity": 1 }
+            ],
+            "description": "化神初成，元婴化为元神，可出窍探查天地（需玄机丹）"
         },
         {
             "id": "spirit_transformation_mid",

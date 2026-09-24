@@ -6,6 +6,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } f
 import { usePlayerStore } from '../stores/player';
 import { useUIStore } from '../stores/ui';
 import { showMaintenanceOverlay, reportNetworkFailure, isMaintenanceOverlayActive } from '../utils/maintenanceGuard';
+import { extractRequestKey, signRequestHeaders, needsRequestSign } from '../utils/requestSign';
 
 // 创建 axios 实例
 const apiClient: AxiosInstance = axios.create({
@@ -17,12 +18,67 @@ const apiClient: AxiosInstance = axios.create({
 });
 
 // 请求拦截器
+// 写操作附带 X-Request-Timestamp / Nonce / Signature（防重放 + 防改包），
+// 算法与 server/utils/requestSign.js 对齐；rk 从 JWT 载荷取出。
 apiClient.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
+  async (config: AxiosRequestConfig) => {
     const playerStore = usePlayerStore();
-    if (playerStore.token && config.headers) {
-      config.headers.Authorization = `Bearer ${playerStore.token}`;
+    const token = playerStore.token;
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+
+    const method = (config.method || 'get').toUpperCase();
+    // 与服务端 req.originalUrl 对齐：含 /api 前缀与 query
+    const joinUrl = (base: string, path: string) => {
+      const b = (base || '').replace(/\/+$/, '');
+      const p = path.startsWith('/') ? path : `/${path}`;
+      return `${b}${p}` || p;
+    };
+    let originalUrl = joinUrl(config.baseURL || '/api', config.url || '');
+    if (!originalUrl.startsWith('/')) originalUrl = `/${originalUrl}`;
+    if (!originalUrl.startsWith('/api')) originalUrl = `/api${originalUrl.startsWith('/') ? '' : '/'}${originalUrl.replace(/^\/+/, '')}`;
+    // 仅拼简单 query（写接口几乎不用 params；GET 不签名）
+    if (config.params && typeof config.params === 'object') {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(config.params as Record<string, unknown>)) {
+        if (v !== undefined && v !== null) qs.append(k, String(v));
+      }
+      const q = qs.toString();
+      if (q) originalUrl += (originalUrl.includes('?') ? '&' : '?') + q;
+    }
+    const fullUrl = originalUrl;
+
+    if (needsRequestSign(method) && !String(fullUrl).startsWith('/api/auth')) {
+      // 统一序列化 body，保证 HMAC 与线上字节一致（axios 默认 JSON.stringify 同源）
+      let rawBody = '';
+      if (config.data !== undefined && config.data !== null && config.data !== '') {
+        rawBody = typeof config.data === 'string' ? config.data : JSON.stringify(config.data);
+        config.data = rawBody;
+        if (config.headers) {
+          config.headers['Content-Type'] = config.headers['Content-Type'] || 'application/json';
+        }
+      }
+
+      const rk = extractRequestKey(token);
+      if (!rk) {
+        // 旧会话令牌没有 rk：强制重新登录，不能静默不签名（服务端 enforce 会拒）
+        const err: any = new Error('会话缺少请求签名密钥，请重新登录');
+        err.__uiNotified = true;
+        err.config = config;
+        return Promise.reject(err);
+      }
+
+      const signHeaders = await signRequestHeaders(rk, {
+        method,
+        url: fullUrl,
+        rawBody
+      });
+      if (config.headers) {
+        Object.assign(config.headers, signHeaders);
+      }
+    }
+
     return config;
   },
   (error: AxiosError) => {
@@ -63,7 +119,16 @@ apiClient.interceptors.response.use(
       if (status === 401) {
         const playerStore = usePlayerStore();
         playerStore.logout();
-        notify('登录已过期，请重新登录');
+        const guardCode = (data as any)?.error_code;
+        // 登录接口本身失败不要再说「请重新登录」——用户正在登录
+        const isLoginApi = /\/auth\/(login|register|qq)/.test(requestUrl || '');
+        notify(
+          isLoginApi
+            ? (serverMessage || '登录失败，请重试')
+            : guardCode === 'REQUEST_KEY_MISSING' || guardCode === 'REQUEST_SIGN_MISSING' || guardCode === 'REQUEST_SIGN_INVALID'
+              ? '安全校验未通过，请重新登录'
+              : '登录已过期，请重新登录'
+        );
       } else if (status === 503 && (data as any)?.code === 'MAINTENANCE') {
         // 部署维护中：原地盖维护遮罩并轮询恢复，绝不整页跳转、也不刷 toast
         // （组件 catch 会走 showApiError，认 __uiNotified 不再叠一条）

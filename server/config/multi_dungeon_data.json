@@ -645,7 +645,7 @@
       "rewards": {
         "base_rewards": [
           { "type": "item", "item_key": "canglongjiang_hongbao", "name": "沧龙江灵石红包", "count": 1, "desc": "含 2000-5000 灵石，可使用开启" },
-          { "type": "exp", "count": 5000, "desc": "修为 +5000" },
+          { "type": "exp", "count": 8000, "desc": "修为 +8000" },
           { "type": "honor", "count": 50, "desc": "荣誉值 +50" }
         ],
         "rare_drops_by_contribution": {
@@ -1688,13 +1688,13 @@
 
       "rewards": {
         "base_rewards": [
-          { "type": "exp", "count": 9000, "desc": "通关基础修为" },
-          { "type": "spirit_stones", "count": 1200, "desc": "通关基础灵石" }
+          { "type": "exp", "count": 45000, "desc": "通关基础修为（元婴后期门槛）" },
+          { "type": "spirit_stones", "count": 15000, "desc": "通关基础灵石" }
         ],
         "perfect_bonus": {
-          "desc": "完美破局额外加成：咒扰<30且士气>60时，每人额外获得修为+3000 贡献+150",
-          "exp": 3000,
-          "contribution": 150
+          "desc": "完美破局额外加成：咒扰<30且士气>60时，每人额外获得修为+8000 贡献+300",
+          "exp": 8000,
+          "contribution": 300
         },
         "guaranteed_drops": [
           {
@@ -1911,13 +1911,13 @@
 
       "rewards": {
         "base_rewards": [
-          { "type": "exp", "count": 12000, "desc": "通关基础修为" },
-          { "type": "spirit_stones", "count": 1500, "desc": "通关基础灵石" }
+          { "type": "exp", "count": 55000, "desc": "通关基础修为（化神初期门槛）" },
+          { "type": "spirit_stones", "count": 18000, "desc": "通关基础灵石" }
         ],
         "perfect_bonus": {
-          "desc": "完美通关加成：根脉稳定>70且灵植灵气>50时，每人额外获得修为+4000 贡献+200",
-          "exp": 4000,
-          "contribution": 200
+          "desc": "完美通关加成：根脉稳定>70且灵植灵气>50时，每人额外获得修为+10000 贡献+400",
+          "exp": 10000,
+          "contribution": 400
         },
         "normal_drops": [
           { "item_key": "lingzhi_grass", "chance": 0.80, "count_min": 2, "count_max": 5, "desc": "灵芝草" },
@@ -2461,18 +2461,18 @@
         "base_rewards": [
           {
             "type": "exp",
-            "count": 35000,
-            "desc": "通关基础修为（血色试炼收益高于一般副本）"
+            "count": 12000,
+            "desc": "通关基础修为（筑基后期门槛，收益贴近同阶）"
           },
           {
             "type": "spirit_stones",
-            "count": 10000,
+            "count": 3500,
             "desc": "通关基础灵石"
           },
           {
             "type": "divine_sense",
-            "count": 60,
-            "desc": "通关永久神识+60"
+            "count": 25,
+            "desc": "通关永久神识+25"
           }
         ],
         "normal_drops": [

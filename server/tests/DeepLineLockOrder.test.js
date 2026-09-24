@@ -4,11 +4,12 @@
  * 为什么单独一条闸而不是塞进户口册：`ArtifactDeepLineService` 里 25 处
  * `equipment.deep_line_state = { ...equipment.deep_line_state, <法宝>: state }` 是"读-改-写整块列"，
  * 户口册按"方法体里有没有对该模型 LOCK.UPDATE"判，看不见本文件的取锁约定 ——
- * 锁收在 `static async _findXxxEquipment(playerId, t = null, lock = false)` 里，
- * 调用点写 `(playerId, t, true)` 才是带锁读。上一轮我把这 25 处记成
+ * 锁收在 `static async _lockXxxEquipment(playerId, t = null, lock = false)` 里（2026-09-23 由 _find* 更名，
+ * 与户口册的 `this._lock*` 集中取锁判据对齐），调用点写 `(playerId, t, t.LOCK.UPDATE)` 才是带锁读。
+ * 上一轮我把这 25 处记成
  * "承认定性没做完"，就是没确认这一点；这条用例把它变成可查的不变量。
  *
- * 要求：凡是要写 `deep_line_state` 的方法，必须先通过 `_find…Equipment(playerId, t, true)`
+ * 要求：凡是要写 `deep_line_state` 的方法，必须先通过 `_lock…Equipment(playerId, t, t.LOCK.UPDATE)`
  * 或直接的 `PlayerEquipment.findOne/findByPk(… lock: t.LOCK.UPDATE …)` 拿到行。
  * 少了这一步，两个并发操作（同一个玩家的两次祭血 / 一次祭血 + 一次 toggling）
  * 就会各自读一份状态机、后写的把先写的整块盖掉 —— 法宝阶段、魔染、悟印都会无声回退。
@@ -48,8 +49,8 @@ function codeOnly(body) {
 
 function lockedReadIn(body) {
     const code = codeOnly(body);
-    // a) 本文件的取锁助手，第三个实参必须是字面量 true
-    const viaHelper = /this\._find\w*Equipment\(\s*[^)]*,\s*t\s*,\s*true\s*\)/.test(code);
+    // a) 本文件的取锁助手：第三个实参是字面量 true 或 t.LOCK.UPDATE
+    const viaHelper = /this\.(?:_find|_lock)\w*Equipment\(\s*[^)]*,\s*t\s*,\s*(?:true|t\.LOCK\.UPDATE)\s*\)/.test(code);
     // b) 直接带锁取行
     const direct = /PlayerEquipment\s*\.\s*(?:findOne|findByPk)\s*\(([\s\S]{0,300}?)\)\s*;/.test(code)
         && /PlayerEquipment\s*\.\s*(?:findOne|findByPk)\s*\([\s\S]{0,300}?LOCK\s*\.\s*UPDATE/.test(code);
@@ -58,11 +59,12 @@ function lockedReadIn(body) {
 
 describe('法宝深度玩法：整块写 deep_line_state 之前必须带行锁读装备行', () => {
     test('检测器不是空跑：认得三种形状（带锁助手 / 不带锁助手 / 直接 FOR UPDATE）', () => {
+        expect(lockedReadIn('const e = await this._lockBloodSwordEquipment(playerId, t, t.LOCK.UPDATE);')).toBe(true);
         expect(lockedReadIn('const e = await this._findBloodSwordEquipment(playerId, t, true);')).toBe(true);
-        expect(lockedReadIn('const e = await this._findBloodSwordEquipment(playerId, t);')).toBe(false);
-        expect(lockedReadIn('const e = await this._findBloodSwordEquipment(playerId);')).toBe(false);
+        expect(lockedReadIn('const e = await this._lockBloodSwordEquipment(playerId, t);')).toBe(false);
+        expect(lockedReadIn('const e = await this._lockBloodSwordEquipment(playerId);')).toBe(false);
         // 注释里写一句带锁的调用，不能把无锁读洗白
-        expect(lockedReadIn('// const e = await this._findBloodSwordEquipment(playerId, t, true);\nconst e = await this._findBloodSwordEquipment(playerId);')).toBe(false);
+        expect(lockedReadIn('// const e = await this._lockBloodSwordEquipment(playerId, t, t.LOCK.UPDATE);\nconst e = await this._lockBloodSwordEquipment(playerId);')).toBe(false);
         expect(lockedReadIn([
             'const e = await PlayerEquipment.findOne({',
             '  where: { player_id: 1 }, transaction: t, lock: t.LOCK.UPDATE',
@@ -71,7 +73,7 @@ describe('法宝深度玩法：整块写 deep_line_state 之前必须带行锁�
     });
 
     test('取锁助手真的会取锁（把 lock 参数改成摆设，这条就红）', () => {
-        const helpers = [...src.matchAll(/static async (_find\w*Equipment)\(playerId, t = null, lock = false\) \{([\s\S]*?)\n    \}/g)]
+        const helpers = [...src.matchAll(/static async ((?:_find|_lock)\w*Equipment)\(playerId, t = null, lock = false\) \{([\s\S]*?)\n    \}/g)]
             .map(m => ({ name: m[1], body: m[2] }));
         expect(helpers.length).toBeGreaterThanOrEqual(3);       // 血魔剑 / 虚天鼎 / 五气轮（少一个 = 形状变了，先修这条）
         for (const h of helpers) {
@@ -108,7 +110,7 @@ describe('法宝深度玩法：整块写 deep_line_state 之前必须带行锁�
         }
         if (offenders.length) {
             throw new Error(`这些方法要整块写 deep_line_state，却没带行锁读装备行：\n  ${offenders.join('\n  ')}`
-                + '\n  改法：`const equipment = await this._find…Equipment(playerId, t, true)`（第三个参数别漏），'
+                + '\n  改法：`const equipment = await this._lock…Equipment(playerId, t, t.LOCK.UPDATE)`（第三个参数别漏），'
                 + '并在锁之后再做读-改-写。');
         }
         // 名单不能空转（2026-09-21 实测：19 个方法写这一列 = 15 个业务方法 + 4 个"补默认值"初始化器）。

@@ -4,6 +4,7 @@
  * 账号密码登录与 QQ 登录共用同一套会话初始化逻辑：互踢版本号、离线 HP/MP 恢复、
  * 过期战斗清理、JWT 签发。抽成一处是为了避免两种登录方式各写一份后行为逐渐分叉。
  */
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { infrastructure } = require('../../modules');
 const configLoader = infrastructure.ConfigLoader;
@@ -14,13 +15,13 @@ function getAuthConfig() {
 
 /**
  * 提取客户端 IP
- * 注意：x-forwarded-for 可被伪造，生产环境需配合 TRUST_PROXY_HOPS 反向代理信任设置
+ *
+ * 只用 req.ip：它已经按 Express 的 trust proxy 设置解析过 X-Forwarded-For
+ * （生产部署配 TRUST_PROXY_HOPS=1 时取的是代理写入的客户端地址）。
+ * 不要自己读 x-forwarded-for 第一段 —— 那一跳是客户端可随便伪造的，
+ * 伪造后限流与日志会全部记到同一个假 IP 上。
  */
 function getClientIp(req) {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-        return forwarded.split(',')[0].trim();
-    }
     return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || null;
 }
 
@@ -89,8 +90,13 @@ async function issueLoginToken(player, req) {
 
     await cleanExpiredBattles(player);
 
+    // rk：请求签名密钥。随 JWT 下发，只有持有本令牌的客户端能对写操作签名；
+    // 服务端验签时从已 verify 的 JWT 载荷取回 rk（见 middleware/requestGuard.js）。
+    // 每次登录（token_version 自增）都换新 rk，旧会话即便抓到包也无法继续签新请求。
+    const rk = crypto.randomBytes(32).toString('base64url');
+
     return jwt.sign(
-        { id: player.id, username: player.username, v: player.token_version },
+        { id: player.id, username: player.username, v: player.token_version, rk },
         process.env.JWT_SECRET,
         { expiresIn: getAuthConfig().jwt_expires_in ?? '7d' }
     );

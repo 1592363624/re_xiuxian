@@ -254,7 +254,7 @@
       "element": "fire",
       "description": "九阳齐出，焚尽八荒，攻伐之道的极致。",
       "required_realm": "元婴期",
-      "bonuses": { "hp_max": 120, "mp_max": 180, "atk": 110, "def": 25 },
+      "bonuses": { "hp_max": 120, "mp_max": 180, "atk": 80, "def": 25 },
       "cultivate_speed_pct_per_layer": 3.5,
       "acquire": { "source": "secret_realm", "drop_rate": 0.005 }
     },
@@ -266,17 +266,50 @@
       "element": "none",
       "description": "传说中开天辟地时诞生的功法，可窥大道本源。",
       "required_realm": "化神期",
-      "bonuses": { "hp_max": 500, "mp_max": 500, "atk": 160, "def": 160 },
+      "bonuses": { "hp_max": 500, "mp_max": 500, "atk": 100, "def": 100 },
       "cultivate_speed_pct_per_layer": 7.0,
       "acquire": { "source": "secret_realm", "drop_rate": 0.0015 }
+    },
+    "xuan_ice_soul": {
+      "id": "xuan_ice_soul",
+      "name": "玄冰凝魂诀",
+      "grade": "xuan",
+      "element": "ice",
+      "description": "引寒气入体凝练神魂，出手冷冽，兼修神识。",
+      "required_realm": "筑基期",
+      "bonuses": { "hp_max": 35, "mp_max": 45, "atk": 10, "def": 14, "sense": 8 },
+      "cultivate_speed_pct_per_layer": 1.8,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.08 }
+    },
+    "xuan_thunder_step": {
+      "id": "xuan_thunder_step",
+      "name": "雷遁身法",
+      "grade": "xuan",
+      "element": "thunder",
+      "description": "身化雷光瞬息百里，出手迅捷无伦。",
+      "required_realm": "筑基期",
+      "bonuses": { "hp_max": 25, "mp_max": 35, "atk": 14, "def": 8, "speed": 12 },
+      "cultivate_speed_pct_per_layer": 2.0,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.06 }
+    },
+    "di_kunwu_seal": {
+      "id": "di_kunwu_seal",
+      "name": "昆吾镇魔印",
+      "grade": "di",
+      "element": "earth",
+      "description": "传自昆吾封魔一脉，镇压邪祟，守御无双。",
+      "required_realm": "金丹期",
+      "bonuses": { "hp_max": 140, "mp_max": 55, "atk": 18, "def": 40 },
+      "cultivate_speed_pct_per_layer": 1.9,
+      "acquire": { "source": "secret_realm", "drop_rate": 0.03 }
     }
   },
 
   "element_match": {
     "_comment": "功法五行与玩家灵根匹配的加成/减成。匹配时收益放大，相克时收益衰减，提供功法选择的策略深度。",
-    "match_bonus_pct": 20,
+    "match_bonus_pct": 15,
     "_comment_match": "灵根与功法属性一致时，功法加成提升的百分比",
-    "conflict_penalty_pct": 15,
+    "conflict_penalty_pct": 12,
     "_comment_conflict": "灵根与功法属性相克时，功法加成衰减的百分比",
     "_comment_conflicts": "相克表：key 灵根 克 value 中的属性。灵根键必须是 role_init.spirit_roots 的 type（金为 metal，不是 gold），功法属性必须是 techniques[].element 里真实出现的值——两者不一致就会永远匹配不上（启动期 _validateElementMatch 直接拒，tests/TechniqueService.test.js 也有一道）。这张表已登记成 map 集合，资料片可以给自己新增的灵根补一条（写法 {id:\"star\", counters:[\"metal\"]}），读取端过 contentList，数组与对象两种形状都认。雷/冰为变异灵根，各自克制两种属性以体现其稀有强度；风目前刻意没有相克行（只契合不相克），要配就是数值决定，等业主拍板。",
     "conflicts": {

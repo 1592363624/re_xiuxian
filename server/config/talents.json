@@ -5,7 +5,7 @@
     "quality": "legendary",
     "description": "修炼天赋绝佳，修炼速度大幅提升。",
     "bonuses": {
-      "cultivate_speed_pct": 25
+      "cultivate_speed_pct": 18
     }
   },
   {
@@ -131,7 +131,7 @@
     "quality": "mythic",
     "description": "天生道体，修行一日千里。",
     "bonuses": {
-      "cultivate_speed_pct": 35
+      "cultivate_speed_pct": 22
     }
   },
   {
@@ -150,7 +150,7 @@
     "quality": "mythic",
     "description": "天生仙骨，道行猛进。",
     "bonuses": {
-      "cultivate_speed_pct": 30,
+      "cultivate_speed_pct": 18,
       "sense_pct": 10
     }
   },

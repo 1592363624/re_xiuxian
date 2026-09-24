@@ -296,6 +296,26 @@ function unlockedWrites(file, model, column) {
  */
 const CALLER_LOCKED_HELPERS = [
     {
+        file: 'game/services/ArtifactDeepLineService.js', model: 'playerEquipment',
+        helper: '_initBloodSwordState', rowParam: 'equipment',
+        reason: '初始化器只给传进来的装备行补 deep_line_state 默认值、自己不 save；调用方（祭血/压制/雷洗等）一律先 _lockBloodSwordEquipment(playerId, t, t.LOCK.UPDATE) 再传入'
+    },
+    {
+        file: 'game/services/ArtifactDeepLineService.js', model: 'playerEquipment',
+        helper: '_initXutianCauldronState', rowParam: 'equipment',
+        reason: '同上：虚天鼎初始化器只改内存，调用方先 _lockXutianCauldronEquipment FOR UPDATE 再传入'
+    },
+    {
+        file: 'game/services/ArtifactDeepLineService.js', model: 'playerEquipment',
+        helper: '_initSkyBottleState', rowParam: 'equipment',
+        reason: '同上：掌天瓶初始化器只改内存，调用方先 _lockSkyBottleEquipment FOR UPDATE 再传入'
+    },
+    {
+        file: 'game/services/ArtifactDeepLineService.js', model: 'playerEquipment',
+        helper: '_initWheelState', rowParam: 'equipment',
+        reason: '同上：幻世轮初始化器只改内存，调用方先 _lockWheelEquipment FOR UPDATE 再传入'
+    },
+    {
         file: 'game/services/DuelService.js', model: 'pvpBattleRecord',
         helper: '_settleDuel', rowParam: 'battle',
         reason: '结算助手不自己读行：battle 由出招那一步 PvpBattleRecord.findByPk(…, lock: t.LOCK.UPDATE) 锁好后传进来'
@@ -388,7 +408,10 @@ const ROW_LOCKED_MULTI_WRITERS = {
     'pvpBattleRecord.battle_log': ['game/services/DuelService.js', 'game/services/PvpService.js', 'routes/admin_pvp.js'],
     'heartTribulationEvent.reward': ['game/services/CompanionService.js', 'game/services/DaoCompanionService.js'],
     'heartTribulationEvent.penalty': ['game/services/CompanionService.js', 'game/services/DaoCompanionService.js'],
-    'heartTribulationEvent.options': ['game/services/CompanionService.js', 'game/services/DaoCompanionService.js']
+    'heartTribulationEvent.options': ['game/services/CompanionService.js', 'game/services/DaoCompanionService.js'],
+    'item.metadata': ['game/services/InventoryService.js', 'routes/admin_player_editor.js'],
+    'playerEquipment.deep_line_state': ['game/services/ArtifactDeepLineService.js', 'routes/admin_player_editor.js'],
+    'playerTechnique.comprehended_skills': ['game/services/TechniqueService.js', 'routes/admin_player_editor.js']
 };
 
 const guardedNames = new Set(WHOLE_BLOB_COLUMNS.map(c => `player.${c}`));
@@ -408,14 +431,6 @@ const ROW_LOCKED_SINGLE_WRITERS = {
  * 写不出结论就去修（条件写 / 加锁 / 登记"锁在调用方"），不要把条目删掉了事。
  */
 const SINGLE_WRITER_LEDGER = {
-    'playerEquipment.deep_line_state ← game/services/ArtifactDeepLineService.js': {
-        count: 25, verdict: 'accepted_by_design',
-        reason: '逐条定性完（2026-09-21）：25 处赋值分属 19 个方法，15 个业务方法都经 '
-            + 'this._findXxxEquipment(playerId, t, true) 带 FOR UPDATE 读行后再整块写回；'
-            + '另外 4 处是 _init…State(equipment) 只给传进来的行补默认值、自己不 save。'
-            + '这条不变量由 tests/DeepLineLockOrder.test.js 钉住（含"助手收到 lock=true 必须真的加锁"与'
-            + '"初始化器里不许出现 save/update"两条，控制跑：把一个调用点改成无锁立刻红）'
-    },
     'spiritBeast.stat_block ← game/services/SpiritBeastService.js': {
         count: 1, verdict: 'accepted_by_design',
         reason: '值恒等于 computeStats 对内容的整块重算（applyComputedStats 唯一入口），灵兽行只有主人和 GM 会写；'

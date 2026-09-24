@@ -97,6 +97,44 @@ class GiftTaxService {
             );
         }
     }
+
+    /**
+     * 物品天道估值（单价）：只信服务端 item_data.price。
+     *
+     * 安全约束：绝不读取客户端传入的 unit_price。旧实现缺配置时回落
+     * `req.body.unit_price || 0`，抓包改成 0 即可零手续费送神器。
+     * 缺配置或 price 非法时直接拒绝，不给「免费送」留口子。
+     *
+     * @param {string} itemKey
+     * @returns {number} 单价（>= 0 的有限数）
+     */
+    resolveItemUnitPrice(itemKey) {
+        const { infrastructure } = require('../../modules');
+        const items = infrastructure.ConfigLoader.getConfig?.('item_data')?.items || [];
+        const itemConfig = items.find(i => String(i.id) === String(itemKey)) || null;
+        const price = Number(itemConfig?.price);
+        if (!Number.isFinite(price) || price < 0) {
+            throw new AppError('该物品缺少天道估值，暂不可赠送', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+        }
+        return price;
+    }
+
+    /**
+     * 解析正整数数量/金额，非法或超上限抛 AppError。
+     * @param {*} value
+     * @param {string} fieldName
+     * @param {{max?: number}} [opts]
+     */
+    parsePositiveInt(value, fieldName, { max } = {}) {
+        const num = Number(value);
+        if (!Number.isInteger(num) || num <= 0) {
+            throw new AppError(`${fieldName}必须是正整数`, 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        if (max !== undefined && num > max) {
+            throw new AppError(`${fieldName}超出上限（${max}）`, 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        return num;
+    }
 }
 
 module.exports = new GiftTaxService();

@@ -40,8 +40,8 @@
             "dodge_chance_base": 0.05,
             "dodge_chance_speed_factor": 0.001,
             "dodge_chance_max": 0.25,
-            "element_strong_multiplier": 1.5,
-            "element_weak_multiplier": 0.75,
+            "element_strong_multiplier": 1.3,
+            "element_weak_multiplier": 0.7,
             "hp_regen_per_round": 0.0,
             "description": "战斗参数：最多20回合 / 暴击15% / 闪避5%+速度系数(上限25%) / 元素克制1.5x或0.75x"
         },
@@ -87,22 +87,22 @@
         },
 
         "tiers": [
-            { "key": "bronze",    "name": "青铜", "min_points": 0,    "max_points": 100,  "color": "#cd7f32", "season_reward_spirit_stones": 500 },
-            { "key": "silver",    "name": "白银", "min_points": 100,  "max_points": 300,  "color": "#c0c0c0", "season_reward_spirit_stones": 1500 },
-            { "key": "gold",      "name": "黄金", "min_points": 300,  "max_points": 700,  "color": "#ffd700", "season_reward_spirit_stones": 4000 },
-            { "key": "platinum",  "name": "铂金", "min_points": 700,  "max_points": 1500, "color": "#e5e4e2", "season_reward_spirit_stones": 10000 },
-            { "key": "diamond",   "name": "钻石", "min_points": 1500, "max_points": 3000, "color": "#b9f2ff", "season_reward_spirit_stones": 25000 },
-            { "key": "king",      "name": "王者", "min_points": 3000, "max_points": 999999, "color": "#ff6b6b", "season_reward_spirit_stones": 60000 }
+            { "key": "bronze",    "name": "青铜", "min_points": 0,    "max_points": 100,  "color": "#cd7f32", "season_reward_spirit_stones": 300 },
+            { "key": "silver",    "name": "白银", "min_points": 100,  "max_points": 300,  "color": "#c0c0c0", "season_reward_spirit_stones": 800 },
+            { "key": "gold",      "name": "黄金", "min_points": 300,  "max_points": 700,  "color": "#ffd700", "season_reward_spirit_stones": 2000 },
+            { "key": "platinum",  "name": "铂金", "min_points": 700,  "max_points": 1500, "color": "#e5e4e2", "season_reward_spirit_stones": 4000 },
+            { "key": "diamond",   "name": "钻石", "min_points": 1500, "max_points": 3000, "color": "#b9f2ff", "season_reward_spirit_stones": 8000 },
+            { "key": "king",      "name": "王者", "min_points": 3000, "max_points": 999999, "color": "#ff6b6b", "season_reward_spirit_stones": 15000 }
         ],
 
         "season": {
             "duration_days": 28,
             "settlement_top_n": 100,
-            "top1_reward_spirit_stones": 100000,
-            "top3_reward_spirit_stones": 50000,
-            "top10_reward_spirit_stones": 20000,
-            "top100_reward_spirit_stones": 5000,
-            "description": "赛季28天 / 结算前100名 / 第1名10万灵石 / 前3名5万 / 前10名2万 / 前100名5千"
+            "top1_reward_spirit_stones": 15000,
+            "top3_reward_spirit_stones": 8000,
+            "top10_reward_spirit_stones": 4000,
+            "top100_reward_spirit_stones": 1500,
+            "description": "赛季28天 / 结算前100名 / 第1名1.5万灵石 / 前3名8千 / 前10名4千 / 前100名1.5千"
         },
 
         "scheduler": {

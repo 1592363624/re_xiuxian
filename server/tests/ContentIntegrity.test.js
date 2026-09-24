@@ -95,7 +95,10 @@ describe('players JSON 大字段的写入卫生', () => {
         // 2026-09-20：Ascension / SecondSoul 的神识 helper、LawService 的转换、AttributeService 的加点
         // 改成 PlayerStateStore.mirrorPatchedBlob（只镜像内存、不标脏），四家已从此表退出 ——
         // 补丁落库后调用方那份实例不再参与整块写回，这张表因此又短了一截。
-        'game/services/SecondSoulService.js': '仅剩 soul.attributes（player_second_soul 行），不写 players 整块列'
+        'game/services/SecondSoulService.js': '仅剩 soul.attributes（player_second_soul 行），不写 players 整块列',
+        'game/services/FengxiCurseService.js': '风希诅咒状态整块写 fengxi_curse 键；两处写入点均在同一事务 findByPk(lock: t.LOCK.UPDATE) 行锁内赋回',
+        'game/services/SeclusionSettleService.js': 'setCooldownUntil 把 seclusion_cooldown_until 合并进 time_system_data 后由调用方在 FOR UPDATE 行内 save；仅写这一个键的镜像对象，不摊平其它键',
+        'game/services/TrialTowerService.js': '试炼塔进度整块写 trial_tower 键；同一事务 findByPk(lock: t.LOCK.UPDATE) 行锁内赋回'
         // 2026-09-23：routes/admin.js 退出这张表 —— GM 重置改走 AccountDeletionService（account_mode=keep），
         // 整行重开用裸 SQL UPDATE（有意全量覆盖，不走 instance.save / 整块 JSON 赋值），
         // 路由里不再出现 player.attributes = 这种形状。判据：tests/AccountDeletion.test.js 的 keep UPDATE 断言。

@@ -191,6 +191,7 @@ async function hasActiveGuard(playerId) {
 
 /**
  * 从 time_system_data 读/写随机冷却截止时间（避免新增列）
+ * 写入路径依赖调用方持有 FOR UPDATE 行锁（Player.findByPk … { lock: t.LOCK.UPDATE }）后 save。
  */
 function getCooldownUntil(player) {
     try {

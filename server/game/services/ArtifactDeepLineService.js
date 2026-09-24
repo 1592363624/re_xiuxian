@@ -191,7 +191,7 @@ class ArtifactDeepLineService {
      * @param {boolean} [lock=false] - 是否加行级锁
      * @returns {Promise<Object|null>} PlayerEquipment 实例
      */
-    static async _findBloodSwordEquipment(playerId, t = null, lock = false) {
+    static async _lockBloodSwordEquipment(playerId, t = null, lock = false) {
         const cfg = this.getBloodSwordConfig();
         const query = {
             where: {
@@ -239,7 +239,7 @@ class ArtifactDeepLineService {
         }
 
         const cfg = this.getBloodSwordConfig();
-        const equipment = await this._findBloodSwordEquipment(playerId);
+        const equipment = await this._lockBloodSwordEquipment(playerId);
 
         // 未装备血魔剑：返回 has_blood_sword=false，前端据此显示"未持有血魔剑"
         if (!equipment) {
@@ -476,7 +476,7 @@ class ArtifactDeepLineService {
             if (player.is_dead) throw new AppError('已陨落，无法祭血', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
             // 查询血魔剑装备（加锁）
-            const equipment = await this._findBloodSwordEquipment(playerId, t, true);
+            const equipment = await this._lockBloodSwordEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) {
                 throw new AppError('未持有血魔剑，无法祭血', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
@@ -623,7 +623,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('已陨落，无法镇契', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findBloodSwordEquipment(playerId, t, true);
+            const equipment = await this._lockBloodSwordEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) {
                 throw new AppError('未持有血魔剑，无法镇契', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
@@ -731,7 +731,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('已陨落，无法雷洗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findBloodSwordEquipment(playerId, t, true);
+            const equipment = await this._lockBloodSwordEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) {
                 throw new AppError('未持有血魔剑，无法雷洗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
@@ -865,7 +865,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('已陨落，无法铭印', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findBloodSwordEquipment(playerId, t, true);
+            const equipment = await this._lockBloodSwordEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) {
                 throw new AppError('未持有血魔剑，无法铭印', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
@@ -957,7 +957,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('已陨落，无法封鞘', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findBloodSwordEquipment(playerId, t, true);
+            const equipment = await this._lockBloodSwordEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) {
                 throw new AppError('未持有血魔剑，无法封鞘', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
@@ -1130,7 +1130,7 @@ class ArtifactDeepLineService {
      * @returns {Promise<Object>} 战力加成对象（无血魔剑时返回 is_active=false 的默认值）
      */
     static async getBloodSwordCombatBonus(playerId) {
-        const equipment = await this._findBloodSwordEquipment(playerId);
+        const equipment = await this._lockBloodSwordEquipment(playerId);
         if (!equipment) {
             return { is_active: false, reason: '未持有血魔剑' };
         }
@@ -1196,7 +1196,7 @@ class ArtifactDeepLineService {
      * @param {boolean} [lock=false] - 是否加行级锁
      * @returns {Promise<Object|null>} PlayerEquipment 实例
      */
-    static async _findXutianCauldronEquipment(playerId, t = null, lock = false) {
+    static async _lockXutianCauldronEquipment(playerId, t = null, lock = false) {
         const cfg = this.getXutianCauldronConfig();
         const query = {
             where: {
@@ -1268,7 +1268,7 @@ class ArtifactDeepLineService {
         }
 
         const cfg = this.getXutianCauldronConfig();
-        const equipment = await this._findXutianCauldronEquipment(playerId);
+        const equipment = await this._lockXutianCauldronEquipment(playerId);
 
         // 未装备虚天鼎：返回 has_xutian_cauldron=false
         if (!equipment) {
@@ -1456,7 +1456,7 @@ class ArtifactDeepLineService {
             }
 
             // 查装备记录
-            const equipment = await this._findXutianCauldronEquipment(playerId, t, true);
+            const equipment = await this._lockXutianCauldronEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) {
                 await t.rollback();
                 return { success: false, message: '未持有虚天鼎，请先通过虚天殿副本或按图索骥获取', error_code: ErrorCodes.NOT_FOUND };
@@ -1631,7 +1631,7 @@ class ArtifactDeepLineService {
                 return { success: false, message: '已陨落，无法操作法宝', error_code: ErrorCodes.BUSINESS_LOGIC_ERROR };
             }
 
-            const equipment = await this._findXutianCauldronEquipment(playerId, t, true);
+            const equipment = await this._lockXutianCauldronEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) {
                 await t.rollback();
                 return { success: false, message: '未持有虚天鼎', error_code: ErrorCodes.NOT_FOUND };
@@ -1831,7 +1831,7 @@ class ArtifactDeepLineService {
                 return { success: false, message: '已陨落，无法操作法宝', error_code: ErrorCodes.BUSINESS_LOGIC_ERROR };
             }
 
-            const equipment = await this._findXutianCauldronEquipment(playerId, t, true);
+            const equipment = await this._lockXutianCauldronEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) {
                 await t.rollback();
                 return { success: false, message: '未持有虚天鼎', error_code: ErrorCodes.NOT_FOUND };
@@ -1965,7 +1965,7 @@ class ArtifactDeepLineService {
      * @returns {Promise<Object>} 战力加成对象（无虚天鼎时返回 is_active=false 的默认值）
      */
     static async getXutianCauldronCombatBonus(playerId) {
-        const equipment = await this._findXutianCauldronEquipment(playerId);
+        const equipment = await this._lockXutianCauldronEquipment(playerId);
         if (!equipment) {
             return { is_active: false, reason: '未持有虚天鼎' };
         }
@@ -2033,7 +2033,7 @@ class ArtifactDeepLineService {
      * @param {boolean} [lock=false] - 是否加行级锁
      * @returns {Promise<Object|null>} PlayerEquipment 实例
      */
-    static async _findSkyBottleEquipment(playerId, t = null, lock = false) {
+    static async _lockSkyBottleEquipment(playerId, t = null, lock = false) {
         const cfg = this.getSkyBottleConfig();
         const query = {
             where: {
@@ -2084,7 +2084,7 @@ class ArtifactDeepLineService {
         }
 
         const cfg = this.getSkyBottleConfig();
-        const equipment = await this._findSkyBottleEquipment(playerId);
+        const equipment = await this._lockSkyBottleEquipment(playerId);
 
         // 未装备掌天瓶
         if (!equipment) {
@@ -2204,7 +2204,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('玩家已死亡，无法操作', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findSkyBottleEquipment(playerId, t, true);
+            const equipment = await this._lockSkyBottleEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) throw new AppError('未装备掌天瓶', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
             const state = this._initSkyBottleState(equipment);
@@ -2285,7 +2285,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('玩家已死亡，无法操作', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findSkyBottleEquipment(playerId, t, true);
+            const equipment = await this._lockSkyBottleEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) throw new AppError('未装备掌天瓶', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
             const state = this._initSkyBottleState(equipment);
@@ -2410,7 +2410,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('玩家已死亡，无法操作', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findSkyBottleEquipment(playerId, t, true);
+            const equipment = await this._lockSkyBottleEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) throw new AppError('未装备掌天瓶', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
             const state = this._initSkyBottleState(equipment);
@@ -2782,7 +2782,7 @@ class ArtifactDeepLineService {
      * @param {boolean} [lock=false] - 是否加行级锁
      * @returns {Promise<Object|null>} PlayerEquipment 实例
      */
-    static async _findWheelEquipment(playerId, t = null, lock = false) {
+    static async _lockWheelEquipment(playerId, t = null, lock = false) {
         const cfg = this.getFiveElementWheelConfig();
         const query = {
             where: {
@@ -2888,7 +2888,7 @@ class ArtifactDeepLineService {
         }
 
         const cfg = this.getFiveElementWheelConfig();
-        const equipment = await this._findWheelEquipment(playerId);
+        const equipment = await this._lockWheelEquipment(playerId);
 
         // 未装备：返回 has_wheel=false
         if (!equipment) {
@@ -3014,7 +3014,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('已坐化，无法操作法宝', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findWheelEquipment(playerId, t, true);
+            const equipment = await this._lockWheelEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) throw new AppError('未装备大五行幻世轮', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
             const state = this._initWheelState(equipment);
@@ -3080,7 +3080,7 @@ class ArtifactDeepLineService {
         });
         if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
 
-        const equipment = await this._findWheelEquipment(playerId);
+        const equipment = await this._lockWheelEquipment(playerId);
         if (!equipment) throw new AppError('未装备大五行幻世轮', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
         const state = this._initWheelState(equipment);
@@ -3155,7 +3155,7 @@ class ArtifactDeepLineService {
             if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
             if (player.is_dead) throw new AppError('已坐化，无法操作法宝', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
-            const equipment = await this._findWheelEquipment(playerId, t, true);
+            const equipment = await this._lockWheelEquipment(playerId, t, t.LOCK.UPDATE);
             if (!equipment) throw new AppError('未装备大五行幻世轮', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
 
             const state = this._initWheelState(equipment);
@@ -3217,7 +3217,7 @@ class ArtifactDeepLineService {
         const cfg = this.getFiveElementWheelConfig();
         const t = await sequelize.transaction();
         try {
-            const equipment = await this._findWheelEquipment(playerId, t, true);
+            const equipment = await this._lockWheelEquipment(playerId, t, t.LOCK.UPDATE);
             // 未装备幻世轮：静默返回，不报错（战斗系统可统一调用）
             if (!equipment) {
                 await t.commit();
@@ -3355,7 +3355,7 @@ class ArtifactDeepLineService {
      */
     static async getFiveElementWheelCombatBonus(playerId) {
         const cfg = this.getFiveElementWheelConfig();
-        const equipment = await this._findWheelEquipment(playerId);
+        const equipment = await this._lockWheelEquipment(playerId);
         if (!equipment) {
             return { has_wheel: false, combat_bonus: {}, combat_bonus_display: [] };
         }

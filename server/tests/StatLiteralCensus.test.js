@@ -103,7 +103,7 @@ function measure() {
 // 附近没有一行能在整份文件里唯一命中（判据要求锚点唯一 + 附近恰好一处点名字段），
 // 硬编一个会假锚定。等这块收成一份「傀儡行 → 出参」的投影（灵兽那边已有 beastView.js 先例）时再换锚定。
 const LEDGER = {
-    'game/combat/CombatResolver.js:310': { verdict: 'legacy_compat', reason: 'game_balance 里那几个 base_*_weight 是旧 GM 字段名，这张表把旧名桥到属性键；桥盖不住的属性仍按 def.powerWeight 计（同函数下面遍历 registry.all()）' },
+    'game/combat/CombatResolver.js:335': { verdict: 'legacy_compat', reason: 'game_balance 里那几个 base_*_weight 是旧 GM 字段名，这张表把旧名桥到属性键；桥盖不住的属性仍按 def.powerWeight 计（同函数下面遍历 registry.all()）' },
     'game/combat/MonsterStats.js:65': { verdict: 'generic_block', reason: '查不到境界配置时整只默认怪的兜底值；真怪的基础块随后被 withDeclaredStats 并上内容声明层' },
     'game/combat/MonsterStats.js:81': { verdict: 'db_columns', reason: '按境界表已有的四个列名取值（base_hp/base_atk/base_def/base_speed），声明层在 withDeclaredStats 里泛化合并' },
     'game/combat/MonsterStats.js:125': { verdict: 'generic_block', reason: '通用怪模板：game_balance 的 base_monster_* 四个基础列，怪物自己的 stats 声明由外层 withDeclaredStats 并进来' },
@@ -113,11 +113,11 @@ const LEDGER = {
     'game/core/AttributeMaxService.js:75': { verdict: 'db_columns', reason: '池子上限只有气血/法力/寿元三个概念，其余注册属性没有"上限"这一层' },
     'game/core/ExperienceService.js:154': { verdict: 'legacy_compat', reason: '突破预览的旧六键为兼容保留；同函数下面按注册表 base.realmField 把新列并进同一份 gain（2026-09-21 改）' },
     'game/core/PlayerService.js:81': { verdict: 'generic_block', anchor: 'const initialAttributes = roleInitConfig', reason: '建号初值，真值来自 role_init.initialAttributes，这份只是配置缺失时的兜底（行号 2026-09-22 因上方插入 initialAttributeBlob 与陨落计数而 46→79→81，逐行重读确认形状未变；blob 那一格现在过 initialAttributeBlob 过滤，只剩注册表认得 attributeField 的档 + 神识池）' },
-    'game/services/AdventureEventService.js:836': { verdict: 'display_only', reason: '历练战斗响应里给前端显示的怪物摘要（字符串化），结算用 buildMonsterStats 那份整块' },
-    'game/services/AIService.js:571': { verdict: 'display_only', reason: '让大模型生成怪物时附在 prompt 里的字段清单；生成的怪再走内容校验与 withDeclaredStats。新属性不会由 AI 造出来，但也不会因此丢：这条只约束产出形状' },
-    'game/services/ArtifactDeepLineService.js:55': { verdict: 'synonym_table', reason: '就是 BONUS_ROUTES 那张口径表本身：深线的字段名（atk_bonus_rate 等）→ 桶 + 属性键，泛化规则在它之后才接管。表在 2026-09-22 之后只用来翻译字段名，"有哪几条线"已经搬到内容 artifact_deep_lines.combat_bonus_sources' },
+    'game/services/AdventureEventService.js:838': { verdict: 'display_only', reason: '历练战斗响应里给前端显示的怪物摘要（字符串化），结算用 buildMonsterStats 那份整块' },
+    'game/services/AIService.js:595': { verdict: 'display_only', reason: '让大模型生成怪物时附在 prompt 里的字段清单；生成的怪再走内容校验与 withDeclaredStats。新属性不会由 AI 造出来，但也不会因此丢：这条只约束产出形状' },
+    'game/services/ArtifactDeepLineService.js:47': { verdict: 'synonym_table', reason: '就是 BONUS_ROUTES 那张口径表本身：深线的字段名（atk_bonus_rate 等）→ 桶 + 属性键，泛化规则在它之后才接管。表在 2026-09-22 之后只用来翻译字段名，"有哪几条线"已经搬到内容 artifact_deep_lines.combat_bonus_sources' },
     'game/services/ArtifactDeepLineService.js:3620': { verdict: 'generic_block', anchor: 'const absolute = { atk: 0, def: 0, hp_max: 0', reason: 'absolute/percent 两个零值模板（同一坨）；来源清单来自内容表、字段分发在 _routeBonusFields，注册表认得的新属性自动进账（见 DeepLineBonusRouting 第 7 组）。行号 2026-09-22 一天内漂过两次（3492→3618→3620），两次都是往该文件上方插静态方法，逐行重读确认形状未变' },
-    'game/services/ArtifactSpiritService.js:229': { verdict: 'pending_owner_decision', reason: '器灵加成聚合器是孤儿（provider 名单里没有它），且 percent 里写的是 crit/dodge，不是注册表键名 crit_rate/dodge_rate → 见 DeepLineBonusRouting 第 6 组台账，接不接等业主' },
+    'game/services/ArtifactSpiritService.js:231': { verdict: 'pending_owner_decision', reason: '器灵加成聚合器是孤儿（provider 名单里没有它），且 percent 里写的是 crit/dodge，不是注册表键名 crit_rate/dodge_rate → 见 DeepLineBonusRouting 第 6 组台账，接不接等业主' },
     'game/services/BeastAbyssService.js:1001': { verdict: 'pending_owner_decision', reason: '探渊打野怪：怪侧走 withDeclaredStats 泛化，我方灵兽侧只手写 atk/def/hp_max。灵兽整块属性住在 stat_block，而快照（beastView）压根没带它 → 要让灵兽的新属性在探渊打出来，得先把块带进快照并给 beast_abyss_round 定 attack_stat（改平衡）' },
     'game/services/BeastAbyssService.js:1081': { verdict: 'pending_owner_decision', reason: '探渊 PVP 腿：与上一条同形状，且这是异步玩家对玩家的灵兽战 —— 口径要与打野怪同时改，只改一边会让"同一只灵兽"在两种对手面前不一样' },
     'game/services/BeastInvasionService.js:222': { verdict: 'db_columns', anchor: 'hp_max: BigInt(staticData.base_hp)', reason: '建兽潮行时把内容里的 base_* 写进列（列名固定），战斗时才由 mergeDeclaredStats 拼整块' },
@@ -130,9 +130,9 @@ const LEDGER = {
     'game/services/DungeonService.js:735': { verdict: 'generic_block', reason: 'withDeclaredStats 入参：副本怪因此也能带暴击/闪避/抗性（血量三种叫法是兼容别名，见 579 行的别名说明）' },
     'game/services/PuppetService.js:962': { verdict: 'synonym_table', anchor: "HP_KEYS.concat('atk', 'def', 'speed')", reason: '_statsOf 里"行上的老列覆盖内容声明"的那几个列名（含血量三种叫法），其余键按内容声明泛化。2026-09-23：五处「傀儡行 → 四键」的手抄块收进 game/stats/puppetView.js，本文件只剩这一处' },
     'game/stats/puppetView.js:19': { verdict: 'db_columns', anchor: 'PUPPET_STAT_COLUMNS = Object.freeze(', reason: '傀儡行对外露哪几列的**唯一一处**清单（工坊列表、PlayerPuppet.create、制造/淬炼/出战三份回执以前各抄一遍四个键，共五份）。以后给傀儡多看一档属性只改这里；真正落库还缺 player_puppets 上的存储位（加列或照灵兽 stat_block 加 JSON 块，属改表需业主授权）' },
-    'game/services/PvpService.js:2175': { verdict: 'display_only', reason: 'PVP 主页/榜上那份玩家档案的 details 摘要（外加把权重表原样回显给前端），结算不读这里；结算用 resolveCombatStats 的整块' },
-    'game/services/PvpService.js:2349': { verdict: 'db_columns', reason: '木人桩（打桩玩具）对手的构造属性，配置里就只有这四个 base_* 键' },
-    'game/services/PvpService.js:2370': { verdict: 'pending_owner_decision', reason: '切磋模拟的入参块：玩家侧手挑五档传进 _simulateSparringBattle，其余注册属性不进这场战斗 —— 与 SparringService:312 的"整块 + 覆盖"做法不一致，统一会改切磋伤害期望，等拍板' },
+    'game/services/PvpService.js:2186': { verdict: 'display_only', reason: 'PVP 主页/榜上那份玩家档案的 details 摘要（外加把权重表原样回显给前端），结算不读这里；结算用 resolveCombatStats 的整块' },
+    'game/services/PvpService.js:2360': { verdict: 'db_columns', reason: '木人桩（打桩玩具）对手的构造属性，配置里就只有这四个 base_* 键' },
+    'game/services/PvpService.js:2381': { verdict: 'pending_owner_decision', reason: '切磋模拟的入参块：玩家侧手挑五档传进 _simulateSparringBattle，其余注册属性不进这场战斗 —— 与 SparringService:312 的"整块 + 覆盖"做法不一致，统一会改切磋伤害期望，等拍板' },
     'game/services/ReincarnationService.js:92': {
         verdict: 'db_columns',
         anchor: 'const INHERIT_STAT_FIELDS = [',

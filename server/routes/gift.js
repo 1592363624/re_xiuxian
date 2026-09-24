@@ -53,15 +53,33 @@ async function loadPlayersForGift(senderId, targetId) {
     }
 }
 
+/** 单笔灵石赠送上限：挡住溢出/负数绕过，也避免一次扫空整个经济系统 */
+const MAX_GIFT_STONES = 1_000_000_000_000; // 1e12
+/** 单笔物品赠送数量上限 */
+const MAX_GIFT_ITEM_QUANTITY = 9999;
+
+/** 解析正整数数量/金额；非法时抛 AppError */
+function parsePositiveInt(value, fieldName, opts) {
+    return GiftTaxService.parsePositiveInt(value, fieldName, opts);
+}
+
+/**
+ * 物品天道估值：只信服务端 item_data.price。
+ * 旧实现缺配置时回落 req.body.unit_price，抓包压成 0 即可免费送神器。
+ */
+function resolveItemUnitPrice(itemKey) {
+    return GiftTaxService.resolveItemUnitPrice(itemKey);
+}
+
 /** GET /api/gift/preview */
 router.get('/preview', auth, async (req, res, next) => {
     try {
-        const amount = Number(req.query.amount) || 0;
-        const itemKey = req.query.item_key;
-        const quantity = Number(req.query.quantity) || 1;
+        const amountRaw = Number(req.query.amount) || 0;
+        const itemKey = req.query.item_key ? String(req.query.item_key) : '';
         const targetId = Number(req.query.target_player_id);
 
-        if (amount > 0 && Number.isFinite(targetId)) {
+        if (amountRaw > 0 && Number.isFinite(targetId)) {
+            const amount = parsePositiveInt(amountRaw, '赠送数量', { max: MAX_GIFT_STONES });
             const target = await Player.findByPk(targetId);
             if (!target) throw new AppError('目标玩家不存在', 404, ErrorCodes.NOT_FOUND);
             const tax = GiftTaxService.computeStoneTax({
@@ -72,10 +90,8 @@ router.get('/preview', auth, async (req, res, next) => {
         }
 
         if (itemKey) {
-            const { infrastructure } = require('../modules');
-            const items = infrastructure.ConfigLoader.getConfig?.('item_data')?.items || [];
-            const itemConfig = items.find(i => String(i.id) === itemKey) || null;
-            const unitPrice = Number(itemConfig?.price) || Number(req.query.unit_price) || 0;
+            const quantity = parsePositiveInt(Number(req.query.quantity) || 1, '赠送数量', { max: MAX_GIFT_ITEM_QUANTITY });
+            const unitPrice = resolveItemUnitPrice(itemKey);
             const fee = GiftTaxService.computeItemFee(unitPrice * quantity);
             return res.json({ code: 200, data: { kind: 'items', valuation: unitPrice * quantity, ...fee } });
         }
@@ -97,10 +113,12 @@ router.post('/stones', auth, async (req, res, next) => {
     });
     if (!t) return;
     try {
-        const amount = Math.floor(Number(req.body.amount) || 0);
-        if (amount <= 0) {
+        let amount;
+        try {
+            amount = parsePositiveInt(Number(req.body.amount), '赠送数量', { max: MAX_GIFT_STONES });
+        } catch (e) {
             await t.rollback();
-            return res.status(400).json({ code: 400, error_code: ErrorCodes.VALIDATION_ERROR, message: '赠送数量无效' });
+            return res.status(e.statusCode || 400).json({ code: e.statusCode || 400, error_code: e.errorCode || ErrorCodes.VALIDATION_ERROR, message: e.message });
         }
         const have = safeBigInt(sender.spirit_stones);
         if (have < BigInt(amount)) {
@@ -142,21 +160,26 @@ router.post('/items', auth, async (req, res, next) => {
     if (!t) return;
     try {
         const itemKey = String(req.body.item_key || '');
-        const quantity = Math.max(1, Math.floor(Number(req.body.quantity) || 1));
         if (!itemKey) {
             await t.rollback();
             return res.status(400).json({ code: 400, error_code: ErrorCodes.VALIDATION_ERROR, message: '缺少 item_key' });
+        }
+
+        let quantity;
+        let unitPrice;
+        try {
+            quantity = parsePositiveInt(Number(req.body.quantity) || 1, '赠送数量', { max: MAX_GIFT_ITEM_QUANTITY });
+            // 天道估值只读服务端 item_data.price，绝不采信客户端 unit_price
+            unitPrice = resolveItemUnitPrice(itemKey);
+        } catch (e) {
+            await t.rollback();
+            return res.status(e.statusCode || 400).json({ code: e.statusCode || 400, error_code: e.errorCode || ErrorCodes.VALIDATION_ERROR, message: e.message });
         }
 
         // 转移物品：先扣后加（同一事务）
         await InventoryService.removeItem(sender.id, itemKey, quantity, t);
         await InventoryService.addItem(target.id, itemKey, quantity, t);
 
-        // 天道估值：item_data.json 的 price
-        const { infrastructure } = require('../modules');
-        const items = infrastructure.ConfigLoader.getConfig?.('item_data')?.items || [];
-        const itemConfig = items.find(i => String(i.id) === itemKey) || null;
-        const unitPrice = Number(itemConfig?.price) || Number(req.body.unit_price) || 0;
         const valuation = unitPrice * quantity;
         const fee = GiftTaxService.computeItemFee(valuation);
         GiftTaxService.assertCanPayItemFee(sender.spirit_stones, fee.fee);

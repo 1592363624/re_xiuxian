@@ -53,6 +53,23 @@ const Validator = {
     },
 
     /**
+     * 验证受限正整数（数量/金额类入参统一入口）
+     * @param {*} value
+     * @param {string} fieldName
+     * @param {number} [max] 上限（含）
+     */
+    isBoundedPositiveInteger(value, fieldName, max = Number.MAX_SAFE_INTEGER) {
+        const num = Number(value);
+        if (!Number.isInteger(num) || num <= 0) {
+            throw new AppError(`${fieldName}必须是正整数`, 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        if (num > max) {
+            throw new AppError(`${fieldName}超出上限（${max}）`, 400, ErrorCodes.VALIDATION_ERROR);
+        }
+        return num;
+    },
+
+    /**
      * 验证必填参数
      */
     isRequired(value, fieldName) {

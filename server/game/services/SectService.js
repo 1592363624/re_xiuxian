@@ -1004,10 +1004,14 @@ class SectService {
                     if (event.contribution_penalty_ratio) {
                         contributionGain = Math.floor(contributionGain * (1 - Number(event.contribution_penalty_ratio)));
                     }
-                    for (const it of (event.items || [])) {
-                        const qty = Number(it.quantity) || 1;
-                        await InventoryService.addItem(playerId, it.item_key, qty, t);
-                        gainedItems.push({ item_key: it.item_key, item_name: this._itemName(it.item_key), quantity: qty });
+                    const { granted: patrolGranted } = await require('../items/itemGrant').grantItems(
+                        playerId,
+                        (event.items || []).map(it => ({ item_key: it.item_key, quantity: Number(it.quantity) || 1 })),
+                        t,
+                        { label: 'sect_quest_patrol' }
+                    );
+                    for (const g of patrolGranted) {
+                        gainedItems.push({ item_key: g.item_key, item_name: this._itemName(g.item_key), quantity: g.quantity });
                     }
                 }
             } else if (type === 'trial') {
@@ -1028,14 +1032,22 @@ class SectService {
                     if (laborEvent.contribution_penalty_ratio) {
                         contributionGain = Math.floor(contributionGain * (1 - Number(laborEvent.contribution_penalty_ratio)));
                     }
-                    for (const it of (laborEvent.items || [])) {
-                        const qty = Number(it.quantity) || 1;
-                        await InventoryService.addItem(playerId, it.item_key, qty, t);
-                        gainedItems.push({ item_key: it.item_key, item_name: this._itemName(it.item_key), quantity: qty });
+                    const { granted: laborGranted } = await require('../items/itemGrant').grantItems(
+                        playerId,
+                        (laborEvent.items || []).map(it => ({ item_key: it.item_key, quantity: Number(it.quantity) || 1 })),
+                        t,
+                        { label: 'sect_quest_labor' }
+                    );
+                    for (const g of laborGranted) {
+                        gainedItems.push({ item_key: g.item_key, item_name: this._itemName(g.item_key), quantity: g.quantity });
                     }
                 } else if (!(quest.events?.pool?.length) && Math.random() < 0.08) {
-                    await InventoryService.addItem(playerId, 'spirit_herb', 1, t);
-                    gainedItems.push({ item_key: 'spirit_herb', item_name: this._itemName('spirit_herb'), quantity: 1 });
+                    const { granted: herbGranted } = await require('../items/itemGrant').grantItems(
+                        playerId, [{ item_key: 'spirit_herb', quantity: 1 }], t, { label: 'sect_quest_labor_herb' }
+                    );
+                    for (const g of herbGranted) {
+                        gainedItems.push({ item_key: g.item_key, item_name: this._itemName(g.item_key), quantity: g.quantity });
+                    }
                 }
             }
 
@@ -1136,9 +1148,11 @@ class SectService {
      */
     _rollTrialOutcome(quest) {
         const cfg = quest.trial || {};
-        const great = Number(cfg.great_success_chance) || 0;
-        const success = Number(cfg.success_chance) || 0.5;
-        const partial = Number(cfg.partial_chance) || 0.2;
+        // 注意：0 是合法概率（全失败试炼配置），不能用 `||` 兜底 —— Number(0) 是 falsy 会被默认值吃掉
+        const num = (v, dflt) => (Number.isFinite(Number(v)) ? Number(v) : dflt);
+        const great = num(cfg.great_success_chance, 0);
+        const success = num(cfg.success_chance, 0.5);
+        const partial = num(cfg.partial_chance, 0.2);
         const r = Math.random();
         if (r < great) {
             return { id: 'great_success', label: cfg.great_success?.label || '大成', config: cfg.great_success || {} };

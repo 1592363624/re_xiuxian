@@ -104,6 +104,22 @@ const NOT_PACKABLE = {
         verdict: 'not_content',
         reason: '系统级配置（名称/开关/维护），与内容无关'
     },
+    admin_player_editor: {
+        verdict: 'not_content',
+        reason: 'GM 玩家编辑器的字段清单与校验边界：属于后台管理 UI 配置，开放给资料片等于让内容包改 GM 能改哪些玩家字段'
+    },
+    fengxi_curse: {
+        verdict: 'balance_tuning_only',
+        reason: '风希诅咒的触发阈值/时长/惩罚系数是运行时数值中枢，没有可按条扩展的内容集合；真要加新诅咒类型先登记 DATASET_SPECS'
+    },
+    trial_tower: {
+        verdict: 'balance_tuning_only',
+        reason: '试炼塔的层数门槛/奖励倍率/重置节奏是数值调参表，不是条目型内容；层数扩展应走业主签字的数值方案'
+    },
+    world_activity: {
+        verdict: 'not_content',
+        reason: '世界活动广播文案与限流策略：展示/推送配置，不是玩家可获得的内容条目；活动玩法本体在 world_boss / sect_war 等数据集'
+    },
     ui_layout: {
         verdict: 'not_content',
         reason: '前端布局配置：客户端读它，不属于服务端内容层'

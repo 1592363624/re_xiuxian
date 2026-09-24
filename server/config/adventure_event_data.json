@@ -33,6 +33,22 @@
       "rewards": { "exp": 15, "realm_insight": 1 }
     },
     {
+      "id": "peaceful_4",
+      "type": "peaceful",
+      "title": "星夜观想",
+      "description": "夜观星斗运转，神识随星光流转，对天地法则多了几分体悟",
+      "duration": 75,
+      "rewards": { "exp": 12, "wisdom": 1 }
+    },
+    {
+      "id": "peaceful_5",
+      "type": "peaceful",
+      "title": "药香入定",
+      "description": "途经药园，草木清香沁入心脾，你顺势打坐，灵力缓缓充盈",
+      "duration": 50,
+      "rewards": { "exp": 11, "mp": 8 }
+    },
+    {
       "id": "combat_1",
       "type": "combat",
       "title": "妖兽袭击",
@@ -58,6 +74,24 @@
       "duration": 180,
       "monsterType": "guardian_beast",
       "rewards": { "exp": 100, "treasure": true }
+    },
+    {
+      "id": "combat_4",
+      "type": "combat",
+      "title": "魔修伏击",
+      "description": "前方灵气紊乱，一名魔修自暗处现身，血色法器直取你要害",
+      "duration": 160,
+      "monsterType": "cultivator",
+      "rewards": { "exp": 120, "spirit_stones": true }
+    },
+    {
+      "id": "combat_5",
+      "type": "combat",
+      "title": "妖狼围猎",
+      "description": "风中传来腥气，数只妖狼已将你围在谷口，绿眸在暗处闪烁",
+      "duration": 140,
+      "monsterType": "beast",
+      "rewards": { "exp": 70 }
     },
     {
       "id": "treasure_1",

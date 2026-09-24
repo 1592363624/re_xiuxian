@@ -7,7 +7,9 @@
 'use strict';
 
 const http = require('http');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { signRequest, createNonce } = require('../../utils/requestSign');
 
 const BACKSLASH = '\\';
 /** app.use 挂载（end:false）的固定尾巴：\/?(?=\/|$) */
@@ -61,19 +63,54 @@ async function bootApp(app, { port, minRoutes = 20 } = {}) {
     throw new Error('路由没挂全（express 版本或挂载方式变了，需要更新 mountOf）');
 }
 
-function request({ port, method = 'GET', path, token, body }) {
+/** 从 JWT 载荷取 rk（与前端 extractRequestKey 同源数据） */
+function extractRkFromToken(token) {
+    try {
+        const payload = JSON.parse(Buffer.from(String(token).split('.')[1], 'base64url').toString('utf8'));
+        return typeof payload.rk === 'string' && payload.rk ? payload.rk : null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function request({ port, method = 'GET', path, token, body, requestKey }) {
     return new Promise((resolve) => {
         const payload = body === undefined ? null : JSON.stringify(body);
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {})
+        };
+
+        // 写操作按 requestGuard 要求补签名头（GET/auth 自动跳过）
+        // rk 优先用显式 requestKey，否则从 token 载荷取（mintToken 已写入）
+        const upperMethod = String(method || 'GET').toUpperCase();
+        const rk = requestKey || (token ? extractRkFromToken(token) : null);
+        const needsSign = rk
+            && upperMethod !== 'GET'
+            && upperMethod !== 'HEAD'
+            && upperMethod !== 'OPTIONS'
+            && !String(path || '').startsWith('/api/auth');
+        if (needsSign) {
+            const timestamp = String(Date.now());
+            const nonce = createNonce();
+            headers['X-Request-Timestamp'] = timestamp;
+            headers['X-Request-Nonce'] = nonce;
+            headers['X-Request-Signature'] = signRequest(rk, {
+                method: upperMethod,
+                url: path,
+                timestamp,
+                nonce,
+                rawBody: payload || ''
+            });
+        }
+
         const req = http.request({
             host: '127.0.0.1',
             port,
             path,
             method,
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {})
-            },
+            headers,
             timeout: 20000
         }, (res) => {
             let text = '';
@@ -91,13 +128,17 @@ function request({ port, method = 'GET', path, token, body }) {
     });
 }
 
-/** 本地签一个玩家 token：探针不该依赖注册/验证码流程，也不自增 token_version 去踢掉别的会话 */
+/**
+ * 本地签一个玩家 token：探针不该依赖注册/验证码流程，也不自增 token_version 去踢掉别的会话。
+ * 载荷带 rk，request() 写操作会自动取出用于签名 —— 调用方仍只拿 token 字符串，兼容旧脚本。
+ */
 function mintToken(player, { expiresIn = '1h' } = {}) {
+    const rk = crypto.randomBytes(32).toString('base64url');
     return jwt.sign(
-        { id: player.id, username: player.username, v: player.token_version || 0 },
+        { id: player.id, username: player.username, v: player.token_version || 0, rk },
         process.env.JWT_SECRET,
         { expiresIn }
     );
 }
 
-module.exports = { bootApp, collectRoutes, request, mintToken };
+module.exports = { bootApp, collectRoutes, request, mintToken, extractRkFromToken };

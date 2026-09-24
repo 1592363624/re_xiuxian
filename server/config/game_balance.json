@@ -109,7 +109,7 @@
     "admin": { "limit": 200, "window_seconds": 60 }
   },
   "breakthrough": {
-    "failure_exp_loss_rate": 0.1,
+    "failure_exp_loss_rate": 0.2,
     "failure_age_multiplier": 2,
     "bottleneck_enabled": true,
     "bottleneck_realms": [10, 13, 17, 21],
@@ -118,7 +118,7 @@
     "bottleneck_failure_insight_gain": 10,
     "bottleneck_max_failure_count": 3,
     "broken_breakthrough_bonus": 30,
-    "failed_breakthrough_penalty_exp_rate": 0.05
+    "failed_breakthrough_penalty_exp_rate": 0.1
   },
   "combat": {
     "skill_mp_cost": 20,
@@ -491,15 +491,19 @@
     "power_gap_bullying_threshold": 0.5,
     "karma_penalty_per_bullying": 20,
     "karma_event_threshold": 100,
-    "win_exp_reward_ratio": 0.05,
-    "win_stone_ratio": 10,
-    "lose_consolation_stone_ratio": 2,
-    "lose_consolation_exp_ratio": 0.01,
+    "win_exp_reward_ratio": 0.02,
+    "win_stone_ratio": 1.5,
+    "win_stone_max": 2000,
+    "win_stone_min": 10,
+    "lose_consolation_stone_ratio": 0.5,
+    "lose_consolation_exp_ratio": 0.005,
     "lose_consolation_honor_min": 10,
+    "bullying_reward_scale": 0.2,
+    "hard_gap_reward_scale": 0.5,
     "drop_rate_normal_item": 0.05,
     "rank_score_win_same": 15,
     "rank_score_win_cross": 25,
-    "rank_score_win_defender": 5,
+    "rank_score_win_defender": 12,
     "rank_score_lose_same": 10,
     "rank_score_lose_cross": 15,
     "rank_score_lose_defender": 3,
@@ -520,8 +524,8 @@
     "five_elements": {
       "comment": "五行相克 PVP 战斗系统：基于灵根属性计算克制伤害倍率，增加战斗策略深度",
       "enabled": true,
-      "advantage_multiplier": 1.2,
-      "disadvantage_multiplier": 0.8,
+      "advantage_multiplier": 1.3,
+      "disadvantage_multiplier": 0.7,
       "neutral_multiplier": 1.0,
       "overcomes": {
         "metal": "wood",
@@ -551,8 +555,8 @@
   "pvp_extended": {
     "sparring": {
       "enabled": true,
-      "daily_limit": 20,
-      "cooldown_seconds": 10,
+      "daily_limit": 8,
+      "cooldown_seconds": 180,
       "exp_reward_base": 50,
       "exp_reward_per_realm_gap": 20,
       "min_realm_rank": 1,
@@ -572,7 +576,7 @@
       "platform_fee_rate": 0.03,
       "min_realm_rank_to_publish": 3,
       "min_realm_rank_to_accept": 3,
-      "bounty_kill_reward_ratio": 0.9,
+      "bounty_kill_reward_ratio": 0.75,
       "cleaner_interval_ms": 5000,
       "protection_period_minutes": 30,
       "counter_bounty": {
@@ -762,8 +766,8 @@
     },
     "elemental_counter": {
       "description": "五行相克系数（玩家灵兽元素 vs BOSS元素）。玩家攻击BOSS时：相克=1.5x, 被克=0.75x, 同/无=1.0x。BOSS反击时同理（按 BOSS元素 vs 玩家灵兽元素）。",
-      "advantage_multiplier": 1.5,
-      "disadvantage_multiplier": 0.75,
+      "advantage_multiplier": 1.3,
+      "disadvantage_multiplier": 0.7,
       "neutral_multiplier": 1.0,
       "counter_matrix": {
         "metal": "wood",
@@ -896,7 +900,7 @@
     "defender_score_per_territory": 100,
     "defender_score_per_kill": 5,
     "max_territories_per_sect": 3,
-    "strategic_point_win_bonus": 0.1,
+    "strategic_point_win_bonus": 0.05,
     "production_settlement_time": "00:05",
     "production_rates": {
       "spirit_vein": 500,
