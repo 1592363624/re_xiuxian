@@ -3,7 +3,7 @@ feature: zhigui-system-quest
 status: delivered
 updated: 2026-09-24
 branch: main
-commits: e827b849..WORKING
+commits: e827b849..5b51f15b
 ---
 
 # 尘缘指归 · 系统任务
