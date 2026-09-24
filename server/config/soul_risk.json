@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "dataset": "soul_risk",
+    "version": 1,
+    "comment": "神魂动荡/陨落：斗法落败可能叠动荡；动荡再败跌境清修为掉宝；道心破碎；免死丹；仇敌复仇+5%。"
+  },
+  "soul_risk": {
+    "unstable_chance_same_rank": 0.2,
+    "unstable_chance_higher_rank": 0.5,
+    "unstable_duration_minutes": 10,
+    "unstable_power_penalty": 0.3,
+    "death_drop_material_rate": 0.5,
+    "heartbreak_duration_hours": 24,
+    "heartbreak_exp_penalty": 0.5,
+    "daily_duel_limit": 10,
+    "daily_win_per_target_limit": 5,
+    "revenge_power_bonus": 0.05,
+    "immortal_pill_item_key": "immortal_pill",
+    "min_realm_rank_after_fall": 1
+  }
+}
