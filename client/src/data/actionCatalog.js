@@ -27,6 +27,7 @@ export const ACTIONS = {
 
   /* ── 历练 ── */
   explore: { name: '历练', desc: '历练探索 随机事件', icon: svg('text-emerald-400', '<path d="M12 2 2.5 9.5l1 10.5L12 22l8.5-2L22 10l-10-7.5z"/><path d="M12 12 12 22"/><path d="M12 12 22 12"/>') },
+  trial_tower: { name: '试炼古塔', desc: '闯塔首通 琉璃塔榜', icon: svg('text-amber-300', '<path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z"/>') },
   map: { name: '地图', desc: '当前区域 相邻快传', icon: svg('text-emerald-300', '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>') },
   dungeon: { name: '副本', desc: '秘境副本 三星扫荡', icon: svg('text-amber-400', '<path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/><path d="M9 11h6"/>') },
   multi_dungeon: { name: '多人副本', desc: '掩月抢亲 端午镇蛟', icon: svg('text-amber-300', '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/>') },
@@ -37,6 +38,7 @@ export const ACTIONS = {
   fengshen: { name: '封神台', desc: '镜像排名竞技场', icon: svg('text-purple-400', '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>') },
   divine_sense_duel: { name: '神识对决', desc: '1v1 同时选择博弈', icon: svg('text-purple-300', '<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/><path d="M12 3v2"/><path d="M12 19v2"/><circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.4"/>') },
   bounty: { name: '悬赏', desc: '悬赏追杀 缉拿目标', icon: svg('text-amber-400', '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>') },
+  world_risk: { name: '天道异闻', desc: '神魂风雷 凶名天机', icon: svg('text-purple-300', '<circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/>') },
   world_boss: { name: '世界BOSS', desc: '全服讨伐 伤害排行', icon: svg('text-red-500', '<path d="M5 3v4l3 3"/><path d="M19 3v4l-3 3"/><path d="M3 5h4l3 3"/><path d="M21 5h-4l-3 3"/><path d="M12 12v9"/><path d="M8 17h8"/><circle cx="12" cy="9" r="3"/>') },
   sect_war: { name: '宗门战', desc: '领地争夺 赛季结算', icon: svg('text-amber-500', '<path d="M4 22V4l4-2 4 2 4-2 4 2v18"/><path d="M4 14h16"/><path d="M9 9h2"/><path d="M13 9h2"/><path d="M9 17h2"/><path d="M13 17h2"/>') },
 
@@ -77,6 +79,7 @@ export const ACTIONS = {
   /* ── 闲趣 ── */
   fishing: { name: '灵溪垂钓', desc: '钓竿鱼饵 剖鱼排行', icon: svg('text-cyan-400', '<path d="M12 2v14"/><path d="M12 16a4 4 0 0 1-4-4"/><circle cx="12" cy="20" r="2"/><path d="M6 20q3 2 6 0t6 0"/>') },
   gambling_stone: { name: '赌石', desc: '线索博弈 切石机缘', icon: svg('text-purple-400', '<path d="M12 2 4 7v10l8 5 8-5V7l-8-5z"/><path d="M12 22V12"/><path d="M4 7l8 5 8-5"/><path d="M9 9l3-2 3 2"/>') },
+  ghost_casino: { name: '鬼赌坊', desc: '天命玉简 六道轮回', icon: svg('text-fuchsia-400', '<path d="M12 3a6 6 0 0 0-6 6c0 4 6 12 6 12s6-8 6-12a6 6 0 0 0-6-6z"/><circle cx="12" cy="9" r="2"/>') },
 
   /* ── 自身 ── */
   character: { name: '角色', desc: '属性资质 装备总览', icon: svg('text-stone-300', '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>') },
@@ -89,14 +92,14 @@ export const ACTIONS = {
  */
 export const DOCK_TABS = [
   { key: 'practice', label: '修行', ids: ['cultivate', 'technique', 'meditation', 'dayan'] },
-  { key: 'adventure', label: '历练', ids: ['explore', 'map', 'dungeon', 'multi_dungeon', 'beast_abyss'] },
-  { key: 'battle', label: '征伐', ids: ['arena', 'fengshen', 'divine_sense_duel', 'bounty', 'world_boss', 'sect_war'] },
+  { key: 'adventure', label: '历练', ids: ['explore', 'trial_tower', 'map', 'dungeon', 'multi_dungeon', 'beast_abyss'] },
+  { key: 'battle', label: '征伐', ids: ['arena', 'fengshen', 'divine_sense_duel', 'bounty', 'world_risk', 'world_boss', 'sect_war'] },
   { key: 'economy', label: '经营', ids: ['inventory', 'market', 'pawnshop', 'stock', 'auction', 'crafting', 'lottery'] },
   { key: 'nurture', label: '养成', ids: ['cave', 'treasure', 'deep_line', 'artifact_spirit', 'formation', 'puppet', 'spirit_beast'] },
   { key: 'sect', label: '宗门', ids: ['sect', 'taoism_gate'] },
   { key: 'worldly', label: '红尘', ids: ['companion', 'dao_companion', 'concubine', 'cave_social'] },
   { key: 'realm', label: '境界', ids: ['nascent_soul', 'second_soul', 'small_world', 'ascension'] },
-  { key: 'leisure', label: '闲趣', ids: ['fishing', 'gambling_stone'] },
+  { key: 'leisure', label: '闲趣', ids: ['fishing', 'gambling_stone', 'ghost_casino'] },
   { key: 'self', label: '自身', ids: ['character', 'achievement', 'announcement'] },
 ]
 

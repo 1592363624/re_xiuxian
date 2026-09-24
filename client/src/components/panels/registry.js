@@ -25,6 +25,7 @@ const LOADERS = {
 
   /* ── 历练 ── */
   explore: () => import('./ExplorePanel.vue'),
+  trial_tower: () => import('./TrialTowerPanel.vue'),
   map: () => import('./MapPanel.vue'),
   dungeon: () => import('./DungeonPanel.vue'),
   multi_dungeon: () => import('./MultiDungeonPanel.vue'),
@@ -36,6 +37,7 @@ const LOADERS = {
   fengshen: () => import('./FengshenPanel.vue'),
   divine_sense_duel: () => import('./DivineSenseDuelPanel.vue'),
   bounty: () => import('./BountyPanel.vue'),
+  world_risk: () => import('./WorldRiskPanel.vue'),
   world_boss: () => import('./WorldBossPanel.vue'),
   sect_war: () => import('./SectWarPanel.vue'),
 
@@ -76,6 +78,7 @@ const LOADERS = {
   /* ── 闲趣 ── */
   fishing: () => import('./FishingPanel.vue'),
   gambling_stone: () => import('./GamblingStonePanel.vue'),
+  ghost_casino: () => import('./GhostCasinoPanel.vue'),
 
   /* ── 自身 ── */
   character: () => import('../modals/CharacterModal.vue'),
