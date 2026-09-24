@@ -23,6 +23,56 @@ function cfg() {
 class LegendaryWeaponsService {
     static config() { return cfg(); }
 
+    /** 可炼制配方清单（含成功率与材料），供炼制面板第三页 */
+    static listRecipes(bonuses = {}) {
+        const c = cfg();
+        return [
+            {
+                id: 'qingzhu_base',
+                name: '青竹蜂云剑',
+                output_key: c.qingzhu_sword.base_item_key,
+                materials: c.qingzhu_sword.base_materials,
+                success_rate: this.successRate(0.45, bonuses),
+                desc: '天南必备本命法宝'
+            },
+            {
+                id: 'qingzhu_thunder',
+                name: '青竹蜂云剑（神雷版）',
+                output_key: c.qingzhu_sword.thunder_item_key,
+                materials: c.qingzhu_sword.thunder_materials,
+                success_rate: this.successRate(c.qingzhu_sword.thunder_success_rate, bonuses),
+                desc: '集齐 72 把引天雷重铸，装备即灵魂绑定'
+            },
+            {
+                id: 'qingzhu_gold',
+                name: '青竹蜂云剑（庚金版）',
+                output_key: c.qingzhu_sword.gold_item_key,
+                materials: c.qingzhu_sword.gold_materials,
+                success_rate: this.successRate(c.qingzhu_sword.gold_success_rate, bonuses),
+                fail_note: '失败毁材料并可能跌境',
+                desc: '仙界至宝，无坚不摧'
+            },
+            {
+                id: 'three_flame',
+                name: '三焰扇（仿制品）',
+                output_key: c.seven_flame_fan.replica_item_key,
+                materials: c.seven_flame_fan.replica_materials,
+                success_rate: this.successRate(c.seven_flame_fan.replica_success_rate, bonuses),
+                fail_note: '失败修为 -10%',
+                desc: '化神期核心杀伐至宝'
+            },
+            {
+                id: 'seven_flame',
+                name: '七焰扇（通天灵宝）',
+                output_key: c.seven_flame_fan.true_item_key,
+                materials: c.seven_flame_fan.true_materials,
+                success_rate: this.successRate(c.seven_flame_fan.true_success_rate, bonuses),
+                fail_note: '失败三焰扇损毁、修为 -20%',
+                desc: '灵界毕业神器，万火归源'
+            }
+        ];
+    }
+
     /** 炼制成功率（含资质/秘术加成） */
     static successRate(base, { goldRoot = false, thunderRoot = false, fireRoot = false, metalSense = false, fireSense = false, yuanyingSect = false } = {}) {
         const c = cfg();

@@ -47,7 +47,7 @@ let recipesSnapshot: LearnedRecipesData | null = null
 const loading = ref(true)                          // 仅首次无缓存时整屏转圈
 const refreshing = ref(false)                      // 有缓存时的后台静默刷新
 const crafting = ref(false)                        // 炼制操作中状态锁，防止重复提交
-const activeTab = ref<'alchemy' | 'refining'>('alchemy')  // 当前激活的 Tab
+const activeTab = ref<'alchemy' | 'refining' | 'legendary'>('alchemy')  // 当前激活的 Tab
 const alchemyRecipes = ref<LearnedRecipe[]>([])    // 炼丹配方列表
 const refiningRecipes = ref<LearnedRecipe[]>([])   // 炼器配方列表
 const skillInfo = ref<CraftSkillInfo | null>(null) // 炼制技能信息
@@ -101,8 +101,34 @@ const currentRecipes = computed(() => {
  */
 const tabItems = computed(() => [
   { key: 'alchemy', label: '炼丹房', badge: alchemyRecipes.value.length },
-  { key: 'refining', label: '炼器阁', badge: refiningRecipes.value.length }
+  { key: 'refining', label: '炼器阁', badge: refiningRecipes.value.length },
+  { key: 'legendary', label: '通天灵宝', badge: legendaryRecipes.value.length }
 ])
+
+const legendaryRecipes = ref<any[]>([])
+const craftingLegend = ref(false)
+
+const loadLegendary = async () => {
+  try {
+    const api = (await import('../../api/index')).default
+    const res = await api.get('/legendary-weapons/recipes')
+    legendaryRecipes.value = (res.data?.recipes || res.recipes || [])
+  } catch { legendaryRecipes.value = [] }
+}
+
+const craftLegendary = async (recipeId: string) => {
+  craftingLegend.value = true
+  try {
+    const api = (await import('../../api/index')).default
+    const res = await api.post('/legendary-weapons/craft', { recipe: recipeId })
+    alert(res.message || res.data?.message || '炼制结束')
+    await loadLegendary()
+  } catch (e: any) {
+    alert(e.message || '炼制失败')
+  } finally {
+    craftingLegend.value = false
+  }
+}
 
 /**
  * 是否已达技能满级
@@ -391,6 +417,7 @@ onMounted(() => {
   } else {
     fetchRecipes()
   }
+  loadLegendary()
   // 每秒更新当前时间，驱动冷却倒计时刷新
   timer = window.setInterval(() => {
     currentTime.value = Date.now()
@@ -459,6 +486,43 @@ onUnmounted(() => {
       <!-- 内容区域 -->
       <div class="flex-1 min-h-0 overflow-y-auto p-4">
         <LoadingBlock v-if="loading" />
+
+        <!-- 通天灵宝：独立炼制链（青竹蜂云剑 / 三焰·七焰扇） -->
+        <div v-else-if="activeTab === 'legendary'" class="space-y-3">
+          <div class="text-xs text-fg-muted">逆天炼宝，失败可能毁材甚至跌境。成功率吃灵根与太一秘术加成。</div>
+          <div v-if="!legendaryRecipes.length" class="text-sm text-fg-muted py-8 text-center">暂无可用配方</div>
+          <div
+            v-for="r in legendaryRecipes"
+            :key="r.id"
+            class="bg-surface-raised border border-amber-900/50 rounded-panel p-4"
+          >
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <h3 class="text-base font-bold text-amber-200">{{ r.name }}</h3>
+                <div class="text-xs text-fg-muted mt-0.5">{{ r.desc }}</div>
+              </div>
+              <div class="text-right text-xs">
+                <div class="text-gold-500 font-bold">{{ Math.round(r.success_rate * 100) }}%</div>
+                <div v-if="r.fail_note" class="text-red-300 mt-1">{{ r.fail_note }}</div>
+              </div>
+            </div>
+            <div class="text-xs text-fg-muted space-y-0.5 mb-3">
+              <div v-for="(qty, key) in (r.materials || {})" :key="key">
+                {{ key }} ×{{ qty }}
+                <span v-if="key !== 'spirit_stones'" class="ml-2"
+                  :class="(r.stock?.[key] ?? 0) >= qty ? 'text-emerald-300' : 'text-red-300'">
+                  持有 {{ r.stock?.[key] ?? 0 }}
+                </span>
+              </div>
+            </div>
+            <AppButton
+              size="sm"
+              variant="primary"
+              :disabled="craftingLegend"
+              @click="craftLegendary(r.id)"
+            >开炉炼制</AppButton>
+          </div>
+        </div>
 
         <!-- 空状态 -->
         <EmptyState
