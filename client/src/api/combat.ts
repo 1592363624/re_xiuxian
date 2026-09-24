@@ -33,9 +33,10 @@ export const encounter = (monsterId: number) => {
 
 /**
  * 普通攻击
+ * 后端在一次请求内结算「玩家出招 + 怪物回击」完整回合
  */
-export const attack = () => {
-  return apiClient.post('/combat/attack');
+export const attack = (action: 'attack' | 'skill' = 'attack') => {
+  return apiClient.post('/combat/attack', { action });
 };
 
 /**
@@ -43,6 +44,17 @@ export const attack = () => {
  */
 export const useSkill = (skillIndex: number) => {
   return apiClient.post('/combat/skill', { skillIndex });
+};
+
+/**
+ * 怪物行动（残留怪物回合的恢复口）
+ *
+ * 主流程已由 attack/useSkill 内联结算怪物回击；此接口用于：
+ *   1) 历史卡死战斗（is_player_turn=false）恢复；
+ *   2) 旧两段式调用兼容。
+ */
+export const monsterTurn = () => {
+  return apiClient.post('/combat/monster-turn');
 };
 
 /**
@@ -59,4 +71,11 @@ export const escape = () => {
  */
 export const abandon = () => {
   return apiClient.post('/combat/abandon');
+};
+
+/**
+ * 战斗中使用物品
+ */
+export const useBattleItem = (itemId: string, quantity = 1) => {
+  return apiClient.post('/combat/use-item', { itemId, quantity });
 };

@@ -2,6 +2,10 @@
 /**
  * 战斗面板组件
  * 使用统一 API 层进行战斗操作
+ *
+ * 回合模型：一次出招 = 一个完整回合（玩家出招 + 怪物回击），
+ * 后端在 /combat/attack 与 /combat/skill 内结算两侧，回合权回到玩家。
+ * monsterTurn 仅用于历史卡死战斗的恢复。
  */
 import { ref, computed, onMounted } from 'vue'
 import {
@@ -11,6 +15,7 @@ import {
   encounter,
   attack,
   useSkill,
+  monsterTurn,
   escape,
   abandon
 } from '../../api/combat'
@@ -41,6 +46,8 @@ const currentBattle = ref(null)
 const battleLog = ref([])
 const combatStats = ref(null)
 const skillMpCost = ref(20) // 默认值，由后端返回
+const isPlayerTurn = computed(() => currentBattle.value?.is_player_turn !== false)
+const roundLabel = computed(() => currentBattle.value?.round || 1)
 
 /**
  * 战斗收尾
@@ -54,30 +61,136 @@ const endBattle = () => {
 }
 
 /**
+ * 把一次完整回合的服务端结果写回本地战场
+ */
+const applyRoundResult = (result) => {
+  if (!currentBattle.value) return
+
+  const playerAct = result.player_action
+  const monsterAct = result.monster_action || result.recovered_monster_action
+
+  if (playerAct) {
+    uiStore.addLog({
+      content: playerAct.missed
+        ? `你对 ${currentBattle.value.monster.name} 的攻击落空了。`
+        : `你对 ${currentBattle.value.monster.name} 造成了 ${playerAct.damage} 点伤害${playerAct.crit ? '（暴击）' : ''}。`,
+      type: 'combat',
+      actorId: 'self'
+    })
+    if (currentBattle.value.monster && result.monster_hp != null) {
+      currentBattle.value.monster.hp = result.monster_hp
+    }
+    if (currentBattle.value.player && result.player_mp != null) {
+      currentBattle.value.player.mp = result.player_mp
+    }
+    if (currentBattle.value.player && result.player_hp != null) {
+      currentBattle.value.player.hp = result.player_hp
+    }
+  }
+
+  if (monsterAct) {
+    uiStore.addLog({
+      content: monsterAct.missed
+        ? `${currentBattle.value.monster.name} 的攻击被你闪开了。`
+        : `${currentBattle.value.monster.name} 对你造成了 ${monsterAct.damage} 点伤害。`,
+      type: 'combat',
+      actorId: 'enemy'
+    })
+    if (currentBattle.value.player && monsterAct.player_hp != null) {
+      currentBattle.value.player.hp = monsterAct.player_hp
+    }
+    if (currentBattle.value.monster && monsterAct.monster_hp != null) {
+      currentBattle.value.monster.hp = monsterAct.monster_hp
+    }
+    if (monsterAct.protect_info?.triggered) {
+      uiStore.addLog({
+        content: `道侣远程护持，分担 ${monsterAct.protect_info.shared_damage} 点伤害。`,
+        type: 'combat',
+        actorId: 'self'
+      })
+    }
+  }
+
+  if (result.round != null) currentBattle.value.round = result.round
+  currentBattle.value.turn = result.turn || 'player'
+  currentBattle.value.is_player_turn = result.is_player_turn !== false
+}
+
+/**
+ * 通用战斗结果收尾（胜利/失败/继续）
+ * @returns {boolean} 是否已结束战斗
+ */
+const settleBattleOutcome = (result, winLog, loseToastPrefix) => {
+  if (result.victory || result.battleEnded || result.result === 'win') {
+    const expGained = result.rewards?.exp || 0
+    uiStore.showToast(`战斗胜利！获得 ${expGained} 修为`, 'success')
+    uiStore.addLog({
+      content: winLog(expGained),
+      type: 'combat',
+      actorId: 'self'
+    })
+    endBattle()
+    return true
+  }
+  if (result.defeat || result.result === 'lose') {
+    uiStore.showToast(`${loseToastPrefix}，扣除 ${result.penalty_exp || 0} 修为`, 'error')
+    endBattle()
+    return true
+  }
+  return false
+}
+
+/**
+ * 历史卡死战斗恢复：状态显示怪物回合时补结算一记
+ */
+const recoverMonsterTurn = async () => {
+  if (!currentBattle.value || isPlayerTurn.value) return false
+  try {
+    const res = await monsterTurn()
+    const result = res.data
+    if (!result || result.waiting_for_player) {
+      currentBattle.value.is_player_turn = true
+      currentBattle.value.turn = 'player'
+      return false
+    }
+    if (settleBattleOutcome(result, () => `你击败了 ${currentBattle.value?.monster?.name || '怪物'}。`, '战斗失败')) {
+      return true
+    }
+    applyRoundResult({ ...result, player_action: null, monster_action: result.monster_action || result })
+    return false
+  } catch (error) {
+    uiStore.showApiError(error, '怪物回合恢复失败')
+    return false
+  }
+}
+
+/**
  * 获取战斗数据
  */
 const fetchData = async () => {
   loading.value = true
   let battleRes = null
-  
+
   if (battleId.value) {
     try {
       battleRes = await getCombatStatus(battleId.value)
       if (battleRes.data.in_battle) {
         currentBattle.value = battleRes.data
+        currentBattle.value.is_player_turn = battleRes.data.is_player_turn !== false
+        battleLog.value = battleRes.data.battle_log || []
       }
     } catch (e) {
       console.error('获取战斗数据失败:', e)
     }
   }
-  
+
   try {
     const [mapRes, monstersRes, statsRes] = await Promise.all([
       getMapInfo(),
       getMonsters(),
       getCombatStats()
     ])
-    
+
     // 修复：后端 /map/info 与 /combat/monsters 返回结构为 { code, data: {...} }
     // 旧代码访问 .data.current_map 会拿到 undefined（缺少一层 data 包裹）
     // /combat/stats 直接展开返回（无 data 包裹），保留原访问方式
@@ -86,7 +199,9 @@ const fetchData = async () => {
     monsters.value = monstersData?.monsters || []
     skillMpCost.value = monstersData?.skill_mp_cost || 20
     combatStats.value = statsRes.data
-    battleLog.value = battleRes?.data?.battle_log || []
+    if (!battleRes?.data?.battle_log) {
+      battleLog.value = battleRes?.data?.battle_log || []
+    }
   } catch (error) {
     console.error('获取战斗数据失败:', error)
     if (error.response?.status === 404) {
@@ -97,6 +212,11 @@ const fetchData = async () => {
   } finally {
     loading.value = false
   }
+
+  // 刷新后若仍停在怪物回合（旧存档/异常残留），自动补一记，避免再次点攻击被拒
+  if (currentBattle.value && currentBattle.value.is_player_turn === false) {
+    await recoverMonsterTurn()
+  }
 }
 
 /**
@@ -104,12 +224,10 @@ const fetchData = async () => {
  */
 const handleEncounter = async (monster) => {
   if (combatLoading.value) return
-  
+
   combatLoading.value = true
   try {
-    const res = await encounter(monster.id)
-    
-    currentBattle.value = res.data.battle
+    await encounter(monster.id)
     // 新战斗的 battle_id 只有后端知道，直接回读一次，别在前端猜返回字段名
     await playerStore.syncActiveBattle()
     uiStore.addLog({
@@ -117,7 +235,7 @@ const handleEncounter = async (monster) => {
       type: 'combat',
       actorId: 'self'
     })
-    
+
     await fetchData()
   } catch (error) {
     uiStore.showApiError(error, '遭遇失败')
@@ -131,40 +249,22 @@ const handleEncounter = async (monster) => {
  * 后端返回字段说明：
  *   - victory=true / battleEnded=true / result='win' → 战斗胜利
  *   - defeat=true / result='lose' → 战斗失败
- *   - 否则继续战斗，res.data 含 monster_hp/turn 等
+ *   - 否则一次完整回合：player_action + monster_action，turn 回到 player
  */
 const handleAttack = async () => {
   if (combatLoading.value || !currentBattle.value) return
 
   combatLoading.value = true
   try {
-    const res = await attack()
-
+    const res = await attack('attack')
     const result = res.data
-    if (result.victory || result.battleEnded) {
-      // 战斗胜利：后端返回 rewards.exp 而非 exp_gained
-      const expGained = result.rewards?.exp || 0
-      uiStore.showToast(`战斗胜利！获得 ${expGained} 修为`, 'success')
-      uiStore.addLog({
-        content: `你击败了 ${currentBattle.value.monster.name}，获得 ${expGained} 修为。`,
-        type: 'combat',
-        actorId: 'self'
-      })
-      endBattle()
-    } else if (result.defeat) {
-      uiStore.showToast(`战斗失败，扣除 ${result.penalty_exp || 0} 修为`, 'error')
-      endBattle()
-    } else {
-      uiStore.addLog({
-        content: `你对 ${currentBattle.value.monster.name} 造成了 ${result.damage} 点伤害。`,
-        type: 'combat',
-        actorId: 'self'
-      })
-      // 更新当前战斗状态：monster_hp 已变化
-      if (currentBattle.value.monster) {
-        currentBattle.value.monster.hp = result.monster_hp
-      }
-      currentBattle.value.turn = result.turn
+
+    if (!settleBattleOutcome(
+      result,
+      (expGained) => `你击败了 ${currentBattle.value.monster.name}，获得 ${expGained} 修为。`,
+      '战斗失败'
+    )) {
+      applyRoundResult(result)
     }
 
     if (result.rewards?.items && result.rewards.items.length > 0) {
@@ -192,33 +292,14 @@ const handleUseSkill = async (skillIndex) => {
   combatLoading.value = true
   try {
     const res = await useSkill(skillIndex)
-
     const result = res.data
-    if (result.victory || result.battleEnded) {
-      const expGained = result.rewards?.exp || 0
-      uiStore.showToast(`战斗胜利！获得 ${expGained} 修为`, 'success')
-      uiStore.addLog({
-        content: `你使用技能击败了 ${currentBattle.value.monster.name}，获得 ${expGained} 修为。`,
-        type: 'combat',
-        actorId: 'self'
-      })
-      endBattle()
-    } else if (result.defeat) {
-      uiStore.showToast(`战斗失败，扣除 ${result.penalty_exp || 0} 修为`, 'error')
-      endBattle()
-    } else {
-      uiStore.addLog({
-        content: `你对 ${currentBattle.value.monster.name} 使用了技能，造成 ${result.damage} 点伤害。`,
-        type: 'combat',
-        actorId: 'self'
-      })
-      if (currentBattle.value.monster) {
-        currentBattle.value.monster.hp = result.monster_hp
-      }
-      if (currentBattle.value.player) {
-        currentBattle.value.player.mp = result.player_mp
-      }
-      currentBattle.value.turn = result.turn
+
+    if (!settleBattleOutcome(
+      result,
+      (expGained) => `你使用技能击败了 ${currentBattle.value.monster.name}，获得 ${expGained} 修为。`,
+      '战斗失败'
+    )) {
+      applyRoundResult(result)
     }
 
     if (result.rewards?.items && result.rewards.items.length > 0) {
@@ -239,7 +320,7 @@ const handleUseSkill = async (skillIndex) => {
 
 /**
  * 逃跑
- * 后端返回 fled=true 表示成功逃跑，fled=false 表示逃跑失败（怪物获得回合）
+ * 后端返回 fled=true 表示成功逃跑；失败时空过一招并由怪物回击，回合仍回到玩家
  */
 const handleEscape = async () => {
   if (combatLoading.value || !currentBattle.value) return
@@ -257,15 +338,20 @@ const handleEscape = async () => {
         actorId: 'self'
       })
       endBattle()
+    } else if (settleBattleOutcome(
+      result,
+      () => '逃跑失败，但你击败了怪物！',
+      '逃跑失败'
+    )) {
+      // 战斗已结束
     } else {
-      // 逃跑失败，怪物获得回合
       uiStore.showToast('逃跑失败！', 'warn')
       uiStore.addLog({
         content: `你试图从 ${currentBattle.value.monster.name} 手中逃跑，但失败了！`,
         type: 'combat',
         actorId: 'self'
       })
-      currentBattle.value.turn = result.turn || 'monster'
+      applyRoundResult({ ...result, player_action: null, monster_action: result.monster_action })
     }
     await refreshStats()
   } catch (error) {
@@ -349,7 +435,13 @@ onMounted(() => {
             <PanelCard>
               <div class="flex justify-between items-center mb-3 gap-2">
                 <h4 class="text-lg font-bold text-rose-400 truncate">{{ currentBattle.monster.name }}</h4>
-                <Badge tone="danger">{{ currentBattle.monster.realm }}</Badge>
+                <div class="flex items-center gap-2 shrink-0">
+                  <Badge tone="neutral">第 {{ roundLabel }} 回合</Badge>
+                  <Badge :tone="isPlayerTurn ? 'success' : 'gold'">
+                    {{ isPlayerTurn ? '你的回合' : '怪物行动中' }}
+                  </Badge>
+                  <Badge tone="danger">{{ currentBattle.monster.realm }}</Badge>
+                </div>
               </div>
 
               <StatBar
@@ -393,17 +485,17 @@ onMounted(() => {
             <div class="grid grid-cols-3 gap-2">
               <AppButton
                 variant="danger"
-                :disabled="combatLoading"
+                :disabled="combatLoading || !isPlayerTurn"
                 :loading="combatLoading"
                 @click="handleAttack"
               >普通攻击</AppButton>
               <AppButton
                 variant="outline"
-                :disabled="combatLoading || currentBattle.player.mp < skillMpCost"
+                :disabled="combatLoading || !isPlayerTurn || currentBattle.player.mp < skillMpCost"
                 @click="handleUseSkill(0)"
               >技能 · {{ skillMpCost }}灵力</AppButton>
               <AppButton
-                :disabled="combatLoading"
+                :disabled="combatLoading || !isPlayerTurn"
                 @click="handleEscape"
               >逃跑</AppButton>
             </div>
@@ -418,6 +510,26 @@ onMounted(() => {
                 @click="handleAbandon"
               >放弃战斗</AppButton>
             </div>
+
+            <PanelCard v-if="battleLog.length" title="战斗日志">
+              <ul class="space-y-1 text-xs text-fg-muted max-h-40 overflow-y-auto">
+                <li v-for="(entry, idx) in battleLog.slice(-8).reverse()" :key="idx">
+                  <span class="text-fg-faint">#{{ entry.round ?? '-' }}</span>
+                  <span
+                    class="ml-1"
+                    :class="entry.attacker === 'player' ? 'text-emerald-400' : entry.attacker === 'monster' ? 'text-rose-400' : 'text-gold-400'"
+                  >{{ entry.attacker === 'player' ? '你' : entry.attacker === 'monster' ? currentBattle.monster.name : '道侣' }}</span>
+                  <span class="ml-1">
+                    {{ entry.action === 'victory' ? '取得胜利'
+                      : entry.action === 'defeat' ? '身死道消'
+                      : entry.action === 'flee' ? (entry.success ? '成功遁走' : '逃跑失败')
+                      : entry.action === 'use_item' ? `使用物品（回血 ${entry.hp_restore || 0}）`
+                      : entry.action === 'protect' ? `护道分担 ${entry.shared_damage || 0}`
+                      : `造成 ${entry.damage ?? 0} 点伤害${entry.missed ? '（落空）' : entry.crit ? '（暴击）' : ''}` }}
+                  </span>
+                </li>
+              </ul>
+            </PanelCard>
           </div>
         </div>
       </div>
@@ -458,9 +570,9 @@ onMounted(() => {
 
             <AppButton
               block
-              :disabled="combatLoading || !getMonsterDifficulty(monster).safe"
+              :disabled="combatLoading || !getMonsterDifficulty(monster).safe || !!currentBattle"
               @click="handleEncounter(monster)"
-            >遭遇</AppButton>
+            >{{ currentBattle ? '战斗中' : '遭遇' }}</AppButton>
           </PanelCard>
 
           <PanelCard title="战斗统计" v-if="combatStats">

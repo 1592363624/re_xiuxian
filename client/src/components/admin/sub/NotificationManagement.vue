@@ -10,7 +10,7 @@
       <div class="flex items-center justify-between mb-4">
         <h4 class="text-md font-bold text-gold-500">发送全服公告</h4>
         <span class="text-xs text-fg-faint">
-          可直接 Ctrl+V 粘贴截图，最多 {{ imageConfig.maxCount }} 张
+          在内容中 Ctrl+V 粘贴截图，插在光标处，最多 {{ imageConfig.maxCount }} 张
         </span>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -29,7 +29,22 @@
         </div>
         <div class="md:col-span-2">
           <label class="block text-sm text-fg-muted mb-1">公告内容</label>
-          <textarea v-model="announcement.content" rows="3" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600" placeholder="输入公告内容（纯图片公告可留空）"></textarea>
+          <textarea
+            ref="formContentRef"
+            v-model="announcement.content"
+            rows="5"
+            class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600 font-mono text-xs"
+            placeholder="输入公告内容；Ctrl+V 粘贴截图会插在光标处（纯图片公告可留空文字）"
+            @paste="onFormPaste"
+          ></textarea>
+          <p class="mt-1 text-xs text-fg-faint">
+            图片以 ![图片](地址) 形式插在光标处，展示时按同样顺序图文混排
+            <span v-if="formUploading"> · 图片上传中…</span>
+          </p>
+          <div v-if="announcement.content.trim()" class="mt-2 rounded border border-line-subtle bg-surface-sunken/50 px-3 py-2">
+            <div class="text-[10px] uppercase tracking-wider text-fg-faint mb-1">展示预览</div>
+            <AnnouncementBody :content="announcement.content" :image-urls="[]" text-class="text-xs text-fg-secondary" image-class="max-h-40" />
+          </div>
         </div>
 
         <!-- 定时：留空表示立即发布 / 长期有效；预约时间在未来时到点才推送 -->
@@ -44,12 +59,10 @@
           <p class="mt-1 text-xs text-fg-faint">留空 = 长期有效；到点自动隐藏并清理已读记录</p>
         </div>
 
-        <!-- 配图区：与编辑弹窗共用同一个上传器组件（见 AnnouncementImageUploader） -->
-        <AnnouncementImageUploader ref="uploaderRef" v-model="announcement.imageUrls" />
       </div>
       <div class="mt-4 flex justify-end">
         <AppButton variant="primary" :disabled="!canSend" @click="handleSendAnnouncement">
-          {{ isUploading ? '图片上传中…' : '发送公告' }}
+          {{ formUploading ? '图片上传中…' : '发送公告' }}
         </AppButton>
       </div>
     </div>
@@ -112,7 +125,7 @@
                   :class="getStatusTag(n).className"
                 >{{ getStatusTag(n).text }}</span>
               </td>
-              <td class="px-4 py-3 whitespace-nowrap text-fg-muted max-w-xs truncate">{{ n.content }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-fg-muted max-w-xs truncate">{{ stripImageTokens(n.content) }}</td>
               <td class="px-4 py-3 whitespace-nowrap">
                 <!-- 配图缩略图：点击原图查看，便于 GM 确认图是否传对 -->
                 <div v-if="getImageUrls(n).length" class="flex items-center gap-1">
@@ -191,7 +204,22 @@
           </div>
           <div class="md:col-span-2">
             <label class="block text-sm text-fg-muted mb-1">内容</label>
-            <textarea v-model="editing.content" rows="3" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600"></textarea>
+            <textarea
+              ref="editContentRef"
+              v-model="editing.content"
+              rows="5"
+              class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600 font-mono text-xs"
+              placeholder="Ctrl+V 可在光标处插入截图"
+              @paste="onEditPaste"
+            ></textarea>
+            <p class="mt-1 text-xs text-fg-faint">
+              图片标记插在光标处；旧图已并入正文，可自行调整位置
+              <span v-if="editUploading"> · 图片上传中…</span>
+            </p>
+            <div v-if="editing?.content?.trim()" class="mt-2 rounded border border-line-subtle bg-surface-sunken/50 px-3 py-2">
+              <div class="text-[10px] uppercase tracking-wider text-fg-faint mb-1">展示预览</div>
+              <AnnouncementBody :content="editing.content" :image-urls="[]" text-class="text-xs text-fg-secondary" image-class="max-h-40" />
+            </div>
           </div>
           <div>
             <label class="block text-sm text-fg-muted mb-1">预约发布时间</label>
@@ -203,8 +231,7 @@
             <input v-model="editing.expiresAt" type="datetime-local" class="w-full bg-surface-sunken border border-line rounded-control px-3 py-2 text-fg-secondary focus-ring focus:border-gold-600">
             <p class="mt-1 text-xs text-fg-faint">留空 = 长期有效</p>
           </div>
-          <!-- 与发送表单同一个上传器：粘贴/点击都能加图，移除只是把地址从数组里去掉 -->
-          <AnnouncementImageUploader v-model="editing.imageUrls" label="配图（保留原图即不重新上传）" />
+          <!-- 配图已并入正文标记，不再单独维护 imageUrls 列表 -->
 
           <!-- 重提示：更正错别字/改时间后，让已经读过这条公告的人重新看到未读并收到定向提示 -->
           <label class="md:col-span-2 flex items-start gap-2 text-sm text-fg-secondary cursor-pointer">
@@ -227,7 +254,7 @@
 <script setup>
 /**
  * 通知管理子组件
- * 负责发送全服公告（支持粘贴/选择配图）和管理通知列表（支持单条与批量删除）
+ * 负责发送全服公告（正文内联贴图）和管理通知列表（支持单条与批量删除）
  */
 import { ref, reactive, computed, onMounted } from 'vue'
 import { formatBeijing } from '../../../utils/time'
@@ -242,10 +269,12 @@ import {
   getAdminNotifications
 } from '../../../api/admin'
 import { ANNOUNCEMENT_IMAGE_CONFIG } from '../../../config'
+import { stripImageTokens, extractInlineImageUrls, inlineLegacyImages } from '../../../utils/announcementContent'
+import { useInlineAnnouncementImages } from '../../../utils/useInlineAnnouncementImages'
 import AppButton from '../../ui/AppButton.vue'
 import Modal from '../../common/Modal.vue'
+import AnnouncementBody from '../../common/AnnouncementBody.vue'
 import AnnouncementConfig from './AnnouncementConfig.vue'
-import AnnouncementImageUploader from './AnnouncementImageUploader.vue'
 
 const emit = defineEmits(['showConfirm'])
 const uiStore = useUIStore()
@@ -253,19 +282,35 @@ const uiStore = useUIStore()
 // 配图相关阈值统一走配置，禁止在组件里写死
 const imageConfig = ANNOUNCEMENT_IMAGE_CONFIG
 
-// 发送表单里的上传器实例：拿它的"是否正在上传"来决定发送按钮能不能点
-const uploaderRef = ref(null)
+// 正文内联贴图：标记插在光标处，地址从正文解析
+const formContentRef = ref(null)
+const editContentRef = ref(null)
 
 // 通知管理
 const announcement = reactive({
   title: '',
   content: '',
   priority: 'high',
-  imageUrls: [],
   // datetime-local 的值形如 '2026-09-23T09:00'（不带时区），提交前统一转成 ISO
   publishAt: '',
   expiresAt: ''
 })
+
+// 发送表单 / 编辑弹窗各一套内联贴图状态（上传计数分开，避免互相卡发送按钮）
+const formContentModel = computed({
+  get: () => announcement.content,
+  set: (v) => { announcement.content = v }
+})
+const formImages = useInlineAnnouncementImages(formContentModel, formContentRef)
+
+// 编辑弹窗：{ id, title, content, priority, publishAt, expiresAt, notifyReaders }
+const editing = ref(null)
+const editingContentModel = computed({
+  get: () => editing.value?.content ?? '',
+  set: (v) => { if (editing.value) editing.value.content = v }
+})
+const editImages = useInlineAnnouncementImages(editingContentModel, editContentRef)
+
 const adminNotifications = ref([])
 const notificationPagination = reactive({
   currentPage: 1,
@@ -279,22 +324,21 @@ const allSelected = computed(() =>
   adminNotifications.value.length > 0 && selectedIds.value.length === adminNotifications.value.length
 )
 
-// 上传中状态由上传器组件自己维护，父组件只读取（避免两份状态各自漂移）
-const isUploading = computed(() => !!uploaderRef.value?.isUploading)
+const formUploading = computed(() => formImages.uploadingCount.value > 0)
+const editUploading = computed(() => editImages.uploadingCount.value > 0)
 
-// 标题必填；内容与配图满足其一即可（纯图公告也允许）；图片上传完之前不允许发送
+// 标题必填；内容里的文字或图片满足其一即可；图片上传完之前不允许发送
 const canSend = computed(() =>
   !!announcement.title.trim()
-  && (!!announcement.content.trim() || announcement.imageUrls.length > 0)
-  && !isUploading.value
+  && (!!announcement.content.trim() || extractInlineImageUrls(announcement.content).length > 0)
+  && !formUploading.value
 )
 
-// 编辑弹窗：{ id, title, content, priority, imageUrls }
-const editing = ref(null)
 const saving = ref(false)
 const canSaveEdit = computed(() =>
   !!editing.value?.title?.trim()
-  && (!!editing.value?.content?.trim() || (editing.value?.imageUrls?.length ?? 0) > 0)
+  && (!!editing.value?.content?.trim() || extractInlineImageUrls(editing.value?.content || '').length > 0)
+  && !editUploading.value
 )
 
 /**
@@ -395,16 +439,15 @@ const fetchNotifications = async (page = 1) => {
 
 /**
  * 打开编辑弹窗
- * 配图直接回填现有地址：上传器会拿它们当预览，不动这些地址就等于复用原图
+ * 旧公告的配图在 metadata.imageUrls：并入正文标记，便于 GM 挪到任意位置
  * @param {Object} notification - 列表里的通知
  */
 const openEditModal = (notification) => {
   editing.value = {
     id: notification.id,
     title: notification.title || '',
-    content: notification.content || '',
+    content: inlineLegacyImages(notification.content || '', getImageUrls(notification)),
     priority: notification.priority || 'normal',
-    imageUrls: [...getImageUrls(notification)],
     // 服务端给的是 ISO，输入框要本地时间格式；留空表示不限时
     publishAt: toLocalInput(notification.publishAt),
     expiresAt: toLocalInput(notification.expiresAt),
@@ -424,8 +467,8 @@ const submitEdit = async () => {
       title: editing.value.title.trim(),
       content: editing.value.content,
       priority: editing.value.priority,
-      // 传最终列表：保留的地址即复用，删掉的地址由孤儿图回收任务按保留窗口处理
-      imageUrls: [...editing.value.imageUrls],
+      // 传最终列表：与正文标记一致，删掉的地址由孤儿图回收任务按保留窗口处理
+      imageUrls: extractInlineImageUrls(editing.value.content),
       publishAt: toIsoOrNull(editing.value.publishAt),
       expiresAt: toIsoOrNull(editing.value.expiresAt),
       notifyReaders: editing.value.notifyReaders
@@ -484,7 +527,7 @@ const handleSendAnnouncement = async () => {
       announcement.title,
       announcement.content,
       announcement.priority,
-      [...announcement.imageUrls],
+      formImages.getImageUrls(),
       {
         publishAt: toIsoOrNull(announcement.publishAt),
         expiresAt: toIsoOrNull(announcement.expiresAt)
@@ -494,7 +537,6 @@ const handleSendAnnouncement = async () => {
     uiStore.showToast(res.data?.message || '公告已发送', 'success')
     announcement.title = ''
     announcement.content = ''
-    announcement.imageUrls = []
     announcement.publishAt = ''
     announcement.expiresAt = ''
     selectedIds.value = []
@@ -503,6 +545,9 @@ const handleSendAnnouncement = async () => {
     uiStore.showApiError(error, '发送失败')
   }
 }
+
+const onFormPaste = (e) => formImages.onPaste(e)
+const onEditPaste = (e) => editImages.onPaste(e)
 
 /**
  * 删除单条通知
@@ -622,7 +667,7 @@ defineExpose({
   fetchNotifications
 })
 
-// 粘贴监听已随上传器组件走（AnnouncementImageUploader + imagePasteBus 仲裁），
+// 粘贴监听挂在公告内容 textarea 上（useInlineAnnouncementImages），按光标处插入标记
 // 这里不再单独挂 document 监听，否则同一张图会被上传两遍
 onMounted(() => {
   fetchNotifications()

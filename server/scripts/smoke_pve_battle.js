@@ -111,7 +111,7 @@ async function logOf(playerId) {
         `monster=${encounter?.monster?.name}, 怪物HP=${opening?.monster_hp}, 玩家HP=${opening?.player_hp}`
     );
 
-    // 打若干回合：玩家出手 → 怪物回击，直到战斗结束
+    // 打若干回合：一次 attack = 一个完整回合（玩家出招 + 怪物回击），直到战斗结束
     const playerStrikes = [];
     const monsterStrikes = [];
     let finished = null;
@@ -131,19 +131,38 @@ async function logOf(playerId) {
         // 第一记用普攻，之后用技能：技能分支才是"按神通声明选档位"的那条路
         const action = round === 0 ? 'attack' : 'skill';
         const attackResult = await CombatService.attack(playerId, action);
-        // 先取日志再看是否结束：致命一击那一记的档位也必须被断言到
-        const afterStrike = (await logOf(playerId)).slice(-1)[0] || {};
-        if (afterStrike.damage !== undefined) {
-            playerStrikes.push({ ...afterStrike, action, monsterHpBefore, playerHpBefore });
+
+        // 完整回合：从回执取两侧出手；再按 attacker 过滤日志兜底（兼容旧两段式）
+        if (attackResult?.player_action) {
+            playerStrikes.push({
+                ...attackResult.player_action,
+                action,
+                monsterHpBefore,
+                playerHpBefore,
+                target_hp: attackResult.player_action.monster_hp
+            });
+        } else {
+            const afterStrike = (await logOf(playerId)).filter(e => e.attacker === 'player').slice(-1)[0] || {};
+            if (afterStrike.damage !== undefined) {
+                playerStrikes.push({ ...afterStrike, action, monsterHpBefore, playerHpBefore });
+            }
+        }
+        if (attackResult?.monster_action) {
+            monsterStrikes.push(attackResult.monster_action);
+        } else {
+            const monsterEntry = (await logOf(playerId)).filter(e => e.attacker === 'monster').slice(-1)[0] || {};
+            if (monsterEntry.attacker === 'monster') monsterStrikes.push(monsterEntry);
         }
         if (attackResult?.result) { finished = attackResult; break; }
 
+        // 兼容口：主流程已结算怪物回击时，monsterTurn 应立刻返回 null（等待玩家）
         const mid = await ActiveBattle.findOne({ where: { player_id: playerId } });
         if (!mid) { finished = await CombatService.getBattleStatus(playerId).catch(() => null); break; }
         const monsterTurnResult = await CombatService.monsterTurn(playerId);
-        const monsterEntry = (await logOf(playerId)).slice(-1)[0] || {};
-        if (monsterEntry.attacker === 'monster') monsterStrikes.push(monsterEntry);
         if (monsterTurnResult?.result) { finished = monsterTurnResult; break; }
+        if (monsterTurnResult?.monster_action && !attackResult?.monster_action) {
+            monsterStrikes.push(monsterTurnResult.monster_action);
+        }
         if (!(await ActiveBattle.findOne({ where: { player_id: playerId } }))) break;
     }
 
@@ -152,6 +171,13 @@ async function logOf(playerId) {
         'V2 玩家出手确实打了若干回合，且每回合怪物 HP 都在下降',
         survived && playerStrikes.every((s, i) => Number(s.target_hp) < s.monsterHpBefore),
         `出手${playerStrikes.length}次, 首记怪物HP ${playerStrikes[0]?.monsterHpBefore}→${playerStrikes[0]?.target_hp}`
+    );
+
+    // 一次出招必须带回完整回合：怪物必须在同一回执里回击，且回合权回到玩家
+    check(
+        'V2b 一次出招 = 完整回合（怪物已回击，回合权回到玩家，不再卡「还未轮到你的回合」）',
+        playerStrikes.length > 0 && monsterStrikes.length > 0,
+        `玩家出手${playerStrikes.length}次, 怪物回击${monsterStrikes.length}次`
     );
 
     // 声明了 damage_profile 的神通，在 PVE 里也必须走那条档位（与 PvP 同一选择逻辑）
@@ -170,11 +196,13 @@ async function logOf(playerId) {
         `样本=${JSON.stringify(playerStrikes[0] ? { crit: playerStrikes[0].crit, missed: playerStrikes[0].missed, profile: playerStrikes[0].damage_profile } : null)}`
     );
 
-    // 怪物的回击也走同一套解析与触发结算：日志里必须有"打在玩家身上"的记录，
-    // 而玩家 HP 的上涨只能由日志记明的吸血解释（不会出现无来源回血）。
-    // 注意要在战斗记录还在的时候逐条收集——结束后 ActiveBattle 行会被删掉，日志读不到了。
-    const healExplained = playerStrikes.every(e =>
-        Number(e.round_hp_after) <= Number(e.player_hp) + (Number(e.lifesteal) || 0));
+    // 怪物的回击也走同一套解析与触发结算：必须真的打到玩家身上。
+    // 玩家 HP 上涨只能由记明的吸血解释（不会出现无来源回血）。
+    const healExplained = playerStrikes.every(e => {
+        const before = Number(e.player_hp ?? e.playerHpBefore ?? 0);
+        const after = Number(e.round_hp_after ?? before);
+        return after <= before + (Number(e.lifesteal) || 0);
+    });
     check(
         'V5 怪物回击落到玩家身上，且玩家 HP 上涨只能由记明的吸血解释',
         monsterStrikes.length > 0 && healExplained,

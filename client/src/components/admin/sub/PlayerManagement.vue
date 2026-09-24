@@ -92,7 +92,18 @@
     </div>
 
     <!-- 分页 -->
-    <div class="flex justify-center items-center gap-4 mt-4">
+    <div class="flex justify-center items-center gap-4 mt-4 flex-wrap">
+      <label class="flex items-center gap-2 text-fg-muted text-sm">
+        每页
+        <select
+          v-model.number="pagination.pageSize"
+          @change="handlePageSizeChange"
+          class="px-2 py-1 bg-surface-sunken border border-line rounded-control text-fg-secondary text-sm focus-ring focus:border-gold-600"
+        >
+          <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
+        </select>
+        条
+      </label>
       <AppButton
         variant="default"
         size="sm"
@@ -118,6 +129,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { formatBeijing } from '../../../utils/time'
 import { useUIStore } from '../../../stores/ui'
+import { UI_CONFIG } from '../../../config'
 import { getPlayers } from '../../../api/admin'
 import AppButton from '../../ui/AppButton.vue'
 
@@ -131,12 +143,37 @@ const filter = ref('')
 const sortBy = ref('last_online')
 const sortOrder = ref('DESC')
 
+const pageSizeOptions = UI_CONFIG.pageSizeOptions
+
+/**
+ * 读取本地保存的每页条数
+ * 只接受配置里仍在的档位：档位调整后旧存档不会带到不存在的选项上
+ */
+const loadPageSize = () => {
+  try {
+    const saved = Number(localStorage.getItem(UI_CONFIG.playerListPageSizeKey))
+    if (pageSizeOptions.includes(saved)) return saved
+  } catch {
+    // 隐私模式/超额时 localStorage 会抛错，按默认档位继续
+  }
+  return UI_CONFIG.defaultPageSize
+}
+
+const savePageSize = (size) => {
+  try {
+    localStorage.setItem(UI_CONFIG.playerListPageSizeKey, String(size))
+  } catch {
+    // 存不下也不影响本次使用
+  }
+}
+
 // 玩家数据
 const players = ref([])
 const pagination = reactive({
   currentPage: 1,
   totalPages: 1,
-  total: 0
+  total: 0,
+  pageSize: loadPageSize()
 })
 
 /**
@@ -144,7 +181,7 @@ const pagination = reactive({
  */
 const fetchPlayers = async (page = 1) => {
   try {
-    const params = { page, limit: 10 }
+    const params = { page, limit: pagination.pageSize }
     if (search.value) params.search = search.value
     if (filter.value) params.status = filter.value
     params.sortBy = sortBy.value
@@ -165,6 +202,14 @@ const fetchPlayers = async (page = 1) => {
  * 处理搜索
  */
 const handleSearch = () => {
+  fetchPlayers(1)
+}
+
+/**
+ * 切换每页条数：记忆选择并回到第 1 页
+ */
+const handlePageSizeChange = () => {
+  savePageSize(pagination.pageSize)
   fetchPlayers(1)
 }
 

@@ -69,9 +69,12 @@ router.post('/monster-turn', auth, async (req, res, next) => {
         const result = await CombatService.monsterTurn(req.user.id);
 
         if (!result) {
+            // 主流程已在 attack/useSkill 内结算怪物回击；此响应表示当前已是玩家回合
             return res.json({
                 in_battle: true,
-                waiting_for_player: true
+                waiting_for_player: true,
+                is_player_turn: true,
+                turn: 'player'
             });
         }
 

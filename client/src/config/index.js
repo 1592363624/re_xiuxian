@@ -34,6 +34,8 @@ export const UI_CONFIG = {
   announcementAlertDurationMs: 15000,
   // 默认分页大小
   defaultPageSize: 10,
+  // 列表可选每页条数（与后端 limit 上限 100 对齐）
+  pageSizeOptions: [10, 25, 50, 100],
   // 登录防抖时间（毫秒）
   loginDebounce: 500,
   // loading 最小显示时间（毫秒）
@@ -41,7 +43,9 @@ export const UI_CONFIG = {
   // 数字动画时长（毫秒）
   numberAnimationDuration: 300,
   // GM 管理后台左侧菜单「分组折叠状态 + 当前页」的本地存储键名（持久化用）
-  adminMenuStateKey: 'gm_admin_menu_state'
+  adminMenuStateKey: 'gm_admin_menu_state',
+  // 玩家列表「每页条数」本地存储键名（浏览器记住上次选择）
+  playerListPageSizeKey: 'gm_player_list_page_size'
 }
 
 // 后台日志终端（GM 后台「后台日志」页）显示配置

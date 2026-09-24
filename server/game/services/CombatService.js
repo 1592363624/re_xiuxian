@@ -81,6 +81,15 @@ function appendBattleLog(battle, entry) {
     battle.battle_log = log; // 触发 setter，确保 save 时写入数据库
 }
 
+/**
+ * 布尔归一：MySQL BOOLEAN / SQLite 0|1 / 旧残留字符串都可能进到这里。
+ * 攻击入口只认严格 true 才放行，否则会把 1 当 false、把 'true' 当 true，回合锁形同虚设。
+ */
+function isPlayersTurn(battle) {
+    const v = battle?.is_player_turn;
+    return v === true || v === 1 || v === '1' || v === 'true';
+}
+
 class CombatService {
     /**
      * 遭遇怪物
@@ -144,6 +153,7 @@ class CombatService {
                     },
                     round: activeBattle.round,
                     turn: activeBattle.turn,
+                    is_player_turn: isPlayersTurn(activeBattle),
                     battle_log: (activeBattle.battle_log || []).slice(-5)
                 };
             }
@@ -229,6 +239,7 @@ class CombatService {
                 },
                 round: 1,
                 turn: 'player',
+                is_player_turn: true,
                 message: `遭遇 ${selectedMonster.name}！`
             };
         } catch (error) {
@@ -291,23 +302,40 @@ class CombatService {
                 throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            if (!battle.is_player_turn) {
-                throw new AppError('还未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            // 自愈：旧版把回合切给怪物后依赖客户端再调 /monster-turn，
+            // 客户端一旦没调（或刷新丢失），is_player_turn 永远 false，玩家再也打不出下一招。
+            // 这里先补结算残留的怪物回合，再继续玩家出招，避免战斗卡死。
+            let recoveredMonsterAction = null;
+            if (!isPlayersTurn(battle)) {
+                recoveredMonsterAction = await this._applyMonsterStrike(battle, player, t);
+                if (recoveredMonsterAction.battleResult) {
+                    await t.commit();
+                    await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                        battle_type: 'pve',
+                        is_win: recoveredMonsterAction.battleResult.result === 'win'
+                    });
+                    return {
+                        ...recoveredMonsterAction.battleResult,
+                        recovered_monster_action: recoveredMonsterAction.summary
+                    };
+                }
             }
+
             // 参战属性统一解析（境界+灵根+加点+天赋+称号+装备+灵兽+功法+法宝+傀儡）。
             // 改造前这里读的是 attributes.atk 这份陈旧快照，再手工补灵兽/傀儡两块，
-            // 装备与功法根本不参与 PVE 伤害——面板 480 攻、实际按 25 攻结算。
+            // 装备与功法根本不参与 PVE 伤害——面板 480 攻、实际按 25 收结算。
             const attacker = await CombatResolver.resolveCombatStats(player);
             const balanceConfig = getGameBalanceConfig();
             const combatConfig = balanceConfig.combat || {};
             const monsterStats = monsterCombatStats(battle.monster_data);
 
-            // 技能分支：仅当 action=skill 且灵力足够时改走技能公式并扣灵力
-            // 具体走哪条档位由神通声明（combat_formulas 的 profile），资料片新增档位无需改这里
+            // 技能分支：仅当 action=skill 且战斗内灵力足够时改走技能公式并扣灵力。
+            // 灵力以战斗内 battle.player_mp 为准（含灵兽加成），不再读 players.mp_current 陈旧列。
             const skillProfile = CombatResolver.selectSkillProfile(
                 attacker.info?.technique_skills, 'player_skill'
             );
-            const canSkill = action === 'skill' && safeBigInt(player.mp_current) >= (combatConfig.skill_mp_cost ?? 20);
+            const skillMpCost = combatConfig.skill_mp_cost ?? 20;
+            const canSkill = action === 'skill' && safeBigInt(battle.player_mp) >= BigInt(skillMpCost);
             const strike = CombatResolver.computeDamage(canSkill ? skillProfile : 'player_basic', {
                 attackerStats: attacker.stats,
                 defenderStats: monsterStats,
@@ -318,7 +346,7 @@ class CombatService {
             let damage = strike.damage;
 
             if (canSkill) {
-                battle.player_mp = safeBigInt(battle.player_mp) - BigInt(combatConfig.skill_mp_cost ?? 20);
+                battle.player_mp = safeBigInt(battle.player_mp) - BigInt(skillMpCost);
             }
 
             // 使用 safeBigInt 防御 null/undefined 导致 500
@@ -344,6 +372,20 @@ class CombatService {
                 timestamp: new Date().toISOString()
             });
 
+            const playerAction = {
+                action,
+                damage,
+                damage_profile: strike.profile,
+                crit: !!strike.crit,
+                missed: !!strike.missed,
+                lifesteal: healed || undefined,
+                player_hp: hpBeforeHeal.toString(),
+                round_hp_after: safeBigInt(battle.player_hp).toString(),
+                target_hp: safeBigInt(battle.monster_hp).toString(),
+                monster_hp: safeBigInt(battle.monster_hp).toString(),
+                player_mp: safeBigInt(battle.player_mp).toString()
+            };
+
             // checkBattleEnd 在事务内执行，胜利/失败时修改 player 和 battle
             const battleResult = await this.checkBattleEnd(battle, player, t);
             if (battleResult) {
@@ -353,15 +395,45 @@ class CombatService {
                     battle_type: 'pve',
                     is_win: battleResult.result === 'win'
                 });
-                return battleResult;
+                return {
+                    ...battleResult,
+                    player_action: playerAction,
+                    recovered_monster_action: recoveredMonsterAction?.summary || null
+                };
             }
 
-            battle.is_player_turn = false;
-            battle.turn = 'monster';
+            // 同一请求内结算怪物回击：一次出招 = 一个完整回合，回合权回到玩家。
+            // 改造前这里只把 turn 切成 monster，等客户端再调 /monster-turn；
+            // 前端从未调用 → 怪物永远不出手，下一招被「还未轮到你的回合」挡住。
+            const monsterStrike = await this._applyMonsterStrike(battle, player, t);
+            if (monsterStrike.battleResult) {
+                await t.commit();
+                await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pve',
+                    is_win: monsterStrike.battleResult.result === 'win'
+                });
+                return {
+                    ...monsterStrike.battleResult,
+                    player_action: playerAction,
+                    monster_action: monsterStrike.summary,
+                    recovered_monster_action: recoveredMonsterAction?.summary || null
+                };
+            }
+
+            battle.round += 1;
+            battle.is_player_turn = true;
+            battle.turn = 'player';
             battle.last_action_time = new Date();
             await battle.save({ transaction: t });
 
             await t.commit();
+
+            const messages = [];
+            messages.push(`你对 ${battle.monster_name} 造成了 ${damage} 点伤害！`);
+            if (recoveredMonsterAction?.summary) {
+                messages.push(recoveredMonsterAction.summary.message);
+            }
+            messages.push(monsterStrike.summary.message);
 
             return {
                 in_battle: true,
@@ -369,8 +441,17 @@ class CombatService {
                 action: action,
                 damage: damage,
                 monster_hp: safeBigInt(battle.monster_hp).toString(),
-                turn: 'monster',
-                message: `你对 ${battle.monster_name} 造成了 ${damage} 点伤害！`
+                player_hp: safeBigInt(battle.player_hp).toString(),
+                player_mp: safeBigInt(battle.player_mp).toString(),
+                turn: 'player',
+                is_player_turn: true,
+                round: battle.round,
+                player_action: playerAction,
+                monster_action: monsterStrike.summary,
+                recovered_monster_action: recoveredMonsterAction?.summary || null,
+                // 与旧 monster-turn 回执同名，护道展示/测试不必再下钻一层
+                protect_info: monsterStrike.summary.protect_info,
+                message: messages.join(' ')
             };
         } catch (error) {
             if (!t.finished) await t.rollback();
@@ -379,7 +460,145 @@ class CombatService {
     }
 
     /**
-     * 怪物行动
+     * 结算怪物一记回击（必须在调用方事务内、且已持有 battle/player 行锁）
+     *
+     * 不负责切换 is_player_turn/round——由调用方在完整回合收尾时统一改，
+     * 这样 attack/useSkill/flee 失败/独立 monster-turn 四条路径共用同一套伤害与特效。
+     *
+     * @returns {{battleResult?: object, summary: object}}
+     */
+    static async _applyMonsterStrike(battle, player, t) {
+        const defender = await CombatResolver.resolveCombatStats(player);
+
+        const monsterData = battle.monster_data || {};
+        // 与玩家出手共用同一套公式与触发结算：怪物这一记同样会被玩家的闪避、
+        // 神通格挡/减伤减免。改造前这里是第五份手写伤害公式，玩家的防御类特效对 PVE 完全无效。
+        const monsterStrike = CombatResolver.computeDamage('monster_basic', {
+            // 整块怪物属性：内容里给它声明 crit_rate/dodge_rate/lifesteal 就直接进结算，
+            // 不用回来改这里（改造前只有 atk 一个字段，怪物永远不可能暴击）
+            attackerStats: monsterCombatStats(monsterData),
+            defenderStats: defender.stats,
+            defenderSkills: defender.info?.technique_skills,
+            balanceConfig: getGameBalanceConfig()
+        });
+        let damage = monsterStrike.damage;
+
+        // ===== 洞府防御加成减免（与 WorldBossService 一致的断链接通模式）=====
+        // getCaveDefenseBonus 返回玩家因洞府设施获得的受击伤害减免比例（0~max_bonus），
+        // 由 CaveService 统一计算，避免防御逻辑散落在各战斗入口。
+        // try-catch 兜底：洞府服务异常不影响 PVE 战斗主流程。
+        let caveDefenseReduction = 0;
+        try {
+            // 懒加载 CaveService，避免与服务层循环依赖
+            const CaveService = require('./CaveService');
+            caveDefenseReduction = Number(await CaveService.getCaveDefenseBonus(player.id)) || 0;
+            // 已被闪避/格挡的一记不再被"至少 1 点"下限抬回伤害
+            if (caveDefenseReduction > 0 && damage > 0) {
+                const reduced = Math.floor(damage * caveDefenseReduction);
+                damage = Math.max(1, damage - reduced);
+            }
+        } catch (caveErr) {
+            // 洞府减免查询失败不影响战斗主流程
+            console.warn('[CombatService] 洞府防御减免查询异常:', caveErr.message);
+        }
+
+        // ===== 道侣护道判定（与 PvpService 一致的集成模式）=====
+        // 设计文档 5.6.1：心契等级 L2 解锁护道，被攻击时有概率触发道侣远程护持
+        // PVE 场景下护道反击伤害作用于怪物（道侣远程协助攻击怪物），区别于 PVP 反击攻击方玩家
+        // try-catch 兜底：护道判定失败不影响战斗主流程
+        let protectInfo = null;
+        let counterDamageToMonster = 0;
+        try {
+            // 懒加载 DaoCompanionService，避免循环依赖
+            const DaoCompanionService = require('./DaoCompanionService');
+            const protectResult = await DaoCompanionService.tryProtect(
+                player.id,
+                damage,
+                {
+                    battleType: 'combat',               // 野外战斗场景
+                    battleId: battle.battle_uuid,        // 战斗实例ID
+                    battleRound: battle.round,           // 当前回合
+                    attackerId: null,                    // PVE 中攻击方是怪物，无玩家ID
+                    protectorAtk: 0,                     // 今天传 0 就等于"护道方不反击"（配置里没有 ATK 这项，接线与否见 #24 与 tests/DaoCompanionCounterLink.test.js）
+                    transaction: t                       // 复用当前事务
+                }
+            );
+            if (protectResult.triggered) {
+                protectInfo = protectResult;
+                // 被攻击方实际承受伤害（护道方分担了部分）
+                damage = Number(protectResult.actual_damage_to_defender);
+                // 反击伤害（怪物承受）
+                counterDamageToMonster = Number(protectResult.counter_damage) || 0;
+                if (counterDamageToMonster > 0) {
+                    battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(counterDamageToMonster);
+                }
+            }
+        } catch (protectErr) {
+            // 护道判定失败不影响战斗主流程
+            console.warn('[CombatService] 道侣护道判定异常:', protectErr.message);
+        }
+
+        battle.player_hp = safeBigInt(battle.player_hp) - BigInt(damage);
+        battle.damage_received = safeBigInt(battle.damage_received) + BigInt(damage);
+
+        appendBattleLog(battle, {
+            round: battle.round,
+            attacker: 'monster',
+            action: 'attack',
+            damage: damage,
+            crit: !!monsterStrike.crit,
+            missed: !!monsterStrike.missed,
+            // 洞府防御减免比例（0 表示无减免），便于前端/日志展示减免来源
+            cave_defense_reduction: Number(caveDefenseReduction.toFixed(4)),
+            target_hp: safeBigInt(battle.player_hp).toString(),
+            timestamp: new Date().toISOString()
+        });
+
+        // 护道触发时追加战斗日志（让玩家看到"道侣远程护持"反馈）
+        if (protectInfo && protectInfo.triggered) {
+            appendBattleLog(battle, {
+                round: battle.round,
+                attacker: 'dao_companion',
+                action: 'protect',
+                shared_damage: protectInfo.shared_damage,
+                counter_damage: counterDamageToMonster,
+                monster_hp_after_counter: safeBigInt(battle.monster_hp).toString(),
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        let message = `${battle.monster_name} 对你造成了 ${damage} 点伤害！`;
+        if (protectInfo && protectInfo.triggered) {
+            message += ` 道侣远程护持，分担 ${protectInfo.shared_damage} 点伤害`;
+            if (counterDamageToMonster > 0) {
+                message += `，反击怪物 ${counterDamageToMonster} 点伤害`;
+            }
+            message += '。';
+        }
+
+        const summary = {
+            action: 'monster_attack',
+            damage,
+            crit: !!monsterStrike.crit,
+            missed: !!monsterStrike.missed,
+            cave_defense_reduction: Number(caveDefenseReduction.toFixed(4)),
+            player_hp: safeBigInt(battle.player_hp).toString(),
+            monster_hp: safeBigInt(battle.monster_hp).toString(),
+            message,
+            protect_info: protectInfo
+        };
+
+        const battleResult = await this.checkBattleEnd(battle, player, t);
+        return { battleResult: battleResult || undefined, summary };
+    }
+
+    /**
+     * 怪物行动（兼容入口 / 残留怪物回合恢复）
+     *
+     * 主流程已在 attack/useSkill 内完整结算怪物回击，正常客户端不再依赖本接口。
+     * 保留原因：
+     *   1) 旧前端/脚本仍按「玩家出手 → 再调 monster-turn」两段式驱动；
+     *   2) 历史卡死战斗（is_player_turn=false）可由此口恢复。
      * 事务包裹：扣血/写日志/回合切换必须原子性
      * 行级锁：防止与 attack/flee 并发
      */
@@ -401,117 +620,23 @@ class CombatService {
                 transaction: t
             });
 
-            if (!battle || battle.is_player_turn) {
+            if (!battle || isPlayersTurn(battle)) {
                 await t.commit();
                 return null;
             }
 
-            const defender = await CombatResolver.resolveCombatStats(player);
-
-            const monsterData = battle.monster_data || {};
-            // 与玩家出手共用同一套公式与触发结算：怪物这一记同样会被玩家的闪避、
-            // 神通格挡/减伤减免。改造前这里是第五份手写伤害公式，玩家的防御类特效对 PVE 完全无效。
-            const monsterStrike = CombatResolver.computeDamage('monster_basic', {
-                // 整块怪物属性：内容里给它声明 crit_rate/dodge_rate/lifesteal 就直接进结算，
-                // 不用回来改这里（改造前只有 atk 一个字段，怪物永远不可能暴击）
-                attackerStats: monsterCombatStats(monsterData),
-                defenderStats: defender.stats,
-                defenderSkills: defender.info?.technique_skills,
-                balanceConfig: getGameBalanceConfig()
-            });
-            let damage = monsterStrike.damage;
-
-            // ===== 洞府防御加成减免（与 WorldBossService 一致的断链接通模式）=====
-            // getCaveDefenseBonus 返回玩家因洞府设施获得的受击伤害减免比例（0~max_bonus），
-            // 由 CaveService 统一计算，避免防御逻辑散落在各战斗入口。
-            // try-catch 兜底：洞府服务异常不影响 PVE 战斗主流程。
-            let caveDefenseReduction = 0;
-            try {
-                // 懒加载 CaveService，避免与服务层循环依赖
-                const CaveService = require('./CaveService');
-                caveDefenseReduction = Number(await CaveService.getCaveDefenseBonus(playerId)) || 0;
-                // 已被闪避/格挡的一记不再被"至少 1 点"下限抬回伤害
-                if (caveDefenseReduction > 0 && damage > 0) {
-                    const reduced = Math.floor(damage * caveDefenseReduction);
-                    damage = Math.max(1, damage - reduced);
-                }
-            } catch (caveErr) {
-                // 洞府减免查询失败不影响战斗主流程
-                console.warn('[CombatService] 洞府防御减免查询异常:', caveErr.message);
-            }
-
-            // ===== 道侣护道判定（与 PvpService 一致的集成模式）=====
-            // 设计文档 5.6.1：心契等级 L2 解锁护道，被攻击时有概率触发道侣远程护持
-            // PVE 场景下护道反击伤害作用于怪物（道侣远程协助攻击怪物），区别于 PVP 反击攻击方玩家
-            // try-catch 兜底：护道判定失败不影响战斗主流程
-            let protectInfo = null;
-            let counterDamageToMonster = 0;
-            try {
-                // 懒加载 DaoCompanionService，避免循环依赖
-                const DaoCompanionService = require('./DaoCompanionService');
-                const protectResult = await DaoCompanionService.tryProtect(
-                    playerId,
-                    damage,
-                    {
-                        battleType: 'combat',               // 野外战斗场景
-                        battleId: battle.battle_uuid,        // 战斗实例ID
-                        battleRound: battle.round,           // 当前回合
-                        attackerId: null,                    // PVE 中攻击方是怪物，无玩家ID
-                        protectorAtk: 0,                     // 今天传 0 就等于"护道方不反击"（配置里没有 ATK 这项，接线与否见 #24 与 tests/DaoCompanionCounterLink.test.js）
-                        transaction: t                       // 复用当前事务
-                    }
-                );
-                if (protectResult.triggered) {
-                    protectInfo = protectResult;
-                    // 被攻击方实际承受伤害（护道方分担了部分）
-                    damage = Number(protectResult.actual_damage_to_defender);
-                    // 反击伤害（怪物承受）
-                    counterDamageToMonster = Number(protectResult.counter_damage) || 0;
-                    if (counterDamageToMonster > 0) {
-                        battle.monster_hp = safeBigInt(battle.monster_hp) - BigInt(counterDamageToMonster);
-                    }
-                }
-            } catch (protectErr) {
-                // 护道判定失败不影响战斗主流程
-                console.warn('[CombatService] 道侣护道判定异常:', protectErr.message);
-            }
-
-            battle.player_hp = safeBigInt(battle.player_hp) - BigInt(damage);
-            battle.damage_received = safeBigInt(battle.damage_received) + BigInt(damage);
-
-            appendBattleLog(battle, {
-                round: battle.round,
-                attacker: 'monster',
-                action: 'attack',
-                damage: damage,
-                // 洞府防御减免比例（0 表示无减免），便于前端/日志展示减免来源
-                cave_defense_reduction: Number(caveDefenseReduction.toFixed(4)),
-                target_hp: safeBigInt(battle.player_hp).toString(),
-                timestamp: new Date().toISOString()
-            });
-
-            // 护道触发时追加战斗日志（让玩家看到"道侣远程护持"反馈）
-            if (protectInfo && protectInfo.triggered) {
-                appendBattleLog(battle, {
-                    round: battle.round,
-                    attacker: 'dao_companion',
-                    action: 'protect',
-                    shared_damage: protectInfo.shared_damage,
-                    counter_damage: counterDamageToMonster,
-                    monster_hp_after_counter: safeBigInt(battle.monster_hp).toString(),
-                    timestamp: new Date().toISOString()
-                });
-            }
-
-            const battleResult = await this.checkBattleEnd(battle, player, t);
-            if (battleResult) {
+            const strike = await this._applyMonsterStrike(battle, player, t);
+            if (strike.battleResult) {
                 await t.commit();
                 // 大五行幻世轮：PVE 战斗结算后自动积累悟印（未装备时静默返回，不影响主流程）
                 await ArtifactDeepLineService.safeAddInsightExp(player.id, {
                     battle_type: 'pve',
-                    is_win: battleResult.result === 'win'
+                    is_win: strike.battleResult.result === 'win'
                 });
-                return battleResult;
+                return {
+                    ...strike.battleResult,
+                    monster_action: strike.summary
+                };
             }
 
             battle.round += 1;
@@ -522,28 +647,20 @@ class CombatService {
 
             await t.commit();
 
-            // 构建返回消息：护道触发时附带护道反馈
-            let message = `${battle.monster_name} 对你造成了 ${damage} 点伤害！`;
-            if (protectInfo && protectInfo.triggered) {
-                message += ` 道侣远程护持，分担 ${protectInfo.shared_damage} 点伤害`;
-                if (counterDamageToMonster > 0) {
-                    message += `，反击怪物 ${counterDamageToMonster} 点伤害`;
-                }
-                message += '。';
-            }
-
             return {
                 in_battle: true,
                 battle_id: battle.battle_uuid,
                 action: 'monster_attack',
-                damage: damage,
-                player_hp: safeBigInt(battle.player_hp).toString(),
-                monster_hp: safeBigInt(battle.monster_hp).toString(),
+                damage: strike.summary.damage,
+                player_hp: strike.summary.player_hp,
+                monster_hp: strike.summary.monster_hp,
                 turn: 'player',
+                is_player_turn: true,
                 round: battle.round,
-                message,
+                monster_action: strike.summary,
+                message: strike.summary.message,
                 // 护道信息透传给前端（前端可展示"道侣护持"特效）
-                protect_info: protectInfo
+                protect_info: strike.summary.protect_info
             };
         } catch (error) {
             if (!t.finished) await t.rollback();
@@ -572,8 +689,16 @@ class CombatService {
             const escapeChance = getGameBalanceConfig().combat?.escape_chance ?? 0.5;
             const success = Math.random() < escapeChance;
 
+            // 与 attack 同锁序：players 先于 active_battles
+            const player = await Player.findByPk(playerId, {
+                lock: t.LOCK.UPDATE,
+                transaction: t
+            });
+            if (!player) {
+                throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+            }
+
             if (success) {
-                const player = await Player.findByPk(playerId, { transaction: t });
                 appendBattleLog(battle, {
                     round: battle.round,
                     attacker: 'player',
@@ -606,8 +731,27 @@ class CombatService {
                     success: false,
                     timestamp: new Date().toISOString()
                 });
-                battle.is_player_turn = false;
-                battle.turn = 'monster';
+                // 逃跑失败 = 空过一招，怪物立刻回击并把回合交还玩家。
+                // 改造前只把 turn 切成 monster，若客户端不再调 monster-turn 就永久卡死。
+                const strike = await this._applyMonsterStrike(battle, player, t);
+                if (strike.battleResult) {
+                    await t.commit();
+                    await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                        battle_type: 'pve',
+                        is_win: strike.battleResult.result === 'win'
+                    });
+                    return {
+                        success: false,
+                        fled: false,
+                        ...strike.battleResult,
+                        monster_action: strike.summary,
+                        message: `逃跑失败！${strike.summary.message}`
+                    };
+                }
+
+                battle.round += 1;
+                battle.is_player_turn = true;
+                battle.turn = 'player';
                 battle.last_action_time = new Date();
                 await battle.save({ transaction: t });
 
@@ -616,7 +760,15 @@ class CombatService {
                 return {
                     success: false,
                     fled: false,
-                    message: '逃跑失败！'
+                    in_battle: true,
+                    battle_id: battle.battle_uuid,
+                    turn: 'player',
+                    is_player_turn: true,
+                    round: battle.round,
+                    player_hp: strike.summary.player_hp,
+                    monster_hp: strike.summary.monster_hp,
+                    monster_action: strike.summary,
+                    message: `逃跑失败！${strike.summary.message}`
                 };
             }
         } catch (error) {
@@ -852,6 +1004,7 @@ class CombatService {
             },
             round: battle.round,
             turn: battle.turn,
+            is_player_turn: isPlayersTurn(battle),
             battle_log: (battle.battle_log || []).slice(-10)
         };
     }
@@ -905,14 +1058,28 @@ class CombatService {
                 throw new AppError('没有正在进行的战斗', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
-            if (!battle.is_player_turn) {
-                throw new AppError('还未轮到你的回合', 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
+            // 与 attack 同一套自愈：残留怪物回合先补结算，避免「还未轮到你的回合」永久卡死
+            let recoveredMonsterAction = null;
+            if (!isPlayersTurn(battle)) {
+                recoveredMonsterAction = await this._applyMonsterStrike(battle, player, t);
+                if (recoveredMonsterAction.battleResult) {
+                    await t.commit();
+                    await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                        battle_type: 'pve',
+                        is_win: recoveredMonsterAction.battleResult.result === 'win'
+                    });
+                    return {
+                        ...recoveredMonsterAction.battleResult,
+                        recovered_monster_action: recoveredMonsterAction.summary
+                    };
+                }
             }
 
             const combatConfig = getGameBalanceConfig().combat || {};
             const skillMpCost = combatConfig.skill_mp_cost ?? 20;
 
-            if (safeBigInt(player.mp_current) < skillMpCost) {
+            // 灵力以战斗内池为准（含灵兽加成），与 attack 技能分支同口径
+            if (safeBigInt(battle.player_mp) < BigInt(skillMpCost)) {
                 throw new AppError(`灵力不足，需要 ${skillMpCost} 点灵力`, 400, ErrorCodes.BUSINESS_LOGIC_ERROR);
             }
 
@@ -952,6 +1119,21 @@ class CombatService {
                 timestamp: new Date().toISOString()
             });
 
+            const playerAction = {
+                action: 'skill',
+                skill_index: skillIndex,
+                damage,
+                damage_profile: strike.profile,
+                crit: !!strike.crit,
+                missed: !!strike.missed,
+                lifesteal: healed || undefined,
+                player_hp: hpBeforeHeal.toString(),
+                round_hp_after: safeBigInt(battle.player_hp).toString(),
+                target_hp: safeBigInt(battle.monster_hp).toString(),
+                monster_hp: safeBigInt(battle.monster_hp).toString(),
+                player_mp: safeBigInt(battle.player_mp).toString()
+            };
+
             const battleResult = await this.checkBattleEnd(battle, player, t);
             if (battleResult) {
                 await t.commit();
@@ -960,11 +1142,32 @@ class CombatService {
                     battle_type: 'pve',
                     is_win: battleResult.result === 'win'
                 });
-                return battleResult;
+                return {
+                    ...battleResult,
+                    player_action: playerAction,
+                    recovered_monster_action: recoveredMonsterAction?.summary || null
+                };
             }
 
-            battle.is_player_turn = false;
-            battle.turn = 'monster';
+            // 同请求内结算怪物回击，回合权回到玩家（见 attack 内注释）
+            const monsterStrike = await this._applyMonsterStrike(battle, player, t);
+            if (monsterStrike.battleResult) {
+                await t.commit();
+                await ArtifactDeepLineService.safeAddInsightExp(player.id, {
+                    battle_type: 'pve',
+                    is_win: monsterStrike.battleResult.result === 'win'
+                });
+                return {
+                    ...monsterStrike.battleResult,
+                    player_action: playerAction,
+                    monster_action: monsterStrike.summary,
+                    recovered_monster_action: recoveredMonsterAction?.summary || null
+                };
+            }
+
+            battle.round += 1;
+            battle.is_player_turn = true;
+            battle.turn = 'player';
             battle.last_action_time = new Date();
             await battle.save({ transaction: t });
 
@@ -978,8 +1181,15 @@ class CombatService {
                 mp_used: skillMpCost,
                 monster_hp: safeBigInt(battle.monster_hp).toString(),
                 player_mp: safeBigInt(battle.player_mp).toString(),
-                turn: 'monster',
-                message: `你对 ${battle.monster_name} 使用了技能，造成 ${damage} 点伤害！`
+                player_hp: safeBigInt(battle.player_hp).toString(),
+                turn: 'player',
+                is_player_turn: true,
+                round: battle.round,
+                player_action: playerAction,
+                monster_action: monsterStrike.summary,
+                recovered_monster_action: recoveredMonsterAction?.summary || null,
+                protect_info: monsterStrike.summary.protect_info,
+                message: `你对 ${battle.monster_name} 使用了技能，造成 ${damage} 点伤害！ ${monsterStrike.summary.message}`
             };
         } catch (error) {
             if (!t.finished) await t.rollback();
@@ -1062,9 +1272,19 @@ class CombatService {
             const AttributeService = require('../core/AttributeService');
             const { final } = await AttributeService.calculateFullAttributesAsync(player);
 
+            // 战斗中的回复必须写进战斗内 HP/MP 池（UI 与伤害结算读的都是 battle.player_*）。
+            // 改造前只写 players.hp_current，战斗血条纹丝不动，丹药等于白喝。
+            const battle = await ActiveBattle.findOne({
+                where: { player_id: playerId },
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+
             let message = '使用物品成功';
             const updates = {};
             const effect = itemConfig.effect || {};
+            let battleHpGain = 0;
+            let battleMpGain = 0;
 
             if (effect.hp_restore) {
                 const restoreAmount = Math.max(0, Math.min(
@@ -1073,6 +1293,17 @@ class CombatService {
                 ));
                 updates.hp_current = Number(safeBigInt(player.hp_current)) + restoreAmount;
                 if (restoreAmount > 0) message += `，恢复 ${restoreAmount} 气血`;
+                if (battle) {
+                    // 战斗池上限取 battle.player_hp 当前可能的上限（开局已含灵兽/傀儡加成），
+                    // 用「当前值 + 回复」再与开局口径的 max 比较没有单独存列，这里按回复量直接加、
+                    // 再用玩家面板上限兜底，避免无限堆血。
+                    const before = safeBigInt(battle.player_hp);
+                    const cap = safeBigInt(Math.max(Number(final.hp_max || 0), Number(before)));
+                    let next = before + BigInt(Math.floor(restoreAmount));
+                    if (next > cap) next = cap;
+                    battle.player_hp = next;
+                    battleHpGain = Number(next - before);
+                }
             }
 
             if (effect.mp_restore) {
@@ -1082,6 +1313,14 @@ class CombatService {
                 ));
                 updates.mp_current = Number(safeBigInt(player.mp_current)) + restoreAmount;
                 if (restoreAmount > 0) message += `，恢复 ${restoreAmount} 灵力`;
+                if (battle) {
+                    const before = safeBigInt(battle.player_mp);
+                    const cap = safeBigInt(Math.max(Number(final.mp_max || 0), Number(before)));
+                    let next = before + BigInt(Math.floor(restoreAmount));
+                    if (next > cap) next = cap;
+                    battle.player_mp = next;
+                    battleMpGain = Number(next - before);
+                }
             }
 
             // 消耗丹药（在已加锁的行上改，数量不会被并发改没）
@@ -1090,6 +1329,21 @@ class CombatService {
                 await item.destroy({ transaction: t });
             } else {
                 await item.save({ transaction: t });
+            }
+
+            if (battle) {
+                appendBattleLog(battle, {
+                    round: battle.round,
+                    attacker: 'player',
+                    action: 'use_item',
+                    item_id: itemId,
+                    quantity: amount,
+                    hp_restore: battleHpGain,
+                    mp_restore: battleMpGain,
+                    target_hp: safeBigInt(battle.player_hp).toString(),
+                    timestamp: new Date().toISOString()
+                });
+                await battle.save({ transaction: t });
             }
 
             // 玩家状态经补丁写入：只写 hp/mp 两列（同步镜像 attributes 里的同名键），
@@ -1103,8 +1357,10 @@ class CombatService {
 
             return {
                 message: message,
-                player_hp: safeBigInt(updated.hp_current).toString(),
-                player_mp: safeBigInt(updated.mp_current).toString()
+                player_hp: safeBigInt(battle ? battle.player_hp : updated.hp_current).toString(),
+                player_mp: safeBigInt(battle ? battle.player_mp : updated.mp_current).toString(),
+                in_battle: !!battle,
+                battle_id: battle?.battle_uuid || null
             };
         });
     }

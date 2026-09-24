@@ -46,23 +46,14 @@
           </div>
 
           <h4 class="mt-2 text-[13px] font-bold text-fg-primary leading-snug">{{ item.title }}</h4>
-          <p v-if="item.content" class="mt-1 text-xs text-fg-secondary leading-relaxed whitespace-pre-line">{{ item.content }}</p>
-
-          <!-- 配图：缩略自适应，点击在新窗口看原图 -->
-          <div
-            v-if="imageUrlsOf(item).length"
-            class="mt-2 grid gap-2"
-            :class="imageUrlsOf(item).length > 1 ? 'grid-cols-2' : 'grid-cols-1'"
-          >
-            <img
-              v-for="(url, index) in imageUrlsOf(item)"
-              :key="url"
-              :src="url"
-              :alt="`配图 ${index + 1}`"
-              class="w-full max-h-56 object-contain rounded border border-line cursor-zoom-in"
-              @click="openImage(url)"
-            >
-          </div>
+          <!-- 图文混排：按正文里的标记原位展示；旧公告无标记时配图接在文末 -->
+          <AnnouncementBody
+            class="mt-1"
+            :content="item.content"
+            :image-urls="imageUrlsOf(item)"
+            text-class="text-xs text-fg-secondary"
+            image-class="max-h-56"
+          />
 
           <div v-if="canMarkRead(item)" class="mt-2 flex justify-end">
             <AppButton size="xs" variant="default" @click="handleMarkRead(item)">标记已读</AppButton>
@@ -100,6 +91,7 @@ import LoadingBlock from '../ui/LoadingBlock.vue'
 import EmptyState from '../ui/EmptyState.vue'
 import Tabs from '../ui/Tabs.vue'
 import AppButton from '../ui/AppButton.vue'
+import AnnouncementBody from '../common/AnnouncementBody.vue'
 
 defineEmits(['close'])
 
@@ -141,12 +133,7 @@ const imageUrlsOf = (item) => {
   return Array.isArray(metadata?.imageUrls) ? metadata.imageUrls : []
 }
 
-/**
- * 新窗口打开原图（面板内图被等比缩放，细节要看原图）
- */
-const openImage = (url) => {
-  window.open(url, '_blank', 'noopener')
-}
+/** 原图点击由 AnnouncementBody 处理 */
 
 /**
  * 是否需要"标记已读"
