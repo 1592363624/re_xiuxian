@@ -1,24 +1,32 @@
 /**
  * 维护/断线遮罩守卫：部署期间后端 /api 返回 503(code=MAINTENANCE)、cutover 窗口直接
  * 连不上时，原地盖一层全屏遮罩（SPA 内自绘，不依赖服务端返回什么页面），
- * 并由遮罩自己轮询 /api/system/maintenance：200 → 整页 reload 进新版本；503 → 维护文案；
- * 网络错误 → 断线文案，两者都继续轮询。
+ * 并由遮罩自己轮询 /api/system/maintenance：
+ *   - 503 → 维护文案；
+ *   - 网络错误 → 断线文案；
+ *   - 200 → 恢复。
+ * 恢复策略（禁止无脑 reload，否则会「登录页 ↔ 连接中断」来回闪）：
+ *   - 从 maintenance 恢复：整页刷新进新版本（cutover 真的换了静态资源）；
+ *   - 从 disconnected 恢复：只收起遮罩，让 SPA 继续跑（服务端本来就是好的，
+ *     断线多半是瞬时抖动/误报，reload 反而打断在途请求再触发一轮误报）。
+ * 30 秒内最多 reload 一次，防止假失败死循环。
  * 禁止整页跳转 '/'：生产环境页面由 nginx 静态托管，跳转只会拿到 SPA 壳而不是维护页。
- * 框架无关（纯 DOM 注入，不依赖 Pinia/组件树），视觉与服务端维护页
- * （middleware/maintenance.js / public/maintenance.html）一致。
  */
 
 /** 轮询间隔(毫秒)，与服务端维护页保持一致 */
 const POLL_INTERVAL_MS = 5000;
 /** 恢复探测接口：维护中被中间件拦成 503，结束后返回 200 */
 const PROBE_URL = '/api/system/maintenance';
-/** 断线遮罩的触发阈值：30 秒内连续 2 次网络失败才显示，避免瞬时抖动误伤 */
-const NET_FAIL_THRESHOLD = 2;
+/** 断线遮罩的触发阈值：30 秒内连续 3 次网络失败才显示，避免瞬时抖动误伤 */
+const NET_FAIL_THRESHOLD = 3;
 const NET_FAIL_WINDOW_MS = 30000;
+/** reload 节流键：cutover 刷新后短时间内不再刷 */
+const RELOAD_STAMP_KEY = 'xiuxian_maint_reload_at';
+const RELOAD_MIN_GAP_MS = 30_000;
 
 /** 当前模式：null=未激活 | 'maintenance'=维护中 | 'disconnected'=连接中断 */
 let mode = null;
-/** 轮询定时器句柄（激活期间常驻，整页 reload 后自然销毁） */
+/** 轮询定时器句柄（激活期间常驻，收起遮罩后销毁） */
 let pollTimer = null;
 /** 遮罩根元素 */
 let overlayEl = null;
@@ -37,7 +45,7 @@ const MODE_TEXT = {
   },
   disconnected: {
     title: '连接中断',
-    desc: '与服务器失去连接，正在尝试重连…<br>连接恢复后页面会自动刷新。',
+    desc: '与服务器失去连接，正在尝试重连…<br>恢复后将自动继续，无需刷新页面。',
   },
 };
 
@@ -75,16 +83,47 @@ function applyModeText() {
   descEl.innerHTML = text.desc;
 }
 
+function hideOverlay() {
+  if (overlayEl?.parentNode) {
+    overlayEl.parentNode.removeChild(overlayEl);
+  }
+  overlayEl = null;
+  titleEl = null;
+  descEl = null;
+}
+
+/** 30 秒内是否已经整页刷新过（防止假失败 → reload → 再假失败） */
+function reloadedRecently() {
+  try {
+    const last = Number(sessionStorage.getItem(RELOAD_STAMP_KEY) || 0);
+    return last > 0 && Date.now() - last < RELOAD_MIN_GAP_MS;
+  } catch {
+    return false;
+  }
+}
+
+function markReloaded() {
+  try {
+    sessionStorage.setItem(RELOAD_STAMP_KEY, String(Date.now()));
+  } catch { /* 隐私模式忽略 */ }
+}
+
 /**
  * 探测服务器状态并决定下一步：
- * 200 → 整页刷新进游戏；503 → 维护态；其余 → 断线态。均继续轮询。
+ * 200 → 恢复（维护态才整页刷新）；503 → 维护态；其余 → 断线态。
  */
 async function probe() {
   try {
     const res = await fetch(PROBE_URL, { cache: 'no-store' });
     if (res.ok) {
+      const wasMaintenance = mode === 'maintenance';
       stop();
-      window.location.reload();
+      // 只有「维护 → 恢复」才需要进新版本；断线误报恢复时 reload 会打断 SPA
+      // 并立刻把人扔回登录页/遮罩之间来回闪。
+      if (wasMaintenance && !reloadedRecently()) {
+        markReloaded();
+        window.location.reload();
+      }
       return;
     }
     setMode(res.status === 503 ? 'maintenance' : 'disconnected');
@@ -96,6 +135,7 @@ async function probe() {
 function setMode(next) {
   if (mode === next) return;
   mode = next;
+  if (next) ensureOverlay();
   applyModeText();
 }
 
@@ -110,6 +150,7 @@ function stop() {
   pollTimer = null;
   mode = null;
   netFailCount = 0;
+  hideOverlay();
 }
 
 /**

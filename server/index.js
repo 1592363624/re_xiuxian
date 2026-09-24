@@ -256,7 +256,9 @@ app.use((req, res, next) => {
 // helmet 提供基础安全响应头；本服务仅返回 JSON 且由前端自行渲染，故关闭 CSP、放行跨源资源读取
 app.use(helmet({
   contentSecurityPolicy: false,
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // 站点证书未配对前不要下发 HSTS：一旦浏览器记住，会把整站强制跳到坏掉的 https
+  strictTransportSecurity: false
 }));
 app.use(cors(corsOptions));
 // verify 保存 rawBody：requestGuard 的 HMAC 必须对"线上真正发送的字节"验签，
