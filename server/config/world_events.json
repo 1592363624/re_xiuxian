@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "dataset": "world_events",
+    "version": 1,
+    "comment": "天道世界事件（每小时祥瑞/厄运）与天道凶名称号（血手人屠等）。"
+  },
+  "world_events": {
+    "enabled": true,
+    "interval_minutes": 60,
+    "events": [
+      { "id": "auspicious_exp", "type": "blessing", "title": "天降祥瑞", "desc": "紫气东来，修炼事半功倍", "exp_bonus_rate": 0.5, "weight": 20 },
+      { "id": "auspicious_stones", "type": "blessing", "title": "灵石雨", "desc": "天道洒下灵石雨", "stones": 500, "weight": 15 },
+      { "id": "misfortune_ambush", "type": "curse", "title": "厄运缠身", "desc": "遭散修伏击，损失修为", "exp_loss_rate": 0.05, "weight": 15 },
+      { "id": "misfortune_pill", "type": "curse", "title": "丹毒发作", "desc": "丹毒淤积，闭关收益降低", "seclusion_penalty_rate": 0.3, "weight": 10 },
+      { "id": "omen_hunt", "type": "omen", "title": "杀星临世", "desc": "天道示警，有凶徒出没", "weight": 10 }
+    ]
+  },
+  "notorious_titles": {
+    "slayer_thresholds": [
+      { "kills": 1, "title_id": "blood_hand", "name": "血手人屠", "power_bonus": 0.02 },
+      { "kills": 10, "title_id": "soul_reaper", "name": "勾魂使者", "power_bonus": 0.04 },
+      { "kills": 50, "title_id": "demon_king", "name": "魔焰滔天", "power_bonus": 0.06 },
+      { "kills": 100, "title_id": "heaven_enemy", "name": "天道宿敌", "power_bonus": 0.08 }
+    ]
+  }
+}
