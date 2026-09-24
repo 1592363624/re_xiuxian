@@ -104,6 +104,9 @@ router.get('/me', authMiddleware, async (req, res) => {
                 // 来源：AttributeService.calculateFullAttributesAsync → SpiritBeastService.getActiveBeastBonus
                 // 未出战时为 null
                 spirit_beast: fullAttributes.info?.spirit_beast || null,
+                // 天道凶名（血手人屠…）：杀戮递进称号，带战力加成
+                notorious_title: (player.attributes && player.attributes.world_events
+                    && player.attributes.world_events.notorious_title) || null,
                 // 修复 B15：hp_current 是 BIGINT 序列化为 string，hp_max 是 Number，
                 // 前端做除法时类型混乱。统一为字符串，前端用 Number/BigInt 显式转换。
                 hp_current: player.hp_current?.toString() || '0',

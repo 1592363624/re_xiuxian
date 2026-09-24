@@ -138,6 +138,7 @@ const { infrastructure } = require('./modules');
 const game = require('./game');
 const WebSocketNotificationService = require('./game/services/WebSocketNotificationService');
 const { apiLimiter, actionLimiter, adminLimiter, initializeRateLimiters, watchRateLimitConfig } = require('./middleware/rateLimit');
+const { requestGuard } = require('./middleware/requestGuard');
 
 const app = express();
 
@@ -154,10 +155,40 @@ if (Number.isFinite(trustProxyHops) && trustProxyHops > 0) {
   app.set('trust proxy', trustProxyHops);
 }
 
+/**
+ * CORS 源白名单：
+ *   - 显式配置 CORS_ORIGIN（逗号分隔）时只放行这些源；
+ *   - 开发环境默认放行本地 Vite/Express 端口；
+ *   - 生产未配置时禁止跨源（同源托管静态页不受影响）。
+ * credentials:true 不能配 origin:'*'，这里从源头上拆掉该组合。
+ */
+function resolveCorsOrigins() {
+  const raw = String(process.env.CORS_ORIGIN || '').trim();
+  if (raw && raw !== '*') {
+    return raw.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  if (raw === '*') {
+    console.warn('[安全] CORS_ORIGIN=* 与 credentials 冲突且等于对任意站点开跨源，已忽略。请改为配置具体域名。');
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return [];
+  }
+  return [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5000',
+    'http://127.0.0.1:5000'
+  ];
+}
+
+const corsOrigins = resolveCorsOrigins();
+
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
-        origin: "*",
+        origin: corsOrigins.length ? corsOrigins : false,
         methods: ["GET", "POST"]
     }
 });
@@ -182,13 +213,30 @@ const UPDATE_INTERVAL_SEC = () => getTimeIntervals().lifespan_update_interval_se
 // 移动完成检查已迁移到 StateCleanerService（per-state interval 5s），无需独立定时任务
 // 保留 move_check_interval_ms 配置项用于兼容，但本文件不再使用
 
-// CORS 配置 - 生产环境应配置白名单域名
+// CORS：白名单见 resolveCorsOrigins()。空数组 = 禁止跨源（同源仍可访问）
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || '*', // 生产环境建议配置具体域名，如 'https://yourdomain.com'
+  origin: corsOrigins.length ? corsOrigins : false,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Timestamp', 'X-Request-Nonce', 'X-Request-Signature'],
+  credentials: true,
+  maxAge: 600
 };
+
+// 强制 HTTPS / HSTS：
+//   FORCE_HTTPS=1 时非 https 请求 301 跳转（生产强烈建议，防抓包偷 JWT）；
+//   只要走了 https（含反代注入的 X-Forwarded-Proto）就下发 HSTS。
+app.use((req, res, next) => {
+  const proto = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const isSecure = req.secure || proto === 'https';
+  if (isSecure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    return next();
+  }
+  if (process.env.FORCE_HTTPS === '1' && req.headers.host) {
+    return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+  }
+  next();
+});
 
 // 中间件
 // helmet 提供基础安全响应头；本服务仅返回 JSON 且由前端自行渲染，故关闭 CSP、放行跨源资源读取
@@ -197,7 +245,14 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 app.use(cors(corsOptions));
-app.use(express.json());
+// verify 保存 rawBody：requestGuard 的 HMAC 必须对"线上真正发送的字节"验签，
+// 不能 re-stringify（键序/空白会漂）。
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString('utf8');
+  }
+}));
 
 // 限流：查询类接口按全局阈值约束，写操作接口另按更严阈值约束（防脚本刷奖励）
 app.use('/api', apiLimiter);
@@ -205,6 +260,8 @@ app.use('/api', (req, res, next) => {
   if (req.method === 'GET' || req.method === 'OPTIONS') return next();
   return actionLimiter(req, res, next);
 });
+// 写操作防重放 + 签名校验（GET/登录注册/上传自动跳过，见 requestGuard）
+app.use('/api', requestGuard);
 
 // 将 io 实例挂载到 app 上，供路由使用
 app.set('io', io);
@@ -657,6 +714,14 @@ const startServer = async () => {
     try {
         const NotificationSchedulerService = require('./game/services/NotificationSchedulerService');
         NotificationSchedulerService.start();
+
+        // 天道世界事件：每小时祥瑞/厄运全服公告
+        try {
+            const WorldEventsScheduler = require('./game/services/WorldEventsScheduler');
+            WorldEventsScheduler.start();
+        } catch (e) {
+            console.warn('[世界事件] 调度器启动失败:', e.message);
+        }
     } catch (err) {
         console.error('通知调度任务启动失败:', err.message);
     }

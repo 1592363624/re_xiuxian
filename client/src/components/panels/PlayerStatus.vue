@@ -418,6 +418,15 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- 天道凶名 -->
+    <div v-if="player && player.notorious_title">
+      <h3 class="text-sm text-fg-muted font-bold mb-2 flex items-center gap-2 font-display">天道凶名</h3>
+      <div class="bg-surface-raised p-3 rounded-lg border border-red-900/50 flex justify-between items-center">
+        <span class="text-base font-bold text-red-300">【{{ player.notorious_title.name }}】</span>
+        <span class="text-xs text-red-200/80">战力 +{{ Math.round((player.notorious_title.power_bonus || 0) * 100) }}%</span>
+      </div>
+    </div>
+
     <!-- 在线人数统计：沉到侧栏最底部，与 slogan 一起收尾，不再夹在灵根和空白之间 -->
     <div class="mt-auto pt-4 border-t border-line-subtle">
       <div class="bg-surface-raised rounded-lg p-3 border border-line-subtle relative overflow-hidden group">
