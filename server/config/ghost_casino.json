@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "dataset": "ghost_casino",
+    "version": 1,
+    "comment": "鬼赌坊：玲珑骰(PVP对赌)、天命玉简(闯关)、六道轮回盘(彩票)、赌石坊入口聚合。"
+  },
+  "ghost_casino": {
+    "enabled": true,
+    "linglong_dice": {
+      "min_bet": 100,
+      "max_bet": 100000,
+      "house_edge": 0.05,
+      "challenge_expire_minutes": 5
+    },
+    "destiny_slip": {
+      "entry_fee": 500,
+      "max_stages": 7,
+      "stage_cash_multiplier": 1.8,
+      "fail_lose_all": true
+    },
+    "six_paths_wheel": {
+      "ticket_price": 100,
+      "draw_hours_utc": [12],
+      "prizes": [
+        { "rank": 1, "count": 1, "stones": 50000 },
+        { "rank": 2, "count": 3, "stones": 10000 },
+        { "rank": 3, "count": 10, "stones": 2000 },
+        { "rank": 4, "count": 50, "stones": 500 },
+        { "rank": 5, "count": 200, "stones": 150 }
+      ]
+    }
+  }
+}
