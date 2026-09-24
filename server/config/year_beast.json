@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "dataset": "year_beast",
+    "version": 1,
+    "comment": "年兽大作战：集结/加入/开始讨伐；放爆竹破盾+集火；首胜奖/助战奖。"
+  },
+  "year_beast": {
+    "enabled": true,
+    "max_party": 10,
+    "shield_layers": 20,
+    "shield_regen_per_turn": 2,
+    "firecracker_item_key": "special_firecracker",
+    "shield_damage_per_cracker": 1,
+    "crit_damage_multiplier": 2.0,
+    "first_win_cooldown_hours": 20,
+    "first_win_exp": 50000,
+    "first_win_contribution": 2000,
+    "first_win_badge_title": "降伏年兽·2026",
+    "first_win_badge_power_bonus": 0.08,
+    "red_packet_chance": 0.5,
+    "red_packet_min_stones": 888,
+    "red_packet_max_stones": 8888,
+    "assist_contribution": 200,
+    "fail_exp_loss_rate": 0.1
+  }
+}
