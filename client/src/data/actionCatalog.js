@@ -40,6 +40,7 @@ export const ACTIONS = {
   bounty: { name: '悬赏', desc: '悬赏追杀 缉拿目标', icon: svg('text-amber-400', '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>') },
   world_risk: { name: '天道异闻', desc: '神魂风雷 凶名天机', icon: svg('text-purple-300', '<circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/>') },
   world_boss: { name: '世界BOSS', desc: '全服讨伐 伤害排行', icon: svg('text-red-500', '<path d="M5 3v4l3 3"/><path d="M19 3v4l-3 3"/><path d="M3 5h4l3 3"/><path d="M21 5h-4l-3 3"/><path d="M12 12v9"/><path d="M8 17h8"/><circle cx="12" cy="9" r="3"/>') },
+  year_beast: { name: '年兽讨伐', desc: '破盾集火 限时活动', icon: svg('text-orange-400', '<path d="M12 2c-2 4-6 6-6 10a6 6 0 0 0 12 0c0-4-4-6-6-10z"/><path d="M9 14h6"/>') },
   sect_war: { name: '宗门战', desc: '领地争夺 赛季结算', icon: svg('text-amber-500', '<path d="M4 22V4l4-2 4 2 4-2 4 2v18"/><path d="M4 14h16"/><path d="M9 9h2"/><path d="M13 9h2"/><path d="M9 17h2"/><path d="M13 17h2"/>') },
 
   /* ── 经营 ── */
@@ -93,7 +94,7 @@ export const ACTIONS = {
 export const DOCK_TABS = [
   { key: 'practice', label: '修行', ids: ['cultivate', 'technique', 'meditation', 'dayan'] },
   { key: 'adventure', label: '历练', ids: ['explore', 'trial_tower', 'map', 'dungeon', 'multi_dungeon', 'beast_abyss'] },
-  { key: 'battle', label: '征伐', ids: ['arena', 'fengshen', 'divine_sense_duel', 'bounty', 'world_risk', 'world_boss', 'sect_war'] },
+  { key: 'battle', label: '征伐', ids: ['arena', 'fengshen', 'divine_sense_duel', 'bounty', 'world_risk', 'world_boss', 'year_beast', 'sect_war'] },
   { key: 'economy', label: '经营', ids: ['inventory', 'market', 'pawnshop', 'stock', 'auction', 'crafting', 'lottery'] },
   { key: 'nurture', label: '养成', ids: ['cave', 'treasure', 'deep_line', 'artifact_spirit', 'formation', 'puppet', 'spirit_beast'] },
   { key: 'sect', label: '宗门', ids: ['sect', 'taoism_gate'] },

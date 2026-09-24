@@ -1,12 +1,13 @@
 /**
  * 年兽大作战路由
- * POST /api/year-beast/party            创建讨伐
- * POST /api/year-beast/party/:id/join   加入
- * POST /api/year-beast/party/:id/start  开始
+ * GET  /api/year-beast/active            进行中的讨伐
+ * POST /api/year-beast/party             创建讨伐
+ * POST /api/year-beast/party/:id/join    加入
+ * POST /api/year-beast/party/:id/start   开始
  * POST /api/year-beast/party/:id/cracker 放爆竹
  * POST /api/year-beast/party/:id/focus   集火
  * GET  /api/year-beast/party/:id
- * POST /api/year-beast/settle
+ * POST /api/year-beast/party/:id/settle  领赏
  */
 'use strict';
 
@@ -30,12 +31,13 @@ function wrap(fn) {
     };
 }
 
+router.get('/active', auth, wrap(async () => YearBeastService.listActive()));
 router.post('/party', auth, wrap(async (req) => YearBeastService.createParty(req.player.id)));
 router.post('/party/:id/join', auth, wrap(async (req) => YearBeastService.joinParty(req.params.id, req.player.id)));
 router.post('/party/:id/start', auth, wrap(async (req) => YearBeastService.startParty(req.params.id, req.player.id)));
 router.post('/party/:id/cracker', auth, wrap(async (req) => YearBeastService.firecracker(req.params.id, req.player.id)));
 router.post('/party/:id/focus', auth, wrap(async (req) => YearBeastService.focusFire(req.params.id, req.player.id)));
 router.get('/party/:id', auth, wrap(async (req) => YearBeastService.getParty(req.params.id)));
-router.post('/settle', auth, wrap(async (req) => YearBeastService.settle(req.player.id, { isAssist: !!req.body.is_assist })));
+router.post('/party/:id/settle', auth, wrap(async (req) => YearBeastService.settle(req.player.id, req.params.id)));
 
 module.exports = router;

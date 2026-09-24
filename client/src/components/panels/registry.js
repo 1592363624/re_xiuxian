@@ -39,6 +39,7 @@ const LOADERS = {
   bounty: () => import('./BountyPanel.vue'),
   world_risk: () => import('./WorldRiskPanel.vue'),
   world_boss: () => import('./WorldBossPanel.vue'),
+  year_beast: () => import('./YearBeastPanel.vue'),
   sect_war: () => import('./SectWarPanel.vue'),
 
   /* ── 经营 ── */

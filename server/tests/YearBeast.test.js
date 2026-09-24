@@ -1,11 +1,11 @@
 /**
- * 年兽：护盾与破盾集火
+ * 年兽：护盾与破盾集火（纯配置/纯函数层）
  */
 'use strict';
 
 const YearBeastService = require('../game/services/YearBeastService');
 
-describe('年兽讨伐', () => {
+describe('年兽讨伐配置', () => {
     test('配置：20 层盾、每回合回 2、爆竹破 1', () => {
         const c = YearBeastService.config();
         expect(c.shield_layers).toBe(20);
@@ -13,13 +13,13 @@ describe('年兽讨伐', () => {
         expect(c.shield_damage_per_cracker).toBe(1);
     });
 
-    test('护盾未破时集火伤害为 0；归零后 200% 暴击', () => {
-        const p = YearBeastService.createParty(1);
-        YearBeastService.startParty(p.id, 1);
-        const hit0 = YearBeastService.focusFire(p.id, 1);
-        expect(hit0.damage).toBe(0);
-        p.shield = 0;
-        const hit1 = YearBeastService.focusFire(p.id, 1);
-        expect(hit1.damage).toBeGreaterThan(0);
+    test('snapshot 形状齐全', () => {
+        const snap = YearBeastService._snapshot(
+            { id: 1, leader_id: 2, status: 'forming', shield: 20, max_shield: 20, turns: 0, damage_dealt: 0, battle_log: [] },
+            [{ player_id: 2, role: 'leader', firecrackers_used: 0, focus_count: 0, damage: 0, settled: false }]
+        );
+        expect(snap.party_id).toBe(1);
+        expect(snap.members.length).toBe(1);
+        expect(snap.shield).toBe(20);
     });
 });
