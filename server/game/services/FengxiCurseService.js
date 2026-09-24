@@ -39,15 +39,48 @@ function stateOf(player) {
 class FengxiCurseService {
     static config() { return cfg(); }
 
+    /** 背包/装备里是否持有风雷翅 */
+    static async hasWindWings(playerId) {
+        const keys = cfg().required_item_keys || [];
+        try {
+            const InventoryService = require('./InventoryService');
+            const map = await InventoryService.getItemQuantities(playerId, keys);
+            for (const qty of map.values()) {
+                if (Number(qty) > 0) return true;
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            const EquipmentService = require('./EquipmentService');
+            const bonus = await EquipmentService.getEquipmentBonus(playerId);
+            // 装备键名或 item_key 命中
+            const text = JSON.stringify(bonus || {});
+            return keys.some(k => text.includes(k));
+        } catch (_) { /* ignore */ }
+        return false;
+    }
+
+    /**
+     * 惰性/主动触发：有风雷翅才可能被锁定
+     * 在 PVP 结算、闭关结算、查看状态时调用
+     */
+    static async maybeTrigger(playerId) {
+        const has = await this.hasWindWings(playerId);
+        return this.tryTriggerHunt(playerId, has);
+    }
+
     static async getStatus(playerId) {
         const Player = require('../../models/player');
         const player = await Player.findByPk(playerId);
         if (!player) throw new AppError('玩家不存在', 404, ErrorCodes.NOT_FOUND);
+        // 查看状态时顺带掷一次触发（低概率）
+        await this.maybeTrigger(playerId).catch(() => null);
+        const fresh = await Player.findByPk(playerId);
         const c = cfg();
-        const s = stateOf(player);
+        const s = stateOf(fresh || player);
         const now = Date.now();
         return {
             ...s,
+            has_wings: await this.hasWindWings(playerId),
             is_hunted: s.hunted_until && new Date(s.hunted_until).getTime() > now,
             in_cooldown: s.cooldown_until && new Date(s.cooldown_until).getTime() > now,
             has_blessing: s.blessing_until && new Date(s.blessing_until).getTime() > now,

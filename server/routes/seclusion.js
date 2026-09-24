@@ -394,6 +394,12 @@ async function handleEndSeclusion(req, res, next) {
 
         await t.commit();
 
+        // 风希追猎：闭关出关时若持有风雷翅，可能被分神锁定（低概率，独立事务）
+        try {
+            const FengxiCurseService = require('../game/services/FengxiCurseService');
+            FengxiCurseService.maybeTrigger(playerId).catch(() => null);
+        } catch (_) { /* ignore */ }
+
         // 推送状态变更给前端（事务提交后再推送）
         WebSocketNotificationService.notifyPlayerUpdate(playerId, 'seclusion_end', {
             is_secluded: false,

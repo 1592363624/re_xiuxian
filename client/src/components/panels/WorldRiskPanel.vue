@@ -13,6 +13,7 @@ const loading = ref(false)
 const soul = ref(null)
 const wings = ref(null)
 const world = ref(null)
+const fengxi = ref(null)
 const message = ref('')
 const error = ref('')
 
@@ -20,14 +21,16 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [s, w, e] = await Promise.all([
+    const [s, w, e, f] = await Promise.all([
       apiClient.get('/soul-risk/status').catch(() => ({ data: null })),
       apiClient.get('/wind-wings/status').catch(() => ({ data: null })),
-      apiClient.get('/world-events/status').catch(() => ({ data: null }))
+      apiClient.get('/world-events/status').catch(() => ({ data: null })),
+      apiClient.get('/fengxi/status').catch(() => ({ data: null }))
     ])
     soul.value = s.data || null
     wings.value = w.data || null
     world.value = e.data || null
+    fengxi.value = f.data || null
   } catch (e) {
     error.value = e.message || '加载失败'
   } finally {
@@ -57,6 +60,20 @@ async function triggerEvent() {
     await load()
   } catch (e) {
     error.value = e.message || '触发失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function fengxiAct(mode) {
+  loading.value = true
+  error.value = ''
+  try {
+    const res = await apiClient.post(`/fengxi/${mode}`)
+    message.value = res.message || res.data?.message || ''
+    await load()
+  } catch (e) {
+    error.value = e.message || '应对失败'
   } finally {
     loading.value = false
   }
@@ -95,6 +112,25 @@ onMounted(load)
             <AppButton size="sm" :disabled="!wings.raid_ready" @click="raid('break')">寂灭破阵</AppButton>
             <AppButton size="sm" variant="danger" :disabled="!wings.raid_ready" @click="raid('instant')">血色瞬杀</AppButton>
           </div>
+        </div>
+      </PanelCard>
+
+      <PanelCard title="风希的诅咒">
+        <div v-if="fengxi" class="text-sm space-y-2">
+          <div class="text-xs text-fg-muted">
+            风雷翅：{{ fengxi.has_wings ? '持有中' : '未持有' }}
+            <span v-if="fengxi.has_blessing" class="ml-2 text-emerald-300">风之祝福 +{{ Math.round((fengxi.wind_blessing_escape_bonus || 0) * 100) }}% 逃生</span>
+          </div>
+          <div v-if="fengxi.is_hunted" class="text-red-300">
+            ⚠ 风希分神正在追猎！请立刻应对
+            <div class="flex gap-2 mt-2">
+              <AppButton size="sm" @click="fengxiAct('escape')">催动风雷遁逃</AppButton>
+              <AppButton size="sm" variant="danger" @click="fengxiAct('fight')">奋力一搏</AppButton>
+            </div>
+          </div>
+          <div v-else-if="fengxi.in_cooldown" class="text-amber-300">风元紊乱冷却中，暂无追猎</div>
+          <div v-else class="text-fg-muted">风平浪静…但风希的神识或许下一刻就会锁定你</div>
+          <div v-if="fengxi.last_result" class="text-xs text-fg-muted">{{ fengxi.last_result.message }}</div>
         </div>
       </PanelCard>
 

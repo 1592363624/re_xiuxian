@@ -1202,6 +1202,14 @@ class PvpService {
                 } catch (e) {
                     console.warn('[PvpService] 神魂风险结算失败（不影响斗法）:', e.message);
                 }
+                // 风希追猎：持有风雷翅的修士斗法后可能被分神锁定
+                try {
+                    const FengxiCurseService = require('./FengxiCurseService');
+                    await FengxiCurseService.maybeTrigger(attacker.id);
+                    await FengxiCurseService.maybeTrigger(defender.id);
+                } catch (e) {
+                    console.warn('[PvpService] 风希触发检查失败（忽略）:', e.message);
+                }
                 // 悬赏结算同步钩子：若为 bounty 类型战斗，战斗结束后立即结算悬赏
                 // 修复关键Bug：此前悬赏结算仅依赖异步扫描，导致 accepted 状态死锁
                 // 此处在 t.commit() 之后调用，避免嵌套事务（BountyService 内部会开启独立事务）
