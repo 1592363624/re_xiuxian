@@ -499,6 +499,11 @@ const handleUnequip = async () => {
   const { slot, item } = unequipConfirmModal.value
   if (!slot || !item) return
   if (operating.value) return
+  // 满包前置拦截：卸下必须归还储物袋，与其发请求再失败，不如直接说清楚
+  if (capacity.value > 0 && totalCount.value >= capacity.value) {
+    uiStore.showToast('储物袋已满，卸下后装备无法归还。请先清理储物袋腾出空位后再试。', 'error')
+    return
+  }
   operating.value = true
   try {
     const res = await unequipItem(slot)

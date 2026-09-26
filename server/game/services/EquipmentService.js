@@ -43,6 +43,26 @@ class EquipmentService {
     }
 
     /**
+     * 把玩家本来就有的装备还回背包。
+     * 满包时必须失败（不能悄悄吞掉装备），但文案要可操作——
+     * 否则玩家只看到「储物袋容量不足」不知道和卸下/替换有什么关系。
+     */
+    async returnItemToInventory(playerId, itemKey, transaction, { action = '卸下' } = {}) {
+        try {
+            await InventoryService.addItem(playerId, itemKey, 1, transaction, null, RETURNED);
+        } catch (addErr) {
+            if (addErr && /容量不足/.test(addErr.message || '')) {
+                throw new AppError(
+                    `储物袋已满，${action}后装备无法归还。请先清理储物袋腾出空位后再试。`,
+                    400,
+                    ErrorCodes.VALIDATION_ERROR
+                );
+            }
+            throw addErr;
+        }
+    }
+
+    /**
      * 获取物品静态配置（与 InventoryService 一致）
      * @param {string} itemKey - 物品配置键名
      * @returns {Object|null} 物品配置
@@ -280,7 +300,7 @@ class EquipmentService {
                 // 删除旧装备记录
                 await existingEquip.destroy({ transaction: t });
                 // 旧装备归还背包（在同一事务内，保证一致性）
-                await InventoryService.addItem(playerId, existingEquip.item_key, 1, t, null, RETURNED);
+                await this.returnItemToInventory(playerId, existingEquip.item_key, t, { action: '替换' });
             }
 
             // 从背包扣减新装备
@@ -396,7 +416,7 @@ class EquipmentService {
             await equipment.destroy({ transaction: t });
 
             // 将物品归还背包
-            await InventoryService.addItem(playerId, equipment.item_key, 1, t, null, RETURNED);
+            await this.returnItemToInventory(playerId, equipment.item_key, t, { action: '卸下' });
 
             await t.commit();
 

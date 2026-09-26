@@ -15,19 +15,22 @@
  */
 
 // 在 require 被测模块前先 mock 掉所有会触发数据库连接的依赖
-jest.mock('../config/database', () => ({
-    // 返回一个可被回滚/提交的 mock 事务对象；finished 标记防止重复回滚崩溃
-    // LOCK.UPDATE 用于 equip 流程中的行锁（sequelize 实际枚举值）
-    transaction: jest.fn().mockResolvedValue({
+jest.mock('../config/database', () => {
+    // 每次 transaction() 返回同一个可观察对象：rollback/commit 用 jest.fn 便于断言
+    // finished 标记防止重复回滚崩溃；LOCK.UPDATE 用于行锁（sequelize 实际枚举值）
+    const tx = {
         finished: false,
-        rollback: jest.fn(async () => { /* noop */ }),
-        commit: jest.fn(async () => { /* noop */ }),
+        rollback: jest.fn(async () => { tx.finished = true; }),
+        commit: jest.fn(async () => { tx.finished = true; }),
         save: jest.fn(async () => { /* noop */ }),
         LOCK: { UPDATE: 'UPDATE' }
-    }),
-    // 兼容直接 sequelize.query 的迁移调用（本测试不触发）
-    query: jest.fn()
-}));
+    };
+    return {
+        transaction: jest.fn(async () => tx),
+        query: jest.fn(),
+        __tx: tx
+    };
+});
 jest.mock('../models/playerEquipment', () => ({
     findAll: jest.fn(),
     findOne: jest.fn(),
@@ -53,6 +56,18 @@ const PlayerEquipment = require('../models/playerEquipment');
 const Player = require('../models/player');
 const Item = require('../models/item');
 const InventoryService = require('../game/services/InventoryService');
+const sequelize = require('../config/database');
+
+function lastTx() {
+    return sequelize.__tx;
+}
+
+beforeEach(() => {
+    jest.clearAllMocks();
+    const tx = lastTx();
+    tx.finished = false;
+    EquipmentService.initialize(buildConfigLoader());
+});
 
 /** 测试用装备平衡配置，与 game_balance.json 的 equipment 结构保持一致 */
 const balanceEquipment = {
@@ -228,5 +243,72 @@ describe('装备品质系数接入 - equip 写入', () => {
 
         await expect(EquipmentService.equip(1, 'sword_steel')).rejects.toThrow('背包中没有该装备');
         expect(PlayerEquipment.create).not.toHaveBeenCalled();
+    });
+});
+
+describe('卸下归还 · 满包文案', () => {
+    test('储物袋满时卸下失败：文案可操作、事务回滚、装备行不落库', async () => {
+        Player.findByPk.mockResolvedValue({ id: 1, is_dead: false, realm_rank: 5 });
+        const equipRow = {
+            item_key: 'sword_steel',
+            destroy: jest.fn(async () => { /* noop */ })
+        };
+        PlayerEquipment.findOne.mockResolvedValue(equipRow);
+        InventoryService.addItem.mockRejectedValue(
+            Object.assign(new Error('储物袋容量不足（上限 100）'), { statusCode: 400 })
+        );
+
+        await expect(EquipmentService.unequip(1, 'weapon')).rejects.toThrow(
+            /储物袋已满，卸下后装备无法归还/
+        );
+        expect(InventoryService.addItem).toHaveBeenCalledWith(
+            1, 'sword_steel', 1, expect.anything(), null, { allowUnknownItem: true }
+        );
+        // 「不留下装备行」：destroy 虽在事务内被调，但整体必须 rollback 且绝不 commit
+        const tx = lastTx();
+        expect(equipRow.destroy).toHaveBeenCalled();
+        expect(tx.rollback).toHaveBeenCalledTimes(1);
+        expect(tx.commit).not.toHaveBeenCalled();
+    });
+
+    test('储物袋有空位时卸下成功并归还背包', async () => {
+        Player.findByPk.mockResolvedValue({ id: 1, is_dead: false, realm_rank: 5 });
+        const equipRow = {
+            item_key: 'sword_steel',
+            destroy: jest.fn(async () => { /* noop */ })
+        };
+        PlayerEquipment.findOne.mockResolvedValue(equipRow);
+        InventoryService.addItem.mockResolvedValue({ success: true });
+
+        const result = await EquipmentService.unequip(1, 'weapon');
+        expect(result.success).toBe(true);
+        expect(result.item.item_key).toBe('sword_steel');
+        expect(equipRow.destroy).toHaveBeenCalled();
+        expect(lastTx().commit).toHaveBeenCalledTimes(1);
+        expect(lastTx().rollback).not.toHaveBeenCalled();
+    });
+
+    test('替换旧装备时满包：文案指向「替换」，且不扣新品、不写新装备行', async () => {
+        Player.findByPk.mockResolvedValue({ id: 1, is_dead: false, realm_rank: 5 });
+        Item.findOne.mockResolvedValue({ quantity: 1, metadata: null });
+        const oldRow = {
+            item_key: 'sword_steel',
+            destroy: jest.fn(async () => { /* noop */ })
+        };
+        // Item.findOne 只负责背包行；槽位旧装备走 PlayerEquipment.findOne
+        PlayerEquipment.findOne.mockResolvedValue(oldRow);
+        InventoryService.addItem.mockRejectedValue(
+            Object.assign(new Error('储物袋容量不足（上限 100）'), { statusCode: 400 })
+        );
+
+        await expect(EquipmentService.equip(1, 'sword_steel')).rejects.toThrow(
+            /储物袋已满，替换后装备无法归还/
+        );
+        // 归还失败必须整笔回滚：不得扣减新品、不得创建新装备行
+        expect(InventoryService.removeItem).not.toHaveBeenCalled();
+        expect(PlayerEquipment.create).not.toHaveBeenCalled();
+        const tx = lastTx();
+        expect(tx.rollback).toHaveBeenCalledTimes(1);
+        expect(tx.commit).not.toHaveBeenCalled();
     });
 });
