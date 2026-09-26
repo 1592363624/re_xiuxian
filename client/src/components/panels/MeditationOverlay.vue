@@ -108,6 +108,8 @@
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
+        <!-- GM 测试用「立即完成」：仅管理员可见，跳过等待并按计划时长正常结算 -->
+        <AdminQuickFinishButton state="meditation" :loading="loading" @done="handleQuickComplete" />
         <!-- 中断悟道按钮 -->
         <button
           @click="handleInterruptClick"
@@ -242,6 +244,10 @@
             </div>
 
             <!-- 操作按钮 -->
+            <!-- GM 测试用「立即完成」：仅管理员可见，跳过等待并按计划时长正常结算 -->
+            <div class="mb-2 flex justify-center">
+              <AdminQuickFinishButton state="meditation" :loading="loading" @done="handleQuickComplete" />
+            </div>
             <button
               @click="handleInterruptClick"
               :disabled="loading"
@@ -279,11 +285,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useUIStore } from '../../stores/ui'
+import { usePlayerStore } from '../../stores/player'
 import { formatTime } from '../../utils/format'
 import Modal from '../common/Modal.vue'
+import AdminQuickFinishButton from '../common/AdminQuickFinishButton.vue'
 import { getStatus, interruptMeditation } from '../../api/meditation'
+import { forceSettle } from '../../api/admin_meditation'
 
 const uiStore = useUIStore()
+const playerStore = usePlayerStore()
 const loading = ref(false)
 const expanded = ref(false)
 const now = ref(Date.now())
@@ -439,6 +449,48 @@ const confirmInterruptAction = async () => {
   } catch (err) {
     console.error('中断悟道失败:', err)
     uiStore.showApiError(err, '中断悟道失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+/**
+ * 管理员「立即完成」悟道（GM 测试加速专用）
+ *
+ * 流程：AdminQuickFinishButton 已先调用 /admin/quick-finish 把 meditation_start_time
+ *       前推到「now - 计划时长」，此处再走 GM 强制结算将其正常结算。
+ *
+ * 为什么用 force-settle 而非玩家侧 /interrupt：
+ *   本功能要求「结果与自然到点完全一致」。force-settle 与 StateCleanerService 自然到点
+ *   调用的是同一个 _settleMeditation，且此时实际时长 == 计划时长，completionRatio = 1，无惩罚；
+ *   而 /interrupt 会额外扣减 30%/50% 感悟，不符合要求。
+ *
+ * 注意：GM 强制结算不会经 Socket 推送状态变更，需主动刷新玩家 store，
+ *       否则 player.is_meditating 仍为 true，浮动状态条不会收起。
+ */
+const handleQuickComplete = async () => {
+  if (loading.value) return
+  const playerId = playerStore.player?.id
+  if (!playerId) return
+  loading.value = true
+  try {
+    const res = await forceSettle(playerId)
+    const data = res.data?.data || res.data
+    // 后端 _settleMeditation 返回 completion_ratio/actual_duration/planned_duration，
+    // 这里保留完成度兼容口径，避免字段差异导致展示异常
+    const ratio = data?.completion_ratio ?? data?.completion_rate ?? 1
+    uiStore.addLog({
+      content: `悟道已完成，完成度 ${Math.floor(ratio * 100)}%，获得感悟 ${data?.insight_gain || 0} 点，修为 ${data?.exp_gain || 0} 点。`,
+      type: 'success',
+      actorId: 'self'
+    })
+    uiStore.showToast(data?.message || '悟道已完成', 'success')
+    // 主动刷新玩家状态（is_meditating=false）以收起顶部计时条与浮动状态条
+    playerStore.scheduleFetchPlayer(0)
+    await fetchStatus()
+  } catch (err) {
+    console.error('立即完成悟道失败:', err)
+    uiStore.showApiError(err, '立即完成悟道失败')
   } finally {
     loading.value = false
   }

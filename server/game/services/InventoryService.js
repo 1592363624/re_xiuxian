@@ -13,6 +13,7 @@ const sequelize = require('../../config/database');
 const { infrastructure } = require('../../modules');
 const Player = require('../../models/player');
 const Item = require('../../models/item');
+const { getItemSources } = require('../items/itemSources');
 const { AppError, ErrorCodes } = require('../../middleware/errorHandler');
 
 class InventoryService {
@@ -77,6 +78,8 @@ class InventoryService {
                     quality: 'common',
                     description: '物品配置已失效',
                     quantity: record.quantity,
+                    // 配置失效的物品无从推导来源，给空数组让前端统一处理
+                    sources: [],
                     usable: false
                 });
             } else {
@@ -90,6 +93,8 @@ class InventoryService {
                     description: config.description || '',
                     effect: config.effect || {},
                     price: config.price || 0,
+                    // 获取途径：由 itemSources 反向扫描产出配置推导（采集/掉落/炼制/任务/库房/军需铺）
+                    sources: getItemSources(record.item_key),
                     quantity: record.quantity,
                     usable: config.type === 'consumable'
                 });

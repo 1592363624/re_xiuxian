@@ -29,6 +29,8 @@ export const ACTIONS = {
   explore: { name: '历练', desc: '历练探索 随机事件', icon: svg('text-emerald-400', '<path d="M12 2 2.5 9.5l1 10.5L12 22l8.5-2L22 10l-10-7.5z"/><path d="M12 12 12 22"/><path d="M12 12 22 12"/>') },
   trial_tower: { name: '试炼古塔', desc: '闯塔首通 琉璃塔榜', icon: svg('text-amber-300', '<path d="M12 2l2 6h6l-5 4 2 7-5-4-5 4 2-7-5-4h6z"/>') },
   map: { name: '地图', desc: '当前区域 相邻快传', icon: svg('text-emerald-300', '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>') },
+  // 采集：材料获取的主要入口，资源产出由当前地图决定（见后端 config/resource_data.json 与 map_data.json）
+  gather: { name: '采集', desc: '采药挖矿 灵材产出', icon: svg('text-lime-400', '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>') },
   dungeon: { name: '副本', desc: '秘境副本 三星扫荡', icon: svg('text-amber-400', '<path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/><path d="M9 11h6"/>') },
   multi_dungeon: { name: '多人副本', desc: '掩月抢亲 端午镇蛟', icon: svg('text-amber-300', '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/>') },
   beast_abyss: { name: '灵兽探渊', desc: '异步多人 PVE+PVP 探索', icon: svg('text-teal-400', '<path d="M12 2a4 4 0 0 0-4 4v3H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><path d="M12 10v8"/><path d="M9 14h6"/><path d="M3 12a9 9 0 0 1 18 0"/>') },
@@ -94,7 +96,7 @@ export const ACTIONS = {
  */
 export const DOCK_TABS = [
   { key: 'practice', label: '修行', ids: ['cultivate', 'technique', 'meditation', 'dayan'] },
-  { key: 'adventure', label: '历练', ids: ['explore', 'trial_tower', 'map', 'dungeon', 'multi_dungeon', 'beast_abyss'] },
+  { key: 'adventure', label: '历练', ids: ['explore', 'trial_tower', 'map', 'gather', 'dungeon', 'multi_dungeon', 'beast_abyss'] },
   { key: 'battle', label: '征伐', ids: ['arena', 'fengshen', 'divine_sense_duel', 'bounty', 'world_risk', 'world_boss', 'year_beast', 'sect_war'] },
   { key: 'economy', label: '经营', ids: ['inventory', 'market', 'pawnshop', 'stock', 'auction', 'crafting', 'lottery'] },
   { key: 'nurture', label: '养成', ids: ['cave', 'treasure', 'deep_line', 'artifact_spirit', 'formation', 'puppet', 'spirit_beast'] },

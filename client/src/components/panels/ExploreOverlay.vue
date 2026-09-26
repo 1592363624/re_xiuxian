@@ -65,6 +65,8 @@
 
       <!-- 右侧操作按钮 -->
       <div class="flex items-center gap-2 shrink-0">
+        <!-- GM 测试用「立即完成」：仅管理员可见，先加速时间再走正常完成流程 -->
+        <AdminQuickFinishButton state="adventure" :loading="completing" @done="handleComplete" />
         <button
           @click="handleComplete"
           :disabled="completing"
@@ -92,6 +94,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { usePlayerStore } from '../../stores/player'
 import { useUIStore } from '../../stores/ui'
 import { completeExplore } from '../../api/explore'
+// GM 测试用的「立即完成」按钮（仅管理员可见）
+import AdminQuickFinishButton from '../common/AdminQuickFinishButton.vue'
 // 修复 4-3-P1-2：引入 formatNumber 处理 BigInt 字符串显示
 import { formatNumber } from '../../utils/format'
 

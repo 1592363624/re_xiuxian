@@ -27,6 +27,7 @@ const LOADERS = {
   explore: () => import('./ExplorePanel.vue'),
   trial_tower: () => import('./TrialTowerPanel.vue'),
   map: () => import('./MapPanel.vue'),
+  gather: () => import('./GatheringPanel.vue'),
   dungeon: () => import('./DungeonPanel.vue'),
   multi_dungeon: () => import('./MultiDungeonPanel.vue'),
   beast_abyss: () => import('./BeastAbyssPanel.vue'),

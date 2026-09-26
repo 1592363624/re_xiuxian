@@ -16,6 +16,10 @@ const SectService = require('./SectService');
 // 引入背包服务：采集产物通过统一的 addItem 方法入包（正确累加数量）
 // 修复关键Bug：此前使用 Item.upsert 会替换已有物品数量而非累加
 const InventoryService = require('./InventoryService');
+// 物品引用 → 内容里的中文名/说明。以前这里直接拼 resourceConfig.item_id，
+// 面板上就是"采集灵铁矿石获得spirit_iron_ore"这种半截英文键，玩家既看不懂产物是什么、
+// 也不知道采来干什么用。
+const ItemNaming = require('../items/itemNaming');
 
 class GatheringService {
     /**
@@ -48,12 +52,18 @@ class GatheringService {
                 const expToNextLevel = this._getExpToNextLevel(proficiencyLevel);
                 const levelName = this._getLevelName(proficiencyLevel);
 
+                // 产物说明优先取物品自身的内容说明（材料说明里写着它的用途，如"可作为炼丹炉的燃料"），
+                // 让玩家在采集面板就能明白"这东西有什么用"；物品没有说明时才退回一句产出说明
+                const product = ItemNaming.itemInfo(resourceConfig.item_id);
+                const productName = product?.name || resourceConfig.name;
+
                 resources.push({
                     resource_id: res.id,
                     name: resourceConfig.name,
                     item_id: resourceConfig.item_id,
+                    item_name: productName,
                     difficulty: res.difficulty,
-                    description: `采集${resourceConfig.name}获得${resourceConfig.item_id}`,
+                    description: product?.description || `采集${resourceConfig.name}可获得${productName}`,
                     mp_cost: resourceConfig.base_mp_cost,
                     cooldown_seconds: resourceConfig.cooldown_seconds,
                     can_gather: canGather,

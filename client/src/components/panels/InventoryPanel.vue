@@ -701,6 +701,16 @@ onMounted(() => {
               <p v-if="formatEffectText(item.effect)" class="text-[11px] text-sky-300 mt-1.5">
                 {{ formatEffectText(item.effect) }}
               </p>
+              <!-- 获取途径：后端按产出配置推导（采集/掉落/炼制/任务/库房/军需铺），解答「这东西上哪儿弄」 -->
+              <div v-if="item.sources?.length" class="flex flex-wrap items-center gap-1 mt-1.5">
+                <span
+                  v-for="source in item.sources.slice(0, 2)"
+                  :key="source.label"
+                  class="text-[10px] px-1.5 py-0.5 rounded border border-line-subtle bg-surface-sunken text-fg-muted"
+                >{{ source.label }}</span>
+                <span v-if="item.sources.length > 2" class="text-[10px] text-fg-faint">+{{ item.sources.length - 2 }}</span>
+              </div>
+              <p v-else class="text-[10px] text-fg-faint mt-1.5">暂无稳定获取途径</p>
               <!-- 展开提示：把"点开会看到哪些操作"直接写在卡面上 -->
               <div class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-line-subtle/60">
                 <span class="text-[10px] text-fg-faint">{{ itemActionLabels(item).join(' · ') }}</span>

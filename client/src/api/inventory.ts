@@ -41,6 +41,17 @@ export interface ItemEffect {
 }
 
 /**
+ * 物品获取途径标签
+ * 由后端 itemSources 反向扫描产出配置推导，不依赖人工维护的来源表
+ */
+export interface ItemSource {
+    /** 来源类型：gather 采集 / drop 掉落 / craft 炼制 / quest 指归任务 / sect 宗门库房 / shop 军需铺 */
+    type: string;
+    /** 人类可读的来源描述，如「采集 · 越国」「击杀「野兔」掉落」 */
+    label: string;
+}
+
+/**
  * 背包物品（静态配置 + 动态数量合并后的结构）
  */
 export interface InventoryItem {
@@ -62,6 +73,8 @@ export interface InventoryItem {
     effect: ItemEffect;
     /** 物品售价（灵石） */
     price: number;
+    /** 获取途径标签；空数组表示当前没有稳定产出途径 */
+    sources: ItemSource[];
     /** 当前持有数量 */
     quantity: number;
     /** 是否可使用（消耗品为 true） */

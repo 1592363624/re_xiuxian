@@ -12,7 +12,7 @@
  */
 import { formatBeijingDate } from '../utils/time'
 
-export const currentVersion = 'v0.5.5_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
+export const currentVersion = 'v0.5.6_BETA'; // 🔔 发布新版时，请修改此版本号以触发用户弹窗
 
 // 🛡️ 兜底数据：仅在无法连接 GitHub API 时显示
 export const changelog = [

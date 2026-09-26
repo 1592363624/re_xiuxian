@@ -15,13 +15,24 @@ let sourceRef = null;
 let index = new Map();
 
 /** 物品索引：配置热更或资料片重载后（数组换了引用）自动重建 */
-function itemNameIndex() {
+function itemIndex() {
     const items = infrastructure.ConfigLoader.getConfig('item_data')?.items || [];
     if (items !== sourceRef) {
         sourceRef = items;
-        index = new Map(items.map(item => [String(item.id), item.name]));
+        index = new Map(items.map(item => [String(item.id), item]));
     }
     return index;
+}
+
+/**
+ * 按引用取内容里的整条物品定义。
+ * 除名字之外还要看说明/品质等的调用方走这里，避免各自再建一份索引。
+ * @param {string} itemKey - 物品 key
+ * @returns {Object|null} 物品定义；查不到返回 null
+ */
+function itemInfo(itemKey) {
+    if (itemKey === null || itemKey === undefined) return null;
+    return itemIndex().get(String(itemKey)) || null;
 }
 
 /**
@@ -29,8 +40,7 @@ function itemNameIndex() {
  * @returns {string|null} 内容里登记的名字；查不到返回 null（调用方自己决定退回键名）
  */
 function itemName(itemKey) {
-    if (itemKey === null || itemKey === undefined) return null;
-    return itemNameIndex().get(String(itemKey)) || null;
+    return itemInfo(itemKey)?.name || null;
 }
 
 /**
@@ -49,4 +59,4 @@ function withItemNames(list, keyField = null) {
     });
 }
 
-module.exports = { itemName, withItemNames };
+module.exports = { itemName, itemInfo, withItemNames };

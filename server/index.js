@@ -713,6 +713,8 @@ const startServer = async () => {
     app.use('/api/admin/meditation', require('./routes/admin_meditation'));
     // 修炼配置管理（闭关 + 历练，支持热加载）
     app.use('/api/admin/cultivation', require('./routes/admin_cultivation'));
+    // 管理员「立即完成」：加速自己进行中的耗时操作（闭关/悟道/历练），仅调时钟不结算
+    app.use('/api/admin', require('./routes/admin_quick_finish'));
     app.use('/api/system', require('./routes/system'));
     app.use('/api/seclusion', require('./routes/seclusion'));
     app.use('/api/breakthrough', require('./routes/breakthrough'));

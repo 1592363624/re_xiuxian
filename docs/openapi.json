@@ -1352,6 +1352,32 @@
             "description": "出售/基准价格（灵石）",
             "example": 50
           },
+          "sources": {
+            "type": "array",
+            "description": "获取途径标签（后端反向扫描产出配置推导；空数组表示当前没有稳定产出途径）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "来源类型",
+                  "enum": [
+                    "gather",
+                    "drop",
+                    "craft",
+                    "quest",
+                    "sect",
+                    "shop"
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "description": "人类可读的来源描述",
+                  "example": "采集 · 越国"
+                }
+              }
+            }
+          },
           "quantity": {
             "type": "integer",
             "description": "持有数量",
@@ -18681,6 +18707,18 @@
                           "name": {
                             "type": "string"
                           },
+                          "item_id": {
+                            "type": "string",
+                            "description": "采集产物的物品 key"
+                          },
+                          "item_name": {
+                            "type": "string",
+                            "description": "采集产物的中文名（取自 item_data，避免向玩家展示英文键）"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "资源说明：优先取产物自身的内容说明（含用途），无说明时退回产出描述"
+                          },
                           "difficulty": {
                             "type": "integer",
                             "description": "采集难度"
@@ -27762,6 +27800,84 @@
           },
           "400": {
             "description": "playerId 参数无效"
+          },
+          "401": {
+            "description": "未授权"
+          },
+          "403": {
+            "description": "权限不足（需要管理员权限）"
+          },
+          "404": {
+            "description": "玩家不存在"
+          }
+        }
+      }
+    },
+    "/api/admin/quick-finish": {
+      "post": {
+        "tags": [
+          "管理员-修炼配置"
+        ],
+        "summary": "立即完成耗时操作（GM 测试加速，仅调时钟不结算）",
+        "description": "仅管理员可用。将当前管理员自己进行中的耗时操作（闭关 / 静思悟道 / 历练）的时间戳前推，使其等同于“已按计划时长自然坐满”，用于测试时跳过等待。\n\n重要：本接口只调整时钟、不做任何结算。调用后仍需照常走各自的结算入口，收益与结果和自然到点完全一致：\n- 闭关：POST /api/seclusion/end\n- 历练：POST /api/explore/complete\n- 悟道：POST /api/admin/meditation/{playerId}/force-settle\n\n加速口径：\n- 闭关/悟道：把开始时间前移到 now - 计划时长（结算按实际时长计算，故完成度为 100%，深度闭关也不会触发强行出关惩罚）\n- 历练：把结束时间置为当前时间（结算据此判定已到点，不再按提前结束折扣）\n\n只作用于发起请求的管理员本人，不涉及任何其他玩家。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "seclusion",
+                      "meditation",
+                      "adventure"
+                    ],
+                    "description": "可选。指定只加速某一项；不传则加速当前所有进行中的耗时操作"
+                  }
+                }
+              },
+              "example": {
+                "state": "seclusion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "加速结果（finished 为空表示当前没有进行中的耗时操作，不算错误）",
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": 200,
+                  "message": "已加速 2 项耗时操作，请照常完成结算即可获得与自然到点一致的收益",
+                  "data": {
+                    "finished": [
+                      {
+                        "state": "seclusion",
+                        "planned_seconds": 600,
+                        "mode": "normal"
+                      },
+                      {
+                        "state": "adventure",
+                        "adventure_id": 123,
+                        "event_type": "spirit_spring"
+                      }
+                    ],
+                    "server_time": "2026-09-26T10:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数错误（state 不在白名单内）"
           },
           "401": {
             "description": "未授权"

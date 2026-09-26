@@ -30,12 +30,18 @@ const fetchData = async () => {
       apiClient.get('/gather/resources'),
       apiClient.get('/gather/stats')
     ])
-    
-    currentMap.value = mapRes.data.current_map
-    currentMapId.value = mapRes.data.current_map?.id
-    resources.value = resourcesRes.data.resources || []
-    stats.value = statsRes.data
-    
+
+    // 响应拦截器返回的是原始 axios 响应（见 api/index.ts 的 response 用例），
+    // 后端体统一为 { code, data: {...} }，因此真实数据在 .data.data。
+    // 旧代码只取 .data.current_map，拿到的是 undefined，面板才一直显示"无法获取当前地图信息"。
+    // 这里保留 .data 兜底，兼容后端某天直接展开返回的情况。
+    const mapData = mapRes.data?.data || mapRes.data || {}
+    currentMap.value = mapData.current_map || null
+    currentMapId.value = mapData.current_map?.id || null
+    const resourcesData = resourcesRes.data?.data || resourcesRes.data || {}
+    resources.value = resourcesData.resources || []
+    stats.value = statsRes.data?.data || statsRes.data || null
+
     startCountdowns()
   } catch (error) {
     console.error('Failed to fetch gathering data:', error)
@@ -151,7 +157,8 @@ const refreshResource = async (resourceId) => {
 const fetchStats = async () => {
   try {
     const res = await apiClient.get('/gather/stats')
-    stats.value = res.data
+    // 与 fetchData 同理：真实统计在 .data.data
+    stats.value = res.data?.data || res.data || null
   } catch (error) {
     console.error('Failed to fetch stats:', error)
   }

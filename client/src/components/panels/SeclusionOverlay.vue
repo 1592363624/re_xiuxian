@@ -114,6 +114,8 @@
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
+        <!-- GM 测试用「立即完成」：仅管理员可见，跳过等待并按计划时长正常结束 -->
+        <AdminQuickFinishButton state="seclusion" :loading="loading" @done="handleEnd" />
         <!-- 强行出关按钮（深度闭关专用，未达最短时长时显示） -->
         <button
           v-if="isDeep && !reachedMinDuration"
@@ -244,6 +246,8 @@
 
             <!-- 操作按钮区 -->
             <div class="flex gap-2">
+              <!-- GM 测试用「立即完成」：仅管理员可见 -->
+              <AdminQuickFinishButton state="seclusion" :loading="loading" @done="handleEnd" />
               <!-- 强行出关按钮（深度闭关未达时长） -->
               <button
                 v-if="isDeep && !reachedMinDuration"
@@ -279,6 +283,8 @@ import { useUIStore } from '../../stores/ui'
 import { formatTime } from '../../utils/format'
 // 结束/强行出关的结算与日志实现收在 composable 里，与闭关面板共用一份
 import { useSeclusionSettle } from '../../composables/useSeclusionSettle'
+// GM 测试用的「立即完成」按钮（仅管理员可见）
+import AdminQuickFinishButton from '../common/AdminQuickFinishButton.vue'
 
 const store = usePlayerStore()
 const uiStore = useUIStore()
