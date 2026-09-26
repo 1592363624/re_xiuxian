@@ -24,6 +24,14 @@ jobs:
       # 引导脚本来自本次 checkout（不是服务器上的旧副本），所以即使服务器上的
       # deploy.ps1 已经坏了，下次 push 依然能拉到最新的引导逻辑并自愈。
       # 约束：deploy-bootstrap.ps1 必须保持纯 ASCII 且足够短 —— cmd.exe 命令行上限 8191 字符。
+      #   经验成本：base64(UTF-16LE) 约等于源码字符数 × 2.67，超过 7000 就直接卡在编码步骤。
+      #   所以脚本里只留一行式注释，详细来龙去脉写在这段注释里（YAML 注释不占载荷）。
+      #   两处容易踩坑的修复逻辑，都已在脚本内保留一行说明：
+      #     - AddPath 会先 Trim 掉注册表 PATH 项里的引号/占位符，并给 Test-Path 加
+      #       -EA SilentlyContinue：畸形项报的是非终止错误，光靠 try/catch 仍会在
+      #       CI 日志里刷一片红 "Illegal characters in path"，看着像失败其实不是；
+      #     - sshd 在服务启动时快照 PATH，之后装的 Git/Node 在 SSH 会话里是缺的，
+      #       所以要现场从注册表读 PATH 并补齐常见安装位置。
       - name: Encode bootstrap script
         id: enc
         run: |
@@ -32,7 +40,7 @@ jobs:
           # payload waste here (PowerShell accepts LF), and UTF-16LE doubles every byte.
           b64=$(tr -d '\r' < scripts/deploy-bootstrap.ps1 | iconv -f UTF-8 -t UTF-16LE | base64 -w0)
           if [ ${#b64} -gt 7000 ]; then
-            echo "::error::encoded bootstrap is ${#b64} chars (cmd.exe limit is 8191) - shorten scripts/deploy-bootstrap.ps1"
+            echo "::error::encoded bootstrap is ${#b64} chars (cmd.exe limit is 8191) - shorten scripts/deploy-bootstrap.ps1, keep prose in deploy.yml"
             exit 1
           fi
           echo "b64=$b64" >> "$GITHUB_OUTPUT"
