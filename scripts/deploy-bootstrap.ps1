@@ -11,7 +11,15 @@ try {
 function Fail($m) { Write-Host "[FAIL] $m"; exit 1 }
 $script:pathAdded = 0
 function AddPath($d) {
-  if ($d -and (Test-Path -LiteralPath $d) -and (($env:Path -split ';') -notcontains $d)) {
+  if (-not $d) { return }
+  # Registry PATH entries are user-editable and can be malformed (stray quotes,
+  # placeholder chars). Test-Path throws on those and would spam the CI log with
+  # a red "Illegal characters in path" error, so strip quotes and skip on failure.
+  $d = ([string]$d).Trim().Trim('"')
+  if (-not $d) { return }
+  $exists = $false
+  try { $exists = Test-Path -LiteralPath $d } catch { return }
+  if ($exists -and (($env:Path -split ';') -notcontains $d)) {
     $env:Path = "$($env:Path);$d"; $script:pathAdded++
   }
 }

@@ -309,18 +309,14 @@
       </div>
     </div>
 
-    <!-- 放生确认弹窗 -->
-    <div v-if="releaseConfirm" class="fixed inset-0 z-[60] flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/90" @click="releaseConfirm = false"></div>
-      <div class="relative bg-surface-raised border border-state-danger/50 rounded-panel p-6 max-w-sm w-full mx-4 shadow-2xl shadow-black/60">
-        <h3 class="text-lg font-bold text-state-danger mb-2 font-display">确认放生</h3>
-        <p class="text-fg-muted text-sm mb-4">放生后灵兽将永久离开，将按稀有度返还部分灵石。此操作不可撤销，是否继续？</p>
-        <div class="flex justify-end gap-3">
-          <AppButton variant="default" @click="releaseConfirm = false">取消</AppButton>
-          <AppButton variant="danger" :disabled="loading.action" @click="confirmRelease">确认放生</AppButton>
-        </div>
+    <!-- 放生确认弹窗：外壳统一走 Modal -->
+    <Modal :is-open="releaseConfirm" title="确认放生" width="384px" @close="releaseConfirm = false">
+      <p class="text-fg-muted text-sm mb-4">放生后灵兽将永久离开，将按稀有度返还部分灵石。此操作不可撤销，是否继续？</p>
+      <div class="flex justify-end gap-3">
+        <AppButton variant="default" @click="releaseConfirm = false">取消</AppButton>
+        <AppButton variant="danger" :disabled="loading.action" @click="confirmRelease">确认放生</AppButton>
       </div>
-    </div>
+    </Modal>
   </PanelShell>
 </template>
 
@@ -335,6 +331,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { formatBeijing } from '../../utils/time';
 import PanelShell from '../ui/PanelShell.vue';
+import Modal from '../common/Modal.vue';
 import Tabs from '../ui/Tabs.vue';
 import AppButton from '../ui/AppButton.vue';
 import Badge from '../ui/Badge.vue';

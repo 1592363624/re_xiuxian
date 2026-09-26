@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-defineProps({
+const props = defineProps({
   isOpen: {
     type: Boolean,
     required: true
@@ -79,7 +79,9 @@ const close = () => {
 }
 
 const handleBackdropClick = () => {
-  // We can pass a prop to disable backdrop click
+  // 有进行中的定时会话（如炼丹火候）时会传 closeOnBackdrop=false：
+  // 点遮罩必须无效，否则误点一下就把会话界面关掉、进度丢失。
+  if (!props.closeOnBackdrop) return
   close()
 }
 </script>

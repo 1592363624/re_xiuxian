@@ -335,45 +335,37 @@
         </div>
     </template>
 
-    <!-- 飞升二次确认弹窗 -->
-    <div v-if="showAscendConfirm" class="fixed inset-0 z-[60] flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/80" @click="showAscendConfirm = false"></div>
-      <div class="relative bg-surface-raised border border-gold-700 rounded-panel p-6 max-w-md w-full mx-4 shadow-2xl">
-        <h3 class="text-lg font-bold text-gold-300 mb-2">飞升确认</h3>
-        <p class="text-fg-secondary text-sm mb-4">
-          当前成功率：<span class="text-gold-300 font-bold num">{{ (profile?.success_rate.final_rate * 100).toFixed(1) }}%</span><br>
-          成功：飞升灵界，进入真仙境界。<br>
-          失败：残魂 -30，修为 -10%，进入 2 小时虚弱状态。
-        </p>
-        <div class="flex justify-end gap-2">
-          <AppButton variant="default" size="sm" @click="showAscendConfirm = false">取消</AppButton>
-          <AppButton variant="primary" size="sm" :disabled="loading" @click="handleAscend">
-            {{ loading ? '飞升中...' : '确认飞升' }}
-          </AppButton>
-        </div>
+    <!-- 飞升二次确认弹窗：外壳统一走 Modal -->
+    <Modal :is-open="showAscendConfirm" title="飞升确认" width="448px" @close="showAscendConfirm = false">
+      <p class="text-fg-secondary text-sm mb-4">
+        当前成功率：<span class="text-gold-300 font-bold num">{{ (profile?.success_rate.final_rate * 100).toFixed(1) }}%</span><br>
+        成功：飞升灵界，进入真仙境界。<br>
+        失败：残魂 -30，修为 -10%，进入 2 小时虚弱状态。
+      </p>
+      <div class="flex justify-end gap-2">
+        <AppButton variant="default" size="sm" @click="showAscendConfirm = false">取消</AppButton>
+        <AppButton variant="primary" size="sm" :disabled="loading" @click="handleAscend">
+          {{ loading ? '飞升中...' : '确认飞升' }}
+        </AppButton>
       </div>
-    </div>
+    </Modal>
 
     <!-- 触发夺舍二次确认弹窗 -->
-    <div v-if="showReincarnationTrigger" class="fixed inset-0 z-[60] flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/80" @click="showReincarnationTrigger = false"></div>
-      <div class="relative bg-surface-raised border border-rose-700 rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl">
-        <h3 class="text-lg font-bold text-rose-300 mb-2">触发夺舍重生</h3>
-        <p class="text-fg-secondary text-sm mb-3">请选择死亡原因：</p>
-        <div class="space-y-2 mb-4">
-          <button v-for="reason in deathReasons" :key="reason.value"
-            @click="handleTriggerReincarnation(reason.value)"
-            :disabled="loading"
-            class="w-full text-left px-3 py-2 text-xs rounded bg-surface-raised border border-line text-fg-secondary hover:bg-surface-hover hover:border-rose-700 transition-colors">
-            <div class="font-bold">{{ reason.label }}</div>
-            <div class="text-fg-faint mt-0.5">{{ reason.desc }}</div>
-          </button>
-        </div>
-        <div class="flex justify-end">
-          <AppButton variant="default" size="sm" @click="showReincarnationTrigger = false">取消</AppButton>
-        </div>
+    <Modal :is-open="showReincarnationTrigger" title="触发夺舍重生" width="448px" @close="showReincarnationTrigger = false">
+      <p class="text-fg-secondary text-sm mb-3">请选择死亡原因：</p>
+      <div class="space-y-2 mb-4">
+        <button v-for="reason in deathReasons" :key="reason.value"
+          @click="handleTriggerReincarnation(reason.value)"
+          :disabled="loading"
+          class="w-full text-left px-3 py-2 text-xs rounded bg-surface-raised border border-line text-fg-secondary hover:bg-surface-hover hover:border-rose-700 transition-colors">
+          <div class="font-bold">{{ reason.label }}</div>
+          <div class="text-fg-faint mt-0.5">{{ reason.desc }}</div>
+        </button>
       </div>
-    </div>
+      <div class="flex justify-end">
+        <AppButton variant="default" size="sm" @click="showReincarnationTrigger = false">取消</AppButton>
+      </div>
+    </Modal>
   </PanelShell>
 </template>
 
@@ -403,6 +395,7 @@ import {
 import { useUIStore } from '../../stores/ui';
 import { formatCompact } from '../../utils/format';
 import PanelShell from '../ui/PanelShell.vue';
+import Modal from '../common/Modal.vue';
 import PanelCard from '../ui/PanelCard.vue';
 import StatBar from '../ui/StatBar.vue';
 import Badge from '../ui/Badge.vue';

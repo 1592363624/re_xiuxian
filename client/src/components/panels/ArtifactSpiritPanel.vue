@@ -274,73 +274,49 @@
       </div>
     </div>
 
-    <!-- 器灵详情弹窗 -->
-    <div v-if="detailModal.show" class="fixed inset-0 z-[60] flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/90" @click="detailModal.show = false"></div>
-      <div class="relative bg-surface-raised border border-state-info/40 rounded-panel p-5 max-w-md w-full mx-4 shadow-2xl shadow-black/60">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-lg font-bold text-state-info font-display">器灵详情</h3>
-          <button @click="detailModal.show = false" class="text-fg-muted hover:text-fg-primary transition-colors" aria-label="关闭">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
+    <!-- 器灵详情弹窗：外壳统一走 Modal（遮罩、层级、出入场动画、滚动区不再各写一份） -->
+    <Modal :is-open="detailModal.show" title="器灵详情" width="448px" @close="detailModal.show = false">
+      <div v-if="detailModal.data" class="space-y-2 text-xs">
+        <div class="grid grid-cols-2 gap-2">
+          <div><span class="text-fg-muted">类型：</span><span :class="getSpiritTypeTextClass(detailModal.data.spirit_type)">{{ detailModal.data.spirit_type_name }}</span></div>
+          <div><span class="text-fg-muted">等级：</span><span class="text-state-info num">Lv.{{ detailModal.data.spirit_level }} / {{ detailModal.data.max_level }}</span></div>
+          <div><span class="text-fg-muted">经验：</span><span class="text-state-info num">{{ detailModal.data.spirit_exp }} / {{ detailModal.data.next_level_exp }}</span></div>
+          <div><span class="text-fg-muted">亲密度：</span><span class="text-pink-300 num">{{ detailModal.data.intimacy }} / {{ detailModal.data.intimacy_max }}</span></div>
+          <div><span class="text-fg-muted">力量值：</span><span class="text-state-success num">{{ detailModal.data.power }} / {{ detailModal.data.power_max }}</span></div>
+          <div><span class="text-fg-muted">试炼最高：</span><span class="text-gold-400 num" :title="String(detailModal.data.trial_best_score)">{{ formatCompact(detailModal.data.trial_best_score) }}</span></div>
+          <div><span class="text-fg-muted">今日试炼：</span><span class="text-state-arcane num">{{ detailModal.data.daily_trial_count }} / {{ detailModal.data.daily_trial_limit }}</span></div>
+          <div><span class="text-fg-muted">累计试炼：</span><span class="text-fg-secondary num">{{ detailModal.data.trial_total_count }} 次</span></div>
         </div>
-        <div v-if="detailModal.data" class="space-y-2 text-xs">
-          <div class="grid grid-cols-2 gap-2">
-            <div><span class="text-fg-muted">类型：</span><span :class="getSpiritTypeTextClass(detailModal.data.spirit_type)">{{ detailModal.data.spirit_type_name }}</span></div>
-            <div><span class="text-fg-muted">等级：</span><span class="text-state-info num">Lv.{{ detailModal.data.spirit_level }} / {{ detailModal.data.max_level }}</span></div>
-            <div><span class="text-fg-muted">经验：</span><span class="text-state-info num">{{ detailModal.data.spirit_exp }} / {{ detailModal.data.next_level_exp }}</span></div>
-            <div><span class="text-fg-muted">亲密度：</span><span class="text-pink-300 num">{{ detailModal.data.intimacy }} / {{ detailModal.data.intimacy_max }}</span></div>
-            <div><span class="text-fg-muted">力量值：</span><span class="text-state-success num">{{ detailModal.data.power }} / {{ detailModal.data.power_max }}</span></div>
-            <div><span class="text-fg-muted">试炼最高：</span><span class="text-gold-400 num" :title="String(detailModal.data.trial_best_score)">{{ formatCompact(detailModal.data.trial_best_score) }}</span></div>
-            <div><span class="text-fg-muted">今日试炼：</span><span class="text-state-arcane num">{{ detailModal.data.daily_trial_count }} / {{ detailModal.data.daily_trial_limit }}</span></div>
-            <div><span class="text-fg-muted">累计试炼：</span><span class="text-fg-secondary num">{{ detailModal.data.trial_total_count }} 次</span></div>
+        <div class="border-t border-line pt-2 mt-2">
+          <div class="text-fg-muted mb-1">冷却时间（秒）：</div>
+          <div class="grid grid-cols-2 gap-2 num">
+            <div>抚摸：{{ detailModal.data.cooldowns.pet }}s</div>
+            <div>温养：{{ detailModal.data.cooldowns.nurture }}s</div>
+            <div>护主：{{ detailModal.data.cooldowns.protect }}s</div>
+            <div>催发：{{ detailModal.data.cooldowns.activate }}s</div>
           </div>
-          <div class="border-t border-line pt-2 mt-2">
-            <div class="text-fg-muted mb-1">冷却时间（秒）：</div>
-            <div class="grid grid-cols-2 gap-2 num">
-              <div>抚摸：{{ detailModal.data.cooldowns.pet }}s</div>
-              <div>温养：{{ detailModal.data.cooldowns.nurture }}s</div>
-              <div>护主：{{ detailModal.data.cooldowns.protect }}s</div>
-              <div>催发：{{ detailModal.data.cooldowns.activate }}s</div>
-            </div>
-          </div>
-          <div v-if="detailModal.data.is_protecting || detailModal.data.is_activating" class="border-t border-line pt-2 mt-2">
-            <div v-if="detailModal.data.is_protecting" class="text-state-success">· 护主状态中，至 {{ formatTime(detailModal.data.protect_active_until) }}</div>
-            <div v-if="detailModal.data.is_activating" class="text-gold-400">· 催发状态中，至 {{ formatTime(detailModal.data.activate_active_until) }}</div>
-          </div>
+        </div>
+        <div v-if="detailModal.data.is_protecting || detailModal.data.is_activating" class="border-t border-line pt-2 mt-2">
+          <div v-if="detailModal.data.is_protecting" class="text-state-success">· 护主状态中，至 {{ formatTime(detailModal.data.protect_active_until) }}</div>
+          <div v-if="detailModal.data.is_activating" class="text-gold-400">· 催发状态中，至 {{ formatTime(detailModal.data.activate_active_until) }}</div>
         </div>
       </div>
-    </div>
+    </Modal>
 
     <!-- 操作结果弹窗 -->
-    <div v-if="resultModal.show" class="fixed inset-0 z-[60] flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/90" @click="resultModal.show = false"></div>
-      <div class="relative bg-surface-raised border border-state-info/40 rounded-panel p-5 max-w-md w-full mx-4 shadow-2xl shadow-black/60">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-lg font-bold font-display" :class="resultModal.success ? 'text-state-success' : 'text-state-danger'">
-            {{ resultModal.title }}
-          </h3>
-          <button @click="resultModal.show = false" class="text-fg-muted hover:text-fg-primary transition-colors" aria-label="关闭">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
-        </div>
-        <div class="text-sm text-fg-secondary whitespace-pre-line wrap-cjk">{{ resultModal.message }}</div>
-        <AppButton block variant="primary" class="mt-4" @click="resultModal.show = false">确认</AppButton>
-      </div>
-    </div>
+    <Modal :is-open="resultModal.show" :title="resultModal.title" width="448px" @close="resultModal.show = false">
+      <div class="text-sm text-fg-secondary whitespace-pre-line wrap-cjk">{{ resultModal.message }}</div>
+      <AppButton block variant="primary" class="mt-4" @click="resultModal.show = false">确认</AppButton>
+    </Modal>
 
     <!-- 二次确认弹窗 -->
-    <div v-if="confirmModal.show" class="fixed inset-0 z-[60] flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/90" @click="confirmModal.show = false"></div>
-      <div class="relative bg-surface-raised border border-gold-800/40 rounded-panel p-5 max-w-md w-full mx-4 shadow-2xl shadow-black/60">
-        <h3 class="text-lg font-bold text-gold-400 mb-3 font-display">{{ confirmModal.title }}</h3>
-        <div class="text-sm text-fg-secondary mb-4 whitespace-pre-line wrap-cjk">{{ confirmModal.message }}</div>
-        <div class="grid grid-cols-2 gap-2">
-          <AppButton variant="default" @click="confirmModal.show = false">取消</AppButton>
-          <AppButton variant="primary" @click="confirmModal.confirm">确认</AppButton>
-        </div>
+    <Modal :is-open="confirmModal.show" :title="confirmModal.title" width="448px" @close="confirmModal.show = false">
+      <div class="text-sm text-fg-secondary mb-4 whitespace-pre-line wrap-cjk">{{ confirmModal.message }}</div>
+      <div class="grid grid-cols-2 gap-2">
+        <AppButton variant="default" @click="confirmModal.show = false">取消</AppButton>
+        <AppButton variant="primary" @click="confirmModal.confirm">确认</AppButton>
       </div>
-    </div>
+    </Modal>
   </PanelShell>
 </template>
 
@@ -353,6 +329,7 @@
 import { ref, computed, onMounted, reactive } from 'vue';
 import { formatBeijing } from '../../utils/time';
 import PanelShell from '../ui/PanelShell.vue';
+import Modal from '../common/Modal.vue';
 import Tabs from '../ui/Tabs.vue';
 import AppButton from '../ui/AppButton.vue';
 import Badge from '../ui/Badge.vue';

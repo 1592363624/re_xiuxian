@@ -360,7 +360,9 @@ const loaderFiles = new Set([...docked.values()].map(p => path.basename(p).repla
  */
 const REACHABILITY_EXEMPTIONS = new Map([
   ['panel-not-in-catalog:combat', '战斗面板不是坞内入口，由战斗流程 goPanel(\'combat\') 直接打开（GameLayout.vue:308/340）'],
-  ['dead-panel-file:GatheringPanel', '采集玩法已有别的落点，这份是重构前的残本，零引用；等业主确认后删（见 [[project-ui-refactor-open-items-2026-09-19]]）'],
+  // 2026-09-26：`dead-panel-file:GatheringPanel` 豁免已按其到期条件删除 ——
+  // 采集面板已正式登记进 panels/registry.js（id=gather）并放进 DOCK_TABS 的「历练」页，
+  // 断链不再存在，豁免留着只会反过来报"豁免已过期"。
 ])
 
 const reachabilityFailures = []

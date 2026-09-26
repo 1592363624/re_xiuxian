@@ -28,6 +28,7 @@ import {
 } from '../../api/crafting'
 import { useUIStore } from '../../stores/ui'
 import PanelShell from '../ui/PanelShell.vue'
+import Modal from '../common/Modal.vue'
 import Tabs from '../ui/Tabs.vue'
 import AppButton from '../ui/AppButton.vue'
 import Badge from '../ui/Badge.vue'
@@ -107,24 +108,51 @@ const tabItems = computed(() => [
 
 const legendaryRecipes = ref<any[]>([])
 const craftingLegend = ref(false)
+// 通天灵宝炼制结果（null 表示无浮层）；与本页炼制结果共用同一套浮层版式
+const legendOutcome = ref<any | null>(null)
 
 const loadLegendary = async () => {
   try {
     const api = (await import('../../api/index')).default
     const res = await api.get('/legendary-weapons/recipes')
-    legendaryRecipes.value = (res.data?.recipes || res.recipes || [])
+    // 响应体是 { code, data: { recipes } }，按标准解包取 data.data（此前少取一层，列表恒为空）
+    legendaryRecipes.value = res.data?.data?.recipes || []
   } catch { legendaryRecipes.value = [] }
 }
 
+/**
+ * 取配方中文名（服务端下发），用于结果浮层展示宝物本身
+ * 不直接印服务端消息里的物品键，避免把内部 key 露给玩家
+ * @param recipeId - 配方 id
+ */
+const legendRecipeName = (recipeId: string): string => {
+  return legendaryRecipes.value.find((r: any) => r.id === recipeId)?.name || ''
+}
+
+/**
+ * 通天灵宝炼制（逆天炼宝：失败毁材、损修为，低概率跌境）
+ * 结果走自定义浮层展示，禁用浏览器原生 alert
+ * @param recipeId - 配方 id
+ */
 const craftLegendary = async (recipeId: string) => {
   craftingLegend.value = true
   try {
     const api = (await import('../../api/index')).default
     const res = await api.post('/legendary-weapons/craft', { recipe: recipeId })
-    alert(res.message || res.data?.message || '炼制结束')
+    // 后端回 { code, message, data }，判定结果与损失明细都在 data 内
+    const data = res.data?.data || {}
+    legendOutcome.value = {
+      win: !!data.win,
+      recipe: data.recipe || recipeId,
+      rate: Number(data.rate) || 0,
+      exp_loss: Number(data.exp_loss) || 0,
+      realm_fell: !!data.realm_fell,
+      message: data.message || res.data?.message || ''
+    }
     await loadLegendary()
   } catch (e: any) {
-    alert(e.message || '炼制失败')
+    // 材料不足/灵石不足等业务错误（400）统一由这里播报，拦截器已认领传输层错误
+    uiStore.showApiError(e, '炼制失败')
   } finally {
     craftingLegend.value = false
   }
@@ -674,172 +702,190 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- ====== 火候控制浮层（子弹窗，不属于面板外壳） ====== -->
-    <div
-      v-if="heatSession"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+    <!-- ====== 火候控制浮层：定时会话，禁用关闭按钮与遮罩关闭，避免误关丢炼丹进度 ====== -->
+    <Modal
+      :is-open="!!heatSession"
+      width="448px"
+      :show-close="false"
+      :close-on-backdrop="false"
     >
-      <div class="w-full max-w-md bg-surface-base border border-gold-800 rounded-panel shadow-2xl animate-fade-in">
-        <!-- 标题栏 -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-line-subtle">
-          <div>
-            <h3 class="text-gold-400 font-bold">{{ heatSession.recipe_name }}</h3>
-            <p class="text-xs text-fg-faint">
-              第 <span class="num">{{ Math.min(heatLogs.length + 1, heatSession.total_stages) }} / {{ heatSession.total_stages }}</span> 阶段
-              · 数量 <span class="num">x{{ heatSession.quantity }}</span>
-            </p>
-          </div>
-          <!-- 剩余时间：低于 30 秒转红警示 -->
-          <div class="text-right">
-            <div class="text-xs text-fg-faint">丹炉冷却倒计时</div>
-            <div class="num text-sm" :class="heatRemaining <= 30 ? 'text-rose-400' : 'text-fg-secondary'">
-              {{ heatRemaining }}s
-            </div>
-          </div>
-        </div>
-
-        <!-- 炉火动画区 -->
-        <div class="px-4 py-5 flex flex-col items-center">
-          <div
-            class="w-24 h-24 rounded-full flex items-center justify-center text-4xl transition-all duration-500 furnace-glow"
-            :class="{
-              'furnace-low': heatSession.hint?.level === 'low',
-              'furnace-mid': heatSession.hint?.level === 'mid',
-              'furnace-high': heatSession.hint?.level === 'high'
-            }"
-          >
-            🔥
-          </div>
-          <!-- 火候提示：模糊描述，玩家据此推断档位 -->
-          <p v-if="!heatFinished" class="mt-4 text-center text-sm text-gold-300 px-2">
-            {{ heatSession.hint?.text }}
-          </p>
-          <p v-else class="mt-4 text-center text-sm text-emerald-400">
-            火候把控完毕，可以开炉了
+      <!-- 标题栏：丹方名 + 阶段进度 + 冷却倒计时 -->
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-gold-400 font-bold">{{ heatSession.recipe_name }}</h3>
+          <p class="text-xs text-fg-faint">
+            第 <span class="num">{{ Math.min(heatLogs.length + 1, heatSession.total_stages) }} / {{ heatSession.total_stages }}</span> 阶段
+            · 数量 <span class="num">x{{ heatSession.quantity }}</span>
           </p>
         </div>
-
-        <!-- 阶段反馈时间线 -->
-        <div v-if="heatLogs.length" class="px-4 pb-2 flex justify-center gap-2">
-          <div
-            v-for="(log, idx) in heatLogs"
-            :key="idx"
-            class="px-2 py-1 rounded text-xs border"
-            :class="log.stage_result === 'perfect'
-              ? 'border-emerald-800 bg-emerald-900/20 text-emerald-400'
-              : (log.stage_result === 'too_hot'
-                  ? 'border-rose-800 bg-rose-900/20 text-rose-400'
-                  : 'border-sky-800 bg-sky-900/20 text-sky-400')"
-            :title="log.stage_message"
-          >
-            {{ log.stage_result === 'perfect' ? '完美' : (log.stage_result === 'too_hot' ? '火大' : '火小') }}
+        <!-- 剩余时间：低于 30 秒转红警示 -->
+        <div class="text-right">
+          <div class="text-xs text-fg-faint">丹炉冷却倒计时</div>
+          <div class="num text-sm" :class="heatRemaining <= 30 ? 'text-rose-400' : 'text-fg-secondary'">
+            {{ heatRemaining }}s
           </div>
-        </div>
-
-        <!-- 火候档位选择 -->
-        <div v-if="!heatFinished" class="px-4 pb-4">
-          <div class="grid grid-cols-5 gap-2">
-            <button
-              v-for="h in heatOptions"
-              :key="h"
-              @click="handleSubmitHeat(h)"
-              :disabled="heatSubmitting"
-              class="py-2 rounded-control border border-line bg-surface-hover text-xs text-fg-secondary hover:border-gold-700 hover:text-gold-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {{ getHeatLabel(h) }}
-            </button>
-          </div>
-        </div>
-
-        <!-- 操作区 -->
-        <div class="px-4 pb-4 flex gap-2">
-          <AppButton variant="default" :disabled="crafting" @click="handleCancelHeat">停火散炉</AppButton>
-          <AppButton
-            v-if="heatFinished"
-            variant="primary"
-            class="flex-1"
-            :disabled="crafting"
-            @click="handleFinishHeat"
-          >
-            {{ crafting ? '开炉中…' : '开炉取丹' }}
-          </AppButton>
         </div>
       </div>
-    </div>
 
-    <!-- ====== 炼制结果浮层（子弹窗，不属于面板外壳） ====== -->
-    <div
-      v-if="craftOutcome"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-      @click.self="craftOutcome = null"
-    >
-      <div class="w-full max-w-sm bg-surface-base border border-line rounded-panel shadow-2xl animate-fade-in p-5">
-        <h3 class="text-center font-bold mb-3" :class="craftOutcome.success ? 'text-emerald-400' : 'text-rose-400'">
-          {{ craftOutcome.success ? '炼制成功' : '炼制失败' }}
-        </h3>
-
-        <!-- 成品信息 -->
-        <div v-if="craftOutcome.success_count > 0" class="text-center mb-4">
-          <div class="text-lg text-gold-300">
-            {{ craftOutcome.product.name }} x{{ craftOutcome.product.quantity }}
-          </div>
-          <div v-if="craftOutcome.product.quality_tier" class="mt-1 text-sm text-gold-500">
-            【{{ craftOutcome.product.quality_tier }}】
-            <!-- 丹药展示效果倍率（服用恢复/修为放大）；装备展示属性浮动倍率（穿戴基础属性放大） -->
-            <span v-if="craftOutcome.recipe_type === 'alchemy'" class="text-fg-faint text-xs">效果 x{{ craftOutcome.product.effect_multiplier }}</span>
-            <span v-else class="text-fg-faint text-xs">属性 x{{ craftOutcome.product.attr_multiplier }}</span>
-          </div>
+      <!-- 炉火动画区 -->
+      <div class="py-5 flex flex-col items-center">
+        <div
+          class="w-24 h-24 rounded-full flex items-center justify-center text-4xl transition-all duration-500 furnace-glow"
+          :class="{
+            'furnace-low': heatSession.hint?.level === 'low',
+            'furnace-mid': heatSession.hint?.level === 'mid',
+            'furnace-high': heatSession.hint?.level === 'high'
+          }"
+        >
+          🔥
         </div>
-
-        <!-- 成功率构成明细，让玩家看懂数值来源 -->
-        <div class="text-xs space-y-1 bg-surface-sunken rounded-control p-3 border border-line-subtle">
-          <div class="flex justify-between text-fg-muted">
-            <span>基础成功率</span><span class="num">{{ (craftOutcome.rate_detail.base * 100).toFixed(0) }}%</span>
-          </div>
-          <div class="flex justify-between text-fg-muted">
-            <span>技能加成</span><span class="text-emerald-400 num">+{{ (craftOutcome.rate_detail.skill_bonus * 100).toFixed(1) }}%</span>
-          </div>
-          <div class="flex justify-between text-fg-muted">
-            <span>境界修正</span>
-            <span class="num" :class="craftOutcome.rate_detail.realm_modifier >= 0 ? 'text-emerald-400' : 'text-rose-400'">
-              {{ craftOutcome.rate_detail.realm_modifier >= 0 ? '+' : '' }}{{ (craftOutcome.rate_detail.realm_modifier * 100).toFixed(1) }}%
-            </span>
-          </div>
-          <div class="flex justify-between text-fg-muted">
-            <span>洞府丹房</span><span class="text-emerald-400 num">+{{ (craftOutcome.rate_detail.cave_bonus * 100).toFixed(1) }}%</span>
-          </div>
-          <div class="flex justify-between text-fg-muted">
-            <span>火候修正</span>
-            <span class="num" :class="craftOutcome.rate_detail.heat_modifier >= 0 ? 'text-emerald-400' : 'text-rose-400'">
-              {{ craftOutcome.rate_detail.heat_modifier >= 0 ? '+' : '' }}{{ (craftOutcome.rate_detail.heat_modifier * 100).toFixed(1) }}%
-            </span>
-          </div>
-          <div class="flex justify-between pt-1 mt-1 border-t border-line-subtle text-gold-400 font-bold">
-            <span>最终成功率</span><span class="num">{{ (craftOutcome.rate_detail.final * 100).toFixed(1) }}%</span>
-          </div>
-        </div>
-
-        <div class="mt-3 text-xs text-fg-faint text-center">
-          成功 <span class="num">{{ craftOutcome.success_count }} / {{ craftOutcome.total_attempts }}</span> 次
-          · 获得技能经验 <span class="num">{{ craftOutcome.skill_exp_gained }}</span>
-          <span v-if="craftOutcome.skill_level_up" class="text-gold-400">（技能升级！）</span>
-        </div>
-
-        <AppButton variant="default" block class="mt-4" @click="craftOutcome = null">确定</AppButton>
+        <!-- 火候提示：模糊描述，玩家据此推断档位 -->
+        <p v-if="!heatFinished" class="mt-4 text-center text-sm text-gold-300 px-2">
+          {{ heatSession.hint?.text }}
+        </p>
+        <p v-else class="mt-4 text-center text-sm text-emerald-400">
+          火候把控完毕，可以开炉了
+        </p>
       </div>
-    </div>
+
+      <!-- 阶段反馈时间线 -->
+      <div v-if="heatLogs.length" class="pb-2 flex justify-center gap-2">
+        <div
+          v-for="(log, idx) in heatLogs"
+          :key="idx"
+          class="px-2 py-1 rounded text-xs border"
+          :class="log.stage_result === 'perfect'
+            ? 'border-emerald-800 bg-emerald-900/20 text-emerald-400'
+            : (log.stage_result === 'too_hot'
+                ? 'border-rose-800 bg-rose-900/20 text-rose-400'
+                : 'border-sky-800 bg-sky-900/20 text-sky-400')"
+          :title="log.stage_message"
+        >
+          {{ log.stage_result === 'perfect' ? '完美' : (log.stage_result === 'too_hot' ? '火大' : '火小') }}
+        </div>
+      </div>
+
+      <!-- 火候档位选择 -->
+      <div v-if="!heatFinished" class="pb-2">
+        <div class="grid grid-cols-5 gap-2">
+          <button
+            v-for="h in heatOptions"
+            :key="h"
+            @click="handleSubmitHeat(h)"
+            :disabled="heatSubmitting"
+            class="py-2 rounded-control border border-line bg-surface-hover text-xs text-fg-secondary hover:border-gold-700 hover:text-gold-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {{ getHeatLabel(h) }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 操作区 -->
+      <div class="mt-4 pt-4 border-t border-line-subtle flex gap-2">
+        <AppButton variant="default" :disabled="crafting" @click="handleCancelHeat">停火散炉</AppButton>
+        <AppButton
+          v-if="heatFinished"
+          variant="primary"
+          class="flex-1"
+          :disabled="crafting"
+          @click="handleFinishHeat"
+        >
+          {{ crafting ? '开炉中…' : '开炉取丹' }}
+        </AppButton>
+      </div>
+    </Modal>
+
+    <!-- ====== 炼制结果浮层：成败色标题留在正文，外壳走统一 Modal ====== -->
+    <Modal :is-open="!!craftOutcome" width="384px" @close="craftOutcome = null">
+      <h3 class="text-center font-bold mb-3" :class="craftOutcome.success ? 'text-emerald-400' : 'text-rose-400'">
+        {{ craftOutcome.success ? '炼制成功' : '炼制失败' }}
+      </h3>
+
+      <!-- 成品信息 -->
+      <div v-if="craftOutcome.success_count > 0" class="text-center mb-4">
+        <div class="text-lg text-gold-300">
+          {{ craftOutcome.product.name }} x{{ craftOutcome.product.quantity }}
+        </div>
+        <div v-if="craftOutcome.product.quality_tier" class="mt-1 text-sm text-gold-500">
+          【{{ craftOutcome.product.quality_tier }}】
+          <!-- 丹药展示效果倍率（服用恢复/修为放大）；装备展示属性浮动倍率（穿戴基础属性放大） -->
+          <span v-if="craftOutcome.recipe_type === 'alchemy'" class="text-fg-faint text-xs">效果 x{{ craftOutcome.product.effect_multiplier }}</span>
+          <span v-else class="text-fg-faint text-xs">属性 x{{ craftOutcome.product.attr_multiplier }}</span>
+        </div>
+      </div>
+
+      <!-- 成功率构成明细，让玩家看懂数值来源 -->
+      <div class="text-xs space-y-1 bg-surface-sunken rounded-control p-3 border border-line-subtle">
+        <div class="flex justify-between text-fg-muted">
+          <span>基础成功率</span><span class="num">{{ (craftOutcome.rate_detail.base * 100).toFixed(0) }}%</span>
+        </div>
+        <div class="flex justify-between text-fg-muted">
+          <span>技能加成</span><span class="text-emerald-400 num">+{{ (craftOutcome.rate_detail.skill_bonus * 100).toFixed(1) }}%</span>
+        </div>
+        <div class="flex justify-between text-fg-muted">
+          <span>境界修正</span>
+          <span class="num" :class="craftOutcome.rate_detail.realm_modifier >= 0 ? 'text-emerald-400' : 'text-rose-400'">
+            {{ craftOutcome.rate_detail.realm_modifier >= 0 ? '+' : '' }}{{ (craftOutcome.rate_detail.realm_modifier * 100).toFixed(1) }}%
+          </span>
+        </div>
+        <div class="flex justify-between text-fg-muted">
+          <span>洞府丹房</span><span class="text-emerald-400 num">+{{ (craftOutcome.rate_detail.cave_bonus * 100).toFixed(1) }}%</span>
+        </div>
+        <div class="flex justify-between text-fg-muted">
+          <span>火候修正</span>
+          <span class="num" :class="craftOutcome.rate_detail.heat_modifier >= 0 ? 'text-emerald-400' : 'text-rose-400'">
+            {{ craftOutcome.rate_detail.heat_modifier >= 0 ? '+' : '' }}{{ (craftOutcome.rate_detail.heat_modifier * 100).toFixed(1) }}%
+          </span>
+        </div>
+        <div class="flex justify-between pt-1 mt-1 border-t border-line-subtle text-gold-400 font-bold">
+          <span>最终成功率</span><span class="num">{{ (craftOutcome.rate_detail.final * 100).toFixed(1) }}%</span>
+        </div>
+      </div>
+
+      <div class="mt-3 text-xs text-fg-faint text-center">
+        成功 <span class="num">{{ craftOutcome.success_count }} / {{ craftOutcome.total_attempts }}</span> 次
+        · 获得技能经验 <span class="num">{{ craftOutcome.skill_exp_gained }}</span>
+        <span v-if="craftOutcome.skill_level_up" class="text-gold-400">（技能升级！）</span>
+      </div>
+
+      <AppButton variant="default" block class="mt-4" @click="craftOutcome = null">确定</AppButton>
+    </Modal>
+
+    <!-- ====== 通天灵宝炼制结果浮层：与上方炼制结果同一套外壳与版式（替代原生 alert） ====== -->
+    <Modal :is-open="!!legendOutcome" width="384px" @close="legendOutcome = null">
+      <h3 class="text-center font-bold mb-3" :class="legendOutcome.win ? 'text-emerald-400' : 'text-rose-400'">
+        {{ legendOutcome.win ? '炼制成功' : '炼制失败' }}
+      </h3>
+
+      <!-- 成品：只印服务端下发的配方名，不把物品键露给玩家 -->
+      <div v-if="legendOutcome.win" class="text-center mb-4">
+        <div class="text-lg text-gold-300">{{ legendRecipeName(legendOutcome.recipe) }} ×1</div>
+      </div>
+
+      <!-- 本次判定明细：实际成功率 + 失败代价 -->
+      <div class="text-xs space-y-1 bg-surface-sunken rounded-control p-3 border border-line-subtle">
+        <div class="flex justify-between text-fg-muted">
+          <span>炼制成功率</span><span class="num">{{ (legendOutcome.rate * 100).toFixed(1) }}%</span>
+        </div>
+        <div v-if="legendOutcome.exp_loss > 0" class="flex justify-between text-fg-muted">
+          <span>修为损失</span><span class="num text-rose-400">-{{ legendOutcome.exp_loss }}</span>
+        </div>
+        <div v-if="legendOutcome.realm_fell" class="flex justify-between text-fg-muted">
+          <span>境界跌落</span><span class="num text-rose-400">已跌落</span>
+        </div>
+      </div>
+
+      <!-- 失败叙事文案（毁材/反噬）；成功文案含物品键，故不外露 -->
+      <div v-if="!legendOutcome.win" class="mt-3 text-xs text-fg-faint text-center whitespace-pre-line wrap-cjk">
+        {{ legendOutcome.message }}
+      </div>
+
+      <AppButton variant="default" block class="mt-4" @click="legendOutcome = null">确定</AppButton>
+    </Modal>
   </PanelShell>
 </template>
 
 <style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
 /* 丹炉光晕：以呼吸动画表现炉火强弱，配合火候提示等级切换颜色。
  * 颜色取令牌通道值（state-info / gold-400 / state-danger），换主题时不用回来改。 */
 .furnace-glow {
@@ -865,6 +911,5 @@ onUnmounted(() => {
 /* 尊重用户的减少动效偏好，避免动画引起不适 */
 @media (prefers-reduced-motion: reduce) {
   .furnace-glow { animation: none; }
-  .animate-fade-in { animation: none; }
 }
 </style>
