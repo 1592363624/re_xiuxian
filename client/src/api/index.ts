@@ -20,6 +20,20 @@ const apiClient: AxiosInstance = axios.create({
 // 请求拦截器
 // 写操作附带 X-Request-Timestamp / Nonce / Signature（防重放 + 防改包），
 // 算法与 server/utils/requestSign.js 对齐；rk 从 JWT 载荷取出。
+//
+// 拦截器里的失败（缺 rk / 签名计算异常）在 axios 眼里既没有 response 也没有 request，
+// 会落进响应拦截器的 else。以前那里一律 toast「请求配置错误」，把真正原因吃掉。
+// 因此这里 reject 时带上 __uiMessage，并直接播报 + 打 __uiNotified，让 else 闭嘴。
+const rejectSetupError = (message: string, config: AxiosRequestConfig, cause?: unknown) => {
+  const err: any = new Error(message);
+  err.__uiMessage = message;
+  err.__uiNotified = true;
+  err.config = config;
+  if (cause !== undefined) err.cause = cause;
+  useUIStore().showToast(message, 'error');
+  return Promise.reject(err);
+};
+
 apiClient.interceptors.request.use(
   async (config: AxiosRequestConfig) => {
     const playerStore = usePlayerStore();
@@ -63,19 +77,20 @@ apiClient.interceptors.request.use(
       const rk = extractRequestKey(token);
       if (!rk) {
         // 旧会话令牌没有 rk：强制重新登录，不能静默不签名（服务端 enforce 会拒）
-        const err: any = new Error('会话缺少请求签名密钥，请重新登录');
-        err.__uiNotified = true;
-        err.config = config;
-        return Promise.reject(err);
+        return rejectSetupError('会话缺少请求签名密钥，请重新登录', config);
       }
 
-      const signHeaders = await signRequestHeaders(rk, {
-        method,
-        url: fullUrl,
-        rawBody
-      });
-      if (config.headers) {
-        Object.assign(config.headers, signHeaders);
+      try {
+        const signHeaders = await signRequestHeaders(rk, {
+          method,
+          url: fullUrl,
+          rawBody
+        });
+        if (config.headers) {
+          Object.assign(config.headers, signHeaders);
+        }
+      } catch (signErr) {
+        return rejectSetupError('无法生成请求签名，请刷新页面后重试', config, signErr);
       }
     }
 
@@ -175,8 +190,11 @@ apiClient.interceptors.response.use(
           notify(`网络请求失败：${requestUrl}${error.message ? `（${error.message}）` : ''}`);
         }
       }
-    } else {
-      uiStore.showToast('请求配置错误', 'error');
+    } else if (!(error as any).__uiNotified) {
+      // 无 response / 无 request：多半是请求拦截器在发出前就失败了。
+      // 优先透出拦截器写好的 __uiMessage（缺 rk、签名失败），不要一律「请求配置错误」。
+      const setupMessage = (error as any).__uiMessage;
+      uiStore.showToast(setupMessage || error.message || '请求配置错误', 'error');
       (error as any).__uiNotified = true;
     }
 
